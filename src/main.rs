@@ -3,8 +3,8 @@ use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::builder::Builder;
 use inkwell::execution_engine::{ExecutionEngine, JitFunction, OptimizationLevel};
-use inkwell::values::{BasicValueEnum, FunctionValue, IntValue};
-use inkwell::types::BasicTypeEnum;
+use inkwell::values::{BasicValueEnum, FunctionValue, IntValue, PointerValue};
+use inkwell::types::{BasicTypeEnum, StructType};
 use nom::{
     branch::alt,
     bytes::complete::{tag},
@@ -14,7 +14,7 @@ use nom::{
     sequence::{delimited, preceded, separated_pair, terminated, tuple},
     IResult,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 // Token enum
 #[derive(Debug, Clone, PartialEq)]
@@ -73,6 +73,8 @@ pub enum AstNode {
     Call { method: String, receiver: String, args: Vec<String> },
     Lit(i64),
     Var(String),
+    Borrow(String), // &var
+    Assign(String, Box<AstNode>),
 }
 
 fn map_opt(p: impl Fn(&str) -> IResult<&str, Token>) -> impl Fn(&str) -> IResult<&str, Option<String>> {
@@ -127,6 +129,8 @@ fn parse_expr(input: &str) -> IResult<&str, AstNode> {
         map(int_literal, |t| if let Token::IntLit(n) = t { AstNode::Lit(n) } else { unreachable!() }),
         map(map_opt(identifier), |s| AstNode::Var(s.unwrap_or_default())),
         parse_call,
+        parse_borrow,
+        parse_assign,
     ))(input)
 }
 
@@ -134,6 +138,16 @@ fn parse_call(input: &str) -> IResult<&str, AstNode> {
     let parser = tuple((map_opt(identifier), multispace0, map_opt(identifier), multispace0, delimited(tag("("), separated_list1(tag(","), map_opt(identifier)), tag(")")), multispace0, tag(";")));
     let (i, (receiver, _, method, _, args_opt, _, _)) = parser(input)?;
     Ok((i, AstNode::Call { method: method.unwrap_or_default(), receiver: receiver.unwrap_or_default(), args: args_opt.unwrap_or_default() }))
+}
+
+fn parse_borrow(input: &str) -> IResult<&str, AstNode> {
+    preceded(tag("&"), map_opt(identifier).map(|s| AstNode::Borrow(s.unwrap_or_default())))(input)
+}
+
+fn parse_assign(input: &str) -> IResult<&str, AstNode> {
+    let parser = tuple((map_opt(identifier), tag("="), parse_expr, tag(";")));
+    let (i, (var, _, expr, _)) = parser(input)?;
+    Ok((i, AstNode::Assign(var.unwrap_or_default(), Box::new(expr))))
 }
 
 fn parse_func(input: &str) -> IResult<&str, AstNode> {
@@ -158,7 +172,62 @@ pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
     many0(alt((parse_func, parse_impl, parse_concept)))(input)
 }
 
-// Resolver
+// Borrow State
+#[derive(Debug, Clone)]
+enum BorrowState {
+    Owned,
+    Borrowed,
+    MutBorrowed,
+}
+
+#[derive(Debug, Clone)]
+pub struct BorrowChecker {
+    borrows: HashMap<String, BorrowState>,
+}
+
+impl BorrowChecker {
+    pub fn new() -> Self { Self { borrows: HashMap::new() } }
+
+    pub fn enter_scope(&mut self) {}
+
+    pub fn exit_scope(&mut self) {}
+
+    pub fn check(&mut self, node: &AstNode) -> bool {
+        match node {
+            AstNode::Var(v) => {
+                if let Some(state) = self.borrows.get(v) {
+                    match state {
+                        BorrowState::MutBorrowed => false,
+                        _ => true,
+                    }
+                } else {
+                    true
+                }
+            }
+            AstNode::Borrow(v) => {
+                if let Some(state) = self.borrows.get(v) {
+                    match state {
+                        BorrowState::Owned | BorrowState::Borrowed => {
+                            self.borrows.insert(v.clone(), BorrowState::Borrowed);
+                            true
+                        }
+                        BorrowState::MutBorrowed => false,
+                    }
+                } else {
+                    true
+                }
+            }
+            AstNode::Call { receiver, .. } => self.check(&AstNode::Var(receiver.clone())),
+            _ => true,
+        }
+    }
+
+    pub fn declare(&mut self, var: String, state: BorrowState) {
+        self.borrows.insert(var, state);
+    }
+}
+
+// Resolver with Borrow
 #[derive(Debug, Clone)]
 pub struct Resolver {
     concepts: HashMap<String, AstNode>,
@@ -184,12 +253,16 @@ impl Resolver {
 
     pub fn typecheck(&self, asts: &[AstNode]) -> bool {
         for ast in asts {
-            if let AstNode::FuncDef { where_clause, body, .. } = ast {
+            if let AstNode::FuncDef { where_clause, body, params, .. } = ast {
                 if let Some(bounds) = where_clause {
                     for (ty, concept) in bounds { if self.resolve_impl(&concept, &ty).is_none() { return false; } }
                 }
+                let mut bc = BorrowChecker::new();
+                for (pname, _) in params {
+                    bc.declare(pname.clone(), BorrowState::Owned);
+                }
                 for node in body {
-                    if let AstNode::Call { method, .. } = node { if !self.has_method("Addable", "i32", method) { return false; } }
+                    if !bc.check(node) { return false; }
                 }
             }
         }
@@ -203,14 +276,17 @@ impl Resolver {
     }
 }
 
-// LLVM Codegen
+// LLVM Codegen with Vec support
 pub struct LLVMCodegen<'ctx> {
     context: &'ctx Context,
     module: Module<'ctx>,
     builder: Builder<'ctx>,
     execution_engine: Option<ExecutionEngine<'ctx>>,
     i32_type: inkwell::types::IntType<'ctx>,
+    i8ptr_type: inkwell::types::PointerType<'ctx>,
+    vec_type: StructType<'ctx>,
     add_fn: Option<FunctionValue<'ctx>>,
+    malloc_fn: Option<FunctionValue<'ctx>>,
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -218,10 +294,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let module = context.create_module(module_name);
         let builder = context.create_builder();
         let i32_type = context.i32_type();
-        Self { context, module, builder, execution_engine: None, i32_type, add_fn: None }
+        let i8_type = context.i8_type();
+        let i8ptr_type = i8_type.ptr_type(inkwell::AddressSpace::Generic);
+        let vec_type = context.struct_type(&[i8ptr_type.into(), i32_type.into()], false);
+        Self { context, module, builder, execution_engine: None, i32_type, i8ptr_type, vec_type, add_fn: None, malloc_fn: None }
     }
 
-    pub fn gen_add_impl(&mut self) {
+    pub fn gen_intrinsics(&mut self) {
+        // add_i32
         let fn_type = self.i32_type.fn_type(&[self.i32_type.into(), self.i32_type.into()], false);
         let fn_val = self.module.add_function("add_i32", fn_type, None);
         let entry = self.context.append_basic_block(fn_val, "entry");
@@ -231,49 +311,54 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let ret = self.builder.build_int_add(x, y, "sum");
         self.builder.build_return(Some(&ret.into()));
         self.add_fn = Some(fn_val);
+
+        // malloc
+        let malloc_type = self.i8ptr_type.fn_type(&[self.i32_type.into()], false);
+        self.malloc_fn = Some(self.module.add_function("malloc", malloc_type, None));
     }
 
-    pub fn gen_func(&mut self, func: &AstNode, param_map: &mut HashMap<String, IntValue<'ctx>>) -> Option<FunctionValue<'ctx>> {
+    pub fn gen_func(&mut self, func: &AstNode, param_map: &mut HashMap<String, BasicValueEnum<'ctx>>) -> Option<FunctionValue<'ctx>> {
         if let AstNode::FuncDef { name, params, ret, body, .. } = func {
-            if *ret != "i32" { return None; }
-            let param_types: Vec<BasicTypeEnum<'ctx>> = params.iter().map(|(_, t)| if *t == "i32" { self.i32_type.into() } else { panic!("Unsupported type") }).collect();
+            let param_types: Vec<BasicTypeEnum<'ctx>> = params.iter().map(|(_, t)| {
+                if *t == "i32" { self.i32_type.into() }
+                else if *t == "Vec<i32>" { self.vec_type.into() }
+                else { panic!("Unsupported type") }
+            }).collect();
             let fn_type = self.i32_type.fn_type(&param_types, false);
             let fn_val = self.module.add_function(name, fn_type, None);
             let entry = self.context.append_basic_block(fn_val, "entry");
             self.builder.position_at_end(entry);
-            let mut args = Vec::new();
             for (i, param) in params.iter().enumerate() {
-                let arg = fn_val.get_nth_param(i as u32).unwrap().into_int_value();
-                args.push(arg);
+                let arg = fn_val.get_nth_param(i as u32).unwrap().into();
                 param_map.insert(param.0.clone(), arg);
             }
-            let mut last_val = self.i32_type.const_int(0, false);
+            let mut last_val = self.i32_type.const_int(0, false).into();
             for node in body.iter() {
                 if let Some(val) = self.gen_stmt(node, param_map) {
                     last_val = val;
                 }
             }
-            self.builder.build_return(Some(&last_val.into()));
+            self.builder.build_return(Some(&self.i32_type.const_int(0, false).into()));
             Some(fn_val)
         } else { None }
     }
 
-    fn gen_stmt(&mut self, node: &AstNode, param_map: &HashMap<String, IntValue<'ctx>>) -> Option<IntValue<'ctx>> {
+    fn gen_stmt(&mut self, node: &AstNode, param_map: &HashMap<String, BasicValueEnum<'ctx>>) -> Option<BasicValueEnum<'ctx>> {
         match node {
             AstNode::Call { method, receiver, args } if *method == "add" => {
-                if let (Some(recv_val), Some(arg_name)) = (param_map.get(receiver), args.first()) {
-                    if let Some(arg_val) = param_map.get(arg_name) {
-                        if let Some(add) = &self.add_fn {
-                            let call_site = self.builder.build_call(add, &[(*recv_val).into(), (*arg_val).into()], "add_call");
-                            if let Some(bv) = call_site.try_as_basic_value().left() {
-                                return bv.into_int_value().ok();
+                if let Some(recv) = param_map.get(receiver) {
+                    if let Some(arg_name) = args.first() {
+                        if let Some(arg) = param_map.get(arg_name) {
+                            if let Some(add) = &self.add_fn {
+                                let call = self.builder.build_call(add, &[recv.clone().into_int_value().into(), arg.clone().into_int_value().into()], "add_call");
+                                return call.try_as_basic_value().left();
                             }
                         }
                     }
                 }
                 None
             }
-            AstNode::Lit(n) => Some(self.i32_type.const_int(*n as u64, false)),
+            AstNode::Lit(n) => Some(self.i32_type.const_int(*n as u64, false).into()),
             AstNode::Var(v) => param_map.get(v).cloned(),
             _ => None,
         }
@@ -300,7 +385,7 @@ pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn std::error::Erro
 
     let context = Context::create();
     let mut codegen = LLVMCodegen::new(&context, "zeta");
-    codegen.gen_add_impl();
+    codegen.gen_intrinsics();
     let mut param_map = HashMap::new();
     for ast in asts.iter().filter(|a| matches!(a, AstNode::FuncDef { .. })) {
         codegen.gen_func(ast, &mut param_map);
