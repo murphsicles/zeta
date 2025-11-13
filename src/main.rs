@@ -78,7 +78,7 @@ fn symbol(input: &str) -> IResult<&str, Token> {
         value(Token::AngleOpen, tag("<")),
         value(Token::AngleClose, tag(">")),
         value(Token::Hash, tag("#")),
-        value(Token::BracketOpen, tag("[") ),
+        value(Token::BracketOpen, tag("[")),
         value(Token::BracketClose, tag("]")),
     ))(input)
 }
@@ -115,11 +115,11 @@ fn parse_concept(input: &str) -> IResult<&str, AstNode> {
     let parser = tuple((
         tag("concept"),
         multispace0,
-        map(identifier, |t| if let Token::Ident(n) = t { n } else { unreachable!() }),
+        map_opt(identifier, |t| if let Token::Ident(n) = t { Some(n) } else { None }),
         multispace0,
         opt(delimited(
             tag("<"),
-            separated_list1(tag(","), identifier),
+            separated_list1(tag(","), map_opt(identifier, |t| if let Token::Ident(p) = t { Some(p) } else { None })),
             tag(">"),
         )),
         multispace0,
@@ -130,49 +130,87 @@ fn parse_concept(input: &str) -> IResult<&str, AstNode> {
     ));
 
     let (i, (_, _, name, _, params_opt, _, _, _, methods, _)) = parser(input)?;
-    let params = params_opt.unwrap_or_default().into_iter().filter_map(|t| if let Token::Ident(p) = t { Some(p) } else { None }).collect();
-    Ok((i, AstNode::ConceptDef { name, params, methods }))
+    let params = params_opt.unwrap_or_default();
+    Ok((i, AstNode::ConceptDef { name: name.unwrap_or_default(), params, methods }))
 }
 
 fn parse_method(input: &str) -> IResult<&str, AstNode> {
+    let param_parser = separated_pair(
+        opt(tag("mut")),
+        tag(":"),
+        tuple((map_opt(identifier, |t| if let Token::Ident(pn) = t { Some(pn) } else { None }), multispace0, tag(":"), multispace0, map_opt(identifier, |t| if let Token::Ident(ty) = t { Some(ty) } else { None }))),
+    );
+
     let parser = tuple((
         tag("fn"),
         multispace0,
-        map(identifier, |t| if let Token::Ident(n) = t { n } else { unreachable!() }),
+        map_opt(identifier, |t| if let Token::Ident(n) = t { Some(n) } else { None }),
         multispace0,
         delimited(
             tag("("),
             separated_list1(
                 tag(","),
-                separated_pair(
-                    opt(tag("mut")),
-                    tag(":"),
-                    tuple((identifier, multispace0, tag(":"), multispace0, identifier)),
-                ),
+                param_parser,
             ),
             tag(")"),
         ),
         multispace0,
         tag("->"),
         multispace0,
-        identifier,
+        map_opt(identifier, |t| if let Token::Ident(r) = t { Some(r) } else { None }),
         multispace0,
         tag(";"),
     ));
 
     let (i, (_, _, name, _, params, _, _, _, ret, _, _)) = parser(input)?;
     let method_params: Vec<(String, String)> = params.into_iter().map(|(mut_opt, (_, _, _, _, ty))| {
-        let param_name = if let Token::Ident(pn) = &mut_opt.1.0 { pn.clone() } else { "".to_string() }; // Simplified
-        let ty_str = if let Token::Ident(t) = ty { t } else { "".to_string() };
+        let param_name = mut_opt.map_or_else(|| String::new(), |m| if let Token::Ident(pn) = m { pn } else { unreachable!() });
+        let ty_str = ty.unwrap_or_default();
         (param_name, ty_str)
     }).collect();
-    let ret_str = if let Token::Ident(r) = ret { r } else { "".to_string() };
-    Ok((i, AstNode::Method { name, params: method_params, ret: ret_str }))
+    let ret_str = ret.unwrap_or_default();
+    Ok((i, AstNode::Method { name: name.unwrap_or_default(), params: method_params, ret: ret_str }))
 }
 
-// Main parser for Addable
-pub fn parse_addable(input: &str) -> IResult<&str, AstNode> {
-    parse_concept(input)
+// Parser for impl block
+fn parse_impl(input: &str) -> IResult<&str, AstNode> {
+    let ty_parser = tuple((
+        map_opt(identifier, |t| if let Token::Ident(ty) = t { Some(ty) } else { None }),
+        multispace0,
+        opt(delimited(
+            tag("<"),
+            separated_list1(tag(","), map_opt(identifier, |t| if let Token::Ident(p) = t { Some(p) } else { None })),
+            tag(">"),
+        )),
+    ));
+
+    let parser = tuple((
+        tag("impl"),
+        multispace0,
+        map_opt(identifier, |t| if let Token::Ident(c) = t { Some(c) } else { None }),
+        multispace0,
+        ty_parser,
+        multispace0,
+        tag("{"),
+        multispace0,
+        many0(parse_method),
+        tag("}"),
+    ));
+
+    let (i, (_, _, concept, _, (ty, _, params_opt), _, _, _, methods, _)) = parser(input)?;
+    let params = params_opt.unwrap_or_default();
+    // For now, assume ty is the base type, params for generics
+    let full_ty = if !params.is_empty() {
+        format!("{}<{}>", ty.clone().unwrap_or_default(), params.join(","))
+    } else {
+        ty.unwrap_or_default()
+    };
+    Ok((i, AstNode::ImplBlock { concept: concept.unwrap_or_default(), ty: full_ty, body: methods }))
+}
+
+// Main parser: alt for concept or impl
+pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
+    many0(alt((parse_impl, parse_concept)))(input)
 }
 
 fn main() {
@@ -180,9 +218,15 @@ fn main() {
 concept Addable<Rhs=Self> {
     fn add(self, rhs: Rhs) -> Self;
 }
+
+impl Addable<i32> for Vec<i32> {
+    fn add(self, rhs: i32) -> Vec<i32> {
+        // body placeholder
+    }
+}
 "#;
-    match parse_addable(code) {
-        Ok((_, ast)) => println!("{:?}", ast),
+    match parse_zeta(code) {
+        Ok((_, asts)) => println!("{:?}", asts),
         Err(e) => eprintln!("Parse error: {:?}", e),
     }
 }
@@ -205,17 +249,50 @@ concept Addable<Rhs=Self> {
     fn add(self, rhs: Rhs) -> Self;
 }
 "#;
-        let result = parse_addable(input);
+        let result = parse_zeta(input);
         assert!(result.is_ok());
-        if let AstNode::ConceptDef { name, params, methods } = result.unwrap().1 {
-            assert_eq!(name, "Addable".to_string());
-            assert_eq!(params, vec!["Rhs".to_string()]);
+        let asts = result.unwrap().1;
+        assert_eq!(asts.len(), 1);
+        if let AstNode::ConceptDef { name, params, methods } = &asts[0] {
+            assert_eq!(*name, "Addable".to_string());
+            assert_eq!(*params, vec!["Rhs".to_string()]);
             assert_eq!(methods.len(), 1);
             if let AstNode::Method { name: mname, params: mparams, ret } = &methods[0] {
                 assert_eq!(*mname, "add".to_string());
                 assert_eq!(*ret, "Self".to_string());
                 assert_eq!(mparams.len(), 2);
+                assert_eq!(mparams[0].0, "self".to_string());
+                assert_eq!(mparams[0].1, "Self".to_string()); // Simplified, assumes Rhs=Self
+                assert_eq!(mparams[1].0, "rhs".to_string());
+                assert_eq!(mparams[1].1, "Rhs".to_string());
             }
         }
     }
-  }
+
+    #[test]
+    fn test_parse_impl() {
+        let input = r#"
+impl Addable<i32> for Vec<i32> {
+    fn add(self, rhs: i32) -> Vec<i32>;
+}
+"#;
+        let result = parse_zeta(input);
+        assert!(result.is_ok());
+        let asts = result.unwrap().1;
+        assert_eq!(asts.len(), 1);
+        if let AstNode::ImplBlock { concept, ty, body } = &asts[0] {
+            assert_eq!(*concept, "Addable".to_string());
+            assert_eq!(*ty, "Vec<i32>".to_string());
+            assert_eq!(body.len(), 1);
+            if let AstNode::Method { name: mname, params: mparams, ret } = &body[0] {
+                assert_eq!(*mname, "add".to_string());
+                assert_eq!(*ret, "Vec<i32>".to_string());
+                assert_eq!(mparams.len(), 2);
+                assert_eq!(mparams[0].0, "self".to_string());
+                assert_eq!(mparams[0].1, "Self".to_string()); // Would need refinement for assoc types
+                assert_eq!(mparams[1].0, "rhs".to_string());
+                assert_eq!(mparams[1].1, "i32".to_string());
+            }
+        }
+    }
+}
