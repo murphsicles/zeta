@@ -191,19 +191,21 @@ fn parse_impl(input: &str) -> IResult<&str, AstNode> {
         multispace0,
         ty_parser,
         multispace0,
+        tag("for"),
+        multispace0,
+        ty_parser, // Second ty_parser for 'for Type'
+        multispace0,
         tag("{"),
         multispace0,
         many0(parse_method),
         tag("}"),
     ));
 
-    let (i, (_, _, concept, _, (ty, _, params_opt), _, _, _, methods, _)) = parser(input)?;
-    let params = params_opt.unwrap_or_default();
-    // For now, assume ty is the base type, params for generics
-    let full_ty = if !params.is_empty() {
-        format!("{}<{}>", ty.clone().unwrap_or_default(), params.join(","))
+    let (i, (_, _, concept, _, _, _, _, _, for_ty, _, _, _, methods, _)) = parser(input)?;
+    let full_ty = if let Some(params) = for_ty.2 {
+        format!("{}<{}>", for_ty.0.unwrap_or_default(), params.join(","))
     } else {
-        ty.unwrap_or_default()
+        for_ty.0.unwrap_or_default()
     };
     Ok((i, AstNode::ImplBlock { concept: concept.unwrap_or_default(), ty: full_ty, body: methods }))
 }
@@ -213,20 +215,78 @@ pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
     many0(alt((parse_impl, parse_concept)))(input)
 }
 
+// Basic trait resolver
+#[derive(Debug, Clone)]
+pub struct Resolver {
+    concepts: HashMap<String, AstNode>,
+    impls: HashMap<(String, String), AstNode>, // (concept, ty) -> impl
+}
+
+impl Resolver {
+    pub fn new() -> Self {
+        Self {
+            concepts: HashMap::new(),
+            impls: HashMap::new(),
+        }
+    }
+
+    pub fn register(&mut self, ast: AstNode) {
+        match ast {
+            AstNode::ConceptDef { name, .. } => {
+                self.concepts.insert(name, ast);
+            }
+            AstNode::ImplBlock { concept, ty, .. } => {
+                self.impls.insert((concept, ty), ast);
+            }
+            _ => {}
+        }
+    }
+
+    pub fn resolve(&self, concept: &str, ty: &str) -> Option<&AstNode> {
+        self.impls.get(&(concept.to_string(), ty.to_string()))
+    }
+
+    pub fn check_method(&self, concept: &str, ty: &str, method: &str) -> bool {
+        if let Some(impl_ast) = self.resolve(concept, ty) {
+            if let AstNode::ImplBlock { body, .. } = impl_ast {
+                body.iter().any(|m| {
+                    if let AstNode::Method { name, .. } = m {
+                        name == method
+                    } else {
+                        false
+                    }
+                })
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
+}
+
 fn main() {
     let code = r#"
 concept Addable<Rhs=Self> {
     fn add(self, rhs: Rhs) -> Self;
 }
 
-impl Addable<i32> for Vec<i32> {
-    fn add(self, rhs: i32) -> Vec<i32> {
-        // body placeholder
-    }
+impl Addable for Vec<i32> {
+    fn add(self, rhs: i32) -> Vec<i32>;
 }
 "#;
     match parse_zeta(code) {
-        Ok((_, asts)) => println!("{:?}", asts),
+        Ok((_, asts)) => {
+            println!("AST: {:?}", asts);
+            let mut resolver = Resolver::new();
+            for ast in asts {
+                resolver.register(ast);
+            }
+            if let Some(impl_ast) = resolver.resolve("Addable", "Vec<i32>") {
+                println!("Resolved impl: {:?}", impl_ast);
+            }
+            println!("Has add? {}", resolver.check_method("Addable", "Vec<i32>", "add"));
+        }
         Err(e) => eprintln!("Parse error: {:?}", e),
     }
 }
@@ -272,7 +332,7 @@ concept Addable<Rhs=Self> {
     #[test]
     fn test_parse_impl() {
         let input = r#"
-impl Addable<i32> for Vec<i32> {
+impl Addable for Vec<i32> {
     fn add(self, rhs: i32) -> Vec<i32>;
 }
 "#;
@@ -294,5 +354,25 @@ impl Addable<i32> for Vec<i32> {
                 assert_eq!(mparams[1].1, "i32".to_string());
             }
         }
+    }
+
+    #[test]
+    fn test_resolver() {
+        let code = r#"
+concept Addable<Rhs=Self> {
+    fn add(self, rhs: Rhs) -> Self;
+}
+
+impl Addable for Vec<i32> {
+    fn add(self, rhs: i32) -> Vec<i32>;
+}
+"#;
+        let (_, asts) = parse_zeta(code).unwrap();
+        let mut resolver = Resolver::new();
+        for ast in asts {
+            resolver.register(ast);
+        }
+        assert!(resolver.check_method("Addable", "Vec<i32>", "add"));
+        assert!(!resolver.check_method("Addable", "i32", "add"));
     }
 }
