@@ -53,8 +53,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let add_vec_val = self.module.add_function("add_vec_i32", add_vec_type, None);
         let entry = self.context.append_basic_block(add_vec_val, "entry");
         self.builder.position_at_end(entry);
-        let vec_arg = fn_val.get_nth_param(0).unwrap().into_pointer_value();
-        let scalar = fn_val.get_nth_param(1).unwrap().into_int_value();
+        let vec_arg = add_vec_val.get_nth_param(0).unwrap().into_pointer_value();
+        let scalar = add_vec_val.get_nth_param(1).unwrap().into_int_value();
         // Alloc new vec, copy + push (optimized, no resize check for PoC)
         let new_len = self.builder.build_int_add(self.builder.build_load(self.builder.build_struct_gep(vec_arg, 1, "len").unwrap(), "load_len").into_int_value(), self.i32_type.const_int(1, false), "new_len");
         let new_ptr = self.builder.build_call(self.malloc_fn.as_ref().unwrap(), &[new_len.into()], "new_ptr").try_as_basic_value().left().unwrap().into_pointer_value();
