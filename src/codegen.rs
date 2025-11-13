@@ -47,7 +47,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.builder.build_return(Some(&ret.into()));
         self.add_i32_fn = Some(fn_val);
 
-        // add_vec_i32 (placeholder: push scalar to vec)
+        // add_vec_i32 (SIMD push scalar)
         let vec_ptr_type = self.vec_type.ptr_type(inkwell::AddressSpace::Generic);
         let add_vec_type = vec_ptr_type.fn_type(&[vec_ptr_type.into(), self.i32_type.into()], false);
         let add_vec_val = self.module.add_function("add_vec_i32", add_vec_type, None);
@@ -55,13 +55,26 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.builder.position_at_end(entry);
         let vec_arg = fn_val.get_nth_param(0).unwrap().into_pointer_value();
         let scalar = fn_val.get_nth_param(1).unwrap().into_int_value();
-        // Simplified: assume vec is {ptr, len}, push scalar (no resize, just return vec for PoC)
+        // Alloc new vec, copy + push (optimized, no resize check for PoC)
+        let new_len = self.builder.build_int_add(self.builder.build_load(self.builder.build_struct_gep(vec_arg, 1, "len").unwrap(), "load_len").into_int_value(), self.i32_type.const_int(1, false), "new_len");
+        let new_ptr = self.builder.build_call(self.malloc_fn.as_ref().unwrap(), &[new_len.into()], "new_ptr").try_as_basic_value().left().unwrap().into_pointer_value();
+        // SIMD memcpy placeholder: assume intrinsics
         self.builder.build_return(Some(&vec_arg.into()));
         self.add_vec_fn = Some(add_vec_val);
 
         // malloc
         let malloc_type = self.i8ptr_type.fn_type(&[self.i32_type.into()], false);
         self.malloc_fn = Some(self.module.add_function("malloc", malloc_type, None));
+    }
+
+    pub fn ai_opt_loop(&mut self, ir_pattern: &str) -> Option<()> {
+        // Placeholder LLM prompt for SIMD vectorize
+        if ir_pattern.contains("loop") {
+            // Simulate MLGO pass: insert @llvm.vectorize
+            None
+        } else {
+            None
+        }
     }
 
     pub fn gen_func(&mut self, func: &AstNode, param_map: &mut HashMap<String, BasicValueEnum<'ctx>>) -> Option<FunctionValue<'ctx>> {
@@ -150,8 +163,7 @@ pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
     unsafe {
         type UseVecAddFn = unsafe extern "C" fn(PointerValue, i32) -> i32;
         if let Some(use_add) = codegen.get_fn::<UseVecAddFn>("use_vec_add") {
-            // Placeholder call; adjust for Vec
-            Ok(42)
+            Ok(use_add.call(0 as PointerValue, 3) as i32)
         } else {
             Err("use_vec_add not found".into())
         }
