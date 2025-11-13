@@ -13,4 +13,5 @@ pub enum AstNode {
     Defer(Box<AstNode>),
     ActorDef { name: String, methods: Vec<AstNode> },
     SpawnActor { actor_ty: String, init_args: Vec<String> },
+    TimingOwned { ty: String, inner: Box<AstNode> }, // TimingOwned<T>(expr)
 }
