@@ -1,6 +1,6 @@
 // src/resolver.rs
 use crate::ast::AstNode;
-use crate::borrow::BorrowChecker;
+use crate::borrow::{BorrowChecker, BorrowState};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
@@ -28,17 +28,24 @@ impl Resolver {
 
     pub fn typecheck(&self, asts: &[AstNode]) -> bool {
         for ast in asts {
-            if let AstNode::FuncDef { where_clause, body, params, .. } = ast {
-                if let Some(bounds) = where_clause {
-                    for (ty, concept) in bounds { if self.resolve_impl(&concept, &ty).is_none() { return false; } }
+            match ast {
+                AstNode::ActorDef { .. } => {} // Actor bounds check placeholder
+                AstNode::SpawnActor { actor_ty, .. } => {
+                    if !self.concepts.contains_key(actor_ty) { return false; }
                 }
-                let mut bc = BorrowChecker::new();
-                for (pname, _) in params {
-                    bc.declare(pname.clone(), BorrowState::Owned);
+                AstNode::FuncDef { where_clause, body, params, .. } => {
+                    if let Some(bounds) = where_clause {
+                        for (ty, concept) in bounds { if self.resolve_impl(&concept, &ty).is_none() { return false; } }
+                    }
+                    let mut bc = BorrowChecker::new();
+                    for (pname, _) in params {
+                        bc.declare(pname.clone(), BorrowState::Owned);
+                    }
+                    for node in body {
+                        if !bc.check(node) { return false; }
+                    }
                 }
-                for node in body {
-                    if !bc.check(node) { return false; }
-                }
+                _ => {}
             }
         }
         true
