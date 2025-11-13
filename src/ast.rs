@@ -10,4 +10,5 @@ pub enum AstNode {
     Var(String),
     Borrow(String),
     Assign(String, Box<AstNode>),
+    Defer(Box<AstNode>), // defer { expr }
 }
