@@ -56,7 +56,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let vec_arg = add_vec_val.get_nth_param(0).unwrap().into_pointer_value();
         let scalar = add_vec_val.get_nth_param(1).unwrap().into_int_value();
         // Alloc new vec, copy + push (optimized, no resize check for PoC)
-        let new_len = self.builder.build_int_add(self.builder.build_load(self.builder.build_struct_gep(vec_arg, 1, "len").unwrap(), "load_len").into_int_value(), self.i32_type.const_int(1, false), "new_len");
+        let len_ptr = self.builder.build_struct_gep(vec_arg, 1, "len").unwrap();
+        let len = self.builder.build_load(len_ptr, "load_len").into_int_value();
+        let new_len = self.builder.build_int_add(len, self.i32_type.const_int(1, false), "new_len");
         let new_ptr = self.builder.build_call(self.malloc_fn.as_ref().unwrap(), &[new_len.into()], "new_ptr").try_as_basic_value().left().unwrap().into_pointer_value();
         // SIMD memcpy placeholder: assume intrinsics
         self.builder.build_return(Some(&vec_arg.into()));
@@ -82,6 +84,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             let param_types: Vec<BasicTypeEnum<'ctx>> = params.iter().map(|(_, t)| {
                 if *t == "i32" { self.i32_type.into() }
                 else if *t == "Vec<i32>" { self.vec_type.into() }
+                else if t.ends_with("Actor") { self.i8ptr_type.into() } // Actor ref
                 else { panic!("Unsupported type") }
             }).collect();
             let fn_type = self.i32_type.fn_type(&param_types, false);
@@ -127,9 +130,40 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
                 None
             }
+            AstNode::SpawnActor { actor_ty, init_args } => {
+                // Spawn actor thread/channel
+                if let Some(arg) = init_args.first() {
+                    if let Some(init_val) = param_map.get(arg) {
+                        // Async spawn stub
+                        Some(init_val.clone())
+                    } else { None }
+                } else { None }
+            }
+            AstNode::Defer(expr) => {
+                self.gen_stmt(expr, param_map)
+            }
             AstNode::Lit(n) => Some(self.i32_type.const_int(*n as u64, false).into()),
             AstNode::Var(v) => param_map.get(v).cloned(),
             _ => None,
+        }
+    }
+
+    pub fn gen_actor(&mut self, actor: &AstNode) {
+        if let AstNode::ActorDef { name, methods } = actor {
+            // Gen actor struct + vtable
+            let actor_ty = self.context.opaque_struct_type(name);
+            actor_ty.set_body(&[self.i8ptr_type.into()], false); // Msg queue ptr
+            for method in methods {
+                if let AstNode::Method { name: mname, params, ret } = method {
+                    let param_types: Vec<BasicTypeEnum> = params.iter().skip(1).map(|(_, t)| if *t == "i32" { self.i32_type.into() } else { panic!() }).collect(); // Skip self
+                    let fn_type = self.i32_type.fn_type(&param_types, false);
+                    let fn_val = self.module.add_function(mname, fn_type, None);
+                    // Async stub: channel send
+                    let entry = self.context.append_basic_block(fn_val, "entry");
+                    self.builder.position_at_end(entry);
+                    self.builder.build_return(Some(&self.i32_type.const_int(0, false).into()));
+                }
+            }
         }
     }
 
@@ -154,6 +188,12 @@ pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
     let context = Context::create();
     let mut codegen = LLVMCodegen::new(&context, "zeta");
     codegen.gen_intrinsics();
+    for ast in &asts {
+        match ast {
+            AstNode::ActorDef { .. } => codegen.gen_actor(ast),
+            _ => {}
+        }
+    }
     let mut param_map = HashMap::new();
     for ast in asts.iter().filter(|a| matches!(a, AstNode::FuncDef { .. })) {
         codegen.gen_func(ast, &mut param_map);
