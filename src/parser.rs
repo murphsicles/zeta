@@ -9,7 +9,6 @@ use nom::{
     sequence::{delimited, preceded, separated_pair, terminated, tuple},
     IResult,
 };
-use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
@@ -104,10 +103,6 @@ pub fn parse_where_clause(input: &str) -> IResult<&str, Vec<(String, String)>> {
     preceded(tag("where"), separated_list1(tag(","), separated_pair(map_opt(identifier), tag(":"), map_opt(identifier))))(input)
 }
 
-fn fn parse_defer(input: &str) -> IResult<&str, AstNode> {
-    preceded(tag("defer"), delimited(tag("{"), parse_expr, tag("}"))).map(|expr| AstNode::Defer(Box::new(expr)))(input)
-}
-
 fn parse_expr(input: &str) -> IResult<&str, AstNode> {
     alt((
         map(int_literal, |t| if let Token::IntLit(n) = t { AstNode::Lit(n) } else { unreachable!() }),
@@ -116,6 +111,7 @@ fn parse_expr(input: &str) -> IResult<&str, AstNode> {
         parse_borrow,
         parse_assign,
         parse_defer,
+        parse_spawn_actor,
     ))(input)
 }
 
@@ -133,6 +129,40 @@ fn parse_assign(input: &str) -> IResult<&str, AstNode> {
     let parser = tuple((map_opt(identifier), tag("="), parse_expr, tag(";")));
     let (i, (var, _, expr, _)) = parser(input)?;
     Ok((i, AstNode::Assign(var.unwrap_or_default(), Box::new(expr))))
+}
+
+fn parse_defer(input: &str) -> IResult<&str, AstNode> {
+    preceded(tag("defer"), delimited(tag("{"), parse_expr, tag("}"))).map(|expr| AstNode::Defer(Box::new(expr)))(input)
+}
+
+fn parse_actor(input: &str) -> IResult<&str, AstNode> {
+    let parser = tuple((
+        tag("actor"), multispace0, map_opt(identifier), multispace0,
+        tag("{"), multispace0, many0(alt((parse_async_method, parse_method))), tag("}"),
+    ));
+    let (i, (_, _, name, _, _, _, methods, _)) = parser(input)?;
+    Ok((i, AstNode::ActorDef { name: name.unwrap_or_default(), methods }))
+}
+
+fn parse_async_method(input: &str) -> IResult<&str, AstNode> {
+    let parser = tuple((
+        tag("async"), multispace0, tag("fn"), multispace0, map_opt(identifier), multispace0,
+        delimited(tag("("), separated_list1(tag(","), parse_param), tag(")")), multispace0,
+        tag("->"), multispace0, map_opt(identifier), multispace0, tag(";"),
+    ));
+    let (i, (_, _, _, _, name, _, params, _, _, _, ret, _, _)) = parser(input)?;
+    let method_params: Vec<(String, String)> = params.into_iter().map(|(pn, ty)| (pn.unwrap_or_default(), ty.unwrap_or_default())).collect();
+    Ok((i, AstNode::Method { name: name.unwrap_or_default(), params: method_params, ret: ret.unwrap_or_default() }))
+}
+
+fn parse_param(input: &str) -> IResult<&str, (String, String)> {
+    separated_pair(map_opt(identifier), tag(":"), map_opt(identifier))(input)
+}
+
+fn parse_spawn_actor(input: &str) -> IResult<&str, AstNode> {
+    let parser = tuple((tag("spawn_actor"), multispace0, map_opt(identifier), multispace0, delimited(tag("("), separated_list1(tag(","), map_opt(identifier)), tag(")")), multispace0, tag(";")));
+    let (i, (_, _, ty, _, args_opt, _, _)) = parser(input)?;
+    Ok((i, AstNode::SpawnActor { actor_ty: ty.unwrap_or_default(), init_args: args_opt.unwrap_or_default() }))
 }
 
 pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
@@ -154,5 +184,5 @@ pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
 }
 
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
-    many0(alt((parse_func, parse_impl, parse_concept)))(input)
+    many0(alt((parse_func, parse_actor, parse_impl, parse_concept)))(input)
 }
