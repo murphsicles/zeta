@@ -29,11 +29,15 @@ impl Resolver {
     pub fn typecheck(&self, asts: &[AstNode]) -> bool {
         for ast in asts {
             match ast {
-                AstNode::ActorDef { .. } => {} // Actor bounds check placeholder
+                AstNode::ActorDef { .. } => {} 
                 AstNode::SpawnActor { actor_ty, .. } => {
                     if !self.concepts.contains_key(actor_ty) { return false; }
                 }
-                AstNode::FuncDef { where_clause, body, params, .. } => {
+                AstNode::FuncDef { where_clause, body, params, attrs, .. } => {
+                    if attrs.contains(&"stable_abi".to_string()) {
+                        for (pn, pt) in params.iter() { if pt.contains("<") { return false; } }
+                        if ret.contains("<") { return false; }
+                    }
                     if let Some(bounds) = where_clause {
                         for (ty, concept) in bounds { if self.resolve_impl(&concept, &ty).is_none() { return false; } }
                     }
