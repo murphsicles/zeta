@@ -3,7 +3,7 @@ use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::builder::Builder;
 use inkwell::execution_engine::{ExecutionEngine, JitFunction, OptimizationLevel};
-use inkwell::values::{BasicValueEnum, FunctionValue, IntValue, PointerValue};
+use inkwell::values::{BasicValueEnum, FunctionValue, IntValue};
 use inkwell::types::BasicTypeEnum;
 use nom::{
     branch::alt,
@@ -233,10 +233,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.add_fn = Some(fn_val);
     }
 
-    pub fn gen_func(&mut self, func: &AstNode, param_map: &HashMap<String, IntValue<'ctx>>) -> Option<FunctionValue<'ctx>> {
+    pub fn gen_func(&mut self, func: &AstNode, param_map: &mut HashMap<String, IntValue<'ctx>>) -> Option<FunctionValue<'ctx>> {
         if let AstNode::FuncDef { name, params, ret, body, .. } = func {
             if *ret != "i32" { return None; }
-            let param_types: Vec<BasicTypeEnum> = params.iter().map(|(_, t)| if *t == "i32" { self.i32_type.into() } else { panic!("Unsupported type") }).collect();
+            let param_types: Vec<BasicTypeEnum<'ctx>> = params.iter().map(|(_, t)| if *t == "i32" { self.i32_type.into() } else { panic!("Unsupported type") }).collect();
             let fn_type = self.i32_type.fn_type(&param_types, false);
             let fn_val = self.module.add_function(name, fn_type, None);
             let entry = self.context.append_basic_block(fn_val, "entry");
@@ -261,12 +261,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
     fn gen_stmt(&mut self, node: &AstNode, param_map: &HashMap<String, IntValue<'ctx>>) -> Option<IntValue<'ctx>> {
         match node {
             AstNode::Call { method, receiver, args } if *method == "add" => {
-                if let Some(recv_val) = param_map.get(receiver) {
-                    if let Some(arg_name) = args.first() {
-                        if let Some(arg_val) = param_map.get(arg_name) {
-                            if let Some(add) = &self.add_fn {
-                                let call = self.builder.build_call(add, &[(*recv_val).into(), (*arg_val).into()], "add_call");
-                                return call.try_as_basic_value().left().and_then(|v| v.into_int_value().ok());
+                if let (Some(recv_val), Some(arg_name)) = (param_map.get(receiver), args.first()) {
+                    if let Some(arg_val) = param_map.get(arg_name) {
+                        if let Some(add) = &self.add_fn {
+                            let call_site = self.builder.build_call(add, &[(*recv_val).into(), (*arg_val).into()], "add_call");
+                            if let Some(bv) = call_site.try_as_basic_value().left() {
+                                return bv.into_int_value().ok();
                             }
                         }
                     }
@@ -303,7 +303,7 @@ pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn std::error::Erro
     codegen.gen_add_impl();
     let mut param_map = HashMap::new();
     for ast in asts.iter().filter(|a| matches!(a, AstNode::FuncDef { .. })) {
-        codegen.gen_func(ast, &param_map);
+        codegen.gen_func(ast, &mut param_map);
     }
     let ee = codegen.finalize_and_jit()?;
 
