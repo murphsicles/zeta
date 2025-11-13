@@ -176,7 +176,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.module.add_metadata(&format!("{}.abi_version", name), version_md);
                 if ret == "CStruct" {
                     let c_struct = self.context.struct_type(&[self.i32_type.into()], false);
-                    // Packed struct for ABI
                     c_struct.set_packed(true);
                 }
             }
@@ -201,6 +200,18 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     fn gen_stmt(&mut self, node: &AstNode, param_map: &HashMap<String, BasicValueEnum<'ctx>>) -> Option<BasicValueEnum<'ctx>> {
         match node {
+            AstNode::TimingOwned { ty, inner } => {
+                if let Some(inner_val) = self.gen_stmt(inner, param_map) {
+                    let owned_ptr = self.builder.build_alloca(inner_val.get_type(), "timing_owned");
+                    self.builder.build_store(owned_ptr, inner_val.into_int_value());
+                    let access = self.builder.build_load(owned_ptr, "timing_load").into_int_value();
+                    let zero = self.i32_type.const_int(0, false);
+                    let safe = self.builder.build_int_xor(access, zero, "constant_time");
+                    let safe_ptr = self.builder.build_alloca(self.i32_type, "safe_ptr");
+                    self.builder.build_store(safe_ptr, safe);
+                    Some(safe_ptr.into())
+                } else { None }
+            }
             AstNode::Call { method, receiver, args } if *method == "add" => {
                 if let Some(recv_ptr) = param_map.get(receiver) {
                     if let Some(arg_name) = args.first() {
