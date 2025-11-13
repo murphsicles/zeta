@@ -23,6 +23,9 @@ pub struct LLVMCodegen<'ctx> {
     add_vec_fn: Option<FunctionValue<'ctx>>,
     malloc_fn: Option<FunctionValue<'ctx>>,
     channel_send_fn: Option<FunctionValue<'ctx>>,
+    http_get_fn: Option<FunctionValue<'ctx>>,
+    tls_connect_fn: Option<FunctionValue<'ctx>>,
+    datetime_now_fn: Option<FunctionValue<'ctx>>,
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -33,7 +36,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let i8_type = context.i8_type();
         let i8ptr_type = i8_type.ptr_type(inkwell::AddressSpace::Generic);
         let vec_type = context.struct_type(&[i8ptr_type.into(), i32_type.into()], false);
-        Self { context, module, builder, execution_engine: None, i32_type, i8ptr_type, vec_type, add_i32_fn: None, add_vec_fn: None, malloc_fn: None, channel_send_fn: None }
+        Self { context, module, builder, execution_engine: None, i32_type, i8ptr_type, vec_type, add_i32_fn: None, add_vec_fn: None, malloc_fn: None, channel_send_fn: None, http_get_fn: None, tls_connect_fn: None, datetime_now_fn: None }
     }
 
     pub fn gen_intrinsics(&mut self) {
@@ -95,6 +98,43 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.builder.build_store(msg_ptr, msg);
         self.builder.build_return(Some(&self.i32_type.const_int(1, false).into()));
         self.channel_send_fn = Some(channel_send);
+
+        // std::net::http_get stub (async fetch, returns ptr to response)
+        let http_type = self.i8ptr_type.fn_type(&[self.i8ptr_type.into()], false); // url -> response ptr
+        let http_get = self.module.add_function("std_net_http_get", http_type, None);
+        let entry_h = self.context.append_basic_block(http_get, "entry");
+        self.builder.position_at_end(entry_h);
+        let url = http_get.get_nth_param(0).unwrap().into_pointer_value();
+        let resp = self.builder.build_call(self.malloc_fn.as_ref().unwrap(), &[self.i32_type.const_int(1024, false).into()], "resp_buf").try_as_basic_value().left().unwrap().into_pointer_value();
+        // TLS connect stub
+        let tls = self.builder.build_call(self.tls_connect_fn.as_ref().unwrap(), &[url.into()], "tls_connect");
+        // Simulated fetch (hardcoded for PoC)
+        let resp_str = self.i8_type.const_string("HTTP/1.1 200 OK\r\nContent: Hello", false);
+        let resp_data = self.builder.build_global_string_ptr(resp_str, "resp_str");
+        let memcpy_http = self.module.add_function("llvm.memcpy.p0i8.p0i8.i32", self.i8ptr_type.fn_type(&[self.i8ptr_type.into(), self.i8ptr_type.into(), self.i32_type.into()], false), None);
+        self.builder.build_call(memcpy_http, &[resp.into(), resp_data.into(), self.i32_type.const_int(1024, false).into()], "copy_resp");
+        self.builder.build_return(Some(&resp.into()));
+        self.http_get_fn = Some(http_get);
+
+        // std::net::tls_connect stub
+        let tls_type = self.i8ptr_type.fn_type(&[self.i8ptr_type.into()], false); // url -> tls ctx ptr
+        let tls_connect = self.module.add_function("std_net_tls_connect", tls_type, None);
+        let entry_t = self.context.append_basic_block(tls_connect, "entry");
+        self.builder.position_at_end(entry_t);
+        let url = tls_connect.get_nth_param(0).unwrap().into_pointer_value();
+        let ctx = self.builder.build_call(self.malloc_fn.as_ref().unwrap(), &[self.i32_type.const_int(512, false).into()], "tls_ctx").try_as_basic_value().left().unwrap().into_pointer_value();
+        // Simulated TLS handshake (hardcoded success)
+        self.builder.build_return(Some(&ctx.into()));
+        self.tls_connect_fn = Some(tls_connect);
+
+        // std::datetime::now stub
+        let dt_type = self.i64_type.fn_type(&[], false); // -> timestamp i64
+        let dt_now = self.module.add_function("std_datetime_now", dt_type, None);
+        let entry_d = self.context.append_basic_block(dt_now, "entry");
+        self.builder.position_at_end(entry_d);
+        let now = self.i64_type.const_int(1731475200, false); // Unix timestamp Nov 13, 2025
+        self.builder.build_return(Some(&now.into()));
+        self.datetime_now_fn = Some(dt_now);
     }
 
     pub fn ai_opt_loop(&mut self, ir_pattern: &str) -> Option<()> {
@@ -113,6 +153,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 if *t == "i32" { self.i32_type.into() }
                 else if *t == "Vec<i32>" { self.vec_type.into() }
                 else if t.ends_with("Actor") { self.i8ptr_type.into() }
+                else if *t == "i8*" { self.i8ptr_type.into() } // Response ptr
                 else { panic!("Unsupported type") }
             }).collect();
             let fn_type = self.i32_type.fn_type(&param_types, false);
@@ -158,6 +199,24 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
                 None
             }
+            AstNode::Call { method, receiver: _, args } if *method == "http_get" => {
+                if let Some(url) = args.first() {
+                    if let Some(url_val) = param_map.get(url) {
+                        if let Some(http) = &self.http_get_fn {
+                            let call = self.builder.build_call(http, &[url_val.clone().into_pointer_value()], "http_call");
+                            return call.try_as_basic_value().left();
+                        }
+                    }
+                }
+                None
+            }
+            AstNode::Call { method, .. } if *method == "now" => {
+                if let Some(dt) = &self.datetime_now_fn {
+                    let call = self.builder.build_call(dt, &[], "dt_call");
+                    return call.try_as_basic_value().left();
+                }
+                None
+            }
             AstNode::SpawnActor { actor_ty, init_args } => {
                 if let Some(arg) = init_args.first() {
                     if let Some(init_val) = param_map.get(arg) {
@@ -171,6 +230,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
             AstNode::Defer(expr) => {
                 if let Some(val) = self.gen_stmt(expr, param_map) {
                     let drop_fn = self.module.add_function("drop_raii", self.i32_type.fn_type(&[val.clone().get_type().into()], false), None);
+                    let entry_d = self.context.append_basic_block(drop_fn, "entry");
+                    self.builder.position_at_end(entry_d);
+                    self.builder.build_return(Some(&self.i32_type.const_int(0, false).into()));
                     self.builder.build_call(drop_fn, &[val.clone()], "drop");
                     Some(val)
                 } else { None }
@@ -201,7 +263,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     self.builder.build_return(Some(&self.i32_type.const_int(0, false).into()));
                 }
             }
-            // Handler loop
+            // Handler loop (async poll)
             let handler_type = self.i32_type.fn_type(&[actor_ptr_type.into()], false);
             let handler = self.module.add_function(&format!("{}_handler", name), handler_type, None);
             let entry_h = self.context.append_basic_block(handler, "entry");
@@ -209,9 +271,16 @@ impl<'ctx> LLVMCodegen<'ctx> {
             let loop_bb = self.context.append_basic_block(handler, "loop");
             self.builder.build_unconditional_branch(loop_bb);
             self.builder.position_at_end(loop_bb);
-            let cond_bb = self.context.append_basic_block(handler, "cond");
-            self.builder.position_at_end(cond_bb);
+            let poll = self.builder.build_load(self.builder.build_struct_gep(handler.get_nth_param(0).unwrap().into_pointer_value(), 0, "queue").unwrap(), "poll").into_int_value();
+            let cond = self.builder.build_int_compare(inkwell::IntPredicate::NE, poll, self.i32_type.const_int(0, false), "has_msg");
+            let then_bb = self.context.append_basic_block(handler, "then");
+            let else_bb = self.context.append_basic_block(handler, "else");
+            self.builder.build_conditional_branch(cond, then_bb, else_bb);
+            self.builder.position_at_end(then_bb);
+            // Process msg (stub)
             self.builder.build_return(Some(&self.i32_type.const_int(0, false).into()));
+            self.builder.position_at_end(else_bb);
+            self.builder.build_br(loop_bb);
         }
     }
 
