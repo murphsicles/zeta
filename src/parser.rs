@@ -104,6 +104,10 @@ pub fn parse_where_clause(input: &str) -> IResult<&str, Vec<(String, String)>> {
     preceded(tag("where"), separated_list1(tag(","), separated_pair(map_opt(identifier), tag(":"), map_opt(identifier))))(input)
 }
 
+fn fn parse_defer(input: &str) -> IResult<&str, AstNode> {
+    preceded(tag("defer"), delimited(tag("{"), parse_expr, tag("}"))).map(|expr| AstNode::Defer(Box::new(expr)))(input)
+}
+
 fn parse_expr(input: &str) -> IResult<&str, AstNode> {
     alt((
         map(int_literal, |t| if let Token::IntLit(n) = t { AstNode::Lit(n) } else { unreachable!() }),
@@ -111,6 +115,7 @@ fn parse_expr(input: &str) -> IResult<&str, AstNode> {
         parse_call,
         parse_borrow,
         parse_assign,
+        parse_defer,
     ))(input)
 }
 
