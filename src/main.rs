@@ -15,9 +15,14 @@ impl Addable<i32> for Vec<i32> {
     fn add(self: Vec<i32>, rhs: i32) -> Vec<i32>;
 }
 
-fn use_vec_add(v: Vec<i32>, x: i32) -> i32 where Vec<i32>: Addable<i32> {
-    let res = v.add(x);
-    42  // Placeholder return
+actor Counter {
+    async fn increment(&self, delta: i32) -> i32;
+}
+
+fn use_actor() -> i32 {
+    let counter = spawn_actor Counter();
+    counter.increment(5);
+    42
 }
 "#;
     match compile_and_run_zeta(code) {
