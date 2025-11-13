@@ -116,6 +116,7 @@ fn parse_expr(input: &str) -> IResult<&str, AstNode> {
         parse_assign,
         parse_defer,
         parse_spawn_actor,
+        parse_timing_owned,
     ))(input)
 }
 
@@ -137,6 +138,12 @@ fn parse_assign(input: &str) -> IResult<&str, AstNode> {
 
 fn parse_defer(input: &str) -> IResult<&str, AstNode> {
     preceded(tag("defer"), delimited(tag("{"), parse_expr, tag("}"))).map(|expr| AstNode::Defer(Box::new(expr)))(input)
+}
+
+fn parse_timing_owned(input: &str) -> IResult<&str, AstNode> {
+    let parser = tuple((tag("TimingOwned"), tag("<"), map_opt(identifier), tag(">"), tag("("), parse_expr, tag(")")));
+    let (i, (_, _, ty, _, _, expr, _)) = parser(input)?;
+    Ok((i, AstNode::TimingOwned { ty: ty.unwrap_or_default(), inner: Box::new(expr) }))
 }
 
 fn parse_actor(input: &str) -> IResult<&str, AstNode> {
