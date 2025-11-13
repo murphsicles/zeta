@@ -33,7 +33,11 @@ impl Resolver {
                 AstNode::SpawnActor { actor_ty, .. } => {
                     if !self.concepts.contains_key(actor_ty) { return false; }
                 }
-                AstNode::FuncDef { where_clause, body, params, attrs, .. } => {
+                AstNode::TimingOwned { ty, .. } => {
+                    // Track speculative exec in borrowck
+                    if !self.concepts.contains_key(ty) { return false; }
+                }
+                AstNode::FuncDef { where_clause, body, params, attrs, ret, .. } => {
                     if attrs.contains(&"stable_abi".to_string()) {
                         for (pn, pt) in params.iter() { if pt.contains("<") { return false; } }
                         if ret.contains("<") { return false; }
