@@ -66,6 +66,10 @@ fn map_opt(p: impl Fn(&str) -> IResult<&str, Token>) -> impl Fn(&str) -> IResult
     }
 }
 
+fn parse_attrs(input: &str) -> IResult<&str, Vec<String>> {
+    many0(preceded(tag("#["), terminated(map_opt(identifier), tag("]"))))(input)
+}
+
 pub fn parse_concept(input: &str) -> IResult<&str, AstNode> {
     let parser = tuple((
         tag("concept"), multispace0, map_opt(identifier), multispace0,
@@ -169,17 +173,19 @@ pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
     let generics_parser = opt(delimited(tag("<"), separated_list1(tag(","), map_opt(identifier)), tag(">")));
     let param_parser = separated_pair(opt(tag("mut")), tag(":"), tuple((map_opt(identifier), multispace0, tag(":"), multispace0, map_opt(identifier))));
     let parser = tuple((
+        multispace0, parse_attrs,
         tag("fn"), multispace0, map_opt(identifier), multispace0, generics_parser, multispace0,
         delimited(tag("("), separated_list1(tag(","), param_parser), tag(")")), multispace0,
         tag("->"), multispace0, map_opt(identifier), multispace0, opt(parse_where_clause), multispace0,
         tag("{"), multispace0, many0(parse_expr), tag("}"),
     ));
-    let (i, (_, _, name, _, generics_opt, _, params, _, _, _, ret, _, where_opt, _, _, _, body, _)) = parser(input)?;
+    let (i, (_, attrs_opt, _, _, name, _, generics_opt, _, params, _, _, _, ret, _, where_opt, _, _, _, body, _)) = parser(input)?;
+    let attrs = attrs_opt.unwrap_or_default();
     let generics = generics_opt.unwrap_or_default();
     let func_params: Vec<(String, String)> = params.into_iter().map(|(mut_opt, (pn, _, _, _, ty))| (pn.unwrap_or_default(), ty.unwrap_or_default())).collect();
     Ok((i, AstNode::FuncDef {
         name: name.unwrap_or_default(), generics, params: func_params, ret: ret.unwrap_or_default(),
-        body, where_clause: where_opt,
+        body, where_clause: where_opt, attrs,
     }))
 }
 
