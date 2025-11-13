@@ -17,6 +17,8 @@ pub struct LLVMCodegen<'ctx> {
     builder: Builder<'ctx>,
     execution_engine: Option<ExecutionEngine<'ctx>>,
     i32_type: inkwell::types::IntType<'ctx>,
+    i64_type: inkwell::types::IntType<'ctx>,
+    i8_type: inkwell::types::IntType<'ctx>,
     i8ptr_type: inkwell::types::PointerType<'ctx>,
     vec_type: StructType<'ctx>,
     add_i32_fn: Option<FunctionValue<'ctx>>,
@@ -27,6 +29,7 @@ pub struct LLVMCodegen<'ctx> {
     tls_connect_fn: Option<FunctionValue<'ctx>>,
     datetime_now_fn: Option<FunctionValue<'ctx>>,
     tbaa_root: Option<inkwell::values::MetadataValue<'ctx>>,
+    abi_version: Option<String>,
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -34,11 +37,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let module = context.create_module(module_name);
         let builder = context.create_builder();
         let i32_type = context.i32_type();
+        let i64_type = context.i64_type();
         let i8_type = context.i8_type();
         let i8ptr_type = i8_type.ptr_type(inkwell::AddressSpace::Generic);
         let vec_type = context.struct_type(&[i8ptr_type.into(), i32_type.into()], false);
-        let tbaa_root = None;
-        Self { context, module, builder, execution_engine: None, i32_type, i8ptr_type, vec_type, add_i32_fn: None, add_vec_fn: None, malloc_fn: None, channel_send_fn: None, http_get_fn: None, tls_connect_fn: None, datetime_now_fn: None, tbaa_root }
+        Self { context, module, builder, execution_engine: None, i32_type, i64_type, i8_type, i8ptr_type, vec_type, add_i32_fn: None, add_vec_fn: None, malloc_fn: None, channel_send_fn: None, http_get_fn: None, tls_connect_fn: None, datetime_now_fn: None, tbaa_root: None, abi_version: Some("1.0".to_string()) }
     }
 
     pub fn gen_intrinsics(&mut self) {
@@ -141,7 +144,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     pub fn ai_opt_loop(&mut self, ir_pattern: &str) -> Option<()> {
         if ir_pattern.contains("loop") {
-            // MLGO vectorize: add scalable vector metadata
             let scalable = self.context.bool_type().const_int(1, false);
             let meta = self.context.metadata_node(&[scalable]);
             self.module.add_metadata("llvm.loop.vectorize.enable", meta);
@@ -152,7 +154,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
     }
 
     pub fn gen_func(&mut self, func: &AstNode, param_map: &mut HashMap<String, BasicValueEnum<'ctx>>) -> Option<FunctionValue<'ctx>> {
-        if let AstNode::FuncDef { name, params, ret, body, .. } = func {
+        if let AstNode::FuncDef { name, params, ret, body, attrs, .. } = func {
             let param_types: Vec<BasicTypeEnum<'ctx>> = params.iter().map(|(_, t)| {
                 if *t == "i32" { self.i32_type.into() }
                 else if *t == "Vec<i32>" { self.vec_type.into() }
@@ -161,14 +163,30 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 else { panic!("Unsupported type") }
             }).collect();
             let fn_type = self.i32_type.fn_type(&param_types, false);
-            let fn_val = self.module.add_function(name, fn_type, None);
+            let c_name = if attrs.contains(&"stable_abi".to_string()) {
+                format!("{}_v{}", name, self.abi_version.as_ref().unwrap_or(&"1".to_string()))
+            } else {
+                name.clone()
+            };
+            let fn_val = self.module.add_function(&c_name, fn_type, None);
+            if attrs.contains(&"stable_abi".to_string()) {
+                fn_val.set_linkage(inkwell::Linkage::ExternalLinkage);
+                fn_val.set_calling_conv(inkwell::CallingConvention::C);
+                let version_md = self.context.metadata_value(self.i32_type.const_int(self.abi_version.as_ref().unwrap().parse::<u64>().unwrap_or(1), false));
+                self.module.add_metadata(&format!("{}.abi_version", name), version_md);
+                if ret == "CStruct" {
+                    let c_struct = self.context.struct_type(&[self.i32_type.into()], false);
+                    // Packed struct for ABI
+                    c_struct.set_packed(true);
+                }
+            }
             let entry = self.context.append_basic_block(fn_val, "entry");
             self.builder.position_at_end(entry);
             for (i, param) in params.iter().enumerate() {
                 let arg = fn_val.get_nth_param(i as u32).unwrap().into();
                 let alloca = self.builder.build_alloca(arg.get_type(), param.0.as_str());
                 self.builder.build_store(alloca, arg);
-                param_map.insert(param.0.clone(), alloca.into()); // Ownership: alloca for timing-safe access
+                param_map.insert(param.0.clone(), alloca.into());
             }
             let mut last_val = self.i32_type.const_int(0, false).into();
             for node in body.iter() {
@@ -246,7 +264,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let entry_d = self.context.append_basic_block(drop_fn, "entry");
                     self.builder.position_at_end(entry_d);
                     let val_load = self.builder.build_load(val.into_pointer_value(), "defer_load").into_int_value();
-                    // Timing-safe drop: constant-time erase
                     let zero = self.i32_type.const_int(0, false);
                     let erase = self.builder.build_int_sub(val_load, zero, "erase");
                     self.builder.build_return(Some(&erase.into()));
@@ -300,7 +317,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
             let else_bb = self.context.append_basic_block(handler, "else");
             self.builder.build_conditional_branch(cond, then_bb, else_bb);
             self.builder.position_at_end(then_bb);
-            // Process msg (call method)
             let msg = self.builder.build_load(queue, "msg").into_int_value();
             let inc_fn = self.module.get_function("increment").unwrap();
             let inc_call = self.builder.build_call(inc_fn, &[self_arg.into(), msg.into()], "inc_call");
