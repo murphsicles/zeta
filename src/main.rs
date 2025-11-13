@@ -19,9 +19,12 @@ actor Counter {
     async fn increment(&self, delta: i32) -> i32;
 }
 
-fn use_actor() -> i32 {
-    let counter = spawn_actor Counter();
-    counter.increment(5);
+fn use_std() -> i32 {
+    let url = "https://example.com";
+    let resp = std::net::http_get(url);
+    let now = std::datetime::now();
+    let v = Vec<i32>[1, 2];
+    v.add(3);
     42
 }
 "#;
