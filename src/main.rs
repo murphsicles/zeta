@@ -4,6 +4,7 @@ use inkwell::module::Module;
 use inkwell::builder::Builder;
 use inkwell::execution_engine::{ExecutionEngine, JitFunction, OptimizationLevel};
 use inkwell::values::{BasicValueEnum, FunctionValue, IntValue, PointerValue};
+use inkwell::types::BasicTypeEnum;
 use nom::{
     branch::alt,
     bytes::complete::{tag},
@@ -207,7 +208,9 @@ pub struct LLVMCodegen<'ctx> {
     context: &'ctx Context,
     module: Module<'ctx>,
     builder: Builder<'ctx>,
+    execution_engine: Option<ExecutionEngine<'ctx>>,
     i32_type: inkwell::types::IntType<'ctx>,
+    add_fn: Option<FunctionValue<'ctx>>,
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -215,10 +218,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let module = context.create_module(module_name);
         let builder = context.create_builder();
         let i32_type = context.i32_type();
-        Self { context, module, builder, i32_type }
+        Self { context, module, builder, execution_engine: None, i32_type, add_fn: None }
     }
 
-    pub fn gen_add_impl(&mut self) -> FunctionValue<'ctx> {
+    pub fn gen_add_impl(&mut self) {
         let fn_type = self.i32_type.fn_type(&[self.i32_type.into(), self.i32_type.into()], false);
         let fn_val = self.module.add_function("add_i32", fn_type, None);
         let entry = self.context.append_basic_block(fn_val, "entry");
@@ -227,47 +230,65 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let y = fn_val.get_nth_param(1).unwrap().into_int_value();
         let ret = self.builder.build_int_add(x, y, "sum");
         self.builder.build_return(Some(&ret.into()));
-        fn_val
+        self.add_fn = Some(fn_val);
     }
 
-    pub fn gen_func(&mut self, func: &AstNode) -> Option<FunctionValue<'ctx>> {
+    pub fn gen_func(&mut self, func: &AstNode, param_map: &HashMap<String, IntValue<'ctx>>) -> Option<FunctionValue<'ctx>> {
         if let AstNode::FuncDef { name, params, ret, body, .. } = func {
             if *ret != "i32" { return None; }
-            let param_types: Vec<BasicValueEnum> = params.iter().map(|(_, t)| if *t == "i32" { self.i32_type.into() } else { return None; }).collect();
+            let param_types: Vec<BasicTypeEnum> = params.iter().map(|(_, t)| if *t == "i32" { self.i32_type.into() } else { panic!("Unsupported type") }).collect();
             let fn_type = self.i32_type.fn_type(&param_types, false);
             let fn_val = self.module.add_function(name, fn_type, None);
             let entry = self.context.append_basic_block(fn_val, "entry");
             self.builder.position_at_end(entry);
             let mut args = Vec::new();
             for (i, param) in params.iter().enumerate() {
-                let arg = fn_val.get_nth_param(i as u32).unwrap();
-                args.push(arg.into_int_value());
+                let arg = fn_val.get_nth_param(i as u32).unwrap().into_int_value();
+                args.push(arg);
+                param_map.insert(param.0.clone(), arg);
             }
-            for node in body {
-                self.gen_stmt(node, &args);
+            let mut last_val = self.i32_type.const_int(0, false);
+            for node in body.iter() {
+                if let Some(val) = self.gen_stmt(node, param_map) {
+                    last_val = val;
+                }
             }
-            self.builder.build_return(Some(&self.i32_type.const_int(0, false).into()));
+            self.builder.build_return(Some(&last_val.into()));
             Some(fn_val)
         } else { None }
     }
 
-    fn gen_stmt(&mut self, node: &AstNode, args: &Vec<IntValue<'ctx>>) {
+    fn gen_stmt(&mut self, node: &AstNode, param_map: &HashMap<String, IntValue<'ctx>>) -> Option<IntValue<'ctx>> {
         match node {
-            AstNode::Call { method, receiver, args: call_args } if *method == "add" => {
-                if let Some(recv_idx) = args.iter().position(|_| true) {  // Simplified: assume first arg
-                    let recv = args[recv_idx];
-                    let arg_val = if let Some(arg_name) = call_args.first() {
-                        if arg_name == "b" { args[1] } else { self.i32_type.const_int(0, false) }
-                    } else { self.i32_type.const_int(0, false) };
-                    let sum = self.builder.build_int_add(recv, arg_val, "sum");
-                    // Store or use sum; for PoC, ignore
+            AstNode::Call { method, receiver, args } if *method == "add" => {
+                if let Some(recv_val) = param_map.get(receiver) {
+                    if let Some(arg_name) = args.first() {
+                        if let Some(arg_val) = param_map.get(arg_name) {
+                            if let Some(add) = &self.add_fn {
+                                let call = self.builder.build_call(add, &[(*recv_val).into(), (*arg_val).into()], "add_call");
+                                return call.try_as_basic_value().left().and_then(|v| v.into_int_value().ok());
+                            }
+                        }
+                    }
                 }
+                None
             }
-            _ => {}
+            AstNode::Lit(n) => Some(self.i32_type.const_int(*n as u64, false)),
+            AstNode::Var(v) => param_map.get(v).cloned(),
+            _ => None,
         }
     }
 
-    pub fn finalize(self) -> Module<'ctx> { self.module }
+    pub fn finalize_and_jit(&mut self) -> Result<ExecutionEngine<'ctx>, Box<dyn std::error::Error>> {
+        self.module.verify().map_err(|e| e.to_string())?;
+        let ee = self.module.create_jit_execution_engine(OptimizationLevel::Aggressive)?;
+        self.execution_engine = Some(ee.clone());
+        Ok(ee)
+    }
+
+    pub fn get_fn<F>(&self, name: &str) -> Option<JitFunction<F>> where F: 'static + Copy + inkwell::supports::ToFromPrimitive {
+        self.execution_engine.as_ref().and_then(|ee| ee.get_function(name).ok())
+    }
 }
 
 // Main
@@ -278,25 +299,20 @@ pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn std::error::Erro
     if !resolver.typecheck(&asts) { return Err("Typecheck failed".into()); }
 
     let context = Context::create();
-    let module = context.create_module("zeta");
     let mut codegen = LLVMCodegen::new(&context, "zeta");
     codegen.gen_add_impl();
-    for ast in &asts {
-        if let Some(_) = codegen.gen_func(ast) {}
+    let mut param_map = HashMap::new();
+    for ast in asts.iter().filter(|a| matches!(a, AstNode::FuncDef { .. })) {
+        codegen.gen_func(ast, &param_map);
     }
-    let module = codegen.finalize();
+    let ee = codegen.finalize_and_jit()?;
 
-    module.verify().map_err(|e| e.to_string())?;
-
-    let ee = module.create_jit_execution_engine(OptimizationLevel::Aggressive)?;
     unsafe {
-        type AddFn = unsafe extern "C" fn(i32, i32) -> i32;
-        let add: JitFunction<AddFn> = ee.get_function("add_i32").ok_or("Failed to JIT add")?;
         type UseAddFn = unsafe extern "C" fn(i32, i32) -> i32;
-        if let Some(use_add) = ee.get_function::<UseAddFn>("use_add") {
-            Ok(use_add.call(5, 3))
+        if let Some(use_add) = codegen.get_fn::<UseAddFn>("use_add") {
+            Ok(use_add.call(5, 3) as i32)
         } else {
-            Ok(add.call(5, 3))
+            Err("use_add not found".into())
         }
     }
 }
