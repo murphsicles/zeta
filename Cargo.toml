@@ -1,0 +1,8 @@
+[package]
+name = "zeta"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+nom = "7.1"
+inkwell = { version = "0.19", features = ["llvm18-1"] }
