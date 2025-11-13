@@ -10,5 +10,7 @@ pub enum AstNode {
     Var(String),
     Borrow(String),
     Assign(String, Box<AstNode>),
-    Defer(Box<AstNode>), // defer { expr }
+    Defer(Box<AstNode>),
+    ActorDef { name: String, methods: Vec<AstNode> }, // actor Name { async fn handle(msg: Msg) }
+    SpawnActor { actor_ty: String, init_args: Vec<String> },
 }
