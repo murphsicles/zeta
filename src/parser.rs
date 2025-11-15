@@ -13,7 +13,7 @@ use nom::{
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     Concept, Impl, Fn, Ident(String), Colon, Arrow, LParen, RParen, Comma, Eq, Semi, Lt, Gt,
-    Where, For, Mut, BraceOpen, BraceClose, IntLit(i64), AiOpt, Send, Sync, Derive,
+    Where, For, Mut, BraceOpen, BraceClose, IntLit(i64), AiOpt, Send, Sync, Derive, CacheSafe,
 }
 
 fn identifier(input: &str) -> IResult<&str, Token> {
@@ -37,6 +37,7 @@ fn keyword(input: &str) -> IResult<&str, Token> {
         value(Token::Send, tag("Send")),
         value(Token::Sync, tag("Sync")),
         value(Token::Derive, tag("derive")),
+        value(Token::CacheSafe, tag("CacheSafe")),
     ))(input)
 }
 
@@ -80,17 +81,17 @@ fn parse_derive(input: &str) -> IResult<&str, AstNode> {
         multispace0, map_opt(identifier), tag(";"),
     ));
     let (i, (_, _, traits, _, ty, _)) = parser(input)?;
-    Ok((i, AstNode::Derive { ty: ty.unwrap_or_default(), traits: traits }))
+    Ok((i, AstNode::Derive { ty: ty.unwrap_or_default(), traits }))
 }
 
 pub fn parse_concept(input: &str) -> IResult<&str, AstNode> {
     let parser = tuple((
         tag("concept"), multispace0, map_opt(identifier), multispace0,
-        opt(delimited(tag("<"), separated_list1(tag(","), separated_pair(map_opt(identifier), opt(preceded(tag("="), map_opt(identifier))), tag(","))), tag(">"))), multispace0, // Const defaults <T=Self>
+        opt(delimited(tag("<"), separated_list1(tag(","), separated_pair(map_opt(identifier), opt(preceded(tag("="), map_opt(identifier))), tag(","))), tag(">"))), multispace0,
         tag("{"), multispace0, many0(parse_method), tag("}"),
     ));
     let (i, (_, _, name, _, params_opt, _, _, _, methods, _)) = parser(input)?;
-    let params: Vec<String> = params_opt.unwrap_or_default().into_iter().map(|(n, _)| n.unwrap_or_default()).collect(); // Ignore defaults for now
+    let params: Vec<String> = params_opt.unwrap_or_default().into_iter().map(|(n, _)| n.unwrap_or_default()).collect();
     Ok((i, AstNode::ConceptDef { name: name.unwrap_or_default(), params, methods }))
 }
 
@@ -178,7 +179,7 @@ fn parse_spawn_actor(input: &str) -> IResult<&str, AstNode> {
 }
 
 pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
-    let generics_parser = opt(delimited(tag("<"), separated_list1(tag(","), separated_pair(map_opt(identifier), opt(preceded(tag("="), map_opt(identifier))), tag(","))), tag(">"))); // Const defaults
+    let generics_parser = opt(delimited(tag("<"), separated_list1(tag(","), separated_pair(map_opt(identifier), opt(preceded(tag("="), map_opt(identifier))), tag(","))), tag(">")));
     let param_parser = separated_pair(opt(tag("mut")), tag(":"), tuple((map_opt(identifier), multispace0, tag(":"), multispace0, map_opt(identifier))));
     let parser = tuple((
         multispace0, parse_attrs,
