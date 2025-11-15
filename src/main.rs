@@ -3,6 +3,13 @@ use zeta::compile_and_run_zeta;
 
 fn main() {
     let code = r#"
+#[ai_opt]
+fn use_vec_add() -> i32 {
+    let v = Vec<i32>[1, 2];
+    v.add(3);
+    42
+}
+
 concept Addable<Rhs=Self> {
     fn add(self: Self, rhs: Rhs) -> Self;
 }
