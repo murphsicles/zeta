@@ -6,6 +6,7 @@ use std::collections::HashMap;
 pub struct Mir {
     pub stmts: Vec<MirStmt>,
     pub locals: HashMap<String, u32>,
+    pub ctfe_consts: HashMap<u32, i64>, // CTFE results
 }
 
 #[derive(Debug, Clone)]
@@ -15,6 +16,12 @@ pub enum MirStmt {
     Borrow { var: u32 },
     Return { val: u32 },
     Defer { stmt: Box<MirStmt> },
+    SemiringOp { op: SemiringOp, lhs: u32, rhs: u32, res: u32 }, // Add/Mul
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum SemiringOp {
+    Add, Mul, // Stub: Extend for semirings (min-plus, etc.)
 }
 
 #[derive(Debug, Clone)]
@@ -22,6 +29,7 @@ pub enum MirExpr {
     Var(u32),
     Lit(i64),
     MethodCall { recv: u32, method: String, args: Vec<u32> },
+    ConstEval(i64), // CTFE result
 }
 
 pub struct MirGen {
@@ -36,6 +44,7 @@ impl MirGen {
 
     pub fn gen_mir(&mut self, ast: &AstNode) -> Mir {
         let mut stmts = vec![];
+        let mut ctfe_consts = HashMap::new();
         match ast {
             AstNode::FuncDef { body, params, .. } => {
                 for (pname, _) in params {
@@ -48,11 +57,11 @@ impl MirGen {
                         stmts.push(stmt);
                     }
                 }
-                stmts.push(MirStmt::Return { val: 0 }); // Stub
+                stmts.push(MirStmt::Return { val: 0 });
             }
             _ => {}
         }
-        Mir { stmts, locals: self.locals.clone() }
+        Mir { stmts, locals: self.locals.clone(), ctfe_consts }
     }
 
     fn gen_stmt(&mut self, node: &AstNode) -> Option<MirStmt> {
