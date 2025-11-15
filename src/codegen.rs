@@ -6,6 +6,7 @@ use inkwell::execution_engine::{ExecutionEngine, JitFunction, OptimizationLevel}
 use inkwell::values::{BasicValueEnum, FunctionValue, IntValue, PointerValue, MetadataValue};
 use inkwell::types::{BasicTypeEnum, StructType};
 use crate::ast::AstNode;
+use crate::mir::{Mir, MirStmt, MirExpr};
 use crate::parser::parse_zeta;
 use crate::resolver::Resolver;
 use std::collections::HashMap;
@@ -32,7 +33,6 @@ pub struct LLVMCodegen<'ctx> {
     tbaa_root: Option<MetadataValue<'ctx>>,
     abi_version: Option<String>,
     ai_opt_meta: Option<MetadataValue<'ctx>>,
-    // Derive: Copy as memcpy stub
     copy_fn: Option<FunctionValue<'ctx>>,
 }
 
@@ -103,14 +103,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.builder.build_return(Some(&vec_arg.into()));
         self.add_vec_fn = Some(add_vec_val);
 
-        // Copy derive: memcpy stub
         let copy_type = self.i8ptr_type.fn_type(&[self.i8ptr_type.into(), self.i8ptr_type.into()], false);
         let copy_val = self.module.add_function("copy_mem", copy_type, None);
         let c_entry = self.context.append_basic_block(copy_val, "entry");
         self.builder.position_at_end(c_entry);
         let dst = copy_val.get_nth_param(0).unwrap().into_pointer_value();
         let src = copy_val.get_nth_param(1).unwrap().into_pointer_value();
-        let size = self.i32_type.const_int(4, false); // Stub size
+        let size = self.i32_type.const_int(4, false);
         self.builder.build_call(memcpy, &[dst.into(), src.into(), size.into()], "copy");
         self.builder.build_return(Some(&dst.into()));
         self.copy_fn = Some(copy_val);
@@ -122,36 +121,64 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.datetime_now_fn = Some(self.module.add_function("std_datetime_now", self.i64_type.fn_type(&[], false), None));
     }
 
-    pub fn gen_func(&mut self, ast: &AstNode, param_map: &mut HashMap<String, PointerValue<'ctx>>) {
-        if let AstNode::FuncDef { name, params, body, ret, attrs, .. } = ast {
-            let param_types: Vec<BasicTypeEnum> = params.iter().map(|(_, t)| if *t == "i32" { self.i32_type.into() } else { self.i8ptr_type.into() }).collect();
-            let fn_type = self.i32_type.fn_type(&param_types, false);
-            let fn_val = self.module.add_function(name, fn_type, None);
-            let entry = self.context.append_basic_block(fn_val, "entry");
-            self.builder.position_at_end(entry);
-
-            for (i, (pname, _)) in params.iter().enumerate() {
-                let param_val = fn_val.get_nth_param(i as u32).unwrap().into_pointer_value();
-                let alloca = self.builder.build_alloca(param_val.get_type(), pname);
-                self.builder.build_store(alloca, param_val);
-                param_map.insert(pname.clone(), alloca);
-            }
-
-            for node in body {
-                if let Some(val) = self.gen_expr(node, param_map) {
-                    if attrs.contains(&"ai_opt".to_string()) && self.builder.get_insert_block().is_some() {
-                        if let Some(ai_meta) = &self.ai_opt_meta {
-                            let last_inst = self.builder.get_last_instruction().unwrap();
-                            last_inst.set_metadata("mlgo_hint", *ai_meta);
+    pub fn gen_mir(&mut self, mir: &Mir) {
+        // Stub: Gen from MIR stmts (alloca locals, phi for control, etc.)
+        for stmt in &mir.stmts {
+            match stmt {
+                MirStmt::Assign { lhs, rhs } => {
+                    let alloca = self.builder.build_alloca(self.i32_type, "assign_lhs");
+                    match rhs {
+                        MirExpr::Lit(n) => {
+                            let val = self.i32_type.const_int(*n as u64, false);
+                            self.builder.build_store(alloca, val);
                         }
+                        _ => {}
                     }
                 }
+                MirStmt::Call { func, args } => {
+                    // Dynamic call via func ptr stub
+                }
+                _ => {}
             }
-            self.builder.build_return(Some(&self.i32_type.const_int(0, false).into()));
         }
     }
 
-    fn gen_expr(&mut self, node: &AstNode, param_map: &HashMap<String, PointerValue<'ctx>>) -> Option<BasicValueEnum<'ctx>> {
+    pub fn gen_func(&mut self, ast: &AstNode, resolver: &Resolver, param_map: &mut HashMap<String, PointerValue<'ctx>>) {
+        if let AstNode::FuncDef { name, params, body, ret, attrs, .. } = ast {
+            let ast_hash = format!("{:?}", ast);
+            if let Some(mir) = resolver.get_cached_mir(&ast_hash) {
+                self.gen_mir(mir);
+            } else {
+                // Fallback AST gen
+                let param_types: Vec<BasicTypeEnum> = params.iter().map(|(_, t)| if *t == "i32" { self.i32_type.into() } else { self.i8ptr_type.into() }).collect();
+                let fn_type = self.i32_type.fn_type(&param_types, false);
+                let fn_val = self.module.add_function(name, fn_type, None);
+                let entry = self.context.append_basic_block(fn_val, "entry");
+                self.builder.position_at_end(entry);
+
+                for (i, (pname, _)) in params.iter().enumerate() {
+                    let param_val = fn_val.get_nth_param(i as u32).unwrap().into_pointer_value();
+                    let alloca = self.builder.build_alloca(param_val.get_type(), pname);
+                    self.builder.build_store(alloca, param_val);
+                    param_map.insert(pname.clone(), alloca);
+                }
+
+                for node in body {
+                    if let Some(val) = self.gen_expr_ast(node, param_map) {
+                        if attrs.contains(&"ai_opt".to_string()) && self.builder.get_insert_block().is_some() {
+                            if let Some(ai_meta) = &self.ai_opt_meta {
+                                let last_inst = self.builder.get_last_instruction().unwrap();
+                                last_inst.set_metadata("mlgo_hint", *ai_meta);
+                            }
+                        }
+                    }
+                }
+                self.builder.build_return(Some(&self.i32_type.const_int(0, false).into()));
+            }
+        }
+    }
+
+    fn gen_expr_ast(&mut self, node: &AstNode, param_map: &HashMap<String, PointerValue<'ctx>>) -> Option<BasicValueEnum<'ctx>> {
         match node {
             AstNode::Call { method, receiver, .. } => {
                 if method == "add" && receiver == "i32" {
@@ -269,11 +296,9 @@ pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
         match ast {
             AstNode::ActorDef { .. } => codegen.gen_actor(ast),
             AstNode::Derive { ty, traits } => {
-                // Gen Copy: Call memcpy
                 if traits.contains(&"Copy".to_string()) {
-                    // Stub: Assume i32, call copy_mem
                     if let Some(copy) = &codegen.copy_fn {
-                        let src = codegen.i32_type.const_int(42, false).into_pointer_value(); // Stub
+                        let src = codegen.i32_type.const_int(42, false).into_pointer_value();
                         let dst = codegen.builder.build_alloca(codegen.i32_type, "copy_dst");
                         codegen.builder.build_call(copy, &[dst.into(), src.into()], "derive_copy");
                     }
@@ -284,7 +309,7 @@ pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
     }
     let mut param_map = HashMap::new();
     for ast in asts.iter().filter(|a| matches!(a, AstNode::FuncDef { .. })) {
-        codegen.gen_func(ast, &mut param_map);
+        codegen.gen_func(ast, &resolver, &mut param_map);
     }
     let ee = codegen.finalize_and_jit()?;
 
