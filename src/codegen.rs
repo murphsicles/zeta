@@ -122,21 +122,48 @@ impl<'ctx> LLVMCodegen<'ctx> {
     }
 
     pub fn gen_mir(&mut self, mir: &Mir) {
-        // Stub: Gen from MIR stmts (alloca locals, phi for control, etc.)
+        // Alloca locals
+        let mut local_map: HashMap<u32, PointerValue<'ctx>> = HashMap::new();
+        for _ in 0..mir.locals.len() as u32 {
+            let alloca = self.builder.build_alloca(self.i32_type, "local");
+            local_map.insert(self.builder.get_insert_block().unwrap().get_first_instruction().unwrap().get_num_operands() as u32, alloca);
+        }
         for stmt in &mir.stmts {
             match stmt {
                 MirStmt::Assign { lhs, rhs } => {
-                    let alloca = self.builder.build_alloca(self.i32_type, "assign_lhs");
+                    let lhs_ptr = local_map.get(lhs).unwrap();
                     match rhs {
                         MirExpr::Lit(n) => {
                             let val = self.i32_type.const_int(*n as u64, false);
-                            self.builder.build_store(alloca, val);
+                            self.builder.build_store(*lhs_ptr, val);
+                        }
+                        MirExpr::ConstEval(c) => {
+                            let val = self.i32_type.const_int(*c as u64, false);
+                            self.builder.build_store(*lhs_ptr, val);
+                        }
+                        MirExpr::Var(vid) => {
+                            if let Some(src_ptr) = local_map.get(vid) {
+                                let loaded = self.builder.build_load(*src_ptr, "load_var");
+                                self.builder.build_store(*lhs_ptr, loaded);
+                            }
                         }
                         _ => {}
                     }
                 }
+                MirStmt::SemiringOp { op, lhs, rhs, res } => {
+                    let lhs_ptr = *local_map.get(lhs).unwrap();
+                    let rhs_ptr = *local_map.get(rhs).unwrap();
+                    let res_ptr = *local_map.get(res).unwrap();
+                    let lval = self.builder.build_load(lhs_ptr, "load_l");
+                    let rval = self.builder.build_load(rhs_ptr, "load_r");
+                    let computed = match op {
+                        SemiringOp::Add => self.builder.build_int_add(lval.into_int_value(), rval.into_int_value(), "ctfe_add"),
+                        SemiringOp::Mul => self.builder.build_int_mul(lval.into_int_value(), rval.into_int_value(), "ctfe_mul"),
+                    };
+                    self.builder.build_store(res_ptr, computed);
+                }
                 MirStmt::Call { func, args } => {
-                    // Dynamic call via func ptr stub
+                    // Stub dynamic call
                 }
                 _ => {}
             }
@@ -147,9 +174,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
         if let AstNode::FuncDef { name, params, body, ret, attrs, .. } = ast {
             let ast_hash = format!("{:?}", ast);
             if let Some(mir) = resolver.get_cached_mir(&ast_hash) {
+                // Gen from MIR with CTFE
+                let param_types: Vec<BasicTypeEnum> = params.iter().map(|(_, t)| if *t == "i32" { self.i32_type.into() } else { self.i8ptr_type.into() }).collect();
+                let fn_type = self.i32_type.fn_type(&param_types, false);
+                let fn_val = self.module.add_function(name, fn_type, None);
+                let entry = self.context.append_basic_block(fn_val, "entry");
+                self.builder.position_at_end(entry);
                 self.gen_mir(mir);
+                self.builder.build_return(Some(&self.i32_type.const_int(0, false).into()));
             } else {
-                // Fallback AST gen
                 let param_types: Vec<BasicTypeEnum> = params.iter().map(|(_, t)| if *t == "i32" { self.i32_type.into() } else { self.i8ptr_type.into() }).collect();
                 let fn_type = self.i32_type.fn_type(&param_types, false);
                 let fn_val = self.module.add_function(name, fn_type, None);
