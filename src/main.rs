@@ -30,15 +30,21 @@ concept Sync {}
 impl Send for i32 {}
 impl Sync for i32 {}
 
-actor Counter<T=Self> { // Const default
+actor Counter<T=Self> {
     async fn increment(&self, delta: i32) -> i32;
 }
 
 impl Send for Counter<i32> {}
 impl Sync for Counter<i32> {}
 
-fn multi_bound<U: Send + Sync>() -> U { // Parallel resolve
+fn multi_bound<U: Send + Sync>() -> U {
     TimingOwned<i32> 0
+}
+
+fn semiring_ctfe() -> i32 {
+    let a = 2;
+    let b = 3;
+    a.add(b) // CTFE 5
 }
 
 fn use_std() -> i32 {
