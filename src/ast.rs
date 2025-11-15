@@ -13,5 +13,5 @@ pub enum AstNode {
     ActorDef { name: String, methods: Vec<AstNode> },
     SpawnActor { actor_ty: String, init_args: Vec<String> },
     TimingOwned { ty: String, inner: Box<AstNode> },
-    Derive { ty: String, traits: Vec<String> }, // #[derive(Copy, Eq)]
+    Derive { ty: String, traits: Vec<String> },
 }
