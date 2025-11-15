@@ -3,6 +3,7 @@ mod tests {
     use crate::{compile_and_run_zeta, parse_zeta, Resolver};
     use crate::ast::AstNode;
     use crate::mir::MirGen;
+    use crate::resolver::MonoKey;
 
     #[test]
     fn test_parse_addable() {
@@ -96,7 +97,7 @@ impl B for i32 {}
 fn semiring_test() -> i32 {
     let a = 2;
     let b = 3;
-    let c = a.add(b); // CTFE to 5
+    let c = a.add(b);
     c
 }
 "#;
@@ -105,7 +106,22 @@ fn semiring_test() -> i32 {
         for ast in &asts { res.register(ast.clone()); }
         let ast_hash = format!("{:?}", asts[0]);
         let mir = res.get_cached_mir(&ast_hash).unwrap();
-        assert!(mir.ctfe_consts.contains_key(&2)); // Res=5
+        assert!(mir.ctfe_consts.contains_key(&2));
         assert_eq!(*mir.ctfe_consts.get(&2).unwrap(), 5);
+    }
+
+    #[test]
+    fn test_thin_templates() {
+        let input = r#"
+fn generic_add<T>(a: T, b: T) -> T { a.add(b) }
+"#;
+        let (_, asts) = parse_zeta(input).unwrap();
+        let mut res = Resolver::new();
+        for ast in &asts { res.register(ast.clone()); }
+        let key = MonoKey(("generic_add".to_string(), vec!["i32".to_string()]));
+        let mono_ast = res.monomorphize(key.clone(), &asts[0]);
+        assert_eq!(mono_ast.generics, vec![]); // Specialized
+        let mir = res.get_mono_mir(&key).unwrap();
+        assert!(!mir.stmts.is_empty());
     }
 }
