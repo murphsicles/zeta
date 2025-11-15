@@ -26,9 +26,11 @@ impl Addable<i32> for Vec<i32> {
 
 concept Send {}
 concept Sync {}
+concept CacheSafe {}
 
 impl Send for i32 {}
 impl Sync for i32 {}
+impl CacheSafe for i32 {}
 
 actor Counter<T=Self> {
     async fn increment(&self, delta: i32) -> i32;
@@ -36,6 +38,7 @@ actor Counter<T=Self> {
 
 impl Send for Counter<i32> {}
 impl Sync for Counter<i32> {}
+impl CacheSafe for Counter<i32> {}
 
 fn multi_bound<U: Send + Sync>() -> U {
     TimingOwned<i32> 0
@@ -47,8 +50,15 @@ fn semiring_ctfe() -> i32 {
     a.add(b)
 }
 
-fn generic_add<T>(a: T, b: T) -> T { // Thin mono to generic_add_i32
+fn generic_add<T>(a: T, b: T) -> T {
     a.add(b)
+}
+
+fn use_std_embed() -> i64 { // Test embeds
+    let url = "https://example.com";
+    let resp = std::net::http_get(url);
+    let now = std::datetime::now();
+    now
 }
 
 fn use_std() -> i32 {
