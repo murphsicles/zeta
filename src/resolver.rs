@@ -6,6 +6,9 @@ use std::collections::{HashMap, Mutex};
 use std::sync::Arc;
 use rayon::prelude::*;
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub type MonoKey = (String, Vec<String>); // (func/concept, concrete params)
+
 #[derive(Debug, Clone)]
 pub struct Resolver {
     concepts: HashMap<String, AstNode>,
@@ -14,8 +17,10 @@ pub struct Resolver {
     common_traits: Vec<String>,
     mir_cache: HashMap<String, Mir>,
     lazy_memo: Mutex<HashMap<(String, String), Option<Arc<AstNode>>>>,
-    // CTFE: Semiring eval cache
     ctfe_cache: HashMap<(SemiringOp, i64, i64), i64>,
+    // Thin templates: Monomorph cache (key -> specialized AstNode/Mir)
+    mono_cache: HashMap<MonoKey, AstNode>,
+    mono_mir: HashMap<MonoKey, Mir>,
 }
 
 impl Resolver {
@@ -24,7 +29,7 @@ impl Resolver {
             concepts: HashMap::new(), impls: HashMap::new(), funcs: HashMap::new(), 
             common_traits: vec!["Send".to_string(), "Sync".to_string(), "Addable".to_string()], 
             mir_cache: HashMap::new(), lazy_memo: Mutex::new(HashMap::new()),
-            ctfe_cache: HashMap::new(),
+            ctfe_cache: HashMap::new(), mono_cache: HashMap::new(), mono_mir: HashMap::new(),
         };
         res.common_traits.sort();
         res
@@ -33,9 +38,15 @@ impl Resolver {
     pub fn register(&mut self, ast: AstNode) {
         let ast_hash = format!("{:?}", ast);
         match &ast {
-            AstNode::ConceptDef { name, .. } => { self.concepts.insert(name.clone(), ast); }
+            AstNode::ConceptDef { name, params, .. } => { 
+                self.concepts.insert(name.clone(), ast); 
+                // Register generic variants
+                if !params.is_empty() {
+                    // Stub: Register as generic
+                }
+            }
             AstNode::ImplBlock { concept, ty, .. } => { self.impls.insert((concept.clone(), ty.clone()), ast); }
-            AstNode::FuncDef { name, .. } => { self.funcs.insert(name.clone(), ast); }
+            AstNode::FuncDef { name, generics, .. } => { self.funcs.insert(name.clone(), ast); }
             AstNode::Derive { ty, traits } => {
                 for tr in traits {
                     self.impls.insert((tr.clone(), ty.clone()), AstNode::ImplBlock { concept: tr.clone(), ty: ty.clone(), body: vec![] });
@@ -43,22 +54,55 @@ impl Resolver {
             }
             _ => {}
         }
-        if matches!(&ast, AstNode::FuncDef { .. }) {
-            let mut gen = MirGen::new();
-            let mut mir = gen.gen_mir(&ast);
-            // CTFE partial eval on MIR
-            self.ctfe_eval(&mut mir);
-            self.mir_cache.insert(ast_hash, mir);
+        if let AstNode::FuncDef { generics, .. } = &ast {
+            if generics.is_empty() {
+                let mut gen = MirGen::new();
+                let mut mir = gen.gen_mir(&ast);
+                self.ctfe_eval(&mut mir);
+                self.mir_cache.insert(ast_hash, mir);
+            } else {
+                // Defer mono until use
+            }
         }
+    }
+
+    pub fn monomorphize(&mut self, key: MonoKey, orig_ast: &AstNode) -> AstNode {
+        if let Some(cached) = self.mono_cache.get(&key) {
+            return cached.clone();
+        }
+        // Stub: Clone orig, subst generics with concrete params
+        let mut mono_ast = orig_ast.clone();
+        // Pseudo-subst: Update ty strings (e.g., replace T with concrete)
+        if let AstNode::FuncDef { params, ret, body, generics, .. } = &mut mono_ast {
+            for (i, g) in generics.iter().enumerate() {
+                let conc = &key.1[i];
+                // Simple string replace (extend for full subst)
+                for (_, pt) in params.iter_mut() { *pt = pt.replace(g, conc); }
+                *ret = ret.replace(g, conc);
+                for node in body.iter_mut() {
+                    if let AstNode::Var(v) = node { if v == g { *v = conc.clone(); } }
+                }
+            }
+        }
+        self.mono_cache.insert(key.clone(), mono_ast.clone());
+        let mut gen = MirGen::new();
+        let mut mir = gen.gen_mir(&mono_ast);
+        self.ctfe_eval(&mut mir);
+        self.mono_mir.insert(key, mir);
+        mono_ast
+    }
+
+    pub fn get_mono_mir(&self, key: &MonoKey) -> Option<&Mir> {
+        self.mono_mir.get(key)
     }
 
     fn ctfe_eval(&mut self, mir: &mut Mir) {
         for stmt in &mut mir.stmts {
             if let MirStmt::Assign { lhs, rhs } = stmt {
                 if let MirExpr::MethodCall { recv, method, args } = rhs {
-                    if method == "add" || method == "mul" { // Semiring ops
+                    if method == "add" || method == "mul" {
                         let op = if method == "add" { SemiringOp::Add } else { SemiringOp::Mul };
-                        if let (Some(MirExpr::Lit(l)), Some(MirExpr::Lit(r))) = (self.expr_val(mir, *recv), self.expr_val(mir, args[0])) {
+                        if let (Some(MirExpr::Lit(l)), Some(MirExpr::Lit(r))) = (self.expr_to_lit(mir, *recv), self.expr_to_lit(mir, args[0])) {
                             let key = (op, l, r);
                             let res = self.ctfe_cache.entry(key).or_insert_with(|| {
                                 match op {
@@ -75,7 +119,7 @@ impl Resolver {
         }
     }
 
-    fn expr_val(&self, mir: &Mir, id: u32) -> Option<i64> {
+    fn expr_to_lit(&self, mir: &Mir, id: u32) -> Option<i64> {
         if let Some(c) = mir.ctfe_consts.get(&id) { Some(*c) } else { None }
     }
 
