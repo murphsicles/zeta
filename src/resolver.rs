@@ -39,11 +39,16 @@ impl Resolver {
                 }
                 AstNode::FuncDef { where_clause, body, params, attrs, ret, .. } => {
                     if attrs.contains(&"stable_abi".to_string()) {
-                        for (pn, pt) in params.iter() { if pt.contains("<") { return false; } }
+                        for (_, pt) in params.iter() { if pt.contains("<") { return false; } }
                         if ret.contains("<") { return false; }
                     }
                     if let Some(bounds) = where_clause {
                         for (ty, concept) in bounds { if self.resolve_impl(&concept, &ty).is_none() { return false; } }
+                    }
+                    // AI-Opt: Validate #[ai_opt] attr (placeholder: ensure on loops only, future MLGO)
+                    if attrs.contains(&"ai_opt".to_string()) {
+                        // Stub: Check body for loop-like nodes (extend AstNode for Loop if needed)
+                        if !body.iter().any(|n| matches!(n, AstNode::Call { .. })) { return false; } // Placeholder check
                     }
                     let mut bc = BorrowChecker::new();
                     for (pname, _) in params {
