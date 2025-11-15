@@ -7,6 +7,7 @@ edition = "2024"
 nom = "7.1"
 inkwell = { version = "0.19", features = ["llvm18-1"] }
 criterion = { version = "0.5", features = ["html_reports"] }
+rayon = "1.8"
 
 [[bench]]
 name = "benchmark"
