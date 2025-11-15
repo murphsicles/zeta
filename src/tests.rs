@@ -120,8 +120,24 @@ fn generic_add<T>(a: T, b: T) -> T { a.add(b) }
         for ast in &asts { res.register(ast.clone()); }
         let key = MonoKey(("generic_add".to_string(), vec!["i32".to_string()]));
         let mono_ast = res.monomorphize(key.clone(), &asts[0]);
-        assert_eq!(mono_ast.generics, vec![]); // Specialized
+        assert_eq!(mono_ast.generics, vec![]);
         let mir = res.get_mono_mir(&key).unwrap();
         assert!(!mir.stmts.is_empty());
+    }
+
+    #[test]
+    fn test_cachesafe() {
+        let input = r#"
+concept CacheSafe {}
+impl CacheSafe for i32 {}
+actor SafeChannel {
+    async fn send(&self, msg: i32) -> i32;
+}
+impl CacheSafe for SafeChannel {}
+"#;
+        let (_, asts) = parse_zeta(input).unwrap();
+        let mut res = Resolver::new();
+        for ast in &asts { res.register(ast.clone()); }
+        assert!(res.typecheck(&asts)); // Validates CacheSafe
     }
 }
