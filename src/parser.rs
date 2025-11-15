@@ -13,7 +13,7 @@ use nom::{
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     Concept, Impl, Fn, Ident(String), Colon, Arrow, LParen, RParen, Comma, Eq, Semi, Lt, Gt,
-    Where, For, Mut, BraceOpen, BraceClose, IntLit(i64), AiOpt,
+    Where, For, Mut, BraceOpen, BraceClose, IntLit(i64), AiOpt, Send, Sync,
 }
 
 fn identifier(input: &str) -> IResult<&str, Token> {
@@ -34,6 +34,8 @@ fn keyword(input: &str) -> IResult<&str, Token> {
         value(Token::For, tag("for")),
         value(Token::Mut, tag("mut")),
         value(Token::AiOpt, tag("ai_opt")),
+        value(Token::Send, tag("Send")),
+        value(Token::Sync, tag("Sync")),
     ))(input)
 }
 
