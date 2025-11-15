@@ -7,7 +7,7 @@
 /// ## Completed
 /// - Parser (nom): Concepts, impls, funcs, actors, exprs (calls, borrow, assign, defer, spawn, TimingOwned), attrs.
 /// - AST: Full enum with attrs for stable_abi.
-/// - Resolver: Typecheck, borrowck (Owned/Borrowed/MutBorrowed + affine/Consumed), method resolution, actor/spawn validation, stable_abi checks (no generics in FFI).
+/// - Resolver: Typecheck, borrowck (Owned/Borrowed/MutBorrowed + affine/Consumed + speculative/Poisoned), method resolution, actor/spawn validation, stable_abi checks (no generics in FFI).
 /// - Codegen (LLVM): Intrinsics (add_i32, add_vec SIMD v4i32 memcpy/store), malloc, channel_send, std embeds (http_get/TLS, datetime_now), actor gen (struct/vtable/handler loop), stable ABI (extern "C", versioning metadata, packed structs), TBAA aliasing, TimingOwned (constant-time XOR erase).
 /// - Pipeline: Parse -> Resolve/typecheck -> Gen intrinsics/actors/funcs -> JIT exec.
 /// - Optimizations: Aggressive LTO, vectorize metadata, alloca for ownership/timing-safe.
@@ -22,12 +22,13 @@
 /// - Concurrency: CacheSafe trait (timing channels), static race analysis (borrowck stub).
 /// - Std Lib: Embed tokio-core/reqwest-tls/chrono as std::net::http/tls/datetime, version-lock Cargo features.
 /// - Safety/Perf: Affine ownership in borrowck (Consumed state, post-validate moves).
+/// - Safety/Perf: Borrowck speculative exec tracking (Speculative/Poisoned states, TimingOwned coverage).
+/// - Safety/Perf: LLVM MLGO auto-vectorize/branch pred (<1% overhead, 15-25% speedup) via metadata.
 /// 
 /// ## Partially Completed
 /// - Benchmarks: Criterion suite (Zeta vs Rust/Zig/Go, EOP semiring/concurrent actors).
 /// 
 /// ## To Do
-/// - Safety/Perf: Borrowck speculative exec tracking, LLVM MLGO auto-vectorize/branch pred (<1% overhead, 15-25% speedup).
 /// - Advanced: Nominal+structural traits, regularity auto-classify (Copy+Eq derive), algebraic fusion (semigroup assoc_fold peephole).
 /// - Testing: Full e2e (EOP algos, perf benchmarks vs Rust/Zig/Go), API exposure (stable_abi FFI).
 /// - Bootstrap: Self-host Zeta compiler in Zeta, release .z files.
@@ -41,6 +42,6 @@ pub struct Plan;
 
 impl Plan {
     pub fn status() -> &'static str {
-        "Affine borrowck complete. Next: Speculative exec tracking + MLGO hooks."
+        "Speculative exec + MLGO hooks complete. Next: Nominal+structural traits."
     }
 }
