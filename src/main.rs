@@ -5,9 +5,9 @@ fn main() {
     println!("Zeta Status: {}", Plan::status());
 
     let code = r#"
-#[ai_opt]
-fn use_vec_add() -> i32 {
-    let v = Vec<i32>[1, 2];
+#[derive(Copy)]
+fn use_vec_add<Rhs=Self>() -> i32 { // Const default
+    let v: Vec<i32> = Vec<i32>[1, 2]; // Infer phantom if needed
     v.add(3);
     42
 }
