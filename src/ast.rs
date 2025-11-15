@@ -1,4 +1,3 @@
-// src/ast.rs
 #[derive(Debug, Clone)]
 pub enum AstNode {
     ConceptDef { name: String, params: Vec<String>, methods: Vec<AstNode> },
@@ -14,4 +13,5 @@ pub enum AstNode {
     ActorDef { name: String, methods: Vec<AstNode> },
     SpawnActor { actor_ty: String, init_args: Vec<String> },
     TimingOwned { ty: String, inner: Box<AstNode> }, // TimingOwned<T>(expr)
+    // Send/Sync: As impl blocks, e.g., impl Send for MyType { }
 }
