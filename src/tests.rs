@@ -87,7 +87,25 @@ impl B for i32 {}
         let (_, asts) = parse_zeta(input).unwrap();
         let mut res = Resolver::new();
         for ast in &asts { res.register(ast.clone()); }
-        // Parallel typecheck should pass
         assert!(res.typecheck(&asts));
+    }
+
+    #[test]
+    fn test_ctfe_semiring() {
+        let input = r#"
+fn semiring_test() -> i32 {
+    let a = 2;
+    let b = 3;
+    let c = a.add(b); // CTFE to 5
+    c
+}
+"#;
+        let (_, asts) = parse_zeta(input).unwrap();
+        let mut res = Resolver::new();
+        for ast in &asts { res.register(ast.clone()); }
+        let ast_hash = format!("{:?}", asts[0]);
+        let mir = res.get_cached_mir(&ast_hash).unwrap();
+        assert!(mir.ctfe_consts.contains_key(&2)); // Res=5
+        assert_eq!(*mir.ctfe_consts.get(&2).unwrap(), 5);
     }
 }
