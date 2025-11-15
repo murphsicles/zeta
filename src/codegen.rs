@@ -25,12 +25,12 @@ pub struct LLVMCodegen<'ctx> {
     add_vec_fn: Option<FunctionValue<'ctx>>,
     malloc_fn: Option<FunctionValue<'ctx>>,
     channel_send_fn: Option<FunctionValue<'ctx>>,
+    channel_poll_fn: Option<FunctionValue<'ctx>>,
     http_get_fn: Option<FunctionValue<'ctx>>,
     tls_connect_fn: Option<FunctionValue<'ctx>>,
     datetime_now_fn: Option<FunctionValue<'ctx>>,
     tbaa_root: Option<MetadataValue<'ctx>>,
     abi_version: Option<String>,
-    // AI-Opt: MLGO metadata node (placeholder for pass hints)
     ai_opt_meta: Option<MetadataValue<'ctx>>,
 }
 
@@ -45,24 +45,21 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let vec_type = context.struct_type(&[i8ptr_type.into(), i32_type.into()], false);
         Self { 
             context, module, builder, execution_engine: None, i32_type, i64_type, i8_type, i8ptr_type, vec_type, 
-            add_i32_fn: None, add_vec_fn: None, malloc_fn: None, channel_send_fn: None, http_get_fn: None, 
-            tls_connect_fn: None, datetime_now_fn: None, tbaa_root: None, abi_version: Some("1.0".to_string()),
+            add_i32_fn: None, add_vec_fn: None, malloc_fn: None, channel_send_fn: None, channel_poll_fn: None,
+            http_get_fn: None, tls_connect_fn: None, datetime_now_fn: None, tbaa_root: None, abi_version: Some("1.0".to_string()),
             ai_opt_meta: None,
         }
     }
 
     pub fn gen_intrinsics(&mut self) {
-        // TBAA metadata for stricter aliasing
         let tbaa_id = self.context.metadata_value(self.i32_type.const_int(0, false));
         let tbaa_node = self.context.metadata_value(self.i32_type.const_int(1, false));
         let tbaa_md = self.context.metadata_node(&[tbaa_id, tbaa_node]);
         self.tbaa_root = Some(tbaa_md);
 
-        // AI-Opt: MLGO placeholder metadata (vectorize/branch hints)
-        let ai_hint = self.context.metadata_value(self.i32_type.const_int(1, false)); // 1=vectorize, 2=branch-pred
+        let ai_hint = self.context.metadata_value(self.i32_type.const_int(1, false));
         self.ai_opt_meta = Some(ai_hint);
 
-        // add_i32 with TBAA
         let fn_type = self.i32_type.fn_type(&[self.i32_type.into(), self.i32_type.into()], false);
         let fn_val = self.module.add_function("add_i32", fn_type, None);
         let entry = self.context.append_basic_block(fn_val, "entry");
@@ -73,7 +70,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.builder.build_return(Some(&ret.into()));
         self.add_i32_fn = Some(fn_val);
 
-        // add_vec_i32 with SIMD + TBAA + AI-Opt metadata
         let vec_ptr_type = self.vec_type.ptr_type(inkwell::AddressSpace::Generic);
         let add_vec_type = vec_ptr_type.fn_type(&[vec_ptr_type.into(), self.i32_type.into()], false);
         let add_vec_val = self.module.add_function("add_vec_i32", add_vec_type, None);
@@ -85,7 +81,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let len = self.builder.build_load(len_ptr, "load_len").into_int_value();
         let new_len = self.builder.build_int_add(len, self.i32_type.const_int(1, false), "new_len");
         let new_size = self.builder.build_int_mul(new_len, self.i32_type.const_int(4, false), "new_size");
-        // Stub malloc (declare later)
         self.malloc_fn = Some(self.module.add_function("malloc", self.i8ptr_type.fn_type(&[self.i64_type.into()], false), None));
         let new_ptr = self.builder.build_call(self.malloc_fn.as_ref().unwrap(), &[new_size.into()], "new_ptr").try_as_basic_value().left().unwrap().into_pointer_value();
         let old_ptr = self.builder.build_struct_gep(vec_arg, 0, "old_ptr").unwrap();
@@ -95,22 +90,19 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.builder.build_call(memcpy, &[new_ptr.into(), old_data.into(), size4.into()], "memcpy");
         let offset = self.builder.build_int_mul(len, self.i32_type.const_int(4, false), "offset");
         let offset_ptr = self.builder.build_gep(new_ptr, &[offset.into()], "offset_ptr");
-        // SIMD store with v4i32 + TBAA + AI-Opt
         let v4i32 = self.i32_type.vector_type(4);
         let scalar_vec = v4i32.const_array(&[scalar, self.i32_type.const_int(0, false), self.i32_type.const_int(0, false), self.i32_type.const_int(0, false)]);
         self.builder.build_store(offset_ptr, scalar_vec);
-        // Attach AI-Opt metadata to SIMD store (placeholder)
         if let Some(ai_meta) = &self.ai_opt_meta {
             let store_inst = self.builder.get_last_instruction().unwrap();
             store_inst.set_metadata("ai_opt_hint", *ai_meta);
         }
-        // Update vec struct (stub: return new vec)
         let new_vec = self.builder.build_aggregate_store(&[new_ptr.into(), new_len.into()], vec_arg);
         self.builder.build_return(Some(&vec_arg.into()));
         self.add_vec_fn = Some(add_vec_val);
 
-        // Stub other intrinsics
         self.channel_send_fn = Some(self.module.add_function("channel_send", self.i32_type.fn_type(&[self.i8ptr_type.into(), self.i32_type.into()], false), None));
+        self.channel_poll_fn = Some(self.module.add_function("channel_poll", self.i32_type.fn_type(&[self.i8ptr_type.into()], false), None)); // Returns msg or -1 error
         self.http_get_fn = Some(self.module.add_function("std_http_get", self.i8ptr_type.fn_type(&[self.i8ptr_type.into()], false), None));
         self.tls_connect_fn = Some(self.module.add_function("std_tls_connect", self.i32_type.fn_type(&[self.i8ptr_type.into()], false), None));
         self.datetime_now_fn = Some(self.module.add_function("std_datetime_now", self.i64_type.fn_type(&[], false), None));
@@ -124,7 +116,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
             let entry = self.context.append_basic_block(fn_val, "entry");
             self.builder.position_at_end(entry);
 
-            // Params to alloca
             for (i, (pname, _)) in params.iter().enumerate() {
                 let param_val = fn_val.get_nth_param(i as u32).unwrap().into_pointer_value();
                 let alloca = self.builder.build_alloca(param_val.get_type(), pname);
@@ -132,14 +123,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 param_map.insert(pname.clone(), alloca);
             }
 
-            // Gen body
             for node in body {
                 if let Some(val) = self.gen_expr(node, param_map) {
-                    // AI-Opt: Attach metadata if #[ai_opt] (e.g., on loops/calls)
                     if attrs.contains(&"ai_opt".to_string()) && self.builder.get_insert_block().is_some() {
                         if let Some(ai_meta) = &self.ai_opt_meta {
                             let last_inst = self.builder.get_last_instruction().unwrap();
-                            last_inst.set_metadata("mlgo_hint", *ai_meta); // Placeholder for vectorize/branch
+                            last_inst.set_metadata("mlgo_hint", *ai_meta);
                         }
                     }
                 }
@@ -158,7 +147,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         Some(self.builder.build_call(add_fn, &[x.into(), y.into()], "add_call").try_as_basic_value().left().unwrap())
                     } else { None }
                 } else if method == "add" && receiver.contains("Vec") {
-                    // Stub vec ptr
                     let vec_ptr = self.builder.build_alloca(self.vec_type.ptr_type(inkwell::AddressSpace::Generic), "vec_ptr");
                     let scalar = self.i32_type.const_int(3, false);
                     if let Some(add_vec_fn) = &self.add_vec_fn {
@@ -167,7 +155,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 } else { None }
             }
             AstNode::TimingOwned { .. } => {
-                // Constant-time XOR erase (placeholder: XOR with rand)
                 let inner_val = self.i32_type.const_int(42, false);
                 let xor_key = self.i32_type.const_int(0xDEADBEEF, false);
                 let erased = self.builder.build_int_xor(inner_val, xor_key, "timing_erase");
@@ -186,7 +173,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     pub fn gen_actor(&mut self, actor: &AstNode) {
         if let AstNode::ActorDef { name, methods } = actor {
-            let actor_ty = self.context.struct_type(&[self.i8ptr_type.into(), self.i32_type.into()], false);
+            let actor_ty = self.context.struct_type(&[self.i8ptr_type.into(), self.i32_type.into()], false); // queue + state
             let actor_ptr_type = actor_ty.ptr_type(inkwell::AddressSpace::Generic);
             for method in methods {
                 if let AstNode::Method { name: mname, params, ret } = method {
@@ -199,7 +186,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         let self_param = fn_val.get_nth_param(0).unwrap().into_pointer_value();
                         let queue = self.builder.build_struct_gep(self_param, 0, "queue").unwrap();
                         let msg = fn_val.get_nth_param(1).unwrap().into_int_value();
-                        self.builder.build_call(send, &[queue.into(), msg.into()], "send_msg");
+                        let send_res = self.builder.build_call(send, &[queue.into(), msg.into()], "send_msg");
+                        // Fault-tolerance: Check send_res != -1, else poison/return err
+                        let err_cond = self.builder.build_int_compare(inkwell::IntPredicate::EQ, send_res.into_int_value(), self.i32_type.const_int(-1, false), "send_err");
+                        let err_bb = self.context.append_basic_block(fn_val, "err");
+                        let ok_bb = self.context.append_basic_block(fn_val, "ok");
+                        self.builder.build_conditional_branch(err_cond, err_bb, ok_bb);
+                        self.builder.position_at_end(err_bb);
+                        self.builder.build_return(Some(&self.i32_type.const_int(-1, false).into())); // Err
+                        self.builder.position_at_end(ok_bb);
                     }
                     self.builder.build_return(Some(&self.i32_type.const_int(0, false).into()));
                 }
@@ -213,18 +208,28 @@ impl<'ctx> LLVMCodegen<'ctx> {
             self.builder.position_at_end(loop_bb);
             let self_arg = handler.get_nth_param(0).unwrap().into_pointer_value();
             let queue = self.builder.build_struct_gep(self_arg, 0, "queue").unwrap();
-            let poll = self.builder.build_load(queue, "poll").into_int_value();
-            let cond = self.builder.build_int_compare(inkwell::IntPredicate::NE, poll, self.i32_type.const_int(0, false), "has_msg");
-            let then_bb = self.context.append_basic_block(handler, "then");
-            let else_bb = self.context.append_basic_block(handler, "else");
-            self.builder.build_conditional_branch(cond, then_bb, else_bb);
-            self.builder.position_at_end(then_bb);
-            let msg = self.builder.build_load(queue, "msg").into_int_value();
-            let inc_fn = self.module.get_function("increment").unwrap_or_else(|| self.module.add_function("increment", self.i32_type.fn_type(&[actor_ptr_type.into(), self.i32_type.into()], false), None));
-            let inc_call = self.builder.build_call(inc_fn, &[self_arg.into(), msg.into()], "inc_call");
-            self.builder.build_return(Some(&inc_call.try_as_basic_value().left().unwrap().into()));
-            self.builder.position_at_end(else_bb);
-            self.builder.build_br(loop_bb);
+            if let Some(poll) = &self.channel_poll_fn {
+                let poll_res = self.builder.build_call(poll, &[queue.into()], "poll_msg");
+                let poll_val = poll_res.into_int_value();
+                let has_msg = self.builder.build_int_compare(inkwell::IntPredicate::NE, poll_val, self.i32_type.const_int(-1, false), "has_msg"); // -1 = err/empty
+                let then_bb = self.context.append_basic_block(handler, "then");
+                let else_bb = self.context.append_basic_block(handler, "else");
+                self.builder.build_conditional_branch(has_msg, then_bb, else_bb);
+                self.builder.position_at_end(then_bb);
+                // Handle msg, propagate err if needed
+                let inc_fn = self.module.get_function("increment").unwrap_or_else(|| self.module.add_function("increment", self.i32_type.fn_type(&[actor_ptr_type.into(), self.i32_type.into()], false), None));
+                let inc_call = self.builder.build_call(inc_fn, &[self_arg.into(), poll_val.into()], "inc_call");
+                let inc_err = self.builder.build_int_compare(inkwell::IntPredicate::EQ, inc_call.into_int_value(), self.i32_type.const_int(-1, false), "inc_err");
+                let poison_bb = self.context.append_basic_block(handler, "poison");
+                self.builder.build_conditional_branch(inc_err, poison_bb, loop_bb);
+                self.builder.position_at_end(poison_bb);
+                // Poison: Set flag, return err
+                let state_ptr = self.builder.build_struct_gep(self_arg, 1, "state").unwrap();
+                self.builder.build_store(state_ptr, self.i32_type.const_int(-999, false)); // Poison flag
+                self.builder.build_return(Some(&self.i32_type.const_int(-1, false).into()));
+                self.builder.position_at_end(else_bb);
+                self.builder.build_br(loop_bb);
+            }
         }
     }
 
