@@ -13,7 +13,7 @@ use nom::{
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     Concept, Impl, Fn, Ident(String), Colon, Arrow, LParen, RParen, Comma, Eq, Semi, Lt, Gt,
-    Where, For, Mut, BraceOpen, BraceClose, IntLit(i64), AiOpt, Send, Sync,
+    Where, For, Mut, BraceOpen, BraceClose, IntLit(i64), AiOpt, Send, Sync, Derive,
 }
 
 fn identifier(input: &str) -> IResult<&str, Token> {
@@ -36,6 +36,7 @@ fn keyword(input: &str) -> IResult<&str, Token> {
         value(Token::AiOpt, tag("ai_opt")),
         value(Token::Send, tag("Send")),
         value(Token::Sync, tag("Sync")),
+        value(Token::Derive, tag("derive")),
     ))(input)
 }
 
@@ -73,14 +74,24 @@ fn parse_attrs(input: &str) -> IResult<&str, Vec<String>> {
     many0(preceded(tag("#["), terminated(map_opt(identifier), tag("]"))))(input)
 }
 
+fn parse_derive(input: &str) -> IResult<&str, AstNode> {
+    let parser = tuple((
+        tag("derive"), multispace0, delimited(tag("("), separated_list1(tag(","), map_opt(identifier)), tag(")")),
+        multispace0, map_opt(identifier), tag(";"),
+    ));
+    let (i, (_, _, traits, _, ty, _)) = parser(input)?;
+    Ok((i, AstNode::Derive { ty: ty.unwrap_or_default(), traits: traits }))
+}
+
 pub fn parse_concept(input: &str) -> IResult<&str, AstNode> {
     let parser = tuple((
         tag("concept"), multispace0, map_opt(identifier), multispace0,
-        opt(delimited(tag("<"), separated_list1(tag(","), map_opt(identifier)), tag(">"))), multispace0,
+        opt(delimited(tag("<"), separated_list1(tag(","), separated_pair(map_opt(identifier), opt(preceded(tag("="), map_opt(identifier))), tag(","))), tag(">"))), multispace0, // Const defaults <T=Self>
         tag("{"), multispace0, many0(parse_method), tag("}"),
     ));
     let (i, (_, _, name, _, params_opt, _, _, _, methods, _)) = parser(input)?;
-    Ok((i, AstNode::ConceptDef { name: name.unwrap_or_default(), params: params_opt.unwrap_or_default(), methods }))
+    let params: Vec<String> = params_opt.unwrap_or_default().into_iter().map(|(n, _)| n.unwrap_or_default()).collect(); // Ignore defaults for now
+    Ok((i, AstNode::ConceptDef { name: name.unwrap_or_default(), params, methods }))
 }
 
 fn parse_method(input: &str) -> IResult<&str, AstNode> {
@@ -167,7 +178,7 @@ fn parse_spawn_actor(input: &str) -> IResult<&str, AstNode> {
 }
 
 pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
-    let generics_parser = opt(delimited(tag("<"), separated_list1(tag(","), map_opt(identifier)), tag(">")));
+    let generics_parser = opt(delimited(tag("<"), separated_list1(tag(","), separated_pair(map_opt(identifier), opt(preceded(tag("="), map_opt(identifier))), tag(","))), tag(">"))); // Const defaults
     let param_parser = separated_pair(opt(tag("mut")), tag(":"), tuple((map_opt(identifier), multispace0, tag(":"), multispace0, map_opt(identifier))));
     let parser = tuple((
         multispace0, parse_attrs,
@@ -178,7 +189,7 @@ pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
     ));
     let (i, (_, attrs_opt, _, _, name, _, generics_opt, _, params, _, _, _, ret, _, where_opt, _, _, _, body, _)) = parser(input)?;
     let attrs = attrs_opt.unwrap_or_default();
-    let generics = generics_opt.unwrap_or_default();
+    let generics: Vec<String> = generics_opt.unwrap_or_default().into_iter().map(|(n, _)| n.unwrap_or_default()).collect();
     let func_params: Vec<(String, String)> = params.into_iter().map(|(mut_opt, (pn, _, _, _, ty))| (pn.unwrap_or_default(), ty.unwrap_or_default())).collect();
     Ok((i, AstNode::FuncDef {
         name: name.unwrap_or_default(), generics, params: func_params, ret: ret.unwrap_or_default(),
@@ -191,5 +202,5 @@ fn parse_where_clause(input: &str) -> IResult<&str, Vec<(String, String)>> {
 }
 
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
-    many0(alt((parse_func, parse_actor, parse_impl, parse_concept)))(input)
+    many0(alt((parse_func, parse_actor, parse_impl, parse_concept, parse_derive)))(input)
 }
