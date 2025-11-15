@@ -164,7 +164,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     self.builder.build_store(res_ptr, computed);
                 }
                 MirStmt::Call { func, args } => {
-                    // Stub
                 }
                 _ => {}
             }
@@ -176,7 +175,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
             let conc_params: Vec<String> = if generics.is_empty() {
                 vec![]
             } else {
-                // Stub concrete: e.g., from context/use, assume i32 for test
                 vec!["i32".to_string()]
             };
             let mono_key = (name.clone(), conc_params.clone());
@@ -317,12 +315,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     pub fn jit_warmup(&mut self) -> Result<(), Box<dyn Error>> {
         if let Some(ee) = &self.execution_engine {
-            // Dummy exec for warmup (e.g., call main fns with zeros)
             type DummyFn = unsafe extern "C" fn() -> i32;
             if let Some(dummy) = ee.get_function::<DummyFn>("main") {
                 unsafe { dummy.call(); }
             }
-            // Sleep brief for JIT settle
             thread::sleep(Duration::from_millis(1));
         }
         Ok(())
