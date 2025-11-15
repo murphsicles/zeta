@@ -13,7 +13,7 @@ use nom::{
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     Concept, Impl, Fn, Ident(String), Colon, Arrow, LParen, RParen, Comma, Eq, Semi, Lt, Gt,
-    Where, For, Mut, BraceOpen, BraceClose, IntLit(i64),
+    Where, For, Mut, BraceOpen, BraceClose, IntLit(i64), AiOpt,
 }
 
 fn identifier(input: &str) -> IResult<&str, Token> {
@@ -33,6 +33,7 @@ fn keyword(input: &str) -> IResult<&str, Token> {
         value(Token::Where, tag("where")),
         value(Token::For, tag("for")),
         value(Token::Mut, tag("mut")),
+        value(Token::AiOpt, tag("ai_opt")),
     ))(input)
 }
 
@@ -103,25 +104,8 @@ pub fn parse_impl(input: &str) -> IResult<&str, AstNode> {
     Ok((i, AstNode::ImplBlock { concept: concept.unwrap_or_default(), ty: full_ty, body: methods }))
 }
 
-pub fn parse_where_clause(input: &str) -> IResult<&str, Vec<(String, String)>> {
-    preceded(tag("where"), separated_list1(tag(","), separated_pair(map_opt(identifier), tag(":"), map_opt(identifier))))(input)
-}
-
-fn parse_expr(input: &str) -> IResult<&str, AstNode> {
-    alt((
-        map(int_literal, |t| if let Token::IntLit(n) = t { AstNode::Lit(n) } else { unreachable!() }),
-        map(map_opt(identifier), |s| AstNode::Var(s.unwrap_or_default())),
-        parse_call,
-        parse_borrow,
-        parse_assign,
-        parse_defer,
-        parse_spawn_actor,
-        parse_timing_owned,
-    ))(input)
-}
-
 fn parse_call(input: &str) -> IResult<&str, AstNode> {
-    let parser = tuple((map_opt(identifier), multispace0, map_opt(identifier), multispace0, delimited(tag("("), separated_list1(tag(","), map_opt(identifier)), tag(")")), multispace0, tag(";")));
+    let parser = tuple((map_opt(identifier), tag("."), map_opt(identifier), multispace0, delimited(tag("("), separated_list1(tag(","), map_opt(identifier)), tag(")")), multispace0, tag(";")));
     let (i, (receiver, _, method, _, args_opt, _, _)) = parser(input)?;
     Ok((i, AstNode::Call { method: method.unwrap_or_default(), receiver: receiver.unwrap_or_default(), args: args_opt.unwrap_or_default() }))
 }
@@ -144,6 +128,10 @@ fn parse_timing_owned(input: &str) -> IResult<&str, AstNode> {
     let parser = tuple((tag("TimingOwned"), tag("<"), map_opt(identifier), tag(">"), tag("("), parse_expr, tag(")")));
     let (i, (_, _, ty, _, _, expr, _)) = parser(input)?;
     Ok((i, AstNode::TimingOwned { ty: ty.unwrap_or_default(), inner: Box::new(expr) }))
+}
+
+fn parse_expr(input: &str) -> IResult<&str, AstNode> {
+    alt((parse_call, parse_borrow, parse_timing_owned, parse_assign, parse_defer, map(int_literal, |t| AstNode::Lit(t.0)), map(identifier, |t| AstNode::Var(t.0))))(input)
 }
 
 fn parse_actor(input: &str) -> IResult<&str, AstNode> {
@@ -194,6 +182,10 @@ pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
         name: name.unwrap_or_default(), generics, params: func_params, ret: ret.unwrap_or_default(),
         body, where_clause: where_opt, attrs,
     }))
+}
+
+fn parse_where_clause(input: &str) -> IResult<&str, Vec<(String, String)>> {
+    preceded(tag("where"), separated_list1(tag(","), separated_pair(map_opt(identifier), tag(":"), map_opt(identifier))))(input)
 }
 
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
