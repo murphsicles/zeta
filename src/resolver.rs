@@ -188,7 +188,8 @@ impl Resolver {
                         for (pname, _) in params {
                             bc.declare(pname.clone(), BorrowState::Owned);
                         }
-                        !body.iter().any(|node| !bc.check(node)) // Stub race: Extend bc for shared mut
+                        let borrow_ok = !body.iter().any(|node| !bc.check(node)) && bc.validate_affine(body); // Affine validation
+                        borrow_ok // Extended: Affine borrowck
                     }
                 }
                 _ => true,
