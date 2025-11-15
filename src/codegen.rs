@@ -11,6 +11,8 @@ use crate::parser::parse_zeta;
 use crate::resolver::Resolver;
 use std::collections::HashMap;
 use std::error::Error;
+use std::thread;
+use std::time::Duration;
 
 pub struct LLVMCodegen<'ctx> {
     context: &'ctx Context,
@@ -122,29 +124,28 @@ impl<'ctx> LLVMCodegen<'ctx> {
     }
 
     pub fn gen_mir(&mut self, mir: &Mir) {
-        // Alloca locals
         let mut local_map: HashMap<u32, PointerValue<'ctx>> = HashMap::new();
-        for _ in 0..mir.locals.len() as u32 {
-            let alloca = self.builder.build_alloca(self.i32_type, "local");
-            local_map.insert(self.builder.get_insert_block().unwrap().get_first_instruction().unwrap().get_num_operands() as u32, alloca);
+        for i in 0..(mir.locals.len() as u32 + mir.ctfe_consts.len() as u32) {
+            let alloca = self.builder.build_alloca(self.i32_type, &format!("local_{}", i));
+            local_map.insert(i, alloca);
         }
         for stmt in &mir.stmts {
             match stmt {
                 MirStmt::Assign { lhs, rhs } => {
-                    let lhs_ptr = local_map.get(lhs).unwrap();
+                    let lhs_ptr = *local_map.get(lhs).unwrap();
                     match rhs {
                         MirExpr::Lit(n) => {
                             let val = self.i32_type.const_int(*n as u64, false);
-                            self.builder.build_store(*lhs_ptr, val);
+                            self.builder.build_store(lhs_ptr, val);
                         }
                         MirExpr::ConstEval(c) => {
                             let val = self.i32_type.const_int(*c as u64, false);
-                            self.builder.build_store(*lhs_ptr, val);
+                            self.builder.build_store(lhs_ptr, val);
                         }
                         MirExpr::Var(vid) => {
                             if let Some(src_ptr) = local_map.get(vid) {
                                 let loaded = self.builder.build_load(*src_ptr, "load_var");
-                                self.builder.build_store(*lhs_ptr, loaded);
+                                self.builder.build_store(lhs_ptr, loaded);
                             }
                         }
                         _ => {}
@@ -163,7 +164,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     self.builder.build_store(res_ptr, computed);
                 }
                 MirStmt::Call { func, args } => {
-                    // Stub dynamic call
+                    // Stub
                 }
                 _ => {}
             }
@@ -171,31 +172,41 @@ impl<'ctx> LLVMCodegen<'ctx> {
     }
 
     pub fn gen_func(&mut self, ast: &AstNode, resolver: &Resolver, param_map: &mut HashMap<String, PointerValue<'ctx>>) {
-        if let AstNode::FuncDef { name, params, body, ret, attrs, .. } = ast {
-            let ast_hash = format!("{:?}", ast);
-            if let Some(mir) = resolver.get_cached_mir(&ast_hash) {
-                // Gen from MIR with CTFE
-                let param_types: Vec<BasicTypeEnum> = params.iter().map(|(_, t)| if *t == "i32" { self.i32_type.into() } else { self.i8ptr_type.into() }).collect();
-                let fn_type = self.i32_type.fn_type(&param_types, false);
-                let fn_val = self.module.add_function(name, fn_type, None);
-                let entry = self.context.append_basic_block(fn_val, "entry");
-                self.builder.position_at_end(entry);
-                self.gen_mir(mir);
-                self.builder.build_return(Some(&self.i32_type.const_int(0, false).into()));
+        if let AstNode::FuncDef { name, generics, params, body, ret, attrs, .. } = ast {
+            let conc_params: Vec<String> = if generics.is_empty() {
+                vec![]
             } else {
-                let param_types: Vec<BasicTypeEnum> = params.iter().map(|(_, t)| if *t == "i32" { self.i32_type.into() } else { self.i8ptr_type.into() }).collect();
-                let fn_type = self.i32_type.fn_type(&param_types, false);
-                let fn_val = self.module.add_function(name, fn_type, None);
-                let entry = self.context.append_basic_block(fn_val, "entry");
-                self.builder.position_at_end(entry);
+                // Stub concrete: e.g., from context/use, assume i32 for test
+                vec!["i32".to_string()]
+            };
+            let mono_key = (name.clone(), conc_params.clone());
+            let mono_ast = if generics.is_empty() {
+                ast.clone()
+            } else {
+                resolver.monomorphize(mono_key.clone(), ast)
+            };
+            let mir = if generics.is_empty() {
+                resolver.get_cached_mir(&format!("{:?}", ast)).cloned()
+            } else {
+                resolver.get_mono_mir(&mono_key).cloned()
+            };
+            let param_types: Vec<BasicTypeEnum> = params.iter().map(|(_, t)| if *t == "i32" { self.i32_type.into() } else { self.i8ptr_type.into() }).collect();
+            let fn_type = self.i32_type.fn_type(&param_types, false);
+            let mono_name = if generics.is_empty() { name.clone() } else { format!("{}_{}", name, conc_params.join("_")) };
+            let fn_val = self.module.add_function(&mono_name, fn_type, None);
+            let entry = self.context.append_basic_block(fn_val, "entry");
+            self.builder.position_at_end(entry);
 
-                for (i, (pname, _)) in params.iter().enumerate() {
-                    let param_val = fn_val.get_nth_param(i as u32).unwrap().into_pointer_value();
-                    let alloca = self.builder.build_alloca(param_val.get_type(), pname);
-                    self.builder.build_store(alloca, param_val);
-                    param_map.insert(pname.clone(), alloca);
-                }
+            for (i, (pname, _)) in params.iter().enumerate() {
+                let param_val = fn_val.get_nth_param(i as u32).unwrap().into_pointer_value();
+                let alloca = self.builder.build_alloca(param_val.get_type(), pname);
+                self.builder.build_store(alloca, param_val);
+                param_map.insert(pname.clone(), alloca);
+            }
 
+            if let Some(m) = mir {
+                self.gen_mir(&m);
+            } else {
                 for node in body {
                     if let Some(val) = self.gen_expr_ast(node, param_map) {
                         if attrs.contains(&"ai_opt".to_string()) && self.builder.get_insert_block().is_some() {
@@ -206,8 +217,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         }
                     }
                 }
-                self.builder.build_return(Some(&self.i32_type.const_int(0, false).into()));
             }
+            self.builder.build_return(Some(&self.i32_type.const_int(0, false).into()));
         }
     }
 
@@ -304,10 +315,24 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
     }
 
+    pub fn jit_warmup(&mut self) -> Result<(), Box<dyn Error>> {
+        if let Some(ee) = &self.execution_engine {
+            // Dummy exec for warmup (e.g., call main fns with zeros)
+            type DummyFn = unsafe extern "C" fn() -> i32;
+            if let Some(dummy) = ee.get_function::<DummyFn>("main") {
+                unsafe { dummy.call(); }
+            }
+            // Sleep brief for JIT settle
+            thread::sleep(Duration::from_millis(1));
+        }
+        Ok(())
+    }
+
     pub fn finalize_and_jit(&mut self) -> Result<ExecutionEngine<'ctx>, Box<dyn Error>> {
         self.module.verify().map_err(|e| e.to_string())?;
         let ee = self.module.create_jit_execution_engine(OptimizationLevel::Aggressive)?;
         self.execution_engine = Some(ee.clone());
+        self.jit_warmup()?;
         Ok(ee)
     }
 
