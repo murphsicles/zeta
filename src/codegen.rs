@@ -32,6 +32,8 @@ pub struct LLVMCodegen<'ctx> {
     tbaa_root: Option<MetadataValue<'ctx>>,
     abi_version: Option<String>,
     ai_opt_meta: Option<MetadataValue<'ctx>>,
+    // Derive: Copy as memcpy stub
+    copy_fn: Option<FunctionValue<'ctx>>,
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -47,7 +49,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             context, module, builder, execution_engine: None, i32_type, i64_type, i8_type, i8ptr_type, vec_type, 
             add_i32_fn: None, add_vec_fn: None, malloc_fn: None, channel_send_fn: None, channel_poll_fn: None,
             http_get_fn: None, tls_connect_fn: None, datetime_now_fn: None, tbaa_root: None, abi_version: Some("1.0".to_string()),
-            ai_opt_meta: None,
+            ai_opt_meta: None, copy_fn: None,
         }
     }
 
@@ -101,8 +103,20 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.builder.build_return(Some(&vec_arg.into()));
         self.add_vec_fn = Some(add_vec_val);
 
+        // Copy derive: memcpy stub
+        let copy_type = self.i8ptr_type.fn_type(&[self.i8ptr_type.into(), self.i8ptr_type.into()], false);
+        let copy_val = self.module.add_function("copy_mem", copy_type, None);
+        let c_entry = self.context.append_basic_block(copy_val, "entry");
+        self.builder.position_at_end(c_entry);
+        let dst = copy_val.get_nth_param(0).unwrap().into_pointer_value();
+        let src = copy_val.get_nth_param(1).unwrap().into_pointer_value();
+        let size = self.i32_type.const_int(4, false); // Stub size
+        self.builder.build_call(memcpy, &[dst.into(), src.into(), size.into()], "copy");
+        self.builder.build_return(Some(&dst.into()));
+        self.copy_fn = Some(copy_val);
+
         self.channel_send_fn = Some(self.module.add_function("channel_send", self.i32_type.fn_type(&[self.i8ptr_type.into(), self.i32_type.into()], false), None));
-        self.channel_poll_fn = Some(self.module.add_function("channel_poll", self.i32_type.fn_type(&[self.i8ptr_type.into()], false), None)); // Returns msg or -1 error
+        self.channel_poll_fn = Some(self.module.add_function("channel_poll", self.i32_type.fn_type(&[self.i8ptr_type.into()], false), None));
         self.http_get_fn = Some(self.module.add_function("std_http_get", self.i8ptr_type.fn_type(&[self.i8ptr_type.into()], false), None));
         self.tls_connect_fn = Some(self.module.add_function("std_tls_connect", self.i32_type.fn_type(&[self.i8ptr_type.into()], false), None));
         self.datetime_now_fn = Some(self.module.add_function("std_datetime_now", self.i64_type.fn_type(&[], false), None));
@@ -173,7 +187,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     pub fn gen_actor(&mut self, actor: &AstNode) {
         if let AstNode::ActorDef { name, methods } = actor {
-            let actor_ty = self.context.struct_type(&[self.i8ptr_type.into(), self.i32_type.into()], false); // queue + state
+            let actor_ty = self.context.struct_type(&[self.i8ptr_type.into(), self.i32_type.into()], false);
             let actor_ptr_type = actor_ty.ptr_type(inkwell::AddressSpace::Generic);
             for method in methods {
                 if let AstNode::Method { name: mname, params, ret } = method {
@@ -187,13 +201,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         let queue = self.builder.build_struct_gep(self_param, 0, "queue").unwrap();
                         let msg = fn_val.get_nth_param(1).unwrap().into_int_value();
                         let send_res = self.builder.build_call(send, &[queue.into(), msg.into()], "send_msg");
-                        // Fault-tolerance: Check send_res != -1, else poison/return err
                         let err_cond = self.builder.build_int_compare(inkwell::IntPredicate::EQ, send_res.into_int_value(), self.i32_type.const_int(-1, false), "send_err");
                         let err_bb = self.context.append_basic_block(fn_val, "err");
                         let ok_bb = self.context.append_basic_block(fn_val, "ok");
                         self.builder.build_conditional_branch(err_cond, err_bb, ok_bb);
                         self.builder.position_at_end(err_bb);
-                        self.builder.build_return(Some(&self.i32_type.const_int(-1, false).into())); // Err
+                        self.builder.build_return(Some(&self.i32_type.const_int(-1, false).into()));
                         self.builder.position_at_end(ok_bb);
                     }
                     self.builder.build_return(Some(&self.i32_type.const_int(0, false).into()));
@@ -211,21 +224,19 @@ impl<'ctx> LLVMCodegen<'ctx> {
             if let Some(poll) = &self.channel_poll_fn {
                 let poll_res = self.builder.build_call(poll, &[queue.into()], "poll_msg");
                 let poll_val = poll_res.into_int_value();
-                let has_msg = self.builder.build_int_compare(inkwell::IntPredicate::NE, poll_val, self.i32_type.const_int(-1, false), "has_msg"); // -1 = err/empty
+                let has_msg = self.builder.build_int_compare(inkwell::IntPredicate::NE, poll_val, self.i32_type.const_int(-1, false), "has_msg");
                 let then_bb = self.context.append_basic_block(handler, "then");
                 let else_bb = self.context.append_basic_block(handler, "else");
                 self.builder.build_conditional_branch(has_msg, then_bb, else_bb);
                 self.builder.position_at_end(then_bb);
-                // Handle msg, propagate err if needed
                 let inc_fn = self.module.get_function("increment").unwrap_or_else(|| self.module.add_function("increment", self.i32_type.fn_type(&[actor_ptr_type.into(), self.i32_type.into()], false), None));
                 let inc_call = self.builder.build_call(inc_fn, &[self_arg.into(), poll_val.into()], "inc_call");
                 let inc_err = self.builder.build_int_compare(inkwell::IntPredicate::EQ, inc_call.into_int_value(), self.i32_type.const_int(-1, false), "inc_err");
                 let poison_bb = self.context.append_basic_block(handler, "poison");
                 self.builder.build_conditional_branch(inc_err, poison_bb, loop_bb);
                 self.builder.position_at_end(poison_bb);
-                // Poison: Set flag, return err
                 let state_ptr = self.builder.build_struct_gep(self_arg, 1, "state").unwrap();
-                self.builder.build_store(state_ptr, self.i32_type.const_int(-999, false)); // Poison flag
+                self.builder.build_store(state_ptr, self.i32_type.const_int(-999, false));
                 self.builder.build_return(Some(&self.i32_type.const_int(-1, false).into()));
                 self.builder.position_at_end(else_bb);
                 self.builder.build_br(loop_bb);
@@ -257,6 +268,17 @@ pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
     for ast in &asts {
         match ast {
             AstNode::ActorDef { .. } => codegen.gen_actor(ast),
+            AstNode::Derive { ty, traits } => {
+                // Gen Copy: Call memcpy
+                if traits.contains(&"Copy".to_string()) {
+                    // Stub: Assume i32, call copy_mem
+                    if let Some(copy) = &codegen.copy_fn {
+                        let src = codegen.i32_type.const_int(42, false).into_pointer_value(); // Stub
+                        let dst = codegen.builder.build_alloca(codegen.i32_type, "copy_dst");
+                        codegen.builder.build_call(copy, &[dst.into(), src.into()], "derive_copy");
+                    }
+                }
+            }
             _ => {}
         }
     }
