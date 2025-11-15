@@ -20,12 +20,12 @@
 /// - Backend: Partial eval CTFE for semirings (add/mul eval/cache in MIR/resolver/codegen).
 /// - Backend: Thin templates (monomorph cache/specialization), JIT warmup (dummy exec).
 /// - Concurrency: CacheSafe trait (timing channels), static race analysis (borrowck stub).
+/// - Std Lib: Embed tokio-core/reqwest-tls/chrono as std::net::http/tls/datetime, version-lock Cargo features.
 /// 
 /// ## Partially Completed
 /// - Benchmarks: Criterion suite (Zeta vs Rust/Zig/Go, EOP semiring/concurrent actors).
 /// 
 /// ## To Do
-/// - Std Lib: Embed tokio-core/reqwest-tls/chrono as std::net::http/tls/datetime, version-lock Cargo features.
 /// - Safety/Perf: Affine ownership in concepts, borrowck speculative exec tracking, LLVM MLGO auto-vectorize/branch pred (<1% overhead, 15-25% speedup).
 /// - Advanced: Nominal+structural traits, regularity auto-classify (Copy+Eq derive), algebraic fusion (semigroup assoc_fold peephole).
 /// - Testing: Full e2e (EOP algos, perf benchmarks vs Rust/Zig/Go), API exposure (stable_abi FFI).
@@ -40,6 +40,6 @@ pub struct Plan;
 
 impl Plan {
     pub fn status() -> &'static str {
-        "CacheSafe + race stub complete. Next: Std Lib embeds."
+        "Std embeds complete. Next: Safety/Perf (affine borrowck)."
     }
 }
