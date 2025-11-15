@@ -17,12 +17,13 @@
 /// - Ergonomics: Implicit use Trait (auto-import), Range<T> Copy derive, phantom type infer, const generics defaults.
 /// - Testing: e2e pipeline tests (parse/typecheck/codegen examples).
 /// - Compiler Frontend: Parallel Chalk++ solver (rayon trait search), incremental MIR caching (HashMap), lazy resolution (memoized lookups).
+/// - Backend: Partial eval CTFE for semirings (add/mul eval/cache in MIR/resolver/codegen).
 /// 
 /// ## Partially Completed
 /// - Benchmarks: Criterion suite (Zeta vs Rust/Zig/Go, EOP semiring/concurrent actors).
 /// 
 /// ## To Do
-/// - Backend: Partial eval CTFE for semirings, thin templates/JIT warmup (>Rust/Zig exec), AI-codegen (LLVM pass with ML opts, LLM bench sims/SPEC training).
+/// - Backend: Thin templates/JIT warmup (>Rust/Zig exec), AI-codegen (LLVM pass with ML opts, LLM bench sims/SPEC training).
 /// - Concurrency: CacheSafe trait (timing channels), static race analysis.
 /// - Std Lib: Embed tokio-core/reqwest-tls/chrono as std::net::http/tls/datetime, version-lock Cargo features.
 /// - Safety/Perf: Affine ownership in concepts, borrowck speculative exec tracking, LLVM MLGO auto-vectorize/branch pred (<1% overhead, 15-25% speedup).
@@ -39,6 +40,6 @@ pub struct Plan;
 
 impl Plan {
     pub fn status() -> &'static str {
-        "Compiler Frontend complete. Next: Backend (CTFE semirings)."
+        "CTFE semirings complete. Next: Thin templates/JIT warmup."
     }
 }
