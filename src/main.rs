@@ -6,8 +6,8 @@ fn main() {
 
     let code = r#"
 #[derive(Copy)]
-fn use_vec_add<Rhs=Self>() -> i32 { // Const default
-    let v: Vec<i32> = Vec<i32>[1, 2]; // Infer phantom if needed
+fn use_vec_add<Rhs=Self>() -> i32 {
+    let v: Vec<i32> = Vec<i32>[1, 2];
     v.add(3);
     42
 }
@@ -30,12 +30,16 @@ concept Sync {}
 impl Send for i32 {}
 impl Sync for i32 {}
 
-actor Counter {
+actor Counter<T=Self> { // Const default
     async fn increment(&self, delta: i32) -> i32;
 }
 
-impl Send for Counter {}
-impl Sync for Counter {}
+impl Send for Counter<i32> {}
+impl Sync for Counter<i32> {}
+
+fn multi_bound<U: Send + Sync>() -> U { // Parallel resolve
+    TimingOwned<i32> 0
+}
 
 fn use_std() -> i32 {
     let url = "https://example.com";
