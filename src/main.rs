@@ -44,7 +44,11 @@ fn multi_bound<U: Send + Sync>() -> U {
 fn semiring_ctfe() -> i32 {
     let a = 2;
     let b = 3;
-    a.add(b) // CTFE 5
+    a.add(b)
+}
+
+fn generic_add<T>(a: T, b: T) -> T { // Thin mono to generic_add_i32
+    a.add(b)
 }
 
 fn use_std() -> i32 {
