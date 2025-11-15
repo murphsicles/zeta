@@ -8,6 +8,9 @@ nom = "7.1"
 inkwell = { version = "0.19", features = ["llvm18-1"] }
 criterion = { version = "0.5", features = ["html_reports"] }
 rayon = "1.8"
+tokio-core = { version = "0.1.18", features = ["net"] } # Version-lock for embed
+reqwest = { version = "0.11", features = ["tls"], default-features = false } # Embed TLS
+chrono = { version = "0.4", features = ["serde"] } # Embed datetime
 
 [[bench]]
 name = "benchmark"
