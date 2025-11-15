@@ -16,12 +16,12 @@
 /// - Actor Concurrency: Send/Sync traits, fault-tolerant channels (poll/send err prop, poison on fail).
 /// - Ergonomics: Implicit use Trait (auto-import), Range<T> Copy derive, phantom type infer, const generics defaults.
 /// - Testing: e2e pipeline tests (parse/typecheck/codegen examples).
+/// - Compiler Frontend: Parallel Chalk++ solver (rayon trait search), incremental MIR caching (HashMap), lazy resolution (memoized lookups).
 /// 
 /// ## Partially Completed
 /// - Benchmarks: Criterion suite (Zeta vs Rust/Zig/Go, EOP semiring/concurrent actors).
 /// 
 /// ## To Do
-/// - Compiler Frontend: Parallel Chalk++ solver, incremental MIR caching, lazy resolution (<Go comp).
 /// - Backend: Partial eval CTFE for semirings, thin templates/JIT warmup (>Rust/Zig exec), AI-codegen (LLVM pass with ML opts, LLM bench sims/SPEC training).
 /// - Concurrency: CacheSafe trait (timing channels), static race analysis.
 /// - Std Lib: Embed tokio-core/reqwest-tls/chrono as std::net::http/tls/datetime, version-lock Cargo features.
@@ -39,6 +39,6 @@ pub struct Plan;
 
 impl Plan {
     pub fn status() -> &'static str {
-        "Ergonomics + e2e tests complete. Next: Compiler Frontend (parallel Chalk++)."
+        "Compiler Frontend complete. Next: Backend (CTFE semirings)."
     }
 }
