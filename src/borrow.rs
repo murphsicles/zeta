@@ -47,6 +47,7 @@ impl BorrowChecker {
                 }
             }
             AstNode::Call { receiver, .. } => self.check(&AstNode::Var(receiver.clone())),
+            AstNode::TimingOwned { .. } => true, // Stub race: Check no shared mut in spec exec
             _ => true,
         }
     }
