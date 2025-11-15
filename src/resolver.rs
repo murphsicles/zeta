@@ -7,7 +7,7 @@ use std::sync::Arc;
 use rayon::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub type MonoKey = (String, Vec<String>); // (func/concept, concrete params)
+pub type MonoKey = (String, Vec<String>);
 
 #[derive(Debug, Clone)]
 pub struct Resolver {
@@ -18,7 +18,6 @@ pub struct Resolver {
     mir_cache: HashMap<String, Mir>,
     lazy_memo: Mutex<HashMap<(String, String), Option<Arc<AstNode>>>>,
     ctfe_cache: HashMap<(SemiringOp, i64, i64), i64>,
-    // Thin templates: Monomorph cache (key -> specialized AstNode/Mir)
     mono_cache: HashMap<MonoKey, AstNode>,
     mono_mir: HashMap<MonoKey, Mir>,
 }
@@ -27,7 +26,7 @@ impl Resolver {
     pub fn new() -> Self { 
         let mut res = Self { 
             concepts: HashMap::new(), impls: HashMap::new(), funcs: HashMap::new(), 
-            common_traits: vec!["Send".to_string(), "Sync".to_string(), "Addable".to_string()], 
+            common_traits: vec!["Send".to_string(), "Sync".to_string(), "Addable".to_string(), "CacheSafe".to_string()], 
             mir_cache: HashMap::new(), lazy_memo: Mutex::new(HashMap::new()),
             ctfe_cache: HashMap::new(), mono_cache: HashMap::new(), mono_mir: HashMap::new(),
         };
@@ -40,10 +39,6 @@ impl Resolver {
         match &ast {
             AstNode::ConceptDef { name, params, .. } => { 
                 self.concepts.insert(name.clone(), ast); 
-                // Register generic variants
-                if !params.is_empty() {
-                    // Stub: Register as generic
-                }
             }
             AstNode::ImplBlock { concept, ty, .. } => { self.impls.insert((concept.clone(), ty.clone()), ast); }
             AstNode::FuncDef { name, generics, .. } => { self.funcs.insert(name.clone(), ast); }
@@ -60,8 +55,6 @@ impl Resolver {
                 let mut mir = gen.gen_mir(&ast);
                 self.ctfe_eval(&mut mir);
                 self.mir_cache.insert(ast_hash, mir);
-            } else {
-                // Defer mono until use
             }
         }
     }
@@ -70,13 +63,10 @@ impl Resolver {
         if let Some(cached) = self.mono_cache.get(&key) {
             return cached.clone();
         }
-        // Stub: Clone orig, subst generics with concrete params
         let mut mono_ast = orig_ast.clone();
-        // Pseudo-subst: Update ty strings (e.g., replace T with concrete)
         if let AstNode::FuncDef { params, ret, body, generics, .. } = &mut mono_ast {
             for (i, g) in generics.iter().enumerate() {
                 let conc = &key.1[i];
-                // Simple string replace (extend for full subst)
                 for (_, pt) in params.iter_mut() { *pt = pt.replace(g, conc); }
                 *ret = ret.replace(g, conc);
                 for node in body.iter_mut() {
@@ -165,22 +155,23 @@ impl Resolver {
                 AstNode::ActorDef { name, methods } => { 
                     let inferred_name = self.infer_phantom(name);
                     self.resolve_impl("Send", &inferred_name).is_some() && self.resolve_impl("Sync", &inferred_name).is_some() &&
+                    self.resolve_impl("CacheSafe", &inferred_name).is_some() && // CacheSafe req
                     methods.iter().all(|method| {
                         if let AstNode::Method { params, .. } = method {
                             params.iter().all(|(_, pty)| {
                                 let inf_pt = self.infer_phantom(pty);
-                                self.resolve_impl("Send", &inf_pt).is_some()
+                                self.resolve_impl("Send", &inf_pt).is_some() && self.resolve_impl("CacheSafe", &inf_pt).is_some()
                             })
                         } else { true }
                     })
                 }
                 AstNode::SpawnActor { actor_ty, .. } => {
                     let inf_ty = self.infer_phantom(actor_ty);
-                    self.concepts.contains_key(&inf_ty) && self.resolve_impl("Send", &inf_ty).is_some()
+                    self.concepts.contains_key(&inf_ty) && self.resolve_impl("Send", &inf_ty).is_some() && self.resolve_impl("CacheSafe", &inf_ty).is_some()
                 }
                 AstNode::TimingOwned { ty, .. } => {
                     let inf_ty = self.infer_phantom(ty);
-                    self.concepts.contains_key(&inf_ty)
+                    self.concepts.contains_key(&inf_ty) && self.resolve_impl("CacheSafe", &inf_ty).is_some() // Static race: CacheSafe
                 }
                 AstNode::FuncDef { where_clause, body, params, attrs, ret, generics, .. } => {
                     for g in generics { if g.ends_with("=Self") { /* stub */ } }
@@ -197,7 +188,7 @@ impl Resolver {
                         for (pname, _) in params {
                             bc.declare(pname.clone(), BorrowState::Owned);
                         }
-                        !body.iter().any(|node| !bc.check(node))
+                        !body.iter().any(|node| !bc.check(node)) // Stub race: Extend bc for shared mut
                     }
                 }
                 _ => true,
