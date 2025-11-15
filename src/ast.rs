@@ -12,6 +12,6 @@ pub enum AstNode {
     Defer(Box<AstNode>),
     ActorDef { name: String, methods: Vec<AstNode> },
     SpawnActor { actor_ty: String, init_args: Vec<String> },
-    TimingOwned { ty: String, inner: Box<AstNode> }, // TimingOwned<T>(expr)
-    // Send/Sync: As impl blocks, e.g., impl Send for MyType { }
+    TimingOwned { ty: String, inner: Box<AstNode> },
+    Derive { ty: String, traits: Vec<String> }, // #[derive(Copy, Eq)]
 }
