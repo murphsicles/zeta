@@ -1,7 +1,9 @@
 // src/main.rs
-use zeta::compile_and_run_zeta;
+use zeta::{compile_and_run_zeta, Plan};
 
 fn main() {
+    println!("Zeta Status: {}", Plan::status());
+
     let code = r#"
 #[ai_opt]
 fn use_vec_add() -> i32 {
@@ -22,9 +24,18 @@ impl Addable<i32> for Vec<i32> {
     fn add(self: Vec<i32>, rhs: i32) -> Vec<i32>;
 }
 
+concept Send {}
+concept Sync {}
+
+impl Send for i32 {}
+impl Sync for i32 {}
+
 actor Counter {
     async fn increment(&self, delta: i32) -> i32;
 }
+
+impl Send for Counter {}
+impl Sync for Counter {}
 
 fn use_std() -> i32 {
     let url = "https://example.com";
