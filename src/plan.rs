@@ -19,12 +19,12 @@
 /// - Compiler Frontend: Parallel Chalk++ solver (rayon trait search), incremental MIR caching (HashMap), lazy resolution (memoized lookups).
 /// - Backend: Partial eval CTFE for semirings (add/mul eval/cache in MIR/resolver/codegen).
 /// - Backend: Thin templates (monomorph cache/specialization), JIT warmup (dummy exec).
+/// - Concurrency: CacheSafe trait (timing channels), static race analysis (borrowck stub).
 /// 
 /// ## Partially Completed
 /// - Benchmarks: Criterion suite (Zeta vs Rust/Zig/Go, EOP semiring/concurrent actors).
 /// 
 /// ## To Do
-/// - Concurrency: CacheSafe trait (timing channels), static race analysis.
 /// - Std Lib: Embed tokio-core/reqwest-tls/chrono as std::net::http/tls/datetime, version-lock Cargo features.
 /// - Safety/Perf: Affine ownership in concepts, borrowck speculative exec tracking, LLVM MLGO auto-vectorize/branch pred (<1% overhead, 15-25% speedup).
 /// - Advanced: Nominal+structural traits, regularity auto-classify (Copy+Eq derive), algebraic fusion (semigroup assoc_fold peephole).
@@ -40,6 +40,6 @@ pub struct Plan;
 
 impl Plan {
     pub fn status() -> &'static str {
-        "Thin templates/JIT warmup complete. Next: Concurrency (CacheSafe trait)."
+        "CacheSafe + race stub complete. Next: Std Lib embeds."
     }
 }
