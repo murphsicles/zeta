@@ -5,17 +5,12 @@ edition = "2024"
 
 [dependencies]
 nom = "7.1"
-inkwell = { version = "0.19", features = ["llvm18-1"] }
-criterion = { version = "0.5", features = ["html_reports"] }
+inkwell = { version = "0.11", features = ["llvm17-0"] }
 rayon = "1.8"
-tokio-core = { version = "0.1.18", features = ["net"] } # Version-lock for embed
-reqwest = { version = "0.11", features = ["tls"], default-features = false } # Embed TLS
-chrono = { version = "0.4", features = ["serde"] } # Embed datetime
+chrono = { version = "0.4", features = ["serde"] }
+reqwest = { version = "0.11", features = ["blocking"] }
+criterion = "0.5" # For benchmarks
 
 [[bench]]
-name = "benchmark"
+name = "zeta_bench"
 harness = false
-
-[[test]]
-name = "tests"
-path = "src/tests.rs"
