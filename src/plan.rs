@@ -31,6 +31,7 @@
 /// - Std Lib: Expanded embeds (serde/json, rand/RNG, log/tracing, governor/rate-limit, prometheus/metrics) via LLVM intrinsics.
 /// - Bootstrap: Self-host Zeta compiler in Zeta (expanded parser/tokenizer/AST builder/eval in selfhost.zeta), release .z files.
 /// - Release: xAI API integration (Grok-4/3 queries for opt/codegen, SuperGrok quotas).
+/// - CI/CD: GitHub Actions (check/clippy/fmt/test/audit, cache/sccache, matrix Rust, publish on tag).
 /// 
 /// ## Partially Completed
 /// - Testing: API exposure (stable_abi FFI).
@@ -48,6 +49,6 @@ pub struct Plan;
 
 impl Plan {
     pub fn status() -> &'static str {
-        "xAI API integration complete (Grok opt queries, quota checks). Zeta ready for release."
+        "CI/CD best practices added (ci.yml: check/test/lint/audit, cache/matrix). Zeta ready for release."
     }
 }
