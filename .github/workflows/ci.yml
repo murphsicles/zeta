@@ -16,13 +16,13 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        rust: [stable, beta] # 2024 stable + beta for forward compat
+        toolchain: [stable, beta] # 2024 stable + beta for forward compat
     steps:
     - uses: actions/checkout@v4
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@install
+      uses: dtolnay/rust-toolchain@stable
       with:
-        toolchain: ${{ matrix.rust }}
+        toolchain: ${{ matrix.toolchain }}
         components: rustfmt, clippy
     - name: Cache cargo
       uses: actions/cache@v4
