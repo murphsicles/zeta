@@ -22,7 +22,7 @@ jobs:
     - name: Install LLVM 19
       uses: KyleMayes/install-llvm-action@v2
       with:
-        version: "19.1.0"
+        version: "19.1.7"
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
@@ -51,7 +51,7 @@ jobs:
     - name: Install LLVM 19
       uses: KyleMayes/install-llvm-action@v2
       with:
-        version: "19.1.0"
+        version: "19.1.7"
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
@@ -78,7 +78,7 @@ jobs:
     - name: Install LLVM 19
       uses: KyleMayes/install-llvm-action@v2
       with:
-        version: "19.1.0"
+        version: "19.1.7"
     - name: Audit deps
       uses: EmbarkStudios/cargo-deny-action@v1
       with:
