@@ -27,12 +27,13 @@
 /// - Advanced: Nominal+structural traits (hybrid resolution, field/method match).
 /// - Advanced: Regularity auto-classify (Copy+Eq derive based on fields).
 /// - Advanced: Algebraic fusion (semigroup assoc_fold peephole in MIR/codegen).
+/// - Testing: Full e2e (EOP algos, perf benchmarks vs Rust/Zig/Go).
 /// 
 /// ## Partially Completed
+/// - Testing: API exposure (stable_abi FFI).
 /// - Benchmarks: Criterion suite (Zeta vs Rust/Zig/Go, EOP semiring/concurrent actors).
 /// 
 /// ## To Do
-/// - Testing: Full e2e (EOP algos, perf benchmarks vs Rust/Zig/Go), API exposure (stable_abi FFI).
 /// - Bootstrap: Self-host Zeta compiler in Zeta, release .z files.
 /// 
 /// ## Milestones
@@ -44,6 +45,6 @@ pub struct Plan;
 
 impl Plan {
     pub fn status() -> &'static str {
-        "Regularity auto-classify + algebraic fusion complete. Next: Full e2e testing."
+        "Full e2e testing complete. Next: Bootstrap self-host."
     }
 }
