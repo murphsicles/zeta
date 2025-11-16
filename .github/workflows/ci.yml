@@ -19,6 +19,10 @@ jobs:
         toolchain: [nightly] # 2024 edition requires nightly (stable post-2024)
     steps:
     - uses: actions/checkout@v4
+    - name: Install LLVM 21
+      uses: KyleMayes/install-llvm-action@v2
+      with:
+        version: "21.0.0"
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
@@ -44,6 +48,10 @@ jobs:
     needs: check
     steps:
     - uses: actions/checkout@v4
+    - name: Install LLVM 21
+      uses: KyleMayes/install-llvm-action@v2
+      with:
+        version: "21.0.0"
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
@@ -67,6 +75,10 @@ jobs:
     needs: test
     steps:
     - uses: actions/checkout@v4
+    - name: Install LLVM 21
+      uses: KyleMayes/install-llvm-action@v2
+      with:
+        version: "21.0.0"
     - name: Audit deps
       uses: EmbarkStudios/cargo-deny-action@v1
       with:
