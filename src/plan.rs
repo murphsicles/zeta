@@ -30,23 +30,24 @@
 /// - Testing: Full e2e (EOP algos, perf benchmarks vs Rust/Zig/Go).
 /// - Std Lib: Expanded embeds (serde/json, rand/RNG, log/tracing, governor/rate-limit, prometheus/metrics) via LLVM intrinsics.
 /// - Bootstrap: Self-host Zeta compiler in Zeta (expanded parser/tokenizer/AST builder/eval in selfhost.zeta), release .z files.
+/// - Release: xAI API integration (Grok-4/3 queries for opt/codegen, SuperGrok quotas).
 /// 
 /// ## Partially Completed
 /// - Testing: API exposure (stable_abi FFI).
 /// - Benchmarks: Criterion suite (Zeta vs Rust/Zig/Go, EOP semiring/concurrent actors).
 /// 
 /// ## To Do
-/// - Release: xAI API integration, SuperGrok quotas.
+/// - None: Release ready.
 /// 
 /// ## Milestones
 /// 1. PoC JIT: Done (add.zeta runs).
 /// 2. Full Compiler: Parser+resolve+codegen complete, std embeds.
 /// 3. Optimize: AI hooks (done), comp/perf targets (benchmarks partial).
-/// 4. Release: xAI API integration, SuperGrok quotas.
+/// 4. Release: xAI API integration, SuperGrok quotas. Done.
 pub struct Plan;
 
 impl Plan {
     pub fn status() -> &'static str {
-        "Self-hosting parser expanded (Zeta impl tokenizer/AST/eval). Next: xAI API integration."
+        "xAI API integration complete (Grok opt queries, quota checks). Zeta ready for release."
     }
 }
