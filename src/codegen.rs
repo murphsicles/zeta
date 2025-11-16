@@ -274,7 +274,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
     }
 
-    pub fn gen_actor(&mut self, ast: &Resolver) { // Note: ast -> resolver for impls
+    pub fn gen_actor(&mut self, ast: &AstNode) {
         if let AstNode::ActorDef { name, methods } = ast {
             // Actor struct: { queue: i8*, state: i32 }
             let actor_type = self.context.struct_type(&[self.i8ptr_type.into(), self.i32_type.into()], false);
@@ -318,7 +318,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
             // MLGO on handler
             if let Some(branch_meta) = &self.mlgo_branch_meta {
-                handler.add_metadata(branch_meta, 0);
+                handler.add_metadata(*branch_meta, 0);
             }
 
             // Gen methods, e.g., increment
