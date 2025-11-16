@@ -6,8 +6,10 @@ use inkwell::execution_engine::{ExecutionEngine, JitFunction, OptimizationLevel}
 use inkwell::values::{BasicValueEnum, FunctionValue, IntValue, PointerValue, MetadataValue, FloatValue};
 use inkwell::types::{BasicTypeEnum, StructType, FunctionType};
 use crate::ast::AstNode;
+use crate::mir::{Mir, MirStmt, MirExpr};
 use crate::parser::parse_zeta;
 use crate::resolver::Resolver;
+use crate::xai::XAIClient;
 use std::collections::HashMap;
 use std::error::Error;
 use std::thread;
@@ -32,6 +34,11 @@ pub struct LLVMCodegen<'ctx> {
     http_get_fn: Option<FunctionValue<'ctx>>,
     tls_connect_fn: Option<FunctionValue<'ctx>>,
     datetime_now_fn: Option<FunctionValue<'ctx>>,
+    serde_json_fn: Option<FunctionValue<'ctx>>, // New embed
+    rand_next_fn: Option<FunctionValue<'ctx>>, // New
+    log_trace_fn: Option<FunctionValue<'ctx>>, // New
+    governor_permit_fn: Option<FunctionValue<'ctx>>, // New
+    prometheus_inc_fn: Option<FunctionValue<'ctx>>, // New
     tbaa_root: Option<MetadataValue<'ctx>>,
     abi_version: Option<String>,
     ai_opt_meta: Option<MetadataValue<'ctx>>,
@@ -39,6 +46,7 @@ pub struct LLVMCodegen<'ctx> {
     mlgo_vectorize_meta: Option<MetadataValue<'ctx>>,
     mlgo_branch_meta: Option<MetadataValue<'ctx>>,
     locals: HashMap<String, PointerValue<'ctx>>,
+    xai_client: Option<XAIClient>,
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -51,11 +59,18 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let i8ptr_type = i8_type.ptr_type(inkwell::AddressSpace::Generic);
         let f64_type = context.f64_type();
         let vec_type = context.struct_type(&[i8ptr_type.into(), i32_type.into()], false);
+        let mut xai_client = None;
+        if let Ok(client) = XAIClient::new() {
+            xai_client = Some(client);
+        }
         Self { 
             context, module, builder, execution_engine: None, i32_type, i64_type, i8_type, i8ptr_type, f64_type, vec_type, 
             add_i32_fn: None, add_vec_fn: None, malloc_fn: None, channel_send_fn: None, channel_poll_fn: None,
-            http_get_fn: None, tls_connect_fn: None, datetime_now_fn: None, tbaa_root: None, abi_version: Some("1.0".to_string()),
+            http_get_fn: None, tls_connect_fn: None, datetime_now_fn: None, serde_json_fn: None, rand_next_fn: None,
+            log_trace_fn: None, governor_permit_fn: None, prometheus_inc_fn: None,
+            tbaa_root: None, abi_version: Some("1.0".to_string()),
             ai_opt_meta: None, copy_fn: None, mlgo_vectorize_meta: None, mlgo_branch_meta: None, locals: HashMap::new(),
+            xai_client,
         }
     }
 
@@ -153,13 +168,38 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let now_val = self.module.add_function("std_datetime_now", now_type, None);
         self.datetime_now_fn = Some(now_val);
 
+        // serde_json (external: parse/serialize i8* <-> i8*)
+        let serde_type = self.i8ptr_type.fn_type(&[self.i8ptr_type.into(), self.i8ptr_type.into()], false);
+        let serde_val = self.module.add_function("std_serde_json_parse", serde_type, None);
+        self.serde_json_fn = Some(serde_val);
+
+        // rand_next (external: i64 RNG)
+        let rand_type = self.i64_type.fn_type(&[], false);
+        let rand_val = self.module.add_function("std_rand_next", rand_type, None);
+        self.rand_next_fn = Some(rand_val);
+
+        // log_trace (external: void log i8*)
+        let log_type = self.i8_type.fn_type(&[self.i8ptr_type.into()], false);
+        let log_val = self.module.add_function("std_log_trace", log_type, None);
+        self.log_trace_fn = Some(log_val);
+
+        // governor_permit (external: bool rate limit)
+        let gov_type = self.i32_type.fn_type(&[], false);
+        let gov_val = self.module.add_function("std_governor_permit", gov_type, None);
+        self.governor_permit_fn = Some(gov_val);
+
+        // prometheus_inc (external: void metric i8*)
+        let prom_type = self.i8_type.fn_type(&[self.i8ptr_type.into()], false);
+        let prom_val = self.module.add_function("std_prometheus_inc", prom_type, None);
+        self.prometheus_inc_fn = Some(prom_val);
+
         // copy (for Copy derive: memcpy)
         let copy_type = self.i8ptr_type.fn_type(&[self.i8ptr_type.into(), self.i8ptr_type.into(), self.i64_type.into()], false);
         let copy_val = self.module.add_function("copy_mem", copy_type, None);
         self.copy_fn = Some(copy_val);
     }
 
-    fn gen_value<'a>(&mut self, node: &AstNode, resolver: &Resolver) -> Option<BasicValueEnum<'ctx>> {
+    fn gen_value(&mut self, node: &AstNode, resolver: &Resolver) -> Option<BasicValueEnum<'ctx>> {
         match node {
             AstNode::Lit(n) => Some(self.i64_type.const_int(*n as u64, false).into()),
             AstNode::Var(v) => {
@@ -232,6 +272,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
                 if let Some(branch_meta) = &self.mlgo_branch_meta {
                     fn_val.add_metadata(branch_meta, 1);
+                }
+                // xAI integration: Query for opt suggestion
+                if let Some(client) = &self.xai_client {
+                    if let Ok(suggestion) = client.optimize_codegen(&format!("{:?}", ast)) {
+                        // Stub: Apply suggestion (e.g., inline hint)
+                        println!("xAI Opt Suggestion: {}", suggestion);
+                    }
                 }
             }
 
