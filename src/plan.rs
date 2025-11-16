@@ -28,6 +28,7 @@
 /// - Advanced: Regularity auto-classify (Copy+Eq derive based on fields).
 /// - Advanced: Algebraic fusion (semigroup assoc_fold peephole in MIR/codegen).
 /// - Testing: Full e2e (EOP algos, perf benchmarks vs Rust/Zig/Go).
+/// - Std Lib: Expanded embeds (serde/json, rand/RNG, log/tracing, governor/rate-limit, prometheus/metrics) via LLVM intrinsics.
 /// 
 /// ## Partially Completed
 /// - Testing: API exposure (stable_abi FFI).
@@ -45,6 +46,6 @@ pub struct Plan;
 
 impl Plan {
     pub fn status() -> &'static str {
-        "Full e2e testing complete. Next: Bootstrap self-host."
+        "Std embeds expanded (serde/rand/log/governor/prometheus). Next: Bootstrap self-host."
     }
 }
