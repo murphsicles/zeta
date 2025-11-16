@@ -1,0 +1,47 @@
+// examples/selfhost.zeta: Minimal self-hosting Zeta compiler stub
+// Bootstraps by compiling simple Zeta programs (parse + eval exprs)
+
+concept Parser {
+    fn parse(input: Str) -> Ast;
+}
+
+concept Eval {
+    fn eval(ast: Ast) -> i32;
+}
+
+impl Parser for ZetaParser {
+    fn parse(input: Str) -> Ast {
+        // Stub: Tokenize + build AST (nom-like)
+        let tokens = tokenize(input);
+        build_ast(tokens)
+    }
+}
+
+impl Eval for SimpleEval {
+    fn eval(ast: Ast) -> i32 {
+        match ast {
+            Ast::Lit(n) => n,
+            Ast::Add(l, r) => eval(l) + eval(r),
+            _ => 0,
+        }
+    }
+}
+
+fn tokenize(input: Str) -> Vec<Token> {
+    // Stub impl
+    vec![Token::Lit(42)]
+}
+
+fn build_ast(tokens: Vec<Token>) -> Ast {
+    Ast::Lit(42)
+}
+
+fn compile_zeta(input: Str) -> i32 {
+    let ast = ZetaParser::parse(input);
+    SimpleEval::eval(ast)
+}
+
+fn main() -> i32 {
+    let code = "42 + 1"; // Simple Zeta expr
+    compile_zeta(code)
+}
