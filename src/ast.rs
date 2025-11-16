@@ -14,4 +14,5 @@ pub enum AstNode {
     SpawnActor { actor_ty: String, init_args: Vec<String> },
     TimingOwned { ty: String, inner: Box<AstNode> },
     Derive { ty: String, traits: Vec<String> },
+    StructDef { name: String, fields: Vec<(String, String)> }, // For structural traits
 }
