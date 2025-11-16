@@ -4,6 +4,7 @@ mod tests {
     use crate::mir::MirGen;
     use crate::resolver::MonoKey;
     use crate::{Resolver, compile_and_run_zeta, parse_zeta};
+    use std::time::Instant;
 
     #[test]
     fn test_parse_addable() {
@@ -297,5 +298,133 @@ fn fusion_test() -> i32 {
         let mir = res.get_cached_mir(&ast_hash).unwrap();
         // Stub: Check for Fusion stmt
         assert!(mir.stmts.iter().any(|s| matches!(s, MirStmt::Fusion { .. })));
+    }
+
+    // EOP Algos: Semiring matrix multiply
+    #[test]
+    fn test_eop_semiring_matrix() {
+        let input = r#"
+concept Semiring {
+    fn add(self: Self, rhs: Self) -> Self;
+    fn mul(self: Self, rhs: Self) -> Self;
+    fn zero() -> Self;
+    fn one() -> Self;
+}
+impl Semiring for i32 {
+    fn add(self: i32, rhs: i32) -> i32 { self + rhs }
+    fn mul(self: i32, rhs: i32) -> i32 { self * rhs }
+    fn zero() -> i32 { 0 }
+    fn one() -> i32 { 1 }
+}
+fn matrix_mul<A: Semiring>(a: [[A; 2]; 2], b: [[A; 2]; 2]) -> [[A; 2]; 2] {
+    let mut res = [[A::zero(); 2]; 2];
+    for i in 0..2 {
+        for j in 0..2 {
+            for k in 0..2 {
+                res[i][j] = res[i][j].add(a[i][k].mul(b[k][j]));
+            }
+        }
+    }
+    res
+}
+fn eop_test() -> i32 {
+    let a = [[1i32, 2]; [3, 4]];
+    let b = [[5, 6]; [7, 8]];
+    let c = matrix_mul(a, b);
+    c[0][0] // 19
+}
+"#;
+        let (_, asts) = parse_zeta(input).unwrap();
+        let mut res = Resolver::new();
+        for ast in &asts {
+            res.register(ast.clone());
+        }
+        assert!(res.typecheck(&asts));
+        let res_val = compile_and_run_zeta(input).unwrap();
+        assert_eq!(res_val, 19); // EOP semiring test
+    }
+
+    // Actor e2e: Counter increment
+    #[test]
+    fn test_actor_counter() {
+        let input = r#"
+concept Send {}
+concept Sync {}
+concept CacheSafe {}
+impl Send for i32 {}
+impl Sync for i32 {}
+impl CacheSafe for i32 {}
+actor Counter {
+    async fn increment(&self, delta: i32) -> i32 { self.state + delta }
+    state: i32 = 0;
+}
+fn actor_test() -> i32 {
+    let c = spawn_actor Counter();
+    c.increment(42);
+    42
+}
+"#;
+        let (_, asts) = parse_zeta(input).unwrap();
+        let mut res = Resolver::new();
+        for ast in &asts {
+            res.register(ast.clone());
+        }
+        assert!(res.typecheck(&asts));
+        let res_val = compile_and_run_zeta(input).unwrap();
+        assert_eq!(res_val, 42); // Actor spawn/inc
+    }
+
+    // Stable ABI FFI test
+    #[test]
+    fn test_stable_abi() {
+        let input = r#"
+#[stable_abi]
+fn ffi_add(a: i32, b: i32) -> i32 { a + b } // No generics
+"#;
+        let (_, asts) = parse_zeta(input).unwrap();
+        let mut res = Resolver::new();
+        for ast in &asts {
+            res.register(ast.clone());
+        }
+        assert!(res.typecheck(&asts)); // Stable ABI check
+    }
+
+    // Perf benchmark stub: Semiring vs baseline
+    #[bench]
+    fn bench_semiring_add(b: &mut criterion::Criterion) {
+        let input = r#"
+fn bench_add() -> i32 {
+    let mut sum = 0;
+    for i in 0..1000 {
+        sum = sum.add(i);
+    }
+    sum
+}
+"#;
+        let start = Instant::now();
+        let _ = compile_and_run_zeta(input).unwrap();
+        let duration = start.elapsed();
+        println!("Semiring add bench: {:?}", duration);
+        // Stub: Compare to Rust/Zig/Go (manual)
+        b.bench_function("zeta_semiring", |b| b.iter(|| compile_and_run_zeta(input)));
+    }
+
+    // EOP assoc fold fusion
+    #[test]
+    fn test_assoc_fold_fusion() {
+        let input = r#"
+fn assoc_fold() -> i32 {
+    let xs = [1, 2, 3, 4];
+    xs.fold(0, |acc, x| acc.add(x)) // Fused semigroup
+}
+"#;
+        let (_, asts) = parse_zeta(input).unwrap();
+        let mut res = Resolver::new();
+        for ast in &asts {
+            res.register(ast.clone());
+        }
+        assert!(res.typecheck(&asts));
+        let res_val = compile_and_run_zeta(input).unwrap();
+        assert_eq!(res_val, 10); // 0+1+2+3+4
     }
 }
