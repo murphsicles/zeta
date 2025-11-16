@@ -191,4 +191,72 @@ fn affine_ok() -> i32 {
         }
         assert!(res.typecheck(&asts)); // Affine ok
     }
+
+    #[test]
+    fn test_speculative_leak() {
+        let input = r#"
+fn spec_leak() -> i32 {
+    let secret = 42;
+    if secret > 0 { // Spec branch
+        secret // Leak: spec access
+    } else { 0 }
+}
+"#;
+        let (_, asts) = parse_zeta(input).unwrap();
+        let mut res = Resolver::new();
+        for ast in &asts {
+            res.register(ast.clone());
+        }
+        assert!(!res.typecheck(&asts)); // Speculative leak
+    }
+
+    #[test]
+    fn test_speculative_safe() {
+        let input = r#"
+fn spec_safe() -> i32 {
+    let secret = TimingOwned<i32> 42; // Erase spec
+    if secret > 0 { // Spec branch
+        1
+    } else { 0 }
+}
+"#;
+        let (_, asts) = parse_zeta(input).unwrap();
+        let mut res = Resolver::new();
+        for ast in &asts {
+            res.register(ast.clone());
+        }
+        assert!(res.typecheck(&asts)); // Spec safe with TimingOwned
+    }
+
+    #[test]
+    fn test_structural_copy() {
+        let input = r#"
+struct Point { x: i32, y: i32 }
+concept Copy {}
+// No explicit impl
+fn use_copy(p: Point) { p } // Should infer structural Copy
+"#;
+        let (_, asts) = parse_zeta(input).unwrap();
+        let mut res = Resolver::new();
+        for ast in &asts {
+            res.register(ast.clone());
+        }
+        assert!(res.typecheck(&asts)); // Structural match
+        assert!(res.resolve_impl("Copy", "Point").is_some()); // Hybrid resolution
+    }
+
+    #[test]
+    fn test_nominal_eq() {
+        let input = r#"
+concept Eq {}
+impl Eq for i32 {} // Nominal
+fn eq_test(a: i32, b: i32) { a.eq(b) }
+"#;
+        let (_, asts) = parse_zeta(input).unwrap();
+        let mut res = Resolver::new();
+        for ast in &asts {
+            res.register(ast.clone());
+        }
+        assert!(res.typecheck(&asts)); // Nominal impl
+    }
 }
