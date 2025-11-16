@@ -9,6 +9,12 @@ use rayon::prelude::*;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub type MonoKey = (String, Vec<String>);
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum TraitKind {
+    Nominal(String), // Explicit impl
+    Structural(Vec<(String, String)>), // Fields/methods match
+}
+
 #[derive(Debug, Clone)]
 pub struct Resolver {
     concepts: HashMap<String, AstNode>,
@@ -20,6 +26,7 @@ pub struct Resolver {
     ctfe_cache: HashMap<(SemiringOp, i64, i64), i64>,
     mono_cache: HashMap<MonoKey, AstNode>,
     mono_mir: HashMap<MonoKey, Mir>,
+    structural_cache: HashMap<(String, Vec<(String, String)>), bool>, // Trait + fields -> matches
 }
 
 impl Resolver {
@@ -29,6 +36,7 @@ impl Resolver {
             common_traits: vec!["Send".to_string(), "Sync".to_string(), "Addable".to_string(), "CacheSafe".to_string()], 
             mir_cache: HashMap::new(), lazy_memo: Mutex::new(HashMap::new()),
             ctfe_cache: HashMap::new(), mono_cache: HashMap::new(), mono_mir: HashMap::new(),
+            structural_cache: HashMap::new(),
         };
         res.common_traits.sort();
         res
@@ -46,6 +54,11 @@ impl Resolver {
                 for tr in traits {
                     self.impls.insert((tr.clone(), ty.clone()), AstNode::ImplBlock { concept: tr.clone(), ty: ty.clone(), body: vec![] });
                 }
+            }
+            AstNode::StructDef { name, fields, .. } => {
+                // Cache structural fields for hybrid traits
+                let field_map: Vec<(String, String)> = fields.iter().map(|(fname, fty)| (fname.clone(), fty.clone())).collect();
+                self.structural_cache.insert((name.clone(), field_map), true);
             }
             _ => {}
         }
@@ -130,6 +143,10 @@ impl Resolver {
                     return Some(&AstNode::ImplBlock { concept: concept.to_string(), ty: ty.to_string(), body: vec![] });
                 }
             }
+            // Hybrid: Check structural if no nominal
+            if self.is_structural_match(concept, ty) {
+                return Some(&AstNode::ImplBlock { concept: concept.to_string(), ty: ty.to_string(), body: vec![] });
+            }
             None
         } else {
             candidates.first().map(|(_, a)| a)
@@ -139,6 +156,24 @@ impl Resolver {
         let arc_impl = impl_ast.map(|i| Arc::new(i.clone()));
         memo.insert(key, arc_impl.clone());
         arc_impl.and_then(|arc| (**arc).as_ref())
+    }
+
+    fn is_structural_match(&self, concept: &str, ty: &str) -> bool {
+        let cache_key = (concept.to_string(), ty.to_string());
+        if let Some(&cached) = self.structural_cache.get(&cache_key) {
+            return cached;
+        }
+        // Stub: Match if ty has required fields/methods for concept
+        // e.g., Copy: all fields Copy + size_of < ptr
+        if concept == "Copy" {
+            // Assume primitive or simple struct
+            true
+        } else {
+            false
+        }
+        // Cache result
+        // self.structural_cache.insert(cache_key, match);
+        // match
     }
 
     pub fn infer_phantom(&self, ty: &str) -> String {
