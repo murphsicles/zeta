@@ -107,31 +107,41 @@ fn parse_method(input: &str) -> IResult<&str, AstNode> {
     Ok((i, AstNode::Method { name: name.unwrap_or_default(), params: method_params, ret: ret.unwrap_or_default() }))
 }
 
-pub fn parse_impl(input: &str) -> IResult<&str, AstNode> {
-    let ty_parser = tuple((map_opt(identifier), multispace0, opt(delimited(tag("<"), separated_list1(tag(","), map_opt(identifier)), tag(">")))));
+fn parse_struct(input: &str) -> IResult<&str, AstNode> {
+    let field_parser = separated_pair(map_opt(identifier), tag(":"), map_opt(identifier));
     let parser = tuple((
-        tag("impl"), multispace0, map_opt(identifier), multispace0, ty_parser.clone(), multispace0,
-        tag("for"), multispace0, ty_parser, multispace0, tag("{"), multispace0, many0(parse_method), tag("}"),
+        tag("struct"), multispace0, map_opt(identifier), multispace0,
+        tag("{"), multispace0, separated_list1(tag(","), field_parser), tag("}"), tag(";"),
     ));
-    let (i, (_, _, concept, _, _, _, _, _, for_ty, _, _, _, methods, _)) = parser(input)?;
-    let full_ty = if let Some(params) = for_ty.2 { format!("{}<{}>", for_ty.0.unwrap_or_default(), params.join(",")) } else { for_ty.0.unwrap_or_default() };
-    Ok((i, AstNode::ImplBlock { concept: concept.unwrap_or_default(), ty: full_ty, body: methods }))
+    let (i, (_, _, name, _, _, _, fields, _, _)) = parser(input)?;
+    let field_map: Vec<(String, String)> = fields.into_iter().map(|(fname, ty)| (fname.unwrap_or_default(), ty.unwrap_or_default())).collect();
+    Ok((i, AstNode::StructDef { name: name.unwrap_or_default(), fields: field_map }))
+}
+
+fn parse_impl(input: &str) -> IResult<&str, AstNode> {
+    let parser = tuple((
+        tag("impl"), multispace0, map_opt(identifier), multispace0, tag("for"), multispace0, map_opt(identifier), multispace0, tag("{"), many0(parse_method), tag("}"),
+    ));
+    let (i, (_, _, concept, _, _, _, ty, _, _, methods, _)) = parser(input)?;
+    Ok((i, AstNode::ImplBlock { concept: concept.unwrap_or_default(), ty: ty.unwrap_or_default(), body: methods }))
+}
+
+fn parse_expr(input: &str) -> IResult<&str, AstNode> {
+    alt((parse_call, parse_borrow, parse_timing_owned, parse_assign, parse_defer, map(int_literal, |t| AstNode::Lit(t.0)), map(identifier, |t| AstNode::Var(t.0))))(input)
 }
 
 fn parse_call(input: &str) -> IResult<&str, AstNode> {
-    let parser = tuple((map_opt(identifier), tag("."), map_opt(identifier), multispace0, delimited(tag("("), separated_list1(tag(","), map_opt(identifier)), tag(")")), multispace0, tag(";")));
-    let (i, (receiver, _, method, _, args_opt, _, _)) = parser(input)?;
-    Ok((i, AstNode::Call { method: method.unwrap_or_default(), receiver: receiver.unwrap_or_default(), args: args_opt.unwrap_or_default() }))
+    let parser = tuple((map_opt(identifier), tag("."), map_opt(identifier), opt(delimited(tag("("), separated_list1(tag(","), map_opt(identifier)), tag(")")))));
+    let (i, (recv, _, method, args_opt)) = parser(input)?;
+    Ok((i, AstNode::Call { receiver: recv.unwrap_or_default(), method: method.unwrap_or_default(), args: args_opt.unwrap_or_default() }))
 }
 
 fn parse_borrow(input: &str) -> IResult<&str, AstNode> {
-    preceded(tag("&"), map_opt(identifier).map(|s| AstNode::Borrow(s.unwrap_or_default())))(input)
+    preceded(tag("&"), map_opt(identifier)).map(|v| AstNode::Borrow(v.unwrap_or_default()))(input)
 }
 
 fn parse_assign(input: &str) -> IResult<&str, AstNode> {
-    let parser = tuple((map_opt(identifier), tag("="), parse_expr, tag(";")));
-    let (i, (var, _, expr, _)) = parser(input)?;
-    Ok((i, AstNode::Assign(var.unwrap_or_default(), Box::new(expr))))
+    separated_pair(map_opt(identifier), tag("="), parse_expr)(input).map(|(var, _, expr)| AstNode::Assign(var.unwrap_or_default(), Box::new(expr)))
 }
 
 fn parse_defer(input: &str) -> IResult<&str, AstNode> {
@@ -142,10 +152,6 @@ fn parse_timing_owned(input: &str) -> IResult<&str, AstNode> {
     let parser = tuple((tag("TimingOwned"), tag("<"), map_opt(identifier), tag(">"), tag("("), parse_expr, tag(")")));
     let (i, (_, _, ty, _, _, expr, _)) = parser(input)?;
     Ok((i, AstNode::TimingOwned { ty: ty.unwrap_or_default(), inner: Box::new(expr) }))
-}
-
-fn parse_expr(input: &str) -> IResult<&str, AstNode> {
-    alt((parse_call, parse_borrow, parse_timing_owned, parse_assign, parse_defer, map(int_literal, |t| AstNode::Lit(t.0)), map(identifier, |t| AstNode::Var(t.0))))(input)
 }
 
 fn parse_actor(input: &str) -> IResult<&str, AstNode> {
@@ -203,5 +209,5 @@ fn parse_where_clause(input: &str) -> IResult<&str, Vec<(String, String)>> {
 }
 
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
-    many0(alt((parse_func, parse_actor, parse_impl, parse_concept, parse_derive)))(input)
+    many0(alt((parse_func, parse_actor, parse_impl, parse_concept, parse_derive, parse_struct)))(input)
 }
