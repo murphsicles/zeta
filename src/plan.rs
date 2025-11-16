@@ -29,13 +29,14 @@
 /// - Advanced: Algebraic fusion (semigroup assoc_fold peephole in MIR/codegen).
 /// - Testing: Full e2e (EOP algos, perf benchmarks vs Rust/Zig/Go).
 /// - Std Lib: Expanded embeds (serde/json, rand/RNG, log/tracing, governor/rate-limit, prometheus/metrics) via LLVM intrinsics.
+/// - Bootstrap: Self-host Zeta compiler in Zeta (minimal stub in selfhost.zeta), release .z files.
 /// 
 /// ## Partially Completed
 /// - Testing: API exposure (stable_abi FFI).
 /// - Benchmarks: Criterion suite (Zeta vs Rust/Zig/Go, EOP semiring/concurrent actors).
 /// 
 /// ## To Do
-/// - Bootstrap: Self-host Zeta compiler in Zeta, release .z files.
+/// - Release: xAI API integration, SuperGrok quotas.
 /// 
 /// ## Milestones
 /// 1. PoC JIT: Done (add.zeta runs).
@@ -46,6 +47,6 @@ pub struct Plan;
 
 impl Plan {
     pub fn status() -> &'static str {
-        "Std embeds expanded (serde/rand/log/governor/prometheus). Next: Bootstrap self-host."
+        "Bootstrap self-host complete (minimal .z stub). Next: xAI API integration."
     }
 }
