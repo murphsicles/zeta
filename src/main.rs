@@ -1,10 +1,21 @@
 // src/main.rs
-use zeta::{compile_and_run_zeta, Plan};
+use zeta::{Plan, compile_and_run_zeta};
+use std::env;
+use std::fs;
 
 fn main() {
     println!("Zeta Status: {}", Plan::status());
 
-    let code = r#"
+    let args: Vec<String> = env::args().collect();
+    if args.len() > 1 {
+        let input_file = &args[1];
+        let input = fs::read_to_string(input_file).expect("Failed to read file");
+        match compile_and_run_zeta(&input) {
+            Ok(res) => println!("Result: {}", res),
+            Err(e) => eprintln!("Error: {}", e),
+        }
+    } else {
+        let code = r#"
 #[derive(Copy)]
 fn use_vec_add<Rhs=Self>() -> i32 {
     let v: Vec<i32> = Vec<i32>[1, 2];
@@ -70,8 +81,9 @@ fn use_std() -> i32 {
     42
 }
 "#;
-    match compile_and_run_zeta(code) {
-        Ok(res) => println!("Result: {}", res),
-        Err(e) => eprintln!("Error: {}", e),
+        match compile_and_run_zeta(code) {
+            Ok(res) => println!("Result: {}", res),
+            Err(e) => eprintln!("Error: {}", e),
+        }
     }
 }
