@@ -24,12 +24,13 @@
 /// - Safety/Perf: Affine ownership in borrowck (Consumed state, post-validate moves).
 /// - Safety/Perf: Borrowck speculative exec tracking (Speculative/Poisoned states, TimingOwned coverage).
 /// - Safety/Perf: LLVM MLGO auto-vectorize/branch pred (<1% overhead, 15-25% speedup) via metadata.
+/// - Advanced: Nominal+structural traits (hybrid resolution, field/method match).
 /// 
 /// ## Partially Completed
 /// - Benchmarks: Criterion suite (Zeta vs Rust/Zig/Go, EOP semiring/concurrent actors).
 /// 
 /// ## To Do
-/// - Advanced: Nominal+structural traits, regularity auto-classify (Copy+Eq derive), algebraic fusion (semigroup assoc_fold peephole).
+/// - Advanced: Regularity auto-classify (Copy+Eq derive), algebraic fusion (semigroup assoc_fold peephole).
 /// - Testing: Full e2e (EOP algos, perf benchmarks vs Rust/Zig/Go), API exposure (stable_abi FFI).
 /// - Bootstrap: Self-host Zeta compiler in Zeta, release .z files.
 /// 
@@ -42,6 +43,6 @@ pub struct Plan;
 
 impl Plan {
     pub fn status() -> &'static str {
-        "Speculative exec + MLGO hooks complete. Next: Nominal+structural traits."
+        "Nominal+structural traits complete. Next: Regularity auto-classify."
     }
 }
