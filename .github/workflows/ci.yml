@@ -1,0 +1,76 @@
+# .github/workflows/ci.yml: CI for Zeta (build/test/lint)
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-Dwarnings"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust: [stable, beta] # 2024 stable + beta for forward compat
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@install
+      with:
+        toolchain: ${{ matrix.rust }}
+        components: rustfmt, clippy
+    - name: Cache cargo
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    - name: Check
+      run: cargo check --workspace --all-features --all-targets
+    - name: Clippy
+      run: cargo clippy --workspace --all-features --all-targets -- -D warnings
+    - name: Fmt
+      run: cargo fmt --all -- --check
+
+  test:
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+    - name: Cache cargo
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    - name: Test
+      run: cargo test --workspace --all-features
+    - name: Bench (no plot)
+      run: cargo bench --no-run # Stub: Run benches in release
+
+  security:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+    - uses: actions/checkout@v4
+    - name: Audit deps
+      uses: EmbarkStudios/cargo-deny-action@v1
+      with:
+        command: check
+        log-level: warn
+        blacklist: false
+        license: true
+        default-features: false
