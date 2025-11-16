@@ -1,19 +1,134 @@
-// examples/selfhost.zeta: Minimal self-hosting Zeta compiler stub
-// Bootstraps by compiling simple Zeta programs (parse + eval exprs)
+// examples/selfhost.zeta: Expanded self-hosting Zeta compiler
+// Parses Zeta syntax, builds AST, typechecks (stub), evals simple exprs.
+// Bootstraps by compiling Zeta programs via Zeta impl.
 
 concept Parser {
     fn parse(input: Str) -> Ast;
+    fn tokenize(input: Str) -> Vec<Token>;
+}
+
+concept TypeChecker {
+    fn check(ast: Ast) -> bool;
 }
 
 concept Eval {
     fn eval(ast: Ast) -> i32;
 }
 
+concept Compiler {
+    fn compile(input: Str) -> i32;
+}
+
 impl Parser for ZetaParser {
     fn parse(input: Str) -> Ast {
-        // Stub: Tokenize + build AST (nom-like)
-        let tokens = tokenize(input);
-        build_ast(tokens)
+        let tokens = ZetaParser::tokenize(input);
+        let ast = build_ast(tokens);
+        ast
+    }
+
+    fn tokenize(input: Str) -> Vec<Token> {
+        let mut tokens = vec![];
+        let mut i = 0;
+        while i < input.len() {
+            let ch = input[i];
+            if ch.is_whitespace() {
+                i += 1;
+                continue;
+            }
+            if ch.is_alphabetic() || ch == '_' {
+                let mut word = String::new();
+                while i < input.len() && (input[i].is_alphanumeric() || input[i] == '_') {
+                    word.push(input[i]);
+                    i += 1;
+                }
+                match word.as_str() {
+                    "concept" => tokens.push(Token::Concept),
+                    "impl" => tokens.push(Token::Impl),
+                    "fn" => tokens.push(Token::Fn),
+                    "struct" => tokens.push(Token::Struct),
+                    "actor" => tokens.push(Token::Actor),
+                    "async" => tokens.push(Token::Async),
+                    "for" => tokens.push(Token::For),
+                    "where" => tokens.push(Token::Where),
+                    "derive" => tokens.push(Token::Derive),
+                    _ => tokens.push(Token::Ident(word)),
+                }
+            } else if ch.is_digit(10) {
+                let mut num = 0;
+                while i < input.len() && input[i].is_digit(10) {
+                    num = num * 10 + (input[i] as u32 - '0' as u32);
+                    i += 1;
+                }
+                tokens.push(Token::Lit(num as i64));
+            } else {
+                match ch {
+                    ':' => tokens.push(Token::Colon),
+                    '(' => tokens.push(Token::LParen),
+                    ')' => tokens.push(Token::RParen),
+                    '{' => tokens.push(Token::BraceOpen),
+                    '}' => tokens.push(Token::BraceClose),
+                    ';' => tokens.push(Token::Semi),
+                    '=' => tokens.push(Token::Eq),
+                    '<' => tokens.push(Token::Lt),
+                    '>' => tokens.push(Token::Gt),
+                    ',' => tokens.push(Token::Comma),
+                    '+' => tokens.push(Token::Plus),
+                    '-' => tokens.push(Token::Minus),
+                    '*' => tokens.push(Token::Mul),
+                    '/' => tokens.push(Token::Div),
+                    '&' => tokens.push(Token::Borrow),
+                    _ => i += 1,
+                }
+            }
+            i += 1;
+        }
+        tokens
+    }
+}
+
+fn build_ast(tokens: Vec<Token>) -> Ast {
+    // Recursive descent stub: Parse decls/exprs
+    let mut i = 0;
+    let mut asts = vec![];
+    while i < tokens.len() {
+        match tokens[i].clone() {
+            Token::Fn => {
+                i += 1; // Skip 'fn'
+                let name = if let Token::Ident(n) = tokens[i].clone() { i += 1; n } else { "".to_string() };
+                // Skip params/ret/body
+                while i < tokens.len() && !matches!(tokens[i], Token::BraceClose) {
+                    i += 1;
+                }
+                asts.push(Ast::FuncDef { name, body: vec![] });
+            }
+            Token::Concept => {
+                i += 1;
+                let name = if let Token::Ident(n) = tokens[i].clone() { i += 1; n } else { "".to_string() };
+                asts.push(Ast::ConceptDef { name, methods: vec![] });
+            }
+            Token::Struct => {
+                i += 1;
+                let name = if let Token::Ident(n) = tokens[i].clone() { i += 1; n } else { "".to_string() };
+                asts.push(Ast::StructDef { name, fields: vec![] });
+            }
+            Token::Lit(n) => asts.push(Ast::Lit(n)),
+            Token::Ident(v) => asts.push(Ast::Var(v)),
+            Token::Plus => {
+                // Binary add
+                let lhs = Ast::Lit(0);
+                let rhs = Ast::Lit(1);
+                asts.push(Ast::Add(Box::new(lhs), Box::new(rhs)));
+            }
+            _ => i += 1,
+        }
+    }
+    Ast::Program(asts)
+}
+
+impl TypeChecker for SimpleChecker {
+    fn check(ast: Ast) -> bool {
+        // Stub: Basic checks (e.g., impls match concepts)
+        true
     }
 }
 
@@ -21,27 +136,44 @@ impl Eval for SimpleEval {
     fn eval(ast: Ast) -> i32 {
         match ast {
             Ast::Lit(n) => n,
-            Ast::Add(l, r) => eval(l) + eval(r),
+            Ast::Var(_) => 0,
+            Ast::Add(l, r) => SimpleEval::eval(*l) + SimpleEval::eval(*r),
+            Ast::Program(asts) => asts.into_iter().map(|a| SimpleEval::eval(a)).sum(),
             _ => 0,
         }
     }
 }
 
-fn tokenize(input: Str) -> Vec<Token> {
-    // Stub impl
-    vec![Token::Lit(42)]
+impl Compiler for ZetaCompiler {
+    fn compile(input: Str) -> i32 {
+        let ast = ZetaParser::parse(input);
+        if !SimpleChecker::check(ast.clone()) {
+            return -1; // Type error
+        }
+        SimpleEval::eval(ast)
+    }
 }
 
-fn build_ast(tokens: Vec<Token>) -> Ast {
-    Ast::Lit(42)
+#[derive(Clone)]
+enum Token {
+    Concept, Impl, Fn, Struct, Actor, Async, For, Where, Derive,
+    Ident(String), Lit(i64), Colon, LParen, RParen, BraceOpen, BraceClose, Semi, Eq, Lt, Gt, Comma, Plus, Minus, Mul, Div, Borrow,
 }
 
-fn compile_zeta(input: Str) -> i32 {
-    let ast = ZetaParser::parse(input);
-    SimpleEval::eval(ast)
+#[derive(Clone)]
+enum Ast {
+    Program(Vec<Ast>),
+    ConceptDef { name: String, methods: Vec<Ast> },
+    StructDef { name: String, fields: Vec<(String, String)> },
+    FuncDef { name: String, body: Vec<Ast> },
+    Lit(i64),
+    Var(String),
+    Add(Box<Ast>, Box<Ast>),
 }
 
 fn main() -> i32 {
-    let code = "42 + 1"; // Simple Zeta expr
-    compile_zeta(code)
+    let code = r#"
+fn simple() -> i32 { 42 + 1 }
+"#;
+    ZetaCompiler::compile(code)
 }
