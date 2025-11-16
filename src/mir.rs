@@ -17,6 +17,7 @@ pub enum MirStmt {
     Return { val: u32 },
     Defer { stmt: Box<MirStmt> },
     SemiringOp { op: SemiringOp, lhs: u32, rhs: u32, res: u32 }, // Add/Mul
+    Fusion { orig: Box<MirStmt>, fused: Box<MirStmt> }, // Algebraic fusion
 }
 
 #[derive(Debug, Clone, Copy)]
