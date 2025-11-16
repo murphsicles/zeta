@@ -259,4 +259,43 @@ fn eq_test(a: i32, b: i32) { a.eq(b) }
         }
         assert!(res.typecheck(&asts)); // Nominal impl
     }
+
+    #[test]
+    fn test_auto_derive_copy_eq() {
+        let input = r#"
+struct Pair { a: i32, b: i32 }
+#[derive(Copy)] // Triggers auto Eq if fields Eq
+fn use_pair(p: Pair) { p }
+"#;
+        let (_, asts) = parse_zeta(input).unwrap();
+        let mut res = Resolver::new();
+        for ast in &asts {
+            res.register(ast.clone());
+        }
+        assert!(res.typecheck(&asts));
+        assert!(res.resolve_impl("Copy", "Pair").is_some());
+        assert!(res.resolve_impl("Eq", "Pair").is_some()); // Auto-derived
+    }
+
+    #[test]
+    fn test_algebraic_fusion() {
+        let input = r#"
+fn fusion_test() -> i32 {
+    let a = 1;
+    let b = 2;
+    let c = 3;
+    ((a.add(b)).add(c)) // Should fuse to a.add(b.add(c))
+}
+"#;
+        let (_, asts) = parse_zeta(input).unwrap();
+        let mut res = Resolver::new();
+        for ast in &asts {
+            res.register(ast.clone());
+        }
+        assert!(res.typecheck(&asts));
+        let ast_hash = format!("{:?}", asts[0]);
+        let mir = res.get_cached_mir(&ast_hash).unwrap();
+        // Stub: Check for Fusion stmt
+        assert!(mir.stmts.iter().any(|s| matches!(s, MirStmt::Fusion { .. })));
+    }
 }
