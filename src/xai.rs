@@ -1,7 +1,6 @@
 // src/xai.rs
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 #[derive(Serialize)]
 struct ChatRequest {
