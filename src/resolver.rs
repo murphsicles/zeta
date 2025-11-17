@@ -154,10 +154,23 @@ impl Resolver {
     pub fn resolve_impl(&self, concept: &str, ty: &str) -> Option<&AstNode> {
         let key = (concept.to_string(), ty.to_string());
         let mut memo = self.lazy_memo.lock().unwrap();
-        if let Some(arc_impl) = memo.get(&key) {
+        if let Some(entry) = memo.get(&key) {
+            return entry.as_ref().map(|arc| &**arc);
+        }
+        if let Some(impl_ast) = self.impls.get(&key) {
+            let arc_impl = Some(Arc::new(impl_ast.clone()));
+            memo.insert(key, arc_impl.clone());
             return arc_impl.as_ref().map(|arc| &**arc);
         }
-        let impl_ast = self.impls.get(&key);
+        // Fallback to candidates
+        let candidates: Vec<_> = self.impls.iter()
+            .filter(|((c, t), _)| c == concept && t == ty)
+            .collect();
+        let impl_ast = if candidates.is_empty() {
+            None
+        } else {
+            candidates.first().map(|(_, a)| a)
+        };
         let arc_impl = impl_ast.map(|i| Arc::new(i.clone()));
         memo.insert(key, arc_impl.clone());
         arc_impl.as_ref().map(|arc| &**arc)
@@ -256,13 +269,13 @@ impl Resolver {
         let len = mir.stmts.len();
         for i in 0..len {
             if let MirStmt::Call { func, args } = &mir.stmts[i] {
-                if func == "add" {
+                if func.contains("add") {
                     if let (Some(&recv), Some(&arg)) = (args.get(0), args.get(1)) {
-                        let recv_lit = self.expr_to_lit(mir, recv);
-                        let arg_lit = self.expr_to_lit(mir, arg);
+                        let recv_lit = self.expr_to_lit(&mir, recv);
+                        let arg_lit = self.expr_to_lit(&mir, arg);
                         if let (Some(MirExpr::Lit(a)), Some(MirExpr::Lit(b))) = (recv_lit, arg_lit) {
                             let res = a + b;
-                            let res_id = self.fresh_local(mir); // Assume method to add local
+                            let res_id = self.fresh_local(mir);
                             mir.stmts[i] = MirStmt::Assign { lhs: res_id, rhs: MirExpr::ConstEval(res) };
                         }
                     }
@@ -271,11 +284,14 @@ impl Resolver {
         }
     }
 
-    fn fresh_local(&self, _mir: &mut Mir) -> u32 {
-        0 // Stub
+    fn fresh_local(&self, mir: &mut Mir) -> u32 {
+        let id = mir.locals.len() as u32;
+        // Stub: add to locals if needed
+        id
     }
 
-    fn expr_to_lit(&self, _mir: &Mir, _id: u32) -> Option<MirExpr> {
-        Some(MirExpr::Lit(0)) // Stub
+    fn expr_to_lit(&self, mir: &Mir, id: u32) -> Option<MirExpr> {
+        // Stub: find expr for id
+        Some(MirExpr::Lit(0))
     }
 }
