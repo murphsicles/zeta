@@ -40,7 +40,7 @@ pub enum MirStmt {
     }, // Algebraic fusion
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SemiringOp {
     Add,
     Mul, // Stub: Extend for semirings (min-plus, etc.)
@@ -73,7 +73,7 @@ impl MirGen {
 
     pub fn gen_mir(&mut self, ast: &AstNode) -> Mir {
         let mut stmts = vec![];
-        let mut ctfe_consts = HashMap::new();
+        let ctfe_consts = HashMap::new();
         match ast {
             AstNode::FuncDef { body, params, .. } => {
                 for (pname, _) in params {
@@ -102,7 +102,7 @@ impl MirGen {
             AstNode::Assign(name, expr) => {
                 let lhs = self.fresh_id();
                 self.locals.insert(name.clone(), lhs);
-                let rhs = self.gen_expr(expr)?;
+                let rhs = self.gen_expr(expr.as_ref())?;
                 Some(MirStmt::Assign { lhs, rhs })
             }
             AstNode::Call {
@@ -110,21 +110,23 @@ impl MirGen {
                 method,
                 args,
             } => {
-                let recv_id = self.locals.get(receiver).copied()?;
+                let recv_id = *self.locals.get(receiver)?;
                 let arg_ids: Vec<u32> = args
                     .iter()
-                    .map(|a| self.locals.get(a).copied().unwrap_or(0))
+                    .map(|a| *self.locals.get(a).unwrap_or(&0))
                     .collect();
                 Some(MirStmt::Call {
-                    func: format!("{}.{}", receiver, method),
+                    func: format!("{receiver}.{method}"),
                     args: arg_ids,
                 })
             }
             AstNode::Borrow(var) => {
-                let vid = self.locals.get(var).copied()?;
+                let vid = *self.locals.get(var)?;
                 Some(MirStmt::Borrow { var: vid })
             }
-            AstNode::Defer(inner) => self.gen_stmt(inner).map(|s| MirStmt::Defer(Box::new(s))),
+            AstNode::Defer(inner) => self.gen_stmt(inner.as_ref()).map(|s| MirStmt::Defer {
+                stmt: Box::new(s),
+            }),
             _ => None,
         }
     }
@@ -138,10 +140,10 @@ impl MirGen {
                 method,
                 args,
             } => {
-                let recv_id = self.locals.get(receiver).copied()?;
+                let recv_id = *self.locals.get(receiver)?;
                 let arg_ids: Vec<u32> = args
                     .iter()
-                    .map(|a| self.locals.get(a).copied().unwrap_or(0))
+                    .map(|a| *self.locals.get(a).unwrap_or(&0))
                     .collect();
                 Some(MirExpr::MethodCall {
                     recv: recv_id,
