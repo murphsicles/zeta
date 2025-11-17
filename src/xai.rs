@@ -1,6 +1,7 @@
 // src/xai.rs
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
+use serde_json;
 
 #[derive(Serialize)]
 struct ChatRequest {
