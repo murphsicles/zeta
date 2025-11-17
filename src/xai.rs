@@ -35,7 +35,11 @@ impl XAIClient {
         let api_key = std::env::var("XAI_API_KEY")?;
         let base_url = "https://api.x.ai/v1".to_string();
         let client = Client::new();
-        Ok(Self { client, api_key, base_url })
+        Ok(Self {
+            client,
+            api_key,
+            base_url,
+        })
     }
 
     pub fn query(&self, prompt: &str) -> Result<String, Box<dyn std::error::Error>> {
