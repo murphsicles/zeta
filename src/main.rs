@@ -1,7 +1,7 @@
 // src/main.rs
-use zeta::{Plan, compile_and_run_zeta};
 use std::env;
 use std::fs;
+use zeta::{Plan, compile_and_run_zeta};
 
 fn main() {
     println!("Zeta Status: {}", Plan::status());
