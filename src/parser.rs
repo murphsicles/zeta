@@ -6,7 +6,7 @@ use nom::{
     character::complete::{alpha1, alphanumeric1, char, digit1, multispace0},
     combinator::{map, opt, recognize, value},
     multi::{many0, separated_list1},
-    sequence::{delimited, preceded, separated_pair, terminated, tuple},
+    sequence::{delimited, preceded, separated_pair, terminated},
     IResult,
 };
 
@@ -17,7 +17,7 @@ pub enum Token {
 }
 
 fn identifier(input: &str) -> IResult<&str, Token> {
-    let ident = recognize(tuple((alt((alpha1, tag("_"))), many0(alt((alphanumeric1, tag("_")))))));
+    let ident = recognize((alt((alpha1, tag("_"))), many0(alt((alphanumeric1, tag("_"))))));
     map(ident, |s: &str| Token::Ident(s.to_string()))(input)
 }
 
@@ -76,32 +76,21 @@ fn parse_attrs(input: &str) -> IResult<&str, Vec<String>> {
 }
 
 fn parse_derive(input: &str) -> IResult<&str, AstNode> {
-    let parser = tuple((
-        tag("derive"), multispace0, delimited(tag("("), separated_list1(tag(","), map_opt(identifier)), tag(")")),
-        multispace0, map_opt(identifier), tag(";"),
-    ));
+    let parser = (tag("derive"), multispace0, delimited(tag("("), separated_list1(tag(","), map_opt(identifier)), tag(")")), multispace0, map_opt(identifier), tag(";"));
     let (i, (_, _, traits, _, ty, _)) = parser(input)?;
     Ok((i, AstNode::Derive { ty: ty.unwrap_or_default(), traits }))
 }
 
 pub fn parse_concept(input: &str) -> IResult<&str, AstNode> {
-    let parser = tuple((
-        tag("concept"), multispace0, map_opt(identifier), multispace0,
-        opt(delimited(tag("<"), separated_list1(tag(","), separated_pair(map_opt(identifier), opt(preceded(tag("="), map_opt(identifier))), tag(","))), tag(">"))), multispace0,
-        tag("{"), multispace0, many0(parse_method), tag("}"),
-    ));
+    let parser = (tag("concept"), multispace0, map_opt(identifier), multispace0, opt(delimited(tag("<"), separated_list1(tag(","), separated_pair(map_opt(identifier), opt(preceded(tag("="), map_opt(identifier))), tag(","))), tag(">"))), multispace0, tag("{"), multispace0, many0(parse_method), tag("}"));
     let (i, (_, _, name, _, params_opt, _, _, _, methods, _)) = parser(input)?;
     let params: Vec<String> = params_opt.unwrap_or_default().into_iter().map(|(n, _)| n.unwrap_or_default()).collect();
     Ok((i, AstNode::ConceptDef { name: name.unwrap_or_default(), params, methods }))
 }
 
 fn parse_method(input: &str) -> IResult<&str, AstNode> {
-    let param_parser = separated_pair(opt(tag("mut")), tag(":"), tuple((map_opt(identifier), multispace0, tag(":"), multispace0, map_opt(identifier))));
-    let parser = tuple((
-        tag("fn"), multispace0, map_opt(identifier), multispace0,
-        delimited(tag("("), separated_list1(tag(","), param_parser), tag(")")), multispace0,
-        tag("->"), multispace0, map_opt(identifier), multispace0, tag(";"),
-    ));
+    let param_parser = separated_pair(opt(tag("mut")), tag(":"), (map_opt(identifier), multispace0, tag(":"), multispace0, map_opt(identifier)));
+    let parser = (tag("fn"), multispace0, map_opt(identifier), multispace0, delimited(tag("("), separated_list1(tag(","), param_parser), tag(")")), multispace0, tag("->"), multispace0, map_opt(identifier), multispace0, tag(";"));
     let (i, (_, _, name, _, params, _, _, _, ret, _, _)) = parser(input)?;
     let method_params: Vec<(String, String)> = params.into_iter().map(|(mut_opt, (pn, _, _, _, ty))| (pn.unwrap_or_default(), ty.unwrap_or_default())).collect();
     Ok((i, AstNode::Method { name: name.unwrap_or_default(), params: method_params, ret: ret.unwrap_or_default() }))
@@ -109,19 +98,14 @@ fn parse_method(input: &str) -> IResult<&str, AstNode> {
 
 fn parse_struct(input: &str) -> IResult<&str, AstNode> {
     let field_parser = separated_pair(map_opt(identifier), tag(":"), map_opt(identifier));
-    let parser = tuple((
-        tag("struct"), multispace0, map_opt(identifier), multispace0,
-        tag("{"), multispace0, separated_list1(tag(","), field_parser), tag("}"), tag(";"),
-    ));
+    let parser = (tag("struct"), multispace0, map_opt(identifier), multispace0, tag("{"), multispace0, separated_list1(tag(","), field_parser), tag("}"), tag(";"));
     let (i, (_, _, name, _, _, _, fields, _, _)) = parser(input)?;
     let field_map: Vec<(String, String)> = fields.into_iter().map(|(fname, ty)| (fname.unwrap_or_default(), ty.unwrap_or_default())).collect();
     Ok((i, AstNode::StructDef { name: name.unwrap_or_default(), fields: field_map }))
 }
 
 fn parse_impl(input: &str) -> IResult<&str, AstNode> {
-    let parser = tuple((
-        tag("impl"), multispace0, map_opt(identifier), multispace0, tag("for"), multispace0, map_opt(identifier), multispace0, tag("{"), many0(parse_method), tag("}"),
-    ));
+    let parser = (tag("impl"), multispace0, map_opt(identifier), multispace0, tag("for"), multispace0, map_opt(identifier), multispace0, tag("{"), many0(parse_method), tag("}"));
     let (i, (_, _, concept, _, _, _, ty, _, _, methods, _)) = parser(input)?;
     Ok((i, AstNode::ImplBlock { concept: concept.unwrap_or_default(), ty: ty.unwrap_or_default(), body: methods }))
 }
@@ -131,7 +115,7 @@ fn parse_expr(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_call(input: &str) -> IResult<&str, AstNode> {
-    let parser = tuple((map_opt(identifier), tag("."), map_opt(identifier), opt(delimited(tag("("), separated_list1(tag(","), map_opt(identifier)), tag(")")))));
+    let parser = (map_opt(identifier), tag("."), map_opt(identifier), opt(delimited(tag("("), separated_list1(tag(","), map_opt(identifier)), tag(")"))));
     let (i, (recv, _, method, args_opt)) = parser(input)?;
     Ok((i, AstNode::Call { receiver: recv.unwrap_or_default(), method: method.unwrap_or_default(), args: args_opt.unwrap_or_default() }))
 }
@@ -149,26 +133,19 @@ fn parse_defer(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_timing_owned(input: &str) -> IResult<&str, AstNode> {
-    let parser = tuple((tag("TimingOwned"), tag("<"), map_opt(identifier), tag(">"), tag("("), parse_expr, tag(")")));
+    let parser = (tag("TimingOwned"), tag("<"), map_opt(identifier), tag(">"), tag("("), parse_expr, tag(")"));
     let (i, (_, _, ty, _, _, expr, _)) = parser(input)?;
     Ok((i, AstNode::TimingOwned { ty: ty.unwrap_or_default(), inner: Box::new(expr) }))
 }
 
 fn parse_actor(input: &str) -> IResult<&str, AstNode> {
-    let parser = tuple((
-        tag("actor"), multispace0, map_opt(identifier), multispace0,
-        tag("{"), multispace0, many0(alt((parse_async_method, parse_method))), tag("}"),
-    ));
+    let parser = (tag("actor"), multispace0, map_opt(identifier), multispace0, tag("{"), multispace0, many0(alt((parse_async_method, parse_method))), tag("}"));
     let (i, (_, _, name, _, _, _, methods, _)) = parser(input)?;
     Ok((i, AstNode::ActorDef { name: name.unwrap_or_default(), methods }))
 }
 
 fn parse_async_method(input: &str) -> IResult<&str, AstNode> {
-    let parser = tuple((
-        tag("async"), multispace0, tag("fn"), multispace0, map_opt(identifier), multispace0,
-        delimited(tag("("), separated_list1(tag(","), parse_param), tag(")")), multispace0,
-        tag("->"), multispace0, map_opt(identifier), multispace0, tag(";"),
-    ));
+    let parser = (tag("async"), multispace0, tag("fn"), multispace0, map_opt(identifier), multispace0, delimited(tag("("), separated_list1(tag(","), parse_param), tag(")")), multispace0, tag("->"), multispace0, map_opt(identifier), multispace0, tag(";"));
     let (i, (_, _, _, _, name, _, params, _, _, _, ret, _, _)) = parser(input)?;
     let method_params: Vec<(String, String)> = params.into_iter().map(|(pn, ty)| (pn.unwrap_or_default(), ty.unwrap_or_default())).collect();
     Ok((i, AstNode::Method { name: name.unwrap_or_default(), params: method_params, ret: ret.unwrap_or_default() }))
@@ -179,21 +156,15 @@ fn parse_param(input: &str) -> IResult<&str, (String, String)> {
 }
 
 fn parse_spawn_actor(input: &str) -> IResult<&str, AstNode> {
-    let parser = tuple((tag("spawn_actor"), multispace0, map_opt(identifier), multispace0, delimited(tag("("), separated_list1(tag(","), map_opt(identifier)), tag(")")), multispace0, tag(";")));
+    let parser = (tag("spawn_actor"), multispace0, map_opt(identifier), multispace0, delimited(tag("("), separated_list1(tag(","), map_opt(identifier)), tag(")")), multispace0, tag(";"));
     let (i, (_, _, ty, _, args_opt, _, _)) = parser(input)?;
     Ok((i, AstNode::SpawnActor { actor_ty: ty.unwrap_or_default(), init_args: args_opt.unwrap_or_default() }))
 }
 
 pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
     let generics_parser = opt(delimited(tag("<"), separated_list1(tag(","), separated_pair(map_opt(identifier), opt(preceded(tag("="), map_opt(identifier))), tag(","))), tag(">")));
-    let param_parser = separated_pair(opt(tag("mut")), tag(":"), tuple((map_opt(identifier), multispace0, tag(":"), multispace0, map_opt(identifier))));
-    let parser = tuple((
-        multispace0, parse_attrs,
-        tag("fn"), multispace0, map_opt(identifier), multispace0, generics_parser, multispace0,
-        delimited(tag("("), separated_list1(tag(","), param_parser), tag(")")), multispace0,
-        tag("->"), multispace0, map_opt(identifier), multispace0, opt(parse_where_clause), multispace0,
-        tag("{"), multispace0, many0(parse_expr), tag("}"),
-    ));
+    let param_parser = separated_pair(opt(tag("mut")), tag(":"), (map_opt(identifier), multispace0, tag(":"), multispace0, map_opt(identifier)));
+    let parser = (multispace0, parse_attrs, tag("fn"), multispace0, map_opt(identifier), multispace0, generics_parser, multispace0, delimited(tag("("), separated_list1(tag(","), param_parser), tag(")")), multispace0, tag("->"), multispace0, map_opt(identifier), multispace0, opt(parse_where_clause), multispace0, tag("{"), multispace0, many0(parse_expr), tag("}"));
     let (i, (_, attrs_opt, _, _, name, _, generics_opt, _, params, _, _, _, ret, _, where_opt, _, _, _, body, _)) = parser(input)?;
     let attrs = attrs_opt.unwrap_or_default();
     let generics: Vec<String> = generics_opt.unwrap_or_default().into_iter().map(|(n, _)| n.unwrap_or_default()).collect();
