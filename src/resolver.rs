@@ -1,9 +1,9 @@
 // src/resolver.rs
 use crate::ast::AstNode;
 use crate::borrow::{BorrowChecker, BorrowState};
-use crate::mir::{MirGen, Mir, SemiringOp};
-use std::collections::{HashMap, Mutex};
-use std::sync::Arc;
+use crate::mir::{MirGen, Mir, MirStmt, MirExpr, SemiringOp};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use rayon::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -74,8 +74,8 @@ impl Resolver {
         }
         if let AstNode::FuncDef { generics, .. } = &ast {
             if generics.is_empty() {
-                let mut gen = MirGen::new();
-                let mut mir = gen.gen_mir(&ast);
+                let mut mir_gen = MirGen::new();
+                let mut mir = mir_gen.gen_mir(&ast);
                 self.ctfe_eval(&mut mir);
                 self.mir_cache.insert(ast_hash, mir);
             }
@@ -115,8 +115,8 @@ impl Resolver {
             }
         }
         self.mono_cache.insert(key.clone(), mono_ast.clone());
-        let mut gen = MirGen::new();
-        let mut mir = gen.gen_mir(&mono_ast);
+        let mut mir_gen = MirGen::new();
+        let mut mir = mir_gen.gen_mir(&mono_ast);
         self.ctfe_eval(&mut mir);
         self.mono_mir.insert(key, mir);
         mono_ast
