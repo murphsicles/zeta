@@ -7,7 +7,7 @@ use inkwell::module::Linkage;
 use inkwell::OptimizationLevel;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
-use inkwell::execution_engine::{ExecutionEngine, JitFunction};
+use inkwell::execution_engine::{ExecutionEngine, JitFunction, UnsafeFunctionPointer};
 use inkwell::module::Module;
 use inkwell::types::StructType;
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, MetadataValue, PointerValue};
@@ -15,7 +15,6 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::thread;
 use std::time::Duration;
-use num_traits::ToPrimitive;
 
 pub struct LLVMCodegen<'ctx> {
     context: &'ctx Context,
@@ -295,9 +294,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.builder.position_at_end(poison_bb);
                 let state_ptr = self.builder.build_struct_gep(actor_struct, self_arg, 1, "state").unwrap();
                 self.builder
-                    .build_store(state_ptr, self.i32_type.const_int(4294966297u64, false));
+                    .build_store(state_ptr, self.i32_type.const_int(((-999i32) as u64), true));
                 self.builder
-                    .build_return(Some(&self.i32_type.const_int(4294967295u64, false).into()));
+                    .build_return(Some(&self.i32_type.const_int(((-1i32) as u64), true).into()));
                 self.builder.position_at_end(else_bb);
                 self.builder.build_unconditional_branch(loop_bb);
             }
@@ -369,7 +368,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     }).collect();
                     if method == "add" && resolver.has_method("Addable", receiver, "add") {
                         if let Some(add_fn) = &self.add_i32_fn {
-                            let args_meta: Vec<BasicMetadataValueEnum> = arg_vals.iter().map(|v| v.into()).collect();
+                            let args_meta: Vec<BasicMetadataValueEnum> = arg_vals.iter().map(|v| (*v).into()).collect();
                             let _res = self.builder.build_call(*add_fn, &args_meta, "add_res").unwrap();
                             // Store res if needed
                         }
@@ -404,7 +403,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
     pub fn jit_warmup(&mut self) -> Result<(), Box<dyn Error>> {
         if let Some(ee) = &self.execution_engine {
             type DummyFn = unsafe extern "C" fn() -> i32;
-            if let Some(dummy) = ee.get_function::<DummyFn>("main") {
+            if let Ok(dummy) = ee.get_function::<DummyFn>("main") {
                 unsafe {
                     dummy.call();
                 }
@@ -426,7 +425,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     pub fn get_fn<F>(&self, name: &str) -> Option<JitFunction<F>>
     where
-        F: 'static + Copy + ToPrimitive,
+        F: 'static + UnsafeFunctionPointer,
     {
         self.execution_engine
             .as_ref()
@@ -458,7 +457,7 @@ pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
                         let dst = codegen.builder.build_alloca(codegen.i32_type, "dst").unwrap();
                         let _ = codegen.builder.build_call(
                             *copy,
-                            &[dst.into(), src.into(), size.into()],
+                            &[dst.into().into(), src.into().into(), size.into().into()],
                             "derive_copy",
                         ).unwrap();
                     }
