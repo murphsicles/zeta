@@ -12,9 +12,9 @@ pub enum BorrowState {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SpeculativeState {
-    Safe, // No spec-sensitive data
+    Safe,        // No spec-sensitive data
     Speculative, // Potential timing leak
-    Poisoned, // Invalid spec path
+    Poisoned,    // Invalid spec path
 }
 
 #[derive(Debug, Clone)]
@@ -25,12 +25,12 @@ pub struct BorrowChecker {
 }
 
 impl BorrowChecker {
-    pub fn new() -> Self { 
-        Self { 
-            borrows: HashMap::new(), 
+    pub fn new() -> Self {
+        Self {
+            borrows: HashMap::new(),
             affine_moves: HashMap::new(),
             speculative: HashMap::new(),
-        } 
+        }
     }
 
     pub fn enter_scope(&mut self) {}
@@ -87,9 +87,13 @@ impl BorrowChecker {
             }
             AstNode::Call { receiver, args, .. } => {
                 // Affine move on receiver/args if owned
-                if !self.check(&AstNode::Var(receiver.clone())) { return false; }
+                if !self.check(&AstNode::Var(receiver.clone())) {
+                    return false;
+                }
                 for arg in args {
-                    if !self.check(&AstNode::Var(arg.clone())) { return false; }
+                    if !self.check(&AstNode::Var(arg.clone())) {
+                        return false;
+                    }
                     // Mark as consumed if affine
                     if let Some(false) = self.affine_moves.get_mut(arg) {
                         *self.affine_moves.get_mut(arg).unwrap() = true;
@@ -159,8 +163,16 @@ impl BorrowChecker {
             }
         }
         // Ensure TimingOwned covers all speculative vars
-        let spec_vars: Vec<_> = self.speculative.iter().filter(|(_, s)| **s == SpeculativeState::Speculative).map(|(v, _)| v).collect();
+        let spec_vars: Vec<_> = self
+            .speculative
+            .iter()
+            .filter(|(_, s)| **s == SpeculativeState::Speculative)
+            .map(|(v, _)| v)
+            .collect();
         // Stub: Check coverage (e.g., all wrapped in TimingOwned)
-        spec_vars.is_empty() || body.iter().any(|n| matches!(n, AstNode::TimingOwned { .. }))
+        spec_vars.is_empty()
+            || body
+                .iter()
+                .any(|n| matches!(n, AstNode::TimingOwned { .. }))
     }
 }
