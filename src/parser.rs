@@ -91,7 +91,7 @@ pub fn tokenize(input: &str) -> IResult<&str, Vec<Token>> {
 
 fn map_opt(
     p: impl Fn(&str) -> IResult<&str, Token>,
-) -> impl Fn(&str) -> IResult<&str, Option<String>> {
+) -> impl Fn(&str) -> IResult<&str, Option<String>> + '_ {
     move |input| {
         let (i, t) = p(input)?;
         match t {
@@ -199,7 +199,7 @@ fn parse_method(input: &str) -> IResult<&str, AstNode> {
     let (i, (_, _, name, _, params, _, _, _, ret, _, _)) = parser(input)?;
     let method_params: Vec<(String, String)> = params
         .into_iter()
-        .map(|(_, (pn, _, _, _, ty))| (pn.unwrap_or_default(), ty.unwrap_or_default()))
+        .map(|(mut_opt, (pn, _, _, _, ty))| (pn.unwrap_or_default(), ty.unwrap_or_default()))
         .collect();
     Ok((
         i,
@@ -289,6 +289,13 @@ pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
             map_opt(identifier),
         ),
     );
+    let where_parser = opt(preceded(
+        tag("where"),
+        separated_list1(
+            tag(","),
+            separated_pair(map_opt(identifier), tag(":"), map_opt(identifier)),
+        ),
+    ));
     let parser = (
         multispace0,
         parse_attrs,
@@ -304,13 +311,7 @@ pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
         multispace0,
         map_opt(identifier),
         multispace0,
-        opt(preceded(
-            tag("where"),
-            separated_list1(
-                tag(","),
-                separated_pair(map_opt(identifier), tag(":"), map_opt(identifier)),
-            ),
-        )),
+        where_parser,
         multispace0,
         tag("{"),
         multispace0,
