@@ -160,6 +160,142 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.builder.build_store(new_len_ptr, len);
         self.builder.build_return(Some(&new_vec_ptr.into()));
         self.add_vec_fn = Some(add_vec_val);
+
+        // malloc stub
+        let malloc_type = self.i8ptr_type.fn_type(&[self.i64_type.into()], false);
+        self.malloc_fn = Some(self.module.add_function("malloc", malloc_type, None));
+
+        // channel_send stub
+        let send_type = self.i32_type.fn_type(&[self.i8ptr_type.into(), self.i32_type.into()], false);
+        self.channel_send_fn = Some(self.module.add_function("channel_send", send_type, None));
+
+        // channel_poll stub
+        let poll_type = self.i32_type.fn_type(&[self.i8ptr_type.into()], false);
+        self.channel_poll_fn = Some(self.module.add_function("channel_poll", poll_type, None));
+
+        // http_get stub
+        let http_type = self.i8ptr_type.fn_type(&[self.i8ptr_type.into()], false);
+        self.http_get_fn = Some(self.module.add_function("http_get", http_type, None));
+
+        // tls_connect stub
+        let tls_type = self.i32_type.fn_type(&[self.i8ptr_type.into(), self.i32_type.into()], false);
+        self.tls_connect_fn = Some(self.module.add_function("tls_connect", tls_type, None));
+
+        // datetime_now stub
+        let now_type = self.i64_type.fn_type(&[], false);
+        self.datetime_now_fn = Some(self.module.add_function("datetime_now", now_type, None));
+
+        // serde_json stub
+        let json_type = self.i8ptr_type.fn_type(&[self.i8ptr_type.into(), self.i8ptr_type.into()], false);
+        self.serde_json_fn = Some(self.module.add_function("serde_json", json_type, None));
+
+        // rand_next stub
+        let rand_type = self.i64_type.fn_type(&[], false);
+        self.rand_next_fn = Some(self.module.add_function("rand_next", rand_type, None));
+
+        // log_trace stub
+        let log_type = self.i32_type.fn_type(&[self.i8ptr_type.into()], false);
+        self.log_trace_fn = Some(self.module.add_function("log_trace", log_type, None));
+
+        // governor_permit stub
+        let gov_type = self.i32_type.fn_type(&[], false);
+        self.governor_permit_fn = Some(self.module.add_function("governor_permit", gov_type, None));
+
+        // prometheus_inc stub
+        let prom_type = self.i32_type.fn_type(&[self.i8ptr_type.into(), self.i64_type.into()], false);
+        self.prometheus_inc_fn = Some(self.module.add_function("prometheus_inc", prom_type, None));
+
+        // copy stub
+        let copy_type = self.i8ptr_type.fn_type(&[self.i8ptr_type.into(), self.i8ptr_type.into(), self.i64_type.into()], false);
+        self.copy_fn = Some(self.module.add_function("memcpy", copy_type, None));
+    }
+
+    pub fn gen_func(&mut self, ast: &AstNode, resolver: &Resolver, param_map: &mut HashMap<String, PointerValue<'ctx>>) {
+        if let AstNode::FuncDef { name, params, ret, body, generics, attrs, .. } = ast {
+            let param_types: Vec<BasicMetadataTypeEnum<'ctx>> = params.iter().map(|(_, pty)| {
+                if pty == "i32" {
+                    self.i32_type.into()
+                } else if pty == "i64" {
+                    self.i64_type.into()
+                } else if pty == "f64" {
+                    self.f64_type.into()
+                } else {
+                    self.i8ptr_type.into()
+                }
+            }).collect();
+            let fn_type = self.i32_type.fn_type(&param_types, false);
+            let fn_val = self.module.add_function(name, fn_type, None);
+            let entry = self.context.append_basic_block(fn_val, "entry");
+            self.builder.position_at_end(entry);
+            for (i, (pname, _)) in params.iter().enumerate() {
+                let param_val = fn_val.get_nth_param(i as u32).unwrap();
+                let alloca = self.builder.build_alloca(param_val.get_type(), pname).unwrap();
+                self.builder.build_store(alloca, param_val);
+                self.locals.insert(pname.clone(), alloca);
+            }
+            for node in body {
+                self.gen_expr_stmt(node);
+            }
+            self.builder.build_return(Some(&self.i32_type.const_int(0, false).into()));
+            // AI opt metadata
+            if attrs.contains(&"ai_opt".to_string()) {
+                if let Some(ai_meta) = &self.ai_opt_meta {
+                    fn_val.get_first_metadata().map(|m| m.set_metadata(ai_meta.clone(), 0));
+                }
+            }
+            // MLGO vectorize
+            if let Some(vec_meta) = &self.mlgo_vectorize_meta {
+                entry.get_first_instruction().map(|inst| inst.set_metadata(vec_meta.clone(), 0));
+            }
+            // Stable ABI
+            if attrs.contains(&"stable_abi".to_string()) {
+                if let Some(version) = &self.abi_version {
+                    let ver_md = self.context.metadata_node(&[self.i8ptr_type.const_string(version.as_bytes(), true).into()]);
+                    fn_val.set_metadata(ver_md, 0);
+                }
+            }
+        }
+    }
+
+    fn gen_expr_stmt(&mut self, node: &AstNode) {
+        match node {
+            AstNode::Call { receiver, method, args } => {
+                let recv_val = self.locals.get(receiver).cloned().unwrap_or_else(|| self.builder.build_load(self.builder.build_alloca(self.i8ptr_type, "tmp").unwrap(), "recv").unwrap());
+                let mut arg_vals: Vec<BasicMetadataValueEnum<'ctx>> = vec![recv_val.into()];
+                for arg in args {
+                    if let Some(val) = self.locals.get(arg) {
+                        arg_vals.push(val.into());
+                    } else {
+                        arg_vals.push(self.i32_type.const_int(0, false).into());
+                    }
+                }
+                let f = self.module.get_function(method).unwrap_or_else(|| self.module.add_function(method, self.i32_type.fn_type(&[self.i32_type.into()], false), None));
+                let call = self.builder.build_call(f, &arg_vals, "method_call").unwrap();
+                let _ = call.try_as_basic_value().left().unwrap();
+            }
+            AstNode::Assign(vname, expr) => {
+                let alloca = self.builder.build_alloca(self.i32_type, vname).unwrap();
+                let val = self.gen_expr_value(expr.as_ref()).unwrap_or(self.i32_type.const_int(0, false).into());
+                self.builder.build_store(alloca, val);
+                self.locals.insert(vname.clone(), alloca);
+            }
+            AstNode::TimingOwned { inner, .. } => {
+                let val = self.gen_expr_value(inner.as_ref()).unwrap_or(self.i32_type.const_int(0, false).into());
+                let iv = val.into_int_value();
+                let zero = self.i32_type.const_int(0, false);
+                let erased = self.builder.build_xor(iv, zero, "erased");
+                let _ = erased;
+            }
+            _ => {}
+        }
+    }
+
+    fn gen_expr_value(&mut self, node: &AstNode) -> Option<BasicValueEnum<'ctx>> {
+        match node {
+            AstNode::Lit(n) => Some(self.i32_type.const_int(*n as u64, false).into()),
+            AstNode::Var(v) => self.locals.get(v).map(|ptr| self.builder.build_load(*ptr, v).unwrap()),
+            _ => None,
+        }
     }
 
     pub fn gen_actor(&mut self, ast: &AstNode) {
@@ -202,7 +338,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
             // MLGO on handler
             if let Some(branch_meta) = &self.mlgo_branch_meta {
-                entry.get_first_instruction().unwrap().set_metadata(branch_meta.clone(), 0);
+                entry.get_first_instruction().map(|inst| inst.set_metadata(branch_meta.clone(), 0));
             }
 
             // Gen methods, e.g., increment
