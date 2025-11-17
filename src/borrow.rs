@@ -38,8 +38,9 @@ impl BorrowChecker {
     pub fn exit_scope(&mut self) {}
 
     pub fn declare(&mut self, var: String, state: BorrowState) {
-        self.borrows.insert(var, state);
-        self.affine_moves.insert(var, false);
+        let var_clone = var.clone();
+        self.borrows.insert(var_clone.clone(), state);
+        self.affine_moves.insert(var_clone, false);
         self.speculative.insert(var, SpeculativeState::Safe);
     }
 
@@ -76,7 +77,9 @@ impl BorrowChecker {
             }
             AstNode::Assign(v, expr) => {
                 // Affine: Assign consumes rhs if owned
-                self.check(expr)?;
+                if !self.check(expr.as_ref()) {
+                    return false;
+                }
                 if let Some(state) = self.borrows.get(v) {
                     if *state == BorrowState::Owned {
                         self.affine_moves.insert(v.clone(), true);
@@ -95,9 +98,11 @@ impl BorrowChecker {
                         return false;
                     }
                     // Mark as consumed if affine
-                    if let Some(false) = self.affine_moves.get_mut(arg) {
-                        *self.affine_moves.get_mut(arg).unwrap() = true;
-                        self.borrows.insert(arg.clone(), BorrowState::Consumed);
+                    if let Some(moved) = self.affine_moves.get_mut(arg) {
+                        if !*moved {
+                            *moved = true;
+                            self.borrows.insert(arg.clone(), BorrowState::Consumed);
+                        }
                     }
                 }
                 // Spec: Calls may branch speculatively
@@ -109,9 +114,11 @@ impl BorrowChecker {
             }
             AstNode::TimingOwned { ty: _, inner } => {
                 // Affine/Spec: TimingOwned consumes inner, tracks spec erase
-                self.check(inner)?;
+                if !self.check(inner.as_ref()) {
+                    return false;
+                }
                 // Speculative exec: Ensure no leak in constant-time paths
-                if let Some(expr_var) = self.extract_var(inner) {
+                if let Some(expr_var) = self.extract_var(inner.as_ref()) {
                     if let Some(spec) = self.speculative.get_mut(&expr_var) {
                         if *spec == SpeculativeState::Speculative {
                             *spec = SpeculativeState::Poisoned; // Invalidate leak
@@ -143,10 +150,8 @@ impl BorrowChecker {
         // Post-check: Ensure affine vars not used post-move
         for node in body {
             if let AstNode::Var(v) = node {
-                if let Some(true) = self.affine_moves.get(v) {
-                    if let Some(BorrowState::Consumed) = self.borrows.get(v) {
-                        return false; // Used after consume
-                    }
+                if let (Some(true), Some(BorrowState::Consumed)) = (self.affine_moves.get(v), self.borrows.get(v)) {
+                    return false; // Used after consume
                 }
             }
         }
@@ -171,8 +176,6 @@ impl BorrowChecker {
             .collect();
         // Stub: Check coverage (e.g., all wrapped in TimingOwned)
         spec_vars.is_empty()
-            || body
-                .iter()
-                .any(|n| matches!(n, AstNode::TimingOwned { .. }))
+            || body.iter().any(|n| matches!(n, AstNode::TimingOwned { .. }))
     }
 }
