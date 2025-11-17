@@ -110,7 +110,7 @@ impl MirGen {
                 method,
                 args,
             } => {
-                let recv_id = *self.locals.get(receiver)?;
+                let _recv_id = *self.locals.get(receiver).unwrap_or(&0u32);
                 let arg_ids: Vec<u32> = args
                     .iter()
                     .map(|a| *self.locals.get(a).unwrap_or(&0))
@@ -121,12 +121,12 @@ impl MirGen {
                 })
             }
             AstNode::Borrow(var) => {
-                let vid = *self.locals.get(var)?;
+                let vid = *self.locals.get(var).unwrap_or(&0u32);
                 Some(MirStmt::Borrow { var: vid })
             }
-            AstNode::Defer(inner) => self.gen_stmt(inner.as_ref()).map(|s| MirStmt::Defer {
-                stmt: Box::new(s),
-            }),
+            AstNode::Defer(inner) => self
+                .gen_stmt(inner.as_ref())
+                .map(|s| MirStmt::Defer { stmt: Box::new(s) }),
             _ => None,
         }
     }
@@ -140,7 +140,7 @@ impl MirGen {
                 method,
                 args,
             } => {
-                let recv_id = *self.locals.get(receiver)?;
+                let recv_id = *self.locals.get(receiver).unwrap_or(&0u32);
                 let arg_ids: Vec<u32> = args
                     .iter()
                     .map(|a| *self.locals.get(a).unwrap_or(&0))
