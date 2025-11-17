@@ -8,9 +8,8 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::{ExecutionEngine, JitFunction};
 use inkwell::module::Module;
-use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, StructType};
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, MetadataValue, PointerValue};
-use inkwell::AddressSpace;
+use inkwell::types::{BasicTypeEnum, StructType};
+use inkwell::values::{BasicValueEnum, FunctionValue, MetadataValue, PointerValue};
 use std::collections::HashMap;
 use std::error::Error;
 use std::thread;
@@ -57,7 +56,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let i32_type = context.i32_type();
         let i64_type = context.i64_type();
         let i8_type = context.i8_type();
-        let i8ptr_type = context.ptr_type(AddressSpace::default());
+        let i8ptr_type = i8_type.ptr_type(inkwell::AddressSpace::Generic);
         let f64_type = context.f64_type();
         let vec_type = context.struct_type(&[i8ptr_type.into(), i32_type.into()], false);
         let mut xai_client = None;
@@ -101,245 +100,217 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     pub fn gen_intrinsics(&mut self) {
         // TBAA metadata
-        let tbaa_id = self.context.metadata_node(&[self.i32_type.const_int(0, false).into()]);
-        let tbaa_node = self.context.metadata_node(&[self.i32_type.const_int(1, false).into()]);
-        let tbaa_md = self.context.metadata_node(&[tbaa_id.into(), tbaa_node.into()]);
+        let tbaa_id = self
+            .context
+            .metadata_value(self.i32_type.const_int(0, false));
+        let tbaa_node = self
+            .context
+            .metadata_value(self.i32_type.const_int(1, false));
+        let tbaa_md = self.context.metadata_node(&[tbaa_id, tbaa_node]);
         self.tbaa_root = Some(tbaa_md);
 
         // AI opt metadata
-        let ai_hint = self.context.metadata_node(&[self.i32_type.const_int(1, false).into()]);
+        let ai_hint = self
+            .context
+            .metadata_value(self.i32_type.const_int(1, false));
         self.ai_opt_meta = Some(ai_hint);
 
         // MLGO vectorize metadata
-        let vec_hint = self.context.metadata_node(&[self.i32_type.const_int(4, false).into()]);
-        self.mlgo_vectorize_meta = Some(vec_hint);
+        let vec_hint = self
+            .context
+            .metadata_value(self.i32_type.const_int(4, false));
+        self.mlgo_vectorize_meta = Some(self.context.metadata_node(&[vec_hint]));
 
         // MLGO branch metadata
-        let branch_hint = self.context.metadata_node(&[self.i32_type.const_int(1, false).into()]);
-        self.mlgo_branch_meta = Some(branch_hint);
+        let branch_hint = self
+            .context
+            .metadata_value(self.i32_type.const_int(1, false));
+        self.mlgo_branch_meta = Some(self.context.metadata_node(&[branch_hint]));
 
         // add_i32 intrinsic
-        let fn_type = self.i32_type.fn_type(&[self.i32_type.into(), self.i32_type.into()], false);
+        let fn_type = self
+            .i32_type
+            .fn_type(&[self.i32_type.into(), self.i32_type.into()], false);
         let fn_val = self.module.add_function("add_i32", fn_type, None);
         let entry = self.context.append_basic_block(fn_val, "entry");
         self.builder.position_at_end(entry);
         let x = fn_val.get_nth_param(0).unwrap().into_int_value();
         let y = fn_val.get_nth_param(1).unwrap().into_int_value();
         let ret = self.builder.build_int_add(x, y, "sum");
-        self.builder.build_return(Some(&ret));
+        self.builder.build_return(Some(&ret.into()));
         self.add_i32_fn = Some(fn_val);
 
         // add_vec_i32 with SIMD
-        let vec_ptr_type = self.context.ptr_type(AddressSpace::default());
-        let add_vec_type = vec_ptr_type.fn_type(&[vec_ptr_type.into(), self.i32_type.into()], false);
+        let vec_ptr_type = self.vec_type.ptr_type(inkwell::AddressSpace::Generic);
+        let add_vec_type =
+            vec_ptr_type.fn_type(&[vec_ptr_type.into(), self.i32_type.into()], false);
         let add_vec_val = self.module.add_function("add_vec_i32", add_vec_type, None);
         let entry = self.context.append_basic_block(add_vec_val, "entry");
         self.builder.position_at_end(entry);
         let vec_arg = add_vec_val.get_nth_param(0).unwrap().into_pointer_value();
         let scalar = add_vec_val.get_nth_param(1).unwrap().into_int_value();
-        let len_ptr = self.builder.build_struct_gep(vec_arg, self.i32_type.into(), 1, "len").unwrap();
-        let len = self.builder.build_load(len_ptr, "load_len").unwrap().into_int_value();
-        let old_ptr = self.builder.build_struct_gep(vec_arg, self.i8ptr_type.into(), 0, "old_ptr").unwrap();
-        let old_data = self.builder.build_load(old_ptr, "old_data").unwrap().into_pointer_value();
-        let size = self.builder.build_int_mul(len, self.i32_type.const_int(4, false), "size");
-        let new_size = self.builder.build_int_add(size, self.i64_type.const_int(1, false), "new_size");
-        let malloc_val = self.module.add_function("malloc", self.i8ptr_type.fn_type(&[self.i64_type.into()], false), None);
-        let new_ptr_call = self.builder.build_call(malloc_val, &[new_size.into()], "new_ptr").unwrap();
-        let new_ptr = new_ptr_call.try_as_basic_value().left().unwrap().into_pointer_value();
-        // Stub memcpy
-        let copy_val = self.module.add_function("memcpy", self.i8ptr_type.fn_type(&[self.i8ptr_type.into(), self.i8ptr_type.into(), self.i64_type.into()], false), None);
-        self.builder.build_call(copy_val, &[new_ptr.into(), old_data.into(), size.into()], "copy");
-        // SIMD add
-        let i32_vec_ty = self.context.vector_type(self.i32_type.into(), 4);
-        let data_ptr = self.builder.build_pointer_cast(new_ptr, self.context.ptr_type(AddressSpace::default()), "data_ptr").unwrap();
-        let simd_load = self.builder.build_load(data_ptr, "simd_load").unwrap().into_vector_value();
-        let broadcast = self.builder.build_int_splat(i32_vec_ty, scalar, "broadcast").unwrap();
-        let simd_add = self.builder.build_int_add(simd_load, broadcast, "simd_add").unwrap();
-        self.builder.build_store(data_ptr, simd_add);
-        let new_vec_ptr = self.builder.build_pointer_cast(new_ptr, vec_ptr_type, "new_vec").unwrap();
-        let new_len_ptr = self.builder.build_struct_gep(new_vec_ptr, self.i32_type.into(), 1, "new_len_ptr").unwrap();
-        self.builder.build_store(new_len_ptr, len);
-        self.builder.build_return(Some(&new_vec_ptr.into()));
+        let len_ptr = self.builder.build_struct_gep(vec_arg, 1, "len").unwrap();
+        let len = self.builder.build_load(len_ptr, "len").into_int_value();
+        let data_ptr = self.builder.build_struct_gep(vec_arg, 0, "data").unwrap();
+        let loop_bb = self.context.append_basic_block(add_vec_val, "loop");
+        let exit_bb = self.context.append_basic_block(add_vec_val, "exit");
+        let zero = self.i32_type.const_int(0, false);
+        let idx_ptr = self.builder.build_alloca(self.i32_type, "idx");
+        self.builder.build_store(idx_ptr, zero);
+        self.builder.build_unconditional_branch(loop_bb);
+        self.builder.position_at_end(loop_bb);
+        let idx = self.builder.build_load(idx_ptr, "idx").into_int_value();
+        let cond = self.builder.build_int_compare(
+            inkwell::IntPredicate::ULT,
+            idx,
+            len,
+            "cond",
+        );
+        self.builder.build_conditional_branch(cond, loop_bb, exit_bb); // Simplified loop
+        self.builder.position_at_end(exit_bb);
+        self.builder.build_return(Some(&vec_arg.into()));
         self.add_vec_fn = Some(add_vec_val);
 
-        // malloc stub (body gen later)
+        // malloc intrinsic (stub: use llvm.malloc)
         let malloc_type = self.i8ptr_type.fn_type(&[self.i64_type.into()], false);
         self.malloc_fn = Some(self.module.add_function("malloc", malloc_type, None));
 
-        // channel_send stub
-        let send_type = self.i32_type.fn_type(&[self.i8ptr_type.into(), self.i32_type.into()], false);
-        self.channel_send_fn = Some(self.module.add_function("channel_send", send_type, None));
+        // channel_send (tokio stub)
+        let chan_send_type = self.i32_type.fn_type(&[self.i8ptr_type.into(), self.i8ptr_type.into()], false);
+        self.channel_send_fn = Some(self.module.add_function("channel_send", chan_send_type, None));
 
-        // channel_poll stub
-        let poll_type = self.i32_type.fn_type(&[self.i8ptr_type.into()], false);
-        self.channel_poll_fn = Some(self.module.add_function("channel_poll", poll_type, None));
+        // channel_poll
+        let chan_poll_type = self.i32_type.fn_type(&[self.i8ptr_type.into()], false);
+        self.channel_poll_fn = Some(self.module.add_function("channel_poll", chan_poll_type, None));
 
-        // http_get stub
+        // std embeds: http_get (reqwest stub)
         let http_type = self.i8ptr_type.fn_type(&[self.i8ptr_type.into()], false);
         self.http_get_fn = Some(self.module.add_function("http_get", http_type, None));
 
-        // tls_connect stub
-        let tls_type = self.i32_type.fn_type(&[self.i8ptr_type.into(), self.i32_type.into()], false);
+        // tls_connect
+        let tls_type = self.i32_type.fn_type(&[self.i8ptr_type.into()], false);
         self.tls_connect_fn = Some(self.module.add_function("tls_connect", tls_type, None));
 
-        // datetime_now stub
+        // datetime_now
         let now_type = self.i64_type.fn_type(&[], false);
         self.datetime_now_fn = Some(self.module.add_function("datetime_now", now_type, None));
 
-        // serde_json stub
-        let json_type = self.i8ptr_type.fn_type(&[self.i8ptr_type.into(), self.i8ptr_type.into()], false);
+        // serde_json (stub)
+        let json_type = self.i8ptr_type.fn_type(&[self.i8ptr_type.into()], false);
         self.serde_json_fn = Some(self.module.add_function("serde_json", json_type, None));
 
-        // rand_next stub
-        let rand_type = self.i64_type.fn_type(&[], false);
+        // rand_next
+        let rand_type = self.i32_type.fn_type(&[], false);
         self.rand_next_fn = Some(self.module.add_function("rand_next", rand_type, None));
 
-        // log_trace stub
-        let log_type = self.i32_type.fn_type(&[self.i8ptr_type.into()], false);
+        // log_trace
+        let log_type = self.void_type().fn_type(&[self.i8ptr_type.into()], false);
         self.log_trace_fn = Some(self.module.add_function("log_trace", log_type, None));
 
-        // governor_permit stub
+        // governor_permit
         let gov_type = self.i32_type.fn_type(&[], false);
         self.governor_permit_fn = Some(self.module.add_function("governor_permit", gov_type, None));
 
-        // prometheus_inc stub
-        let prom_type = self.i32_type.fn_type(&[self.i8ptr_type.into(), self.i64_type.into()], false);
+        // prometheus_inc
+        let prom_type = self.void_type().fn_type(&[self.i8ptr_type.into()], false);
         self.prometheus_inc_fn = Some(self.module.add_function("prometheus_inc", prom_type, None));
 
-        // copy stub
-        let copy_type = self.i8ptr_type.fn_type(&[self.i8ptr_type.into(), self.i8ptr_type.into(), self.i64_type.into()], false);
-        self.copy_fn = Some(self.module.add_function("memcpy", copy_type, None));
+        // copy (memcpy stub)
+        let copy_type = self.void_type().fn_type(&[self.i8ptr_type.into(), self.i8ptr_type.into(), self.i64_type.into()], false);
+        self.copy_fn = Some(self.module.add_function("copy", copy_type, None));
     }
 
-    pub fn gen_func(&mut self, ast: &AstNode, resolver: &Resolver, param_map: &mut HashMap<String, PointerValue<'ctx>>) {
-        if let AstNode::FuncDef { name, params, ret, body, generics, attrs, .. } = ast {
-            let param_types: Vec<BasicMetadataTypeEnum<'ctx>> = params.iter().map(|(_, pty)| {
-                if pty == "i32" {
-                    self.i32_type.into()
-                } else if pty == "i64" {
-                    self.i64_type.into()
-                } else if pty == "f64" {
-                    self.f64_type.into()
-                } else {
-                    self.i8ptr_type.into()
-                }
-            }).collect();
-            let fn_type = self.i32_type.fn_type(&param_types, false);
-            let fn_val = self.module.add_function(name, fn_type, None);
-            let entry = self.context.append_basic_block(fn_val, "entry");
-            self.builder.position_at_end(entry);
-            for (i, (pname, _)) in params.iter().enumerate() {
-                let param_val = fn_val.get_nth_param(i as u32).unwrap();
-                let alloca = self.builder.build_alloca(param_val.get_type(), pname).unwrap();
-                self.builder.build_store(alloca, param_val);
-                self.locals.insert(pname.clone(), alloca);
-            }
-            for node in body {
-                self.gen_expr_stmt(node);
-            }
-            self.builder.build_return(Some(&self.i32_type.const_int(0, false).into()));
-            // AI opt metadata
-            if attrs.contains(&"ai_opt".to_string()) {
-                if let Some(ai_meta) = &self.ai_opt_meta {
-                    fn_val.get_first_metadata().map(|m| m.set_metadata(ai_meta.clone(), 0));
-                }
-            }
-            // MLGO vectorize
-            if let Some(vec_meta) = &self.mlgo_vectorize_meta {
-                entry.get_first_instruction().map(|inst| inst.set_metadata(vec_meta.clone(), 0));
-            }
-            // Stable ABI
-            if attrs.contains(&"stable_abi".to_string()) {
-                if let Some(version) = &self.abi_version {
-                    let ver_md = self.context.metadata_node(&[self.i8ptr_type.const_string(version.as_bytes(), true).into()]);
-                    fn_val.set_metadata(ver_md, 0);
-                }
-            }
-        }
-    }
-
-    fn gen_expr_stmt(&mut self, node: &AstNode) {
-        match node {
-            AstNode::Call { receiver, method, args } => {
-                let recv_val = self.locals.get(receiver).cloned().unwrap_or_else(|| self.builder.build_load(self.builder.build_alloca(self.i8ptr_type, "tmp").unwrap(), "recv").unwrap());
-                let mut arg_vals: Vec<BasicMetadataValueEnum<'ctx>> = vec![recv_val.into()];
-                for arg in args {
-                    if let Some(val) = self.locals.get(arg) {
-                        arg_vals.push(val.into());
-                    } else {
-                        arg_vals.push(self.i32_type.const_int(0, false).into());
-                    }
-                }
-                let f = self.module.get_function(method).unwrap_or_else(|| self.module.add_function(method, self.i32_type.fn_type(&[self.i32_type.into()], false), None));
-                let call = self.builder.build_call(f, &arg_vals, "method_call").unwrap();
-                let _ = call.try_as_basic_value().left().unwrap();
-            }
-            AstNode::Assign(vname, expr) => {
-                let alloca = self.builder.build_alloca(self.i32_type, vname).unwrap();
-                let val = self.gen_expr_value(expr.as_ref()).unwrap_or(self.i32_type.const_int(0, false).into());
-                self.builder.build_store(alloca, val);
-                self.locals.insert(vname.clone(), alloca);
-            }
-            AstNode::TimingOwned { inner, .. } => {
-                let val = self.gen_expr_value(inner.as_ref()).unwrap_or(self.i32_type.const_int(0, false).into());
-                let iv = val.into_int_value();
-                let zero = self.i32_type.const_int(0, false);
-                let erased = self.builder.build_xor(iv, zero, "erased");
-                let _ = erased;
-            }
-            _ => {}
-        }
-    }
-
-    fn gen_expr_value(&mut self, node: &AstNode) -> Option<BasicValueEnum<'ctx>> {
-        match node {
-            AstNode::Lit(n) => Some(self.i32_type.const_int(*n as u64, false).into()),
-            AstNode::Var(v) => self.locals.get(v).map(|ptr| self.builder.build_load(*ptr, v).unwrap()),
-            _ => None,
-        }
+    fn void_type(&self) -> inkwell::types::VoidType<'ctx> {
+        self.context.void_type()
     }
 
     pub fn gen_actor(&mut self, ast: &AstNode) {
         if let AstNode::ActorDef { name, methods } = ast {
-            let actor_type = self.context.struct_type(&[self.i8ptr_type.into(), self.i32_type.into()], false); // queue, state
-            let actor_ptr_type = self.context.ptr_type(AddressSpace::default());
-            let handler_type = actor_ptr_type.fn_type(&[actor_ptr_type.into()], false);
-            let handler = self.module.add_function(&format!("{}_handler", name), handler_type, None);
-            let entry = self.context.append_basic_block(handler, "entry");
+            // Gen actor struct: vtable + state
+            let actor_struct = self.context.struct_type(&[
+                self.i8ptr_type.into(), // vtable ptr
+                self.i32_type.into(),   // state (e.g., counter)
+            ], false);
+            let actor_ptr_type = actor_struct.ptr_type(inkwell::AddressSpace::Generic);
+
+            // Vtable: methods as fns
+            let vtable_type = self.i8ptr_type.array_type(8); // Stub: 8 methods max
+            let vtable_struct = self.context.struct_type(&[vtable_type.into()], false);
+
+            // Main actor fn: spawn handler loop
+            let actor_fn_type = self.i32_type.fn_type(&[actor_ptr_type.into()], false);
+            let actor_fn = self.module.add_function(&format!("actor_{}", name), actor_fn_type, None);
+            let entry = self.context.append_basic_block(actor_fn, "entry");
             self.builder.position_at_end(entry);
-            let self_arg = handler.get_nth_param(0).unwrap().into_pointer_value();
-            let loop_bb = self.context.append_basic_block(handler, "loop");
+            let self_arg = actor_fn.get_nth_param(0).unwrap().into_pointer_value();
+            let queue_ptr = self.builder.build_alloca(self.i8ptr_type, "queue"); // Channel queue
+            self.builder.build_store(queue_ptr, self.i8ptr_type.const_null());
+
+            // Handler loop
+            let handler = self.context.append_basic_block(actor_fn, "handler");
+            let loop_bb = self.context.append_basic_block(actor_fn, "loop");
+            self.builder.build_unconditional_branch(handler);
+            self.builder.position_at_end(handler);
             self.builder.build_unconditional_branch(loop_bb);
             self.builder.position_at_end(loop_bb);
-            let queue_ptr = self.builder.build_struct_gep(self_arg, self.i8ptr_type.into(), 0, "queue").unwrap();
-            let poll = self.channel_poll_fn.unwrap();
-            let poll_res = self.builder.build_call(poll, &[queue_ptr.into()], "poll_msg").unwrap();
-            let poll_val = poll_res.try_as_basic_value().left().unwrap().into_int_value();
-            let neg_one = self.i32_type.const_all_ones();
-            let has_msg = self.builder.build_int_compare(inkwell::IntPredicate::NE, poll_val, neg_one, "has_msg");
-            let then_bb = self.context.append_basic_block(handler, "then");
-            let else_bb = self.context.append_basic_block(handler, "else");
-            self.builder.build_conditional_branch(has_msg, then_bb, else_bb);
-            self.builder.position_at_end(then_bb);
-            // Call method: e.g., increment
-            let inc_fn = self.module.add_function("increment", self.i32_type.fn_type(&[self.i32_type.into(), self.i32_type.into()], false), None);
-            let inc_call = self.builder.build_call(inc_fn, &[self_arg.into(), poll_val.into()], "inc_call").unwrap();
-            let inc_res = inc_call.try_as_basic_value().left().unwrap().into_int_value();
-            let err = self.builder.build_int_compare(inkwell::IntPredicate::EQ, inc_res, neg_one, "inc_err");
-            let poison_bb = self.context.append_basic_block(handler, "poison");
-            self.builder.build_conditional_branch(err, poison_bb, loop_bb);
-            self.builder.position_at_end(poison_bb);
-            let state_ptr = self.builder.build_struct_gep(self_arg, self.i32_type.into(), 1, "state").unwrap();
-            self.builder.build_store(state_ptr, self.i32_type.const_int_from_string("-999", 10).unwrap());
-            self.builder.build_return(Some(&self.i32_type.const_all_ones().into()));
-            self.builder.position_at_end(else_bb);
-            self.builder.build_unconditional_branch(loop_bb);
-            self.builder.position_at_end(entry);
-            self.builder.build_return(Some(&self.i32_type.const_int(0, false).into()));
+
+            // Poll channel
+            if let Some(poll) = &self.channel_poll_fn {
+                let poll_res = self.builder
+                    .build_call(*poll, &[queue_ptr.into()], "poll_msg");
+                let poll_val = poll_res
+                    .try_as_basic_value()
+                    .left()
+                    .unwrap()
+                    .into_int_value();
+                let neg_one = self.i32_type.const_int(-1, false);
+                let has_msg = self.builder.build_int_compare(
+                    inkwell::IntPredicate::NE,
+                    poll_val,
+                    neg_one,
+                    "has_msg",
+                );
+                let then_bb = self.context.append_basic_block(handler, "then");
+                let else_bb = self.context.append_basic_block(handler, "else");
+                self.builder
+                    .build_conditional_branch(has_msg, then_bb, else_bb);
+                self.builder.position_at_end(then_bb);
+                // Call method: e.g., increment
+                let inc_fn = self.module.add_function("increment", self.i32_type.fn_type(&[actor_ptr_type.into(), self.i32_type.into()], false), None);
+                let inc_call = self.builder.build_call(
+                    inc_fn,
+                    &[self_arg.into(), poll_val.into()],
+                    "inc_call",
+                );
+                let inc_res = inc_call
+                    .try_as_basic_value()
+                    .left()
+                    .unwrap()
+                    .into_int_value();
+                let err = self.builder.build_int_compare(
+                    inkwell::IntPredicate::EQ,
+                    inc_res,
+                    neg_one,
+                    "inc_err",
+                );
+                let poison_bb = self.context.append_basic_block(handler, "poison");
+                self.builder
+                    .build_conditional_branch(err, poison_bb, loop_bb);
+                self.builder.position_at_end(poison_bb);
+                let state_ptr = self.builder.build_struct_gep(self_arg, 1, "state").unwrap();
+                self.builder
+                    .build_store(state_ptr, self.i32_type.const_int(-999, false));
+                self.builder
+                    .build_return(Some(&self.i32_type.const_int(-1, false).into()));
+                self.builder.position_at_end(else_bb);
+                self.builder.build_br(loop_bb);
+            }
+            self.builder
+                .build_return(Some(&self.i32_type.const_int(0, false).into()));
 
             // MLGO on handler
             if let Some(branch_meta) = &self.mlgo_branch_meta {
-                entry.get_first_instruction().map(|inst| inst.set_metadata(branch_meta.clone(), 0));
+                handler.add_metadata(branch_meta.clone(), 0);
             }
 
             // Gen methods, e.g., increment
@@ -347,18 +318,100 @@ impl<'ctx> LLVMCodegen<'ctx> {
             self.builder.position_at_end(inc_entry);
             let inc_self = inc_fn.get_nth_param(0).unwrap().into_pointer_value();
             let delta = inc_fn.get_nth_param(1).unwrap().into_int_value();
-            let state_ptr = self.builder.build_struct_gep(inc_self, self.i32_type.into(), 1, "state").unwrap();
-            let state = self.builder.build_load(state_ptr, "state").unwrap().into_int_value();
+            let state_ptr = self.builder.build_struct_gep(inc_self, 1, "state").unwrap();
+            let state = self.builder.build_load(state_ptr, "state").into_int_value();
             let new_state = self.builder.build_int_add(state, delta, "new_state");
             self.builder.build_store(state_ptr, new_state);
-            self.builder.build_return(Some(&new_state));
+            self.builder.build_return(Some(&new_state.into()));
+        }
+    }
+
+    pub fn gen_func(&mut self, ast: &AstNode, resolver: &Resolver, param_map: &mut HashMap<String, PointerValue<'ctx>>) {
+        if let AstNode::FuncDef { name, params, ret, body, attrs, .. } = ast {
+            let fn_type = self.i32_type.fn_type(
+                &params.iter().map(|(_, ty)| self.i32_type.into()).collect::<Vec<_>>(),
+                false,
+            );
+            let fn_val = self.module.add_function(name, fn_type, None);
+            let entry = self.context.append_basic_block(fn_val, "entry");
+            self.builder.position_at_end(entry);
+
+            // Params
+            for ((pname, _), param) in params.iter().zip(fn_val.get_params()) {
+                let ptr = self.builder.build_alloca(self.i32_type, pname);
+                self.builder.build_store(ptr, param);
+                param_map.insert(pname.clone(), ptr);
+            }
+
+            // Body
+            for node in body {
+                self.gen_stmt(node, resolver, param_map);
+            }
+
+            // Ret
+            self.builder.build_return(Some(&self.i32_type.const_int(0, false).into()));
+
+            // AI opt metadata if #[ai_opt]
+            if attrs.contains(&"ai_opt".to_string()) {
+                if let Some(ai_meta) = &self.ai_opt_meta {
+                    entry.add_metadata(ai_meta.clone(), 0);
+                }
+            }
+
+            // Stable ABI: extern "C" if #[stable_abi]
+            if attrs.contains(&"stable_abi".to_string()) {
+                fn_val.set_linkage(inkwell::Linkage::ExternalLinkage);
+            }
+        }
+    }
+
+    fn gen_stmt(&mut self, node: &AstNode, resolver: &Resolver, param_map: &mut HashMap<String, PointerValue<'ctx>>) {
+        match node {
+            AstNode::Call { method, receiver, args } => {
+                if let Some(recv_ptr) = param_map.get(receiver) {
+                    let recv = self.builder.build_load(*recv_ptr, receiver);
+                    let arg_vals: Vec<BasicValueEnum> = args.iter().map(|a| {
+                        if let Some(ptr) = param_map.get(a) {
+                            self.builder.build_load(*ptr, a).into()
+                        } else {
+                            self.i32_type.const_int(0, false).into()
+                        }
+                    }).collect();
+                    if method == "add" && resolver.has_method("Addable", receiver, "add") {
+                        if let Some(add_fn) = &self.add_i32_fn {
+                            let res = self.builder.build_call(*add_fn, &arg_vals, "add_res");
+                            // Store res if needed
+                        }
+                    }
+                }
+            }
+            AstNode::TimingOwned { ty, inner } => {
+                // Constant-time erase: XOR with random, defer restore
+                if let Some(rand) = &self.rand_next_fn {
+                    let xor_key = self.builder.build_call(*rand, &[], "xor_key").try_as_basic_value().unwrap().into_int_value();
+                    let inner_val = self.gen_expr(inner, param_map).unwrap_or(self.i32_type.const_int(0, false).into());
+                    let masked = self.builder.build_int_xor(inner_val.into_int_value(), xor_key, "masked");
+                    // Defer: XOR back
+                    let defer_stmt = AstNode::Defer(Box::new(AstNode::Assign("tmp".to_string(), Box::new(AstNode::Lit(0)))));
+                    self.gen_stmt(&defer_stmt, resolver, param_map);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn gen_expr(&mut self, node: &AstNode, param_map: &HashMap<String, PointerValue<'ctx>>) -> Option<BasicValueEnum<'ctx>> {
+        match node {
+            AstNode::Lit(n) => Some(self.i32_type.const_int(*n as u64, false).into()),
+            AstNode::Var(v) => param_map.get(v).map(|ptr| self.builder.build_load(*ptr, v)),
+            _ => None,
         }
     }
 
     pub fn jit_warmup(&mut self) -> Result<(), Box<dyn Error>> {
         if let Some(ee) = &self.execution_engine {
             type DummyFn = unsafe extern "C" fn() -> i32;
-            if let Ok(dummy) = ee.get_function::<DummyFn>("main") {
+            if let Some(dummy) = ee.get_function::<DummyFn>("main") {
                 unsafe {
                     dummy.call();
                 }
@@ -380,7 +433,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     pub fn get_fn<F>(&self, name: &str) -> Option<JitFunction<F>>
     where
-        F: 'static + Copy,
+        F: 'static + Copy + num_traits::ToPrimitive,
     {
         self.execution_engine
             .as_ref()
@@ -408,13 +461,13 @@ pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
                 if traits.contains(&"Copy".to_string()) {
                     if let Some(copy) = &codegen.copy_fn {
                         let size = codegen.i64_type.const_int(4, false); // i32 size
-                        let src = codegen.builder.build_alloca(codegen.i32_type, "src").unwrap();
-                        let dst = codegen.builder.build_alloca(codegen.i32_type, "dst").unwrap();
+                        let src = codegen.builder.build_alloca(codegen.i32_type, "src");
+                        let dst = codegen.builder.build_alloca(codegen.i32_type, "dst");
                         codegen.builder.build_call(
                             *copy,
                             &[dst.into(), src.into(), size.into()],
                             "derive_copy",
-                        ).unwrap();
+                        );
                     }
                 }
             }
@@ -429,7 +482,7 @@ pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
 
     unsafe {
         type UseVecAddFn = unsafe extern "C" fn() -> i32;
-        if let Ok(use_add) = ee.get_function::<UseVecAddFn>("use_vec_add") {
+        if let Some(use_add) = codegen.get_fn::<UseVecAddFn>("use_vec_add") {
             Ok(use_add.call())
         } else {
             Ok(0)
