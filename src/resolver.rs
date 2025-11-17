@@ -7,7 +7,10 @@ use std::sync::{Arc, Mutex};
 use rayon::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub type MonoKey = (String, Vec<String>);
+pub struct MonoKey {
+    pub func: String,
+    pub types: Vec<String>,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TraitKind {
@@ -106,7 +109,7 @@ impl Resolver {
         let mut mono_ast = orig_ast.clone();
         if let AstNode::FuncDef { params, ret, body, generics, .. } = &mut mono_ast {
             for (i, g) in generics.iter().enumerate() {
-                let conc = &key.1[i];
+                let conc = &key.types[i];
                 for (_, pt) in params.iter_mut() { *pt = pt.replace(g, conc); }
                 *ret = ret.replace(g, conc);
                 for node in body.iter_mut() {
