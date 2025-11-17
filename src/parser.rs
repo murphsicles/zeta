@@ -7,7 +7,7 @@ use nom::{
     character::complete::{alpha1, alphanumeric1, char, digit1, multispace0},
     combinator::{map, opt, recognize, value},
     multi::{many0, separated_list1},
-    sequence::{delimited, preceded, separated_pair, terminated},
+    sequence::{delimited, preceded, separated_pair, terminated, tuple},
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -109,7 +109,7 @@ fn parse_attrs(input: &str) -> IResult<&str, Vec<String>> {
 }
 
 fn parse_derive(input: &str) -> IResult<&str, AstNode> {
-    let parser = (
+    let p = tuple((
         tag("derive"),
         multispace0,
         delimited(
@@ -120,8 +120,8 @@ fn parse_derive(input: &str) -> IResult<&str, AstNode> {
         multispace0,
         map_opt(identifier),
         tag(";"),
-    );
-    let (i, (_, _, traits, _, ty, _)) = parser(input)?;
+    ));
+    let (i, (_, _, traits, _, ty, _)) = p(input)?;
     Ok((
         i,
         AstNode::Derive {
@@ -132,34 +132,33 @@ fn parse_derive(input: &str) -> IResult<&str, AstNode> {
 }
 
 pub fn parse_concept(input: &str) -> IResult<&str, AstNode> {
-    let parser = (
+    let param_item = separated_pair(
+        map_opt(identifier),
+        opt(preceded(tag("="), map_opt(identifier))),
+        tag(","),
+    );
+    let params_opt = opt(delimited(
+        tag("<"),
+        separated_list1(tag(","), param_item),
+        tag(">"),
+    ));
+    let p = tuple((
         tag("concept"),
         multispace0,
         map_opt(identifier),
         multispace0,
-        opt(delimited(
-            tag("<"),
-            separated_list1(
-                tag(","),
-                separated_pair(
-                    map_opt(identifier),
-                    opt(preceded(tag("="), map_opt(identifier))),
-                    tag(","),
-                ),
-            ),
-            tag(">"),
-        )),
+        params_opt,
         multispace0,
         tag("{"),
         multispace0,
         many0(parse_method),
         tag("}"),
-    );
-    let (i, (_, _, name, _, params_opt, _, _, _, methods, _)) = parser(input)?;
+    ));
+    let (i, (_, _, name, _, params_opt, _, _, _, methods, _)) = p(input)?;
     let params: Vec<String> = params_opt
         .unwrap_or_default()
         .into_iter()
-        .map(|(n, _)| n.unwrap_or_default())
+        .map(|(n, _): (Option<String>, Option<String>)| n.unwrap_or_default())
         .collect();
     Ok((
         i,
@@ -172,34 +171,34 @@ pub fn parse_concept(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_method(input: &str) -> IResult<&str, AstNode> {
-    let param_parser = separated_pair(
+    let param_item = separated_pair(
         opt(tag("mut")),
         tag(":"),
-        (
+        tuple((
             map_opt(identifier),
             multispace0,
             tag(":"),
             multispace0,
             map_opt(identifier),
-        ),
+        )),
     );
-    let parser = (
+    let p = tuple((
         tag("fn"),
         multispace0,
         map_opt(identifier),
         multispace0,
-        delimited(tag("("), separated_list1(tag(","), param_parser), tag(")")),
+        delimited(tag("("), separated_list1(tag(","), param_item), tag(")")),
         multispace0,
         tag("->"),
         multispace0,
         map_opt(identifier),
         multispace0,
         tag(";"),
-    );
-    let (i, (_, _, name, _, params, _, _, _, ret, _, _)) = parser(input)?;
+    ));
+    let (i, (_, _, name, _, params, _, _, _, ret, _, _)) = p(input)?;
     let method_params: Vec<(String, String)> = params
         .into_iter()
-        .map(|(mut_opt, (pn, _, _, _, ty))| (pn.unwrap_or_default(), ty.unwrap_or_default()))
+        .map(|(mut_opt, (pn, _, _, _, ty)): ((Option<()>, &str), (Option<String>, &str, &str, &str, Option<String>))| (pn.unwrap_or_default(), ty.unwrap_or_default()))
         .collect();
     Ok((
         i,
@@ -212,22 +211,22 @@ fn parse_method(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_struct(input: &str) -> IResult<&str, AstNode> {
-    let field_parser = separated_pair(map_opt(identifier), tag(":"), map_opt(identifier));
-    let parser = (
+    let field_item = separated_pair(map_opt(identifier), tag(":"), map_opt(identifier));
+    let p = tuple((
         tag("struct"),
         multispace0,
         map_opt(identifier),
         multispace0,
         tag("{"),
         multispace0,
-        separated_list1(tag(","), field_parser),
+        separated_list1(tag(","), field_item),
+        multispace0,
         tag("}"),
-        tag(";"),
-    );
-    let (i, (_, _, name, _, _, _, fields, _, _)) = parser(input)?;
+    ));
+    let (i, (_, _, name, _, _, _, fields, _, _)) = p(input)?;
     let field_map: Vec<(String, String)> = fields
         .into_iter()
-        .map(|(fname, ty)| (fname.unwrap_or_default(), ty.unwrap_or_default()))
+        .map(|(fname, ty): (Option<String>, Option<String>)| (fname.unwrap_or_default(), ty.unwrap_or_default()))
         .collect();
     Ok((
         i,
@@ -239,25 +238,29 @@ fn parse_struct(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_impl(input: &str) -> IResult<&str, AstNode> {
-    let parser = (
+    let p = tuple((
         tag("impl"),
         multispace0,
         map_opt(identifier),
+        multispace0,
+        opt(map_opt(identifier)),
         multispace0,
         tag("for"),
         multispace0,
         map_opt(identifier),
         multispace0,
         tag("{"),
+        multispace0,
         many0(parse_method),
         tag("}"),
-    );
-    let (i, (_, _, concept, _, _, _, ty, _, _, methods, _)) = parser(input)?;
+    ));
+    let (i, (_, _, concept, _, ty_opt, _, _, _, ty, _, _, _, methods, _)) = p(input)?;
+    let ty_str = ty_opt.unwrap_or(ty).unwrap_or_default();
     Ok((
         i,
         AstNode::ImplBlock {
             concept: concept.unwrap_or_default(),
-            ty: ty.unwrap_or_default(),
+            ty: ty_str,
             body: methods,
         },
     ))
@@ -265,28 +268,24 @@ fn parse_impl(input: &str) -> IResult<&str, AstNode> {
 
 fn parse_expr(input: &str) -> IResult<&str, AstNode> {
     alt((
+        map(int_literal, |t| if let Token::IntLit(n) = t { AstNode::Lit(n) } else { AstNode::Lit(0) }),
+        map(identifier, |t| if let Token::Ident(s) = t { AstNode::Var(s) } else { AstNode::Var("".to_string()) }),
         parse_call,
         parse_borrow,
-        parse_timing_owned,
         parse_assign,
         parse_defer,
-        map(int_literal, |t| AstNode::Lit(t.0)),
-        map(identifier, |t| AstNode::Var(t.0)),
+        parse_timing_owned,
     ))(input)
 }
 
 fn parse_call(input: &str) -> IResult<&str, AstNode> {
-    let parser = (
+    let p = tuple((
         map_opt(identifier),
         tag("."),
         map_opt(identifier),
-        opt(delimited(
-            tag("("),
-            separated_list1(tag(","), map_opt(identifier)),
-            tag(")"),
-        )),
-    );
-    let (i, (recv, _, method, args_opt)) = parser(input)?;
+        opt(delimited(tag("("), separated_list1(tag(","), map_opt(identifier)), tag(")"))),
+    ));
+    let (i, (recv, _, method, args_opt)) = p(input)?;
     Ok((
         i,
         AstNode::Call {
@@ -298,12 +297,15 @@ fn parse_call(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_borrow(input: &str) -> IResult<&str, AstNode> {
-    preceded(tag("&"), map_opt(identifier)).map(|v| AstNode::Borrow(v.unwrap_or_default()))(input)
+    preceded(tag("&"), map_opt(identifier))
+        .map(|v: Option<String>| AstNode::Borrow(v.unwrap_or_default()))(input)
 }
 
 fn parse_assign(input: &str) -> IResult<&str, AstNode> {
-    separated_pair(map_opt(identifier), tag("="), parse_expr)(input)
-        .map(|(var, _, expr)| AstNode::Assign(var.unwrap_or_default(), Box::new(expr)))
+    separated_pair(map_opt(identifier), tag("="), parse_expr)
+        .map(|(var, _, expr): (Option<String>, &str, AstNode)| {
+            AstNode::Assign(var.unwrap_or_default(), Box::new(expr))
+        })(input)
 }
 
 fn parse_defer(input: &str) -> IResult<&str, AstNode> {
@@ -312,7 +314,7 @@ fn parse_defer(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_timing_owned(input: &str) -> IResult<&str, AstNode> {
-    let parser = (
+    let p = tuple((
         tag("TimingOwned"),
         tag("<"),
         map_opt(identifier),
@@ -320,8 +322,8 @@ fn parse_timing_owned(input: &str) -> IResult<&str, AstNode> {
         tag("("),
         parse_expr,
         tag(")"),
-    );
-    let (i, (_, _, ty, _, _, expr, _)) = parser(input)?;
+    ));
+    let (i, (_, _, ty, _, _, expr, _)) = p(input)?;
     Ok((
         i,
         AstNode::TimingOwned {
@@ -332,7 +334,7 @@ fn parse_timing_owned(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_actor(input: &str) -> IResult<&str, AstNode> {
-    let parser = (
+    let p = tuple((
         tag("actor"),
         multispace0,
         map_opt(identifier),
@@ -341,8 +343,8 @@ fn parse_actor(input: &str) -> IResult<&str, AstNode> {
         multispace0,
         many0(alt((parse_async_method, parse_method))),
         tag("}"),
-    );
-    let (i, (_, _, name, _, _, _, methods, _)) = parser(input)?;
+    ));
+    let (i, (_, _, name, _, _, _, methods, _)) = p(input)?;
     Ok((
         i,
         AstNode::ActorDef {
@@ -353,25 +355,26 @@ fn parse_actor(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_async_method(input: &str) -> IResult<&str, AstNode> {
-    let parser = (
+    let param_item = parse_param;
+    let p = tuple((
         tag("async"),
         multispace0,
         tag("fn"),
         multispace0,
         map_opt(identifier),
         multispace0,
-        delimited(tag("("), separated_list1(tag(","), parse_param), tag(")")),
+        delimited(tag("("), separated_list1(tag(","), param_item), tag(")")),
         multispace0,
         tag("->"),
         multispace0,
         map_opt(identifier),
         multispace0,
         tag(";"),
-    );
-    let (i, (_, _, _, _, name, _, params, _, _, _, ret, _, _)) = parser(input)?;
+    ));
+    let (i, (_, _, _, _, name, _, params, _, _, _, ret, _, _)) = p(input)?;
     let method_params: Vec<(String, String)> = params
         .into_iter()
-        .map(|(pn, ty)| (pn.unwrap_or_default(), ty.unwrap_or_default()))
+        .map(|(pn, ty): (Option<String>, Option<String>)| (pn.unwrap_or_default(), ty.unwrap_or_default()))
         .collect();
     Ok((
         i,
@@ -388,7 +391,7 @@ fn parse_param(input: &str) -> IResult<&str, (String, String)> {
 }
 
 fn parse_spawn_actor(input: &str) -> IResult<&str, AstNode> {
-    let parser = (
+    let p = tuple((
         tag("spawn_actor"),
         multispace0,
         map_opt(identifier),
@@ -400,8 +403,8 @@ fn parse_spawn_actor(input: &str) -> IResult<&str, AstNode> {
         ),
         multispace0,
         tag(";"),
-    );
-    let (i, (_, _, ty, _, args_opt, _, _)) = parser(input)?;
+    ));
+    let (i, (_, _, ty, _, args_opt, _, _)) = p(input)?;
     Ok((
         i,
         AstNode::SpawnActor {
@@ -412,85 +415,60 @@ fn parse_spawn_actor(input: &str) -> IResult<&str, AstNode> {
 }
 
 pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
-    let generics_parser = opt(delimited(
+    let generics_item = separated_pair(
+        map_opt(identifier),
+        opt(preceded(tag("="), map_opt(identifier))),
+        tag(","),
+    );
+    let generics_opt = opt(delimited(
         tag("<"),
-        separated_list1(
-            tag(","),
-            separated_pair(
-                map_opt(identifier),
-                opt(preceded(tag("="), map_opt(identifier))),
-                tag(","),
-            ),
-        ),
+        separated_list1(tag(","), generics_item),
         tag(">"),
     ));
-    let param_parser = separated_pair(
+    let param_item = separated_pair(
         opt(tag("mut")),
         tag(":"),
-        (
+        tuple((
             map_opt(identifier),
             multispace0,
             tag(":"),
             multispace0,
             map_opt(identifier),
-        ),
+        )),
     );
-    let parser = (
+    let where_opt = opt(parse_where_clause);
+    let p = tuple((
         multispace0,
         parse_attrs,
         tag("fn"),
         multispace0,
         map_opt(identifier),
         multispace0,
-        generics_parser,
+        generics_opt,
         multispace0,
-        delimited(tag("("), separated_list1(tag(","), param_parser), tag(")")),
+        delimited(tag("("), separated_list1(tag(","), param_item), tag(")")),
         multispace0,
         tag("->"),
         multispace0,
         map_opt(identifier),
         multispace0,
-        opt(parse_where_clause),
+        where_opt,
         multispace0,
         tag("{"),
         multispace0,
         many0(parse_expr),
         tag("}"),
-    );
-    let (
-        i,
-        (
-            _,
-            attrs_opt,
-            _,
-            _,
-            name,
-            _,
-            generics_opt,
-            _,
-            params,
-            _,
-            _,
-            _,
-            ret,
-            _,
-            where_opt,
-            _,
-            _,
-            _,
-            body,
-            _,
-        ),
-    ) = parser(input)?;
-    let attrs = attrs_opt.unwrap_or_default();
+    ));
+    let (i, (_, attrs_opt, _, _, name, _, generics_opt, _, params, _, _, _, ret, _, where_opt, _, _, _, body, _)) = p(input)?;
+    let attrs: Vec<String> = attrs_opt.unwrap_or_default();
     let generics: Vec<String> = generics_opt
         .unwrap_or_default()
         .into_iter()
-        .map(|(n, _)| n.unwrap_or_default())
+        .map(|(n, _): (Option<String>, Option<String>)| n.unwrap_or_default())
         .collect();
     let func_params: Vec<(String, String)> = params
         .into_iter()
-        .map(|(mut_opt, (pn, _, _, _, ty))| (pn.unwrap_or_default(), ty.unwrap_or_default()))
+        .map(|(mut_opt, (pn, _, _, _, ty)): ((Option<()>, &str), (Option<String>, &str, &str, &str, Option<String>))| (pn.unwrap_or_default(), ty.unwrap_or_default()))
         .collect();
     Ok((
         i,
