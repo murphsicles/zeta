@@ -38,18 +38,18 @@
 /// - Benchmarks: Criterion suite (Zeta vs Rust/Zig/Go, EOP semiring/concurrent actors).
 ///
 /// ## To Do
-/// - Ecosystem Tools: Zorb (build/package manager: Cargo-like, SIMD-parallel deps, AI-opt resolution); zfmt (formatter: nom-based, style-guide enforced); zchk (linter: clippy-inspired, borrow/timing checks, ML-pred perf warnings). Registry: zorbs.io. Site: z-lang.org. Impl: Rust bootstrap -> Zeta self-host. Milestone: Parallel CI integration.
+/// - Ecosystem Tools: Zorb (build/package manager: Cargo-like, SIMD-parallel deps, AI-opt resolution); zfmt (formatter: nom-based, style-guide enforced); zippy (linter: clippy-inspired, borrow/timing checks, ML-pred perf warnings). Registry: zorbs.io. Site: z-lang.org. Impl: Rust bootstrap -> Zeta self-host. Milestone: Parallel CI integration.
 ///
 /// ## Milestones
 /// 1. PoC JIT: Done (add.zeta runs).
 /// 2. Full Compiler: Parser+resolve+codegen complete, std embeds.
 /// 3. Optimize: AI hooks (done), comp/perf targets (benchmarks partial).
 /// 4. Release: xAI API integration, SuperGrok quotas. Done.
-/// 5. Ecosystem: Zorb/zfmt/zchk, zorbs.io/z-lang.org. Partial (names).
+/// 5. Ecosystem: Zorb/zfmt/zippy, zorbs.io/z-lang.org. Partial (names).
 pub struct Plan;
 
 impl Plan {
     pub fn status() -> &'static str {
-        "Sites: zorbs.io (registry), z-lang.org (official). Zorb/zfmt/zchk ready for impl."
+        "Linter: zippy (clippy play). Zorb/zfmt/zippy ready for impl."
     }
 }
