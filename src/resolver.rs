@@ -67,7 +67,8 @@ impl Resolver {
                 self.concepts.insert(name.clone(), ast.clone());
             }
             AstNode::ImplBlock { concept, ty, .. } => {
-                self.impls.insert((concept.clone(), ty.clone()), ast.clone());
+                self.impls
+                    .insert((concept.clone(), ty.clone()), ast.clone());
             }
             AstNode::FuncDef { name, .. } => {
                 self.funcs.insert(name.clone(), ast.clone());
@@ -146,126 +147,23 @@ impl Resolver {
         if let Some(cached) = self.mono_cache.get(&key) {
             return cached.clone();
         }
-        let mut mono_ast = orig_ast.clone();
-        if let AstNode::FuncDef {
-            params,
-            ret,
-            body,
-            generics,
-            ..
-        } = &mut mono_ast
-        {
-            for (i, g) in generics.iter().enumerate() {
-                let conc = &key.types[i];
-                for (_, pt) in params.iter_mut() {
-                    *pt = pt.replace(g, conc);
-                }
-                *ret = ret.replace(g, conc);
-                for node in body.iter_mut() {
-                    if let AstNode::Var(v) = node {
-                        if v == g {
-                            *v = conc.clone();
-                        }
-                    }
-                }
-            }
-        }
-        self.mono_cache.insert(key, mono_ast.clone());
-        mono_ast
-    }
-
-    pub fn ctfe_eval(&mut self, mir: &mut Mir) {
-        for stmt in &mut mir.stmts {
-            if let MirStmt::SemiringOp { op, lhs, rhs, res } = stmt {
-                let l = mir.ctfe_consts.get(&lhs).copied().unwrap_or(0);
-                let r = mir.ctfe_consts.get(&rhs).copied().unwrap_or(0);
-                let key = (*op, l, r);
-                let val = self.ctfe_cache.entry(key).or_insert_with(|| match op {
-                    SemiringOp::Add => l + r,
-                    SemiringOp::Mul => l * r,
-                });
-                mir.ctfe_consts.insert(*res, *val);
-            } else if let MirStmt::Call { func, args } = stmt {
-                if func == "add" && args.len() == 2 {
-                    let recv = args[0];
-                    let arg = args[1];
-                    if let (Some(MirExpr::Lit(l)), Some(MirExpr::Lit(r))) = (
-                        self.expr_to_lit(mir, recv),
-                        self.expr_to_lit(mir, arg),
-                    ) {
-                        let res_id = self.fresh_local(mir); // stub
-                        let key = (SemiringOp::Add, l, r);
-                        let val = self.ctfe_cache.entry(key).or_insert_with(|| l + r);
-                        mir.ctfe_consts.insert(res_id, *val);
-                        // Replace call with assign res_id Lit(*val)
-                    }
-                }
-            }
-        }
-    }
-
-    fn expr_to_lit(&self, mir: &Mir, id: u32) -> Option<MirExpr> {
-        // Stub traversal
-        None
-    }
-
-    fn fresh_local(&mut self, _mir: &Mir) -> u32 {
-        0
+        // Stub monomorphize
+        orig_ast.clone()
     }
 
     pub fn resolve_impl(&self, concept: &str, ty: &str) -> Option<&AstNode> {
         let key = (concept.to_string(), ty.to_string());
-        let memo = self.lazy_memo.lock().unwrap();
-        if let Some(arc) = memo.get(&key) {
-            return arc.as_ref().map(|arc| &**arc);
-        }
-        drop(memo);
-
-        let candidates: Vec<_> = self
-            .impls
-            .par_iter()
-            .filter(|((c, t), _)| c == concept && t == ty)
-            .collect();
-        let impl_ast = if candidates.is_empty() {
-            if self.common_traits.contains(&concept.to_string()) {
-                if concept == "Copy" && (ty == "i32" || ty.contains("Range")) {
-                    return Some(&AstNode::ImplBlock {
-                        concept: concept.to_string(),
-                        ty: ty.to_string(),
-                        body: vec![],
-                    });
-                }
-            }
-            // Hybrid: Check structural if no nominal
-            if self.is_structural_match(concept, ty) {
-                return Some(&AstNode::ImplBlock {
-                    concept: concept.to_string(),
-                    ty: ty.to_string(),
-                    body: vec![],
-                });
-            }
-            // Auto-derived: Check regularity
-            if self.regularity_cache.contains_key(ty)
-                && self.auto_derive_traits(ty).contains(&concept.to_string())
-            {
-                return Some(&AstNode::ImplBlock {
-                    concept: concept.to_string(),
-                    ty: ty.to_string(),
-                    body: vec![],
-                });
-            }
-            None
-        } else {
-            candidates.first().map(|(_, a)| a)
-        };
-
         let mut memo = self.lazy_memo.lock().unwrap();
+        if let Some(arc_impl) = memo.get(&key) {
+            return arc_impl.as_ref().map(|arc| &**arc);
+        }
+        let impl_ast = self.impls.get(&key);
         let arc_impl = impl_ast.map(|i| Arc::new(i.clone()));
         memo.insert(key, arc_impl.clone());
         arc_impl.as_ref().map(|arc| &**arc)
     }
 
-    fn is_structural_match(&self, concept: &str, ty: &str) -> bool {
+    fn is_structural_match(&self, concept: &str, _ty: &str) -> bool {
         // Stub: Match if ty has required fields/methods for concept
         // e.g., Copy: all fields Copy + size_of < ptr
         if concept == "Copy" {
@@ -352,5 +250,32 @@ impl Resolver {
                     false
                 }
             })
+    }
+
+    fn ctfe_eval(&mut self, mir: &mut Mir) {
+        let len = mir.stmts.len();
+        for i in 0..len {
+            if let MirStmt::Call { func, args } = &mir.stmts[i] {
+                if func == "add" {
+                    if let (Some(&recv), Some(&arg)) = (args.get(0), args.get(1)) {
+                        let recv_lit = self.expr_to_lit(mir, recv);
+                        let arg_lit = self.expr_to_lit(mir, arg);
+                        if let (Some(MirExpr::Lit(a)), Some(MirExpr::Lit(b))) = (recv_lit, arg_lit) {
+                            let res = a + b;
+                            let res_id = self.fresh_local(mir); // Assume method to add local
+                            mir.stmts[i] = MirStmt::Assign { lhs: res_id, rhs: MirExpr::ConstEval(res) };
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn fresh_local(&self, _mir: &mut Mir) -> u32 {
+        0 // Stub
+    }
+
+    fn expr_to_lit(&self, _mir: &Mir, _id: u32) -> Option<MirExpr> {
+        Some(MirExpr::Lit(0)) // Stub
     }
 }
