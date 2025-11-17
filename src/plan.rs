@@ -38,17 +38,18 @@
 /// - Benchmarks: Criterion suite (Zeta vs Rust/Zig/Go, EOP semiring/concurrent actors).
 ///
 /// ## To Do
-/// - None: Release ready.
+/// - Ecosystem Tools: ZetaForge (build/package manager: Cargo-like, SIMD-parallel deps, AI-opt resolution; zfmt (formatter: nom-based, style-guide enforced); zlint (linter: clippy-inspired, borrow/timing checks, ML-pred perf warnings). Registry: zeta.io/crates. Impl: Rust bootstrap -> Zeta self-host. Milestone: Parallel CI integration.
 ///
 /// ## Milestones
 /// 1. PoC JIT: Done (add.zeta runs).
 /// 2. Full Compiler: Parser+resolve+codegen complete, std embeds.
 /// 3. Optimize: AI hooks (done), comp/perf targets (benchmarks partial).
 /// 4. Release: xAI API integration, SuperGrok quotas. Done.
+/// 5. Ecosystem: ZetaForge/zfmt/zlint, zeta.io registry. Partial (plan).
 pub struct Plan;
 
 impl Plan {
     pub fn status() -> &'static str {
-        "CI/CD best practices added (ci.yml: check/test/lint/audit, cache/matrix). Zeta ready for release."
+        "Ecosystem plan: ZetaForge (build/pkg), zfmt (fmt), zlint (lint), zeta.io/crates. Ready for tool impl."
     }
 }
