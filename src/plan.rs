@@ -1,9 +1,9 @@
 // src/plan.rs
 /// Zeta Language Development Plan
-/// 
+///
 /// ## Overview
 /// Zeta is a next-gen systems language inspired by EOP algebraic concepts, fixing Rust's pain points: faster comp (<Go), perf (>Rust/Zig), AI-optimized, memory-safe, no GC. Bootstrapped in Rust 2024, LLVM backend.
-/// 
+///
 /// ## Completed
 /// - Parser (nom): Concepts, impls, funcs, actors, exprs (calls, borrow, assign, defer, spawn, TimingOwned), attrs.
 /// - AST: Full enum with attrs for stable_abi.
@@ -32,14 +32,14 @@
 /// - Bootstrap: Self-host Zeta compiler in Zeta (expanded parser/tokenizer/AST builder/eval in selfhost.zeta), release .z files.
 /// - Release: xAI API integration (Grok-4/3 queries for opt/codegen, SuperGrok quotas).
 /// - CI/CD: GitHub Actions (check/clippy/fmt/test/audit, cache/sccache, matrix Rust, publish on tag).
-/// 
+///
 /// ## Partially Completed
 /// - Testing: API exposure (stable_abi FFI).
 /// - Benchmarks: Criterion suite (Zeta vs Rust/Zig/Go, EOP semiring/concurrent actors).
-/// 
+///
 /// ## To Do
 /// - None: Release ready.
-/// 
+///
 /// ## Milestones
 /// 1. PoC JIT: Done (add.zeta runs).
 /// 2. Full Compiler: Parser+resolve+codegen complete, std embeds.
