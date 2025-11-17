@@ -4,7 +4,7 @@ use inkwell::module::Module;
 use inkwell::builder::Builder;
 use inkwell::execution_engine::{ExecutionEngine, JitFunction};
 use inkwell::OptimizationLevel;
-use inkwell::values::{BasicValueEnum, FunctionValue, IntValue, PointerValue, MetadataValue, FloatValue};
+use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue, MetadataValue};
 use inkwell::types::{BasicTypeEnum, StructType};
 use crate::ast::AstNode;
 use crate::parser::parse_zeta;
@@ -199,7 +199,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.copy_fn = Some(copy_val);
     }
 
-    fn gen_value<'a>(&mut self, node: &AstNode, resolver: &Resolver) -> Option<BasicValueEnum<'ctx>> {
+    fn gen_value(&mut self, node: &AstNode, resolver: &Resolver) -> Option<BasicValueEnum<'ctx>> {
         match node {
             AstNode::Lit(n) => Some(self.i64_type.const_int(*n as u64, false).into()),
             AstNode::Var(v) => {
@@ -394,7 +394,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     pub fn finalize_and_jit(&mut self) -> Result<ExecutionEngine<'ctx>, Box<dyn Error>> {
         self.module.verify().map_err(|e| e.to_string())?;
-        let ee = self.module.create_jit_execution_engine(OptimizationLevel::Aggressive)?;
+        let ee = self.module.create_jit_execution_engine(OptimizationLevel::Default)?; // Reduced for faster CI
         self.execution_engine = Some(ee.clone());
         self.jit_warmup()?;
         Ok(ee)
