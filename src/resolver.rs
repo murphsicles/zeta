@@ -1,10 +1,10 @@
 // src/resolver.rs
 use crate::ast::AstNode;
 use crate::borrow::{BorrowChecker, BorrowState};
-use crate::mir::{MirGen, Mir, MirStmt, MirExpr, SemiringOp};
+use crate::mir::{Mir, MirExpr, MirGen, MirStmt, SemiringOp};
+use rayon::prelude::*;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use rayon::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MonoKey {
@@ -14,9 +14,9 @@ pub struct MonoKey {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TraitKind {
-    Nominal(String), // Explicit impl
+    Nominal(String),                   // Explicit impl
     Structural(Vec<(String, String)>), // Fields/methods match
-    AutoDerived(String), // Regularity-based derive
+    AutoDerived(String),               // Regularity-based derive
 }
 
 #[derive(Debug, Clone)]
@@ -35,12 +35,24 @@ pub struct Resolver {
 }
 
 impl Resolver {
-    pub fn new() -> Self { 
-        let mut res = Self { 
-            concepts: HashMap::new(), impls: HashMap::new(), funcs: HashMap::new(), 
-            common_traits: vec!["Send".to_string(), "Sync".to_string(), "Addable".to_string(), "CacheSafe".to_string(), "Copy".to_string(), "Eq".to_string()], 
-            mir_cache: HashMap::new(), lazy_memo: Mutex::new(HashMap::new()),
-            ctfe_cache: HashMap::new(), mono_cache: HashMap::new(), mono_mir: HashMap::new(),
+    pub fn new() -> Self {
+        let mut res = Self {
+            concepts: HashMap::new(),
+            impls: HashMap::new(),
+            funcs: HashMap::new(),
+            common_traits: vec![
+                "Send".to_string(),
+                "Sync".to_string(),
+                "Addable".to_string(),
+                "CacheSafe".to_string(),
+                "Copy".to_string(),
+                "Eq".to_string(),
+            ],
+            mir_cache: HashMap::new(),
+            lazy_memo: Mutex::new(HashMap::new()),
+            ctfe_cache: HashMap::new(),
+            mono_cache: HashMap::new(),
+            mono_mir: HashMap::new(),
             structural_cache: HashMap::new(),
             regularity_cache: HashMap::new(),
         };
@@ -51,25 +63,47 @@ impl Resolver {
     pub fn register(&mut self, ast: AstNode) {
         let ast_hash = format!("{:?}", ast);
         match &ast {
-            AstNode::ConceptDef { name, params, .. } => { 
-                self.concepts.insert(name.clone(), ast); 
+            AstNode::ConceptDef { name, params, .. } => {
+                self.concepts.insert(name.clone(), ast);
             }
-            AstNode::ImplBlock { concept, ty, .. } => { self.impls.insert((concept.clone(), ty.clone()), ast); }
-            AstNode::FuncDef { name, generics, .. } => { self.funcs.insert(name.clone(), ast); }
+            AstNode::ImplBlock { concept, ty, .. } => {
+                self.impls.insert((concept.clone(), ty.clone()), ast);
+            }
+            AstNode::FuncDef { name, generics, .. } => {
+                self.funcs.insert(name.clone(), ast);
+            }
             AstNode::Derive { ty, traits } => {
                 for tr in traits {
                     // Auto-classify regularity for additional derives
                     let auto_traits = self.auto_derive_traits(ty);
                     for auto_tr in auto_traits {
-                        self.impls.insert((auto_tr.clone(), ty.clone()), AstNode::ImplBlock { concept: auto_tr, ty: ty.clone(), body: vec![] });
+                        self.impls.insert(
+                            (auto_tr.clone(), ty.clone()),
+                            AstNode::ImplBlock {
+                                concept: auto_tr,
+                                ty: ty.clone(),
+                                body: vec![],
+                            },
+                        );
                     }
-                    self.impls.insert((tr.clone(), ty.clone()), AstNode::ImplBlock { concept: tr.clone(), ty: ty.clone(), body: vec![] });
+                    self.impls.insert(
+                        (tr.clone(), ty.clone()),
+                        AstNode::ImplBlock {
+                            concept: tr.clone(),
+                            ty: ty.clone(),
+                            body: vec![],
+                        },
+                    );
                 }
             }
             AstNode::StructDef { name, fields, .. } => {
                 // Cache structural fields for hybrid traits
-                let field_map: Vec<(String, String)> = fields.iter().map(|(fname, fty)| (fname.clone(), fty.clone())).collect();
-                self.structural_cache.insert((name.clone(), field_map.clone()), true);
+                let field_map: Vec<(String, String)> = fields
+                    .iter()
+                    .map(|(fname, fty)| (fname.clone(), fty.clone()))
+                    .collect();
+                self.structural_cache
+                    .insert((name.clone(), field_map.clone()), true);
                 // Precompute regularity for auto-derive
                 self.compute_regularity(name, &field_map);
             }
@@ -88,11 +122,17 @@ impl Resolver {
     fn compute_regularity(&mut self, ty: &str, fields: &Vec<(String, String)>) {
         let mut derivable = vec![];
         // Copy: All fields Copy + sizeof < ptr (stub: primitive fields)
-        if fields.iter().all(|(_, fty)| self.resolve_impl("Copy", fty).is_some() && fty == "i32") {
+        if fields
+            .iter()
+            .all(|(_, fty)| self.resolve_impl("Copy", fty).is_some() && fty == "i32")
+        {
             derivable.push("Copy".to_string());
         }
         // Eq: All fields Eq
-        if fields.iter().all(|(_, fty)| self.resolve_impl("Eq", fty).is_some()) {
+        if fields
+            .iter()
+            .all(|(_, fty)| self.resolve_impl("Eq", fty).is_some())
+        {
             derivable.push("Eq".to_string());
         }
         self.regularity_cache.insert(ty.to_string(), derivable);
@@ -107,13 +147,26 @@ impl Resolver {
             return cached.clone();
         }
         let mut mono_ast = orig_ast.clone();
-        if let AstNode::FuncDef { params, ret, body, generics, .. } = &mut mono_ast {
+        if let AstNode::FuncDef {
+            params,
+            ret,
+            body,
+            generics,
+            ..
+        } = &mut mono_ast
+        {
             for (i, g) in generics.iter().enumerate() {
                 let conc = &key.types[i];
-                for (_, pt) in params.iter_mut() { *pt = pt.replace(g, conc); }
+                for (_, pt) in params.iter_mut() {
+                    *pt = pt.replace(g, conc);
+                }
                 *ret = ret.replace(g, conc);
                 for node in body.iter_mut() {
-                    if let AstNode::Var(v) = node { if v == g { *v = conc.clone(); } }
+                    if let AstNode::Var(v) = node {
+                        if v == g {
+                            *v = conc.clone();
+                        }
+                    }
                 }
             }
         }
@@ -134,14 +187,18 @@ impl Resolver {
             if let MirStmt::Assign { lhs, rhs } = stmt {
                 if let MirExpr::MethodCall { recv, method, args } = rhs {
                     if method == "add" || method == "mul" {
-                        let op = if method == "add" { SemiringOp::Add } else { SemiringOp::Mul };
-                        if let (Some(MirExpr::Lit(l)), Some(MirExpr::Lit(r))) = (self.expr_to_lit(mir, *recv), self.expr_to_lit(mir, args[0])) {
+                        let op = if method == "add" {
+                            SemiringOp::Add
+                        } else {
+                            SemiringOp::Mul
+                        };
+                        if let (Some(MirExpr::Lit(l)), Some(MirExpr::Lit(r))) =
+                            (self.expr_to_lit(mir, *recv), self.expr_to_lit(mir, args[0]))
+                        {
                             let key = (op, l, r);
-                            let res = self.ctfe_cache.entry(key).or_insert_with(|| {
-                                match op {
-                                    SemiringOp::Add => l + r,
-                                    SemiringOp::Mul => l * r,
-                                }
+                            let res = self.ctfe_cache.entry(key).or_insert_with(|| match op {
+                                SemiringOp::Add => l + r,
+                                SemiringOp::Mul => l * r,
                             });
                             *rhs = MirExpr::ConstEval(*res);
                             mir.ctfe_consts.insert(*lhs, *res);
@@ -153,7 +210,11 @@ impl Resolver {
     }
 
     fn expr_to_lit(&self, mir: &Mir, id: u32) -> Option<i64> {
-        if let Some(c) = mir.ctfe_consts.get(&id) { Some(*c) } else { None }
+        if let Some(c) = mir.ctfe_consts.get(&id) {
+            Some(*c)
+        } else {
+            None
+        }
     }
 
     pub fn resolve_impl(&self, concept: &str, ty: &str) -> Option<&AstNode> {
@@ -164,22 +225,38 @@ impl Resolver {
         }
         drop(memo);
 
-        let candidates: Vec<_> = self.impls.par_iter()
+        let candidates: Vec<_> = self
+            .impls
+            .par_iter()
             .filter(|((c, t), _)| c == concept && t == ty)
             .collect();
         let impl_ast = if candidates.is_empty() {
             if self.common_traits.contains(&concept.to_string()) {
                 if concept == "Copy" && (ty == "i32" || ty.contains("Range")) {
-                    return Some(&AstNode::ImplBlock { concept: concept.to_string(), ty: ty.to_string(), body: vec![] });
+                    return Some(&AstNode::ImplBlock {
+                        concept: concept.to_string(),
+                        ty: ty.to_string(),
+                        body: vec![],
+                    });
                 }
             }
             // Hybrid: Check structural if no nominal
             if self.is_structural_match(concept, ty) {
-                return Some(&AstNode::ImplBlock { concept: concept.to_string(), ty: ty.to_string(), body: vec![] });
+                return Some(&AstNode::ImplBlock {
+                    concept: concept.to_string(),
+                    ty: ty.to_string(),
+                    body: vec![],
+                });
             }
             // Auto-derived: Check regularity
-            if self.regularity_cache.contains_key(ty) && self.auto_derive_traits(ty).contains(&concept.to_string()) {
-                return Some(&AstNode::ImplBlock { concept: concept.to_string(), ty: ty.to_string(), body: vec![] });
+            if self.regularity_cache.contains_key(ty)
+                && self.auto_derive_traits(ty).contains(&concept.to_string())
+            {
+                return Some(&AstNode::ImplBlock {
+                    concept: concept.to_string(),
+                    ty: ty.to_string(),
+                    body: vec![],
+                });
             }
             None
         } else {
@@ -211,7 +288,11 @@ impl Resolver {
     }
 
     pub fn infer_phantom(&self, ty: &str) -> String {
-        if ty.contains("<") && !ty.contains(">") { format!("{}<()>", ty) } else { ty.to_string() }
+        if ty.contains("<") && !ty.contains(">") {
+            format!("{}<()>", ty)
+        } else {
+            ty.to_string()
+        }
     }
 
     pub fn get_cached_mir(&self, ast_hash: &str) -> Option<&Mir> {
@@ -221,7 +302,7 @@ impl Resolver {
     pub fn typecheck(&self, asts: &[AstNode]) -> bool {
         asts.par_iter().all(|ast| {
             match ast {
-                AstNode::ActorDef { name, methods } => { 
+                AstNode::ActorDef { name, methods } => {
                     let inferred_name = self.infer_phantom(name);
                     self.resolve_impl("Send", &inferred_name).is_some() && self.resolve_impl("Sync", &inferred_name).is_some() &&
                     self.resolve_impl("CacheSafe", &inferred_name).is_some() && // CacheSafe req
@@ -268,10 +349,19 @@ impl Resolver {
 
     pub fn has_method(&self, concept: &str, ty: &str, method: &str) -> bool {
         let inf_ty = self.infer_phantom(ty);
-        self.resolve_impl(concept, &inf_ty).map_or(false, |impl_ast| {
-            if let AstNode::ImplBlock { body, .. } = impl_ast { 
-                body.iter().any(|m| if let AstNode::Method { name, .. } = m { name == method } else { false }) 
-            } else { false }
-        })
+        self.resolve_impl(concept, &inf_ty)
+            .map_or(false, |impl_ast| {
+                if let AstNode::ImplBlock { body, .. } = impl_ast {
+                    body.iter().any(|m| {
+                        if let AstNode::Method { name, .. } = m {
+                            name == method
+                        } else {
+                            false
+                        }
+                    })
+                } else {
+                    false
+                }
+            })
     }
 }
