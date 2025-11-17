@@ -9,12 +9,13 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::{ExecutionEngine, JitFunction};
 use inkwell::module::Module;
-use inkwell::types::{BasicTypeEnum, StructType};
+use inkwell::types::StructType;
 use inkwell::values::{BasicValueEnum, FunctionValue, MetadataValue, PointerValue};
 use std::collections::HashMap;
 use std::error::Error;
 use std::thread;
 use std::time::Duration;
+use num_traits::ToPrimitive;
 
 pub struct LLVMCodegen<'ctx> {
     context: &'ctx Context,
@@ -57,7 +58,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let i32_type = context.i32_type();
         let i64_type = context.i64_type();
         let i8_type = context.i8_type();
-        let i8ptr_type = i8_type.ptr_type(inkwell::AddressSpace::GENERIC);
+        let i8ptr_type = context.ptr_type(i8_type.into());
         let f64_type = context.f64_type();
         let vec_type = context.struct_type(&[i8ptr_type.into(), i32_type.into()], false);
         let mut xai_client = None;
@@ -101,21 +102,21 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     pub fn gen_intrinsics(&mut self) {
         // TBAA metadata
-        let md0: inkwell::values::BasicMetadataValueEnum<'ctx> = self.i32_type.const_int(0, false).into().into();
-        let md1: inkwell::values::BasicMetadataValueEnum<'ctx> = self.i32_type.const_int(1, false).into().into();
+        let md0 = self.i32_type.const_int(0, false).into().into();
+        let md1 = self.i32_type.const_int(1, false).into().into();
         let tbaa_md = self.context.metadata_node(&[md0, md1]);
         self.tbaa_root = Some(tbaa_md);
 
         // AI opt metadata
-        let ai_md: inkwell::values::BasicMetadataValueEnum<'ctx> = self.i32_type.const_int(1, false).into().into();
+        let ai_md = self.i32_type.const_int(1, false).into().into();
         self.ai_opt_meta = Some(self.context.metadata_node(&[ai_md]));
 
         // MLGO vectorize metadata
-        let vec_md: inkwell::values::BasicMetadataValueEnum<'ctx> = self.i32_type.const_int(4, false).into().into();
+        let vec_md = self.i32_type.const_int(4, false).into().into();
         self.mlgo_vectorize_meta = Some(self.context.metadata_node(&[vec_md]));
 
         // MLGO branch metadata
-        let branch_md: inkwell::values::BasicMetadataValueEnum<'ctx> = self.i32_type.const_int(1, false).into().into();
+        let branch_md = self.i32_type.const_int(1, false).into().into();
         self.mlgo_branch_meta = Some(self.context.metadata_node(&[branch_md]));
 
         // add_i32 intrinsic
@@ -132,7 +133,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.add_i32_fn = Some(fn_val);
 
         // add_vec_i32 with SIMD
-        let vec_ptr_type = self.vec_type.ptr_type(inkwell::AddressSpace::GENERIC);
+        let vec_ptr_type = self.context.ptr_type(self.vec_type.into());
         let add_vec_type =
             vec_ptr_type.fn_type(&[vec_ptr_type.into(), self.i32_type.into()], false);
         let add_vec_val = self.module.add_function("add_vec_i32", add_vec_type, None);
@@ -141,18 +142,18 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let vec_arg = add_vec_val.get_nth_param(0).unwrap().into_pointer_value();
         let scalar = add_vec_val.get_nth_param(1).unwrap().into_int_value();
         let len_ptr = self.builder.build_struct_gep(self.vec_type, vec_arg, 1, "len").unwrap();
-        let len = self.builder.build_load(self.i32_type, len_ptr, "len").into_int_value();
+        let len = self.builder.build_load(self.i32_type, len_ptr, "len").unwrap().into_int_value();
         let data_ptr = self.builder.build_struct_gep(self.vec_type, vec_arg, 0, "data").unwrap();
         let loop_bb = self.context.append_basic_block(add_vec_val, "loop");
         let body_bb = self.context.append_basic_block(add_vec_val, "body");
         let exit_bb = self.context.append_basic_block(add_vec_val, "exit");
         let zero = self.i32_type.const_int(0, false);
         let one = self.i32_type.const_int(1, false);
-        let idx_ptr = self.builder.build_alloca(self.i32_type, "idx");
+        let idx_ptr = self.builder.build_alloca(self.i32_type, "idx").unwrap();
         self.builder.build_store(idx_ptr, zero);
         self.builder.build_unconditional_branch(loop_bb);
         self.builder.position_at_end(loop_bb);
-        let idx = self.builder.build_load(self.i32_type, idx_ptr, "idx").into_int_value();
+        let idx = self.builder.build_load(self.i32_type, idx_ptr, "idx").unwrap().into_int_value();
         let cond = self.builder.build_int_compare(
             inkwell::IntPredicate::ULT,
             idx,
@@ -229,7 +230,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.i8ptr_type.into(), // vtable ptr
                 self.i32_type.into(),   // state (e.g., counter)
             ], false);
-            let actor_ptr_type = actor_struct.ptr_type(inkwell::AddressSpace::GENERIC);
+            let actor_ptr_type = self.context.ptr_type(actor_struct.into());
 
             // Vtable: methods as fns
             let vtable_type = self.i8ptr_type.array_type(8); // Stub: 8 methods max
@@ -241,11 +242,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
             let entry = self.context.append_basic_block(actor_fn, "entry");
             self.builder.position_at_end(entry);
             let self_arg = actor_fn.get_nth_param(0).unwrap().into_pointer_value();
-            let queue_ptr = self.builder.build_alloca(self.i8ptr_type, "queue"); // Channel queue
+            let queue_ptr = self.builder.build_alloca(self.i8_type, "queue").unwrap(); // Channel queue
             self.builder.build_store(queue_ptr, self.i8ptr_type.const_null());
 
             // Method fn, e.g., increment
-            let inc_fn = self.module.add_function("increment", self.i32_type.fn_type(&[actor_ptr_type.into(), self.i32_type.into()], false), None);
+            let inc_fn_type = self.i32_type.fn_type(&[actor_ptr_type.into(), self.i32_type.into()], false);
+            let inc_fn = self.module.add_function("increment", inc_fn_type, None);
             let inc_entry = self.context.append_basic_block(inc_fn, "entry");
 
             // Handler loop
@@ -259,21 +261,18 @@ impl<'ctx> LLVMCodegen<'ctx> {
             // Poll channel
             if let Some(poll) = &self.channel_poll_fn {
                 let poll_res = self.builder
-                    .build_call(*poll, &[queue_ptr.into()], "poll_msg");
-                let poll_val = poll_res
-                    .try_as_basic_value()
-                    .left()
-                    .unwrap()
-                    .into_int_value();
-                let neg_one = self.i32_type.const_int(-1, false);
+                    .build_call(*poll, &[queue_ptr.into()], "poll_msg")
+                    .unwrap();
+                let poll_val = poll_res.try_as_basic_value().unwrap().into_int_value();
+                let neg_one = self.i32_type.const_int(4294967295, false);
                 let has_msg = self.builder.build_int_compare(
                     inkwell::IntPredicate::NE,
                     poll_val,
                     neg_one,
                     "has_msg",
                 );
-                let then_bb = self.context.append_basic_block(loop_bb, "then");
-                let else_bb = self.context.append_basic_block(loop_bb, "else");
+                let then_bb = self.context.append_basic_block(actor_fn, "then");
+                let else_bb = self.context.append_basic_block(actor_fn, "else");
                 self.builder
                     .build_conditional_branch(has_msg, then_bb, else_bb);
                 self.builder.position_at_end(then_bb);
@@ -282,27 +281,23 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     inc_fn,
                     &[self_arg.into(), poll_val.into()],
                     "inc_call",
-                );
-                let inc_res = inc_call
-                    .try_as_basic_value()
-                    .left()
-                    .unwrap()
-                    .into_int_value();
+                ).unwrap();
+                let inc_res = inc_call.try_as_basic_value().unwrap().into_int_value();
                 let err = self.builder.build_int_compare(
                     inkwell::IntPredicate::EQ,
                     inc_res,
                     neg_one,
                     "inc_err",
                 );
-                let poison_bb = self.context.append_basic_block(loop_bb, "poison");
+                let poison_bb = self.context.append_basic_block(actor_fn, "poison");
                 self.builder
                     .build_conditional_branch(err, poison_bb, loop_bb);
                 self.builder.position_at_end(poison_bb);
                 let state_ptr = self.builder.build_struct_gep(actor_struct, self_arg, 1, "state").unwrap();
                 self.builder
-                    .build_store(state_ptr, self.i32_type.const_int(-999, false));
+                    .build_store(state_ptr, self.i32_type.const_int(-999i64 as u64, false));
                 self.builder
-                    .build_return(Some(&self.i32_type.const_int(-1, false).into()));
+                    .build_return(Some(&self.i32_type.const_int(-1i64 as u64, false).into()));
                 self.builder.position_at_end(else_bb);
                 self.builder.build_br(loop_bb);
             }
@@ -314,7 +309,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             let inc_self = inc_fn.get_nth_param(0).unwrap().into_pointer_value();
             let delta = inc_fn.get_nth_param(1).unwrap().into_int_value();
             let state_ptr = self.builder.build_struct_gep(actor_struct, inc_self, 1, "state").unwrap();
-            let state = self.builder.build_load(self.i32_type, state_ptr, "state").into_int_value();
+            let state = self.builder.build_load(self.i32_type, state_ptr, "state").unwrap().into_int_value();
             let new_state = self.builder.build_int_add(state, delta, "new_state");
             self.builder.build_store(state_ptr, new_state);
             self.builder.build_return(Some(&new_state.into()));
@@ -333,7 +328,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
             // Params
             for ((pname, _), param) in params.iter().zip(fn_val.get_params()) {
-                let ptr = self.builder.build_alloca(self.i32_type, pname);
+                let ptr = self.builder.build_alloca(self.i32_type, pname).unwrap();
                 self.builder.build_store(ptr, param);
                 param_map.insert(pname.clone(), ptr);
             }
@@ -364,17 +359,17 @@ impl<'ctx> LLVMCodegen<'ctx> {
         match node {
             AstNode::Call { method, receiver, args } => {
                 if let Some(recv_ptr) = param_map.get(receiver) {
-                    let recv = self.builder.build_load(*recv_ptr, receiver);
+                    let recv = self.builder.build_load(*recv_ptr, receiver).unwrap();
                     let arg_vals: Vec<BasicValueEnum<'ctx>> = args.iter().map(|a| {
                         if let Some(ptr) = param_map.get(a) {
-                            self.builder.build_load(*ptr, a).into()
+                            self.builder.build_load(*ptr, a).unwrap().into()
                         } else {
                             self.i32_type.const_int(0, false).into()
                         }
                     }).collect();
                     if method == "add" && resolver.has_method("Addable", receiver, "add") {
                         if let Some(add_fn) = &self.add_i32_fn {
-                            let res = self.builder.build_call(*add_fn, &arg_vals[..], "add_res");
+                            let _res = self.builder.build_call(*add_fn, &arg_vals[..], "add_res").unwrap();
                             // Store res if needed
                         }
                     }
@@ -383,8 +378,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
             AstNode::TimingOwned { ty: _, inner } => {
                 // Constant-time erase: XOR with random, defer restore
                 if let Some(rand) = &self.rand_next_fn {
-                    let xor_key_call = self.builder.build_call(*rand, &[], "xor_key");
-                    let xor_key = xor_key_call.try_as_basic_value().left().unwrap().into_int_value();
+                    let xor_key_call = self.builder.build_call(*rand, &[], "xor_key").unwrap();
+                    let xor_key = xor_key_call.try_as_basic_value().unwrap().into_int_value();
                     let inner_val = self.gen_expr(inner, param_map).unwrap_or(self.i32_type.const_int(0, false).into());
                     let inner_int = inner_val.into_int_value();
                     let masked = self.builder.build_int_xor(inner_int, xor_key, "masked");
@@ -400,7 +395,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
     fn gen_expr(&mut self, node: &AstNode, param_map: &HashMap<String, PointerValue<'ctx>>) -> Option<BasicValueEnum<'ctx>> {
         match node {
             AstNode::Lit(n) => Some(self.i32_type.const_int(*n as u64, false).into()),
-            AstNode::Var(v) => param_map.get(v).map(|ptr| self.builder.build_load(*ptr, v)),
+            AstNode::Var(v) => param_map.get(v).map(|ptr| self.builder.build_load(*ptr, v).unwrap()),
             _ => None,
         }
     }
@@ -430,7 +425,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     pub fn get_fn<F>(&self, name: &str) -> Option<JitFunction<F>>
     where
-        F: 'static + Copy + num_traits::ToPrimitive,
+        F: 'static + Copy + ToPrimitive,
     {
         self.execution_engine
             .as_ref()
@@ -458,13 +453,13 @@ pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
                 if traits.contains(&"Copy".to_string()) {
                     if let Some(copy) = &codegen.copy_fn {
                         let size = codegen.i64_type.const_int(4, false); // i32 size
-                        let src = codegen.builder.build_alloca(codegen.i32_type, "src");
-                        let dst = codegen.builder.build_alloca(codegen.i32_type, "dst");
-                        codegen.builder.build_call(
+                        let src = codegen.builder.build_alloca(codegen.i32_type, "src").unwrap();
+                        let dst = codegen.builder.build_alloca(codegen.i32_type, "dst").unwrap();
+                        let _ = codegen.builder.build_call(
                             *copy,
                             &[dst.into(), src.into(), size.into()],
                             "derive_copy",
-                        );
+                        ).unwrap();
                     }
                 }
             }
