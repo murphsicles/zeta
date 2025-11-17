@@ -6,7 +6,7 @@ use rayon::prelude::*;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct MonoKey {
     pub func: String,
     pub types: Vec<String>,
@@ -19,7 +19,7 @@ pub enum TraitKind {
     AutoDerived(String),               // Regularity-based derive
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Resolver {
     concepts: HashMap<String, AstNode>,
     impls: HashMap<(String, String), AstNode>,
@@ -63,14 +63,14 @@ impl Resolver {
     pub fn register(&mut self, ast: AstNode) {
         let ast_hash = format!("{:?}", ast);
         match &ast {
-            AstNode::ConceptDef { name, params, .. } => {
-                self.concepts.insert(name.clone(), ast);
+            AstNode::ConceptDef { name, .. } => {
+                self.concepts.insert(name.clone(), ast.clone());
             }
             AstNode::ImplBlock { concept, ty, .. } => {
-                self.impls.insert((concept.clone(), ty.clone()), ast);
+                self.impls.insert((concept.clone(), ty.clone()), ast.clone());
             }
-            AstNode::FuncDef { name, generics, .. } => {
-                self.funcs.insert(name.clone(), ast);
+            AstNode::FuncDef { name, .. } => {
+                self.funcs.insert(name.clone(), ast.clone());
             }
             AstNode::Derive { ty, traits } => {
                 for tr in traits {
@@ -170,58 +170,54 @@ impl Resolver {
                 }
             }
         }
-        self.mono_cache.insert(key.clone(), mono_ast.clone());
-        let mut mir_gen = MirGen::new();
-        let mut mir = mir_gen.gen_mir(&mono_ast);
-        self.ctfe_eval(&mut mir);
-        self.mono_mir.insert(key, mir);
+        self.mono_cache.insert(key, mono_ast.clone());
         mono_ast
     }
 
-    pub fn get_mono_mir(&self, key: &MonoKey) -> Option<&Mir> {
-        self.mono_mir.get(key)
-    }
-
-    fn ctfe_eval(&mut self, mir: &mut Mir) {
+    pub fn ctfe_eval(&mut self, mir: &mut Mir) {
         for stmt in &mut mir.stmts {
-            if let MirStmt::Assign { lhs, rhs } = stmt {
-                if let MirExpr::MethodCall { recv, method, args } = rhs {
-                    if method == "add" || method == "mul" {
-                        let op = if method == "add" {
-                            SemiringOp::Add
-                        } else {
-                            SemiringOp::Mul
-                        };
-                        if let (Some(MirExpr::Lit(l)), Some(MirExpr::Lit(r))) =
-                            (self.expr_to_lit(mir, *recv), self.expr_to_lit(mir, args[0]))
-                        {
-                            let key = (op, l, r);
-                            let res = self.ctfe_cache.entry(key).or_insert_with(|| match op {
-                                SemiringOp::Add => l + r,
-                                SemiringOp::Mul => l * r,
-                            });
-                            *rhs = MirExpr::ConstEval(*res);
-                            mir.ctfe_consts.insert(*lhs, *res);
-                        }
+            if let MirStmt::SemiringOp { op, lhs, rhs, res } = stmt {
+                let l = mir.ctfe_consts.get(&lhs).copied().unwrap_or(0);
+                let r = mir.ctfe_consts.get(&rhs).copied().unwrap_or(0);
+                let key = (*op, l, r);
+                let val = self.ctfe_cache.entry(key).or_insert_with(|| match op {
+                    SemiringOp::Add => l + r,
+                    SemiringOp::Mul => l * r,
+                });
+                mir.ctfe_consts.insert(*res, *val);
+            } else if let MirStmt::Call { func, args } = stmt {
+                if func == "add" && args.len() == 2 {
+                    let recv = args[0];
+                    let arg = args[1];
+                    if let (Some(MirExpr::Lit(l)), Some(MirExpr::Lit(r))) = (
+                        self.expr_to_lit(mir, recv),
+                        self.expr_to_lit(mir, arg),
+                    ) {
+                        let res_id = self.fresh_local(mir); // stub
+                        let key = (SemiringOp::Add, l, r);
+                        let val = self.ctfe_cache.entry(key).or_insert_with(|| l + r);
+                        mir.ctfe_consts.insert(res_id, *val);
+                        // Replace call with assign res_id Lit(*val)
                     }
                 }
             }
         }
     }
 
-    fn expr_to_lit(&self, mir: &Mir, id: u32) -> Option<i64> {
-        if let Some(c) = mir.ctfe_consts.get(&id) {
-            Some(*c)
-        } else {
-            None
-        }
+    fn expr_to_lit(&self, mir: &Mir, id: u32) -> Option<MirExpr> {
+        // Stub traversal
+        None
+    }
+
+    fn fresh_local(&mut self, _mir: &Mir) -> u32 {
+        0
     }
 
     pub fn resolve_impl(&self, concept: &str, ty: &str) -> Option<&AstNode> {
         let key = (concept.to_string(), ty.to_string());
         let memo = self.lazy_memo.lock().unwrap();
-        if let Some(cached) = memo.get(&key) {
-            return cached.as_ref().and_then(|arc| (**arc).as_ref());
+        if let Some(arc) = memo.get(&key) {
+            return arc.as_ref().map(|arc| &**arc);
         }
         drop(memo);
 
@@ -266,14 +262,10 @@ impl Resolver {
         let mut memo = self.lazy_memo.lock().unwrap();
         let arc_impl = impl_ast.map(|i| Arc::new(i.clone()));
         memo.insert(key, arc_impl.clone());
-        arc_impl.and_then(|arc| (**arc).as_ref())
+        arc_impl.as_ref().map(|arc| &**arc)
     }
 
     fn is_structural_match(&self, concept: &str, ty: &str) -> bool {
-        let cache_key = (concept.to_string(), ty.to_string());
-        if let Some(&cached) = self.structural_cache.get(&cache_key) {
-            return cached;
-        }
         // Stub: Match if ty has required fields/methods for concept
         // e.g., Copy: all fields Copy + size_of < ptr
         if concept == "Copy" {
@@ -282,9 +274,6 @@ impl Resolver {
         } else {
             false
         }
-        // Cache result
-        // self.structural_cache.insert(cache_key, match);
-        // match
     }
 
     pub fn infer_phantom(&self, ty: &str) -> String {
