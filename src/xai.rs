@@ -46,7 +46,11 @@ impl XAIClient {
         })
     }
 
-    pub fn query_opt(&self, prompt: &str, model: &str) -> Result<String, Box<dyn std::error::Error>> {
+    pub fn query_opt(
+        &self,
+        prompt: &str,
+        model: &str,
+    ) -> Result<String, Box<dyn std::error::Error>> {
         let req = GrokRequest {
             model: model.to_string(),
             messages: vec![Message {
@@ -57,7 +61,8 @@ impl XAIClient {
             temperature: 0.1,
         };
 
-        let res = self.client
+        let res = self
+            .client
             .post(&format!("{}/chat/completions", self.base_url))
             .header("Authorization", format!("Bearer {}", self.api_key))
             .json(&req)
