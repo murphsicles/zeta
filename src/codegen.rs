@@ -137,31 +137,32 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.builder.position_at_end(entry);
         let vec_arg = add_vec_val.get_nth_param(0).unwrap().into_pointer_value();
         let scalar = add_vec_val.get_nth_param(1).unwrap().into_int_value();
-        let len_ptr = self.builder.build_struct_gep(vec_arg, self.i32_type, 1, "len").unwrap();
+        let len_ptr = self.builder.build_struct_gep(vec_arg, self.i32_type.into(), 1, "len").unwrap();
         let len = self.builder.build_load(len_ptr, "load_len").unwrap().into_int_value();
-        let old_ptr = self.builder.build_struct_gep(vec_arg, self.i8ptr_type, 0, "old_ptr").unwrap();
+        let old_ptr = self.builder.build_struct_gep(vec_arg, self.i8ptr_type.into(), 0, "old_ptr").unwrap();
         let old_data = self.builder.build_load(old_ptr, "old_data").unwrap().into_pointer_value();
-        let size = self.builder.build_int_mul(scalar, len, "size");
+        let size = self.builder.build_int_mul(len, self.i32_type.const_int(4, false), "size");
         let new_size = self.builder.build_int_add(size, self.i64_type.const_int(1, false), "new_size");
         let malloc_val = self.module.add_function("malloc", self.i8ptr_type.fn_type(&[self.i64_type.into()], false), None);
-        let new_ptr = self.builder.build_call(malloc_val, &[new_size.into()], "new_ptr").unwrap().try_as_basic_value().left().unwrap().into_pointer_value();
+        let new_ptr_call = self.builder.build_call(malloc_val, &[new_size.into()], "new_ptr").unwrap();
+        let new_ptr = new_ptr_call.try_as_basic_value().left().unwrap().into_pointer_value();
         // Stub memcpy
         let copy_val = self.module.add_function("memcpy", self.i8ptr_type.fn_type(&[self.i8ptr_type.into(), self.i8ptr_type.into(), self.i64_type.into()], false), None);
         self.builder.build_call(copy_val, &[new_ptr.into(), old_data.into(), size.into()], "copy");
         // SIMD add
-        let vec_ty = self.context.vector_type(self.i32_type.into(), 4);
+        let i32_vec_ty = self.context.vector_type(self.i32_type.into(), 4);
         let data_ptr = self.builder.build_pointer_cast(new_ptr, self.context.ptr_type(AddressSpace::default()), "data_ptr").unwrap();
         let simd_load = self.builder.build_load(data_ptr, "simd_load").unwrap().into_vector_value();
-        let broadcast = self.builder.build_int_splat(vec_ty, scalar, "broadcast").unwrap();
+        let broadcast = self.builder.build_int_splat(i32_vec_ty, scalar, "broadcast").unwrap();
         let simd_add = self.builder.build_int_add(simd_load, broadcast, "simd_add").unwrap();
         self.builder.build_store(data_ptr, simd_add);
         let new_vec_ptr = self.builder.build_pointer_cast(new_ptr, vec_ptr_type, "new_vec").unwrap();
-        let new_len_ptr = self.builder.build_struct_gep(new_vec_ptr, self.i32_type, 1, "new_len_ptr").unwrap();
+        let new_len_ptr = self.builder.build_struct_gep(new_vec_ptr, self.i32_type.into(), 1, "new_len_ptr").unwrap();
         self.builder.build_store(new_len_ptr, len);
         self.builder.build_return(Some(&new_vec_ptr.into()));
         self.add_vec_fn = Some(add_vec_val);
 
-        // malloc stub
+        // malloc stub (body gen later)
         let malloc_type = self.i8ptr_type.fn_type(&[self.i64_type.into()], false);
         self.malloc_fn = Some(self.module.add_function("malloc", malloc_type, None));
 
@@ -310,7 +311,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             let loop_bb = self.context.append_basic_block(handler, "loop");
             self.builder.build_unconditional_branch(loop_bb);
             self.builder.position_at_end(loop_bb);
-            let queue_ptr = self.builder.build_struct_gep(self_arg, self.i8ptr_type, 0, "queue").unwrap();
+            let queue_ptr = self.builder.build_struct_gep(self_arg, self.i8ptr_type.into(), 0, "queue").unwrap();
             let poll = self.channel_poll_fn.unwrap();
             let poll_res = self.builder.build_call(poll, &[queue_ptr.into()], "poll_msg").unwrap();
             let poll_val = poll_res.try_as_basic_value().left().unwrap().into_int_value();
@@ -328,7 +329,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             let poison_bb = self.context.append_basic_block(handler, "poison");
             self.builder.build_conditional_branch(err, poison_bb, loop_bb);
             self.builder.position_at_end(poison_bb);
-            let state_ptr = self.builder.build_struct_gep(self_arg, self.i32_type, 1, "state").unwrap();
+            let state_ptr = self.builder.build_struct_gep(self_arg, self.i32_type.into(), 1, "state").unwrap();
             self.builder.build_store(state_ptr, self.i32_type.const_int_from_string("-999", 10).unwrap());
             self.builder.build_return(Some(&self.i32_type.const_all_ones().into()));
             self.builder.position_at_end(else_bb);
@@ -346,7 +347,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             self.builder.position_at_end(inc_entry);
             let inc_self = inc_fn.get_nth_param(0).unwrap().into_pointer_value();
             let delta = inc_fn.get_nth_param(1).unwrap().into_int_value();
-            let state_ptr = self.builder.build_struct_gep(inc_self, self.i32_type, 1, "state").unwrap();
+            let state_ptr = self.builder.build_struct_gep(inc_self, self.i32_type.into(), 1, "state").unwrap();
             let state = self.builder.build_load(state_ptr, "state").unwrap().into_int_value();
             let new_state = self.builder.build_int_add(state, delta, "new_state");
             self.builder.build_store(state_ptr, new_state);
