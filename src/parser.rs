@@ -7,7 +7,7 @@ use nom::{
     character::complete::{alpha1, alphanumeric1, char, digit1, multispace0},
     combinator::{map, opt, recognize, value},
     multi::{many0, separated_list1},
-    sequence::{delimited, preceded, separated_pair, terminated},
+    sequence::{delimited, preceded, separated_pair, terminated, tuple},
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -109,7 +109,7 @@ fn parse_attrs(input: &str) -> IResult<&str, Vec<String>> {
 }
 
 fn parse_derive(input: &str) -> IResult<&str, AstNode> {
-    let parser = (
+    let parser = tuple((
         tag("derive"),
         multispace0,
         delimited(
@@ -120,7 +120,7 @@ fn parse_derive(input: &str) -> IResult<&str, AstNode> {
         multispace0,
         map_opt(identifier),
         tag(";"),
-    );
+    ));
     let (i, (_, _, traits, _, ty, _)) = parser(input)?;
     Ok((
         i,
@@ -132,7 +132,7 @@ fn parse_derive(input: &str) -> IResult<&str, AstNode> {
 }
 
 pub fn parse_concept(input: &str) -> IResult<&str, AstNode> {
-    let parser = (
+    let parser = tuple((
         tag("concept"),
         multispace0,
         map_opt(identifier),
@@ -154,7 +154,7 @@ pub fn parse_concept(input: &str) -> IResult<&str, AstNode> {
         multispace0,
         many0(parse_method),
         tag("}"),
-    );
+    ));
     let (i, (_, _, name, _, params_opt, _, _, _, methods, _)) = parser(input)?;
     let params: Vec<String> = params_opt
         .unwrap_or_default()
@@ -183,7 +183,7 @@ fn parse_method(input: &str) -> IResult<&str, AstNode> {
             map_opt(identifier),
         ),
     );
-    let parser = (
+    let parser = tuple((
         tag("fn"),
         multispace0,
         map_opt(identifier),
@@ -195,7 +195,7 @@ fn parse_method(input: &str) -> IResult<&str, AstNode> {
         map_opt(identifier),
         multispace0,
         tag(";"),
-    );
+    ));
     let (i, (_, _, name, _, params, _, _, _, ret, _, _)) = parser(input)?;
     let method_params: Vec<(String, String)> = params
         .into_iter()
@@ -216,7 +216,7 @@ fn parse_param(input: &str) -> IResult<&str, (String, String)> {
 }
 
 fn parse_spawn_actor(input: &str) -> IResult<&str, AstNode> {
-    let parser = (
+    let parser = tuple((
         tag("spawn_actor"),
         multispace0,
         map_opt(identifier),
@@ -228,7 +228,7 @@ fn parse_spawn_actor(input: &str) -> IResult<&str, AstNode> {
         ),
         multispace0,
         tag(";"),
-    );
+    ));
     let (i, (_, _, ty, _, args_opt, _, _)) = parser(input)?;
     Ok((
         i,
@@ -240,7 +240,7 @@ fn parse_spawn_actor(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_impl(input: &str) -> IResult<&str, AstNode> {
-    let parser = (
+    let parser = tuple((
         tag("impl"),
         multispace0,
         map_opt(identifier),
@@ -253,7 +253,7 @@ fn parse_impl(input: &str) -> IResult<&str, AstNode> {
         multispace0,
         many0(parse_method),
         tag("}"),
-    );
+    ));
     let (i, (_, _, concept, _, _, _, ty, _, _, _, body, _)) = parser(input)?;
     Ok((
         i,
