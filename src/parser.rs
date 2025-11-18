@@ -6,7 +6,7 @@ use nom::{
     character::complete::{alpha1, alphanumeric1, char, digit1, multispace0},
     combinator::{map, opt, recognize},
     multi::{many0, separated_list1},
-    sequence::{delimited, pair, preceded, separated_pair, terminated},
+    sequence::{delimited, preceded, separated_pair, terminated, tuple},
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -77,9 +77,9 @@ fn map_opt<'a>(
 
 fn parse_attrs(input: &str) -> IResult<&str, Vec<String>> {
     many0(preceded(
-    tag("#["), 
-    terminated(map_opt(identifier), tag("]")),
-))(input)
+        tag("#["),
+        terminated(map_opt(identifier), tag("]")),
+    ))(input)
 }
 
 fn parse_derive(input: &str) -> IResult<&str, AstNode> {
@@ -92,7 +92,7 @@ fn parse_derive(input: &str) -> IResult<&str, AstNode> {
         tag(";"),
     )(input)?;
 
-    let traits: Vec<String> = traits_opt.into_iter().filter_map(|o| o).collect();
+    let traits: Vec<String> = traits_opt.into_iter().flatten().collect();
     let ty = ty_opt.unwrap_or_default();
 
     Ok((i, AstNode::Derive { ty, traits }))
@@ -107,7 +107,7 @@ fn parse_method(input: &str) -> IResult<&str, AstNode> {
         delimited(
             tag("("),
             separated_list1(tag(","), |i| {
-                let (i, (mut_opt, (_, _, _, _, ty_opt))) = (
+                let (i, (mut_opt, (_, pn_opt, _, _, ty_opt))) = (
                     opt(tag("mut")),
                     tag(":"),
                     map_opt(identifier),
@@ -116,7 +116,7 @@ fn parse_method(input: &str) -> IResult<&str, AstNode> {
                     multispace0,
                     map_opt(identifier),
                 )(i)?;
-                Ok((i, (mut_opt, ty_opt)))
+                Ok((i, (mut_opt, pn_opt, ty_opt)))
             }),
             tag(")"),
         ),
@@ -129,7 +129,7 @@ fn parse_method(input: &str) -> IResult<&str, AstNode> {
     )(input)?;
 
     let name = name_opt.unwrap_or_default();
-    let params: Vec<(String, String)> = params.into_iter().map(|(_, ty)| (String::new(), ty.unwrap_or_default())).collect();
+    let params: Vec<(String, String)> = params.into_iter().map(|(_, pn, ty)| (pn.unwrap_or_default(), ty.unwrap_or_default())).collect();
     let ret = ret_opt.unwrap_or_default();
 
     Ok((i, AstNode::Method { name, params, ret }))
@@ -145,7 +145,10 @@ pub fn parse_concept(input: &str) -> IResult<&str, AstNode> {
             tag("<"),
             separated_list1(
                 tag(","),
-                tuple((map_opt(identifier), opt(preceded(tag("="), map_opt(identifier))))),
+                tuple((
+                    map_opt(identifier),
+                    opt(preceded(tag("="), map_opt(identifier))),
+                )),
             ),
             tag(">"),
         )),
@@ -174,7 +177,7 @@ fn parse_spawn_actor(input: &str) -> IResult<&str, AstNode> {
     )(input)?;
 
     let actor_ty = ty_opt.unwrap_or_default();
-    let init_args: Vec<String> = args_opt.into_iter().filter_map(|o| o).collect();
+    let init_args: Vec<String> = args_opt.into_iter().flatten().collect();
 
     Ok((i, AstNode::SpawnActor { actor_ty, init_args }))
 }
@@ -207,7 +210,10 @@ pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
         tag("<"),
         separated_list1(
             tag(","),
-            tuple((map_opt(identifier), opt(preceded(tag("="), map_opt(identifier))))),
+            tuple((
+                map_opt(identifier),
+                opt(preceded(tag("="), map_opt(identifier))),
+            )),
         tag(">"),
     ));
 
@@ -264,7 +270,7 @@ pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
     let attrs: Vec<String> = attrs_opt.unwrap_or_default();
     let name = name_opt.unwrap_or_default();
     let generics: Vec<String> = generics_opt.unwrap_or_default().into_iter().map(|(n, _)| n.unwrap_or_default()).collect();
-    let params: Vec<(String, String)> = params.into_iter().map(|(_, (pn, _, _, _, ty))| (pn.unwrap_or_default(), ty.unwrap_or_default())).collect();
+    let params: Vec<(String, String)> = params.into_iter().map(|(_, (pn_opt, _, _, _, ty_opt))| (pn_opt.unwrap_or_default(), ty_opt.unwrap_or_default())).collect();
     let ret = ret_opt.unwrap_or_default();
     let where_clause = where_opt.map(|w| w.into_iter().map(|(t, c)| (t.unwrap_or_default(), c.unwrap_or_default())).collect());
 
@@ -282,7 +288,7 @@ pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
 fn parse_assign(input: &str) -> IResult<&str, AstNode> { Ok((input, AstNode::Assign("".to_string(), Box::new(AstNode::Lit(0))))) }
 fn parse_call(input: &str) -> IResult<&str, AstNode> { Ok((input, AstNode::Call { method: "".to_string(), receiver: "".to_string(), args: vec![] })) }
 fn parse_borrow(input: &str) -> IResult<&str, AstNode> { Ok((input, AstNode::Borrow("".to_string()))) }
-fn parse_defer(input: &str) -> IResult<&str, AstNode> { Ok((input, AstNode::Defer(Box::new(AstNode::Lit(0))))) }
+fn parse_defer(input: &str) -> IResult<&str, AstNode> { Ok((input, AstNode::Defer(Box::new(AstNode::Lit(0)))) }
 fn parse_timing_owned(input: &str) -> IResult<&str, AstNode> { Ok((input, AstNode::TimingOwned { ty: "".to_string(), inner: Box::new(AstNode::Lit(0)) })) }
 
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
