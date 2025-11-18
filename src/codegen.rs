@@ -3,6 +3,7 @@ use crate::ast::AstNode;
 use crate::parser::parse_zeta;
 use crate::resolver::Resolver;
 use crate::xai::XAIClient;
+use inkwell::address_space::AddressSpace;
 use inkwell::OptimizationLevel;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
@@ -58,7 +59,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let i32_type = context.i32_type();
         let i64_type = context.i64_type();
         let i8_type = context.i8_type();
-        let i8ptr_type = context.ptr_type(i8_type.into());
+        let i8ptr_type = context.ptr_type(i8_type.into(), AddressSpace::Generic);
         let f64_type = context.f64_type();
         let vec_type = context.struct_type(&[i8ptr_type.into(), i32_type.into()], false);
         let mut xai_client = None;
@@ -102,21 +103,21 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     pub fn gen_intrinsics(&mut self) {
         // TBAA metadata
-        let md0 = self.i32_type.const_int(0, false).into_int_value().into();
-        let md1 = self.i32_type.const_int(1, false).into_int_value().into();
+        let md0 = self.i32_type.const_int(0, false).into();
+        let md1 = self.i32_type.const_int(1, false).into();
         let tbaa_md = self.context.metadata_node(&[md0, md1]);
         self.tbaa_root = Some(tbaa_md);
 
         // AI opt metadata
-        let ai_md = self.i32_type.const_int(1, false).into_int_value().into();
+        let ai_md = self.i32_type.const_int(1, false).into();
         self.ai_opt_meta = Some(self.context.metadata_node(&[ai_md]));
 
         // MLGO vectorize metadata
-        let vec_md = self.i32_type.const_int(4, false).into_int_value().into();
+        let vec_md = self.i32_type.const_int(4, false).into();
         self.mlgo_vectorize_meta = Some(self.context.metadata_node(&[vec_md]));
 
         // MLGO branch metadata
-        let branch_md = self.i32_type.const_int(1, false).into_int_value().into();
+        let branch_md = self.i32_type.const_int(1, false).into();
         self.mlgo_branch_meta = Some(self.context.metadata_node(&[branch_md]));
 
         // add_i32 intrinsic
@@ -133,7 +134,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.add_i32_fn = Some(fn_val);
 
         // add_vec_i32 with SIMD
-        let vec_ptr_type = self.context.ptr_type(self.vec_type.into());
+        let vec_ptr_type = self.context.ptr_type(self.vec_type.into(), AddressSpace::Generic);
         let add_vec_type =
             vec_ptr_type.fn_type(&[vec_ptr_type.into(), self.i32_type.into()], false);
         let add_vec_val = self.module.add_function("add_vec_i32", add_vec_type, None);
@@ -243,7 +244,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.module.verify().map_err(|e| e.to_string())?;
         let ee = self
             .module
-            .create_jit_execution_engine(OptimizationLevel::Default)?; // Reduced for faster CI
+            .create_jit_execution_engine(OptimizationLevel::Default)?;
         self.execution_engine = Some(ee.clone());
         self.jit_warmup()?;
         Ok(ee)
