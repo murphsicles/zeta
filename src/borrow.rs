@@ -150,7 +150,9 @@ impl BorrowChecker {
         // Post-check: Ensure affine vars not used post-move
         for node in body {
             if let AstNode::Var(v) = node {
-                if let (Some(true), Some(BorrowState::Consumed)) = (self.affine_moves.get(v), self.borrows.get(v)) {
+                if let (Some(true), Some(BorrowState::Consumed)) =
+                    (self.affine_moves.get(v), self.borrows.get(v))
+                {
                     return false; // Used after consume
                 }
             }
@@ -176,6 +178,8 @@ impl BorrowChecker {
             .collect();
         // Stub: Check coverage (e.g., all wrapped in TimingOwned)
         spec_vars.is_empty()
-            || body.iter().any(|n| matches!(n, AstNode::TimingOwned { .. }))
+            || body
+                .iter()
+                .any(|n| matches!(n, AstNode::TimingOwned { .. }))
     }
 }
