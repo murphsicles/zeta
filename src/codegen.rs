@@ -7,7 +7,6 @@ use inkwell::OptimizationLevel;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::{ExecutionEngine, JitFunction, UnsafeFunctionPointer};
-use inkwell::module::Linkage;
 use inkwell::module::Module;
 use inkwell::types::StructType;
 use inkwell::values::{
@@ -103,21 +102,21 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     pub fn gen_intrinsics(&mut self) {
         // TBAA metadata
-        let md0 = self.i32_type.const_int(0, false).into().into();
-        let md1 = self.i32_type.const_int(1, false).into().into();
+        let md0 = self.i32_type.const_int(0, false).into_int_value().into();
+        let md1 = self.i32_type.const_int(1, false).into_int_value().into();
         let tbaa_md = self.context.metadata_node(&[md0, md1]);
         self.tbaa_root = Some(tbaa_md);
 
         // AI opt metadata
-        let ai_md = self.i32_type.const_int(1, false).into().into();
+        let ai_md = self.i32_type.const_int(1, false).into_int_value().into();
         self.ai_opt_meta = Some(self.context.metadata_node(&[ai_md]));
 
         // MLGO vectorize metadata
-        let vec_md = self.i32_type.const_int(4, false).into().into();
+        let vec_md = self.i32_type.const_int(4, false).into_int_value().into();
         self.mlgo_vectorize_meta = Some(self.context.metadata_node(&[vec_md]));
 
         // MLGO branch metadata
-        let branch_md = self.i32_type.const_int(1, false).into().into();
+        let branch_md = self.i32_type.const_int(1, false).into_int_value().into();
         self.mlgo_branch_meta = Some(self.context.metadata_node(&[branch_md]));
 
         // add_i32 intrinsic
@@ -140,10 +139,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let add_vec_val = self.module.add_function("add_vec_i32", add_vec_type, None);
         let entry_vec = self.context.append_basic_block(add_vec_val, "entry");
         self.builder.position_at_end(entry_vec);
-        self.builder.build_return(None::<BasicValueEnum>);
+        self.builder.build_return(None);
         self.add_vec_fn = Some(add_vec_val);
 
-        // Stub other intrinsics as before
+        // Stub other intrinsics
         self.malloc_fn = None;
         self.channel_send_fn = None;
         self.rand_next_fn = None;
@@ -152,14 +151,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     pub fn gen_func(&mut self, ast: &AstNode, resolver: &Resolver, param_map: &mut HashMap<String, PointerValue<'ctx>>) {
         if let AstNode::FuncDef { name, params, body, ret, .. } = ast {
-            let fn_type = self.i32_type.fn_type(&[self.i32_type.into(); params.len() as usize], false);
+            let param_types: Vec<inkwell::types::BasicTypeEnum> = params.iter().map(|(_, _)| self.i32_type.into()).collect();
+            let fn_type = self.i32_type.fn_type(&param_types, false);
             let fn_val = self.module.add_function(name, fn_type, None);
             let entry = self.context.append_basic_block(fn_val, "entry");
             self.builder.position_at_end(entry);
             for (i, (pname, _)) in params.iter().enumerate() {
                 let param_val = fn_val.get_nth_param(i as u32).unwrap().into_pointer_value();
-                let alloca = self.builder.build_alloca(self.i32_type, pname);
-                self.builder.build_store(alloca, param_val);
+                let alloca = self.builder.build_alloca(self.i32_type, pname).unwrap();
+                self.builder.build_store(alloca, param_val).unwrap();
                 param_map.insert(pname.clone(), alloca);
             }
             for node in body {
@@ -173,11 +173,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
     fn gen_stmt(&mut self, node: &AstNode, resolver: &Resolver, param_map: &HashMap<String, PointerValue<'ctx>>) {
         match node {
             AstNode::Call { receiver, method, args } => {
-                let recv_id = param_map.get(receiver).cloned().unwrap_or_else(|| self.builder.build_alloca(self.i32_type, receiver));
-                let recv_val = self.builder.build_load(self.i32_type, recv_id, receiver);
+                let recv_id = param_map.get(receiver).cloned().unwrap_or_else(|| self.builder.build_alloca(self.i32_type, receiver).unwrap());
+                let recv_val = self.builder.build_load(self.i32_type, recv_id, receiver).unwrap();
                 let arg_vals: Vec<BasicValueEnum> = args.iter().map(|a| {
-                    let arg_ptr = param_map.get(a).cloned().unwrap_or_else(|| self.builder.build_alloca(self.i32_type, a));
-                    self.builder.build_load(self.i32_type, arg_ptr, a).into()
+                    let arg_ptr = param_map.get(a).cloned().unwrap_or_else(|| self.builder.build_alloca(self.i32_type, a).unwrap());
+                    self.builder.build_load(self.i32_type, arg_ptr, a).unwrap().into()
                 }).collect();
                 if method == "add" && resolver.has_method("Addable", receiver, "add") {
                     if let Some(add_fn) = &self.add_i32_fn {
@@ -194,7 +194,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             AstNode::TimingOwned { ty: _, inner } => {
                 // Constant-time erase: XOR with random, defer restore
                 if let Some(_rand) = &self.rand_next_fn {
-                    let xor_key = self.i32_type.const_int(0, false); // Stub rand
+                    let xor_key = self.i32_type.const_int(0, false);
                     let inner_val = self
                         .gen_expr(inner, param_map)
                         .unwrap_or(self.i32_type.const_int(0, false).into());
@@ -259,7 +259,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
     }
 }
 
-pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
+pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error + 'static>> {
     let (_, asts) = parse_zeta(input)?;
     let mut resolver = Resolver::new();
     for ast in &asts {
@@ -276,7 +276,7 @@ pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
     for ast in asts.iter().filter(|a| matches!(a, AstNode::FuncDef { .. })) {
         codegen.gen_func(ast, &resolver, &mut param_map);
     }
-    let ee = codegen.finalize_and_jit()?;
+    let _ee = codegen.finalize_and_jit()?;
 
     unsafe {
         type UseVecAddFn = unsafe extern "C" fn() -> i32;
@@ -285,5 +285,11 @@ pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
         } else {
             Ok(0)
         }
+    }
+}
+
+impl<'ctx> LLVMCodegen<'ctx> {
+    fn gen_actor(&mut self, _ast: &AstNode) {
+        // Stub actor gen
     }
 }
