@@ -377,16 +377,22 @@ pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
 
 fn parse_assign(input: &str) -> IResult<&str, AstNode> {
     // Stub implementation for assign
-    Ok((input, AstNode::Assign("".to_string(), Box::new(AstNode::Lit(0)))))
+    Ok((
+        input,
+        AstNode::Assign("".to_string(), Box::new(AstNode::Lit(0))),
+    ))
 }
 
 fn parse_call(input: &str) -> IResult<&str, AstNode> {
     // Stub implementation for call
-    Ok((input, AstNode::Call {
-        method: "".to_string(),
-        receiver: "".to_string(),
-        args: vec![],
-    }))
+    Ok((
+        input,
+        AstNode::Call {
+            method: "".to_string(),
+            receiver: "".to_string(),
+            args: vec![],
+        },
+    ))
 }
 
 fn parse_borrow(input: &str) -> IResult<&str, AstNode> {
@@ -401,26 +407,35 @@ fn parse_defer(input: &str) -> IResult<&str, AstNode> {
 
 fn parse_timing_owned(input: &str) -> IResult<&str, AstNode> {
     // Stub implementation for timing_owned
-    Ok((input, AstNode::TimingOwned {
-        ty: "".to_string(),
-        inner: Box::new(AstNode::Lit(0)),
-    }))
+    Ok((
+        input,
+        AstNode::TimingOwned {
+            ty: "".to_string(),
+            inner: Box::new(AstNode::Lit(0)),
+        },
+    ))
 }
 
 fn parse_actor(input: &str) -> IResult<&str, AstNode> {
     // Stub implementation for actor
-    Ok((input, AstNode::ActorDef {
-        name: "".to_string(),
-        methods: vec![],
-    }))
+    Ok((
+        input,
+        AstNode::ActorDef {
+            name: "".to_string(),
+            methods: vec![],
+        },
+    ))
 }
 
 fn parse_struct(input: &str) -> IResult<&str, AstNode> {
     // Stub implementation for struct
-    Ok((input, AstNode::StructDef {
-        name: "".to_string(),
-        fields: vec![],
-    }))
+    Ok((
+        input,
+        AstNode::StructDef {
+            name: "".to_string(),
+            fields: vec![],
+        },
+    ))
 }
 
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
