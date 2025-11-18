@@ -1,7 +1,7 @@
 // src/main.rs
 use std::env;
 use std::fs;
-use zeta::{Plan, compile_and_run_zeta};
+use zeta::{compile_and_run_zeta, Plan};
 
 fn main() {
     println!("Zeta Status: {}", Plan::status());
@@ -65,7 +65,7 @@ fn generic_add<T>(a: T, b: T) -> T {
     a.add(b)
 }
 
-fn use_std_embed() -> i64 { // Test embeds
+fn use_std_embed() -> i64 {
     let url = "https://example.com";
     let resp = std::net::http_get(url);
     let now = std::datetime::now();
