@@ -71,5 +71,11 @@ fn bench_vs_rust(c: &mut Criterion) {
     c.bench_function("rust_baseline_add", |b| b.iter(|| black_box(rust_time)));
 }
 
-criterion_group!(benches, bench_semiring_add, bench_eop_matrix, bench_actor_counter, bench_vs_rust);
+criterion_group!(
+    benches,
+    bench_semiring_add,
+    bench_eop_matrix,
+    bench_actor_counter,
+    bench_vs_rust
+);
 criterion_main!(benches);
