@@ -89,9 +89,9 @@ pub fn tokenize(input: &str) -> IResult<&str, Vec<Token>> {
     ))(input)
 }
 
-fn map_opt(
-    p: impl Fn(&str) -> IResult<&str, Token>,
-) -> impl Fn(&str) -> IResult<&str, Option<String>> + '_ {
+fn map_opt<'a>(
+    p: impl Fn(&'a str) -> IResult<&'a str, Token> + 'a,
+) -> impl Fn(&'a str) -> IResult<&'a str, Option<String>> + 'a {
     move |input| {
         let (i, t) = p(input)?;
         match t {
@@ -296,7 +296,7 @@ pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
             separated_pair(map_opt(identifier), tag(":"), map_opt(identifier)),
         ),
     ));
-    let parser = (
+    let parser = tuple((
         multispace0,
         parse_attrs,
         tag("fn"),
@@ -324,7 +324,7 @@ pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
             parse_spawn_actor,
         ))),
         tag("}"),
-    );
+    ));
     let (
         i,
         (
@@ -354,11 +354,11 @@ pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
     let generics: Vec<String> = generics_opt
         .unwrap_or_default()
         .into_iter()
-        .map(|(n, _): (Option<String>, Option<String>)| n.unwrap_or_default())
+        .map(|(n, _)| n.unwrap_or_default())
         .collect();
     let func_params: Vec<(String, String)> = params
         .into_iter()
-        .map(|(mut_opt, (pn, _, _, _, ty)): (Option<()>, (Option<String>, (), (), (), Option<String>))| (pn.unwrap_or_default(), ty.unwrap_or_default()))
+        .map(|(mut_opt, (pn, _, _, _, ty))| (pn.unwrap_or_default(), ty.unwrap_or_default()))
         .collect();
     let where_clause = where_opt.unwrap_or_default();
     Ok((
