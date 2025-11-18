@@ -30,8 +30,8 @@ pub struct Resolver {
     ctfe_cache: HashMap<(SemiringOp, i64, i64), i64>,
     mono_cache: HashMap<MonoKey, AstNode>,
     mono_mir: HashMap<MonoKey, Mir>,
-    structural_cache: HashMap<(String, Vec<(String, String)>), bool>, // Trait + fields -> matches
-    regularity_cache: HashMap<String, Vec<String>>, // Type -> auto-derivable traits
+    structural_cache: HashMap<(String, Vec<(String, String)>), bool>,
+    regularity_cache: HashMap<String, Vec<String>>,
 }
 
 impl Resolver {
@@ -75,7 +75,6 @@ impl Resolver {
             }
             AstNode::Derive { ty, traits } => {
                 for tr in traits {
-                    // Auto-classify regularity for additional derives
                     let auto_traits = self.auto_derive_traits(ty);
                     for auto_tr in auto_traits {
                         self.impls.insert(
@@ -98,14 +97,12 @@ impl Resolver {
                 }
             }
             AstNode::StructDef { name, fields, .. } => {
-                // Cache structural fields for hybrid traits
                 let field_map: Vec<(String, String)> = fields
                     .iter()
                     .map(|(fname, fty)| (fname.clone(), fty.clone()))
                     .collect();
                 self.structural_cache
                     .insert((name.clone(), field_map.clone()), true);
-                // Precompute regularity for auto-derive
                 self.compute_regularity(name, &field_map);
             }
             _ => {}
@@ -122,14 +119,12 @@ impl Resolver {
 
     fn compute_regularity(&mut self, ty: &str, fields: &Vec<(String, String)>) {
         let mut derivable = vec![];
-        // Copy: All fields Copy + sizeof < ptr (stub: primitive fields)
         if fields
             .iter()
             .all(|(_, fty)| self.resolve_impl("Copy", fty).is_some() && fty == "i32")
         {
             derivable.push("Copy".to_string());
         }
-        // Eq: All fields Eq
         if fields
             .iter()
             .all(|(_, fty)| self.resolve_impl("Eq", fty).is_some())
@@ -147,42 +142,40 @@ impl Resolver {
         if let Some(cached) = self.mono_cache.get(&key) {
             return cached.clone();
         }
-        // Stub monomorphize
         orig_ast.clone()
     }
 
     pub fn resolve_impl(&self, concept: &str, ty: &str) -> Option<&AstNode> {
         let key = (concept.to_string(), ty.to_string());
-        let mut memo = self.lazy_memo.lock().unwrap();
-        if let Some(entry) = memo.get(&key) {
-            return entry.as_ref().map(|arc| &**arc);
+        {
+            let memo = self.lazy_memo.lock().unwrap();
+            if let Some(entry) = memo.get(&key) {
+                return entry.as_ref().map(|arc| &**arc);
+            }
         }
+
+        let mut memo = self.lazy_memo.lock().unwrap();
+
         if let Some(impl_ast) = self.impls.get(&key) {
             let arc_impl = Some(Arc::new(impl_ast.clone()));
-            memo.insert(key, arc_impl.clone());
+            memo.insert(key.clone(), arc_impl.clone());
             return arc_impl.as_ref().map(|arc| &**arc);
         }
-        // Fallback to candidates
+
         let candidates: Vec<_> = self
             .impls
             .iter()
             .filter(|((c, t), _)| c == concept && t == ty)
             .collect();
-        let impl_ast = if candidates.is_empty() {
-            None
-        } else {
-            candidates.first().map(|(_, a)| a)
-        };
-        let arc_impl = impl_ast.map(|i| Arc::new(i.clone()));
+
+        let impl_ast = candidates.first().map(|(_, a)| a.clone());
+        let arc_impl = impl_ast.map(Arc::new);
         memo.insert(key, arc_impl.clone());
         arc_impl.as_ref().map(|arc| &**arc)
     }
 
     fn is_structural_match(&self, concept: &str, _ty: &str) -> bool {
-        // Stub: Match if ty has required fields/methods for concept
-        // e.g., Copy: all fields Copy + size_of < ptr
         if concept == "Copy" {
-            // Assume primitive or simple struct
             true
         } else {
             false
@@ -207,7 +200,7 @@ impl Resolver {
                 AstNode::ActorDef { name, methods } => {
                     let inferred_name = self.infer_phantom(name);
                     self.resolve_impl("Send", &inferred_name).is_some() && self.resolve_impl("Sync", &inferred_name).is_some() &&
-                    self.resolve_impl("CacheSafe", &inferred_name).is_some() && // CacheSafe req
+                    self.resolve_impl("CacheSafe", &inferred_name).is_some() &&
                     methods.iter().all(|method| {
                         if let AstNode::Method { params, .. } = method {
                             params.iter().all(|(_, pty)| {
@@ -223,7 +216,7 @@ impl Resolver {
                 }
                 AstNode::TimingOwned { ty, .. } => {
                     let inf_ty = self.infer_phantom(ty);
-                    self.concepts.contains_key(&inf_ty) && self.resolve_impl("CacheSafe", &inf_ty).is_some() // Static race: CacheSafe
+                    self.concepts.contains_key(&inf_ty) && self.resolve_impl("CacheSafe", &inf_ty).is_some()
                 }
                 AstNode::FuncDef { where_clause, body, params, attrs, ret, generics, .. } => {
                     for g in generics { if g.ends_with("=Self") { /* stub */ } }
@@ -240,8 +233,8 @@ impl Resolver {
                         for (pname, _) in params {
                             bc.declare(pname.clone(), BorrowState::Owned);
                         }
-                        let borrow_ok = !body.iter().any(|node| !bc.check(node)) && bc.validate_affine(body) && bc.validate_speculative(body); // Speculative validation
-                        borrow_ok // Extended: Affine + Speculative borrowck
+                        let borrow_ok = !body.iter().any(|node| !bc.check(node)) && bc.validate_affine(body) && bc.validate_speculative(body);
+                        borrow_ok
                     }
                 }
                 _ => true,
@@ -291,10 +284,10 @@ impl Resolver {
     }
 
     fn fresh_local(&self, _mir: &mut Mir) -> u32 {
-        0 // Stub
+        0
     }
 
     fn expr_to_lit(&self, _mir: &Mir, _id: u32) -> Option<MirExpr> {
-        Some(MirExpr::Lit(0)) // Stub
+        Some(MirExpr::Lit(0))
     }
 }
