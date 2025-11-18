@@ -284,14 +284,11 @@ impl Resolver {
         }
     }
 
-    fn fresh_local(&self, mir: &mut Mir) -> u32 {
-        let id = mir.locals.len() as u32;
-        // Stub: add to locals if needed
-        id
+    fn fresh_local(&self, _mir: &mut Mir) -> u32 {
+        0 // Stub
     }
 
-    fn expr_to_lit(&self, mir: &Mir, id: u32) -> Option<MirExpr> {
-        // Stub: find expr for id
-        Some(MirExpr::Lit(0))
+    fn expr_to_lit(&self, _mir: &Mir, _id: u32) -> Option<MirExpr> {
+        Some(MirExpr::Lit(0)) // Stub
     }
 }
