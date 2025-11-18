@@ -21,18 +21,23 @@ pub enum AstNode {
         params: Vec<(String, String)>,
         ret: String,
         body: Vec<AstNode>,
+        ret_expr: Option<Box<AstNode>>,
         where_clause: Option<Vec<(String, String)>>,
         attrs: Vec<String>,
     },
     Call {
+        receiver: Box<AstNode>,
         method: String,
-        receiver: String,
-        args: Vec<String>,
+        args: Vec<AstNode>,
     },
     Lit(i64),
     Var(String),
     Borrow(String),
-    Assign(String, Box<AstNode>),
+    Let {
+        name: String,
+        ty: Option<String>,
+        rhs: Box<AstNode>,
+    },
     Defer(Box<AstNode>),
     ActorDef {
         name: String,
@@ -53,5 +58,10 @@ pub enum AstNode {
     StructDef {
         name: String,
         fields: Vec<(String, String)>,
-    }, // For structural traits
+    },
+    ExprStmt(Box<AstNode>),
+    Construct {
+        ty: String,
+        args: Vec<AstNode>,
+    },
 }
