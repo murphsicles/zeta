@@ -163,7 +163,9 @@ impl Resolver {
             return arc_impl.as_ref().map(|arc| &**arc);
         }
         // Fallback to candidates
-        let candidates: Vec<_> = self.impls.iter()
+        let candidates: Vec<_> = self
+            .impls
+            .iter()
             .filter(|((c, t), _)| c == concept && t == ty)
             .collect();
         let impl_ast = if candidates.is_empty() {
@@ -273,10 +275,14 @@ impl Resolver {
                     if let (Some(&recv), Some(&arg)) = (args.get(0), args.get(1)) {
                         let recv_lit = self.expr_to_lit(&mir, recv);
                         let arg_lit = self.expr_to_lit(&mir, arg);
-                        if let (Some(MirExpr::Lit(a)), Some(MirExpr::Lit(b))) = (recv_lit, arg_lit) {
+                        if let (Some(MirExpr::Lit(a)), Some(MirExpr::Lit(b))) = (recv_lit, arg_lit)
+                        {
                             let res = a + b;
                             let res_id = self.fresh_local(mir);
-                            mir.stmts[i] = MirStmt::Assign { lhs: res_id, rhs: MirExpr::ConstEval(res) };
+                            mir.stmts[i] = MirStmt::Assign {
+                                lhs: res_id,
+                                rhs: MirExpr::ConstEval(res),
+                            };
                         }
                     }
                 }
