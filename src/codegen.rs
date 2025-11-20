@@ -5,7 +5,7 @@ use inkwell::context::Context;
 use inkwell::execution_engine::{ExecutionEngine, JitFunction, UnsafeFunctionPointer};
 use inkwell::module::Module;
 use inkwell::builder::Builder;
-use inkwell::values::{FunctionValue, IntValue, PointerValue};
+use inkwell::values::{BasicValueEnum, FunctionValue, IntValue, PointerValue};
 use inkwell::types::IntType;
 use inkwell::OptimizationLevel;
 use std::collections::HashMap;
@@ -55,7 +55,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             let entry = self.context.append_basic_block(fn_val, "entry");
             self.builder.position_at_end(entry);
 
-            for (i, (pname, _)) in params.iter().enumerate() {
+            for (i, (  (pname, _)) in params.iter().enumerate() {
                 let param = fn_val.get_nth_param(i as u32).unwrap();
                 let alloca = self.builder.build_alloca(self.i32_type, pname).unwrap();
                 self.builder.build_store(alloca, param).unwrap();
@@ -85,7 +85,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         .build_call(add_fn, &[recv_val.into(), arg_val.into()], "addtmp")
                         .unwrap();
 
-                    if let Some(bv) = call.try_as_basic_value().left() {
+                    if let Some(bv) = call.try_as_basic_value() {
                         if let Some(int_val) = bv.into_int_value() {
                             if let Some(ptr) = self.locals.get(receiver.as_str()) {
                                 self.builder.build_store(*ptr, int_val).unwrap();
