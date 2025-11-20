@@ -5,8 +5,8 @@ use nom::{
     bytes::complete::tag,
     character::complete::{alpha1, alphanumeric1, digit1, multispace0},
     combinator::{map, opt, recognize},
-    multi::{many0, separated_list0, separated_list1},
-    sequence::{delimited, pair, preceded, separated_pair, terminated},
+    multi::{many0, separated_list0},
+    sequence::{delimited, pair, preceded},
 };
 
 fn identifier(input: &str) -> IResult<&str, String> {
@@ -56,14 +56,13 @@ fn expr(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn let_stmt(input: &str) -> IResult<&str, AstNode> {
-    let (i, (_, _, name, ty_opt, _, rhs)) = tuple((
+    let (i, (_, name, ty_opt, _, rhs)) = (
         tag("let"),
-        multispace1,
-        identifier,
+        preceded(multispace0, identifier),
         opt(preceded(preceded(tag(":"), multispace0), parse_type)),
         preceded(multispace0, tag("=")),
         preceded(multispace0, expr),
-    ))(input)?;
+    )(input)?;
     Ok((i, AstNode::Let { name, ty: ty_opt, rhs: Box::new(rhs) }))
 }
 
@@ -80,23 +79,22 @@ fn body(input: &str) -> IResult<&str, (Vec<AstNode>, Option<Box<AstNode>>)> {
 }
 
 fn param(input: &str) -> IResult<&str, (String, String)> {
-    separated_pair(
-        identifier,
-        preceded(multispace0, tag(":")),
-        preceded(multispace0, parse_type),
-    )(input)
+    let (i, name) = identifier(input)?;
+    let (i, _) = preceded(multispace0, tag(":"))(i)?;
+    let (i, ty) = preceded(multispace0, parse_type)(i)?;
+    Ok((i, (name, ty)))
 }
 
 pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
-    let (i, (_, name, _, params, _, ret_opt, _, (stmts, ret_expr))) = tuple((
+    let (i, (_, name, _, params, _, ret_opt, _, (stmts, ret_expr))) = (
         tag("fn"),
-        preceded(multispace1, identifier),
+        preceded(multispace0, identifier),
         delimited(tag("("), separated_list0(tag(","), preceded(multispace0, param)), tag(")")),
         opt(preceded(preceded(tag("->"), multispace0), parse_type)),
         preceded(multispace0, tag("{")),
         body,
         tag("}"),
-    ))(input)?;
+    )(input)?;
 
     Ok((i, AstNode::FuncDef {
         name,
