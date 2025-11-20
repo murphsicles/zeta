@@ -5,7 +5,7 @@ use inkwell::context::Context;
 use inkwell::execution_engine::{ExecutionEngine, JitFunction, UnsafeFunctionPointer};
 use inkwell::module::Module;
 use inkwell::builder::Builder;
-use inkwell::values::{FunctionValue, IntValue, PointerValue, CallSiteValue};
+use inkwell::values::{FunctionValue, IntValue, PointerValue};
 use inkwell::types::IntType;
 use inkwell::OptimizationLevel;
 use std::collections::HashMap;
@@ -27,7 +27,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let builder = context.create_builder();
         let i32_type = context.i32_type();
 
-        // add_i32 intrinsic
         let fn_type = i32_type.fn_type(&[i32_type.into(), i32_type.into()], false);
         let add_i32_fn = module.add_function("add_i32", fn_type, None);
         let entry = context.append_basic_block(add_i32_fn, "entry");
@@ -56,7 +55,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
             let entry = self.context.append_basic_block(fn_val, "entry");
             self.builder.position_at_end(entry);
 
-            // allocate parameters
             for (i, (pname, _)) in params.iter().enumerate() {
                 let param = fn_val.get_nth_param(i as u32).unwrap();
                 let alloca = self.builder.build_alloca(self.i32_type, pname).unwrap();
@@ -77,19 +75,16 @@ impl<'ctx> LLVMCodegen<'ctx> {
         if let AstNode::Call { receiver, method, args } = node {
             if method == "add" {
                 if let Some(add_fn) = self.add_i32_fn {
-                    let recv = self.load_var(receiver);
-                    let arg = if args.is_empty() {
-                        recv
+                    let recv_val = self.load_var(receiver);
+                    let arg_val = if args.is_empty() {
+                        recv_val
                     } else {
                         self.load_var(&args[0])
                     };
-                    let call = self.builder
-                        .build_call(add_fn, &[recv.into(), arg.into()], "add_res")
-                        .unwrap();
-
-                    if let Some(res) = call.try_as_basic_value().left() {
+                    let call = self.builder.build_call(add_fn, &[recv_val.into(), arg_val.into()], "addtmp").unwrap();
+                    if let Some(result) = call.try_as_basic_value().and_then(|v| v.into_int_value().ok()) {
                         if let Some(ptr) = self.locals.get(receiver) {
-                            self.builder.build_store(*ptr, res).unwrap();
+                            self.builder.build_store(*ptr, result).unwrap();
                         }
                     }
                 }
@@ -134,10 +129,6 @@ pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
 
     type MainFn = unsafe extern "C" fn() -> i32;
     unsafe {
-        if let Ok(main) = ee.get_function::<MainFn>("main") {
-            Ok(main.call())
-        } else {
-            Ok(0)
-        }
+        ee.get_function::<MainFn>("main").map(|f| f.call()).unwrap_or(0).into()
     }
 }
