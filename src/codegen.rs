@@ -85,9 +85,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         .build_call(add_fn, &[recv_val.into(), arg_val.into()], "addtmp")
                         .unwrap();
 
-                    if let Some(bv) = call.try_as_basic_value() {
-                        if bv.is_int_value() {
-                            let int_val = bv.into_int_value();
+                    if let Some(bv) = call.try_as_basic_value().left() {
+                        if let Some(int_val) = bv.into_int_value() {
                             if let Some(ptr) = self.locals.get(receiver.as_str()) {
                                 self.builder.build_store(*ptr, int_val).unwrap();
                             }
