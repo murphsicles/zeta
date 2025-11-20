@@ -32,7 +32,6 @@ pub enum AstNode {
     },
     Lit(i64),
     Var(String),
-    Borrow(String),
     Let {
         name: String,
         ty: Option<String>,
@@ -62,6 +61,6 @@ pub enum AstNode {
     ExprStmt(Box<AstNode>),
     Construct {
         ty: String,
-        args: Vec<AstNode>,
+        fields: Vec<(String, AstNode)>,
     },
 }
