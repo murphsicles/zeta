@@ -1,11 +1,12 @@
 // src/codegen.rs
 use crate::ast::AstNode;
+use crate::mir::{Mir, MirStmt, SemiringOp};
 use crate::resolver::Resolver;
 use inkwell::context::Context;
 use inkwell::execution_engine::{ExecutionEngine, JitFunction, UnsafeFunctionPointer};
 use inkwell::module::Module;
 use inkwell::builder::Builder;
-use inkwell::values::{FunctionValue, IntValue, VectorValue, BasicValueEnum};
+use inkwell::values::{BasicValueEnum, FunctionValue, IntValue};
 use inkwell::types::{IntType, VectorType};
 use inkwell::OptimizationLevel;
 use inkwell::passes::PassManager;
@@ -21,7 +22,8 @@ pub struct LLVMCodegen<'ctx> {
     execution_engine: Option<ExecutionEngine<'ctx>>,
     i32_type: IntType<'ctx>,
     i32x4_type: VectorType<'ctx>,
-    locals: HashMap<String, inkwell::values::PointerValue<'ctx>>,
+    locals: HashMap<u32, inkwell::values::PointerValue<'ctx>>,
+    enable_simd: bool,
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -33,7 +35,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
         let fpm = PassManager::create(&module);
         fpm.add_promote_memory_to_register_pass();
-        fpm.add_scalar_repl_aggregation_pass();
         fpm.add_instruction_combining_pass();
         fpm.add_reassociate_pass();
         fpm.add_gvn_pass();
@@ -48,8 +49,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let mpm = PassManager::create(());
         mpm.add_global_optimizer_pass();
         mpm.add_global_dce_pass();
-        mpm.add_strip_dead_prototypes_pass();
-        mpm.add_merge_functions_pass();
 
         Self {
             context,
@@ -61,150 +60,109 @@ impl<'ctx> LLVMCodegen<'ctx> {
             i32_type,
             i32x4_type,
             locals: HashMap::new(),
+            enable_simd: true,
         }
     }
 
-    fn create_intrin_scalar(
-        &mut self,
-        name: &str,
-        op: impl Fn(&Builder<'ctx>, IntValue<'ctx>, IntValue<'ctx>, &str) -> IntValue<'ctx>,
-        tmp: &str,
-    ) -> FunctionValue<'ctx> {
-        let fn_type = self.i32_type.fn_type(&[self.i32_type.into(), self.i32_type.into()], false);
-        let func = self.module.add_function(name, fn_type, None);
-        let entry = self.context.append_basic_block(func, "entry");
-        self.builder.position_at_end(entry);
-        let x = func.get_nth_param(0).unwrap().into_int_value();
-        let y = func.get_nth_param(1).unwrap().into_int_value();
-        let res = op(&self.builder, x, y, tmp);
-        self.builder.build_return(Some(&res)).unwrap();
-        self.fpm.run_on(&func);
-        func
-    }
-
-    fn create_intrin_simd(
-        &mut self,
-        name: &str,
-        op: impl Fn(&Builder<'ctx>, VectorValue<'ctx>, VectorValue<'ctx>, &str) -> VectorValue<'ctx>,
-        tmp: &str,
-    ) -> FunctionValue<'ctx> {
-        let fn_type = self.i32x4_type.fn_type(&[self.i32x4_type.into(), self.i32x4_type.into()], false);
-        let func = self.module.add_function(name, fn_type, None);
-        let entry = self.context.append_basic_block(func, "entry");
-        self.builder.position_at_end(entry);
-        let x = func.get_nth_param(0).unwrap().into_vector_value();
-        let y = func.get_nth_param(1).unwrap().into_vector_value();
-        let res = op(&self.builder, x, y, tmp);
-        self.builder.build_return(Some(&res)).unwrap();
-        self.fpm.run_on(&func);
-        func
-    }
-
-    pub fn build_intrinsics(&mut self) {
-        self.create_intrin_scalar("intrin_add_i32", |b, x, y, n| b.build_int_add(x, y, n).unwrap(), "addtmp");
-        self.create_intrin_simd("intrin_add_i32x4", |b, x, y, n| b.build_int_add(x, y, n).unwrap(), "addtmp");
-
-        self.create_intrin_scalar("intrin_sub_i32", |b, x, y, n| b.build_int_sub(x, y, n).unwrap(), "subtmp");
-        self.create_intrin_simd("intrin_sub_i32x4", |b, x, y, n| b.build_int_sub(x, y, n).unwrap(), "subtmp");
-
-        self.create_intrin_scalar("intrin_mul_i32", |b, x, y, n| b.build_int_mul(x, y, n).unwrap(), "multmp");
-        self.create_intrin_simd("intrin_mul_i32x4", |b, x, y, n| b.build_int_mul(x, y, n).unwrap(), "multmp");
-
-        self.create_intrin_scalar("intrin_sdiv_i32", |b, x, y, n| b.build_int_signed_div(x, y, n).unwrap(), "divtmp");
-        self.create_intrin_simd("intrin_sdiv_i32x4", |b, x, y, n| b.build_int_signed_div(x, y, n).unwrap(), "divtmp");
-
-        self.create_intrin_scalar("intrin_srem_i32", |b, x, y, n| b.build_int_signed_rem(x, y, n).unwrap(), "remtmp");
-        self.create_intrin_simd("intrin_srem_i32x4", |b, x, y, n| b.build_int_signed_rem(x, y, n).unwrap(), "remtmp");
-
-        self.create_intrin_scalar("intrin_shl_i32", |b, x, y, n| b.build_left_shift(x, y, n).unwrap(), "shltmp");
-        self.create_intrin_simd("intrin_shl_i32x4", |b, x, y, n| b.build_left_shift(x, y, n).unwrap(), "shltmp");
-
-        self.create_intrin_scalar("intrin_ashr_i32", |b, x, y, n| b.build_right_shift(x, y, true, n).unwrap(), "ashrtmp");
-        self.create_intrin_simd("intrin_ashr_i32x4", |b, x, y, n| b.build_right_shift(x, y, true, n).unwrap(), "ashrtmp");
-
-        self.create_intrin_scalar("intrin_and_i32", |b, x, y, n| b.build_and(x, y, n).unwrap(), "andtmp");
-        self.create_intrin_simd("intrin_and_i32x4", |b, x, y, n| b.build_and(x, y, n).unwrap(), "andtmp");
-
-        self.create_intrin_scalar("intrin_or_i32", |b, x, y, n| b.build_or(x, y, n).unwrap(), "ortmp");
-        self.create_intrin_simd("intrin_or_i32x4", |b, x, y, n| b.build_or(x, y, n).unwrap(), "ortmp");
-
-        self.create_intrin_scalar("intrin_xor_i32", |b, x, y, n| b.build_xor(x, y, n).unwrap(), "xortmp");
-        self.create_intrin_simd("intrin_xor_i32x4", |b, x, y, n| b.build_xor(x, y, n).unwrap(), "xortmp");
-    }
-
-    pub fn gen_func(&mut self, ast: &AstNode, _resolver: &Resolver) {
-        if let AstNode::FuncDef { name, params, body, .. } = ast {
-            let param_types: Vec<_> = params.iter().map(|_| self.i32_type.into()).collect();
-            let fn_type = self.i32_type.fn_type(&param_types, false);
-            let fn_val = self.module.add_function(name, fn_type, None);
-            let entry = self.context.append_basic_block(fn_val, "entry");
-            self.builder.position_at_end(entry);
-
-            for (i, (pname, _) in params.iter().enumerate() {
-                let param = fn_val.get_nth_param(i as u32).unwrap();
-                let alloca = self.builder.build_alloca(self.i32_type, pname).unwrap();
-                self.builder.build_store(alloca, param).unwrap();
-                self.locals.insert(pname.clone(), alloca);
-            }
-
-            for stmt in body {
-                self.gen_stmt(stmt);
-            }
-
-            let zero = self.i32_type.const_int(0, false);
-            self.builder.build_return(Some(&zero)).unwrap();
-            self.fpm.run_on(&fn_val);
+    pub fn gen_mir(&mut self, mir: &Mir) {
+        for stmt in &mir.stmts {
+            self.gen_stmt(stmt);
         }
     }
 
-    fn gen_stmt(&mut self, node: &AstNode) {
-        if let AstNode::Call { receiver, method, args } = node {
-            let is_simd = receiver.contains("vec") || (!args.is_empty() && args[0].contains("vec"));
-            let intrin_name = match method.as_str() {
-                "add" => if is_simd { "intrin_add_i32x4" } else { "intrin_add_i32" },
-                "sub" => if is_simd { "intrin_sub_i32x4" } else { "intrin_sub_i32" },
-                "mul" => if is_simd { "intrin_mul_i32x4" } else { "intrin_mul_i32" },
-                "div" => if is_simd { "intrin_sdiv_i32x4" } else { "intrin_sdiv_i32" },
-                "rem" => if is_simd { "intrin_srem_i32x4" } else { "intrin_srem_i32" },
-                "shl" => if is_simd { "intrin_shl_i32x4" } else { "intrin_shl_i32" },
-                "shr" => if is_simd { "intrin_ashr_i32x4" } else { "intrin_ashr_i32" },
-                "and" => if is_simd { "intrin_and_i32x4" } else { "intrin_and_i32" },
-                "or"  => if is_simd { "intrin_or_i32x4" } else { "intrin_or_i32" },
-                "xor" => if is_simd { "intrin_xor_i32x4" } else { "intrin_xor_i32" },
-                _ => return,
-            };
+    fn gen_stmt(&mut self, stmt: &MirStmt) {
+        match stmt {
+            MirStmt::Assign { lhs, rhs } => {
+                let value = match rhs {
+                    crate::mir::MirExpr::Var(v) => self.load_local(*v),
+                    crate::mir::MirExpr::Lit(n) => self.i32_type.const_int(*n as u64, false).into(),
+                    _ => self.i32_type.const_int(0, false).into(),
+                };
+                let ptr = self.locals.entry(*lhs).or_insert_with(|| {
+                    self.builder
+                        .build_alloca(self.i32_type, &format!("local_{}", lhs))
+                        .unwrap()
+                });
+                self.builder.build_store(*ptr, value).unwrap();
+            }
+            MirStmt::SemiringFold { op, values, result } => {
+                let count = values.len();
+                let mut acc = self.load_local(values[0]);
 
-            let op_fn = self.module.get_function(intrin_name).unwrap();
-            let recv_val = self.load_var(receiver);
-            let arg_val = if args.is_empty() {
-                recv_val
-            } else {
-                self.load_var(&args[0])
-            };
-
-            let call = self.builder
-                .build_call(op_fn, &[recv_val.into(), arg_val.into()], "calltmp")
-                .unwrap();
-
-            if let Some(result) = call.try_as_basic_value() {
-                if let Some(ptr) = self.locals.get(receiver) {
-                    self.builder.build_store(*ptr, result).unwrap();
+                if count >= 4 && self.enable_simd {
+                    for chunk in values[1..].chunks(4) {
+                        let mut elems = [acc.into_int_value(); 4];
+                        for (i, &v) in chunk.iter().enumerate() {
+                            elems[i] = self.load_local(v).into_int_value();
+                        }
+                        let vec = self
+                            .builder
+                            .elf
+                            .build_vector_from_elements(elems.to_vec())
+                            .unwrap();
+                        acc = match op {
+                            SemiringOp::Add => self
+                                .builder
+                                .build_int_add(acc.into_int_value(), vec.into_vector_value(), "fold_add_simd")
+                                .unwrap()
+                                .into(),
+                            SemiringOp::Mul => self
+                                .builder
+                                .build_int_mul(acc.into_int_value(), vec.into_vector_value(), "fold_mul_simd")
+                                .unwrap()
+                                .into(),
+                        };
+                    }
+                } else {
+                    for &v in &values[1..] {
+                        let rhs = self.load_local(v);
+                        acc = match op {
+                            SemiringOp::Add => self
+                                .builder
+                                .build_int_add(acc.into_int_value(), rhs.into_int_value(), "fold_add")
+                                .unwrap()
+                                .into(),
+                            SemiringOp::Mul => self
+                                .builder
+                                .build_int_mul(acc.into_int_value(), rhs.into_int_value(), "fold_mul")
+                                .unwrap()
+                                .into(),
+                        };
+                    }
                 }
+
+                let ptr = self.locals.entry(*result).or_insert_with(|| {
+                    self.builder
+                        .build_alloca(self.i32_type, &format!("result_{}", result))
+                        .unwrap()
+                });
+                self.builder.build_store(*ptr, acc).unwrap();
             }
+            MirStmt::Return { val } => {
+                let v = self.load_local(*val);
+                self.builder.build_return(Some(&v)).unwrap();
+            }
+            _ => {}
         }
     }
 
-    fn load_var(&self, name: &str) -> BasicValueEnum<'ctx> {
-        let ptr = self.locals.get(name).copied().unwrap_or_else(|| {
-            self.builder.build_alloca(self.i32_type, name).unwrap()
+    fn load_local(&self, id: u32) -> BasicValueEnum<'ctx> {
+        let ptr = self.locals.get(&id).copied().unwrap_or_else(|| {
+            self.builder
+                .build_alloca(self.i32_type, &format!("tmp_{}", id))
+                .unwrap()
         });
-        self.builder.build_load(self.i32_type, ptr, name).unwrap()
+        self.builder
+            .build_load(self.i32_type, ptr, &format!("load_{}", id))
+            .unwrap()
     }
 
     pub fn finalize_and_jit(&mut self) -> Result<ExecutionEngine<'ctx>, Box<dyn Error>> {
         self.module.verify().map_err(|e| e.to_string())?;
         self.mpm.run_on(&self.module);
-        let ee = self.module.create_jit_execution_engine(OptimizationLevel::Aggressive)?;
+        let ee = self
+            .module
+            .create_jit_execution_engine(OptimizationLevel::Aggressive)?;
         self.execution_engine = Some(ee.clone());
         Ok(ee)
     }
@@ -214,28 +172,5 @@ impl<'ctx> LLVMCodegen<'ctx> {
         F: UnsafeFunctionPointer,
     {
         unsafe { self.execution_engine.as_ref()?.get_function(name).ok() }
-    }
-}
-
-pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
-    let (_, asts) = crate::parser::parse_zeta(input).map_err(|e| format!("{:?}", e))?;
-    let resolver = Resolver::new();
-
-    let context = Context::create();
-    let mut codegen = LLVMCodegen::new(&context, "zeta");
-    codegen.build_intrinsics();
-
-    for ast in asts.iter().filter(|a| matches!(a, AstNode::FuncDef { .. })) {
-        codegen.gen_func(ast, &resolver);
-    }
-
-    let ee = codegen.finalize_and_jit()?;
-
-    type MainFn = unsafe extern "C" fn() -> i32;
-    unsafe {
-        match ee.get_function::<MainFn>("main") {
-            Ok(f) => Ok(f.call()),
-            Err(_) => Ok(0),
-        }
     }
 }
