@@ -5,7 +5,7 @@ use inkwell::context::Context;
 use inkwell::execution_engine::{ExecutionEngine, JitFunction, UnsafeFunctionPointer};
 use inkwell::module::Module;
 use inkwell::builder::Builder;
-use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue};
+use inkwell::values::{FunctionValue, IntValue, VectorValue};
 use inkwell::types::{IntType, VectorType};
 use inkwell::OptimizationLevel;
 use std::collections::HashMap;
@@ -18,55 +18,7 @@ pub struct LLVMCodegen<'ctx> {
     execution_engine: Option<ExecutionEngine<'ctx>>,
     i32_type: IntType<'ctx>,
     i32x4_type: VectorType<'ctx>,
-    add_i32_fn: Option<FunctionValue<'ctx>>,
-    add_i32x4_fn: Option<FunctionValue<'ctx>>,
-    sub_i32_fn: Option<FunctionValue<'ctx>>,
-    sub_i32x4_fn: Option<FunctionValue<'ctx>>,
-    mul_i32_fn: Option<FunctionValue<'ctx>>,
-    mul_i32x4_fn: Option<FunctionValue<'ctx>>,
-    div_i32_fn: Option<FunctionValue<'ctx>>,
-    div_i32x4_fn: Option<FunctionValue<'ctx>>,
-    rem_i32_fn: Option<FunctionValue<'ctx>>,
-    rem_i32x4_fn: Option<FunctionValue<'ctx>>,
-    shl_i32_fn: Option<FunctionValue<'ctx>>,
-    shl_i32x4_fn: Option<FunctionValue<'ctx>>,
-    shr_i32_fn: Option<FunctionValue<'ctx>>,
-    shr_i32x4_fn: Option<FunctionValue<'ctx>>,
-    and_i32_fn: Option<FunctionValue<'ctx>>,
-    and_i32x4_fn: Option<FunctionValue<'ctx>>,
-    or_i32_fn: Option<FunctionValue<'ctx>>,
-    or_i32x4_fn: Option<FunctionValue<'ctx>>,
-    xor_i32_fn: Option<FunctionValue<'ctx>>,
-    xor_i32x4_fn: Option<FunctionValue<'ctx>>,
-    locals: HashMap<String, PointerValue<'ctx>>,
-}
-
-macro_rules! scalar_intrin {
-    ($name:ident, $op:ident) => {
-        let ty = i32_type.fn_type(&[i32_type.into(), i32_type.into()], false);
-        let f = module.add_function(stringify!($name), ty, None);
-        let entry = context.append_basic_block(f, "entry");
-        builder.position_at_end(entry);
-        let x = f.get_nth_param(0).unwrap().into_int_value();
-        let y = f.get_nth_param(1).unwrap().into_int_value();
-        let res = builder.build_int_$op(x, y, stringify!($op)).unwrap();
-        builder.build_return(Some(&res)).unwrap();
-        $name: Some(f)
-    };
-}
-
-macro_rules! simd_intrin {
-    ($name:ident, $op:ident) => {
-        let ty = i32x4_type.fn_type(&[i32x4_type.into(), i32x4_type.into()], false);
-        let f = module.add_function(stringify!($name), ty, None);
-        let entry = context.append_basic_block(f, "entry");
-        builder.position_at_end(entry);
-        let x = f.get_nth_param(0).unwrap().into_vector_value();
-        let y = f.get_nth_param(1).unwrap().into_vector_value();
-        let res = builder.build_int_$op(x, y, stringify!($op)).unwrap();
-        builder.build_return(Some(&res)).unwrap();
-        $name: Some(f)
-    };
+    locals: HashMap<String, inkwell::values::PointerValue<'ctx>>,
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -76,36 +28,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let i32_type = context.i32_type();
         let i32x4_type = i32_type.vec_type(4);
 
-        scalar_intrin!(add_i32_fn, add);
-        simd_intrin!(add_i32x4_fn, add);
-
-        scalar_intrin!(sub_i32_fn, sub);
-        simd_intrin!(sub_i32x4_fn, sub);
-
-        scalar_intrin!(mul_i32_fn, mul);
-        simd_intrin!(mul_i32x4_fn, mul);
-
-        scalar_intrin!(div_i32_fn, signed_div);
-        simd_intrin!(div_i32x4_fn, signed_div);
-
-        scalar_intrin!(rem_i32_fn, signed_rem);
-        simd_intrin!(rem_i32x4_fn, signed_rem);
-
-        scalar_intrin!(shl_i32_fn, shl);
-        simd_intrin!(shl_i32x4_fn, shl);
-
-        scalar_intrin!(shr_i32_fn, ashr);
-        simd_intrin!(shr_i32x4_fn, ashr);
-
-        scalar_intrin!(and_i32_fn, and);
-        simd_intrin!(and_i32x4_fn, and);
-
-        scalar_intrin!(or_i32_fn, or);
-        simd_intrin!(or_i32x4_fn, or);
-
-        scalar_intrin!(xor_i32_fn, xor);
-        simd_intrin!(xor_i32x4_fn, xor);
-
         Self {
             context,
             module,
@@ -113,33 +35,70 @@ impl<'ctx> LLVMCodegen<'ctx> {
             execution_engine: None,
             i32_type,
             i32x4_type,
-            add_i32_fn,
-            add_i32x4_fn,
-            sub_i32_fn,
-            sub_i32x4_fn,
-            mul_i32_fn,
-            mul_i32x4_fn,
-            div_i32_fn,
-            div_i32x4_fn,
-            rem_i32_fn,
-            rem_i32x4_fn,
-            shl_i32_fn,
-            shl_i32x4_fn,
-            shr_i32_fn,
-            shr_i32x4_fn,
-            and_i32_fn,
-            and_i32x4_fn,
-            or_i32_fn,
-            or_i32x4_fn,
-            xor_i32_fn,
-            xor_i32x4_fn,
             locals: HashMap::new(),
         }
     }
 
+    // Create scalar and SIMD intrinsic helpers
+    fn create_scalar_intrin(&self, name: &str, op: fn(IntValue<'ctx>, IntValue<'ctx>) -> IntValue<'ctx>) -> FunctionValue<'ctx> {
+        let fn_type = self.i32_type.fn_type(&[self.i32_type.into(), self.i32_type.into()], false);
+        let func = self.module.add_function(name, fn_type, None);
+        let entry = self.context.append_basic_block(func, "entry");
+        self.builder.position_at_end(entry);
+        let x = func.get_nth_param(0).unwrap().into_int_value();
+        let y = func.get_nth_param(1).unwrap().into_int_value();
+        let res = op(x, y);
+        self.builder.build_return(Some(&res)).unwrap();
+        func
+    }
+
+    fn create_simd_intrin(&self, name: &str, op: fn(VectorValue<'ctx>, VectorValue<'ctx>) -> VectorValue<'ctx>) -> FunctionValue<'ctx> {
+        let fn_type = self.i32x4_type.fn_type(&[self.i32x4_type.into(), self.i32x4_type.into()], false);
+        let func = self.module.add_function(name, fn_type, None);
+        let entry = self.context.append_basic_block(func, "entry");
+        self.builder.position_at_end(entry);
+        let x = func.get_nth_param(0).unwrap().into_vector_value();
+        let y = func.get_nth_param(1).unwrap().into_vector_value();
+        let res = op(x, y);
+        self.builder.build_return(Some(&res)).unwrap();
+        func
+    }
+
+    pub fn build_intrinsics(&mut self) {
+        self.create_scalar_intrin("intrin_add_i32", |x, y| self.builder.build_int_add(x, y, "addtmp").unwrap());
+        self.create_simd_intrin("intrin_add_i32x4", |x, y| self.builder.build_int_add(x, y, "addtmp").unwrap());
+
+        self.create_scalar_intrin("intrin_sub_i32", |x, y| self.builder.build_int_sub(x, y, "subtmp").unwrap());
+        self.create_simd_intrin("intrin_sub_i32x4", |x, y| self.builder.build_int_sub(x, y, "subtmp").unwrap());
+
+        self.create_scalar_intrin("intrin_mul_i32", |x, y| self.builder.build_int_mul(x, y, "multmp").unwrap());
+        self.create_simd_intrin("intrin_mul_i32x4", |x, y| self.builder.build_int_mul(x, y, "multmp").unwrap());
+
+        self.create_scalar_intrin("intrin_sdiv_i32", |x, y| self.builder.build_int_signed_div(x, y, "divtmp").unwrap());
+        self.create_simd_intrin("intrin_sdiv_i32x4", |x, y| self.builder.build_int_signed_div(x, y, "divtmp").unwrap());
+
+        self.create_scalar_intrin("intrin_srem_i32", |x, y| self.builder.build_int_signed_rem(x, y, "remtmp").unwrap());
+        self.create_simd_intrin("intrin_srem_i32x4", |x, y| self.builder.build_int_signed_rem(x, y, "remtmp").unwrap());
+
+        self.create_scalar_intrin("intrin_shl_i32", |x, y| self.builder.build_left_shift(x, y, "shltmp").unwrap());
+        self.create_simd_intrin("intrin_shl_i32x4", |x, y| self.builder.build_left_shift(x, y, "shltmp").unwrap());
+
+        self.create_scalar_intrin("intrin_ashr_i32", |x, y| self.builder.build_right_shift(x, y, true, "ashrtmp").unwrap());
+        self.create_simd_intrin("intrin_ashr_i32x4", |x, y| self.builder.build_right_shift(x, y, true, "ashrtmp").unwrap());
+
+        self.create_scalar_intrin("intrin_and_i32", |x, y| self.builder.build_and(x, y, "andtmp").unwrap());
+        self.create_simd_intrin("intrin_and_i32x4", |x, y| self.builder.build_and(x, y, "andtmp").unwrap());
+
+        self.create_scalar_intrin("intrin_or_i32", |x, y| self.builder.build_or(x, y, "ortmp").unwrap());
+        self.create_simd_intrin("intrin_or_i32x4", |x, y| self.builder.build_or(x, y, "ortmp").unwrap());
+
+        self.create_scalar_intrin("intrin_xor_i32", |x, y| self.builder.build_xor(x, y, "xortmp").unwrap());
+        self.create_simd_intrin("intrin_xor_i32x4", |x, y| self.builder.build_xor(x, y, "xortmp").unwrap());
+    }
+
     pub fn gen_func(&mut self, ast: &AstNode, _resolver: &Resolver) {
         if let AstNode::FuncDef { name, params, body, .. } = ast {
-            let param_types = vec![self.i32_type.into(); params.len()];
+            let param_types: Vec<_> = params.iter().map(|_| self.i32_type.into()).collect();
             let fn_type = self.i32_type.fn_type(&param_types, false);
             let fn_val = self.module.add_function(name, fn_type, None);
             let entry = self.context.append_basic_block(fn_val, "entry");
@@ -164,41 +123,38 @@ impl<'ctx> LLVMCodegen<'ctx> {
     fn gen_stmt(&mut self, node: &AstNode) {
         if let AstNode::Call { receiver, method, args } = node {
             let is_simd = receiver.contains("vec") || (!args.is_empty() && args[0].contains("vec"));
-
-            let (scalar_fn, simd_fn) = match method.as_str() {
-                "add" => (self.add_i32_fn, self.add_i32x4_fn),
-                "sub" => (self.sub_i32_fn, self.sub_i32x4_fn),
-                "mul" => (self.mul_i32_fn, self.mul_i32x4_fn),
-                "div" => (self.div_i32_fn, self.div_i32x4_fn),
-                "rem" => (self.rem_i32_fn, self.rem_i32x4_fn),
-                "shl" => (self.shl_i32_fn, self.shl_i32x4_fn),
-                "shr" => (self.shr_i32_fn, self.shr_i32x4_fn),
-                "and" => (self.and_i32_fn, self.and_i32x4_fn),
-                "or"  => (self.or_i32_fn,  self.or_i32x4_fn),
-                "xor" => (self.xor_i32_fn, self.xor_i32x4_fn),
+            let intrin_name = match method.as_str() {
+                "add" => if is_simd { "intrin_add_i32x4" } else { "intrin_add_i32" },
+                "sub" => if is_simd { "intrin_sub_i32x4" } else { "intrin_sub_i32" },
+                "mul" => if is_simd { "intrin_mul_i32x4" } else { "intrin_mul_i32" },
+                "div" => if is_simd { "intrin_sdiv_i32x4" } else { "intrin_sdiv_i32" },
+                "rem" => if is_simd { "intrin_srem_i32x4" } else { "intrin_srem_i32" },
+                "shl" => if is_simd { "intrin_shl_i32x4" } else { "intrin_shl_i32" },
+                "shr" => if is_simd { "intrin_ashr_i32x4" } else { "intrin_ashr_i32" },
+                "and" => if is_simd { "intrin_and_i32x4" } else { "intrin_and_i32" },
+                "or"  => if is_simd { "intrin_or_i32x4" } else { "intrin_or_i32" },
+                "xor" => if is_simd { "intrin_xor_i32x4" } else { "intrin_xor_i32" },
                 _ => return,
             };
 
-            let op_fn = if is_simd { simd_fn } else { scalar_fn };
-            if let Some(op_fn) = op_fn {
-                let recv_val = self.load_var(receiver);
-                let arg_val = if args.is_empty() {
-                    recv_val
-                } else {
-                    self.load_var(&args[0])
-                };
-                let call = self.builder.build_call(op_fn, &[recv_val.into(), arg_val.into()], method).unwrap();
+            let op_fn = self.module.get_function(intrin_name).unwrap();
+            let recv_val = self.load_var(receiver);
+            let arg_val = if args.is_empty() {
+                recv_val
+            } else {
+                self.load_var(&args[0])
+            };
 
-                if let Some(bv) = call.try_as_basic_value().left() {
-                    if let Some(ptr) = self.locals.get(receiver) {
-                        self.builder.build_store(*ptr, bv).unwrap();
-                    }
+            let call = self.builder.build_call(op_fn, &[recv_val.into(), arg_val.into()], "calltmp").unwrap();
+            if let Some(bv) = call.try_as_basic_value().and_then(|v| v.into_int_value().as_basic_value_enum().left()) {
+                if let Some(ptr) = self.locals.get(receiver) {
+                    self.builder.build_store(*ptr, bv).unwrap();
                 }
             }
         }
     }
 
-    fn load_var(&self, name: &str) -> BasicValueEnum<'ctx> {
+    fn load_var(&self, name: &str) -> inkwell::values::BasicValueEnum<'ctx> {
         let ptr = self.locals.get(name).copied().unwrap_or_else(|| {
             self.builder.build_alloca(self.i32_type, name).unwrap()
         });
@@ -226,6 +182,7 @@ pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
 
     let context = Context::create();
     let mut codegen = LLVMCodegen::new(&context, "zeta");
+    codegen.build_intrinsics();
 
     for ast in asts.iter().filter(|a| matches!(a, AstNode::FuncDef { .. })) {
         codegen.gen_func(ast, &resolver);
