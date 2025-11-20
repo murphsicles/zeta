@@ -55,7 +55,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             let entry = self.context.append_basic_block(fn_val, "entry");
             self.builder.position_at_end(entry);
 
-            for (i, (  (pname, _)) in params.iter().enumerate() {
+            for (i, (pname, _)) in params.iter().enumerate() {
                 let param = fn_val.get_nth_param(i as u32).unwrap();
                 let alloca = self.builder.build_alloca(self.i32_type, pname).unwrap();
                 self.builder.build_store(alloca, param).unwrap();
@@ -86,7 +86,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         .unwrap();
 
                     if let Some(bv) = call.try_as_basic_value() {
-                        if let Some(int_val) = bv.into_int_value() {
+                        if let BasicValueEnum::IntValue(int_val) = bv {
                             if let Some(ptr) = self.locals.get(receiver.as_str()) {
                                 self.builder.build_store(*ptr, int_val).unwrap();
                             }
@@ -136,7 +136,7 @@ pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
     unsafe {
         match ee.get_function::<MainFn>("main") {
             Ok(f) => Ok(f.call()),
-            Err(_) => Ok(0),
+            Err(_) => Ок(0),
         }
     }
 }
