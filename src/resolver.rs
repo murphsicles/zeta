@@ -1,14 +1,7 @@
 // src/resolver.rs
 use crate::ast::AstNode;
-use crate::borrow::{BorrowChecker, BorrowState};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MonoKey {
-    pub func: String,
-    pub types: Vec<String>,
-}
 
 #[derive(Debug)]
 pub struct Resolver {
