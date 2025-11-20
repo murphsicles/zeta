@@ -4,8 +4,7 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::{ExecutionEngine, JitFunction};
 use inkwell::module::Module;
-use inkwell::types::BasicMetadataTypeEnum;
-use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, PointerValue};
 use inkwell::OptimizationLevel;
 use std::collections::HashMap;
 use std::error::Error;
@@ -39,43 +38,27 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     pub fn gen_intrinsics(&mut self) {
         let fn_type = self.i32_type.fn_type(&[self.i32_type.into(), self.i32_type.into()], false);
-        let add_fn = self.module.add_function("add_i32", fn_type, None);
-        let entry = self.context.append_basic_block(add_fn, "entry");
-        self.builder.position_at_end(entry);
-        let x = add_fn.get_nth_param(0).unwrap().into_int_value();
-        let y = add_fn.get_nth_param(1).unwrap().into_int_value();
+        let f = self.module.add_function("add_i32", fn_type, None);
+        let bb = self.context.append_basic_block(f, "entry");
+        self.builder.position_at_end(bb);
+        let x = f.get_nth_param(0).unwrap().into_int_value();
+        let y = f.get_nth_param(1).unwrap().into_int_value();
         let sum = self.builder.build_int_add(x, y, "sum");
-        self.builder.build_return(Some(&sum.into()));
-        self.add_i32_fn = Some(add_fn);
+        self.builder.build_return(Some(&sum));
+        self.add_i32_fn = Some(f);
     }
 
-    fn gen_stmt(&mut self, node: &AstNode, locals: &mut HashMap<String, PointerValue<'ctx>>, resolver: &Resolver) {
+    fn gen_expr(&mut self, node: &AstNode, locals: &HashMap<String, PointerValue<'ctx>>) -> Option<BasicValueEnum<'ctx>> {
         match node {
-            AstNode::Let { name, rhs, .. } => {
-                let val = self.gen_expr(rhs, locals, resolver).unwrap_or(self.i32_type.const_zero().into());
-                let alloca = self.builder.build_alloca(self.i32_type, name).unwrap();
-                self.builder.build_store(alloca, val).unwrap();
-                locals.insert(name.clone(), alloca);
-            }
-            AstNode::ExprStmt(expr) => {
-                let _ = self.gen_expr(expr, locals, resolver);
-            }
-            _ => {}
-        }
-    }
-
-    fn gen_expr(&mut self, node: &AstNode, locals: &HashMap<String, PointerValue<'ctx>>, resolver: &Resolver) -> Option<BasicValueEnum<'ctx>> {
-        match node {
-            AstNode::Lit(n) => Some(self.i32_type.const_int(*n as u64, false).into()),
-            AstNode::Var(name) => locals.get(name).map(|&ptr| self.builder.build_load(self.i32_type, ptr, name).unwrap()),
+            AstNode::Lit(v) => Some(self.i32_type.const_int(*v as u64, false).into()),
+            AstNode::Var(name) => locals.get(name).map(|p| self.builder.build_load(self.i32_type, *p, name).unwrap()),
             AstNode::Call { receiver, method, args } => {
-                let recv_val = self.gen_expr(receiver, locals, resolver)?;
-                let arg_vals: Vec<_> = args.iter()
-                    .map(|a| self.gen_expr(a, locals, resolver).unwrap())
-                    .collect();
-                if method == "add" && resolver.has_method("Addable", &format!("{:?}", receiver), "add") {
-                    if let Some(add_fn) = self.add_i32_fn {
-                        let call = self.builder.build_call(add_fn, &[recv_val, arg_vals[0]], "").unwrap();
+                let recv = self.gen_expr(receiver, locals)?;
+                let arg_vals: Vec<_> = args.iter().map(|a| self.gen_expr(a, locals).unwrap()).collect();
+                if method == "add" {
+                    if let Some(add) = self.add_i32_fn {
+                        let meta: Vec<BasicMetadataValueEnum<'ctx>> = vec![recv.into(), arg_vals[0].into()];
+                        let call = self.builder.build_call(add, &meta, "").unwrap();
                         call.try_as_basic_value().left()
                     } else {
                         None
@@ -88,35 +71,39 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
     }
 
-    pub fn gen_func(&mut self, ast: &AstNode, resolver: &Resolver) -> Option<FunctionValue<'ctx>> {
+    fn gen_stmt(&mut self, node: &AstNode, locals: &mut HashMap<String, PointerValue<'ctx>>) {
+        if let AstNode::Let { name, rhs, .. } = node {
+            let val = self.gen_expr(rhs, locals).unwrap_or(self.i32_type.const_zero().into());
+            let ptr = self.builder.build_alloca(self.i32_type, name).unwrap();
+            self.builder.build_store(ptr, val);
+            locals.insert(name.clone(), ptr);
+        }
+    }
+
+    pub fn gen_func(&mut self, ast: &AstNode) {
         if let AstNode::FuncDef { name, params, body, ret_expr, .. } = ast {
-            let param_types: Vec<BasicMetadataTypeEnum<'ctx>> = params.iter().map(|_| self.i32_type.into()).collect();
+            let param_types: Vec<_> = params.iter().map(|_| self.i32_type.into()).collect();
             let fn_type = self.i32_type.fn_type(&param_types, false);
-            let fn_val = self.module.add_function(name, fn_type, None);
-            let entry = self.context.append_basic_block(fn_val, "entry");
+            let f = self.module.add_function(name, fn_type, None);
+            let entry = self.context.append_basic_block(f, "entry");
             self.builder.position_at_end(entry);
 
             let mut locals = HashMap::new();
             for (i, (pname, _)) in params.iter().enumerate() {
-                let param = fn_val.get_nth_param(i as u32)?.into_int_value();
-                let alloca = self.builder.build_alloca(self.i32_type, pname).unwrap();
-                self.builder.build_store(alloca, param).unwrap();
-                locals.insert(pname.clone(), alloca);
+                let param = f.get_nth_param(i as u32).unwrap().into_int_value();
+                let ptr = self.builder.build_alloca(self.i32_type, pname).unwrap();
+                self.builder.build_store(ptr, param);
+                locals.insert(pname.clone(), ptr);
             }
 
             for stmt in body {
-                self.gen_stmt(stmt, &mut locals, resolver);
+                self.gen_stmt(stmt, &mut locals);
             }
 
-            let ret_val = ret_expr
-                .as_ref()
-                .and_then(|e| self.gen_expr(e, &locals, resolver))
+            let ret = ret_expr.as_ref()
+                .and_then(|e| self.gen_expr(e, &locals))
                 .unwrap_or(self.i32_type.const_zero().into());
-            self.builder.build_return(Some(&ret_val));
-
-            Some(fn_val)
-        } else {
-            None
+            self.builder.build_return(Some(&ret));
         }
     }
 
@@ -131,6 +118,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
     where
         F: inkwell::execution_engine::UnsafeFunctionPointer,
     {
-        self.execution_engine.as_ref()?.get_function(name).ok()
+        self.execution_engine.as_ref().and_then(|ee| unsafe { ee.get_function(name).ok() })
     }
 }
