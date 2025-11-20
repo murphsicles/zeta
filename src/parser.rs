@@ -1,10 +1,9 @@
 // src/parser.rs
 use crate::ast::AstNode;
 use nom::{
-    branch::alt,
     bytes::complete::tag,
     character::complete::{alpha1, multispace0},
-    combinator::{map, opt},
+    combinator::map,
     sequence::{delimited, preceded},
     multi::many0,
     IResult,
@@ -19,7 +18,7 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
     let (i, _) = multispace0(i)?;
     let (i, name) = map(alpha1, |s: &str| s.to_string())(i)?;
     let (i, _) = multispace0(i)?;
-    let (i, _) = delimited(tag("("), opt(multispace0), tag(")"))(i)?;
+    let (i, _) = delimited(tag("("), multispace0, tag(")"))(i)?;
     let (i, _) = multispace0(i)?;
     let (i, _) = delimited(tag("{"), multispace0, tag("}"))(i)?;
     Ok((i, AstNode::FuncDef {
@@ -30,5 +29,6 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
         body: vec![],
         where_clause: None,
         attrs: vec![],
+        ret_expr: None,
     }))
 }
