@@ -1,7 +1,7 @@
 // src/resolver.rs
 use crate::ast::AstNode;
 use crate::borrow::{BorrowChecker, BorrowState};
-use crate::mir::{Mir, MirGen, SemiringOp};
+use crate::mir::{Mir, MirGen, MirStmt, SemiringOp};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
