@@ -1,89 +1,58 @@
-// src/main.rs
-use std::env;
-use std::fs;
-use zeta::{compile_and_run_zeta, Plan};
+use zeta::{parse_zeta, Resolver, LLVMCodegen};
+use inkwell::context::Context;
+use std::error::Error;
+
+pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
+    let (_, asts) = parse_zeta(input).map_err(|e| format!("Parse error: {:?}", e))?;
+    let mut resolver = Resolver::new();
+    for ast in &asts {
+        resolver.register(ast.clone());
+    }
+    if !resolver.typecheck(&asts) {
+        return Err("Typecheck failed".into());
+    }
+
+    let context = Context::create();
+    let mut codegen = LLVMCodegen::new(&context, "zeta_module");
+    codegen.gen_intrinsics();
+
+    for ast in &asts {
+        codegen.gen_func(ast, &resolver);
+    }
+
+    let ee = codegen.finalize_and_jit()?;
+
+    unsafe {
+        type MainFn = unsafe extern "C" fn() -> i32;
+        if let Some(main) = codegen.get_fn::<MainFn>("main") {
+            Ok(main.call())
+        } else {
+            Err("No main function found".into())
+        }
+    }
+}
 
 fn main() {
-    println!("Zeta Status: {}", Plan::status());
-
-    let args: Vec<String> = env::args().collect();
-    if args.len() > 1 {
-        let input_file = &args[1];
-        let input = fs::read_to_string(input_file).expect("Failed to read file");
-        match compile_and_run_zeta(&input) {
-            Ok(res) => println!("Result: {}", res),
-            Err(e) => eprintln!("Error: {}", e),
-        }
-    } else {
-        let code = r#"
-#[derive(Copy)]
-fn use_vec_add<Rhs=Self>() -> i32 {
-    let v: Vec<i32> = Vec<i32>[1, 2];
-    v.add(3);
-    42
+    let code = r#"
+fn add(a: i32, b: i32) -> i32 {
+    a + b
 }
 
-concept Addable<Rhs=Self> {
-    fn add(self: Self, rhs: Rhs) -> Self;
+concept Addable {
+    fn add(self: Self, rhs: Self) -> Self;
 }
 
-impl Addable for i32 {
-    fn add(self: i32, rhs: i32) -> i32;
-}
+impl Addable for i32 {}
 
-impl Addable<i32> for Vec<i32> {
-    fn add(self: Vec<i32>, rhs: i32) -> Vec<i32>;
-}
-
-concept Send {}
-concept Sync {}
-concept CacheSafe {}
-
-impl Send for i32 {}
-impl Sync for i32 {}
-impl CacheSafe for i32 {}
-
-actor Counter<T=Self> {
-    async fn increment(&self, delta: i32) -> i32;
-}
-
-impl Send for Counter<i32> {}
-impl Sync for Counter<i32> {}
-impl CacheSafe for Counter<i32> {}
-
-fn multi_bound<U: Send + Sync>() -> U {
-    TimingOwned<i32> 0
-}
-
-fn semiring_ctfe() -> i32 {
-    let a = 2;
-    let b = 3;
-    a.add(b)
-}
-
-fn generic_add<T>(a: T, b: T) -> T {
-    a.add(b)
-}
-
-fn use_std_embed() -> i64 {
-    let url = "https://example.com";
-    let resp = std::net::http_get(url);
-    let now = std::datetime::now();
-    now
-}
-
-fn use_std() -> i32 {
-    let url = "https://example.com";
-    let resp = std::net::http_get(url);
-    let now = std::datetime::now();
-    let v = Vec<i32>[1, 2];
-    v.add(3);
-    42
+fn main() -> i32 {
+    let x = 10;
+    let y = 20;
+    x.add(y)
 }
 "#;
-        match compile_and_run_zeta(code) {
-            Ok(res) => println!("Result: {}", res),
-            Err(e) => eprintln!("Error: {}", e),
-        }
+
+    match compile_and_run_zeta(code) {
+        Ok(res) => println!("Result: {}", res),
+        Err(e) => eprintln!("Error: {}", e),
     }
 }
