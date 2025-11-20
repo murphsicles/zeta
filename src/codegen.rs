@@ -75,19 +75,20 @@ impl<'ctx> LLVMCodegen<'ctx> {
         if let AstNode::Call { receiver, method, args } = node {
             if method == "add" {
                 if let Some(add_fn) = self.add_i32_fn {
-                    let recv_val = self.load_var(receiver);
+                    let recv_val = self.load_var(receiver.as_str());
                     let arg_val = if args.is_empty() {
                         recv_val
                     } else {
-                        self.load_var(&args[0])
+                        self.load_var(args[0].as_str())
                     };
                     let call = self.builder
                         .build_call(add_fn, &[recv_val.into(), arg_val.into()], "addtmp")
                         .unwrap();
 
-                    if let Some(bv) = call.try_as_basic_value().left() {
-                        if let Some(int_val) = bv.into_int_value() {
-                            if let Some(ptr) = self.locals.get(receiver) {
+                    if let Some(bv) = call.try_as_basic_value() {
+                        if bv.is_int_value() {
+                            let int_val = bv.into_int_value();
+                            if let Some(ptr) = self.locals.get(receiver.as_str()) {
                                 self.builder.build_store(*ptr, int_val).unwrap();
                             }
                         }
