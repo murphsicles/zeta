@@ -21,14 +21,17 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
     let (i, _) = delimited(tag("("), multispace0, tag(")"))(i)?;
     let (i, _) = multispace0(i)?;
     let (i, _) = delimited(tag("{"), multispace0, tag("}"))(i)?;
-    Ok((i, AstNode::FuncDef {
-        name,
-        generics: vec![],
-        params: vec![],
-        ret: "i32".to_string(),
-        body: vec![],
-        where_clause: None,
-        attrs: vec![],
-        ret_expr: None,
-    }))
+    Ok((
+        i,
+        AstNode::FuncDef {
+            name,
+            generics: vec![],
+            params: vec![],
+            ret: "i32".to_string(),
+            body: vec![],
+            where_clause: None,
+            attrs: vec![],
+            ret_expr: None,
+        },
+    ))
 }
