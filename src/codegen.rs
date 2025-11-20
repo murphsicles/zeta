@@ -42,7 +42,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
     fn create_intrin_scalar(
         &mut self,
         name: &str,
-        op: impl Fn(&Builder<'ctx>, IntValue<'ctx>, IntValue<'ctx>, &str) -> inkwell::values::IntValue<'ctx>,
+        op: impl Fn(&Builder<'ctx>, IntValue<'ctx>, IntValue<'ctx>, &str) -> IntValue<'ctx>,
         tmp: &str,
     ) -> FunctionValue<'ctx> {
         let fn_type = self.i32_type.fn_type(&[self.i32_type.into(), self.i32_type.into()], false);
@@ -59,7 +59,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
     fn create_intrin_simd(
         &mut self,
         name: &str,
-        op: impl Fn(&Builder<'ctx>, VectorValue<'ctx>, VectorValue<'ctx>, &str) -> inkwell::values::VectorValue<'ctx>,
+        op: impl Fn(&Builder<'ctx>, VectorValue<'ctx>, VectorValue<'ctx>, &str) -> VectorValue<'ctx>,
         tmp: &str,
     ) -> FunctionValue<'ctx> {
         let fn_type = self.i32x4_type.fn_type(&[self.i32x4_type.into(), self.i32x4_type.into()], false);
@@ -158,11 +158,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 .build_call(op_fn, &[recv_val.into(), arg_val.into()], "calltmp")
                 .unwrap();
 
-            if let Some(bv) = call.try_as_basic_value().left() {
-                if let BasicValueEnum::IntValue(iv) = bv {
-                    if let Some(ptr) = self.locals.get(receiver) {
-                        self.builder.build_store(*ptr, iv).unwrap();
-                    }
+            if let Some(result) = call.try_as_basic_value() {
+                if let Some(ptr) = self.locals.get(receiver) {
+                    self.builder.build_store(*ptr, result).unwrap();
                 }
             }
         }
