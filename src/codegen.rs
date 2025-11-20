@@ -59,7 +59,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     if let Some(add) = self.add_i32_fn {
                         let meta: Vec<BasicMetadataValueEnum<'ctx>> = vec![recv.into(), arg_vals[0].into()];
                         let call = self.builder.build_call(add, &meta, "").unwrap();
-                        call.try_as_basic_value().left()
+                        call.try_as_basic_value().and_then(|v| v.left())
                     } else {
                         None
                     }
