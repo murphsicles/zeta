@@ -1,3 +1,4 @@
+// src/main.rs
 use zeta::{parse_zeta, Resolver, LLVMCodegen};
 use inkwell::context::Context;
 use std::error::Error;
@@ -14,18 +15,22 @@ pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
 
     let context = Context::create();
     let mut codegen = LLVMCodegen::new(&context, "zeta_module");
-    codegen.build_intrinsics();
-    codegen.gen_intrinsics();
 
     for ast in &asts {
-        codegen.gen_func(ast, &resolver);
+        if let zeta::ast::AstNode::FuncDef { name, .. } = ast {
+            if name == "main" {
+                let mut mir = resolver.lower_to_mir(ast);
+                resolver.fold_semiring_chains(&mut mir);
+                codegen.gen_mir(&mir);
+            }
+        }
     }
 
     let ee = codegen.finalize_and_jit()?;
 
+    type MainFn = unsafe extern "C" fn() -> i32;
     unsafe {
-        type MainFn = unsafe extern "C" fn() -> i32;
-        if let Some(main) = codegen.get_fn::<MainFn>("main") {
+        if let Ok(main) = ee.get_function::<MainFn>("main") {
             Ok(main.call())
         } else {
             Err("No main function found".into())
@@ -35,20 +40,16 @@ pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
 
 fn main() {
     let code = r#"
-fn add(a: i32, b: i32) -> i32 {
-    a + b
-}
-
-concept Addable {
-    fn add(self: Self, rhs: Self) -> Self;
-}
-
-impl Addable for i32 {}
-
 fn main() -> i32 {
-    let x = 10;
-    let y = 20;
-    x.add(y)
+    let a = 1;
+    let b = 2;
+    let c = 3;
+    let d = 4;
+    let e = 5;
+    let f = 6;
+    let g = 7;
+    let h = 8;
+    a.add(b).add(c).add(d).add(e).add(f).add(g).add(h)
 }
 "#;
 
