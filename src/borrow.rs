@@ -42,8 +42,9 @@ impl BorrowChecker {
     pub fn check(&mut self, node: &AstNode) -> bool {
         match node {
             AstNode::Var(v) => self.borrows.get(v).map_or(true, |state| *state != BorrowState::Consumed && *state != BorrowState::MutBorrowed),
-            AstNode::Borrow(v) => self.borrows.get(v).map_or(true, |state| {
-                if matches!(*state, BorrowState::Owned | BorrowState::Borrowed) {
+            AstNode::Borrow(v) => {
+                let is_valid = self.borrows.get(v).map_or(true, |state| matches!(*state, BorrowState::Owned | BorrowState::Borrowed));
+                if is_valid {
                     self.borrows.insert(v.clone(), BorrowState::Borrowed);
                     if let Some(spec) = self.speculative.get_mut(v) {
                         if *spec == SpeculativeState::Safe {
@@ -54,7 +55,7 @@ impl BorrowChecker {
                 } else {
                     false
                 }
-            }),
+            }
             AstNode::Assign(v, expr) => {
                 if !self.check(expr.as_ref()) {
                     return false;
