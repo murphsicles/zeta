@@ -5,10 +5,10 @@ use inkwell::context::Context;
 use inkwell::execution_engine::{ExecutionEngine, JitFunction, UnsafeFunctionPointer};
 use inkwell::module::Module;
 use inkwell::builder::Builder;
-use inkwell::passes::{PassManager, PassBuilderOptions};
 use inkwell::values::{FunctionValue, IntValue, VectorValue, BasicValueEnum};
 use inkwell::types::{IntType, VectorType};
 use inkwell::OptimizationLevel;
+use inkwell::passes::PassManager;
 use std::collections::HashMap;
 use std::error::Error;
 
@@ -17,6 +17,7 @@ pub struct LLVMCodegen<'ctx> {
     module: Module<'ctx>,
     builder: Builder<'ctx>,
     fpm: PassManager<FunctionValue<'ctx>>,
+    mpm: PassManager<Module<'ctx>>,
     execution_engine: Option<ExecutionEngine<'ctx>>,
     i32_type: IntType<'ctx>,
     i32x4_type: VectorType<'ctx>,
@@ -31,25 +32,31 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let i32x4_type = i32_type.vec_type(4);
 
         let fpm = PassManager::create(&module);
-        // Aggressive EOP/semiring-friendly passes
         fpm.add_promote_memory_to_register_pass();
+        fpm.add_scalar_repl_aggregation_pass();
         fpm.add_instruction_combining_pass();
         fpm.add_reassociate_pass();
         fpm.add_gvn_pass();
         fpm.add_cfg_simplification_pass();
         fpm.add_dead_store_elimination_pass();
-        fpm.add_sroa_pass();
-        fpm.add_memcpy_optimize_pass();
-        fpm.add_loop_vectorize_pass();
-        fpm.add_slp_vectorize_pass();
+        fpm.add_memcpy_opt_pass();
         fpm.add_correlated_value_propagation_pass();
         fpm.add_aggressive_dce_pass();
+        fpm.add_loop_vectorize_pass();
+        fpm.add_slp_vectorize_pass();
+
+        let mpm = PassManager::create(());
+        mpm.add_global_optimizer_pass();
+        mpm.add_global_dce_pass();
+        mpm.add_strip_dead_prototypes_pass();
+        mpm.add_merge_functions_pass();
 
         Self {
             context,
             module,
             builder,
             fpm,
+            mpm,
             execution_engine: None,
             i32_type,
             i32x4_type,
@@ -133,7 +140,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             let entry = self.context.append_basic_block(fn_val, "entry");
             self.builder.position_at_end(entry);
 
-            for (i, (pname, _)) in params.iter().enumerate() {
+            for (i, (pname, _) in params.iter().enumerate() {
                 let param = fn_val.get_nth_param(i as u32).unwrap();
                 let alloca = self.builder.build_alloca(self.i32_type, pname).unwrap();
                 self.builder.build_store(alloca, param).unwrap();
@@ -146,7 +153,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
             let zero = self.i32_type.const_int(0, false);
             self.builder.build_return(Some(&zero)).unwrap();
-
             self.fpm.run_on(&fn_val);
         }
     }
@@ -197,18 +203,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     pub fn finalize_and_jit(&mut self) -> Result<ExecutionEngine<'ctx>, Box<dyn Error>> {
         self.module.verify().map_err(|e| e.to_string())?;
-
-        // Full module-level passes (LTO-style)
-        let mpm = PassManager::create(());
-        mpm.add_promote_memory_to_register_pass();
-        mpm.add_instruction_combining_pass();
-        mpm.add_reassociate_pass();
-        mpm.add_gvn_pass();
-        mpm.add_cfg_simplification_pass();
-        mpm.add_loop_vectorize_pass();
-        mpm.add_slp_vectorize_pass();
-        mpm.run_on(&self.module);
-
+        self.mpm.run_on(&self.module);
         let ee = self.module.create_jit_execution_engine(OptimizationLevel::Aggressive)?;
         self.execution_engine = Some(ee.clone());
         Ok(ee)
