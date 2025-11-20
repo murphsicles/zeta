@@ -55,7 +55,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 if method == "add" {
                     if let Some(add) = self.add_i32_fn {
                         let call = self.builder.build_call(add, &[recv.into(), arg.into()], "").unwrap();
-                        call.try_as_basic_value().and_then(|v| v.into_int_value().into_some())
+                        call.try_as_basic_value().left()
                     } else {
                         None
                     }
