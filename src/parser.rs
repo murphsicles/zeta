@@ -42,10 +42,11 @@ fn call_expr(input: &str) -> IResult<&str, AstNode> {
 
     let mut cur = recv;
     for (method, args) in chain {
+        let args = args.unwrap_or(vec![]);
         cur = AstNode::Call {
             receiver: Box::new(cur),
             method,
-            args: args.unwrap_or_default(),
+            args,
         };
     }
     Ok((i, cur))
@@ -56,45 +57,48 @@ fn expr(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn let_stmt(input: &str) -> IResult<&str, AstNode> {
-    let (i, (_, name, ty_opt, _, rhs)) = (
-        tag("let"),
-        preceded(multispace0, identifier),
-        opt(preceded(preceded(tag(":"), multispace0), parse_type)),
-        preceded(multispace0, tag("=")),
-        preceded(multispace0, expr),
-    )(input)?;
+    let (i, _) = tag("let")(input)?;
+    let (i, _) = multispace0(i)?;
+    let (i, name) = identifier(i)?;
+    let (i, ty_opt) = opt(preceded(preceded(tag(":"), multispace0), parse_type))(i)?;
+    let (i, _) = preceded(multispace0, tag("="))(i)?;
+    let (i, _) = multispace0(i)?;
+    let (i, rhs) = expr(i)?;
     Ok((i, AstNode::Let { name, ty: ty_opt, rhs: Box::new(rhs) }))
 }
 
 fn stmt(input: &str) -> IResult<&str, AstNode> {
-    let (i, node) = alt((let_stmt, map(expr, |e| AstNode::ExprStmt(Box::new(e)))))(input)?;
-    let (i, _) = opt(tag(";"))(i)?;
+    let (i, node) = alt((
+        let_stmt,
+        map(expr, |e| AstNode::ExprStmt(Box::new(e))),
+    ))(input)?;
+    let (i, _) = opt(preceded(multispace0, tag(";")))(i)?;
     Ok((i, node))
 }
 
 fn body(input: &str) -> IResult<&str, (Vec<AstNode>, Option<Box<AstNode>>)> {
-    let (i, stmts) = many0(stmt)(input)?;
-    let (i, ret) = opt(expr)(i)?;
+    let (i, stmts) = many0(preceded(multispace0, stmt))(input)?;
+    let (i, ret) = opt(preceded(multispace0, expr))(i)?;
     Ok((i, (stmts, ret.map(Box::new))))
 }
 
 fn param(input: &str) -> IResult<&str, (String, String)> {
     let (i, name) = identifier(input)?;
     let (i, _) = preceded(multispace0, tag(":"))(i)?;
-    let (i, ty) = preceded(multispace0, parse_type)(i)?;
+    let (i, _) = multispace0(i)?;
+    let (i, ty) = parse_type(i)?;
     Ok((i, (name, ty)))
 }
 
 pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
-    let (i, (_, name, _, params, _, ret_opt, _, (stmts, ret_expr))) = (
-        tag("fn"),
-        preceded(multispace0, identifier),
-        delimited(tag("("), separated_list0(tag(","), preceded(multispace0, param)), tag(")")),
-        opt(preceded(preceded(tag("->"), multispace0), parse_type)),
-        preceded(multispace0, tag("{")),
-        body,
-        tag("}"),
-    )(input)?;
+    let (i, _) = tag("fn")(input)?;
+    let (i, _) = multispace0(i)?;
+    let (i, name) = identifier(i)?;
+    let (i, _) = delimited(tag("("), separated_list0(preceded(multispace0, tag(",")), preceded(multispace0, param)), tag(")"))(i)?;
+    let (i, ret_opt) = opt(preceded(preceded(tag("->"), multispace0), parse_type))(i)?;
+    let (i, _) = preceded(multispace0, tag("{"))(i)?;
+    let (i, (stmts, ret_expr)) = body(i)?;
+    let (i, _) = preceded(multispace0, tag("}"))(i)?;
 
     Ok((i, AstNode::FuncDef {
         name,
