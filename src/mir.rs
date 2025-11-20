@@ -39,7 +39,10 @@ pub struct MirGen {
 
 impl MirGen {
     pub fn new() -> Self {
-        Self { next_id: 0, locals: HashMap::new() }
+        Self {
+            next_id: 0,
+            locals: HashMap::new(),
+        }
     }
 
     pub fn gen_mir(&mut self, ast: &AstNode) -> Mir {
@@ -50,7 +53,10 @@ impl MirGen {
             AstNode::FuncDef { body, params, .. } => {
                 for (name, _) in params {
                     let id = self.alloc_local(name);
-                    stmts.push(MirStmt::Assign { lhs: id, rhs: MirExpr::Var(id) });
+                    stmts.push(MirStmt::Assign {
+                        lhs: id,
+                        rhs: MirExpr::Var(id),
+                    });
                 }
                 for node in body {
                     self.gen_stmt(node, &mut stmts);
@@ -60,7 +66,11 @@ impl MirGen {
             _ => {}
         }
 
-        Mir { stmts, locals: self.locals.clone(), ctfe_consts }
+        Mir {
+            stmts,
+            locals: self.locals.clone(),
+            ctfe_consts,
+        }
     }
 
     fn gen_stmt(&mut self, node: &AstNode, out: &mut Vec<MirStmt>) {
@@ -70,16 +80,26 @@ impl MirGen {
                 let rhs = self.gen_expr(expr);
                 out.push(MirStmt::Assign { lhs, rhs });
             }
-            AstNode::Call { receiver, method, args } => {
+            AstNode::Call {
+                receiver,
+                method,
+                args,
+            } => {
                 let recv = self.lookup_local(receiver);
-                let arg_ids = args.iter().map(|a| self.lookup_local(a)).collect();
+                let arg_ids = args.iter().map(|a| self.lookup_local(a)).collect::<Vec<_>>();
                 let dest = self.next_id();
-                out.push(MirStmt::Call { func: format!("{receiver}.{method}"), args: vec![recv, arg_ids[0]], dest });
+                out.push(MirStmt::Call {
+                    func: format!("{receiver}.{method}"),
+                    args: vec![recv, arg_ids[0]],
+                    dest,
+                });
             }
             AstNode::Defer(inner) => {
                 let mut deferred = vec![];
                 self.gen_stmt(inner, &mut deferred);
-                out.push(MirStmt::Defer { stmt: Box::new(deferred.remove(0)) });
+                out.push(MirStmt::Defer {
+                    stmt: Box::new(deferred.remove(0)),
+                });
             }
             _ => {}
         }
