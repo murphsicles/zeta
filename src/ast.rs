@@ -1,4 +1,5 @@
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+// src/ast.rs
+#[derive(Debug, Clone)]
 pub enum AstNode {
     ConceptDef {
         name: String,
@@ -26,17 +27,14 @@ pub enum AstNode {
         ret_expr: Option<Box<AstNode>>,
     },
     Call {
-        receiver: Box<AstNode>,
+        receiver: String,
         method: String,
-        args: Vec<AstNode>,
+        args: Vec<String>,
     },
     Lit(i64),
     Var(String),
-    Let {
-        name: String,
-        ty: Option<String>,
-        rhs: Box<AstNode>,
-    },
+    Borrow(String),
+    Assign(String, Box<AstNode>),
     Defer(Box<AstNode>),
     ActorDef {
         name: String,
@@ -58,9 +56,14 @@ pub enum AstNode {
         name: String,
         fields: Vec<(String, String)>,
     },
-    ExprStmt(Box<AstNode>),
-    Construct {
-        ty: String,
-        fields: Vec<(String, AstNode)>,
-    },
+}
+
+impl AstNode {
+    pub fn as_str(&self) -> &str {
+        match self {
+            AstNode::Call { receiver, .. } => receiver,
+            AstNode::Var(s) | AstNode::Borrow(s) => s,
+            _ => "",
+        }
+    }
 }
