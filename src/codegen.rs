@@ -103,7 +103,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
 
             for stmt in body {
-                gjorde self.gen_stmt(stmt);
+                self.gen_stmt(stmt);
             }
 
             let zero = self.i32_type.const_int(0, false);
@@ -131,7 +131,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 };
                 let call = self.builder.build_call(op_fn, &[recv_val.into(), arg_val.into()], method).unwrap();
 
-                if let Some(bv) = call.try_as_basic_value().left_or_right() {
+                if let Some(bv) = call.try_as_basic_value().left() {
                     if let Some(ptr) = self.locals.get(receiver) {
                         self.builder.build_store(*ptr, bv).unwrap();
                     }
