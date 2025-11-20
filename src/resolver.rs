@@ -32,28 +32,25 @@ impl Resolver {
 
     pub fn register(&mut self, ast: AstNode) {
         match ast {
-            AstNode::ConceptDef { name, .. } => {
-                self.concepts.insert(name, ast);
+            AstNode::ConceptDef { ref name, .. } => {
+                self.concepts.insert(name.clone(), ast);
             }
-            AstNode::ImplBlock { concept, ty, .. } => {
-                self.impls.insert((concept, ty), ast);
+            AstNode::ImplBlock { ref concept, ref ty, .. } => {
+                self.impls.insert((concept.clone(), ty.clone()), ast);
             }
-            AstNode::FuncDef { name, .. } => {
-                self.funcs.insert(name, ast);
+            AstNode::FuncDef { ref name, .. } => {
+                self.funcs.insert(name.clone(), ast);
             }
-            AstNode::StructDef { name, .. } => {
-                self.structs.insert(name, ast);
+            AstNode::StructDef { ref name, .. } => {
+                self.structs.insert(name.clone(), ast);
             }
             AstNode::Derive { ty, traits } => {
                 for tr in traits {
-                    self.impls.insert(
-                        (tr.clone(), ty.clone()),
-                        AstNode::ImplBlock {
-                            concept: tr,
-                            ty: ty.clone(),
-                            body: vec![],
-                        },
-                    );
+                    self.impls.insert((tr.clone(), ty.clone()), AstNode::ImplBlock {
+                        concept: tr,
+                        ty: ty.clone(),
+                        body: vec![],
+                    });
                 }
             }
             _ => {}
