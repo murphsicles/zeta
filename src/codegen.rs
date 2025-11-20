@@ -1,10 +1,9 @@
 use crate::ast::AstNode;
-use crate::resolver::Resolver;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::{ExecutionEngine, JitFunction};
 use inkwell::module::Module;
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, PointerValue};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PointerValue};
 use inkwell::OptimizationLevel;
 use std::collections::HashMap;
 use std::error::Error;
@@ -16,7 +15,6 @@ pub struct LLVMCodegen<'ctx> {
     execution_engine: Option<ExecutionEngine<'ctx>>,
     i32_type: inkwell::types::IntType<'ctx>,
     add_i32_fn: Option<FunctionValue<'ctx>>,
-    locals: HashMap<String, PointerValue<'ctx>>,
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -32,7 +30,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
             execution_engine: None,
             i32_type,
             add_i32_fn: None,
-            locals: HashMap::new(),
         }
     }
 
@@ -53,13 +50,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
             AstNode::Lit(v) => Some(self.i32_type.const_int(*v as u64, false).into()),
             AstNode::Var(name) => locals.get(name).map(|p| self.builder.build_load(self.i32_type, *p, name).unwrap()),
             AstNode::Call { receiver, method, args } => {
-                let recv = self.gen_expr(receiver, locals)?;
-                let arg_vals: Vec<_> = args.iter().map(|a| self.gen_expr(a, locals).unwrap()).collect();
+                let recv = self.gen_expr(receiver, locals)?.into_int_value();
+                let arg = self.gen_expr(&args[0], locals)?.into_int_value();
                 if method == "add" {
                     if let Some(add) = self.add_i32_fn {
-                        let meta: Vec<BasicMetadataValueEnum<'ctx>> = vec![recv.into(), arg_vals[0].into()];
-                        let call = self.builder.build_call(add, &meta, "").unwrap();
-                        call.try_as_basic_value().and_then(|v| v.left())
+                        let call = self.builder.build_call(add, &[recv.into(), arg.into()], "calltmp").unwrap();
+                        call.try_as_basic_value().left()
                     } else {
                         None
                     }
@@ -100,10 +96,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.gen_stmt(stmt, &mut locals);
             }
 
-            let ret = ret_expr.as_ref()
+            let ret_val = ret_expr
+                .as_ref()
                 .and_then(|e| self.gen_expr(e, &locals))
                 .unwrap_or(self.i32_type.const_zero().into());
-            self.builder.build_return(Some(&ret));
+            self.builder.build_return(Some(&ret_val));
         }
     }
 
