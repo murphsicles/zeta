@@ -110,7 +110,7 @@ impl MirGen {
                 method,
                 args,
             } => {
-                let recv_id = *self.locals.get(receiver).unwrap_or(&0);
+                let _recv_id = *self.locals.get(receiver).unwrap_or(&0);
                 let arg_ids: Vec<u32> = args.iter().map(|a| *self.locals.get(a).unwrap_or(&0)).collect();
                 Some(MirStmt::Call {
                     func: format!("{receiver}.{method}"),
