@@ -27,7 +27,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let builder = context.create_builder();
         let i32_type = context.i32_type();
 
-        // add_i32 intrinsic
         let fn_type = i32_type.fn_type(&[i32_type.into(), i32_type.into()], false);
         let add_i32_fn = module.add_function("add_i32", fn_type, None);
         let entry = context.append_basic_block(add_i32_fn, "entry");
@@ -82,9 +81,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     } else {
                         self.load_var(&args[0])
                     };
-                    let call = self.builder.build_call(add_fn, &[recv_val.into(), arg_val.into()], "addtmp").unwrap();
-                    if let Some(bv) = call.try_as_basic_value().left() {
-                        if let Some(int_val) = bv.into_int_value().ok() {
+                    let call = self.builder
+                        .build_call(add_fn, &[recv_val.into(), arg_val.into()], "addtmp")
+                        .unwrap();
+
+                    if let Some(bv) = call.try_as_basic_value().either() {
+                        if let Ok(int_val) = bv.into_int_value() {
                             if let Some(ptr) = self.locals.get(receiver) {
                                 self.builder.build_store(*ptr, int_val).unwrap();
                             }
