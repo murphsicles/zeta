@@ -1,7 +1,7 @@
 // src/resolver.rs
 use crate::ast::AstNode;
 use crate::borrow::{BorrowChecker, BorrowState};
-use rayon  std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -84,7 +84,7 @@ impl Resolver {
         if let Some(imp) = self.impls.get(&key) {
             let arc = Arc::new(imp.clone());
             memo.insert(key, Some(arc.clone()));
-            return Some(&arc);
+            return Some(&*arc);
         }
 
         // Derive-generated impl
@@ -97,7 +97,7 @@ impl Resolver {
                 };
                 let arc = Arc::new(synthetic);
                 memo.insert(key, Some(arc.clone()));
-                return Some(&arc);
+                return Some(&*arc);
             }
         }
 
@@ -113,7 +113,7 @@ impl Resolver {
                     };
                     let arc = Arc::new(synthetic);
                     memo.insert(key, Some(arc.clone()));
-                    return Some(&arc);
+                    return Some(&*arc);
                 }
             }
         }
