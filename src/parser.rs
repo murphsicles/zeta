@@ -4,15 +4,17 @@ use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::{alpha1, alphanumeric1, digit1, multispace0},
-    combinator::{map, opt},
+    combinator::{map, opt, recognize},
     multi::{many0, separated_list0},
-    sequence::{delimited, pair, preceded, tuple},
+    sequence::{delimited, pair, preceded},
 };
 
 fn identifier(input: &str) -> IResult<&str, String> {
-    let (i, s) = nom::bytes::complete::is_a("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_")(input)?;
-    let (i, s2) = nom::bytes::complete::is_a("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")(i)?;
-    Ok((i, format!("{}{}", s, s2)))
+    recognize(pair(
+        alt((alpha1, tag("_"))),
+        many0(alt((alphanumeric1, tag("_")))),
+    ))(input)
+    .map(|(i, s)| (i, s.to_string()))
 }
 
 fn int_literal(input: &str) -> IResult<&str, AstNode> {
@@ -33,10 +35,10 @@ fn primary(input: &str) -> IResult<&str, AstNode> {
 
 fn call_expr(input: &str) -> IResult<&str, AstNode> {
     let (i, recv) = primary(input)?;
-    let (i, chain) = many0(tuple((
+    let (i, chain) = many0((
         preceded(tag("."), identifier),
         opt(delimited(tag("("), separated_list0(tag(","), expr), tag(")"))),
-    )))(i)?;
+    ))(i)?;
 
     let mut cur = recv;
     for (method, args_opt) in chain {
@@ -58,8 +60,8 @@ fn let_stmt(input: &str) -> IResult<&str, AstNode> {
     let (i, _) = tag("let")(input)?;
     let (i, _) = multispace0(i)?;
     let (i, name) = identifier(i)?;
-    let (i, ty_opt) = opt(preceded(tuple((tag(":"), multispace0)), parse_type))(i)?;
-    let (i, _) = tuple((multispace0, tag("="), multispace0))(i)?;
+    let (i, ty_opt) = opt(preceded((tag(":"), multispace0), parse_type))(i)?;
+    let (i, _) = (multispace0, tag("="), multispace0)(i)?;
     let (i, rhs) = expr(i)?;
     Ok((i, AstNode::Let { name, ty: ty_opt, rhs: Box::new(rhs) }))
 }
@@ -69,7 +71,7 @@ fn stmt(input: &str) -> IResult<&str, AstNode> {
         let_stmt,
         map(expr, |e| AstNode::ExprStmt(Box::new(e))),
     ))(input)?;
-    let (i, _) = opt(tuple((multispace0, tag(";"))))(i)?;
+    let (i, _) = opt((multispace0, tag(";")))(i)?;
     Ok((i, node))
 }
 
@@ -81,7 +83,7 @@ fn body(input: &str) -> IResult<&str, (Vec<AstNode>, Option<Box<AstNode>>)> {
 
 fn param(input: &str) -> IResult<&str, (String, String)> {
     let (i, name) = identifier(input)?;
-    let (i, _) = tuple((multispace0, tag(":"), multispace0))(i)?;
+    let (i, _) = (multispace0, tag(":"), multispace0)(i)?;
     let (i, ty) = parse_type(i)?;
     Ok((i, (name, ty)))
 }
@@ -92,13 +94,13 @@ pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
     let (i, name) = identifier(i)?;
     let (i, params) = delimited(
         tag("("),
-        separated_list0(tuple((multispace0, tag(","), multispace0)), param),
+        separated_list0((multispace0, tag(","), multispace0), param),
         tag(")"),
     )(i)?;
-    let (i, ret_opt) = opt(preceded(tuple((multispace0, tag("->"), multispace0)), parse_type))(i)?;
-    let (i, _) = tuple((multispace0, tag("{"), multispace0))(i)?;
+    let (i, ret_opt) = opt(preceded((multispace0, tag("->"), multispace0), parse_type))(i)?;
+    let (i, _) = (multispace0, tag("{"), multispace0)(i)?;
     let (i, (stmts, ret_expr)) = body(i)?;
-    let (i, _) = tuple((multispace0, tag("}")))(i)?;
+    let (i, _) = (multispace0, tag("}"))(i)?;
 
     Ok((i, AstNode::FuncDef {
         name,
