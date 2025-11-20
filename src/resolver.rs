@@ -1,6 +1,7 @@
 // src/resolver.rs
 use crate::ast::AstNode;
 use crate::borrow::{BorrowChecker, BorrowState};
+use crate::mir::{Mir, MirGen, SemiringOp};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
@@ -46,15 +47,76 @@ impl Resolver {
             }
             AstNode::Derive { ty, traits } => {
                 for tr in traits {
-                    self.impls.insert((tr.clone(), ty.clone()), AstNode::ImplBlock {
-                        concept: tr,
-                        ty: ty.clone(),
-                        body: vec![],
-                    });
+                    self.impls.insert(
+                        (tr.clone(), ty.clone()),
+                        AstNode::ImplBlock {
+                            concept: tr,
+                            ty: ty.clone(),
+                            body: vec![],
+                        },
+                    );
                 }
             }
             _ => {}
         }
+    }
+
+    pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
+        let mut gen = MirGen::new();
+        gen.gen_mir(ast)
+    }
+
+    pub fn fold_semiring_chains(&self, mir: &mut Mir) -> bool {
+        let mut changed = false;
+        let mut i = 0;
+        while i < mir.stmts.len() {
+            if let MirStmt::Call { func, args, dest } = &mir.stmts[i] {
+                let op = if func.ends_with(".add") {
+                    Some(SemiringOp::Add)
+                } else if func.ends_with(".mul") {
+                    Some(SemiringOp::Mul)
+                } else {
+                    None
+                };
+
+                if let Some(op) = op {
+                    let mut chain = vec![args[0]];
+                    let mut current = *dest;
+                    let mut j = i + 1;
+
+                    while j < mir.stmts.len() {
+                        if let MirStmt::Call {
+                            func: next_func,
+                            args: next_args,
+                            dest: next_dest,
+                        } = &mir.stmts[j]
+                        {
+                            if next_func == func && next_args[0] == current {
+                                chain.push(next_args[1]);
+                                current = *next_dest;
+                                j += 1;
+                                changed = true;
+                            } else {
+                                break;
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+
+                    if chain.len() >= 3 {
+                        mir.stmts[i] = MirStmt::SemiringFold {
+                            op,
+                            values: chain,
+                            result: current,
+                        };
+                        mir.stmts.drain(i + 1..j);
+                    }
+                }
+            }
+            i += 1;
+        }
+        changed
     }
 
     pub fn resolve_impl(&self, concept: &str, ty: &str) -> Option<Arc<AstNode>> {
@@ -84,7 +146,12 @@ impl Resolver {
     pub fn typecheck(&self, asts: &[AstNode]) -> bool {
         asts.iter().all(|ast| {
             match ast {
-                AstNode::FuncDef { params, body, attrs, .. } => {
+                AstNode::FuncDef {
+                    params,
+                    body,
+                    attrs,
+                    ..
+                } => {
                     let stable_abi_ok = !attrs.contains(&"stable_abi".to_string())
                         || !params.iter().any(|(_, t)| t.contains('<'));
                     let mut bc = BorrowChecker::new();
