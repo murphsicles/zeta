@@ -39,24 +39,13 @@ impl Resolver {
 
     pub fn register(&mut self, ast: AstNode) {
         match ast {
-            AstNode::ConceptDef { name, .. } => {
-                self.concepts.insert(name, ast);
-            }
-            AstNode::ImplBlock { concept, ty, .. } => {
-                self.impls.insert((concept, ty), ast);
-            }
-            AstNode::FuncDef { name, .. } => {
-                self.funcs.insert(name, ast);
-            }
-            AstNode::StructDef { name, fields, .. } => {
-                self.structs.insert(name.clone(), ast);
-                // structural cache stub
-                let _ = fields;
-            }
+            AstNode::ConceptDef { name, .. } => { self.concepts.insert(name, ast); }
+            AstNode::ImplBlock { concept, ty, .. } => { self.impls.insert((concept, ty), ast); }
+            AstNode::FuncDef { name, .. } => { self.funcs.insert(name, ast); }
+            AstNode::StructDef { name, .. } => { self.structs.insert(name, ast); }
             _ => {}
         }
     }
-
     pub fn resolve_impl(&self, concept: &str, ty: &str) -> Option<Arc<AstNode>> {
         let key = (concept.to_string(), ty.to_string());
         {
