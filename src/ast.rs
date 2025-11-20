@@ -21,7 +21,6 @@ pub enum AstNode {
         params: Vec<(String, String)>,
         ret: String,
         body: Vec<AstNode>,
-        ret_expr: Option<Box<AstNode>>,
         where_clause: Option<Vec<(String, String)>>,
         attrs: Vec<String>,
         ret_expr: Option<Box<AstNode>>,
