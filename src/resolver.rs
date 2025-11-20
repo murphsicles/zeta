@@ -32,28 +32,17 @@ impl Resolver {
 
     pub fn register(&mut self, ast: AstNode) {
         match ast {
-            AstNode::ConceptDef { name, .. } => {
-                self.concepts.insert(name, ast);
-            }
-            AstNode::ImplBlock { concept, ty, .. } => {
-                self.impls.insert((concept, ty), ast);
-            }
-            AstNode::FuncDef { name, .. } => {
-                self.funcs.insert(name, ast);
-            }
-            AstNode::StructDef { name, .. } => {
-                self.structs.insert(name, ast);
-            }
+            AstNode::ConceptDef { name, .. } => { self.concepts.insert(name, ast); }
+            AstNode::ImplBlock { concept, ty, .. } => { self.impls.insert((concept, ty), ast); }
+            AstNode::FuncDef { name, .. } => { self.funcs.insert(name, ast); }
+            AstNode::StructDef { name, .. } => { self.structs.insert(name, ast); }
             AstNode::Derive { ty, traits } => {
                 for tr in traits {
-                    self.impls.insert(
-                        (tr.clone(), ty.clone()),
-                        AstNode::ImplBlock {
-                            concept: tr,
-                            ty: ty.clone(),
-                            body: vec![],
-                        },
-                    );
+                    self.impls.insert((tr.clone(), ty.clone()), AstNode::ImplBlock {
+                        concept: tr,
+                        ty: ty.clone(),
+                        body: vec![],
+                    });
                 }
             }
             _ => {}
@@ -77,9 +66,7 @@ impl Resolver {
         self.resolve_impl(concept, ty)
             .map_or(false, |imp| {
                 if let AstNode::ImplBlock { body, .. } = imp.as_ref() {
-                    body.iter().any(|m| {
-                        matches!(m, AstNode::Method { name, .. } if name == method)
-                    })
+                    body.iter().any(|m| matches!(m, AstNode::Method { name, .. } if name == method))
                 } else {
                     false
                 }
@@ -89,12 +76,7 @@ impl Resolver {
     pub fn typecheck(&self, asts: &[AstNode]) -> bool {
         asts.iter().all(|ast| {
             match ast {
-                AstNode::FuncDef {
-                    params,
-                    body,
-                    attrs,
-                    ..
-                } => {
+                AstNode::FuncDef { params, body, attrs, .. } => {
                     let stable_abi_ok = !attrs.contains(&"stable_abi".to_string())
                         || !params.iter().any(|(_, t)| t.contains('<'));
                     let mut bc = BorrowChecker::new();
