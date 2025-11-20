@@ -8,7 +8,6 @@ use inkwell::builder::Builder;
 use inkwell::values::{BasicValueEnum, FunctionValue, IntValue, PointerValue, VectorValue};
 use inkwell::types::{IntType, VectorType};
 use inkwell::OptimizationLevel;
-use inkwell::AddressSpace;
 use std::collections::HashMap;
 use std::error::Error;
 
@@ -21,6 +20,8 @@ pub struct LLVMCodegen<'ctx> {
     i32x4_type: VectorType<'ctx>,
     add_i32_fn: Option<FunctionValue<'ctx>>,
     add_i32x4_fn: Option<FunctionValue<'ctx>>,
+    mul_i32_fn: Option<FunctionValue<'ctx>>,
+    mul_i32x4_fn: Option<FunctionValue<'ctx>>,
     locals: HashMap<String, PointerValue<'ctx>>,
 }
 
@@ -42,13 +43,33 @@ impl<'ctx> LLVMCodegen<'ctx> {
         builder.build_return(Some(&sum)).unwrap();
 
         // SIMD add_i32x4
-        let simd_type = i32_type.fn_type(&[i32x4_type.into(), i32x4_type.into()], false);
-        let add_i32x4_fn = module.add_function("add_i32x4", simd_type, None);
+        let simd_add_type = i32x4_type.fn_type(&[i32x4_type.into(), i32x4_type.into()], false);
+        let add_i32x4_fn = module.add_function("add_i32x4", simd_add_type, None);
         let entry_simd = context.append_basic_block(add_i32x4_fn, "entry");
         builder.position_at_end(entry_simd);
         let a = add_i32x4_fn.get_nth_param(0).unwrap().into_vector_value();
         let b = add_i32x4_fn.get_nth_param(1).unwrap().into_vector_value();
-        let res = builder.build_int_add(a, b, "simd_sum").unwrap();
+        let res = builder.build_int_add(a, b, "simd_add").unwrap();
+        builder.build_return(Some(&res)).unwrap();
+
+        // scalar mul_i32
+        let mul_type = i32_type.fn_type(&[i32_type.into(), i32_type.into()], false);
+        let mul_i32_fn = module.add_function("mul_i32", mul_type, None);
+        let entry_mul = context.append_basic_block(mul_i32_fn, "entry");
+        builder.position_at_end(entry_mul);
+        let x = mul_i32_fn.get_nth_param(0).unwrap().into_int_value();
+        let y = mul_i32_fn.get_nth_param(1).unwrap().into_int_value();
+        let prod = builder.build_int_mul(x, y, "prod").unwrap();
+        builder.build_return(Some(&prod)).unwrap();
+
+        // SIMD mul_i32x4
+        let simd_mul_type = i32x4_type.fn_type(&[i32x4_type.into(), i32x4_type.into()], false);
+        let mul_i32x4_fn = module.add_function("mul_i32x4", simd_mul_type, None);
+        let entry_simd_mul = context.append_basic_block(mul_i32x4_fn, "entry");
+        builder.position_at_end(entry_simd_mul);
+        let a = mul_i32x4_fn.get_nth_param(0).unwrap().into_vector_value();
+        let b = mul_i32x4_fn.get_nth_param(1).unwrap().into_vector_value();
+        let res = builder.build_int_mul(a, b, "simd_mul").unwrap();
         builder.build_return(Some(&res)).unwrap();
 
         Self {
@@ -60,6 +81,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
             i32x4_type,
             add_i32_fn: Some(add_i32_fn),
             add_i32x4_fn: Some(add_i32x4_fn),
+            mul_i32_fn: Some(mul_i32_fn),
+            mul_i32x4_fn: Some(mul_i32x4_fn),
             locals: HashMap::new(),
         }
     }
@@ -89,53 +112,62 @@ impl<'ctx> LLVMCodegen<'ctx> {
     }
 
     fn gen_stmt(&mut self, node: &AstNode) {
-        match node {
-            AstNode::Call { receiver, method, args } if method == "add" => {
-                // Detect if receiver is a vector literal or known SIMD type (stub: assume add on vec uses SIMD)
-                if receiver.contains("vec") || !args.is_empty() && args[0].contains("vec") {
-                    if let Some(simd_fn) = self.add_i32x4_fn {
-                        let recv_val = self.load_var(receiver.as_str());
-                        let arg_val = if args.is_empty() {
-                            recv_val.into_vector_value()
-                        } else {
-                            self.load_var(&args[0]).into_vector_value()
-                        };
-                        let call = self.builder.build_call(simd_fn, &[recv_val.into(), arg_val.into()], "simd_add").unwrap();
-                        if let Some(bv) = call.try_as_basic_value() {
-                            if let BasicValueEnum::VectorValue(v) = bv {
-                                if let Some(ptr) = self.locals.get(receiver.as_str()) {
-                                    self.builder.build_store(*ptr, v).unwrap();
-                                }
-                            }
-                        }
-                        return;
-                    }
-                }
-                // fallback scalar
-                if let Some(scalar_fn) = self.add_i32_fn {
-                    let recv_val = self.load_var(receiver.as_str());
-                    let arg_val = if args.is_empty() {
-                        recv_val
+        if let AstNode::Call { receiver, method, args } = node {
+            let is_simd = receiver.contains("vec") || (!args.is_empty() && args[0].contains("vec"));
+
+            match method.as_str() {
+                "add" => {
+                    let (scalar_fn, simd_fn) = if is_simd {
+                        (None, self.add_i32x4_fn)
                     } else {
-                        self.load_var(&args[0])
+                        (self.add_i32_fn, None)
                     };
-                    let call = self.builder.build_call(scalar_fn, &[recv_val.into(), arg_val.into()], "scalar_add").unwrap();
-                    if let Some(bv) = call.try_as_basic_value() {
-                        if let BasicValueEnum::IntValue(iv) = bv {
-                            if let Some(ptr) = self.locals.get(receiver.as_str()) {
-                                self.builder.build_store(*ptr, iv).unwrap();
-                            }
-                        }
-                    }
+                    self.emit_binop(receiver, args, scalar_fn, simd_fn, "add");
+                }
+                "mul" => {
+                    let (scalar_fn, simd_fn) = if is_simd {
+                        (None, self.mul_i32x4_fn)
+                    } else {
+                        (self.mul_i32_fn, None)
+                    };
+                    self.emit_binop(receiver, args, scalar_fn, simd_fn, "mul");
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn emit_binop(
+        &mut self,
+        receiver: &str,
+        args: &[String],
+        scalar_fn: Option<FunctionValue<'ctx>>,
+        simd_fn: Option<FunctionValue<'ctx>>,
+        name: &str,
+    ) {
+        let fn_val = if simd_fn.is_some() { simd_fn } else { scalar_fn };
+        if let Some(op_fn) = fn_val {
+            let recv_val = self.load_var(receiver.as_str());
+            let arg_val = if args.is_empty() {
+                recv_val
+            } else {
+                self.load_var(&args[0])
+            };
+            let call = self
+                .builder
+                .build_call(op_fn, &[recv_val.into(), arg_val.into()], name)
+                .unwrap();
+
+            if let Some(bv) = call.try_as_basic_value() {
+                if let Some(ptr) = self.locals.get(receiver.as_str()) {
+                    self.builder.build_store(*ptr, bv).unwrap();
                 }
             }
-            _ => {}
         }
     }
 
     fn load_var(&self, name: &str) -> BasicValueEnum<'ctx> {
         let ptr = self.locals.get(name).copied().unwrap_or_else(|| {
-            // Allocate as generic pointer, type will be inferred from use
             self.builder.build_alloca(self.i32_type, name).unwrap()
         });
         self.builder.build_load(self.i32_type, ptr, name).unwrap()
