@@ -5,7 +5,7 @@ use inkwell::context::Context;
 use inkwell::execution_engine::{ExecutionEngine, JitFunction, UnsafeFunctionPointer};
 use inkwell::module::Module;
 use inkwell::builder::Builder;
-use inkwell::values::{FunctionValue, IntValue, VectorValue};
+use inkwell::values::{FunctionValue, IntValue, VectorValue, BasicValueEnum};
 use inkwell::types::{IntType, VectorType};
 use inkwell::OptimizationLevel;
 use std::collections::HashMap;
@@ -39,61 +39,60 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
     }
 
-    // Create scalar and SIMD intrinsic helpers
-    fn create_scalar_intrin(&self, name: &str, op: fn(IntValue<'ctx>, IntValue<'ctx>) -> IntValue<'ctx>) -> FunctionValue<'ctx> {
+    fn build_scalar_intrin(&mut self, name: &str, build_fn: fn(&Builder<'ctx>, IntValue<'ctx>, IntValue<'ctx>, &str) -> IntValue<'ctx>, tmp: &str) -> FunctionValue<'ctx> {
         let fn_type = self.i32_type.fn_type(&[self.i32_type.into(), self.i32_type.into()], false);
         let func = self.module.add_function(name, fn_type, None);
         let entry = self.context.append_basic_block(func, "entry");
         self.builder.position_at_end(entry);
         let x = func.get_nth_param(0).unwrap().into_int_value();
         let y = func.get_nth_param(1).unwrap().into_int_value();
-        let res = op(x, y);
+        let res = build_fn(&self.builder, x, y, tmp);
         self.builder.build_return(Some(&res)).unwrap();
         func
     }
 
-    fn create_simd_intrin(&self, name: &str, op: fn(VectorValue<'ctx>, VectorValue<'ctx>) -> VectorValue<'ctx>) -> FunctionValue<'ctx> {
+    fn build_simd_intrin(&mut self, name: &str, build_fn: fn(&Builder<'ctx>, VectorValue<'ctx>, VectorValue<'ctx>, &str) -> VectorValue<'ctx>, tmp: &str) -> FunctionValue<'ctx> {
         let fn_type = self.i32x4_type.fn_type(&[self.i32x4_type.into(), self.i32x4_type.into()], false);
         let func = self.module.add_function(name, fn_type, None);
         let entry = self.context.append_basic_block(func, "entry");
         self.builder.position_at_end(entry);
         let x = func.get_nth_param(0).unwrap().into_vector_value();
         let y = func.get_nth_param(1).unwrap().into_vector_value();
-        let res = op(x, y);
+        let res = build_fn(&self.builder, x, y, tmp);
         self.builder.build_return(Some(&res)).unwrap();
         func
     }
 
     pub fn build_intrinsics(&mut self) {
-        self.create_scalar_intrin("intrin_add_i32", |x, y| self.builder.build_int_add(x, y, "addtmp").unwrap());
-        self.create_simd_intrin("intrin_add_i32x4", |x, y| self.builder.build_int_add(x, y, "addtmp").unwrap());
+        self.build_scalar_intrin("intrin_add_i32", Builder::build_int_add, "addtmp");
+        self.build_simd_intrin("intrin_add_i32x4", Builder::build_int_add, "addtmp");
 
-        self.create_scalar_intrin("intrin_sub_i32", |x, y| self.builder.build_int_sub(x, y, "subtmp").unwrap());
-        self.create_simd_intrin("intrin_sub_i32x4", |x, y| self.builder.build_int_sub(x, y, "subtmp").unwrap());
+        self.build_scalar_intrin("intrin_sub_i32", Builder::build_int_sub, "subtmp");
+        self.build_simd_intrin("intrin_sub_i32x4", Builder::build_int_sub, "subtmp");
 
-        self.create_scalar_intrin("intrin_mul_i32", |x, y| self.builder.build_int_mul(x, y, "multmp").unwrap());
-        self.create_simd_intrin("intrin_mul_i32x4", |x, y| self.builder.build_int_mul(x, y, "multmp").unwrap());
+        self.build_scalar_intrin("intrin_mul_i32", Builder::build_int_mul, "multmp");
+        self.build_simd_intrin("intrin_mul_i32x4", Builder::build_int_mul, "multmp");
 
-        self.create_scalar_intrin("intrin_sdiv_i32", |x, y| self.builder.build_int_signed_div(x, y, "divtmp").unwrap());
-        self.create_simd_intrin("intrin_sdiv_i32x4", |x, y| self.builder.build_int_signed_div(x, y, "divtmp").unwrap());
+        self.build_scalar_intrin("intrin_sdiv_i32", Builder::build_int_signed_div, "divtmp");
+        self.build_simd_intrin("intrin_sdiv_i32x4", Builder::build_int_signed_div, "divtmp");
 
-        self.create_scalar_intrin("intrin_srem_i32", |x, y| self.builder.build_int_signed_rem(x, y, "remtmp").unwrap());
-        self.create_simd_intrin("intrin_srem_i32x4", |x, y| self.builder.build_int_signed_rem(x, y, "remtmp").unwrap());
+        self.build_scalar_intrin("intrin_srem_i32", Builder::build_int_signed_rem, "remtmp");
+        self.build_simd_intrin("intrin_srem_i32x4", Builder::build_int_signed_rem, "remtmp");
 
-        self.create_scalar_intrin("intrin_shl_i32", |x, y| self.builder.build_left_shift(x, y, "shltmp").unwrap());
-        self.create_simd_intrin("intrin_shl_i32x4", |x, y| self.builder.build_left_shift(x, y, "shltmp").unwrap());
+        self.build_scalar_intrin("intrin_shl_i32", Builder::build_left_shift, "shltmp");
+        self.build_simd_intrin("intrin_shl_i32x4", Builder::build_left_shift, "shltmp");
 
-        self.create_scalar_intrin("intrin_ashr_i32", |x, y| self.builder.build_right_shift(x, y, true, "ashrtmp").unwrap());
-        self.create_simd_intrin("intrin_ashr_i32x4", |x, y| self.builder.build_right_shift(x, y, true, "ashrtmp").unwrap());
+        self.build_scalar_intrin("intrin_ashr_i32", |b, x, y, n| b.build_right_shift(x, y, true, n).unwrap(), "ashrtmp");
+        self.build_simd_intrin("intrin_ashr_i32x4", |b, x, y, n| b.build_right_shift(x, y, true, n).unwrap(), "ashrtmp");
 
-        self.create_scalar_intrin("intrin_and_i32", |x, y| self.builder.build_and(x, y, "andtmp").unwrap());
-        self.create_simd_intrin("intrin_and_i32x4", |x, y| self.builder.build_and(x, y, "andtmp").unwrap());
+        self.build_scalar_intrin("intrin_and_i32", Builder::build_and, "andtmp");
+        self.build_simd_intrin("intrin_and_i32x4", Builder::build_and, "andtmp");
 
-        self.create_scalar_intrin("intrin_or_i32", |x, y| self.builder.build_or(x, y, "ortmp").unwrap());
-        self.create_simd_intrin("intrin_or_i32x4", |x, y| self.builder.build_or(x, y, "ortmp").unwrap());
+        self.build_scalar_intrin("intrin_or_i32", Builder::build_or, "ortmp");
+        self.build_simd_intrin("intrin_or_i32x4", Builder::build_or, "ortmp");
 
-        self.create_scalar_intrin("intrin_xor_i32", |x, y| self.builder.build_xor(x, y, "xortmp").unwrap());
-        self.create_simd_intrin("intrin_xor_i32x4", |x, y| self.builder.build_xor(x, y, "xortmp").unwrap());
+        self.build_scalar_intrin("intrin_xor_i32", Builder::build_xor, "xortmp");
+        self.build_simd_intrin("intrin_xor_i32x4", Builder::build_xor, "xortmp");
     }
 
     pub fn gen_func(&mut self, ast: &AstNode, _resolver: &Resolver) {
@@ -146,15 +145,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
             };
 
             let call = self.builder.build_call(op_fn, &[recv_val.into(), arg_val.into()], "calltmp").unwrap();
-            if let Some(bv) = call.try_as_basic_value().and_then(|v| v.into_int_value().as_basic_value_enum().left()) {
+            if let Some(result) = call.try_as_basic_value().left() {
                 if let Some(ptr) = self.locals.get(receiver) {
-                    self.builder.build_store(*ptr, bv).unwrap();
+                    self.builder.build_store(*ptr, result).unwrap();
                 }
             }
         }
     }
 
-    fn load_var(&self, name: &str) -> inkwell::values::BasicValueEnum<'ctx> {
+    fn load_var(&self, name: &str) -> BasicValueEnum<'ctx> {
         let ptr = self.locals.get(name).copied().unwrap_or_else(|| {
             self.builder.build_alloca(self.i32_type, name).unwrap()
         });
