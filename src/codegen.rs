@@ -3,7 +3,7 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::{ExecutionEngine, JitFunction};
 use inkwell::module::Module;
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PointerValue};
+use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue};
 use inkwell::OptimizationLevel;
 use std::collections::HashMap;
 use std::error::Error;
@@ -54,8 +54,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let arg = self.gen_expr(&args[0], locals)?.into_int_value();
                 if method == "add" {
                     if let Some(add) = self.add_i32_fn {
-                        let call = self.builder.build_call(add, &[recv.into(), arg.into()], "calltmp").unwrap();
-                        call.try_as_basic_value().left()
+                        let call = self.builder.build_call(add, &[recv.into(), arg.into()], "").unwrap();
+                        call.try_as_basic_value().and_then(|v| v.into_int_value().into_some())
                     } else {
                         None
                     }
