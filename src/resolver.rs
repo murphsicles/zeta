@@ -72,7 +72,7 @@ impl Resolver {
         if let Some(imp) = self.impls.get(&key) {
             let arc = Arc::new(imp.clone());
             memo.insert(key, Some(arc.clone()));
-            return Some(&arc);
+            return Some(&*arc);
         }
 
         if let Some(traits) = self.derives.get(ty) {
@@ -84,7 +84,7 @@ impl Resolver {
                 };
                 let arc = Arc::new(synthetic);
                 memo.insert(key, Some(arc.clone()));
-                return Some(&arc);
+                return Some(&*arc);
             }
         }
 
@@ -98,7 +98,7 @@ impl Resolver {
                     };
                     let arc = Arc::new(synthetic);
                     memo.insert(key, Some(arc.clone()));
-                    return Some(&arc);
+                    return Some(&*arc);
                 }
             }
         }
