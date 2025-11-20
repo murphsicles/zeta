@@ -83,9 +83,9 @@ impl BorrowChecker {
                         }
                     }
                 }
-                self.mark_speculative(receiver);
+                self.mark_speculative(receiver.as_str());
                 for arg in args {
-                    self.mark_speculative(arg);
+                    self.mark_speculative(arg.as_str());
                 }
                 true
             },
