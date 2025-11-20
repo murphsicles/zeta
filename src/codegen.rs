@@ -81,10 +81,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     } else {
                         self.load_var(&args[0])
                     };
-                    let call = self.builder.build_call(add_fn, &[recv_val.into(), arg_val.into()], "addtmp").unwrap();
-                    if let Some(result) = call.try_as_basic_value().and_then(|v| v.into_int_value().ok()) {
+                    let call = self.builder
+                        .build_call(add_fn, &[recv_val.into(), arg_val.into()], "addtmp")
+                        .unwrap();
+
+                    if let Some(int_val) = call.try_as_basic_value().left().and_then(|v| v.into_int_value()) {
                         if let Some(ptr) = self.locals.get(receiver) {
-                            self.builder.build_store(*ptr, result).unwrap();
+                            self.builder.build_store(*ptr, int_val).unwrap();
                         }
                     }
                 }
@@ -110,7 +113,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
     where
         F: UnsafeFunctionPointer,
     {
-        self.execution_engine.as_ref()?.get_function(name).ok()
+        unsafe { self.execution_engine.as_ref()?.get_function(name).ok() }
     }
 }
 
@@ -129,6 +132,9 @@ pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
 
     type MainFn = unsafe extern "C" fn() -> i32;
     unsafe {
-        ee.get_function::<MainFn>("main").map(|f| f.call()).unwrap_or(0).into()
+        ee.get_function::<MainFn>("main")
+            .map(|f| f.call())
+            .unwrap_or(0)
+            .into()
     }
 }
