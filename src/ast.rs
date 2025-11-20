@@ -35,6 +35,10 @@ pub enum AstNode {
     Var(String),
     Borrow(String),
     Assign(String, Box<AstNode>),
+    Let {
+        name: String,
+        rhs: Box<AstNode>,
+    },
     Defer(Box<AstNode>),
     ActorDef {
         name: String,
@@ -59,11 +63,17 @@ pub enum AstNode {
 }
 
 impl AstNode {
-    pub fn as_str(&self) -> &str {
+    pub fn receiver_str(&self) -> Option<&str> {
         match self {
-            AstNode::Call { receiver, .. } => receiver,
-            AstNode::Var(s) | AstNode::Borrow(s) => s,
-            _ => "",
+            AstNode::Call { receiver, .. } => Some(receiver),
+            _ => None,
+        }
+    }
+
+    pub fn arg_str(&self) -> Option<&str> {
+        match self {
+            AstNode::Var(s) | AstNode::Borrow(s) => Some(s),
+            _ => None,
         }
     }
 }
