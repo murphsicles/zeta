@@ -1,102 +1,79 @@
 use crate::ast::AstNode;
 use nom::{
-    IResult,
     branch::alt,
     bytes::complete::tag,
-    character::complete::{alpha1, alphanumeric1, char, digit1, multispace0},
+    character::complete::{alpha1, alphanumeric1, multispace0, digit1},
     combinator::{map, opt, recognize},
     multi::{many0, separated_list0, separated_list1},
-    sequence::{delimited, pair, preceded, terminated, tuple},
+    sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
+    IResult,
 };
 
 fn identifier(input: &str) -> IResult<&str, String> {
-    let (i, s) = recognize(pair(
+    recognize(pair(
         alt((alpha1, tag("_"))),
         many0(alt((alphanumeric1, tag("_")))),
-    ))(input)?;
-    Ok((i, s.to_string()))
+    ))(input).map(|(i, s)| (i, s.to_string()))
 }
 
-fn parse_int(input: &str) -> IResult<&str, i64> {
-    map(digit1, |s: &str| s.parse().unwrap())(input)
+fn int_literal(input: &str) -> IResult<&str, AstNode> {
+    map(digit1, |s: &str| AstNode::Lit(s.parse().unwrap()))(input)
 }
 
 fn parse_type(input: &str) -> IResult<&str, String> {
     let (i, name) = identifier(input)?;
-    let (i, gens) = opt(delimited(
+    let (i, generics) = opt(delimited(
         tag("<"),
         separated_list1(tag(","), parse_type),
         tag(">"),
     ))(i)?;
-    let gens = gens.map(|v| format!("<{}>", v.join(","))).unwrap_or_default();
-    Ok((i, format!("{}{}", name, gens)))
+    Ok((i, if let Some(g) = generics {
+        format!("{}<{}>", name, g.join(", "))
+    } else {
+        name
+    }))
 }
 
 fn parse_primary(input: &str) -> IResult<&str, AstNode> {
     alt((
-        map(parse_int, AstNode::Lit),
+        int_literal,
         map(identifier, AstNode::Var),
         delimited(tag("("), parse_expr, tag(")")),
-        map(parse_constructor, |(ty, args)| AstNode::Construct { ty, args }),
-        map(parse_timing_owned, |(ty, inner)| AstNode::TimingOwned { ty, inner }),
     ))(input)
 }
 
-fn parse_constructor(input: &str) -> IResult<&str, (String, Vec<AstNode>)> {
-    let (i, ty) = parse_type(input)?;
-    let (i, _) = multispace0(i)?;
-    let (i, args) = delimited(tag("["), separated_list0(tag(","), parse_expr), tag("]"))(i)?;
-    Ok((i, (ty, args)))
-}
+fn parse_method_call(input: &str) -> IResult<&str, AstNode> {
+    let (i, receiver) = parse_primary(input)?;
+    let (i, calls) = many0(tuple((
+        preceded(tag("."), identifier),
+        opt(delimited(tag("("), separated_list0(tag(","), parse_expr), tag(")"))),
+    )))(i)?;
 
-fn parse_timing_owned(input: &str) -> IResult<&str, (String, AstNode)> {
-    let (i, _) = tuple((tag("TimingOwned"), multispace0, tag("<"))(input)?;
-    let (i, ty) = parse_type(i)?;
-    let (i, _) = tuple((tag(">"), multispace0))(i)?;
-    let (i, inner) = parse_expr(i)?;
-    Ok((i, (ty, inner)))
-}
-
-fn parse_call_postfix(mut expr: AstNode, input: &str) -> IResult<&str, AstNode> {
-    let (i, method) = preceded(tuple((multispace0, tag("."), multispace0)), identifier)(input)?;
-    let (i, args) = opt(delimited(
-        tag("("),
-        separated_list0(tag(","), parse_expr),
-        tag(")"),
-    ))(i)?;
-    let args = args.unwrap_or_default();
-    Ok((i, AstNode::Call {
-        receiver: Box::new(expr),
-        method,
-        args,
-    }))
+    let mut current = receiver;
+    for (method, args_opt) in calls {
+        let args = args_opt.unwrap_or_default();
+        current = AstNode::Call {
+            receiver: Box::new(current),
+            method,
+            args,
+        };
+    }
+    Ok((i, current))
 }
 
 fn parse_expr(input: &str) -> IResult<&str, AstNode> {
-    let (mut i, mut expr) = parse_primary(input)?;
-    loop {
-        match parse_call_postfix(expr.clone(), i) {
-            Ok((ni, new_expr)) => {
-                i = ni;
-                expr = new_expr;
-            }
-            Err(_) => break,
-        }
-    }
-    Ok((i, expr))
+    parse_method_call(input)
 }
 
 fn parse_let(input: &str) -> IResult<&str, AstNode> {
-    let (i, _) = tuple((tag("let"), multispace0))(input)?;
-    let (i, name) = identifier(i)?;
-    let (i, ty) = opt(preceded(tuple((tag(":"), multispace0)), parse_type))(i)?;
-    let (i, _) = tuple((multispace0, tag("="), multispace0))(i)?;
-    let (i, rhs) = parse_expr(i)?;
-    Ok((i, AstNode::Let {
-        name,
-        ty,
-        rhs: Box::new(rhs),
-    }))
+    let (i, (_, name, ty_opt, _, rhs)) = tuple((
+        tag("let"),
+        preceded(multispace0, identifier),
+        opt(preceded(preceded(multispace0, tag(":")), preceded(multispace0, parse_type))),
+        preceded(multispace0, tag("=")),
+        preceded(multispace0, parse_expr),
+    ))(input)?;
+    Ok((i, AstNode::Let { name, ty: ty_opt, rhs: Box::new(rhs) }))
 }
 
 fn parse_stmt(input: &str) -> IResult<&str, AstNode> {
@@ -106,65 +83,45 @@ fn parse_stmt(input: &str) -> IResult<&str, AstNode> {
     ))(input)
 }
 
-pub fn parse_func_body(input: &str) -> IResult<&str, (Vec<AstNode>, Option<Box<AstNode>>)> {
-    let (i, stmts) = many0(terminated(parse_stmt, tuple((multispace0, tag(";"), multispace0))))(input)?;
-    let (i, ret_expr) = opt(parse_expr)(i)?;
-    Ok((i, (stmts, ret_expr.map(Box::new))))
+fn parse_body(input: &str) -> IResult<&str, (Vec<AstNode>, Option<Box<AstNode>>)> {
+    let (i, stmts) = many0(terminated(parse_stmt, tag(";")))(input)?;
+    let (i, ret) = opt(parse_expr)(i)?;
+    Ok((i, (stmts, ret.map(Box::new))))
+}
+
+fn parse_param(input: &str) -> IResult<&str, (String, String)> {
+    separated_pair(
+        identifier,
+        preceded(multispace0, tag(":")),
+        preceded(multispace0, parse_type),
+    )(input)
 }
 
 pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
-    let generics_parser = opt(delimited(
-        tag("<"),
-        separated_list1(tag(","), tuple((identifier, opt(preceded(tag("="), identifier)))),
-        tag(">"),
-    ));
-
-    let param_parser = tuple((
-        opt(tag("mut")),
-        tag(":"),
-        identifier,
-        multispace0,
-        tag(":"),
-        multispace0,
-        parse_type,
-    ));
-
-    let (i, (_, attrs, _, _, name, _, generics, _, params, _, _, _, ret, _, where_clause, _, _, (body, ret_expr), _)) = tuple((
-        multispace0,
-        parse_attrs,
+    let (i, (_, name, _, params, _, ret_ty, _, body)) = tuple((
         tag("fn"),
-        multispace0,
-        identifier,
-        multispace0,
-        generics_parser,
-        multispace0,
-        delimited(tag("("), separated_list1(tag(","), param_parser), tag(")")),
-        multispace0,
-        tag("->"),
-        multispace0,
-        identifier,
-        multispace0,
-        opt(preceded(tag("where"), separated_list1(tag(","), tuple((identifier, tag(":"), identifier))))),
-        multispace0,
-        tag("{"),
-        parse_func_body,
-        tag("}"),
+        preceded(multispace0, identifier),
+        delimited(tag("("), separated_list0(tag(","), preceded(multispace0, parse_param)), tag(")")),
+        opt(preceded(preceded(multispace0, tag("->")), preceded(multispace0, identifier))),
+        preceded(multispace0, tag("{")),
+        delimited(multispace0, parse_body, preceded(multispace0, tag("}"))),
     ))(input)?;
 
-    let params = params.into_iter().map(|(_, n, _, _, _, _, t)| (n, t)).collect();
+    let (body_stmts, ret_expr) = body;
+    let ret_ty = ret_ty.unwrap_or("()".to_string());
 
     Ok((i, AstNode::FuncDef {
         name,
-        generics: generics.unwrap_or_default().into_iter().map(|(n, _)| n).collect(),
+        generics: vec![],
         params,
-        ret,
-        body,
+        ret: ret_ty,
+        body: body_stmts,
         ret_expr,
-        where_clause,
-        attrs,
+        where_clause: None,
+        attrs: vec![],
     }))
 }
 
- // other parsers unchanged (concept, impl, etc.)
- // stubs for parse_assign, parse_call, etc. removed - replaced by above
+pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
+    many0(preceded(multispace0, parse_func))(input)
 }
