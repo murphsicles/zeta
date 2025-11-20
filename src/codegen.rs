@@ -20,9 +20,53 @@ pub struct LLVMCodegen<'ctx> {
     i32x4_type: VectorType<'ctx>,
     add_i32_fn: Option<FunctionValue<'ctx>>,
     add_i32x4_fn: Option<FunctionValue<'ctx>>,
+    sub_i32_fn: Option<FunctionValue<'ctx>>,
+    sub_i32x4_fn: Option<FunctionValue<'ctx>>,
     mul_i32_fn: Option<FunctionValue<'ctx>>,
     mul_i32x4_fn: Option<FunctionValue<'ctx>>,
+    div_i32_fn: Option<FunctionValue<'ctx>>,
+    div_i32x4_fn: Option<FunctionValue<'ctx>>,
+    rem_i32_fn: Option<FunctionValue<'ctx>>,
+    rem_i32x4_fn: Option<FunctionValue<'ctx>>,
+    shl_i32_fn: Option<FunctionValue<'ctx>>,
+    shl_i32x4_fn: Option<FunctionValue<'ctx>>,
+    shr_i32_fn: Option<FunctionValue<'ctx>>,
+    shr_i32x4_fn: Option<FunctionValue<'ctx>>,
+    and_i32_fn: Option<FunctionValue<'ctx>>,
+    and_i32x4_fn: Option<FunctionValue<'ctx>>,
+    or_i32_fn: Option<FunctionValue<'ctx>>,
+    or_i32x4_fn: Option<FunctionValue<'ctx>>,
+    xor_i32_fn: Option<FunctionValue<'ctx>>,
+    xor_i32x4_fn: Option<FunctionValue<'ctx>>,
     locals: HashMap<String, PointerValue<'ctx>>,
+}
+
+macro_rules! scalar_intrin {
+    ($name:ident, $op:ident) => {
+        let ty = i32_type.fn_type(&[i32_type.into(), i32_type.into()], false);
+        let f = module.add_function(stringify!($name), ty, None);
+        let entry = context.append_basic_block(f, "entry");
+        builder.position_at_end(entry);
+        let x = f.get_nth_param(0).unwrap().into_int_value();
+        let y = f.get_nth_param(1).unwrap().into_int_value();
+        let res = builder.build_int_$op(x, y, stringify!($op)).unwrap();
+        builder.build_return(Some(&res)).unwrap();
+        $name: Some(f)
+    };
+}
+
+macro_rules! simd_intrin {
+    ($name:ident, $op:ident) => {
+        let ty = i32x4_type.fn_type(&[i32x4_type.into(), i32x4_type.into()], false);
+        let f = module.add_function(stringify!($name), ty, None);
+        let entry = context.append_basic_block(f, "entry");
+        builder.position_at_end(entry);
+        let x = f.get_nth_param(0).unwrap().into_vector_value();
+        let y = f.get_nth_param(1).unwrap().into_vector_value();
+        let res = builder.build_int_$op(x, y, stringify!($op)).unwrap();
+        builder.build_return(Some(&res)).unwrap();
+        $name: Some(f)
+    };
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -32,45 +76,35 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let i32_type = context.i32_type();
         let i32x4_type = i32_type.vec_type(4);
 
-        // scalar add
-        let add_ty = i32_type.fn_type(&[i32_type.into(), i32_type.into()], false);
-        let add_i32_fn = module.add_function("add_i32", add_ty, None);
-        let entry = context.append_basic_block(add_i32_fn, "entry");
-        builder.position_at_end(entry);
-        let x = add_i32_fn.get_nth_param(0).unwrap().into_int_value();
-        let y = add_i32_fn.get_nth_param(1).unwrap().into_int_value();
-        let sum = builder.build_int_add(x, y, "sum").unwrap();
-        builder.build_return(Some(&sum)).unwrap();
+        scalar_intrin!(add_i32_fn, add);
+        simd_intrin!(add_i32x4_fn, add);
 
-        // SIMD add
-        let simd_add_ty = i32x4_type.fn_type(&[i32x4_type.into(), i32x4_type.into()], false);
-        let add_i32x4_fn = module.add_function("add_i32x4", simd_add_ty, None);
-        let entry = context.append_basic_block(add_i32x4_fn, "entry");
-        builder.position_at_end(entry);
-        let a = add_i32x4_fn.get_nth_param(0).unwrap().into_vector_value();
-        let b = add_i32x4_fn.get_nth_param(1).unwrap().into_vector_value();
-        let res = builder.build_int_add(a, b, "vadd").unwrap();
-        builder.build_return(Some(&res)).unwrap();
+        scalar_intrin!(sub_i32_fn, sub);
+        simd_intrin!(sub_i32x4_fn, sub);
 
-        // scalar mul
-        let mul_ty = i32_type.fn_type(&[i32_type.into(), i32_type.into()], false);
-        let mul_i32_fn = module.add_function("mul_i32", mul_ty, None);
-        let entry = context.append_basic_block(mul_i32_fn, "entry");
-        builder.position_at_end(entry);
-        let x = mul_i32_fn.get_nth_param(0).unwrap().into_int_value();
-        let y = mul_i32_fn.get_nth_param(1).unwrap().into_int_value();
-        let prod = builder.build_int_mul(x, y, "prod").unwrap();
-        builder.build_return(Some(&prod)).unwrap();
+        scalar_intrin!(mul_i32_fn, mul);
+        simd_intrin!(mul_i32x4_fn, mul);
 
-        // SIMD mul
-        let simd_mul_ty = i32x4_type.fn_type(&[i32x4_type.into(), i32x4_type.into()], false);
-        let mul_i32x4_fn = module.add_function("mul_i32x4", simd_mul_ty, None);
-        let entry = context.append_basic_block(mul_i32x4_fn, "entry");
-        builder.position_at_end(entry);
-        let a = mul_i32x4_fn.get_nth_param(0).unwrap().into_vector_value();
-        let b = mul_i32x4_fn.get_nth_param(1).unwrap().into_vector_value();
-        let res = builder.build_int_mul(a, b, "vmul").unwrap();
-        builder.build_return(Some(&res)).unwrap();
+        scalar_intrin!(div_i32_fn, signed_div);
+        simd_intrin!(div_i32x4_fn, signed_div);
+
+        scalar_intrin!(rem_i32_fn, signed_rem);
+        simd_intrin!(rem_i32x4_fn, signed_rem);
+
+        scalar_intrin!(shl_i32_fn, shl);
+        simd_intrin!(shl_i32x4_fn, shl);
+
+        scalar_intrin!(shr_i32_fn, ashr);
+        simd_intrin!(shr_i32x4_fn, ashr);
+
+        scalar_intrin!(and_i32_fn, and);
+        simd_intrin!(and_i32x4_fn, and);
+
+        scalar_intrin!(or_i32_fn, or);
+        simd_intrin!(or_i32x4_fn, or);
+
+        scalar_intrin!(xor_i32_fn, xor);
+        simd_intrin!(xor_i32x4_fn, xor);
 
         Self {
             context,
@@ -79,10 +113,26 @@ impl<'ctx> LLVMCodegen<'ctx> {
             execution_engine: None,
             i32_type,
             i32x4_type,
-            add_i32_fn: Some(add_i32_fn),
-            add_i32x4_fn: Some(add_i32x4_fn),
-            mul_i32_fn: Some(mul_i32_fn),
-            mul_i32x4_fn: Some(mul_i32x4_fn),
+            add_i32_fn,
+            add_i32x4_fn,
+            sub_i32_fn,
+            sub_i32x4_fn,
+            mul_i32_fn,
+            mul_i32x4_fn,
+            div_i32_fn,
+            div_i32x4_fn,
+            rem_i32_fn,
+            rem_i32x4_fn,
+            shl_i32_fn,
+            shl_i32x4_fn,
+            shr_i32_fn,
+            shr_i32x4_fn,
+            and_i32_fn,
+            and_i32x4_fn,
+            or_i32_fn,
+            or_i32x4_fn,
+            xor_i32_fn,
+            xor_i32x4_fn,
             locals: HashMap::new(),
         }
     }
@@ -117,7 +167,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
             let (scalar_fn, simd_fn) = match method.as_str() {
                 "add" => (self.add_i32_fn, self.add_i32x4_fn),
+                "sub" => (self.sub_i32_fn, self.sub_i32x4_fn),
                 "mul" => (self.mul_i32_fn, self.mul_i32x4_fn),
+                "div" => (self.div_i32_fn, self.div_i32x4_fn),
+                "rem" => (self.rem_i32_fn, self.rem_i32x4_fn),
+                "shl" => (self.shl_i32_fn, self.shl_i32x4_fn),
+                "shr" => (self.shr_i32_fn, self.shr_i32x4_fn),
+                "and" => (self.and_i32_fn, self.and_i32x4_fn),
+                "or"  => (self.or_i32_fn,  self.or_i32x4_fn),
+                "xor" => (self.xor_i32_fn, self.xor_i32x4_fn),
                 _ => return,
             };
 
