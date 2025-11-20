@@ -14,15 +14,15 @@ pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
 }
 
 fn parse_func(input: &str) -> IResult<&str, AstNode> {
-    let (input, _) = tag("fn")(input)?;
-    let (input, _) = multispace0(input)?;
-    let (input, name) = map(alpha1, |s: &str| s.to_string())(input)?;
-    let (input, _) = multispace0(input)?;
-    let (input, _) = delimited(tag("("), multispace0, tag(")"))(input)?;
-    let (input, _) = multispace0(input)?;
-    let (input, _) = delimited(tag("{"), multispace0, tag("}"))(input)?;
+    let (i, _) = tag("fn")(input)?;
+    let (i, _) = multispace0(i)?;
+    let (i, name) = map(alpha1, |s: &str| s.to_string())(i)?;
+    let (i, _) = multispace0(i)?;
+    let (i, _) = delimited(tag("("), multispace0, tag(")"))(i)?;
+    let (i, _) = multispace0(i)?;
+    let (i, _) = delimited(tag("{"), multispace0, tag("}"))(i)?;
     Ok((
-        input,
+        i,
         AstNode::FuncDef {
             name,
             generics: vec![],
