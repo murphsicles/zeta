@@ -1,7 +1,7 @@
 // src/resolver.rs
 use crate::ast::AstNode;
 use crate::borrow::{BorrowChecker, BorrowState};
-use std::collections::{HashMap, HashSet};
+use rayon  std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -70,7 +70,7 @@ impl Resolver {
     pub fn resolve_impl(&self, concept: &str, ty: &str) -> Option<&AstNode> {
         let key = (concept.to_string(), ty.to_string());
 
-        // Check memo
+        // Check memo first
         {
             let memo = self.lazy_memo.lock().unwrap();
             if let Some(cached) = memo.get(&key) {
@@ -87,7 +87,7 @@ impl Resolver {
             return Some(&arc);
         }
 
-        // Derive-generated
+        // Derive-generated impl
         if let Some(traits) = self.derives.get(ty) {
             if traits.contains(&concept.to_string()) {
                 let synthetic = AstNode::ImplBlock {
@@ -101,11 +101,11 @@ impl Resolver {
             }
         }
 
-        // Structural fallback for Copy/Eq
+        // Structural fallback for Copy/Eq on primitive-field structs
         if concept == "Copy" || concept == "Eq" {
             if let Some(fields) = self.structural_cache.get(ty) {
-                let all_fields_primitive = fields.iter().all(|(_, fty)| fty == "i32");
-                if all_fields_primitive {
+                let all_primitive = fields.iter().all(|(_, fty)| fty == "i32");
+                if all_primitive {
                     let synthetic = AstNode::ImplBlock {
                         concept: concept.to_string(),
                         ty: ty.to_string(),
@@ -123,18 +123,19 @@ impl Resolver {
     }
 
     pub fn has_method(&self, concept: &str, ty: &str, method: &str) -> bool {
-        if let Some(imp) = self.resolve_impl(concept, ty) {
+        self.resolve_impl(concept, ty).map_or(false, |imp| {
             if let AstNode::ImplBlock { body, .. } = imp {
-                return body.iter().any(|m| {
+                body.iter().any(|m| {
                     if let AstNode::Method { name, .. } = m {
                         name == method
                     } else {
                         false
                     }
-                });
+                })
+            } else {
+                false
             }
-        }
-        false
+        })
     }
 
     pub fn typecheck(&self, asts: &[AstNode]) -> bool {
@@ -143,7 +144,7 @@ impl Resolver {
         for ast in asts {
             match ast {
                 AstNode::FuncDef { body, params, attrs, .. } => {
-                    // stable_abi check
+                    // stable_abi restriction
                     if attrs.contains(&"stable_abi".to_string()) {
                         if params.iter().any(|(_, t)| t.contains("<")) {
                             ok = false;
@@ -165,20 +166,17 @@ impl Resolver {
                     }
                 }
                 AstNode::Call { receiver, method, .. } => {
-                    let ty = match receiver.as_ref() {
-                        AstNode::Var(v) => v.clone(),
-                        _ => "unknown".to_string(),
+                    let receiver_ty = match receiver.as_ref() {
+                        AstNode::Var(v) => v.as_str(),
+                        _ => "unknown",
                     };
-                    if method == "add" {
-                        if !self.has_method("Addable", &ty, "add") {
-                            ok = false;
-                        }
+                    if method == "add" && !self.has_method("Addable", receiver_ty, "add") {
+                        ok = false;
                     }
                 }
                 _ => {}
             }
         }
-
         ok
     }
 }
