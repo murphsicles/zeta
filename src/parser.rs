@@ -6,7 +6,7 @@ use nom::{
     character::complete::{alpha1, alphanumeric1, digit1, multispace0},
     combinator::{map, opt, recognize},
     multi::{many0, separated_list0},
-    sequence::{delimited, pair, preceded},
+    sequence::{delimited, pair, preceded, tuple},
 };
 
 fn identifier(input: &str) -> IResult<&str, String> {
@@ -35,10 +35,10 @@ fn primary(input: &str) -> IResult<&str, AstNode> {
 
 fn call_expr(input: &str) -> IResult<&str, AstNode> {
     let (i, recv) = primary(input)?;
-    let (i, chain) = many0(preceded(tag("."), pair(
+    let (i, chain) = many0(preceded(tag("."), tuple((
         identifier,
         opt(delimited(tag("("), separated_list0(tag(","), expr), tag(")"))),
-    )))(i)?;
+    ))))(i)?;
 
     let mut cur = recv;
     for (method, args_opt) in chain {
@@ -109,7 +109,7 @@ pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
         generics: vec![],
         params,
         ret: ret_opt.unwrap_or("i32".to_string()),
-        body: stmts,
+        body: stmt,
         ret_expr,
         where_clause: None,
         attrs: vec![],
