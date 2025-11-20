@@ -14,6 +14,7 @@ pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
 
     let context = Context::create();
     let mut codegen = LLVMCodegen::new(&context, "zeta_module");
+    codegen.build_intrinsics();
     codegen.gen_intrinsics();
 
     for ast in &asts {
