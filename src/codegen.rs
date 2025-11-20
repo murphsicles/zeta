@@ -5,9 +5,10 @@ use inkwell::context::Context;
 use inkwell::execution_engine::{ExecutionEngine, JitFunction, UnsafeFunctionPointer};
 use inkwell::module::Module;
 use inkwell::builder::Builder;
-use inkwell::values::{BasicValueEnum, FunctionValue, IntValue, PointerValue};
-use inkwell::types::IntType;
+use inkwell::values::{BasicValueEnum, FunctionValue, IntValue, PointerValue, VectorValue};
+use inkwell::types::{IntType, VectorType};
 use inkwell::OptimizationLevel;
+use inkwell::AddressSpace;
 use std::collections::HashMap;
 use std::error::Error;
 
@@ -17,7 +18,9 @@ pub struct LLVMCodegen<'ctx> {
     builder: Builder<'ctx>,
     execution_engine: Option<ExecutionEngine<'ctx>>,
     i32_type: IntType<'ctx>,
+    i32x4_type: VectorType<'ctx>,
     add_i32_fn: Option<FunctionValue<'ctx>>,
+    add_i32x4_fn: Option<FunctionValue<'ctx>>,
     locals: HashMap<String, PointerValue<'ctx>>,
 }
 
@@ -26,7 +29,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let module = context.create_module(module_name);
         let builder = context.create_builder();
         let i32_type = context.i32_type();
+        let i32x4_type = i32_type.vec_type(4);
 
+        // scalar add_i32
         let fn_type = i32_type.fn_type(&[i32_type.into(), i32_type.into()], false);
         let add_i32_fn = module.add_function("add_i32", fn_type, None);
         let entry = context.append_basic_block(add_i32_fn, "entry");
@@ -36,13 +41,25 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let sum = builder.build_int_add(x, y, "sum").unwrap();
         builder.build_return(Some(&sum)).unwrap();
 
+        // SIMD add_i32x4
+        let simd_type = i32_type.fn_type(&[i32x4_type.into(), i32x4_type.into()], false);
+        let add_i32x4_fn = module.add_function("add_i32x4", simd_type, None);
+        let entry_simd = context.append_basic_block(add_i32x4_fn, "entry");
+        builder.position_at_end(entry_simd);
+        let a = add_i32x4_fn.get_nth_param(0).unwrap().into_vector_value();
+        let b = add_i32x4_fn.get_nth_param(1).unwrap().into_vector_value();
+        let res = builder.build_int_add(a, b, "simd_sum").unwrap();
+        builder.build_return(Some(&res)).unwrap();
+
         Self {
             context,
             module,
             builder,
             execution_engine: None,
             i32_type,
+            i32x4_type,
             add_i32_fn: Some(add_i32_fn),
+            add_i32x4_fn: Some(add_i32x4_fn),
             locals: HashMap::new(),
         }
     }
@@ -52,7 +69,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             let param_types = vec![self.i32_type.into(); params.len()];
             let fn_type = self.i32_type.fn_type(&param_types, false);
             let fn_val = self.module.add_function(name, fn_type, None);
-            let entry = context.append_basic_block(fn_val, "entry");
+            let entry = self.context.append_basic_block(fn_val, "entry");
             self.builder.position_at_end(entry);
 
             for (i, (pname, _)) in params.iter().enumerate() {
@@ -72,37 +89,56 @@ impl<'ctx> LLVMCodegen<'ctx> {
     }
 
     fn gen_stmt(&mut self, node: &AstNode) {
-        if let AstNode::Call { receiver, method, args } = node {
-            if method == "add" {
-                if let Some(add_fn) = self.add_i32_fn {
+        match node {
+            AstNode::Call { receiver, method, args } if method == "add" => {
+                // Detect if receiver is a vector literal or known SIMD type (stub: assume add on vec uses SIMD)
+                if receiver.contains("vec") || !args.is_empty() && args[0].contains("vec") {
+                    if let Some(simd_fn) = self.add_i32x4_fn {
+                        let recv_val = self.load_var(receiver.as_str());
+                        let arg_val = if args.is_empty() {
+                            recv_val.into_vector_value()
+                        } else {
+                            self.load_var(&args[0]).into_vector_value()
+                        };
+                        let call = self.builder.build_call(simd_fn, &[recv_val.into(), arg_val.into()], "simd_add").unwrap();
+                        if let Some(bv) = call.try_as_basic_value() {
+                            if let BasicValueEnum::VectorValue(v) = bv {
+                                if let Some(ptr) = self.locals.get(receiver.as_str()) {
+                                    self.builder.build_store(*ptr, v).unwrap();
+                                }
+                            }
+                        }
+                        return;
+                    }
+                }
+                // fallback scalar
+                if let Some(scalar_fn) = self.add_i32_fn {
                     let recv_val = self.load_var(receiver.as_str());
                     let arg_val = if args.is_empty() {
                         recv_val
                     } else {
-                        self.load_var(args[0].as_str())
+                        self.load_var(&args[0])
                     };
-                    let call = self.builder
-                        .build_call(add_fn, &[recv_val.into(), arg_val.into()], "addtmp")
-                        .unwrap();
-
+                    let call = self.builder.build_call(scalar_fn, &[recv_val.into(), arg_val.into()], "scalar_add").unwrap();
                     if let Some(bv) = call.try_as_basic_value() {
-                        if bv.is_int_value() {
-                            let int_val = bv.into_int_value();
+                        if let BasicValueEnum::IntValue(iv) = bv {
                             if let Some(ptr) = self.locals.get(receiver.as_str()) {
-                                self.builder.build_store(*ptr, int_val).unwrap();
+                                self.builder.build_store(*ptr, iv).unwrap();
                             }
                         }
                     }
                 }
             }
+            _ => {}
         }
     }
 
-    fn load_var(&self, name: &str) -> IntValue<'ctx> {
+    fn load_var(&self, name: &str) -> BasicValueEnum<'ctx> {
         let ptr = self.locals.get(name).copied().unwrap_or_else(|| {
+            // Allocate as generic pointer, type will be inferred from use
             self.builder.build_alloca(self.i32_type, name).unwrap()
         });
-        self.builder.build_load(self.i32_type, ptr, name).unwrap().into_int_value()
+        self.builder.build_load(self.i32_type, ptr, name).unwrap()
     }
 
     pub fn finalize_and_jit(&mut self) -> Result<ExecutionEngine<'ctx>, Box<dyn Error>> {
