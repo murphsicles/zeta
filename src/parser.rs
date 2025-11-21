@@ -12,31 +12,33 @@ use nom::{
 
 fn ident(input: &str) -> IResult<&str, String> {
     let first = alt((alpha1, tag("_")));
-    let rest  = many0(alt((alphanumeric1, tag("_"))));
-    map(nom::sequence::pair(first, rest), |(f, mut r): (&str, Vec<&str>)| {
+    let rest = many0(alt((alphanumeric1, tag("_"))));
+    map(nom::sequence::pair(first, rest), |(f, r): (&str, Vec<&str>)| {
         let mut s = f.to_string();
-        for part in r { s.push_str(part); }
+        for part in r {
+            s.push_str(part);
+        }
         s
     })(input)
 }
 
-fn lit(input: &str) -> IResult<&str, AstNode> { map(i64, AstNode::Lit)(input) }
-fn var(input: &str) -> IResult<&str, AstNode> { map(ident, AstNode::Var)(input) }
-
-fn primary(input: &str) -> IResult<&str, AstNode> {
-    alt((
-        lit,
-        var,
-        delimited(tag("("), expr, tag(")")),
-    ))(input)
+fn lit(input: &str) -> IResult<&str, AstNode> {
+    map(i64, AstNode::Lit)(input)
 }
 
-fn method_call(input: &str) -> IResult<&str, AstNode> {
-    let (i, recv) = primary(input)?;
-    let mut current = recv;
-    let mut i = i;
+fn var(input: &str) -> IResult<&str, AstNode> {
+    map(ident, AstNode::Var)(input)
+}
 
-    while let Ok((i2, _)) = delimited(multispace0, tag("."), multispace0)(i) {
+fn primary(input: &str) -> IResult<&str, AstNode> {
+    alt((lit, var, delimited(tag("("), expr, tag(")"))))(input)
+}
+
+fn method_call(mut input: &str) -> IResult<&str, AstNode> {
+    let (i, mut current) = primary(input)?;
+    input = i;
+
+    while let Ok((i2, _)) = delimited(multispace0, tag("."), multispace0)(input) {
         let (i3, method) = ident(i2)?;
         let (i4, arg) = delimited(
             tag("("),
@@ -44,16 +46,18 @@ fn method_call(input: &str) -> IResult<&str, AstNode> {
             tag(")"),
         )(i3)?;
         current = AstNode::Call {
-            receiver: "".to_string(),           // will be fixed with proper expr tree later
+            receiver: "".to_string(), // placeholder – will be proper later
             method,
-            args: vec![format!("{:?}", arg)],  // placeholder – enough to get MIR working
+            args: vec![format!("{:?}", arg)],
         };
-        i = i4;
+        input = i4;
     }
-    Ok((i, current))
+    Ok((input, current))
 }
 
-fn expr(input: &str) -> IResult<&str, AstNode> { method_call(input) }
+fn expr(input: &str) -> IResult<&str, AstNode> {
+    method_call(input)
+}
 
 fn let_stmt(input: &str) -> IResult<&str, AstNode> {
     let (i, _) = preceded(multispace0, tag("let"))(input)?;
@@ -68,7 +72,7 @@ fn let_stmt(input: &str) -> IResult<&str, AstNode> {
 fn stmt(input: &str) -> IResult<&str, AstNode> {
     alt((
         let_stmt,
-        map(expr, |e| AstNode::Assign("_".to_string(), Box::new(e))), // last expr becomes return
+        map(expr, |e| AstNode::Assign("_".to_string(), Box::new(e))),
     ))(input)
 }
 
@@ -94,22 +98,24 @@ pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
     let (i, _) = multispace0(i)?;
     let (i, body) = block(i)?;
 
-    // find the last expression (the one assigned to "_") → return expression
     let ret_expr = body.iter().rev().find_map(|n| match n {
         AstNode::Assign(s, e) if s == "_" => Some(e.clone()),
         _ => None,
     });
 
-    Ok((i, AstNode::FuncDef {
-        name,
-        generics: vec![],
-        params: vec![],
-        ret: ret.unwrap_or_else(|| "i32".to_string()),
-        body,
-        where_clause: None,
-        attrs: vec![],
-        ret_expr,
-    }))
+    Ok((
+        i,
+        AstNode::FuncDef {
+            name,
+            generics: vec![],
+            params: vec![],
+            ret: ret.unwrap_or_else(|| "i32".to_string()),
+            body,
+            where_clause: None,
+            attrs: vec![],
+            ret_expr,
+        },
+    ))
 }
 
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
