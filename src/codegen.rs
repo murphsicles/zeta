@@ -41,17 +41,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
     }
 
     pub fn gen_mir(&mut self, mir: &Mir) {
-        // Create a dummy function just so we can emit instructions
         let fn_type = self.i32_type.fn_type(&[], false);
         let function = self.module.add_function("main", fn_type, None);
-        let basic_block = self.context.append_basic_block(function, "entry");
-        self.builder.position_at_end(basic_block);
+        let entry = self.context.append_basic_block(function, "entry");
+        self.builder.position_at_end(entry);
 
         for stmt in &mir.stmts {
             self.gen_stmt(stmt);
         }
 
-        // If we never emitted a return, add one (fallback)
         if !mir.stmts.iter().any(|s| matches!(s, MirStmt::Return { .. })) {
             self.builder.build_return(Some(&self.i32_type.const_zero())).unwrap();
         }
@@ -66,13 +64,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 });
                 self.builder.build_store(*ptr, value).unwrap();
             }
-            MirStmt::Call { func: _, args, dest } => {
-                // For now we only support i32.add(i32) intrinsic
+            MirStmt::Call { args, dest, .. } => {
                 let lhs = self.load_local(args[0]);
                 let rhs = self.load_local(args[1]);
                 let sum = self.builder.build_int_add(lhs.into_int_value(), rhs.into_int_value(), "add_tmp").unwrap();
                 let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                    self.builder.build_alloca(self.i32_type, &format!("call_result_{}", dest)).unwrap()
+                    self.builder.build_alloca(self.i32_type, &format!("call_res_{}", dest)).unwrap()
                 });
                 self.builder.build_store(*ptr, sum).unwrap();
             }
@@ -90,16 +87,22 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         }
                         let vec = VectorType::const_vector(&elems);
                         acc = match op {
-                            SemiringOp::Add => self
-                                .builder
-                                .build_int_add(acc.into_vector_value().unwrap_or(vec), vec, "fold_add_simd")
-                                .unwrap()
-                                .into(),
-                            SemiringOp::Mul => self
-                                .builder
-                                .build_int_mul(acc.into_vector_value().unwrap_or(vec), vec, "fold_mul_simd")
-                                .unwrap()
-                                .into(),
+                            SemiringOp::Add => {
+                                let a = if acc.is_int_value() {
+                                    vec
+                                } else {
+                                    acc.into_vector_value()
+                                };
+                                self.builder.build_int_add(a, vec, "fold_add_simd").unwrap().into()
+                            }
+                            SemiringOp::Mul => {
+                                let a = if acc.is_int_value() {
+                                    vec
+                                } else {
+                                    acc.into_vector_value()
+                                };
+                                self.builder.build_int_mul(a, vec, "fold_mul_simd").unwrap().into()
+                            }
                         };
                     }
                 } else {
@@ -121,7 +124,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
 
                 let ptr = self.locals.entry(*result).or_insert_with(|| {
-                    self.builder.build_alloca(self.i32_type, &format!("fold_result_{}", result)).unwrap()
+                    self.builder.build_alloca(self.i32_type, &format!("fold_res_{}", result)).unwrap()
                 });
                 self.builder.build_store(*ptr, acc).unwrap();
             }
@@ -146,7 +149,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
         if let Some(&ptr) = self.locals.get(&id) {
             self.builder.build_load(self.i32_type, ptr, &format!("load_{}", id)).unwrap()
         } else {
-            // Temporary alloca for values that were never assigned (should not happen)
             let ptr = self.builder.build_alloca(self.i32_type, &format!("tmp_{}", id)).unwrap();
             self.builder.build_load(self.i32_type, ptr, &format!("tmp_load_{}", id)).unwrap()
         }
