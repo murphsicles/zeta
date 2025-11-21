@@ -10,7 +10,9 @@ use nom::{
     IResult,
 };
 
-fn ident(input: &str) -> IResult<&str, String> {
+type PResult<'a, O> = IResult<&'a str, O>;
+
+fn ident(input: &str) -> PResult<String> {
     let first = alt((alpha1, tag("_")));
     let rest = many0(alt((alphanumeric1, tag("_"))));
     map(pair(first, rest), |(f, r): (&str, Vec<&str>)| {
@@ -22,15 +24,15 @@ fn ident(input: &str) -> IResult<&str, String> {
     })(input)
 }
 
-fn lit(input: &str) -> IResult<&str, AstNode> {
+fn lit(input: &str) -> PResult<AstNode> {
     map(i64, AstNode::Lit)(input)
 }
 
-fn var(input: &str) -> IResult<&str, AstNode> {
+fn var(input: &str) -> PResult<AstNode> {
     map(ident, AstNode::Var)(input)
 }
 
-fn primary(input: &str) -> IResult<&str, AstNode> {
+fn primary(input: &str) -> PResult<AstNode> {
     alt((
         lit,
         var,
@@ -38,7 +40,7 @@ fn primary(input: &str) -> IResult<&str, AstNode> {
     ))(input)
 }
 
-fn method_call(input: &str) -> IResult<&str, AstNode> {
+fn method_call(input: &str) -> PResult<AstNode> {
     let (mut rest, mut current) = primary(input)?;
 
     while let Ok((i2, _)) = delimited(multispace0, tag("."), multispace0)(rest) {
@@ -60,11 +62,11 @@ fn method_call(input: &str) -> IResult<&str, AstNode> {
     Ok((rest, current))
 }
 
-fn expr(input: &str) -> IResult<&str, AstNode> {
+fn expr(input: &str) -> PResult<AstNode> {
     method_call(input)
 }
 
-fn let_stmt(input: &str) -> IResult<&str, AstNode> {
+fn let_stmt(input: &str) -> PResult<AstNode> {
     let (i, _) = preceded(multispace0, tag("let"))(input)?;
     let (i, _) = multispace1(i)?;
     let (i, name) = ident(i)?;
@@ -74,14 +76,14 @@ fn let_stmt(input: &str) -> IResult<&str, AstNode> {
     Ok((i, AstNode::Assign(name, Box::new(e))))
 }
 
-fn stmt(input: &str) -> IResult<&str, AstNode> {
+fn stmt(input: &str) -> PResult<AstNode> {
     alt((
         let_stmt,
         map(expr, |e| AstNode::Assign("_".to_string(), Box::new(e))),
     ))(input)
 }
 
-fn block(input: &str) -> IResult<&str, Vec<AstNode>> {
+fn block(input: &str) -> PResult<Vec<AstNode>> {
     delimited(
         delimited(multispace0, tag("{"), multispace0),
         many0(preceded(multispace0, stmt)),
@@ -89,11 +91,11 @@ fn block(input: &str) -> IResult<&str, Vec<AstNode>> {
     )(input)
 }
 
-fn ret_ty(input: &str) -> IResult<&str, String> {
+fn ret_ty(input: &str) -> PResult<String> {
     preceded(delimited(multispace0, tag("->"), multispace1), ident)(input)
 }
 
-pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
+pub fn parse_func(input: &str) -> PResult<AstNode> {
     let (i, _) = preceded(multispace0, tag("fn"))(input)?;
     let (i, _) = multispace1(i)?;
     let (i, name) = ident(i)?;
@@ -123,6 +125,6 @@ pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
     ))
 }
 
-pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
+pub fn parse_zeta(input: &str) -> PResult<Vec<AstNode>> {
     delimited(multispace0, many0(parse_func), multispace0)(input)
 }
