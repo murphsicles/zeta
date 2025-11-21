@@ -5,7 +5,7 @@ use std::error::Error;
 
 pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
     let (_, asts) = parse_zeta(input).map_err(|e| format!("Parse error: {:?}", e))?;
-    let mut resolver = Resolver::new(); // auto-registers Addable for i32
+    let mut resolver = Resolver::new();
 
     for ast in &asts {
         resolver.register(ast.clone());
@@ -18,13 +18,9 @@ pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
     let context = Context::create();
     let mut codegen = LLVMCodegen::new(&context, "zeta_module");
 
-    let main_func = asts.iter().find(|ast| {
-        if let AstNode::FuncDef { name, .. } = ast {
-            name == "main"
-        } else {
-            false
-        }
-    }).ok_or("No main function")?;
+    let main_func = asts.iter()
+        .find(|a| matches!(a, AstNode::FuncDef { name, .. } if name == "main"))
+        .ok_or("No main function")?;
 
     let mut mir = resolver.lower_to_mir(main_func);
     resolver.fold_semiring_chains(&mut mir);
