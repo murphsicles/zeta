@@ -14,9 +14,9 @@ serde_json = "1.0"
 num-traits = "0.2.19"
 
 # Chalk++ parallel trait solver
-chalk-ir = "0.145"
-chalk-solve = "0.145"
-chalk-recursive = "0.145"
+chalk-ir = "0.104"
+chalk-solve = "0.104"
+chalk-recursive = "0.104"
 
 # Benchmarks
 criterion = { version = "0.7.0", features = ["html_reports"] }
