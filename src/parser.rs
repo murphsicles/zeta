@@ -15,8 +15,8 @@ fn ident(input: &str) -> IResult<&str, String> {
     let rest = many0(alt((alphanumeric1, tag("_"))));
     map(pair(first, rest), |(f, r): (&str, Vec<&str>)| {
         let mut s = f.to_string();
-        for p in r {
-            s.push_str(p);
+        for part in r {
+            s.push_str(part);
         }
         s
     })(input)
@@ -39,9 +39,10 @@ fn primary(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn method_call(input: &str) -> IResult<&str, AstNode> {
-    let (mut i, mut current) = primary(input)?;
+    let (i, mut current) = primary(input)?;
+    let mut rest = i;
 
-    while let Ok((i2, _)) = delimited(multispace0, tag("."), multispace0)(i) {
+    while let Ok((i2, _)) = delimited(multispace0, tag("."), multispace0)(rest) {
         let (i3, method) = ident(i2)?;
         let (i4, arg) = delimited(
             tag("("),
@@ -53,9 +54,10 @@ fn method_call(input: &str) -> IResult<&str, AstNode> {
             method,
             args: vec![arg],
         };
-        i = i4;
+        rest = i4;
     }
-    Ok((i, current))
+
+    Ok((rest, current))
 }
 
 fn expr(input: &str) -> IResult<&str, AstNode> {
@@ -112,7 +114,7 @@ pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
             name,
             generics: vec![],
             params: vec![],
-            ret: ret.unwrap_or_else(|| "i32".to_string()),
+            ret: ret.unwrap_or("i32".to_string()),
             body,
             where_clause: None,
             attrs: vec![],
