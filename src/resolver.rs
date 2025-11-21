@@ -64,7 +64,7 @@ impl Resolver {
     }
 
     pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
-        let mut gen = MirGen::new();
+        let mut mir_gen = MirGen::new();
         gen.gen_mir(ast)
     }
 
