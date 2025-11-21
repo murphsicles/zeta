@@ -3,7 +3,7 @@ use zeta::{parse_zeta, Resolver, LLVMCodegen};
 use inkwell::context::Context;
 use std::error::Error;
 
-pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
+pub fn compile_and_run_zeta(input: &str) -> Result<i64, Box<dyn Error>> {
     let (_, asts) = parse_zeta(input).map_err(|e| format!("Parse error: {:?}", e))?;
     let mut resolver = Resolver::new();
 
@@ -28,7 +28,7 @@ pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
 
     let ee = codegen.finalize_and_jit()?;
 
-    type MainFn = unsafe extern "C" fn() -> i32;
+    type MainFn = unsafe extern "C" fn() -> i64;
     unsafe {
         let main = ee.get_function::<MainFn>("main").map_err(|_| "No main")?;
         Ok(main.call())
@@ -37,21 +37,13 @@ pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
 
 fn main() {
     let code = r#"
-fn main() -> i32 {
-    let a = 1;
-    let b = 2;
-    let c = 3;
-    let d = 4;
-    let e = 5;
-    let f = 6;
-    let g = 7;
-    let h = 8;
-    a.add(b).add(c).add(d).add(e).add(f).add(g).add(h)
+fn main() -> i64 {
+    datetime_now()
 }
 "#;
 
     match compile_and_run_zeta(code) {
-        Ok(res) => println!("Result: {}", res),
-        Err(e) => eprintln!("Error: {}", e),
+        Ok(res) => println!("Result: {res}"),
+        Err(e) => eprintln!("Error: {e}"),
     }
 }
