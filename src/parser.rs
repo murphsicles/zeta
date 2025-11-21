@@ -11,42 +11,56 @@ use nom::{
 };
 
 fn ident(input: &str) -> IResult<&str, String> {
-    map(pair(alt((alpha1, tag("_"))), many0(alt((alphanumeric1, tag("_"))))), |(f, r)| {
+    let first = alt((alpha1, tag("_")));
+    let rest = many0(alt((alphanumeric1, tag("_"))));
+    map(pair(first, rest), |(f, r): (&str, Vec<&str>)| {
         let mut s = f.to_string();
-        for p in r { s.push_str(p); }
+        for p in r {
+            s.push_str(p);
+        }
         s
     })(input)
 }
 
-fn lit(input: &str) -> IResult<&str, AstNode> { map(i64, AstNode::Lit)(input) }
-fn var(input: &str) -> IResult<&str, AstNode> { map(ident, AstNode::Var)(input) }
+fn lit(input: &str) -> IResult<&str, AstNode> {
+    map(i64, AstNode::Lit)(input)
+}
+
+fn var(input: &str) -> IResult<&str, AstNode> {
+    map(ident, AstNode::Var)(input)
+}
 
 fn primary(input: &str) -> IResult<&str, AstNode> {
-    alt((lit, var, delimited(tag("("), expr, tag(")"))))(input)
+    alt((
+        lit,
+        var,
+        delimited(tag("("), expr, tag(")")),
+    ))(input)
 }
 
 fn method_call(input: &str) -> IResult<&str, AstNode> {
-    let (i, mut recv) = primary(input)?;
+    let (mut i, mut current) = primary(input)?;
 
-    let mut input = i;
-    while let Ok((i2, _)) = delimited(multispace0, tag("."), multispace0)(input) {
+    while let Ok((i2, _)) = delimited(multispace0, tag("."), multispace0)(i) {
         let (i3, method) = ident(i2)?;
         let (i4, arg) = delimited(
             tag("("),
             delimited(multispace0, expr, multispace0),
             tag(")"),
         )(i3)?;
-        recv = AstNode::Call {
-            receiver: Box::new(recv),
+        current = AstNode::Call {
+            receiver: Box::new(current),
             method,
             args: vec![arg],
         };
-        input = i4;
+        i = i4;
     }
-    Ok((input, recv))
+    Ok((i, current))
 }
 
-fn expr(input: &str) -> IResult<&str, AstNode> { method_call(input) }
+fn expr(input: &str) -> IResult<&str, AstNode> {
+    method_call(input)
+}
 
 fn let_stmt(input: &str) -> IResult<&str, AstNode> {
     let (i, _) = preceded(multispace0, tag("let"))(input)?;
@@ -59,7 +73,10 @@ fn let_stmt(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn stmt(input: &str) -> IResult<&str, AstNode> {
-    alt((let_stmt, map(expr, |e| AstNode::Assign("_".to_string(), Box::new(e)))))(input)
+    alt((
+        let_stmt,
+        map(expr, |e| AstNode::Assign("_".to_string(), Box::new(e))),
+    ))(input)
 }
 
 fn block(input: &str) -> IResult<&str, Vec<AstNode>> {
