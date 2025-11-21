@@ -11,7 +11,9 @@ use nom::{
 };
 
 fn ident(input: &str) -> IResult<&str, String> {
-    map(pair(alt((alpha1, tag("_"))), many0(alt((alphanumeric1, tag("_"))))), |(f, r): (&str, Vec<&str>)| {
+    let first = alt((alpha1, tag("_")));
+    let rest = many0(alt((alphanumeric1, tag("_"))));
+    map(pair(first, rest), |(f, r): (&str, Vec<&str>)| {
         let mut s = f.to_string();
         for p in r {
             s.push_str(p);
@@ -29,7 +31,11 @@ fn var(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn primary(input: &str) -> IResult<&str, AstNode> {
-    alt((lit, var, delimited(tag("("), expr, tag(")"))))(input)
+    alt((
+        lit,
+        var,
+        delimited(tag("("), expr, tag(")")),
+    ))(input)
 }
 
 fn method_call(input: &str) -> IResult<&str, AstNode> {
@@ -51,7 +57,7 @@ fn method_call(input: &str) -> IResult<&str, AstNode> {
         rest = i4;
     }
 
-    Ok((rest, current)
+    Ok((rest, current))
 }
 
 fn expr(input: &str) -> IResult<&str, AstNode> {
@@ -108,7 +114,7 @@ pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
             name,
             generics: vec![],
             params: vec![],
-            ret: ret.unwrap_or("i32".to_string()),
+            ret: ret.unwrap_or_else(|| "i32".to_string()),
             body,
             where_clause: None,
             attrs: vec![],
