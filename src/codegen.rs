@@ -55,9 +55,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     _ => self.i32_type.const_int(0, false).into(),
                 };
                 let ptr = self.locals.entry(*lhs).or_insert_with(|| {
-                    self.builder
-                        .build_alloca(self.i32_type, &format!("local_{}", lhs))
-                        .unwrap()
+                    self.builder.build_alloca(self.i32_type, &format!("local_{}", lhs)).unwrap()
                 });
                 self.builder.build_store(*ptr, value).unwrap();
             }
@@ -73,44 +71,39 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         while elems.len() < 4 {
                             elems.push(self.i32_type.const_zero());
                         }
-                        let vec = self.i32x4_type.const_vector(&elems);
+                        let vec = VectorType::const_vector(&elems);
                         acc = match op {
-                            SemiringOp::Add => self
-                                .builder
-                                .build_int_add(acc.into_int_value(), vec, "fold_add_simd")
-                                .unwrap()
-                                .into(),
-                            SemiringOp::Mul => self
-                                .builder
-                                .build_int_mul(acc.into_int_value(), vec, "fold_mul_simd")
-                                .unwrap()
-                                .into(),
+                            SemiringOp::Add => self.builder.build_int_add(acc.into_int_value(), vec, "fold_add_simd").unwrap().into(),
+                            SemiringOp::Mul => self.builder.build_int_mul(acc.into_int_value(), vec, "fold_mul_simd").unwrap().into(),
                         };
                     }
                 } else {
                     for &v in &values[1..] {
                         let rhs = self.load_local(v);
                         acc = match op {
-                            SemiringOp::Add => self
-                                .builder
-                                .build_int_add(acc.into_int_value(), rhs.into_int_value(), "fold_add")
-                                .unwrap()
-                                .into(),
-                            SemiringOp::Mul => self
-                                .builder
-                                .build_int_mul(acc.into_int_value(), rhs.into_int_value(), "fold_mul")
-                                .unwrap()
-                                .into(),
+                            SemiringOp::Add => self.builder.build_int_add(acc.into_int_value(), rhs.into_int_value(), "fold_add").unwrap().into(),
+                            SemiringOp::Mul => self.builder.build_int_mul(acc.into_int_value(), rhs.into_int_value(), "fold_mul").unwrap().into(),
                         };
                     }
                 }
 
                 let ptr = self.locals.entry(*result).or_insert_with(|| {
-                    self.builder
-                        .build_alloca(self.i32_type, &format!("result_{}", result))
-                        .unwrap()
+                    self.builder.build_alloca(self.i32_type, &format!("result_{}", result)).unwrap()
                 });
                 self.builder.build_store(*ptr, acc).unwrap();
+            }
+            MirStmt::Spawn { actor, dest } => {
+                // stub – full actor runtime in next push
+                let ptr = self.locals.entry(*dest).or_insert_with(|| {
+                    self.builder.build_alloca(self.context.i8_type().ptr_type(inkwell::AddressSpace::Generic), "actor_handle").unwrap()
+                });
+                self.builder.build_store(*ptr, self.load_local(*actor)).unwrap();
+            }
+            MirStmt::Await { future, dest } => {
+                let ptr = self.locals.entry(*dest).or_insert_with(|| {
+                    self.builder.build_alloca(self.i32_type, "await_result").unwrap()
+                });
+                self.builder.build_store(*ptr, self.load_local(*future)).unwrap();
             }
             MirStmt::Return { val } => {
                 let v = self.load_local(*val);
@@ -122,20 +115,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     fn load_local(&self, id: u32) -> BasicValueEnum<'ctx> {
         let ptr = self.locals.get(&id).copied().unwrap_or_else(|| {
-            self.builder
-                .build_alloca(self.i32_type, &format!("tmp_{}", id))
-                .unwrap()
+            self.builder.build_alloca(self.i32_type, &format!("tmp_{}", id)).unwrap()
         });
-        self.builder
-            .build_load(self.i32_type, ptr, &format!("load_{}", id))
-            .unwrap()
+        self.builder.build_load(self.i32_type, ptr, &format!("load_{}", id)).unwrap()
     }
 
     pub fn finalize_and_jit(&mut self) -> Result<ExecutionEngine<'ctx>, Box<dyn Error>> {
         self.module.verify().map_err(|e| e.to_string())?;
-        let ee = self
-            .module
-            .create_jit_execution_engine(OptimizationLevel::Aggressive)?;
+        let ee = self.module.create_jit_execution_engine(OptimizationLevel::Aggressive)?;
         self.execution_engine = Some(ee.clone());
         Ok(ee)
     }
