@@ -3,7 +3,7 @@ use crate::ast::AstNode;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{i64 as nom_i64, multispace0, satisfy};
-use nom::combinator::{map, opt};
+use nom::combinator::map;
 use nom::multi::{many0, separated_list0};
 use nom::sequence::{delimited, preceded, tuple};
 use nom::IResult;
@@ -15,7 +15,7 @@ fn ws<'a, O>(inner: impl Parser<&'a str, O, nom::error::Error<&'a str>> + Copy) 
 
 fn ident(input: &str) -> IResult<&str, String> {
     let (input, first) = satisfy(|c| c.is_alphabetic() || c == '_')(input)?;
-    let (input, rest) = many0(satisfy(|c| c.is_alphanumeric() || c == '_'))(input)?;
+    let (input, rest) = many0(satisfy(|c| c.is_alphanumeric() c == '_'))(input)?;
     Ok((input, std::iter::once(first).chain(rest).collect()))
 }
 
@@ -92,7 +92,7 @@ fn term(input: &str) -> IResult<&str, AstNode> {
         let (i3, right) = factor(i2)?;
         left = AstNode::Call {
             receiver: Some(Box::new(left)),
-            method: if op == "+" { "add"} else {"sub"}.to_string(),
+            method: if op == "+" { "add" } else { "sub" }.to_string(),
             args: vec![right],
             type_args: vec![],
         };
@@ -106,18 +106,34 @@ pub fn expr(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn let_stmt(input: &str) -> IResult<&str, AstNode> {
-    preceded(ws(tag("let")), map(tuple((ident, ws(tag("=")), expr, ws(tag(";"))), |(name, _, e, _)| AstNode::Assign(name, Box::new(e)))).parse(input)
+    preceded(
+        ws(tag("let")),
+        map(
+            tuple((ident, ws(tag("=")), expr, ws(tag(";"))),
+            |(name, _, e, _)| AstNode::Assign(name, Box::new(e)),
+        ),
+    )
+    .parse(input)
 }
 
 fn expr_stmt(input: &str) -> IResult<&str, AstNode> {
-    map(tuple((expr, ws(tag(";")))), |(e, _)| AstNode::Assign("_".to_string(), Box::new(e))).parse(input)
+    map(tuple((expr, ws(tag(";")))), |(e, _)| {
+        AstNode::Assign("_".to_string(), Box::new(e))
+    })
+    .parse(input)
 }
 
 fn spawn_expr(input: &str) -> IResult<&str, AstNode> {
     let (i, _) = ws(tag("spawn"))(input)?;
     let (i, actor_ty) = ident(i)?;
-    let (i, args) = delimited(ws(tag("(")), separated_list0(ws(tag(",")), expr), ws(tag(")")))(i)?;
-    Ok((i, AstNode::SpawnActor { actor_ty, init_args: args.into_iter().map(|_| "tmp".to_string()).collect() }))
+    let (i, args) = delimited(ws(tag("(")), separated_list0(ws(tag(",")), expr), ws(tag(")"))(i)?;
+    Ok((
+        i,
+        AstNode::SpawnActor {
+            actor_ty,
+            init_args: args.into_iter().map(|_| "tmp".to_string()).collect(),
+        },
+    ))
 }
 
 fn await_expr(input: &str) -> IResult<&str, AstNode> {
@@ -132,11 +148,12 @@ fn stmt(input: &str) -> IResult<&str, AstNode> {
         expr_stmt,
         map(spawn_expr, |e| AstNode::Assign("_".to_string(), Box::new(e))),
         map(await_expr, |e| AstNode::Assign("_".to_string(), Box::new(e))),
-    )).parse(input)
+    ))
+    .parse(input)
 }
 
 fn block(input: &str) -> IResult<&str, Vec<AstNode>> {
-    delimited(ws(tag("{")), many0(stmt), ws(tag("}")))(input)
+    delimited(ws(tag("{")), many0(stmt), ws(tag("}"))).parse(input)
 }
 
 fn actor_field(input: &str) -> IResult<&str, (String, String)> {
@@ -147,7 +164,14 @@ fn parse_actor(input: &str) -> IResult<&str, AstNode> {
     let (i, _) = ws(tag("actor"))(input)?;
     let (i, name) = ident(i)?;
     let (i, state) = delimited(ws(tag("{")), many0(preceded(multispace0, actor_field)), ws(tag("}")))(i)?;
-    Ok((i, AstNode::ActorDef { name, state, methods: vec![] }))
+    Ok((
+        i,
+        AstNode::ActorDef {
+            name,
+            state,
+            methods: vec![],
+        },
+    ))
 }
 
 fn async_fn(input: &str) -> IResult<&str, AstNode> {
@@ -157,11 +181,19 @@ fn async_fn(input: &str) -> IResult<&str, AstNode> {
     let (i, _) = ws(tag("("))(i)?;
     let (i, _) = ws(tag(")"))(i)?;
     let (i, body) = block(i)?;
-    Ok((i, AstNode::AsyncFn { name, params: vec![], ret: "Future<i64>".to_string(), body }))
+    Ok((
+        i,
+        AstNode::AsyncFn {
+            name,
+            params: vec![],
+            ret: "Future<i64>".to_string(),
+            body,
+        },
+    ))
 }
 
 fn ret_ty(input: &str) -> IResult<&str, String> {
-    preceded(ws(tag("->")), ws(ident))(input)
+    preceded(ws(tag("->")), ws(ident)).parse(input)
 }
 
 fn parse_func(input: &str) -> IResult<&str, AstNode> {
@@ -177,16 +209,19 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
         _ => None,
     });
 
-    Ok((i, AstNode::FuncDef {
-        name,
-        generics: vec![],
-        params: vec![],
-        ret: ret.unwrap_or_else(|| "i64".to_string()),
-        body,
-        where_clause: None,
-        attrs: vec![],
-        ret_expr,
-    }))
+    Ok((
+        i,
+        AstNode::FuncDef {
+            name,
+            generics: vec![],
+            params: vec![],
+            ret: ret.unwrap_or_else(|| "i64".to_string()),
+            body,
+            where_clause: None,
+            attrs: vec![],
+            ret_expr,
+        },
+    ))
 }
 
 fn parse_top(input: &str) -> IResult<&str, AstNode> {
@@ -194,5 +229,5 @@ fn parse_top(input: &str) -> IResult<&str, AstNode> {
 }
 
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
-    delimited(multispace0, many0(parse_top), multispace0)(input)
+    delimited(multispace0, many0(parse_top), multispace0).parse(input)
 }
