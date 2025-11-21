@@ -4,7 +4,7 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
     character::complete::{alpha1, alphanumeric1, multispace0, multispace1, i64 as nom_i64},
-    combinator::{map, opt, value},
+    combinator::{map, opt},
     multi::many0,
     sequence::{delimited, preceded, tuple},
     IResult,
@@ -13,15 +13,16 @@ use nom::{
 type Input<'a> = &'a str;
 type Res<'a, O> = IResult<Input<'a>, O>;
 
-fn is_ident_start(c: char) -> bool { c.is_alphabetic() || c == '_' }
-fn is_ident_continue(c: char) -> bool { c.is_alphanumeric() || c == '_' }
+fn is_ident_char(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
+}
 
 fn ident(input: Input) -> Res<String> {
-    let first = take_while1(is_ident_start);
-    let rest = take_while1(is_ident_continue);
-    map(tuple((first, many0(rest))), |(f, r)| {
-        let mut s = f.to_owned();
-        for part in r {
+    let first = take_while1(|c: char| c.is_alphabetic() || c == '_');
+    let rest = take_while1(is_ident_char);
+    map(tuple((first, many0(rest))), |(head, tail)| {
+        let mut s = head.to_owned();
+        for part in tail {
             s.push_str(part);
         }
         s
@@ -37,7 +38,11 @@ fn var(input: Input) -> Res<AstNode> {
 }
 
 fn parens(input: Input) -> Res<AstNode> {
-    delimited(tag("("), delimited(multispace0, expr, multispace0), tag(")"))(input)
+    delimited(
+        tag("("),
+        delimited(multispace0, expr, multispace0),
+        tag(")"),
+    )(input)
 }
 
 fn primary(input: Input) -> Res<AstNode> {
@@ -45,24 +50,25 @@ fn primary(input: Input) -> Res<AstNode> {
 }
 
 fn method_call(input: Input) -> Res<AstNode> {
-    let (mut i, mut cur) = primary(input)?;
+    let (mut rest, mut current) = primary(input)?;
 
-    while let Ok((i2, _)) = delimited(multispace0, tag("."), multispace0)(i) {
-        let (i3, method) = delimited(multispace0, ident, multispace0)(i2)?;
-        let (i4, arg) = delimited(
+    while let Ok((next, _)) = delimited(multispace0, tag("."), multispace0)(rest) {
+        let (next, method) = delimited(multispace0, ident, multispace0)(next)?;
+        let (next, arg) = delimited(
             tag("("),
             delimited(multispace0, expr, multispace0),
             tag(")"),
-        )(i3)?;
-        cur = AstNode::Call {
-            receiver: Box::new(cur),
+        )(next)?;
+        current = AstNode::Call {
+            receiver: Box::new(current),
             method,
             args: vec![arg],
             type_args: vec![],
         };
-        i = i4;
+        rest = next;
     }
-    Ok((i, cur))
+
+    Ok((rest, current))
 }
 
 fn expr(input: Input) -> Res<AstNode> {
@@ -95,10 +101,7 @@ fn block(input: Input) -> Res<Vec<AstNode>> {
 }
 
 fn ret_ty(input: Input) -> Res<String> {
-    preceded(
-        delimited(multispace0, tag("->"), multispace1),
-        ident,
-    )(input)
+    preceded(delimited(multispace0, tag("->"), multispace1), ident)(input)
 }
 
 pub fn parse_func(input: Input) -> Res<AstNode> {
@@ -112,7 +115,7 @@ pub fn parse_func(input: Input) -> Res<AstNode> {
     let (i, body) = block(i)?;
 
     let ret_expr = body.iter().rev().find_map(|n| match n {
-        AstNode::Assign(s, e) if s == "_" => Some(Box::new((*e).clone())),
+        AstNode::Assign(s, e) if s == "_" => Some(e.clone()),
         _ => None,
     });
 
