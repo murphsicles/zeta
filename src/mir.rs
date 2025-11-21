@@ -58,7 +58,6 @@ impl MirGen {
                 self.gen_stmt(stmt, &mut stmts);
             }
 
-            // If the last statement is an expression assigned to "_", return its value
             if let Some(AstNode::Assign(name, expr)) = body.last() {
                 if name == "_" {
                     let ret_val = self.gen_expr(expr);
@@ -128,10 +127,13 @@ impl MirGen {
     }
 
     fn lookup_or_alloc(&mut self, name: &str) -> u32 {
-        *self.locals.entry(name.to_string()).or_insert_with(|| {
-            let id = self.next_id();
+        if let Some(&id) = self.locals.get(name) {
             id
-        })
+        } else {
+            let id = self.next_id();
+            self.locals.insert(name.to_string(), id);
+            id
+        }
     }
 
     fn next_id(&mut self) -> u32 {
