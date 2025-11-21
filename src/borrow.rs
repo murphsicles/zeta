@@ -41,21 +41,10 @@ impl BorrowChecker {
 
     pub fn check(&mut self, node: &AstNode) -> bool {
         match node {
-            AstNode::Var(v) => self.borrows.get(v).map_or(true, |state| *state != BorrowState::Consumed && *state != BorrowState::MutBorrowed),
-            AstNode::Borrow(v) => {
-                let is_valid = self.borrows.get(v).map_or(true, |state| matches!(*state, BorrowState::Owned | BorrowState::Borrowed));
-                if is_valid {
-                    self.borrows.insert(v.clone(), BorrowState::Borrowed);
-                    if let Some(spec) = self.speculative.get_mut(v) {
-                        if *spec == SpeculativeState::Safe {
-                            *spec = SpeculativeState::Speculative;
-                        }
-                    }
-                    true
-                } else {
-                    false
-                }
-            }
+            AstNode::Var(v) => self.borrows.get(v).map_or(true, |state| {
+                *state != BorrowState::Consumed && *state != BorrowState::MutBorrowed
+            }),
+            // Removed the non-existent Borrow variant
             AstNode::Assign(v, expr) => {
                 if !self.check(expr.as_ref()) {
                     return false;
@@ -124,7 +113,9 @@ impl BorrowChecker {
     pub fn validate_affine(&self, body: &[AstNode]) -> bool {
         for node in body {
             if let AstNode::Var(v) = node {
-                if self.affine_moves.get(v).copied().unwrap_or(false) && self.borrows.get(v) == Some(&BorrowState::Consumed) {
+                if self.affine_moves.get(v).copied().unwrap_or(false)
+                    && self.borrows.get(v) == Some(&BorrowState::Consumed)
+                {
                     return false;
                 }
             }
@@ -140,7 +131,12 @@ impl BorrowChecker {
                 }
             }
         }
-        let spec_vars: Vec<_> = self.speculative.iter().filter(|(_, s)| **s == SpeculativeState::Speculative).map(|(v, _)| v).collect();
+        let spec_vars: Vec<_> = self
+            .speculative
+            .iter()
+            .filter(|(_, s)| **s == SpeculativeState::Speculative)
+            .map(|(v, _)| v)
+            .collect();
         spec_vars.is_empty() || body.iter().any(|n| matches!(n, AstNode::TimingOwned { .. }))
     }
 }
