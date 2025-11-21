@@ -3,7 +3,8 @@
 pub enum AstNode {
     Program(Vec<AstNode>),
     ConceptDef { name: String, methods: Vec<AstNode> },
-    StructDef { name: String, fields: Vec<(String, String)> },
+    ImplBlock { concept: String, ty: String, body: Vec<AstNode> },
+    Method { name: String, params: Vec<(String, String)>, ret: String },
     FuncDef {
         name: String,
         generics: Vec<String>,
@@ -21,5 +22,6 @@ pub enum AstNode {
     },
     Lit(i64),
     Var(String),
-    Add(Box<AstNode>, Box<AstNode>),
+    Assign(String, Box<AstNode>),
+    TimingOwned { ty: String, inner: Box<AstNode> },
 }
