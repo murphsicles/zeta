@@ -1,48 +1,17 @@
 // src/ast.rs
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AstNode {
-    ConceptDef {
-        name: String,
-        params: Vec<String>,
-        methods: Vec<AstNode>,
-    },
-    Method {
-        name: String,
-        params: Vec<(String, String)>,
-        ret: String,
-    },
-    ImplBlock {
-        concept: String,
-        ty: String,
-        body: Vec<AstNode>,
-    },
+    Program(Vec<AstNode>),
+    ConceptDef { name: String, methods: Vec<AstNode> },
+    StructDef { name: String, fields: Vec<(String, String)> },
     FuncDef {
         name: String,
         generics: Vec<String>,
         params: Vec<(String, String)>,
         ret: String,
         body: Vec<AstNode>,
-        where_clause: Option<Vec<(String, String)>>,
-        attrs: Vec<String>,               // now supports "cache_safe", "no_alias", etc.
+        attrs: Vec<String>,
         ret_expr: Option<Box<AstNode>>,
-    },
-    ActorDef {
-        name: String,
-        state: Vec<(String, String)>,
-        methods: Vec<AstNode>,
-    },
-    AsyncFn {
-        name: String,
-        params: Vec<(String, String)>,
-        ret: String,
-        body: Vec<AstNode>,
-    },
-    SpawnActor {
-        actor_ty: String,
-        init_args: Vec<String>,
-    },
-    Await {
-        expr: Box<AstNode>,
     },
     Call {
         receiver: Option<Box<AstNode>>,
@@ -52,18 +21,5 @@ pub enum AstNode {
     },
     Lit(i64),
     Var(String),
-    Assign(String, Box<AstNode>),
-    Defer(Box<AstNode>),
-    TimingOwned {
-        ty: String,
-        inner: Box<AstNode>,
-    },
-    Derive {
-        ty: String,
-        traits: Vec<String>,
-    },
-    StructDef {
-        name: String,
-        fields: Vec<(String, String)>,
-    },
+    Add(Box<AstNode>, Box<AstNode>),
 }
