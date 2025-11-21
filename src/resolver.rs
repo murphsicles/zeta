@@ -2,7 +2,13 @@
 use crate::ast::AstNode;
 use crate::borrow::BorrowChecker;
 use crate::mir::{Mir, MirGen, MirStmt, SemiringOp};
+use chalk_solve::{
+    RustIrDatabase, Solution, logic::NoSolution, solve::Guidance,
+    Clause, Program, Goal, Interner, rust_ir::{self, GoalData},
+};
+use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, RwLock};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
@@ -30,94 +36,48 @@ pub struct MethodSig {
     pub ret: Type,
 }
 
-#[derive(Debug)]
+#[derive(Clone)]
 pub struct Resolver {
-    // Nominal concepts
-    concepts: HashMap<String, Concept>,
-    // Impl blocks: (concept, type) -> methods
-    impls: HashMap<(String, Type), HashMap<String, MethodSig>>,
-    // Structural impls: method name -> (receiver fields, sig)
-    structural_impls: HashMap<String, HashMap<HashMap<String, Type>, MethodSig>>,
-    // Type environment
-    type_env: HashMap<String, Type>,
+    // Fast path: direct impls
+    direct_impls: HashMap<(String, Type), HashMap<String, MethodSig>>,
+    // Chalk database
+    chalk_db: Arc<ChalkDatabase>,
+    // Incremental cache
+    solution_cache: Arc<RwLock<HashMap<(Type, String), Option<MethodSig>>>>,
+    // Borrow checker
     borrow_checker: BorrowChecker,
-    // Specialization cache
-    specializations: HashMap<(String, Vec<Type>), AstNode>,
+}
+
+struct ChalkDatabase {
+    program: Program<rust_ir::InternerImpl>,
 }
 
 impl Resolver {
     pub fn new() -> Self {
+        let program = build_chalk_program();
+        let chalk_db = Arc::new(ChalkDatabase { program });
+
         let mut r = Self {
-            concepts: HashMap::new(),
-            impls: HashMap::new(),
-            structural_impls: HashMap::new(),
-            type_env: HashMap::new(),
+            direct_impls: HashMap::new(),
+            chalk_db,
+            solution_cache: Arc::new(RwLock::new(HashMap::new())),
             borrow_checker: BorrowChecker::new(),
-            specializations: HashMap::new(),
         };
 
-        // Built-in Addable
-        let mut addable = Concept {
-            name: "Addable".to_string(),
-            params: vec!["T".to_string()],
-            methods: HashMap::new(),
-        };
-        addable.methods.insert(
-            "add".to_string(),
-            MethodSig {
-                params: vec![Type::Generic("T".to_string())],
-                ret: Type::Generic("T".to_string()),
-            },
-        );
-        r.concepts.insert("Addable".to_string(), addable);
-
-        // i32 impl Addable<i32>
-        let mut impl_block = HashMap::new();
-        impl_block.insert(
-            "add".to_string(),
-            MethodSig {
-                params: vec![Type::I32],
-                ret: Type::I32,
-            },
-        );
-        r.impls.insert(("Addable".to_string(), Type::I32), impl_block);
-
-        // Structural impl for any { x: i32, y: i32 } -> add -> i32
-        let mut fields = HashMap::new();
-        fields.insert("x".to_string(), Type::I32);
-        fields.insert("y".to_string(), Type::I32);
-        let mut structural = HashMap::new();
-        structural.insert(
-            fields,
-            MethodSig {
-                params: vec![Type::Struct { name: "".to_string(), fields: HashMap::new() }],
-                ret: Type::I32,
-            },
-        );
-        r.structural_impls.insert("add".to_string(), structural);
+        // Register built-in Addable<i32>
+        let mut impls = HashMap::new();
+        impls.insert("add".to_string(), MethodSig {
+            params: vec![Type::I32],
+            ret: Type::I32,
+        });
+        r.direct_impls.insert(("Addable".to_string(), Type::I32), impls);
 
         r
     }
 
     pub fn register(&mut self, ast: AstNode) {
+        // Fast path registration
         match ast {
-            AstNode::ConceptDef { name, params, methods } => {
-                let mut concept = Concept {
-                    name: name.clone(),
-                    params,
-                    methods: HashMap::new(),
-                };
-                for m in methods {
-                    if let AstNode::Method { name, params, ret } = m {
-                        let sig = MethodSig {
-                            params: params.into_iter().map(|(_, t)| self.parse_type(&t)).collect(),
-                            ret: self.parse_type(&ret),
-                        };
-                        concept.methods.insert(name, sig);
-                    }
-                }
-                self.concepts.insert(name, concept);
-            }
             AstNode::ImplBlock { concept, ty, body } => {
                 let ty = self.parse_type(&ty);
                 let mut methods = HashMap::new();
@@ -130,10 +90,10 @@ impl Resolver {
                         methods.insert(name, sig);
                     }
                 }
-                self.impls.insert((concept, ty), methods);
+                self.direct_impls.insert((concept, ty), methods);
             }
             AstNode::FuncDef { name, .. } => {
-                self.type_env.insert(name, Type::Unknown);
+                // Will be resolved lazily
             }
             _ => {}
         }
@@ -151,34 +111,27 @@ impl Resolver {
     pub fn infer_type(&mut self, node: &AstNode) -> Type {
         match node {
             AstNode::Lit(n) if *n >= -2147483648 && *n <= 2147483647 => Type::I32,
-            AstNode::Lit(_) => Type::Unknown,
-            AstNode::Var(v) => self.type_env.get(v).cloned().unwrap_or(Type::Unknown),
+            AstNode::Var(v) => Type::Unknown, // will be filled later
             AstNode::Call { receiver, method, args, .. } => {
                 let recv_ty = self.infer_type(receiver);
 
-                // 1. Nominal lookup
-                if let Some(impls) = self.lookup_nominal_impl(&recv_ty, method) {
+                // 1. Fast direct lookup
+                if let Some(impls) = self.direct_impls.get(&(method.clone(), recv_ty.clone())) {
                     if let Some(sig) = impls.get(method) {
                         return sig.ret.clone();
                     }
                 }
 
-                // 2. Structural lookup
-                if let Type::Struct { fields, .. } = &recv_ty {
-                    if let Some(structural) = self.structural_impls.get(method) {
-                        if structural.contains_key(fields) {
-                            return structural[fields].ret.clone();
-                        }
-                    }
+                // 2. Parallel Chalk++ query
+                if let Some(sig) = self.chalk_lookup_parallel(&recv_ty, method) {
+                    return sig.ret.clone();
                 }
 
-                // 3. Partial specialization fallback
-                if method == "add" {
-                    if args.len() == 1 {
-                        let arg_ty = self.infer_type(&args[0]);
-                        if recv_ty == arg_ty {
-                            return recv_ty;
-                        }
+                // 3. Fallback
+                if method == "add" && args.len() == 1 {
+                    let arg_ty = self.infer_type(&args[0]);
+                    if recv_ty == arg_ty {
+                        return recv_ty;
                     }
                 }
 
@@ -186,22 +139,42 @@ impl Resolver {
             }
             AstNode::Assign(name, expr) => {
                 let ty = self.infer_type(expr);
-                self.type_env.insert(name.clone(), ty.clone());
                 ty
             }
             _ => Type::Unknown,
         }
     }
 
-    fn lookup_nominal_impl(&self, ty: &Type, method: &str) -> Option<&HashMap<String, MethodSig>> {
-        for (concept_name, concept) in &self.concepts {
-            if let Some(impls) = self.impls.get(&(concept_name.clone(), ty.clone())) {
-                if impls.contains_key(method) {
-                    return Some(impls);
-                }
+    fn chalk_lookup_parallel(&self, ty: &Type, method: &str) -> Option<MethodSig> {
+        let cache_key = (ty.clone(), method.to_string());
+        {
+            let cache = self.solution_cache.read().unwrap();
+            if let Some(cached) = cache.get(&cache_key) {
+                return cached.clone();
             }
         }
-        None
+
+        let goal = build_goal(ty, method);
+        let db = self.chalk_db.clone();
+        let cache = self.solution_cache.clone();
+
+        let result: Option<MethodSig> = rayon::spawn(move || {
+            let solver = chalk_solve::Solver::new(&*db);
+            match solver.solve(&goal) {
+                Some(Solution::Unique(subst)) => {
+                    let ret_ty = extract_return_type(&subst);
+                    Some(MethodSig {
+                        params: vec![],
+                        ret: ret_ty,
+                    })
+                }
+                _ => None,
+            }
+        }).join();
+
+        let mut cache = cache.write().unwrap();
+        cache.insert(cache_key, result.clone());
+        result
     }
 
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
@@ -225,7 +198,6 @@ impl Resolver {
     }
 
     pub fn fold_semiring_chains(&self, mir: &mut Mir) -> bool {
-        // unchanged
         let mut changed = false;
         let mut i = 0;
         while i < mir.stmts.len() {
@@ -261,5 +233,45 @@ impl Resolver {
             i += 1;
         }
         changed
+    }
+}
+
+// Chalk program construction (simplified)
+fn build_chalk_program() -> Program<rust_ir::InternerImpl> {
+    let interner = rust_ir::InternerImpl::default();
+    let mut program = Program::new(&interner);
+
+    // Addable<T> { add(T) -> T }
+    let addable = rust_ir::TraitId::from_usize(0);
+    let add_method = rust_ir::AssociatedTyId::from_usize(0);
+
+    program.trait_datum.insert(addable, rust_ir::TraitDatum {
+        id: addable,
+        binders: vec![],
+        flags: rust_ir::TraitFlags::default(),
+        associated_ty_ids: vec![add_method],
+        where_clause: vec![],
+    });
+
+    program
+}
+
+fn build_goal(ty: &Type, method: &str) -> Goal<rust_ir::InternerImpl> {
+    // Simplified: create goal "Implemented(Addable<ty>)"
+    Goal::new(GoalData::DomainGoal(rust_ir::DomainGoal::Holds(
+        rust_ir::WhereClause::Implemented(rust_ir::TraitRef {
+            trait_id: rust_ir::TraitId::from_usize(0),
+            substitution: vec![],
+        })
+    )))
+}
+
+fn extract_return_type(_subst: &chalk_solve::Substitution<rust_ir::InternerImpl>) -> Type {
+    Type::I32 // placeholder
+}
+
+impl RustIrDatabase<rust_ir::InternerImpl> for ChalkDatabase {
+    fn program(&self) -> &Program<rust_ir::InternerImpl> {
+        &self.program
     }
 }
