@@ -2,7 +2,7 @@
 use crate::ast::AstNode;
 use crate::borrow::BorrowChecker;
 use crate::mir::{Mir, MirGen, MirStmt, SemiringOp};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
@@ -30,7 +30,6 @@ impl Resolver {
             borrow_checker: BorrowChecker::new(),
         };
 
-        // Generic Addable<T>
         r.register(AstNode::ConceptDef {
             name: "Addable".to_string(),
             params: vec!["T".to_string()],
@@ -41,7 +40,6 @@ impl Resolver {
             }],
         });
 
-        // i32 implements Addable<i32>
         r.register(AstNode::ImplBlock {
             concept: "Addable".to_string(),
             ty: "i32".to_string(),
@@ -73,8 +71,8 @@ impl Resolver {
             AstNode::Call { receiver, method, args, .. } if method == "add" => {
                 let recv_ty = self.infer_type(receiver);
                 if let Type::I32 = recv_ty {
-                    if args.len() == 1 {
-                        let arg_ty = self.infer_type(&args[0]);
+                    if let Some(arg) = args.first() {
+                        let arg_ty = self.infer_type(arg);
                         if arg_ty == Type::I32 {
                             return Type::I32;
                         }
@@ -89,11 +87,6 @@ impl Resolver {
             }
             _ => Type::Unknown,
         }
-    }
-
-    pub fn resolve_method(&self, recv_ty: &Type, method: &str) -> bool {
-        matches!((recv_ty, method), (Type::I32, "add"))
-            && self.impls.contains_key(&("Addable".to_string(), "i32".to_string()))
     }
 
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
@@ -118,8 +111,8 @@ impl Resolver {
     }
 
     pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
-        let mut gen = MirGen::new();
-        gen.gen_mir(ast)
+        let mut mir_gen = MirGen::new();
+        mir_gen.gen_mir(ast)
     }
 
     pub fn fold_semiring_chains(&self, mir: &mut Mir) -> bool {
