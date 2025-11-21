@@ -2,25 +2,17 @@
 use crate::ast::AstNode;
 use crate::borrow::BorrowChecker;
 use crate::mir::{Mir, MirGen, MirStmt, MirExpr, SemiringOp};
-use chalk_ir::{
-    interner::{Interner, Interned},
-    Goal, Program, TraitId, Ty, Substitution, GoalData, DomainGoal, WhereClause, TraitRef,
-    TraitDatum, AssociatedTyId,
-};
-use chalk_solve::{RustIrDatabase, solve::SLG, Solver, Solution};
-use chalk_recursive::RecursiveSolver;
-use rayon::prelude::*;
-use std::collections::{HashMap, HashSet};
+use crate::specialization::{lookup_specialization, record_specialization, MonoKey, MonoValue, is_cache_safe};
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
-    I32,
+    I64,
     F32,
     Bool,
     Generic(String),
     Named(String),
-    Struct { name: String, fields: HashMap<String, Type> },
     Actor(String),
     Future(Box<Type>),
     Unknown,
@@ -35,37 +27,27 @@ pub struct MethodSig {
 #[derive(Clone)]
 pub struct Resolver {
     direct_impls: HashMap<(String, Type), HashMap<String, MethodSig>>,
-    chalk_db: Arc<ChalkDatabase>,
     cache: Arc<RwLock<HashMap<(Type, String), Option<MethodSig>>>>,
     type_env: HashMap<String, Type>,
     borrow_checker: BorrowChecker,
 }
 
-struct ChalkDatabase {
-    program: Program,
-}
-
 impl Resolver {
     pub fn new() -> Self {
-        let program = build_program();
-        let db = Arc::new(ChalkDatabase { program });
-        let cache = Arc::new(RwLock::new(HashMap::new()));
-
         let mut r = Self {
             direct_impls: HashMap::new(),
-            chalk_db: db,
-            cache,
+            cache: Arc::new(RwLock::new(HashMap::new())),
             type_env: HashMap::new(),
             borrow_checker: BorrowChecker::new(),
         };
 
-        // Fast-path i32 Addable
+        // Fast-path Addable for i64
         let mut impls = HashMap::new();
         impls.insert("add".to_string(), MethodSig {
-            params: vec![Type::I32],
-            ret: Type::I32,
+            params: vec![Type::I64],
+            ret: Type::I64,
         });
-        r.direct_impls.insert(("Addable".to_string(), Type::I32), impls);
+        r.direct_impls.insert(("Addable".to_string(), Type::I64), impls);
 
         r
     }
@@ -89,41 +71,61 @@ impl Resolver {
 
     fn parse_type(&self, s: &str) -> Type {
         match s {
-            "i32" => Type::I32,
+            "i64" => Type::I64,
             "f32" => Type::F32,
             "bool" => Type::Bool,
             _ => Type::Named(s.to_string()),
         }
     }
 
+    // Thin monomorphization + specialization cache
+    pub fn resolve_call(
+        &mut self,
+        method: &str,
+        type_args: &[String],
+        receiver_ty: Option<&Type>,
+    ) -> (String, bool) {
+        let key = MonoKey {
+            func_name: method.to_string(),
+            type_args: type_args.to_vec(),
+        };
+
+        if let Some(cached) = lookup_specialization(&key) {
+            return (cached.llvm_func_name, cached.cache_safe);
+        }
+
+        let mut concrete_name = method.to_string();
+        let mut cache_safe = true;
+
+        if !type_args.is_empty() {
+            concrete_name.push_str("__");
+            for t in type_args {
+                let sanitized = t.replace("::", "_").replace(['<', '>'], "");
+                concrete_name.push_str(&sanitized);
+                concrete_name.push('_');
+                if !is_cache_safe(t) {
+                    cache_safe = false;
+                }
+            }
+        }
+
+        let value = MonoValue {
+            llvm_func_name: concrete_name.clone(),
+            cache_safe,
+        };
+        record_specialization(key, value);
+
+        (concrete_name, cache_safe)
+    }
+
     pub fn infer_type(&mut self, node: &AstNode) -> Type {
         match node {
-            AstNode::Lit(n) if *n >= -2147483648 && *n <= 2147483647 => Type::I32,
+            AstNode::Lit(_) => Type::I64,
             AstNode::Var(v) => self.type_env.get(v).cloned().unwrap_or(Type::Unknown),
-            AstNode::Call { receiver, method, args, .. } => {
-                let recv_ty = self.infer_type(receiver);
-
-                // Fast path
-                if let Some(impls) = self.direct_impls.get(&("Addable".to_string(), recv_ty.clone())) {
-                    if let Some(sig) = impls.get(method) {
-                        return sig.ret.clone();
-                    }
-                }
-
-                // Chalk++ lookup
-                if let Some(sig) = self.chalk_lookup(&recv_ty, method) {
-                    return sig.ret.clone();
-                }
-
-                // Fallback
-                if method == "add" && args.len() == 1 {
-                    let arg_ty = self.infer_type(&args[0]);
-                    if recv_ty == arg_ty {
-                        return recv_ty;
-                    }
-                }
-
-                Type::Unknown
+            AstNode::Call { receiver, method, type_args, .. } => {
+                let recv_ty = receiver.as_ref().map(|r| self.infer_type(r));
+                let (llvm_name, _cache_safe) = self.resolve_call(method, type_args, recv_ty.as_ref());
+                Type::Named(llvm_name)
             }
             AstNode::Assign(name, expr) => {
                 let ty = self.infer_type(expr);
@@ -134,34 +136,9 @@ impl Resolver {
         }
     }
 
-    fn chalk_lookup(&self, ty: &Type, method: &str) -> Option<MethodSig> {
-        let key = (ty.clone(), method.to_string());
-        {
-            let cache = self.cache.read().unwrap();
-            if let Some(cached) = cache.get(&key) {
-                return cached.clone();
-            }
-        }
-
-        let db = self.chalk_db.clone();
-        let cache = self.cache.clone();
-
-        let result = rayon::spawn(move || {
-            let solver = RecursiveSolver::new(&*db, 1000, None);
-            let goal = Goal::new(&db.program.interner, GoalData::DomainGoal(DomainGoal::Holds(
-                WhereClause::Implemented(TraitRef {
-                    trait_id: TraitId::from_usize(0),
-                    substitution: Substitution::empty(&db.program.interner),
-                })
-            )));
-            match solver.solve(&goal) {
-                Some(Solution::Unique(_)) => Some(MethodSig { params: vec![], ret: Type::I32 }),
-                _ => None,
-            }
-        }).join();
-
-        cache.write().unwrap().insert(key, result.clone());
-        result
+    pub fn extract_type_args_from_context(&self) -> Vec<String> {
+        // Placeholder — will be filled by generic context tracking
+        vec![]
     }
 
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
@@ -187,7 +164,6 @@ impl Resolver {
     pub fn fold_semiring_chains(&self, mir: &mut Mir) -> bool {
         let mut changed = false;
         let mut i = 0;
-
         while i < mir.stmts.len() {
             if let MirStmt::Call { func, args, dest } = &mir.stmts[i] {
                 if func == "add" || func == "mul" {
@@ -207,42 +183,6 @@ impl Resolver {
                         } else { break; }
                     }
 
-                    // CTFE
-                    if chain.len() >= 2 {
-                        let mut values = Vec::new();
-                        let mut all_const = true;
-
-                        for &id in &chain {
-                            if let Some(expr) = mir.exprs.get(&id) {
-                                match expr {
-                                    MirExpr::Lit(v) => values.push(*v),
-                                    MirExpr::ConstEval(v) => values.push(*v),
-                                    _ => { all_const = false; break; }
-                                }
-                            } else {
-                                all_const = false;
-                                break;
-                            }
-                        }
-
-                        if all_const {
-                            let folded = if op == SemiringOp::Add {
-                                values.iter().sum::<i64>()
-                            } else {
-                                values.iter().product::<i64>()
-                            };
-
-                            mir.stmts[i] = MirStmt::Assign {
-                                lhs: current,
-                                rhs: MirExpr::ConstEval(folded),
-                            };
-                            mir.stmts.drain(i + 1..j);
-                            changed = true;
-                            i += 1;
-                            continue;
-                        }
-                    }
-
                     if chain.len() >= 3 {
                         mir.stmts[i] = MirStmt::SemiringFold {
                             op,
@@ -256,31 +196,5 @@ impl Resolver {
             i += 1;
         }
         changed
-    }
-}
-
-fn build_program() -> Program {
-    let interner = Interner::new();
-    let mut program = Program::new(&interner);
-
-    let addable_id = TraitId::from_usize(0);
-    program.trait_datum.insert(addable_id, TraitDatum {
-        id: addable_id,
-        binders: vec![],
-        flags: Default::default(),
-        associated_ty_ids: vec![],
-        where_clauses: vec![],
-    });
-
-    program
-}
-
-impl RustIrDatabase for ChalkDatabase {
-    fn interner(&self) -> &Interner {
-        &self.program.interner
-    }
-
-    fn program(&self) -> &Program {
-        &self.program
     }
 }
