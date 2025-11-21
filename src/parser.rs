@@ -6,14 +6,12 @@ use nom::{
     character::complete::{alpha1, alphanumeric1, multispace0, multispace1, i64},
     combinator::{map, opt},
     multi::many0,
-    sequence::{delimited, preceded},
+    sequence::{delimited, preceded, pair},
     IResult,
 };
 
 fn ident(input: &str) -> IResult<&str, String> {
-    let first = alt((alpha1, tag("_")));
-    let rest = many0(alt((alphanumeric1, tag("_"))));
-    map(nom::sequence::pair(first, rest), |(f, r): (&str, Vec<&str>)| {
+    map(pair(alt((alpha1, tag("_"))), many0(alt((alphanumeric1, tag("_"))))), |(f, r): (&str, Vec<&str>)| {
         let mut s = f.to_string();
         for part in r {
             s.push_str(part);
@@ -34,25 +32,20 @@ fn primary(input: &str) -> IResult<&str, AstNode> {
     alt((lit, var, delimited(tag("("), expr, tag(")"))))(input)
 }
 
-fn method_call(mut input: &str) -> IResult<&str, AstNode> {
-    let (i, mut current) = primary(input)?;
-    input = i;
+fn method_call(input: &str) -> IResult<&str, AstNode> {
+    let (mut i, mut current) = primary(input)?;
 
-    while let Ok((i2, _)) = delimited(multispace0, tag("."), multispace0)(input) {
+    while let Ok((i2, _)) = delimited(multispace0, tag("."), multispace0)(i) {
         let (i3, method) = ident(i2)?;
-        let (i4, arg) = delimited(
-            tag("("),
-            delimited(multispace0, expr, multispace0),
-            tag(")"),
-        )(i3)?;
+        let (i4, arg) = delimited(tag("("), delimited(multispace0, expr, multispace0), tag(")"))(i3)?;
         current = AstNode::Call {
-            receiver: "".to_string(), // placeholder – will be proper later
+            receiver: "".to_string(),
             method,
             args: vec![format!("{:?}", arg)],
         };
-        input = i4;
+        i = i4;
     }
-    Ok((input, current))
+    Ok((i, current))
 }
 
 fn expr(input: &str) -> IResult<&str, AstNode> {
@@ -70,10 +63,7 @@ fn let_stmt(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn stmt(input: &str) -> IResult<&str, AstNode> {
-    alt((
-        let_stmt,
-        map(expr, |e| AstNode::Assign("_".to_string(), Box::new(e))),
-    ))(input)
+    alt((let_stmt, map(expr, |e| AstNode::Assign("_".to_string(), Box::new(e)))))(input)
 }
 
 fn block(input: &str) -> IResult<&str, Vec<AstNode>> {
