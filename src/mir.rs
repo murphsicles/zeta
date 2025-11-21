@@ -13,7 +13,6 @@ pub struct Mir {
     pub stmts: Vec<MirStmt>,
     pub locals: HashMap<String, u32>,
     pub exprs: HashMap<u32, MirExpr>,
-    pub ctfe_consts: HashMap<u32, i64>,
 }
 
 #[derive(Debug, Clone)]
@@ -21,20 +20,14 @@ pub enum MirStmt {
     Assign { lhs: u32, rhs: MirExpr },
     Call { func: String, args: Vec<u32>, dest: u32 },
     Return { val: u32 },
-    Defer { stmt: Box<MirStmt> },
     SemiringFold { op: SemiringOp, values: Vec<u32>, result: u32 },
-    Spawn { actor: u32, dest: u32 },
-    Send { channel: u32, value: u32 },
-    Recv { channel: u32, dest: u32 },
-    Await { future: u32, dest: u32 },
 }
 
 #[derive(Debug, Clone)]
 pub enum MirExpr {
     Var(u32),
     Lit(i64),
-    ConstEval(i64),   // ← CTFE result
-    MethodCall { recv: u32, method: String, args: Vec<u32> },
+    ConstEval(i64),
 }
 
 pub struct MirGen {
@@ -44,16 +37,12 @@ pub struct MirGen {
 
 impl MirGen {
     pub fn new() -> Self {
-        Self {
-            next_id: 0,
-            locals: HashMap::new(),
-        }
+        Self { next_id: 0, locals: HashMap::new() }
     }
 
     pub fn gen_mir(&mut self, ast: &AstNode) -> Mir {
         let mut stmts = vec![];
         let mut exprs = HashMap::new();
-        let ctfe_consts = HashMap::new();
 
         if let AstNode::FuncDef { body, .. } = ast {
             for stmt in body {
@@ -63,26 +52,13 @@ impl MirGen {
             if let Some(AstNode::Assign(name, expr)) = body.last() {
                 if name == "_" {
                     let ret_val = self.gen_expr(expr, &mut exprs);
-                    let ret_id = match ret_val {
-                        MirExpr::Var(id) => id,
-                        MirExpr::Lit(n) | MirExpr::ConstEval(n) => {
-                            let id = self.next_id();
-                            exprs.insert(id, MirExpr::ConstEval(n));
-                            id
-                        }
-                        _ => 0,
-                    };
+                    let ret_id = self.materialize(ret_val, &mut exprs, &mut stmts);
                     stmts.push(MirStmt::Return { val: ret_id });
                 }
             }
         }
 
-        Mir {
-            stmts,
-            locals: self.locals.clone(),
-            exprs,
-            ctfe_consts,
-        }
+        Mir { stmts, locals: self.locals.clone(), exprs }
     }
 
     fn gen_stmt(&mut self, node: &AstNode, out: &mut Vec<MirStmt>, exprs: &mut HashMap<u32, MirExpr>) {
@@ -93,13 +69,24 @@ impl MirGen {
                 out.push(MirStmt::Assign { lhs, rhs });
             }
             AstNode::Call { receiver, method, args, .. } => {
-                let recv = self.gen_expr(receiver, exprs);
-                let recv_id = self.materialize(recv, exprs, out);
-                let arg_ids = args.iter().map(|a| self.materialize(self.gen_expr(a, exprs), exprs, out)).collect();
+                let receiver_id = receiver.as_ref().map(|r| {
+                    let e = self.gen_expr(r, exprs);
+                    self.materialize(e, exprs, out)
+                });
+
+                let mut arg_ids = args.iter().map(|a| {
+                    let e = self.gen_expr(a, exprs);
+                    self.materialize(e, exprs, out)
+                }).collect::<Vec<_>>();
+
+                if let Some(rid) = receiver_id {
+                    arg_ids.insert(0, rid);
+                }
+
                 let dest = self.next_id();
                 out.push(MirStmt::Call {
                     func: method.clone(),
-                    args: vec![recv_id, arg_ids[0]],
+                    args: arg_ids,
                     dest,
                 });
             }
@@ -138,11 +125,7 @@ impl MirGen {
     }
 
     fn lookup_or_alloc(&mut self, name: &str) -> u32 {
-        *self.locals.entry(name.to_string()).or_insert_with(|| {
-            let id = self.next_id;
-            self.next_id += 1;
-            id
-        })
+        *self.locals.entry(name.to_string()).or_insert_with(|| self.next_id())
     }
 
     fn next_id(&mut self) -> u32 {
