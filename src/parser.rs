@@ -3,20 +3,22 @@ use crate::ast::AstNode;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{i64 as nom_i64, multispace0, satisfy};
-use nom::combinator::map;
+use nom::combinator::{map, opt};
 use nom::multi::{many0, separated_list0};
 use nom::sequence::{delimited, preceded, tuple};
 use nom::IResult;
 use nom::Parser;
 
-fn ws<'a, O>(inner: impl Parser<&'a str, O, nom::error::Error<&'a str>> + Copy) -> impl Parser<&'a str, O, nom::error::Error<&'a str>> {
+fn ws<'a, O>(inner: impl Parser<&'a str, O, nom::error::Error<&'a str>> + Copy)
+    -> impl Parser<&'a str, O, nom::error::Error<&'a str>>
+{
     delimited(multispace0, inner, multispace0)
 }
 
 fn ident(input: &str) -> IResult<&str, String> {
-    let (input, first) = satisfy(|c| c.is_alphabetic() || c == '_')(input)?;
-    let (input, rest) = many0(satisfy(|c| c.is_alphanumeric() c == '_'))(input)?;
-    Ok((input, std::iter::once(first).chain(rest).collect()))
+    let (i, c) = satisfy(|c| c.is_alphabetic() || c == '_')(input)?;
+    let (i, rest) = many0(satisfy(|c| c.is_alphanumeric() || c == '_'))(i)?;
+    Ok((i, std::iter::once(c).chain(rest).collect()))
 }
 
 fn literal(input: &str) -> IResult<&str, AstNode> {
@@ -32,14 +34,17 @@ fn parens(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn fn_call(input: &str) -> IResult<&str, AstNode> {
-    let (input, name) = ident(input)?;
-    let (input, args) = delimited(ws(tag("(")), separated_list0(ws(tag(",")), expr), ws(tag(")")))(input)?;
-    Ok((input, AstNode::Call {
-        receiver: None,
-        method: name,
-        args,
-        type_args: vec![],
-    }))
+    let (i, name) = ident(input)?;
+    let (i, args) = delimited(ws(tag("(")), separated_list0(ws(tag(",")), expr), ws(tag(")")))(i)?;
+    Ok((
+        i,
+        AstNode::Call {
+            receiver: None,
+            method: name,
+            args,
+            type_args: vec![],
+        },
+    ))
 }
 
 fn primary(input: &str) -> IResult<&str, AstNode> {
@@ -105,6 +110,8 @@ pub fn expr(input: &str) -> IResult<&str, AstNode> {
     term(input)
 }
 
+/* ---------- statements ---------- */
+
 fn let_stmt(input: &str) -> IResult<&str, AstNode> {
     preceded(
         ws(tag("let")),
@@ -126,7 +133,7 @@ fn expr_stmt(input: &str) -> IResult<&str, AstNode> {
 fn spawn_expr(input: &str) -> IResult<&str, AstNode> {
     let (i, _) = ws(tag("spawn"))(input)?;
     let (i, actor_ty) = ident(i)?;
-    let (i, args) = delimited(ws(tag("(")), separated_list0(ws(tag(",")), expr), ws(tag(")"))(i)?;
+    let (i, args) = delimited(ws(tag("(")), separated_list0(ws(tag(",")), expr), ws(tag(")")))(i)?;
     Ok((
         i,
         AstNode::SpawnActor {
@@ -153,8 +160,10 @@ fn stmt(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn block(input: &str) -> IResult<&str, Vec<AstNode>> {
-    delimited(ws(tag("{")), many0(stmt), ws(tag("}"))).parse(input)
+    delimited(ws(tag("{")), many0(stmt), ws(tag("}")))(input)
 }
+
+/* ---------- top-level definitions ---------- */
 
 fn actor_field(input: &str) -> IResult<&str, (String, String)> {
     map(tuple((ident, ws(tag(":")), ident)), |(n, _, t)| (n, t)).parse(input)
@@ -197,7 +206,7 @@ fn ret_ty(input: &str) -> IResult<&str, String> {
 }
 
 fn parse_func(input: &str) -> IResult<&str, AstNode> {
-    let (i, _) = preceded(ws(tag("fn")), multispace0)(input)?; // allow no space after fn
+    let (i, _) = preceded(ws(tag("fn")), multispace0)(input)?;
     let (i, name) = ident(i)?;
     let (i, _) = ws(tag("("))(i)?;
     let (i, _) = ws(tag(")"))(i)?;
@@ -229,5 +238,5 @@ fn parse_top(input: &str) -> IResult<&str, AstNode> {
 }
 
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
-    delimited(multispace0, many0(parse_top), multispace0).parse(input)
+    delimited(multispace0, many0(parse_top), multispace0)(input)
 }
