@@ -4,7 +4,7 @@ use inkwell::context::Context;
 use inkwell::execution_engine::{ExecutionEngine, JitFunction, UnsafeFunctionPointer};
 use inkwell::module::Module;
 use inkwell::builder::Builder;
-use inkwell::values::{BasicValueEnum, FunctionValue};
+use inkwell::values::BasicValueEnum;
 use inkwell::types::{IntType, VectorType};
 use inkwell::OptimizationLevel;
 use std::collections::HashMap;
