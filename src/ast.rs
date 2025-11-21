@@ -1,5 +1,5 @@
 // src/ast.rs
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AstNode {
     ConceptDef {
         name: String,
@@ -23,7 +23,7 @@ pub enum AstNode {
         ret: String,
         body: Vec<AstNode>,
         where_clause: Option<Vec<(String, String)>>,
-        attrs: Vec<String>,
+        attrs: Vec<String>,               // now supports "cache_safe", "no_alias", etc.
         ret_expr: Option<Box<AstNode>>,
     },
     ActorDef {
