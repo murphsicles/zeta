@@ -5,14 +5,7 @@ use std::error::Error;
 
 pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
     let (_, asts) = parse_zeta(input).map_err(|e| format!("Parse error: {:?}", e))?;
-    let mut resolver = Resolver::new();
-
-    // Register built-in Addable impl for i32
-    resolver.register(AstNode::ImplBlock {
-        concept: "Addable".to_string(),
-        ty: "i32".to_string(),
-        body: vec![],
-    });
+    let mut resolver = Resolver::new(); // auto-registers Addable for i32
 
     for ast in &asts {
         resolver.register(ast.clone());
