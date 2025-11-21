@@ -6,35 +6,43 @@ use std::error::Error;
 pub fn compile_and_run_zeta(input: &str) -> Result<i32, Box<dyn Error>> {
     let (_, asts) = parse_zeta(input).map_err(|e| format!("Parse error: {:?}", e))?;
     let mut resolver = Resolver::new();
+
+    // Register built-in Addable impl for i32
+    resolver.register(AstNode::ImplBlock {
+        concept: "Addable".to_string(),
+        ty: "i32".to_string(),
+        body: vec![],
+    });
+
     for ast in &asts {
         resolver.register(ast.clone());
     }
+
     if !resolver.typecheck(&asts) {
-        return Err("Typecheck failed".into());
+        return Err("Typecheck/borrowck failed".into());
     }
 
     let context = Context::create();
     let mut codegen = LLVMCodegen::new(&context, "zeta_module");
 
-    for ast in &asts {
-        if let zeta::ast::AstNode::FuncDef { name, .. } = ast {
-            if name == "main" {
-                let mut mir = resolver.lower_to_mir(ast);
-                resolver.fold_semiring_chains(&mut mir);
-                codegen.gen_mir(&mir);
-            }
+    let main_func = asts.iter().find(|ast| {
+        if let AstNode::FuncDef { name, .. } = ast {
+            name == "main"
+        } else {
+            false
         }
-    }
+    }).ok_or("No main function")?;
+
+    let mut mir = resolver.lower_to_mir(main_func);
+    resolver.fold_semiring_chains(&mut mir);
+    codegen.gen_mir(&mir);
 
     let ee = codegen.finalize_and_jit()?;
 
     type MainFn = unsafe extern "C" fn() -> i32;
     unsafe {
-        if let Ok(main) = ee.get_function::<MainFn>("main") {
-            Ok(main.call())
-        } else {
-            Err("No main function found".into())
-        }
+        let main = ee.get_function::<MainFn>("main").map_err(|_| "No main")?;
+        Ok(main.call())
     }
 }
 
