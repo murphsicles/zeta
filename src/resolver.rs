@@ -62,8 +62,8 @@ impl Resolver {
     }
 
     pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
-        let mut gen = MirGen::new();
-        gen.gen_mir(ast)
+        let mut mir_gen = MirGen::new();
+        mir_gen.gen_mir(ast)
     }
 
     pub fn fold_semiring_chains(&self, mir: &mut Mir) -> bool {
