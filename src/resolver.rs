@@ -42,6 +42,9 @@ impl Resolver {
             AstNode::FuncDef { ref name, .. } => {
                 self.funcs.insert(name.clone(), ast);
             }
+            AstNode::ActorDef { ref name, .. } => {
+                self.structs.insert(name.clone(), ast);
+            }
             AstNode::StructDef { ref name, .. } => {
                 self.structs.insert(name.clone(), ast);
             }
@@ -62,8 +65,8 @@ impl Resolver {
     }
 
     pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
-        let mut mir_gen = MirGen::new();
-        mir_gen.gen_mir(ast)
+        let mut gen = MirGen::new();
+        gen.gen_mir(ast)
     }
 
     pub fn fold_semiring_chains(&self, mir: &mut Mir) -> bool {
@@ -119,57 +122,30 @@ impl Resolver {
         changed
     }
 
-    pub fn resolve_impl(&self, concept: &str, ty: &str) -> Option<Arc<AstNode>> {
-        let key = (concept.to_string(), ty.to_string());
-        {
-            let memo = self.memo_impl.lock().unwrap();
-            if let Some(cached) = memo.get(&key) {
-                return cached.clone();
-            }
-        }
-        let result = self.impls.get(&key).map(|n| Arc::new(n.clone()));
-        self.memo_impl.lock().unwrap().insert(key, result.clone());
-        result
-    }
-
-    pub fn has_method(&self, concept: &str, ty: &str, method: &str) -> bool {
-        self.resolve_impl(concept, ty)
-            .map_or(false, |imp| {
-                if let AstNode::ImplBlock { body, .. } = imp.as_ref() {
-                    body.iter().any(|m| matches!(m, AstNode::Method { name, .. } if name == method))
-                } else {
-                    false
-                }
-            })
-    }
-
     pub fn typecheck(&self, asts: &[AstNode]) -> bool {
         asts.iter().all(|ast| {
             match ast {
-                AstNode::FuncDef {
-                    params,
-                    body,
-                    attrs,
-                    ..
-                } => {
-                    let stable_abi_ok = !attrs.contains(&"stable_abi".to_string())
-                        || !params.iter().any(|(_, t)| t.contains('<'));
-                    let mut bc = BorrowChecker::new();
-                    for (n, _) in params {
-                        bc.declare(n.clone(), BorrowState::Owned);
-                    }
-                    let borrow_ok = body.iter().all(|n| bc.check(n))
-                        && bc.validate_affine(body)
-                        && bc.validate_speculative(body);
-                    stable_abi_ok && borrow_ok
+                AstNode::ActorDef { state, methods, .. } => {
+                    state.iter().all(|(_, ty)| {
+                        self.resolve_impl("Send", ty).is_some() &&
+                        self.resolve_impl("CacheSafe", ty).is_some()
+                    }) && methods.iter().all(|m| {
+                        matches!(m, AstNode::AsyncFn { .. })
+                    })
                 }
-                AstNode::TimingOwned { ty, .. } => self.resolve_impl("CacheSafe", ty).is_some(),
+                AstNode::AsyncFn { params, .. } => {
+                    params.iter().all(|(_, ty)| {
+                        self.resolve_impl("Send", ty).is_some() &&
+                        self.resolve_impl("CacheSafe", ty).is_some()
+                    })
+                }
                 AstNode::SpawnActor { actor_ty, .. } => {
-                    self.resolve_impl("Send", actor_ty).is_some()
-                        && self.resolve_impl("CacheSafe", actor_ty).is_some()
+                    self.resolve_impl("Send", actor_ty).is_some() &&
+                    self.resolve_impl("CacheSafe", actor_ty).is_some()
                 }
                 _ => true,
             }
         })
     }
+
 }
