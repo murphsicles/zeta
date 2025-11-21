@@ -22,7 +22,8 @@ impl Resolver {
         for t in ["Send", "Sync", "Addable", "CacheSafe", "Copy", "Eq"] {
             common_traits.insert(t.to_string());
         }
-        Self {
+
+        let mut r = Self {
             concepts: HashMap::new(),
             impls: HashMap::new(),
             funcs: HashMap::new(),
@@ -30,7 +31,16 @@ impl Resolver {
             common_traits,
             memo_impl: Mutex::new(HashMap::new()),
             borrow_checker: BorrowChecker::new(),
-        }
+        };
+
+        // Register built-in Addable impl for i32
+        r.register(AstNode::ImplBlock {
+            concept: "Addable".to_string(),
+            ty: "i32".to_string(),
+            body: vec![],
+        });
+
+        r
     }
 
     pub fn register(&mut self, ast: AstNode) {
@@ -64,7 +74,7 @@ impl Resolver {
     }
 
     pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
-        let mut mir_gen = MirGen::new(); // fixed reserved keyword
+        let mut mir_gen = MirGen::new();
         mir_gen.gen_mir(ast)
     }
 
@@ -73,9 +83,9 @@ impl Resolver {
         let mut i = 0;
         while i < mir.stmts.len() {
             if let MirStmt::Call { func, args, dest } = &mir.stmts[i] {
-                let op = if func.ends_with(".add") {
+                let op = if func == "add" {
                     Some(SemiringOp::Add)
-                } else if func.ends_with(".mul") {
+                } else if func == "mul" {
                     Some(SemiringOp::Mul)
                 } else {
                     None
@@ -146,5 +156,13 @@ impl Resolver {
 
     pub fn resolve_impl(&self, trait_name: &str, ty: &str) -> Option<&AstNode> {
         self.impls.get(&(trait_name.to_string(), ty.to_string()))
+    }
+
+    pub fn resolve_method(&self, recv_ty: &str, method: &str) -> Option<&AstNode> {
+        if method == "add" && self.resolve_impl("Addable", recv_ty).is_some() {
+            Some(self.resolve_impl("Addable", recv_ty).unwrap())
+        } else {
+            None
+        }
     }
 }
