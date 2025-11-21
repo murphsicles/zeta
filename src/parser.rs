@@ -11,15 +11,16 @@ use nom::{
 };
 
 fn ident(input: &str) -> IResult<&str, String> {
-    let first = alt((alpha1, tag("_")));
-    let rest = many0(alt((alphanumeric1, tag("_"))));
-    map(pair(first, rest), |(f, r): (&str, Vec<&str>)| {
-        let mut s = f.to_string();
-        for part in r {
-            s.push_str(part);
-        }
-        s
-    })(input)
+    map(
+        pair(alt((alpha1, tag("_"))), many0(alt((alphanumeric1, tag("_"))))),
+        |(first, rest): (&str, Vec<&str>)| {
+            let mut s = first.to_string();
+            for p in rest {
+                s.push_str(p);
+            }
+            s
+        },
+    )(input)
 }
 
 fn lit(input: &str) -> IResult<&str, AstNode> {
@@ -39,8 +40,7 @@ fn primary(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn method_call(input: &str) -> IResult<&str, AstNode> {
-    let (i, mut current) = primary(input)?;
-    let mut rest = i;
+    let (mut rest, mut current) = primary(input)?;
 
     while let Ok((i2, _)) = delimited(multispace0, tag("."), multispace0)(rest) {
         let (i3, method) = ident(i2)?;
@@ -53,6 +53,7 @@ fn method_call(input: &str) -> IResult<&str, AstNode> {
             receiver: Box::new(current),
             method,
             args: vec![arg],
+            type_args: vec![],
         };
         rest = i4;
     }
@@ -114,7 +115,7 @@ pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
             name,
             generics: vec![],
             params: vec![],
-            ret: ret.unwrap_or("i32".to_string()),
+            ret: ret.unwrap_or_else(|| "i32".to_string()),
             body,
             where_clause: None,
             attrs: vec![],
