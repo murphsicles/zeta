@@ -115,7 +115,7 @@ pub fn parse_func(input: &str) -> IResult<&str, AstNode> {
             name,
             generics: vec![],
             params: vec![],
-            ret: ret.unwrap_or_else(|| "i32".to_string()),
+            ret: ret.unwrap_or("i32".to_string()),
             body,
             where_clause: None,
             attrs: vec![],
