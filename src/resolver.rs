@@ -1,11 +1,13 @@
 // src/resolver.rs
 use crate::ast::AstNode;
 use crate::borrow::{BorrowChecker, BorrowState};
-use crate::mir::{Mir, MirGen, MirStmt, SemiringOp};
+use crate::mir::{Mir, MirGen};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct MonoKey(pub String, pub Vec<String>);
+
 pub struct Resolver {
     concepts: HashMap<String, AstNode>,
     impls: HashMap<(String, String), AstNode>,
@@ -13,6 +15,8 @@ pub struct Resolver {
     structs: HashMap<String, AstNode>,
     common_traits: HashSet<String>,
     memo_impl: Mutex<HashMap<(String, String), Option<Arc<AstNode>>>>,
+    mir_cache: Mutex<HashMap<String, Mir>>,
+    mono_cache: Mutex<HashMap<MonoKey, AstNode>>,
 }
 
 impl Resolver {
@@ -28,6 +32,8 @@ impl Resolver {
             structs: HashMap::new(),
             common_traits,
             memo_impl: Mutex::new(HashMap::new()),
+            mir_cache: Mutex::new(HashMap::new()),
+            mono_cache: Mutex::new(HashMap::new()),
         }
     }
 
@@ -42,110 +48,82 @@ impl Resolver {
             AstNode::FuncDef { ref name, .. } => {
                 self.funcs.insert(name.clone(), ast);
             }
-            AstNode::ActorDef { ref name, .. } => {
-                self.structs.insert(name.clone(), ast);
-            }
             AstNode::StructDef { ref name, .. } => {
                 self.structs.insert(name.clone(), ast);
             }
             AstNode::Derive { ty, traits } => {
                 for tr in traits {
-                    self.impls.insert(
-                        (tr.clone(), ty.clone()),
-                        AstNode::ImplBlock {
-                            concept: tr,
-                            ty: ty.clone(),
-                            body: vec![],
-                        },
-                    );
+                    self.impls.insert((tr.clone(), ty.clone()), AstNode::ImplBlock {
+                        concept: tr,
+                        ty: ty.clone(),
+                        body: vec![],
+                    });
                 }
             }
             _ => {}
         }
     }
 
-    pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
-        let mut gen = MirGen::new();
-        gen.gen_mir(ast)
+    pub fn resolve_impl(&self, concept: &str, ty: &str) -> Option<Arc<AstNode>> {
+        let key = (concept.to_string(), ty.to_string());
+        {
+            let memo = self.memo_impl.lock().unwrap();
+            if let Some(cached) = memo.get(&key) {
+                return cached.clone();
+            }
+        }
+        let result = self.impls.get(&key).map(|n| Arc::new(n.clone()));
+        self.memo_impl.lock().unwrap().insert(key, result.clone());
+        result
     }
 
-    pub fn fold_semiring_chains(&self, mir: &mut Mir) -> bool {
-        let mut changed = false;
-        let mut i = 0;
-        while i < mir.stmts.len() {
-            if let MirStmt::Call { func, args, dest } = &mir.stmts[i] {
-                let op = if func.ends_with(".add") {
-                    Some(SemiringOp::Add)
-                } else if func.ends_with(".mul") {
-                    Some(SemiringOp::Mul)
-                } else {
-                    None
-                };
+    pub fn get_cached_mir(&self, key: &str) -> Option<Mir> {
+        let cache = self.mir_cache.lock().unwrap();
+        cache.get(key).cloned()
+    }
 
-                if let Some(op) = op {
-                    let mut chain = vec![args[0]];
-                    let mut current = *dest;
-                    let mut j = i + 1;
+    pub fn cache_mir(&self, key: String, mir: Mir) {
+        let mut cache = self.mir_cache.lock().unwrap();
+        cache.insert(key, mir);
+    }
 
-                    while j < mir.stmts.len() {
-                        if let MirStmt::Call {
-                            func: next_func,
-                            args: next_args,
-                            dest: next_dest,
-                        } = &mir.stmts[j]
-                        {
-                            if next_func == func && next_args[0] == current {
-                                chain.push(next_args[1]);
-                                current = *next_dest;
-                                j += 1;
-                                changed = true;
-                            } else {
-                                break;
-                            }
-                        } else {
-                            break;
-                        }
-                    }
-
-                    if chain.len() >= 3 {
-                        mir.stmts[i] = MirStmt::SemiringFold {
-                            op,
-                            values: chain,
-                            result: current,
-                        };
-                        mir.stmts.drain(i + 1..j);
-                    }
-                }
-            }
-            i += 1;
+    pub fn monomorphize(&self, key: MonoKey, ast: &AstNode) -> AstNode {
+        let mut cache = self.mono_cache.lock().unwrap();
+        if let Some(cached) = cache.get(&key) {
+            return cached.clone();
         }
-        changed
+        let mono = ast.clone(); // placeholder - real monomorphization later
+        cache.insert(key.clone(), mono.clone());
+        mono
+    }
+
+    pub fn get_mono_mir(&self, key: &MonoKey) -> Option<Mir> {
+        let hash = format!("{:?}", key);
+        self.get_cached_mir(&hash)
     }
 
     pub fn typecheck(&self, asts: &[AstNode]) -> bool {
         asts.iter().all(|ast| {
             match ast {
-                AstNode::ActorDef { state, methods, .. } => {
-                    state.iter().all(|(_, ty)| {
-                        self.resolve_impl("Send", ty).is_some() &&
-                        self.resolve_impl("CacheSafe", ty).is_some()
-                    }) && methods.iter().all(|m| {
-                        matches!(m, AstNode::AsyncFn { .. })
-                    })
+                AstNode::FuncDef { params, body, attrs, .. } => {
+                    let stable_abi_ok = !attrs.contains(&"stable_abi".to_string())
+                        || !params.iter().any(|(_, t)| t.contains('<'));
+                    let mut bc = BorrowChecker::new();
+                    for (n, _) in params {
+                        bc.declare(n.clone(), BorrowState::Owned);
+                    }
+                    let borrow_ok = body.iter().all(|n| bc.check(n))
+                        && bc.validate_affine(body)
+                        && bc.validate_speculative(body);
+                    stable_abi_ok && borrow_ok
                 }
-                AstNode::AsyncFn { params, .. } => {
-                    params.iter().all(|(_, ty)| {
-                        self.resolve_impl("Send", ty).is_some() &&
-                        self.resolve_impl("CacheSafe", ty).is_some()
-                    })
-                }
+                AstNode::TimingOwned { ty, .. } => self.resolve_impl("CacheSafe", ty).is_some(),
                 AstNode::SpawnActor { actor_ty, .. } => {
-                    self.resolve_impl("Send", actor_ty).is_some() &&
-                    self.resolve_impl("CacheSafe", actor_ty).is_some()
+                    self.resolve_impl("Send", actor_ty).is_some()
+                        && self.resolve_impl("CacheSafe", actor_ty).is_some()
                 }
                 _ => true,
             }
         })
     }
-
 }
