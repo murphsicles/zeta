@@ -11,7 +11,7 @@ use nom::{
 };
 
 fn ident(input: &str) -> IResult<&str, String> {
-    map(pair(alt((alpha1, tag("_"))), many0(alt((alphanumeric1, tag("_"))))), |(f, r)| {
+    map(pair(alt((alpha1, tag("_"))), many0(alt((alphanumeric1, tag("_"))))), |(f, r): (&str, Vec<&str>)| {
         let mut s = f.to_string();
         for p in r {
             s.push_str(p);
@@ -51,7 +51,7 @@ fn method_call(input: &str) -> IResult<&str, AstNode> {
         rest = i4;
     }
 
-    Ok((rest, current))
+    Ok((rest, current)
 }
 
 fn expr(input: &str) -> IResult<&str, AstNode> {
