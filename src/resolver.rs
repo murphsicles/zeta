@@ -1,6 +1,6 @@
 // src/resolver.rs
 use crate::ast::AstNode;
-use crate::borrow::{BorrowChecker, BorrowState};
+use crate::borrow::BorrowChecker;
 use crate::mir::{Mir, MirGen, MirStmt, SemiringOp};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
@@ -13,6 +13,7 @@ pub struct Resolver {
     structs: HashMap<String, AstNode>,
     common_traits: HashSet<String>,
     memo_impl: Mutex<HashMap<(String, String), Option<Arc<AstNode>>>>,
+    borrow_checker: BorrowChecker,
 }
 
 impl Resolver {
@@ -28,6 +29,7 @@ impl Resolver {
             structs: HashMap::new(),
             common_traits,
             memo_impl: Mutex::new(HashMap::new()),
+            borrow_checker: BorrowChecker::new(),
         }
     }
 
@@ -41,9 +43,6 @@ impl Resolver {
             }
             AstNode::FuncDef { ref name, .. } => {
                 self.funcs.insert(name.clone(), ast);
-            }
-            AstNode::ActorDef { ref name, .. } => {
-                self.structs.insert(name.clone(), ast);
             }
             AstNode::StructDef { ref name, .. } => {
                 self.structs.insert(name.clone(), ast);
@@ -122,31 +121,30 @@ impl Resolver {
         changed
     }
 
-    pub fn typecheck(&self, asts: &[AstNode]) -> bool {
-        asts.iter().all(|ast| {
+    pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
+        let mut ok = true;
+        for ast in asts {
             match ast {
-                AstNode::ActorDef { state, methods, .. } => {
-                    state.iter().all(|(_, ty)| {
-                        self.resolve_impl("Send", ty).is_some() &&
-                        self.resolve_impl("CacheSafe", ty).is_some()
-                    }) && methods.iter().all(|m| {
-                        matches!(m, AstNode::AsyncFn { .. })
-                    })
+                AstNode::FuncDef { body, .. } => {
+                    for stmt in body {
+                        if !self.borrow_checker.check(stmt) {
+                            ok = false;
+                        }
+                    }
+                    if !self.borrow_checker.validate_affine(body) {
+                        ok = false;
+                    }
+                    if !self.borrow_checker.validate_speculative(body) {
+                        ok = false;
+                    }
                 }
-                AstNode::AsyncFn { params, .. } => {
-                    params.iter().all(|(_, ty)| {
-                        self.resolve_impl("Send", ty).is_some() &&
-                        self.resolve_impl("CacheSafe", ty).is_some()
-                    })
-                }
-                AstNode::SpawnActor { actor_ty, .. } => {
-                    self.resolve_impl("Send", actor_ty).is_some() &&
-                    self.resolve_impl("CacheSafe", actor_ty).is_some()
-                }
-                _ => true,
+                _ => {}
             }
-        })
+        }
+        ok
     }
 
-    // ... resolve_impl, has_method unchanged ...
+    pub fn resolve_impl(&self, trait_name: &str, ty: &str) -> Option<&AstNode> {
+        self.impls.get(&(trait_name.to_string(), ty.to_string()))
+    }
 }
