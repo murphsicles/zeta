@@ -53,21 +53,27 @@ impl MirGen {
         let mut stmts = vec![];
         let ctfe_consts = HashMap::new();
 
-        match ast {
-            AstNode::FuncDef { body, params, .. } => {
-                for (name, _) in params {
-                    let id = self.alloc_local(name);
-                    stmts.push(MirStmt::Assign {
-                        lhs: id,
-                        rhs: MirExpr::Var(id),
-                    });
-                }
-                for node in body {
-                    self.gen_stmt(node, &mut stmts);
-                }
-                stmts.push(MirStmt::Return { val: 0 });
+        if let AstNode::FuncDef { body, .. } = ast {
+            for stmt in body {
+                self.gen_stmt(stmt, &mut stmts);
             }
-            _ => {}
+
+            // If the last statement is an expression assigned to "_", return its value
+            if let Some(AstNode::Assign(name, expr)) = body.last() {
+                if name == "_" {
+                    let ret_val = self.gen_expr(expr);
+                    let ret_id = match ret_val {
+                        MirExpr::Var(id) => id,
+                        MirExpr::Lit(n) => {
+                            let id = self.next_id();
+                            self.locals.insert(format!("__lit_{}", n), id);
+                            id
+                        }
+                        _ => 0,
+                    };
+                    stmts.push(MirStmt::Return { val: ret_id });
+                }
+            }
         }
 
         Mir {
@@ -84,36 +90,15 @@ impl MirGen {
                 let rhs = self.gen_expr(expr);
                 out.push(MirStmt::Assign { lhs, rhs });
             }
-            AstNode::Call {
-                receiver,
-                method,
-                args,
-            } => {
-                let recv = self.lookup_local(receiver);
-                let arg_ids = args.iter().map(|a| self.lookup_local(a)).collect::<Vec<_>>();
+            AstNode::Call { receiver, method, args } => {
+                let recv_id = self.lookup_or_alloc(receiver);
+                let arg_ids = args.iter().map(|a| self.lookup_or_alloc(a)).collect::<Vec<_>>();
                 let dest = self.next_id();
                 out.push(MirStmt::Call {
                     func: format!("{receiver}.{method}"),
-                    args: vec![recv, arg_ids[0]],
+                    args: vec![recv_id, arg_ids[0]],
                     dest,
                 });
-            }
-            AstNode::Defer(inner) => {
-                let mut deferred = vec![];
-                self.gen_stmt(inner, &mut deferred);
-                out.push(MirStmt::Defer {
-                    stmt: Box::new(deferred.remove(0)),
-                });
-            }
-            AstNode::SpawnActor { actor_ty, init_args } => {
-                let actor_id = self.next_id();
-                let dest = self.next_id();
-                out.push(MirStmt::Spawn { actor: actor_id, dest });
-            }
-            AstNode::Await { expr } => {
-                let future = self.gen_expr(expr);
-                let dest = self.next_id();
-                out.push(MirStmt::Await { future: dest, dest });
             }
             _ => {}
         }
@@ -122,7 +107,16 @@ impl MirGen {
     fn gen_expr(&mut self, node: &AstNode) -> MirExpr {
         match node {
             AstNode::Lit(n) => MirExpr::Lit(*n),
-            AstNode::Var(v) => MirExpr::Var(self.lookup_local(v)),
+            AstNode::Var(v) => MirExpr::Var(self.lookup_or_alloc(v)),
+            AstNode::Call { receiver, method, args } => {
+                let recv = self.lookup_or_alloc(receiver);
+                let arg = self.lookup_or_alloc(&args[0]);
+                MirExpr::MethodCall {
+                    recv,
+                    method: method.clone(),
+                    args: vec![arg],
+                }
+            }
             _ => MirExpr::Lit(0),
         }
     }
@@ -133,8 +127,11 @@ impl MirGen {
         id
     }
 
-    fn lookup_local(&self, name: &str) -> u32 {
-        *self.locals.get(name).unwrap_or(&0)
+    fn lookup_or_alloc(&mut self, name: &str) -> u32 {
+        *self.locals.entry(name.to_string()).or_insert_with(|| {
+            let id = self.next_id();
+            id
+        })
     }
 
     fn next_id(&mut self) -> u32 {
