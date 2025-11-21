@@ -1,11 +1,11 @@
 // src/codegen.rs
-use crate::mir::{Mir, MirStmt, SemiringOp};
+use crate::ast::AstNode;
+use crate::resolver::Resolver;
 use inkwell::context::Context;
-use inkwell::execution_engine::{ExecutionEngine, JitFunction, UnsafeFunctionPointer};
+use inkwell::execution_engine::{ExecutionEngine, JitFunction};
 use inkwell::module::Module;
 use inkwell::builder::Builder;
-use inkwell::values::BasicValueEnum;
-use inkwell::types::{IntType, VectorType};
+use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue, IntValue, VectorValue};
 use inkwell::OptimizationLevel;
 use std::collections::HashMap;
 use std::error::Error;
@@ -15,10 +15,9 @@ pub struct LLVMCodegen<'ctx> {
     module: Module<'ctx>,
     builder: Builder<'ctx>,
     execution_engine: Option<ExecutionEngine<'ctx>>,
-    i32_type: IntType<'ctx>,
-    i32x4_type: VectorType<'ctx>,
-    locals: HashMap<u32, inkwell::values::PointerValue<'ctx>>,
-    enable_simd: bool,
+    i32_type: inkwell::types::IntType<'ctx>,
+    i32x4_type: inkwell::types::VectorType<'ctx>,
+    locals: HashMap<String, PointerValue<'ctx>>,
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -28,7 +27,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let i32_type = context.i32_type();
         let i32x4_type = i32_type.vec_type(4);
 
-        Self {
+        let mut codegen = Self {
             context,
             module,
             builder,
@@ -36,88 +35,96 @@ impl<'ctx> LLVMCodegen<'ctx> {
             i32_type,
             i32x4_type,
             locals: HashMap::new(),
-            enable_simd: true,
-        }
+        };
+
+        codegen.create_intrinsics();
+        codegen
     }
 
-    pub fn gen_mir(&mut self, mir: &Mir) {
-        for stmt in &mir.stmts {
-            self.gen_stmt(stmt);
+    fn create_intrinsics(&mut self) {
+        macro_rules! scalar_intrin {
+            ($name:ident, $op:ident) => {
+                let ty = self.i32_type.fn_type(&[self.i32_type.into(), self.i32_type.into()], false);
+                let f = self.module.add_function(stringify!($name), ty, None);
+                let entry = self.context.append_basic_block(f, "entry");
+                self.builder.position_at_end(entry);
+                let x = f.get_nth_param(0).unwrap().into_int_value();
+                let y = f.get_nth_param(1).unwrap().into_int_value();
+                let res = self.builder.build_int_$op(x, y, stringify!($op)).unwrap();
+                self.builder.build_return(Some(&res)).unwrap();
+            };
         }
+
+        macro_rules! simd_intrin {
+            ($name:ident, $op:ident) => {
+                let ty = self.i32x4_type.fn_type(&[self.i32x4_type.into(), self.i32x4_type.into()], false);
+                let f = self.module.add_function(stringify!($name), ty, None);
+                let entry = self.context.append_basic_block(f, "entry");
+                self.builder.position_at_end(entry);
+                let x = f.get_nth_param(0).unwrap().into_vector_value();
+                let y = f.get_nth_param(1).unwrap().into_vector_value();
+                let res = self.builder.build_int_$op(x, y, stringify!($op)).unwrap();
+                self.builder.build_return(Some(&res)).unwrap();
+            };
+        }
+
+        scalar_intrin!(add_i32, add);
+        simd_intrin!(add_i32x4, add);
+        scalar_intrin!(mul_i32, mul);
+        simd_intrin!(mul_i32x4, mul);
     }
 
-    fn gen_stmt(&mut self, stmt: &MirStmt) {
-        match stmt {
-            MirStmt::Assign { lhs, rhs } => {
-                let value = match rhs {
-                    crate::mir::MirExpr::Var(v) => self.load_local(*v),
-                    crate::mir::MirExpr::Lit(n) => self.i32_type.const_int(*n as u64, false).into(),
-                    _ => self.i32_type.const_int(0, false).into(),
-                };
-                let ptr = self.locals.entry(*lhs).or_insert_with(|| {
-                    self.builder.build_alloca(self.i32_type, &format!("local_{}", lhs)).unwrap()
-                });
-                self.builder.build_store(*ptr, value).unwrap();
+    pub fn gen_func(&mut self, ast: &AstNode, _resolver: &Resolver) {
+        if let AstNode::FuncDef { name, params, body, .. } = ast {
+            let param_types = vec![self.i32_type.into(); params.len()];
+            let fn_type = self.i32_type.fn_type(&param_types, false);
+            let fn_val = self.module.add_function(name, fn_type, None);
+            let entry = self.context.append_basic_block(fn_val, "entry");
+            self.builder.position_at_end(entry);
+
+            for (i, (pname, _)) in params.iter().enumerate() {
+                let param = fn_val.get_nth_param(i as u32).unwrap();
+                let alloca = self.builder.build_alloca(self.i32_type, pname).unwrap();
+                self.builder.build_store(alloca, param).unwrap();
+                self.locals.insert(pname.clone(), alloca);
             }
-            MirStmt::SemiringFold { op, values, result } => {
-                let mut acc = self.load_local(values[0]);
 
-                if values.len() >= 4 && self.enable_simd {
-                    for chunk in values[1..].chunks(4) {
-                        let mut elems = vec![];
-                        for &v in chunk {
-                            elems.push(self.load_local(v).into_int_value());
-                        }
-                        while elems.len() < 4 {
-                            elems.push(self.i32_type.const_zero());
-                        }
-                        let vec = VectorType::const_vector(&elems);
-                        acc = match op {
-                            SemiringOp::Add => self.builder.build_int_add(acc.into_int_value(), vec, "fold_add_simd").unwrap().into(),
-                            SemiringOp::Mul => self.builder.build_int_mul(acc.into_int_value(), vec, "fold_mul_simd").unwrap().into(),
-                        };
-                    }
-                } else {
-                    for &v in &values[1..] {
-                        let rhs = self.load_local(v);
-                        acc = match op {
-                            SemiringOp::Add => self.builder.build_int_add(acc.into_int_value(), rhs.into_int_value(), "fold_add").unwrap().into(),
-                            SemiringOp::Mul => self.builder.build_int_mul(acc.into_int_value(), rhs.into_int_value(), "fold_mul").unwrap().into(),
-                        };
-                    }
+            for stmt in body {
+                self.gen_stmt(stmt);
+            }
+
+            let zero = self.i32_type.const_int(0, false);
+            self.builder.build_return(Some(&zero)).unwrap();
+        }
+    }
+
+    fn gen_stmt(&mut self, node: &AstNode) {
+        if let AstNode::Call { receiver, method, .. } = node {
+            let recv_val = self.load_var(receiver);
+            let arg_val = recv_val; // placeholder
+
+            let call = match method.as_str() {
+                "add" => self.builder.build_call(
+                    self.module.get_function("add_i32").unwrap(),
+                    &[recv_val.into(), arg_val.into()],
+                    "add",
+                ),
+                _ => return,
+            };
+
+            if let Some(bv) = call.try_as_basic_value().left() {
+                if let Some(ptr) = self.locals.get(receiver) {
+                    self.builder.build_store(*ptr, bv).unwrap();
                 }
-
-                let ptr = self.locals.entry(*result).or_insert_with(|| {
-                    self.builder.build_alloca(self.i32_type, &format!("result_{}", result)).unwrap()
-                });
-                self.builder.build_store(*ptr, acc).unwrap();
             }
-            MirStmt::Spawn { actor, dest } => {
-                // stub – full actor runtime in next push
-                let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                    self.builder.build_alloca(self.context.i8_type().ptr_type(inkwell::AddressSpace::Generic), "actor_handle").unwrap()
-                });
-                self.builder.build_store(*ptr, self.load_local(*actor)).unwrap();
-            }
-            MirStmt::Await { future, dest } => {
-                let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                    self.builder.build_alloca(self.i32_type, "await_result").unwrap()
-                });
-                self.builder.build_store(*ptr, self.load_local(*future)).unwrap();
-            }
-            MirStmt::Return { val } => {
-                let v = self.load_local(*val);
-                self.builder.build_return(Some(&v)).unwrap();
-            }
-            _ => {}
         }
     }
 
-    fn load_local(&self, id: u32) -> BasicValueEnum<'ctx> {
-        let ptr = self.locals.get(&id).copied().unwrap_or_else(|| {
-            self.builder.build_alloca(self.i32_type, &format!("tmp_{}", id)).unwrap()
+    fn load_var(&self, name: &str) -> BasicValueEnum<'ctx> {
+        let ptr = self.locals.get(name).copied().unwrap_or_else(|| {
+            self.builder.build_alloca(self.i32_type, name).unwrap()
         });
-        self.builder.build_load(self.i32_type, ptr, &format!("load_{}", id)).unwrap()
+        self.builder.build_load(self.i32_type, ptr, name).unwrap()
     }
 
     pub fn finalize_and_jit(&mut self) -> Result<ExecutionEngine<'ctx>, Box<dyn Error>> {
@@ -129,7 +136,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     pub fn get_fn<F>(&self, name: &str) -> Option<JitFunction<F>>
     where
-        F: UnsafeFunctionPointer,
+        F: inkwell::execution_engine::UnsafeFunctionPointer,
     {
         unsafe { self.execution_engine.as_ref()?.get_function(name).ok() }
     }
