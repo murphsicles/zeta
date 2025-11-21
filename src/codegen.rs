@@ -1,15 +1,12 @@
 // src/codegen.rs
-use crate::ast::AstNode;
 use crate::mir::{Mir, MirStmt, SemiringOp};
-use crate::resolver::Resolver;
 use inkwell::context::Context;
 use inkwell::execution_engine::{ExecutionEngine, JitFunction, UnsafeFunctionPointer};
 use inkwell::module::Module;
 use inkwell::builder::Builder;
-use inkwell::values::{BasicValueEnum, FunctionValue, IntValue};
+use inkwell::values::{BasicValueEnum, FunctionValue};
 use inkwell::types::{IntType, VectorType};
 use inkwell::OptimizationLevel;
-use inkwell::passes::PassManager;
 use std::collections::HashMap;
 use std::error::Error;
 
@@ -17,8 +14,6 @@ pub struct LLVMCodegen<'ctx> {
     context: &'ctx Context,
     module: Module<'ctx>,
     builder: Builder<'ctx>,
-    fpm: PassManager<FunctionValue<'ctx>>,
-    mpm: PassManager<Module<'ctx>>,
     execution_engine: Option<ExecutionEngine<'ctx>>,
     i32_type: IntType<'ctx>,
     i32x4_type: VectorType<'ctx>,
@@ -33,29 +28,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let i32_type = context.i32_type();
         let i32x4_type = i32_type.vec_type(4);
 
-        let fpm = PassManager::create(&module);
-        fpm.add_promote_memory_to_register_pass();
-        fpm.add_instruction_combining_pass();
-        fpm.add_reassociate_pass();
-        fpm.add_gvn_pass();
-        fpm.add_cfg_simplification_pass();
-        fpm.add_dead_store_elimination_pass();
-        fpm.add_memcpy_opt_pass();
-        fpm.add_correlated_value_propagation_pass();
-        fpm.add_aggressive_dce_pass();
-        fpm.add_loop_vectorize_pass();
-        fpm.add_slp_vectorize_pass();
-
-        let mpm = PassManager::create(());
-        mpm.add_global_optimizer_pass();
-        mpm.add_global_dce_pass();
-
         Self {
             context,
             module,
             builder,
-            fpm,
-            mpm,
             execution_engine: None,
             i32_type,
             i32x4_type,
@@ -86,29 +62,27 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.builder.build_store(*ptr, value).unwrap();
             }
             MirStmt::SemiringFold { op, values, result } => {
-                let count = values.len();
                 let mut acc = self.load_local(values[0]);
 
-                if count >= 4 && self.enable_simd {
+                if values.len() >= 4 && self.enable_simd {
                     for chunk in values[1..].chunks(4) {
-                        let mut elems = [acc.into_int_value(); 4];
-                        for (i, &v) in chunk.iter().enumerate() {
-                            elems[i] = self.load_local(v).into_int_value();
+                        let mut elems = vec![];
+                        for &v in chunk {
+                            elems.push(self.load_local(v).into_int_value());
                         }
-                        let vec = self
-                            .builder
-                            .elf
-                            .build_vector_from_elements(elems.to_vec())
-                            .unwrap();
+                        while elems.len() < 4 {
+                            elems.push(self.i32_type.const_zero());
+                        }
+                        let vec = self.i32x4_type.const_vector(&elems);
                         acc = match op {
                             SemiringOp::Add => self
                                 .builder
-                                .build_int_add(acc.into_int_value(), vec.into_vector_value(), "fold_add_simd")
+                                .build_int_add(acc.into_int_value(), vec, "fold_add_simd")
                                 .unwrap()
                                 .into(),
                             SemiringOp::Mul => self
                                 .builder
-                                .build_int_mul(acc.into_int_value(), vec.into_vector_value(), "fold_mul_simd")
+                                .build_int_mul(acc.into_int_value(), vec, "fold_mul_simd")
                                 .unwrap()
                                 .into(),
                         };
@@ -159,7 +133,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     pub fn finalize_and_jit(&mut self) -> Result<ExecutionEngine<'ctx>, Box<dyn Error>> {
         self.module.verify().map_err(|e| e.to_string())?;
-        self.mpm.run_on(&self.module);
         let ee = self
             .module
             .create_jit_execution_engine(OptimizationLevel::Aggressive)?;
