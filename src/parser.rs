@@ -3,10 +3,10 @@ use crate::ast::AstNode;
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    character::complete::{multispace0, multispace1, i64 as nom_i64},
+    character::complete::{multispace0, multispace1, i64 as nom_i64, satisfy},
     combinator::{map, opt},
     multi::{many0, separated_list0},
-    sequence::{delimited, pair, preceded, tuple},
+    sequence::{delimited, preceded},
     IResult,
 };
 
@@ -21,11 +21,13 @@ where
 }
 
 fn ident(input: Input) -> Res<String> {
-    let first = nom::character::complete::satisfy(|c| c.is_alphabetic() || c == '_');
-    let rest = nom::character::complete::satisfy(|c| c.is_alphanumeric() || c == '_');
-    map(pair(first, many0(rest)), |(f, r)| {
+    let first = satisfy(|c| c.is_alphabetic() || c == '_');
+    let rest = satisfy(|c| c.is_alphanumeric() || c == '_');
+    map((first, many0(rest)), |(f, r)| {
         let mut s = f.to_string();
-        for c in r { s.push(c); }
+        for c in r {
+            s.push(c);
+        }
         s
     })(input)
 }
@@ -69,28 +71,22 @@ fn method_call(input: Input) -> Res<AstNode> {
     Ok((i, cur))
 }
 
-// === Unary, arithmetic, comparison, logical (unchanged from previous) ===
-fn unary(input: Input) -> Res<AstNode> {
-    alt((
-        method_call,
-        map(preceded(ws(tag("-")), unary), |e| AstNode::Call {
-            receiver: Box::new(e),
-            method: "neg".to_string(),
-            args: vec![],
-            type_args: vec![],
-        }),
-    ))(input)
-}
-
+// === Arithmetic precedence chain ===
 fn factor(input: Input) -> Res<AstNode> {
-    let (i, init) = unary(input)?;
+    let (i, left) = method_call(input)?;
     let mut i = i;
-    let mut left = init;
+    let mut left = left;
+
     while let Ok((i2, op)) = alt((ws(tag("*")), ws(tag("/")), ws(tag("%"))))(i) {
-        let (i3, right) = unary(i2)?;
+        let (i3, right) = method_call(i2)?;
         left = AstNode::Call {
             receiver: Box::new(left),
-            method: match op { "*" => "mul", "/" => "div", "%" => "rem", _ => unreachable!() }.to_string(),
+            method: match op {
+                "*" => "mul".to_string(),
+                "/" => "div".to_string(),
+                "%" => "rem".to_string(),
+                _ => unreachable!(),
+            },
             args: vec![right],
             type_args: vec![],
         };
@@ -100,9 +96,10 @@ fn factor(input: Input) -> Res<AstNode> {
 }
 
 fn term(input: Input) -> Res<AstNode> {
-    let (i, init) = factor(input)?;
+    let (i, left) = factor(input)?;
     let mut i = i;
-    let mut left = init;
+    let mut left = left;
+
     while let Ok((i2, op)) = alt((ws(tag("+")), ws(tag("-"))))(i) {
         let (i3, right) = factor(i2)?;
         left = AstNode::Call {
@@ -116,32 +113,8 @@ fn term(input: Input) -> Res<AstNode> {
     Ok((i, left))
 }
 
-fn comparison(input: Input) -> Res<AstNode> {
-    let (i, init) = term(input)?;
-    let mut i = i;
-    let mut left = init;
-    while let Ok((i2, op)) = alt((
-        ws(tag("==")), ws(tag("!=")), ws(tag("<=")),
-        ws(tag(">=")), ws(tag("<")), ws(tag(">")),
-    ))(i) {
-        let (i3, right) = term(i2)?;
-        left = AstNode::Call {
-            receiver: Box::new(left),
-            method: match op {
-                "==" => "eq", "!=" => "ne", "<=" => "le",
-                ">=" => "ge", "<" => "lt", ">" => "gt",
-                _ => unreachable!(),
-            }.to_string(),
-            args: vec![right],
-            type_args: vec![],
-        };
-        i = i3;
-    }
-    Ok((i, left))
-}
-
 pub fn expr(input: Input) -> Res<AstNode> {
-    comparison(input)
+    term(input)
 }
 
 // === Statements ===
@@ -161,21 +134,26 @@ fn expr_stmt(input: Input) -> Res<AstNode> {
     Ok((i, AstNode::Assign("_".to_string(), Box::new(e))))
 }
 
-// === spawn and await ===
+// === spawn / await ===
 fn spawn_expr(input: Input) -> Res<AstNode> {
-    let (i, _) = ws(tag("spawn"))(i)?;
+    let (i, _) = ws(tag("spawn"))(input)?;
     let (i, actor_ty) = ident(i)?;
     let (i, args) = delimited(ws(tag("(")), separated_list0(ws(tag(",")), expr), ws(tag(")")))(i)?;
-    Ok((i, AstNode::SpawnActor {
-        actor_ty,
-        init_args: args.iter().map(|a| a.to_string()).collect(),
-    }))
+    Ok((
+        i,
+        AstNode::SpawnActor {
+            actor_ty,
+            init_args: args.into_iter().map(|a| format!("{:?}", a)).collect(), // temporary placeholder
+        },
+    ))
 }
 
 fn await_expr(input: Input) -> Res<AstNode> {
-    let (i, _) = ws(tag("await"))(i)?;
+    let (i, _) = ws(tag("await"))(input)?;
     let (i, future) = expr(i)?;
-    Ok((i, AstNode::Await { expr: Box::new(future) }))
+    Ok((i, AstNode::Await {
+        expr: Box::new(future),
+    }))
 }
 
 fn stmt(input: Input) -> Res<AstNode> {
@@ -199,15 +177,14 @@ fn actor_field(input: Input) -> Res<(String, String)> {
     Ok((i, (name, ty)))
 }
 
-pub fn parse_actor(input: Input) -> Res<AstNode> {
-    let (i, _) = ws(tag("actor"))(i)?;
+fn parse_actor(input: Input) -> Res<AstNode> {
+    let (i, _) = ws(tag("actor"))(input)?;
     let (i, name) = ident(i)?;
     let (i, state) = delimited(
         ws(tag("{")),
         many0(preceded(multispace0, actor_field)),
         ws(tag("}")),
     )(i)?;
-
     Ok((i, AstNode::ActorDef {
         name,
         state,
@@ -217,38 +194,29 @@ pub fn parse_actor(input: Input) -> Res<AstNode> {
 
 // === Async fn ===
 fn async_fn(input: Input) -> Res<AstNode> {
-    let (i, _) = ws(tag("async"))(i)?;
+    let (i, _) = ws(tag("async"))(input)?;
     let (i, _) = ws(tag("fn"))(i)?;
     let (i, name) = ident(i)?;
     let (i, _) = ws(tag("("))(i)?;
     let (i, _) = ws(tag(")"))(i)?;
     let (i, body) = block(i)?;
-    Ok((i, AstNode::AsyncFn {
-        name,
-        params: vec![],
-        ret: "Future<i32>".to_string(),
-        body,
-    }))
+    Ok((
+        i,
+        AstNode::AsyncFn {
+            name,
+            params: vec![],
+            ret: "Future<i32>".to_string(),
+            body,
+        },
+    ))
 }
 
-// === Top level ===
-pub fn parse_top(input: Input) -> Res<AstNode> {
-    alt((
-        parse_actor,
-        async_fn,
-        parse_func,
-    ))(input)
-}
-
-pub fn parse_zeta(input: Input) -> Res<Vec<AstNode>> {
-    delimited(multispace0, many0(parse_top), multispace0)(input)
-}
-
+// === Function definition (unchanged) ===
 fn ret_ty(input: Input) -> Res<String> {
     preceded(ws(tag("->")), ws(ident))(input)
 }
 
-pub fn parse_func(input: Input) -> Res<AstNode> {
+fn parse_func(input: Input) -> Res<AstNode> {
     let (i, _) = preceded(multispace0, tag("fn"))(input)?;
     let (i, _) = multispace1(i)?;
     let (i, name) = ident(i)?;
@@ -275,4 +243,13 @@ pub fn parse_func(input: Input) -> Res<AstNode> {
             ret_expr,
         },
     ))
+}
+
+// === Top level ===
+fn parse_top(input: Input) -> Res<AstNode> {
+    alt((parse_actor, async_fn, parse_func))(input)
+}
+
+pub fn parse_zeta(input: Input) -> Res<Vec<AstNode>> {
+    delimited(multispace0, many0(parse_top), multispace0)(input)
 }
