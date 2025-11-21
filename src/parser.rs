@@ -2,8 +2,8 @@
 use crate::ast::AstNode;
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take_while1},
-    character::complete::{alpha1, alphanumeric1, multispace0, multispace1, i64 as nom_i64},
+    bytes::complete::tag,
+    character::complete::{multispace0, multispace1, i64 as nom_i64},
     combinator::{map, opt},
     multi::many0,
     sequence::{delimited, preceded, tuple},
@@ -13,20 +13,22 @@ use nom::{
 type Input<'a> = &'a str;
 type Res<'a, O> = IResult<Input<'a>, O>;
 
-fn is_ident_char(c: char) -> bool {
+fn is_ident_start(c: char) -> bool {
+    c.is_alphabetic() || c == '_'
+}
+
+fn is_ident_continue(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
 
 fn ident(input: Input) -> Res<String> {
-    let first = take_while1(|c: char| c.is_alphabetic() || c == '_');
-    let rest = take_while1(is_ident_char);
-    map(tuple((first, many0(rest))), |(head, tail)| {
-        let mut s = head.to_owned();
-        for part in tail {
-            s.push_str(part);
-        }
-        s
-    })(input)
+    map(
+        tuple((
+            nom::bytes::complete::take_while1(is_ident_start),
+            nom::bytes::complete::take_while(is_ident_continue),
+        )),
+        |(head, tail): (Input, Input)| format!("{}{}", head, tail),
+    )(input)
 }
 
 fn lit(input: Input) -> Res<AstNode> {
@@ -37,41 +39,37 @@ fn var(input: Input) -> Res<AstNode> {
     map(ident, AstNode::Var)(input)
 }
 
-fn parens(input: Input) -> Res<AstNode> {
-    delimited(
+fn expr(input: Input) -> Res<AstNode> {
+    let parens = delimited(
         tag("("),
         delimited(multispace0, expr, multispace0),
         tag(")"),
-    )(input)
-}
+    );
 
-fn primary(input: Input) -> Res<AstNode> {
-    alt((lit, var, parens))(input)
-}
+    let primary = alt((lit, var, parens));
 
-fn method_call(input: Input) -> Res<AstNode> {
-    let (mut rest, mut current) = primary(input)?;
+    let method_call = move |input: Input| -> Res<AstNode> {
+        let (mut rest, mut current) = primary(input)?;
 
-    while let Ok((next, _)) = delimited(multispace0, tag("."), multispace0)(rest) {
-        let (next, method) = delimited(multispace0, ident, multispace0)(next)?;
-        let (next, arg) = delimited(
-            tag("("),
-            delimited(multispace0, expr, multispace0),
-            tag(")"),
-        )(next)?;
-        current = AstNode::Call {
-            receiver: Box::new(current),
-            method,
-            args: vec![arg],
-            type_args: vec![],
-        };
-        rest = next;
-    }
+        while let Ok((next, _)) = delimited(multispace0, tag("."), multispace0)(rest) {
+            let (next, method) = delimited(multispace0, ident, multispace0)(next)?;
+            let (next, arg) = delimited(
+                tag("("),
+                delimited(multispace0, expr, multispace0),
+                tag(")"),
+            )(next)?;
+            current = AstNode::Call {
+                receiver: Box::new(current),
+                method,
+                args: vec![arg],
+                type_args: vec![],
+            };
+            rest = next;
+        }
 
-    Ok((rest, current))
-}
+        Ok((rest, current))
+    };
 
-fn expr(input: Input) -> Res<AstNode> {
     method_call(input)
 }
 
@@ -101,7 +99,10 @@ fn block(input: Input) -> Res<Vec<AstNode>> {
 }
 
 fn ret_ty(input: Input) -> Res<String> {
-    preceded(delimited(multispace0, tag("->"), multispace1), ident)(input)
+    preceded(
+        delimited(multispace0, tag("->"), multispace1),
+        ident,
+    )(input)
 }
 
 pub fn parse_func(input: Input) -> Res<AstNode> {
