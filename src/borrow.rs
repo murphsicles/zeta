@@ -44,7 +44,6 @@ impl BorrowChecker {
             AstNode::Var(v) => self.borrows.get(v).map_or(true, |state| {
                 *state != BorrowState::Consumed && *state != BorrowState::MutBorrowed
             }),
-            // Removed the non-existent Borrow variant
             AstNode::Assign(v, expr) => {
                 if !self.check(expr.as_ref()) {
                     return false;
@@ -58,32 +57,38 @@ impl BorrowChecker {
                 true
             },
             AstNode::Call { receiver, args, .. } => {
-                if !self.check(&AstNode::Var(receiver.clone())) {
+                if !self.check(receiver.as_ref()) {
                     return false;
                 }
                 for arg in args {
-                    if !self.check(&AstNode::Var(arg.clone())) {
+                    if !self.check(arg) {
                         return false;
                     }
-                    if let Some(moved) = self.affine_moves.get_mut(arg) {
-                        if !*moved {
-                            *moved = true;
-                            self.borrows.insert(arg.clone(), BorrowState::Consumed);
+                    if let AstNode::Var(name) = arg {
+                        if let Some(moved) = self.affine_moves.get_mut(name) {
+                            if !*moved {
+                                *moved = true;
+                                self.borrows.insert(name.clone(), BorrowState::Consumed);
+                            }
                         }
                     }
                 }
-                self.mark_speculative(receiver.as_str());
+                if let AstNode::Var(name) = receiver.as_ref() {
+                    self.mark_speculative(name);
+                }
                 for arg in args {
-                    self.mark_speculative(arg.as_str());
+                    if let AstNode::Var(name) = arg {
+                        self.mark_speculative(name);
+                    }
                 }
                 true
             },
-            AstNode::TimingOwned { ty: _, inner } => {
+            AstNode::TimingOwned { inner, .. } => {
                 if !self.check(inner.as_ref()) {
                     return false;
                 }
-                if let Some(expr_var) = self.extract_var(inner.as_ref()) {
-                    if let Some(spec) = self.speculative.get_mut(&expr_var) {
+                if let AstNode::Var(name) = inner.as_ref() {
+                    if let Some(spec) = self.speculative.get_mut(name) {
                         if *spec == SpeculativeState::Speculative {
                             *spec = SpeculativeState::Poisoned;
                         }
@@ -100,13 +105,6 @@ impl BorrowChecker {
             if *spec == SpeculativeState::Safe {
                 *spec = SpeculativeState::Speculative;
             }
-        }
-    }
-
-    fn extract_var(&self, node: &AstNode) -> Option<String> {
-        match node {
-            AstNode::Var(v) => Some(v.clone()),
-            _ => None,
         }
     }
 
@@ -135,7 +133,7 @@ impl BorrowChecker {
             .speculative
             .iter()
             .filter(|(_, s)| **s == SpeculativeState::Speculative)
-            .map(|(v, _)| v)
+            .map(|(v, _)| v.clone())
             .collect();
         spec_vars.is_empty() || body.iter().any(|n| matches!(n, AstNode::TimingOwned { .. }))
     }
