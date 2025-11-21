@@ -11,46 +11,42 @@ use nom::{
 };
 
 fn ident(input: &str) -> IResult<&str, String> {
-    map(pair(alt((alpha1, tag("_"))), many0(alt((alphanumeric1, tag("_"))))), |(f, r): (&str, Vec<&str>)| {
+    map(pair(alt((alpha1, tag("_"))), many0(alt((alphanumeric1, tag("_"))))), |(f, r)| {
         let mut s = f.to_string();
-        for part in r {
-            s.push_str(part);
-        }
+        for p in r { s.push_str(p); }
         s
     })(input)
 }
 
-fn lit(input: &str) -> IResult<&str, AstNode> {
-    map(i64, AstNode::Lit)(input)
-}
-
-fn var(input: &str) -> IResult<&str, AstNode> {
-    map(ident, AstNode::Var)(input)
-}
+fn lit(input: &str) -> IResult<&str, AstNode> { map(i64, AstNode::Lit)(input) }
+fn var(input: &str) -> IResult<&str, AstNode> { map(ident, AstNode::Var)(input) }
 
 fn primary(input: &str) -> IResult<&str, AstNode> {
     alt((lit, var, delimited(tag("("), expr, tag(")"))))(input)
 }
 
 fn method_call(input: &str) -> IResult<&str, AstNode> {
-    let (mut i, mut current) = primary(input)?;
+    let (i, mut recv) = primary(input)?;
 
-    while let Ok((i2, _)) = delimited(multispace0, tag("."), multispace0)(i) {
+    let mut input = i;
+    while let Ok((i2, _)) = delimited(multispace0, tag("."), multispace0)(input) {
         let (i3, method) = ident(i2)?;
-        let (i4, arg) = delimited(tag("("), delimited(multispace0, expr, multispace0), tag(")"))(i3)?;
-        current = AstNode::Call {
-            receiver: "".to_string(),
+        let (i4, arg) = delimited(
+            tag("("),
+            delimited(multispace0, expr, multispace0),
+            tag(")"),
+        )(i3)?;
+        recv = AstNode::Call {
+            receiver: Box::new(recv),
             method,
-            args: vec![format!("{:?}", arg)],
+            args: vec![arg],
         };
-        i = i4;
+        input = i4;
     }
-    Ok((i, current))
+    Ok((input, recv))
 }
 
-fn expr(input: &str) -> IResult<&str, AstNode> {
-    method_call(input)
-}
+fn expr(input: &str) -> IResult<&str, AstNode> { method_call(input) }
 
 fn let_stmt(input: &str) -> IResult<&str, AstNode> {
     let (i, _) = preceded(multispace0, tag("let"))(input)?;
