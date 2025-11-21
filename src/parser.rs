@@ -11,16 +11,13 @@ use nom::{
 };
 
 fn ident(input: &str) -> IResult<&str, String> {
-    map(
-        pair(alt((alpha1, tag("_"))), many0(alt((alphanumeric1, tag("_"))))),
-        |(first, rest): (&str, Vec<&str>)| {
-            let mut s = first.to_string();
-            for p in rest {
-                s.push_str(p);
-            }
-            s
-        },
-    )(input)
+    map(pair(alt((alpha1, tag("_"))), many0(alt((alphanumeric1, tag("_"))))), |(f, r)| {
+        let mut s = f.to_string();
+        for p in r {
+            s.push_str(p);
+        }
+        s
+    })(input)
 }
 
 fn lit(input: &str) -> IResult<&str, AstNode> {
@@ -32,11 +29,7 @@ fn var(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn primary(input: &str) -> IResult<&str, AstNode> {
-    alt((
-        lit,
-        var,
-        delimited(tag("("), expr, tag(")")),
-    ))(input)
+    alt((lit, var, delimited(tag("("), expr, tag(")"))))(input)
 }
 
 fn method_call(input: &str) -> IResult<&str, AstNode> {
