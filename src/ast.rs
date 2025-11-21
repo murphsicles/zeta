@@ -1,5 +1,5 @@
 // src/ast.rs
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AstNode {
     ConceptDef {
         name: String,
@@ -45,7 +45,7 @@ pub enum AstNode {
         expr: Box<AstNode>,
     },
     Call {
-        receiver: Box<AstNode>,
+        receiver: Option<Box<AstNode>>,
         method: String,
         args: Vec<AstNode>,
         type_args: Vec<String>,
