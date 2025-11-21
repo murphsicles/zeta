@@ -3,37 +3,45 @@ use crate::ast::AstNode;
 use crate::borrow::BorrowChecker;
 use crate::mir::{Mir, MirGen, MirStmt, SemiringOp};
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex};
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Type {
+    I32,
+    Generic(String),
+    Unknown,
+}
 
 #[derive(Debug)]
 pub struct Resolver {
     concepts: HashMap<String, AstNode>,
     impls: HashMap<(String, String), AstNode>,
     funcs: HashMap<String, AstNode>,
-    structs: HashMap<String, AstNode>,
-    common_traits: HashSet<String>,
-    memo_impl: Mutex<HashMap<(String, String), Option<Arc<AstNode>>>>,
+    type_env: HashMap<String, Type>,
     borrow_checker: BorrowChecker,
 }
 
 impl Resolver {
     pub fn new() -> Self {
-        let mut common_traits = HashSet::new();
-        for t in ["Send", "Sync", "Addable", "CacheSafe", "Copy", "Eq"] {
-            common_traits.insert(t.to_string());
-        }
-
         let mut r = Self {
             concepts: HashMap::new(),
             impls: HashMap::new(),
             funcs: HashMap::new(),
-            structs: HashMap::new(),
-            common_traits,
-            memo_impl: Mutex::new(HashMap::new()),
+            type_env: HashMap::new(),
             borrow_checker: BorrowChecker::new(),
         };
 
-        // Register built-in Addable impl for i32
+        // Generic Addable<T>
+        r.register(AstNode::ConceptDef {
+            name: "Addable".to_string(),
+            params: vec!["T".to_string()],
+            methods: vec![AstNode::Method {
+                name: "add".to_string(),
+                params: vec![("rhs".to_string(), "T".to_string())],
+                ret: "T".to_string(),
+            }],
+        });
+
+        // i32 implements Addable<i32>
         r.register(AstNode::ImplBlock {
             concept: "Addable".to_string(),
             ty: "i32".to_string(),
@@ -54,28 +62,64 @@ impl Resolver {
             AstNode::FuncDef { ref name, .. } => {
                 self.funcs.insert(name.clone(), ast);
             }
-            AstNode::StructDef { ref name, .. } => {
-                self.structs.insert(name.clone(), ast);
-            }
-            AstNode::Derive { ty, traits } => {
-                for tr in traits {
-                    self.impls.insert(
-                        (tr.clone(), ty.clone()),
-                        AstNode::ImplBlock {
-                            concept: tr,
-                            ty: ty.clone(),
-                            body: vec![],
-                        },
-                    );
-                }
-            }
             _ => {}
         }
     }
 
+    pub fn infer_type(&mut self, node: &AstNode) -> Type {
+        match node {
+            AstNode::Lit(_) => Type::I32,
+            AstNode::Var(v) => self.type_env.get(v).cloned().unwrap_or(Type::Unknown),
+            AstNode::Call { receiver, method, args, .. } if method == "add" => {
+                let recv_ty = self.infer_type(receiver);
+                if let Type::I32 = recv_ty {
+                    if args.len() == 1 {
+                        let arg_ty = self.infer_type(&args[0]);
+                        if arg_ty == Type::I32 {
+                            return Type::I32;
+                        }
+                    }
+                }
+                Type::Unknown
+            }
+            AstNode::Assign(name, expr) => {
+                let ty = self.infer_type(expr);
+                self.type_env.insert(name.clone(), ty.clone());
+                ty
+            }
+            _ => Type::Unknown,
+        }
+    }
+
+    pub fn resolve_method(&self, recv_ty: &Type, method: &str) -> bool {
+        matches!((recv_ty, method), (Type::I32, "add"))
+            && self.impls.contains_key(&("Addable".to_string(), "i32".to_string()))
+    }
+
+    pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
+        let mut ok = true;
+        for ast in asts {
+            if let AstNode::FuncDef { body, .. } = ast {
+                for stmt in body {
+                    self.infer_type(stmt);
+                    if !self.borrow_checker.check(stmt) {
+                        ok = false;
+                    }
+                }
+                if !self.borrow_checker.validate_affine(body) {
+                    ok = false;
+                }
+                if !self.borrow_checker.validate_speculative(body) {
+                    ok = false;
+                }
+            }
+        }
+        ok
+    }
+
     pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
-        let mut mir_gen = MirGen::new();
-        mir_gen.gen_mir(ast)
+        let mut gen = MirGen::new();
+        gen.gen_mir(ast)
     }
 
     pub fn fold_semiring_chains(&self, mir: &mut Mir) -> bool {
@@ -83,29 +127,16 @@ impl Resolver {
         let mut i = 0;
         while i < mir.stmts.len() {
             if let MirStmt::Call { func, args, dest } = &mir.stmts[i] {
-                let op = if func == "add" {
-                    Some(SemiringOp::Add)
-                } else if func == "mul" {
-                    Some(SemiringOp::Mul)
-                } else {
-                    None
-                };
-
-                if let Some(op) = op {
+                if func == "add" {
                     let mut chain = vec![args[0]];
                     let mut current = *dest;
                     let mut j = i + 1;
 
                     while j < mir.stmts.len() {
-                        if let MirStmt::Call {
-                            func: next_func,
-                            args: next_args,
-                            dest: next_dest,
-                        } = &mir.stmts[j]
-                        {
-                            if next_func == func && next_args[0] == current {
-                                chain.push(next_args[1]);
-                                current = *next_dest;
+                        if let MirStmt::Call { func: f, args: a, dest: d } = &mir.stmts[j] {
+                            if f == "add" && a[0] == current {
+                                chain.push(a[1]);
+                                current = *d;
                                 j += 1;
                                 changed = true;
                             } else {
@@ -118,7 +149,7 @@ impl Resolver {
 
                     if chain.len() >= 3 {
                         mir.stmts[i] = MirStmt::SemiringFold {
-                            op,
+                            op: SemiringOp::Add,
                             values: chain,
                             result: current,
                         };
@@ -129,40 +160,5 @@ impl Resolver {
             i += 1;
         }
         changed
-    }
-
-    pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
-        let mut ok = true;
-        for ast in asts {
-            match ast {
-                AstNode::FuncDef { body, .. } => {
-                    for stmt in body {
-                        if !self.borrow_checker.check(stmt) {
-                            ok = false;
-                        }
-                    }
-                    if !self.borrow_checker.validate_affine(body) {
-                        ok = false;
-                    }
-                    if !self.borrow_checker.validate_speculative(body) {
-                        ok = false;
-                    }
-                }
-                _ => {}
-            }
-        }
-        ok
-    }
-
-    pub fn resolve_impl(&self, trait_name: &str, ty: &str) -> Option<&AstNode> {
-        self.impls.get(&(trait_name.to_string(), ty.to_string()))
-    }
-
-    pub fn resolve_method(&self, recv_ty: &str, method: &str) -> Option<&AstNode> {
-        if method == "add" && self.resolve_impl("Addable", recv_ty).is_some() {
-            Some(self.resolve_impl("Addable", recv_ty).unwrap())
-        } else {
-            None
-        }
     }
 }
