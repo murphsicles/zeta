@@ -47,7 +47,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.builder.position_at_end(entry);
 
         for stmt in &mir.stmts {
-            self.gen_stmt(stmt);
+            self.gen_stmt(stmt, mir);
         }
 
         if !mir.stmts.iter().any(|s| matches!(s, MirStmt::Return { .. })) {
@@ -55,18 +55,18 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
     }
 
-    fn gen_stmt(&mut self, stmt: &MirStmt) {
+    fn gen_stmt(&mut self, stmt: &MirStmt, mir: &Mir) {
         match stmt {
             MirStmt::Assign { lhs, rhs } => {
-                let value = self.gen_expr(rhs);
+                let value = self.gen_expr(rhs, mir);
                 let ptr = self.locals.entry(*lhs).or_insert_with(|| {
                     self.builder.build_alloca(self.i32_type, &format!("local_{}", lhs)).unwrap()
                 });
                 self.builder.build_store(*ptr, value).unwrap();
             }
             MirStmt::Call { args, dest, .. } => {
-                let lhs = self.load_local(args[0]);
-                let rhs = self.load_local(args[1]);
+                let lhs = self.load_local(args[0], mir);
+                let rhs = self.load_local(args[1], mir);
                 let sum = self.builder.build_int_add(lhs.into_int_value(), rhs.into_int_value(), "add_tmp").unwrap();
                 let ptr = self.locals.entry(*dest).or_insert_with(|| {
                     self.builder.build_alloca(self.i32_type, &format!("call_res_{}", dest)).unwrap()
@@ -74,13 +74,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.builder.build_store(*ptr, sum).unwrap();
             }
             MirStmt::SemiringFold { op, values, result } => {
-                let mut acc = self.load_local(values[0]);
+                let mut acc = self.load_local(values[0], mir);
 
                 if values.len() >= 4 && self.enable_simd {
                     for chunk in values[1..].chunks(4) {
                         let mut elems = vec![];
                         for &v in chunk {
-                            elems.push(self.load_local(v).into_int_value());
+                            elems.push(self.load_local(v, mir).into_int_value());
                         }
                         while elems.len() < 4 {
                             elems.push(self.i32_type.const_zero());
@@ -88,26 +88,18 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         let vec = VectorType::const_vector(&elems);
                         acc = match op {
                             SemiringOp::Add => {
-                                let a = if acc.is_int_value() {
-                                    vec
-                                } else {
-                                    acc.into_vector_value()
-                                };
+                                let a = if acc.is_int_value() { vec } else { acc.into_vector_value() };
                                 self.builder.build_int_add(a, vec, "fold_add_simd").unwrap().into()
                             }
                             SemiringOp::Mul => {
-                                let a = if acc.is_int_value() {
-                                    vec
-                                } else {
-                                    acc.into_vector_value()
-                                };
+                                let a = if acc.is_int_value() { vec } else { acc.into_vector_value() };
                                 self.builder.build_int_mul(a, vec, "fold_mul_simd").unwrap().into()
                             }
                         };
                     }
                 } else {
                     for &v in &values[1..] {
-                        let rhs = self.load_local(v);
+                        let rhs = self.load_local(v, mir);
                         acc = match op {
                             SemiringOp::Add => self
                                 .builder
@@ -129,23 +121,23 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.builder.build_store(*ptr, acc).unwrap();
             }
             MirStmt::Return { val } => {
-                let v = self.load_local(*val);
+                let v = self.load_local(*val, mir);
                 self.builder.build_return(Some(&v)).unwrap();
             }
             _ => {}
         }
     }
 
-    fn gen_expr(&self, expr: &MirExpr) -> BasicValueEnum<'ctx> {
+    fn gen_expr(&self, expr: &MirExpr, mir: &Mir) -> BasicValueEnum<'ctx> {
         match expr {
-            MirExpr::Var(id) => self.load_local(*id),
-            MirExpr::Lit(n) => self.i32_type.const_int(*n as u64, false).into(),
-            MirExpr::ConstEval(v) => self.i32_type.const_int(*v as u64, false).into(),
+            MirExpr::Var(id) => self.load_local(*id, mir),
+            MirExpr::Lit(n) => self.i32_type.const_int(*n as u64, true).into(),
+            MirExpr::ConstEval(n) => self.i32_type.const_int(*n as u64, true).into(),
             _ => self.i32_type.const_zero().into(),
         }
     }
 
-    fn load_local(&self, id: u32) -> BasicValueEnum<'ctx> {
+    fn load_local(&self, id: u32, mir: &Mir) -> BasicValueEnum<'ctx> {
         if let Some(&ptr) = self.locals.get(&id) {
             self.builder.build_load(self.i32_type, ptr, &format!("load_{}", id)).unwrap()
         } else {
