@@ -39,11 +39,7 @@ fn expr(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn func_body(input: &str) -> IResult<&str, Vec<AstNode>> {
-    delimited(
-        ws(tag("{")),
-        many0(ws(expr)),
-        ws(tag("}")),
-    )(input)
+    delimited(ws(tag("{")), many0(ws(expr)), ws(tag("}")))(input)
 }
 
 fn parse_func(input: &str) -> IResult<&str, AstNode> {
