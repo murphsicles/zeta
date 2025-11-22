@@ -8,11 +8,8 @@ use nom::multi::many0;
 use nom::sequence::{delimited, preceded};
 use nom::IResult;
 
-fn ws<'a, F, O>(p: F) -> impl FnMut(&'a str) -> IResult<&'a str, O>
-where
-    F: FnMut(&'a str) -> IResult<&'a str, O>,
-{
-    delimited(multispace0, p, multispace0)
+fn ws<'a, O>(inner: impl FnMut(&'a str) -> IResult<&'a str, O> + Copy) -> impl FnMut(&'a str) -> IResult<&'a str, O> {
+    delimited(multispace0, inner, multispace0)
 }
 
 fn ident(input: &str) -> IResult<&str, String> {
@@ -31,16 +28,14 @@ fn variable(input: &str) -> IResult<&str, AstNode> {
 
 fn expr(input: &str) -> IResult<&str, AstNode> {
     let (i, left) = alt((literal, variable))(input)?;
-    if ws(tag("+"))(i).is_ok() {
-        let (i, right) = alt((literal, variable))(i)?;
-        return Ok((i, AstNode::Call {
-            receiver: Some(Box::new(left)),
-            method: "add".to_string(),
-            args: vec![right],
-            type_args: vec![],
-        }));
-    }
-    Ok((i, left))
+    let (i, _) = ws(tag("+"))(i)?;
+    let (i, right) = alt((literal, variable))(i)?;
+    Ok((i, AstNode::Call {
+        receiver: Some(Box::new(left)),
+        method: "add".to_string(),
+        args: vec![right],
+        type_args: vec![],
+    }))
 }
 
 fn func_body(input: &str) -> IResult<&str, Vec<AstNode>> {
@@ -58,7 +53,7 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
         name,
         generics: vec![],
         params: vec![],
-        ret: ret.unwrap_or_else(|| "i64".to_string()),
+        ret: ret.unwrap_or("i64".to_string()),
         body,
         attrs: vec![],
         ret_expr: None,
