@@ -53,7 +53,7 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
         name,
         generics: vec![],
         params: vec![],
-        ret: ret.unwrap_or_else(|| "i64".to_string()),
+        ret: ret.map(|s| s.to_owned()).unwrap_or_else(|| "i64".to_string()),
         body,
         attrs: vec![],
         ret_expr: None,
