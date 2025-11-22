@@ -2,8 +2,9 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
+use num_cpus;
 
-type Message = i64; // will be generalized later
+type Message = i64;
 
 #[derive(Clone)]
 pub struct Channel {
@@ -64,7 +65,7 @@ impl Scheduler {
         for _ in 0..thread_count {
             let sched_clone = sched.clone();
             let handle = thread::spawn(move || sched_clone.worker_loop());
-            sched_clone.threads.lock().unwrap().push(handle);
+            sched.threads.lock().unwrap().push(handle);
         }
 
         sched
@@ -77,7 +78,7 @@ impl Scheduler {
                 actors.pop_front()
             };
 
-            if let Some(mut actor) = actor {
+            if let Some(actor) = actor {
                 (actor.func)(actor.chan);
             } else {
                 thread::park();
@@ -98,7 +99,9 @@ impl Scheduler {
         unsafe {
             if let Some(sched) = &SCHEDULER {
                 sched.actors.lock().unwrap().push_back(actor);
-                sched.threads.lock().unwrap()[0].thread().unpark();
+                if let Some(handle) = sched.threads.lock().unwrap().get(0) {
+                    handle.thread().unpark();
+                }
             }
         }
     }
