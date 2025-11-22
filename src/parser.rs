@@ -20,17 +20,17 @@ fn ident(input: &str) -> IResult<&str, String> {
 }
 
 fn literal(input: &str) -> IResult<&str, AstNode> {
-    map(nom_i64, AstNode::Lit)(input)
+    map(nom_i64, AstNode::Lit).parse(input)
 }
 
 fn variable(input: &str) -> IResult<&str, AstNode> {
-    map(ident, AstNode::Var)(input)
+    map(ident, AstNode::Var).parse(input)
 }
 
 fn expr(input: &str) -> IResult<&str, AstNode> {
-    let (i, left) = alt((literal, variable))(input)?;
-    let (i, _) = ws(tag("+"))(i)?;
-    let (i, right) = alt((literal, variable))(i)?;
+    let (i, left) = alt((literal, variable)).parse(input)?;
+    let (i, _) = ws(tag("+")).parse(i)?;
+    let (i, right) = alt((literal, variable)).parse(i)?;
     Ok((i, AstNode::Call {
         receiver: Some(Box::new(left)),
         method: "add".to_string(),
@@ -40,15 +40,15 @@ fn expr(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn func_body(input: &str) -> IResult<&str, Vec<AstNode>> {
-    delimited(ws(tag("{")), many0(ws(expr)), ws(tag("}")))(input)
+    delimited(ws(tag("{")), many0(ws(expr)), ws(tag("}"))).parse(input)
 }
 
 fn parse_func(input: &str) -> IResult<&str, AstNode> {
-    let (i, _) = ws(tag("fn"))(input)?;
+    let (i, _) = ws(tag("fn")).parse(input)?;
     let (i, name) = ident(i)?;
-    let (i, _) = ws(tag("("))(i)?;
-    let (i, _) = ws(tag(")"))(i)?;
-    let (i, ret): (&str, Option<&str>) = opt(preceded(ws(tag("->")), ws(ident)))(i)?;
+    let (i, _) = ws(tag("(")).parse(i)?;
+    let (i, _) = ws(tag(")")).parse(i)?;
+    let (i, ret): (&str, Option<&str>) = opt(preceded(ws(tag("->")), ws(ident))).parse(i)?;
     let (i, body) = func_body(i)?;
     Ok((i, AstNode::FuncDef {
         name,
@@ -62,5 +62,5 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
 }
 
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
-    delimited(multispace0, many0(ws(parse_func)), multispace0)(input)
+    delimited(multispace0, many0(ws(parse_func)), multispace0).parse(input)
 }
