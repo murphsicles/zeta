@@ -12,7 +12,10 @@ use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 extern "C" fn host_datetime_now() -> i64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as i64
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64
 }
 
 extern "C" fn host_free(ptr: *mut std::ffi::c_void) {
@@ -37,10 +40,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let i64_type = context.i64_type();
         let ptr_type = context.ptr_type(AddressSpace::default());
 
-        // Declare external functions
         let void_type = context.void_type();
-        let i64_type_fn = i64_type.fn_type(&[], false);
-        module.add_function("datetime_now", i64_type_fn, Some(Linkage::External));
+        let i64_fn_type = i64_type.fn_type(&[], false);
+        module.add_function("datetime_now", i64_fn_type, Some(Linkage::External));
 
         let free_type = void_type.fn_type(&[ptr_type.into()], false);
         module.add_function("free", free_type, Some(Linkage::External));
@@ -66,7 +68,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
 
         if !mir.stmts.iter().any(|s| matches!(s, MirStmt::Return { .. })) {
-            self.builder.build_return(Some(&self.i64_type.const_zero())).unwrap();
+            self.builder
+                .build_return(Some(&self.i64_type.const_zero()))
+                .unwrap();
         }
     }
 
@@ -75,36 +79,46 @@ impl<'ctx> LLVMCodegen<'ctx> {
             MirStmt::Assign { lhs, rhs } => {
                 let val = self.gen_expr(rhs);
                 let ptr = self.locals.entry(*lhs).or_insert_with(|| {
-                    self.builder.build_alloca(self.i64_type, &format!("loc_{lhs}")).unwrap()
+                    self.builder
+                        .build_alloca(self.i64_type, &format!("loc_{lhs}"))
+                        .unwrap()
                 });
                 self.builder.build_store(*ptr, val).unwrap();
             }
             MirStmt::Call { func, args, dest } => {
                 match func.as_str() {
                     "datetime_now" => {
-                        let call = self.builder.build_call(
-                            self.module.get_function("datetime_now").unwrap(),
-                            &[],
-                            "tmp_dt",
-                        ).unwrap();
-                        let val = call.try_as_basic_value().left().unwrap();
+                        let call = self
+                            .builder
+                            .build_call(
+                                self.module.get_function("datetime_now").unwrap(),
+                                &[],
+                                "tmp_dt",
+                            )
+                            .unwrap();
+                        let val = call.try_as_basic_value().unwrap_left();
                         let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                            self.builder.build_alloca(self.i64_type, "dt_res").unwrap()
+                            self.builder
+                                .build_alloca(self.i64_type, "dt_res")
+                                .unwrap()
                         });
                         self.builder.build_store(*ptr, val).unwrap();
                     }
                     "free" => {
                         let ptr = self.load_local(args[0]).into_pointer_value();
-                        self.builder.build_call(
-                            self.module.get_function("free").unwrap(),
-                            &[ptr.into()],
-                            "",
-                        ).unwrap();
+                        self.builder
+                            .build_call(
+                                self.module.get_function("free").unwrap(),
+                                &[ptr.into()],
+                                "",
+                            )
+                            .unwrap();
                     }
                     _ => {
-                        // monomorphized or primitive ops
                         let lhs = self.load_local(args[0]).into_int_value();
-                        let rhs = args.get(1).map(|&id| self.load_local(id).into_int_value())
+                        let rhs = args
+                            .get(1)
+                            .map(|&id| self.load_local(id).into_int_value())
                             .unwrap_or(self.i64_type.const_zero());
                         let result = if func.contains("add") {
                             self.builder.build_int_add(lhs, rhs, "add").unwrap()
@@ -112,7 +126,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             self.builder.build_int_mul(lhs, rhs, "mul").unwrap()
                         };
                         let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                            self.builder.build_alloca(self.i64_type, "call_res").unwrap()
+                            self.builder
+                                .build_alloca(self.i64_type, "call_res")
+                                .unwrap()
                         });
                         self.builder.build_store(*ptr, result).unwrap();
                     }
@@ -123,12 +139,18 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 for &v in &values[1..] {
                     let rhs = self.load_local(v).into_int_value();
                     acc = match op {
-                        SemiringOp::Add => self.builder.build_int_add(acc, rhs, "fold_add").unwrap(),
-                        SemiringOp::Mul => self.builder.build_int_mul(acc, rhs, "fold_mul").unwrap(),
+                        SemiringOp::Add => {
+                            self.builder.build_int_add(acc, rhs, "fold_add").unwrap()
+                        }
+                        SemiringOp::Mul => {
+                            self.builder.build_int_mul(acc, rhs, "fold_mul").unwrap()
+                        }
                     };
                 }
                 let ptr = self.locals.entry(*result).or_insert_with(|| {
-                    self.builder.build_alloca(self.i64_type, "fold_res").unwrap()
+                    self.builder
+                        .build_alloca(self.i64_type, "fold_res")
+                        .unwrap()
                 });
                 self.builder.build_store(*ptr, acc).unwrap();
             }
@@ -150,15 +172,27 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     fn load_local(&self, id: u32) -> BasicValueEnum<'ctx> {
         let ptr = self.locals[&id];
-        self.builder.build_load(self.i64_type, ptr, &format!("load_{id}")).unwrap()
+        self.builder
+            .build_load(self.i64_type, ptr, &format!("load_{id}"))
+            .unwrap()
     }
 
-    pub fn finalize_and_jit(&mut self) -> Result<ExecutionEngine<'ctx>, Box<dyn std::error::Error>> {
+    pub fn finalize_and_jit(
+        &mut self,
+    ) -> Result<ExecutionEngine<'ctx>, Box<dyn std::error::Error>> {
         self.module.verify().map_err(|e| e.to_string())?;
-        let ee = self.module.create_jit_execution_engine(OptimizationLevel::Aggressive)?;
+        let ee = self
+            .module
+            .create_jit_execution_engine(OptimizationLevel::Aggressive)?;
 
-        ee.add_global_mapping(&self.module.get_function("datetime_now").unwrap(), host_datetime_now as usize);
-        ee.add_global_mapping(&self.module.get_function("free").unwrap(), host_free as usize);
+        ee.add_global_mapping(
+            &self.module.get_function("datetime_now").unwrap(),
+            host_datetime_now as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("free").unwrap(),
+            host_free as usize,
+        );
 
         Ok(ee)
     }
