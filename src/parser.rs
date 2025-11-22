@@ -8,7 +8,7 @@ use nom::multi::many0;
 use nom::sequence::{delimited, preceded};
 use nom::IResult;
 
-fn ws<'a, O>(inner: impl FnMut(&'a str) -> IResult<&'a str, O> + Copy) -> impl FnMut(&'a str) -> IResult<&'a str, O> {
+fn ws<'a, O>(inner: impl FnMut(&'a str) -> IResult<&'a str, O>) -> impl FnMut(&'a str) -> IResult<&'a str, O> {
     delimited(multispace0, inner, multispace0)
 }
 
@@ -39,7 +39,11 @@ fn expr(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn func_body(input: &str) -> IResult<&str, Vec<AstNode>> {
-    delimited(ws(tag("{")), many0(ws(expr)), ws(tag("}")))(input)
+    delimited(
+        ws(tag("{")),
+        many0(ws(expr)),
+        ws(tag("}")),
+    )(input)
 }
 
 fn parse_func(input: &str) -> IResult<&str, AstNode> {
@@ -53,7 +57,7 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
         name,
         generics: vec![],
         params: vec![],
-        ret: ret.unwrap_or("i64".to_string()),
+        ret: ret.unwrap_or_else(|| "i64".to_string()),
         body,
         attrs: vec![],
         ret_expr: None,
