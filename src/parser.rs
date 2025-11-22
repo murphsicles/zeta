@@ -7,8 +7,9 @@ use nom::combinator::{map, opt};
 use nom::multi::many0;
 use nom::sequence::{delimited, preceded};
 use nom::IResult;
+use nom::Parser;
 
-fn ws<'a, O>(inner: impl FnMut(&'a str) -> IResult<&'a str, O>) -> impl FnMut(&'a str) -> IResult<&'a str, O> {
+fn ws<'a, O>(inner: impl Parser<&'a str, O, nom::error::Error<&'a str>>) -> impl Parser<&'a str, O, nom::error::Error<&'a str>> {
     delimited(multispace0, inner, multispace0)
 }
 
@@ -47,13 +48,13 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
     let (i, name) = ident(i)?;
     let (i, _) = ws(tag("("))(i)?;
     let (i, _) = ws(tag(")"))(i)?;
-    let (i, ret) = opt(preceded(ws(tag("->")), ws(ident)))(i)?;
+    let (i, ret): (&str, Option<&str>) = opt(preceded(ws(tag("->")), ws(ident)))(i)?;
     let (i, body) = func_body(i)?;
     Ok((i, AstNode::FuncDef {
         name,
         generics: vec![],
         params: vec![],
-        ret: ret.map(|s| s.to_owned()).unwrap_or_else(|| "i64".to_string()),
+        ret: ret.map(|s| s.to_string()).unwrap_or_else(|| "i64".to_string()),
         body,
         attrs: vec![],
         ret_expr: None,
