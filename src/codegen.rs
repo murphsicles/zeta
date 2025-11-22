@@ -40,7 +40,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let i64_type = context.i64_type();
         let ptr_type = context.ptr_type(AddressSpace::default());
 
-        // Declare external host functions
         let void_type = context.void_type();
         let i64_fn_type = i64_type.fn_type(&[], false);
         module.add_function("datetime_now", i64_fn_type, Some(Linkage::External));
@@ -166,8 +165,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let v = self.load_local(*val);
                 self.builder.build_return(Some(&v)).unwrap();
             }
-
-            _ => {}
         }
     }
 
