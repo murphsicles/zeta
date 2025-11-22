@@ -40,6 +40,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let i64_type = context.i64_type();
         let ptr_type = context.ptr_type(AddressSpace::default());
 
+        // Declare external host functions
         let void_type = context.void_type();
         let i64_fn_type = i64_type.fn_type(&[], false);
         module.add_function("datetime_now", i64_fn_type, Some(Linkage::External));
@@ -85,6 +86,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 });
                 self.builder.build_store(*ptr, val).unwrap();
             }
+
             MirStmt::Call { func, args, dest } => {
                 match func.as_str() {
                     "datetime_now" => {
@@ -96,7 +98,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 "tmp_dt",
                             )
                             .unwrap();
-                        let val = call.try_as_basic_value().expect("datetime_now should return value");
+
+                        let val = call
+                            .try_as_basic_value()
+                            .expect_basic("datetime_now must return i64");
+
                         let ptr = self.locals.entry(*dest).or_insert_with(|| {
                             self.builder
                                 .build_alloca(self.i64_type, "dt_res")
@@ -104,27 +110,31 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         });
                         self.builder.build_store(*ptr, val).unwrap();
                     }
+
                     "free" => {
-                        let ptr = self.load_local(args[0]).into_pointer_value();
+                        let ptr_val = self.load_local(args[0]).into_pointer_value();
                         self.builder
                             .build_call(
                                 self.module.get_function("free").unwrap(),
-                                &[ptr.into()],
+                                &[ptr_val.into()],
                                 "",
                             )
                             .unwrap();
                     }
+
                     _ => {
                         let lhs = self.load_local(args[0]).into_int_value();
                         let rhs = args
                             .get(1)
                             .map(|&id| self.load_local(id).into_int_value())
                             .unwrap_or(self.i64_type.const_zero());
+
                         let result = if func.contains("add") {
-                            self.builder.build_int_add(lhs, rhs, "add").unwrap()
+                            self.builder.build_int_add(lhs, rhs, "add_tmp").unwrap()
                         } else {
-                            self.builder.build_int_mul(lhs, rhs, "mul").unwrap()
+                            self.builder.build_int_mul(lhs, rhs, "mul_tmp").unwrap()
                         };
+
                         let ptr = self.locals.entry(*dest).or_insert_with(|| {
                             self.builder
                                 .build_alloca(self.i64_type, "call_res")
@@ -134,17 +144,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     }
                 }
             }
+
             MirStmt::SemiringFold { op, values, result } => {
                 let mut acc = self.load_local(values[0]).into_int_value();
                 for &v in &values[1..] {
                     let rhs = self.load_local(v).into_int_value();
                     acc = match op {
-                        SemiringOp::Add => {
-                            self.builder.build_int_add(acc, rhs, "fold_add").unwrap()
-                        }
-                        SemiringOp::Mul => {
-                            self.builder.build_int_mul(acc, rhs, "fold_mul").unwrap()
-                        }
+                        SemiringOp::Add => self.builder.build_int_add(acc, rhs, "fold_add").unwrap(),
+                        SemiringOp::Mul => self.builder.build_int_mul(acc, rhs, "fold_mul").unwrap(),
                     };
                 }
                 let ptr = self.locals.entry(*result).or_insert_with(|| {
@@ -154,10 +161,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 });
                 self.builder.build_store(*ptr, acc).unwrap();
             }
+
             MirStmt::Return { val } => {
                 let v = self.load_local(*val);
                 self.builder.build_return(Some(&v)).unwrap();
             }
+
             _ => {}
         }
     }
@@ -181,6 +190,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         &mut self,
     ) -> Result<ExecutionEngine<'ctx>, Box<dyn std::error::Error>> {
         self.module.verify().map_err(|e| e.to_string())?;
+
         let ee = self
             .module
             .create_jit_execution_engine(OptimizationLevel::Aggressive)?;
