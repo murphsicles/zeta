@@ -5,52 +5,61 @@ use nom::bytes::complete::tag;
 use nom::character::complete::{i64 as nom_i64, multispace0, satisfy};
 use nom::combinator::{map, opt};
 use nom::multi::many0;
-use nom::sequence::{delimited, preceded};
+use nom::sequence::{delimited, preceded, tuple};
 use nom::IResult;
 use nom::Parser;
 
-fn ws<'a, O>(inner: impl Parser<&'a str, O, nom::error::Error<&'a str>>) -> impl Parser<&'a str, O, nom::error::Error<&'a str>> {
+fn ws<O>(inner: impl Parser<&str, O, nom::error::Error<&str>>) -> impl Parser<&str, O, nom::error::Error<&str>> {
     delimited(multispace0, inner, multispace0)
 }
 
-fn ident(input: &str) -> IResult<&str, String> {
-    let (i, c) = satisfy(|c| c.is_alphabetic() || c == '_').parse(input)?;
-    let (i, rest) = many0(satisfy(|c| c.is_alphanumeric() || c == '_')).parse(i)?;
-    Ok((i, std::iter::once(c).chain(rest).collect()))
+fn ident_parser() -> impl Parser<&str, String, nom::error::Error<&str>> {
+    let first = satisfy(|c| c.is_alphabetic() || c == '_');
+    let rest = many0(satisfy(|c| c.is_alphanumeric() || c == '_'));
+    first.and_then(|c: char| rest.map(move |rest: Vec<char>| std::iter::once(c).chain(rest).collect()))
 }
 
-fn literal(input: &str) -> IResult<&str, AstNode> {
-    map(nom_i64, AstNode::Lit).parse(input)
+fn literal_parser() -> impl Parser<&str, AstNode, nom::error::Error<&str>> {
+    map(nom_i64, AstNode::Lit)
 }
 
-fn variable(input: &str) -> IResult<&str, AstNode> {
-    map(ident, AstNode::Var).parse(input)
+fn variable_parser() -> impl Parser<&str, AstNode, nom::error::Error<&str>> {
+    map(ident_parser(), AstNode::Var)
 }
 
-fn expr(input: &str) -> IResult<&str, AstNode> {
-    let (i, left) = alt((literal, variable)).parse(input)?;
-    let (i, _) = ws(tag("+")).parse(i)?;
-    let (i, right) = alt((literal, variable)).parse(i)?;
-    Ok((i, AstNode::Call {
+fn expr_parser() -> impl Parser<&str, AstNode, nom::error::Error<&str>> {
+    let left = alt((literal_parser(), variable_parser()));
+    let op = ws(tag("+"));
+    let right = alt((literal_parser(), variable_parser()));
+    left.and_then(move |left| op.and_then(move |_| right.map(move |right| AstNode::Call {
         receiver: Some(Box::new(left)),
         method: "add".to_string(),
         args: vec![right],
         type_args: vec![],
-    }))
+    })))
 }
 
-fn func_body(input: &str) -> IResult<&str, Vec<AstNode>> {
-    delimited(ws(tag("{")), many0(ws(expr)), ws(tag("}"))).parse(input)
+fn func_body_parser() -> impl Parser<&str, Vec<AstNode>, nom::error::Error<&str>> {
+    delimited(ws(tag("{")), many0(ws(expr_parser())), ws(tag("}")))
 }
 
 fn parse_func(input: &str) -> IResult<&str, AstNode> {
-    let (i, _) = ws(tag("fn")).parse(input)?;
-    let (i, name) = ident(i)?;
-    let (i, _) = ws(tag("(")).parse(i)?;
-    let (i, _) = ws(tag(")")).parse(i)?;
-    let (i, ret): (&str, Option<&str>) = opt(preceded(ws(tag("->")), ws(ident))).parse(i)?;
-    let (i, body) = func_body(i)?;
-    Ok((i, AstNode::FuncDef {
+    let fn_kw = ws(tag("fn"));
+    let name = ident_parser();
+    let lparen = ws(tag("("));
+    let rparen = ws(tag(")"));
+    let ret_type = opt(preceded(ws(tag("->")), ws(ident_parser())));
+    let body = func_body_parser();
+
+    tuple((
+        fn_kw,
+        name,
+        lparen,
+        rparen,
+        ret_type,
+        body,
+    ))
+    .map(|((_, name), _, _, _, ret, body)| AstNode::FuncDef {
         name,
         generics: vec![],
         params: vec![],
@@ -58,9 +67,10 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
         body,
         attrs: vec![],
         ret_expr: None,
-    }))
+    })
+    .parse(input)
 }
 
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
-    delimited(multispace0, many0(ws(parse_func)), multispace0).parse(input)
+    many0(ws(parse_func)).parse(input)
 }
