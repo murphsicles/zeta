@@ -3,7 +3,7 @@ use std::ffi::c_void;
 
 #[link(name = "c")]
 extern "C" {
-    fn free(ptr: *mut c_void);
+    unsafe fn free(ptr: *mut c_void);
 }
 
 pub unsafe fn std_free(ptr: *mut u8) {
