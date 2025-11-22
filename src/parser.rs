@@ -14,8 +14,8 @@ fn ws<'a, O>(inner: impl Parser<&'a str, O, nom::error::Error<&'a str>>) -> impl
 }
 
 fn ident(input: &str) -> IResult<&str, String> {
-    let (i, c) = satisfy(|c| c.is_alphabetic() || c == '_')(input)?;
-    let (i, rest) = many0(satisfy(|c| c.is_alphanumeric() || c == '_'))(i)?;
+    let (i, c) = satisfy(|c| c.is_alphabetic() || c == '_').parse(input)?;
+    let (i, rest) = many0(satisfy(|c| c.is_alphanumeric() || c == '_')).parse(i)?;
     Ok((i, std::iter::once(c).chain(rest).collect()))
 }
 
