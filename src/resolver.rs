@@ -136,7 +136,7 @@ impl Resolver {
     }
 
     pub fn fold_semiring_chains(&self, mir: &mut Mir) -> bool {
-        let mut changed = false;
+        let changed = false;
         let mut i = 0;
         while i + 1 < mir.stmts.len() {
             if let (MirStmt::Call { func: f1, args: a1, dest: d1 }, MirStmt::Call { func: f2, args: a2, .. }) =
