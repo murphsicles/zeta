@@ -96,7 +96,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 "tmp_dt",
                             )
                             .unwrap();
-                        let val = call.try_as_basic_value().unwrap_left();
+                        let val = call.try_as_basic_value().expect("datetime_now should return value");
                         let ptr = self.locals.entry(*dest).or_insert_with(|| {
                             self.builder
                                 .build_alloca(self.i64_type, "dt_res")
