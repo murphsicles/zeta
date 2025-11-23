@@ -29,6 +29,7 @@ pub struct LLVMCodegen<'ctx> {
     module: Module<'ctx>,
     builder: Builder<'ctx>,
     i64_type: IntType<'ctx>,
+    #[allow(dead_code)]
     ptr_type: inkwell::types::PointerType<'ctx>,
     locals: HashMap<u32, PointerValue<'ctx>>,
 }
@@ -194,11 +195,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
         ee.add_global_mapping(
             &self.module.get_function("datetime_now").unwrap(),
-            host_datetime_now as usize,
+            host_datetime_now as *const () as usize,
         );
         ee.add_global_mapping(
             &self.module.get_function("free").unwrap(),
-            host_free as usize,
+            host_free as *const () as usize,
         );
 
         Ok(ee)
