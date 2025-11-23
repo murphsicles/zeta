@@ -40,7 +40,7 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
     codegen.gen_mir(&mir);
     let ee = codegen.finalize_and_jit().map_err(|e| e.to_string())?;
 
-    unsafe {
+    {
         let free_fn = crate::std::std_free as *const () as usize;
         ee.add_global_mapping(&codegen.module.get_function("free").unwrap(), free_fn);
     }
