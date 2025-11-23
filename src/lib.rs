@@ -16,6 +16,7 @@ pub use actor::{init_runtime, spawn};
 
 use inkwell::context::Context;
 use std::error::Error;
+use crate::ast::AstNode;
 
 pub fn compile_and_run_zeta(code: &str) -> Result<i64, Box<dyn Error>> {
     actor::init_runtime();
