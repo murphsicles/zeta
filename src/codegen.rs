@@ -26,7 +26,7 @@ extern "C" fn host_free(ptr: *mut std::ffi::c_void) {
 
 pub struct LLVMCodegen<'ctx> {
     context: &'ctx Context,
-    module: Module<'ctx>,
+    pub module: Module<'ctx>,
     builder: Builder<'ctx>,
     i64_type: IntType<'ctx>,
     #[allow(dead_code)]
