@@ -1,6 +1,6 @@
 // src/actor.rs
 use std::collections::VecDeque;
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::thread;
 use num_cpus;
 
@@ -48,7 +48,7 @@ struct Actor {
     func: Box<dyn FnOnce(Channel) + Send + 'static>,
 }
 
-static mut SCHEDULER: Option<Arc<Scheduler>> = None;
+static SCHEDULER: OnceLock<Arc<Scheduler>> = OnceLock::new();
 
 struct Scheduler {
     actors: Mutex<VecDeque<Actor>>,
@@ -96,22 +96,18 @@ impl Scheduler {
             func: Box::new(func),
         };
 
-        unsafe {
-            if let Some(sched) = SCHEDULER.as_ref() {
-                sched.actors.lock().unwrap().push_back(actor);
-                if let Some(handle) = sched.threads.lock().unwrap().get(0) {
-                    handle.thread().unpark();
-                }
+        if let Some(sched) = SCHEDULER.get() {
+            sched.actors.lock().unwrap().push_back(actor);
+            if let Some(handle) = sched.threads.lock().unwrap().get(0) {
+                handle.thread().unpark();
             }
         }
     }
 
     pub fn init() {
-        unsafe {
-            if SCHEDULER.is_none() {
-                SCHEDULER = Some(Scheduler::new(num_cpus::get().max(1)));
-            }
-        }
+        SCHEDULER.get_or_init(|| {
+            Arc::new(Self::new(num_cpus::get().max(1)))
+        });
     }
 }
 
