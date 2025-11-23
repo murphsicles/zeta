@@ -2,7 +2,7 @@
 use crate::ast::AstNode;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
-use nom::character::complete::{alpha1, alphanum0, i64 as nom_i64, multispace0};
+use nom::character::complete::{alphanumeric0, alpha1, i64 as nom_i64, multispace0};
 use nom::combinator::{map, opt};
 use nom::multi::many0;
 use nom::sequence::{delimited, preceded};
@@ -14,7 +14,7 @@ fn ws<'a, O>(inner: impl Parser<&'a str, Output = O, Error = nom::error::Error<&
 }
 
 fn ident<'a>() -> impl Parser<&'a str, Output = String, Error = nom::error::Error<&'a str>> {
-    map(alpha1.and(alphanum0), |(first, rest): (&str, &str)| format!("{}{}", first, rest))
+    map(alpha1.and(alphanumeric0), |(first, rest): (&str, &str)| first.to_string() + rest)
 }
 
 fn literal<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
@@ -60,7 +60,7 @@ fn parse_func<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
         .and(ret_type)
         .and(body)
         .map(|((((( _, name), _), _), ret_opt), body)| {
-            let ret: String = ret_opt.map(|s: &str| s.to_string()).unwrap_or_else(|| "i64".to_string());
+            let ret: String = ret_opt.map(|s: String| s).unwrap_or_else(|| "i64".to_string());
             AstNode::FuncDef {
                 name,
                 generics: vec![],
@@ -74,5 +74,5 @@ fn parse_func<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
 }
 
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
-    delimited(multispace0, many0(ws(parse_func())), multispace0)(input)
+    delimited(multispace0, many0(ws(parse_func())), multispace0).parse(input)
 }
