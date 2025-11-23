@@ -28,23 +28,26 @@ fn variable(input: &str) -> IResult<&str, AstNode> {
 
 fn expr(input: &str) -> IResult<&str, AstNode> {
     let (i, left) = alt((literal, variable))(input)?;
-    match ws(tag("+"))(i) {
-        Ok((i, _)) => {
-            let (i, right) = alt((literal, variable))(i)?;
-            Ok((i, AstNode::Call {
-                receiver: Some(Box::new(left)),
-                method: "add".to_string(),
-                args: vec![right],
-                type_args: vec![],
-            }))
-        }
-        Err(nom::Err::Error(_)) | Err(nom::Err::Incomplete(_)) => Ok((i, left)),
-        Err(e) => Err(e),
-    }
+    let (i, _) = match ws(tag("+"))(i) {
+        Ok(res) => res,
+        Err(nom::Err::Error(_)) | Err(nom::Err::Incomplete(_)) => return Ok((i, left)),
+        Err(e) => return Err(e),
+    };
+    let (i, right) = alt((literal, variable))(i)?;
+    Ok((i, AstNode::Call {
+        receiver: Some(Box::new(left)),
+        method: "add".to_string(),
+        args: vec![right],
+        type_args: vec![],
+    }))
 }
 
 fn func_body(input: &str) -> IResult<&str, Vec<AstNode>> {
-    delimited(ws(tag("{")), many0(ws(expr)), ws(tag("}")))(input)
+    delimited(
+        ws(tag("{")),
+        many0(ws(expr)),
+        ws(tag("}")),
+    )(input)
 }
 
 fn parse_func(input: &str) -> IResult<&str, AstNode> {
