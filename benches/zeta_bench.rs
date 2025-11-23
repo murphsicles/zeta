@@ -1,5 +1,8 @@
 // benches/zeta_bench.rs
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+#![allow(deprecated)]
+
+use criterion::{Criterion, criterion_group, criterion_main};
+use std::hint::black_box;
 use zeta::compile_and_run_zeta;
 
 fn bench_semiring_add(c: &mut Criterion) {
