@@ -105,9 +105,7 @@ impl Scheduler {
     }
 
     pub fn init() {
-        SCHEDULER.get_or_init(|| {
-            Arc::new(Self::new(num_cpus::get().max(1)))
-        });
+        SCHEDULER.get_or_init(|| Scheduler::new(num_cpus::get().max(1)));
     }
 }
 
