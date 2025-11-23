@@ -20,7 +20,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let main_func = asts
         .iter()
-        .find(|a| matches!(a, zeta::ast::AstNode::FuncDef { name, .. } if name == "main"))
+        .find(|a| matches!(a, AstNode::FuncDef { name, .. } if name == "main"))
         .ok_or("No main function")?;
 
     let mir = resolver.lower_to_mir(main_func);
@@ -28,7 +28,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ee = codegen.finalize_and_jit()?;
 
     unsafe {
-        let free_fn = zeta::std::std_free as usize;
+        let free_fn = zeta::std::std_free as *const () as usize;
         ee.add_global_mapping(&codegen.module.get_function("free").unwrap(), free_fn);
     }
 
@@ -39,6 +39,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map_err(|_| "No main")?;
         let result = main.call();
         println!("Zeta 1.0 self-hosted result: {}", result);
+        Ok(())
     }
-    Ok(())
 }
