@@ -97,7 +97,7 @@ impl Scheduler {
         };
 
         unsafe {
-            if let Some(sched) = &SCHEDULER {
+            if let Some(sched) = SCHEDULER.as_ref() {
                 sched.actors.lock().unwrap().push_back(actor);
                 if let Some(handle) = sched.threads.lock().unwrap().get(0) {
                     handle.thread().unpark();
