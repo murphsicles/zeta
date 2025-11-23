@@ -1,8 +1,8 @@
 // src/actor.rs
+use num_cpus;
 use std::collections::VecDeque;
 use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::thread;
-use num_cpus;
 
 type Message = i64;
 

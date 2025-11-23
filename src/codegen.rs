@@ -1,13 +1,13 @@
 // src/codegen.rs
-use crate::mir::{Mir, MirStmt, MirExpr, SemiringOp};
+use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
+use inkwell::AddressSpace;
+use inkwell::OptimizationLevel;
+use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
-use inkwell::module::{Module, Linkage};
-use inkwell::builder::Builder;
-use inkwell::values::{PointerValue, BasicValueEnum};
+use inkwell::module::{Linkage, Module};
 use inkwell::types::IntType;
-use inkwell::OptimizationLevel;
-use inkwell::AddressSpace;
+use inkwell::values::{BasicValueEnum, PointerValue};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -68,7 +68,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
             self.gen_stmt(stmt);
         }
 
-        if !mir.stmts.iter().any(|s| matches!(s, MirStmt::Return { .. })) {
+        if !mir
+            .stmts
+            .iter()
+            .any(|s| matches!(s, MirStmt::Return { .. }))
+        {
             self.builder
                 .build_return(Some(&self.i64_type.const_zero()))
                 .unwrap();
@@ -87,71 +91,71 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.builder.build_store(*ptr, val).unwrap();
             }
 
-            MirStmt::Call { func, args, dest } => {
-                match func.as_str() {
-                    "datetime_now" => {
-                        let call = self
-                            .builder
-                            .build_call(
-                                self.module.get_function("datetime_now").unwrap(),
-                                &[],
-                                "tmp_dt",
-                            )
-                            .unwrap();
+            MirStmt::Call { func, args, dest } => match func.as_str() {
+                "datetime_now" => {
+                    let call = self
+                        .builder
+                        .build_call(
+                            self.module.get_function("datetime_now").unwrap(),
+                            &[],
+                            "tmp_dt",
+                        )
+                        .unwrap();
 
-                        let val = call
-                            .try_as_basic_value()
-                            .expect_basic("datetime_now must return i64");
+                    let val = call
+                        .try_as_basic_value()
+                        .expect_basic("datetime_now must return i64");
 
-                        let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                            self.builder
-                                .build_alloca(self.i64_type, "dt_res")
-                                .unwrap()
-                        });
-                        self.builder.build_store(*ptr, val).unwrap();
-                    }
-
-                    "free" => {
-                        let ptr_val = self.load_local(args[0]).into_pointer_value();
-                        self.builder
-                            .build_call(
-                                self.module.get_function("free").unwrap(),
-                                &[ptr_val.into()],
-                                "",
-                            )
-                            .unwrap();
-                    }
-
-                    _ => {
-                        let lhs = self.load_local(args[0]).into_int_value();
-                        let rhs = args
-                            .get(1)
-                            .map(|&id| self.load_local(id).into_int_value())
-                            .unwrap_or(self.i64_type.const_zero());
-
-                        let result = if func.contains("add") {
-                            self.builder.build_int_add(lhs, rhs, "add_tmp").unwrap()
-                        } else {
-                            self.builder.build_int_mul(lhs, rhs, "mul_tmp").unwrap()
-                        };
-
-                        let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                            self.builder
-                                .build_alloca(self.i64_type, "call_res")
-                                .unwrap()
-                        });
-                        self.builder.build_store(*ptr, result).unwrap();
-                    }
+                    let ptr = self.locals.entry(*dest).or_insert_with(|| {
+                        self.builder.build_alloca(self.i64_type, "dt_res").unwrap()
+                    });
+                    self.builder.build_store(*ptr, val).unwrap();
                 }
-            }
+
+                "free" => {
+                    let ptr_val = self.load_local(args[0]).into_pointer_value();
+                    self.builder
+                        .build_call(
+                            self.module.get_function("free").unwrap(),
+                            &[ptr_val.into()],
+                            "",
+                        )
+                        .unwrap();
+                }
+
+                _ => {
+                    let lhs = self.load_local(args[0]).into_int_value();
+                    let rhs = args
+                        .get(1)
+                        .map(|&id| self.load_local(id).into_int_value())
+                        .unwrap_or(self.i64_type.const_zero());
+
+                    let result = if func.contains("add") {
+                        self.builder.build_int_add(lhs, rhs, "add_tmp").unwrap()
+                    } else {
+                        self.builder.build_int_mul(lhs, rhs, "mul_tmp").unwrap()
+                    };
+
+                    let ptr = self.locals.entry(*dest).or_insert_with(|| {
+                        self.builder
+                            .build_alloca(self.i64_type, "call_res")
+                            .unwrap()
+                    });
+                    self.builder.build_store(*ptr, result).unwrap();
+                }
+            },
 
             MirStmt::SemiringFold { op, values, result } => {
                 let mut acc = self.load_local(values[0]).into_int_value();
                 for &v in &values[1..] {
                     let rhs = self.load_local(v).into_int_value();
                     acc = match op {
-                        SemiringOp::Add => self.builder.build_int_add(acc, rhs, "fold_add").unwrap(),
-                        SemiringOp::Mul => self.builder.build_int_mul(acc, rhs, "fold_mul").unwrap(),
+                        SemiringOp::Add => {
+                            self.builder.build_int_add(acc, rhs, "fold_add").unwrap()
+                        }
+                        SemiringOp::Mul => {
+                            self.builder.build_int_mul(acc, rhs, "fold_mul").unwrap()
+                        }
                     };
                 }
                 let ptr = self.locals.entry(*result).or_insert_with(|| {

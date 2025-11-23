@@ -1,20 +1,24 @@
 // src/parser.rs
 use crate::ast::AstNode;
+use nom::IResult;
+use nom::Parser;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
-use nom::character::complete::{alphanumeric0, alpha1, i64 as nom_i64, multispace0};
+use nom::character::complete::{alpha1, alphanumeric0, i64 as nom_i64, multispace0};
 use nom::combinator::{map, opt};
 use nom::multi::many0;
 use nom::sequence::{delimited, preceded};
-use nom::IResult;
-use nom::Parser;
 
-fn ws<'a, O>(inner: impl Parser<&'a str, Output = O, Error = nom::error::Error<&'a str>>) -> impl Parser<&'a str, Output = O, Error = nom::error::Error<&'a str>> {
+fn ws<'a, O>(
+    inner: impl Parser<&'a str, Output = O, Error = nom::error::Error<&'a str>>,
+) -> impl Parser<&'a str, Output = O, Error = nom::error::Error<&'a str>> {
     delimited(multispace0, inner, multispace0)
 }
 
 fn ident<'a>() -> impl Parser<&'a str, Output = String, Error = nom::error::Error<&'a str>> {
-    map(alpha1.and(alphanumeric0), |(first, rest): (&str, &str)| first.to_string() + rest)
+    map(alpha1.and(alphanumeric0), |(first, rest): (&str, &str)| {
+        first.to_string() + rest
+    })
 }
 
 fn literal<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
@@ -42,7 +46,8 @@ fn expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Erro
     })
 }
 
-fn func_body<'a>() -> impl Parser<&'a str, Output = Vec<AstNode>, Error = nom::error::Error<&'a str>> {
+fn func_body<'a>() -> impl Parser<&'a str, Output = Vec<AstNode>, Error = nom::error::Error<&'a str>>
+{
     delimited(ws(tag("{")), many0(ws(expr())), ws(tag("}")))
 }
 
@@ -59,8 +64,10 @@ fn parse_func<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
         .and(rparen)
         .and(ret_type)
         .and(body)
-        .map(|((((( _, name), _), _), ret_opt), body)| {
-            let ret: String = ret_opt.map(|s: String| s).unwrap_or_else(|| "i64".to_string());
+        .map(|(((((_, name), _), _), ret_opt), body)| {
+            let ret: String = ret_opt
+                .map(|s: String| s)
+                .unwrap_or_else(|| "i64".to_string());
             AstNode::FuncDef {
                 name,
                 generics: vec![],

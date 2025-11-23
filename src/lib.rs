@@ -1,4 +1,5 @@
 // src/lib.rs
+pub mod actor;
 pub mod ast;
 pub mod borrow;
 pub mod codegen;
@@ -6,17 +7,16 @@ pub mod mir;
 pub mod parser;
 pub mod resolver;
 pub mod specialization;
-pub mod actor;
 pub mod std;
 
+pub use actor::{init_runtime, spawn};
+pub use codegen::LLVMCodegen;
 pub use parser::parse_zeta;
 pub use resolver::Resolver;
-pub use codegen::LLVMCodegen;
-pub use actor::{init_runtime, spawn};
 
+use crate::ast::AstNode;
 use inkwell::context::Context;
 use std::error::Error;
-use crate::ast::AstNode;
 
 pub fn compile_and_run_zeta(code: &str) -> Result<i64, Box<dyn Error>> {
     actor::init_runtime();
@@ -48,9 +48,7 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, Box<dyn Error>> {
 
     type MainFn = unsafe extern "C" fn() -> i64;
     unsafe {
-        let main = ee
-            .get_function::<MainFn>("main")
-            .map_err(|_| "No main")?;
+        let main = ee.get_function::<MainFn>("main").map_err(|_| "No main")?;
         Ok(main.call())
     }
 }

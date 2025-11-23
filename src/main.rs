@@ -1,7 +1,7 @@
 // src/main.rs
-use zeta::{parse_zeta, Resolver, LLVMCodegen, actor};
 use inkwell::context::Context;
 use std::fs;
+use zeta::{LLVMCodegen, Resolver, actor, parse_zeta};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     actor::init_runtime();
@@ -34,9 +34,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     type MainFn = unsafe extern "C" fn() -> i32;
     unsafe {
-        let main = ee
-            .get_function::<MainFn>("main")
-            .map_err(|_| "No main")?;
+        let main = ee.get_function::<MainFn>("main").map_err(|_| "No main")?;
         let result = main.call();
         println!("Zeta 1.0 self-hosted result: {}", result);
         Ok(())

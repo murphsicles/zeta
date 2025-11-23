@@ -3,10 +3,19 @@ use crate::ast::AstNode;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum BorrowState { Owned, Borrowed, MutBorrowed, Consumed }
+pub enum BorrowState {
+    Owned,
+    Borrowed,
+    MutBorrowed,
+    Consumed,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum SpeculativeState { Safe, Speculative, Poisoned }
+pub enum SpeculativeState {
+    Safe,
+    Speculative,
+    Poisoned,
+}
 
 #[derive(Debug, Clone)]
 pub struct BorrowChecker {
@@ -17,7 +26,11 @@ pub struct BorrowChecker {
 
 impl BorrowChecker {
     pub fn new() -> Self {
-        Self { borrows: HashMap::new(), affine_moves: HashMap::new(), speculative: HashMap::new() }
+        Self {
+            borrows: HashMap::new(),
+            affine_moves: HashMap::new(),
+            speculative: HashMap::new(),
+        }
     }
 
     pub fn declare(&mut self, var: String, state: BorrowState) {
@@ -28,16 +41,26 @@ impl BorrowChecker {
 
     pub fn check(&mut self, node: &AstNode) -> bool {
         match node {
-            AstNode::Var(v) => self.borrows.get(v).map_or(true, |s| matches!(s, BorrowState::Owned | BorrowState::Borrowed)),
+            AstNode::Var(v) => self.borrows.get(v).map_or(true, |s| {
+                matches!(s, BorrowState::Owned | BorrowState::Borrowed)
+            }),
             AstNode::Assign(v, expr) => {
-                if !self.check(expr) { return false; }
+                if !self.check(expr) {
+                    return false;
+                }
                 self.declare(v.clone(), BorrowState::Owned);
                 true
-            },
+            }
             AstNode::Call { receiver, args, .. } => {
-                if let Some(r) = receiver { if !self.check(r) { return false; } }
+                if let Some(r) = receiver {
+                    if !self.check(r) {
+                        return false;
+                    }
+                }
                 for arg in args {
-                    if !self.check(arg) { return false; }
+                    if !self.check(arg) {
+                        return false;
+                    }
                     if let AstNode::Var(name) = arg {
                         if let Some(moved) = self.affine_moves.get_mut(name) {
                             if !*moved {
@@ -48,7 +71,7 @@ impl BorrowChecker {
                     }
                 }
                 true
-            },
+            }
             AstNode::TimingOwned { inner, .. } => self.check(inner),
             _ => true,
         }

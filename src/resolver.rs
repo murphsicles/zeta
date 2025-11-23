@@ -2,7 +2,9 @@
 use crate::ast::AstNode;
 use crate::borrow::BorrowChecker;
 use crate::mir::{Mir, MirGen, MirStmt, SemiringOp};
-use crate::specialization::{lookup_specialization, record_specialization, MonoKey, MonoValue, is_cache_safe};
+use crate::specialization::{
+    MonoKey, MonoValue, is_cache_safe, lookup_specialization, record_specialization,
+};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -32,7 +34,8 @@ impl Resolver {
         // Fast-path: i64 implements Addable
         let mut addable = HashMap::new();
         addable.insert("add".to_string(), (vec![Type::I64], Type::I64));
-        r.direct_impls.insert(("Addable".to_string(), Type::I64), addable);
+        r.direct_impls
+            .insert(("Addable".to_string(), Type::I64), addable);
 
         r
     }
@@ -44,7 +47,10 @@ impl Resolver {
             for node in body {
                 if let AstNode::Method { name, params, ret } = node {
                     let sig = (
-                        params.into_iter().map(|(_, t)| self.parse_type(&t)).collect(),
+                        params
+                            .into_iter()
+                            .map(|(_, t)| self.parse_type(&t))
+                            .collect(),
                         self.parse_type(&ret),
                     );
                     methods.insert(name, sig);
@@ -72,12 +78,21 @@ impl Resolver {
                 self.type_env.insert(name.clone(), ty.clone());
                 ty
             }
-            AstNode::Call { receiver, method, type_args, args, .. } => {
+            AstNode::Call {
+                receiver,
+                method,
+                type_args,
+                args,
+                ..
+            } => {
                 let recv_ty = receiver.as_ref().map(|r| self.infer_type(r));
 
                 // Fast-path trait lookup
                 if let Some(recv_ty) = recv_ty {
-                    if let Some(impls) = self.direct_impls.get(&("Addable".to_string(), recv_ty.clone())) {
+                    if let Some(impls) = self
+                        .direct_impls
+                        .get(&("Addable".to_string(), recv_ty.clone()))
+                    {
                         if let Some((params, ret)) = impls.get(method) {
                             if params.len() == args.len() {
                                 return ret.clone();
@@ -104,10 +119,13 @@ impl Resolver {
                         }
                     }
                     let cache_safe = type_args.iter().all(|t| is_cache_safe(t));
-                    record_specialization(key, MonoValue {
-                        llvm_func_name: mangled.clone(),
-                        cache_safe,
-                    });
+                    record_specialization(
+                        key,
+                        MonoValue {
+                            llvm_func_name: mangled.clone(),
+                            cache_safe,
+                        },
+                    );
                     Type::Named(mangled)
                 }
             }
@@ -139,8 +157,16 @@ impl Resolver {
         let changed = false;
         let mut i = 0;
         while i + 1 < mir.stmts.len() {
-            if let (MirStmt::Call { func: f1, args: a1, dest: d1 }, MirStmt::Call { func: f2, args: a2, .. }) =
-                (&mir.stmts[i], &mir.stmts[i + 1])
+            if let (
+                MirStmt::Call {
+                    func: f1,
+                    args: a1,
+                    dest: d1,
+                },
+                MirStmt::Call {
+                    func: f2, args: a2, ..
+                },
+            ) = (&mir.stmts[i], &mir.stmts[i + 1])
             {
                 if f1 == "add" && f2 == "add" && a2[0] == *d1 {
                     mir.stmts[i] = MirStmt::SemiringFold {

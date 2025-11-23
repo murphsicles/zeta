@@ -17,10 +17,23 @@ pub struct Mir {
 
 #[derive(Debug, Clone)]
 pub enum MirStmt {
-    Assign { lhs: u32, rhs: MirExpr },
-    Call { func: String, args: Vec<u32>, dest: u32 },
-    Return { val: u32 },
-    SemiringFold { op: SemiringOp, values: Vec<u32>, result: u32 },
+    Assign {
+        lhs: u32,
+        rhs: MirExpr,
+    },
+    Call {
+        func: String,
+        args: Vec<u32>,
+        dest: u32,
+    },
+    Return {
+        val: u32,
+    },
+    SemiringFold {
+        op: SemiringOp,
+        values: Vec<u32>,
+        result: u32,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -68,7 +81,12 @@ impl MirGen {
         }
     }
 
-    fn gen_stmt(&mut self, node: &AstNode, out: &mut Vec<MirStmt>, exprs: &mut HashMap<u32, MirExpr>) {
+    fn gen_stmt(
+        &mut self,
+        node: &AstNode,
+        out: &mut Vec<MirStmt>,
+        exprs: &mut HashMap<u32, MirExpr>,
+    ) {
         match node {
             AstNode::Assign(name, expr) => {
                 let lhs = self.alloc_local(name);
