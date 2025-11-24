@@ -7,10 +7,7 @@ pub enum AstNode {
     /// Full program as list of nodes.
     Program(Vec<AstNode>),
     /// Trait/concept definition with methods.
-    ConceptDef {
-        name: String,
-        methods: Vec<AstNode>,
-    },
+    ConceptDef { name: String, methods: Vec<AstNode> },
     /// Impl block for concept on type.
     ImplBlock {
         concept: String,
@@ -47,8 +44,5 @@ pub enum AstNode {
     /// Assignment.
     Assign(String, Box<AstNode>),
     /// TimingOwned: Constant-time owned value abstraction.
-    TimingOwned {
-        ty: String,
-        inner: Box<AstNode>,
-    },
+    TimingOwned { ty: String, inner: Box<AstNode> },
 }
