@@ -1,50 +1,41 @@
 # deny.toml: Cargo-deny configuration for Zeta.
-# Allows standard Rust ecosystem licenses (MIT/Apache-2.0).
-# Denies proprietary/uncommon ones for systems lang purity.
+# Allows standard Rust ecosystem licenses (MIT/Apache-2.0/BSD).
+# Denies others (e.g., GPL) implicitly via allow list.
+# Ignores unpublished/private crates.
 
 [licenses]
-# Allow common OSS licenses.
+# Confidence threshold for license detection.
+confidence-threshold = 0.93
+
+# Allowed licenses.
 allow = [
     "MIT",
     "Apache-2.0",
-    "Open-BSV",
     "BSD-3-Clause",
     "ISC",
     "MPL-2.0",
     "Unicode-DFS-2016",
 ]
 
-# Deny proprietary/restricted.
-deny = [
-    "proprietary",
-    "AGPL-3.0",
-    "GPL-2.0",
-    "LGPL-2.1",
-]
-
-# Exceptions for specific crates if needed (none yet).
+# Exceptions for specific crates/licenses if needed.
 exceptions = []
 
-[licenses.private]
-# Allow private crates (e.g., internal).
-allow = true
+[graph]
+# Exclude unpublished/private crates from checks.
+exclude-unpublished = true
 
 [bans]
-# Ban multiple versions of same crate.
+# Deny multiple versions of the same crate.
 multiple-versions = "deny"
 
-# Deny dev-deps with wildcards.
+# Deny wildcard dependencies.
 wildcards = "deny"
 
-# Ban specific problematic crates.
+# Deny specific problematic crates.
 deny = []
 
-# Exceptions.
+# Skip specific crates.
 skip = []
 
-[dependencies]
-# No specific dep checks yet.
-
-[suspicious]
-# Warn on suspicious exports.
-bad-trends = true
+# Skip transitive deps of specific crates.
+skip-tree = []
