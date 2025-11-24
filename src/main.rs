@@ -1,6 +1,7 @@
 // src/main.rs
 use inkwell::context::Context;
 use std::fs;
+use zeta::ast::AstNode;
 use zeta::{LLVMCodegen, Resolver, actor, parse_zeta};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
