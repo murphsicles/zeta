@@ -157,34 +157,32 @@ impl Resolver {
     }
 
     pub fn fold_semiring_chains(&self, mir: &mut Mir) -> bool {
-        let mut changed = false;
         let mut i = 0;
         while i + 1 < mir.stmts.len() {
             if let (
-                MirStmt::Call {
-                    func: f1,
-                    args: a1,
-                    dest: d1,
+                &MirStmt::Call {
+                    func: ref f1,
+                    args: ref a1,
+                    dest: ref d1,
                 },
-                MirStmt::Call {
-                    func: f2,
-                    args: a2,
-                    ..
+                &MirStmt::Call {
+                    func: ref f2,
+                    args: ref a2,
+                    dest: ref d2,
                 },
             ) = (&mir.stmts[i], &mir.stmts[i + 1])
-            && f1.as_str() == "add" && f2.as_str() == "add" && a2[0] == d1 {
+            && f1 == "add" && f2 == "add" && a2[0] == d1
+            {
                 mir.stmts[i] = MirStmt::SemiringFold {
                     op: SemiringOp::Add,
                     values: vec![*a1[0], *a1[1], *a2[1]],
-                    result: *a2[1], // reuse last dest
+                    result: *d2,
                 };
                 mir.stmts.remove(i + 1);
-                changed = true;
-                i += 1; // continue after modification
-                continue;
+                return true;
             }
             i += 1;
         }
-        changed
+        false
     }
 }
