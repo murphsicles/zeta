@@ -62,11 +62,9 @@ impl BorrowChecker {
                         return false;
                     }
                     if let AstNode::Var(name) = arg {
-                        if let Some(moved) = self.affine_moves.get_mut(name) {
-                            if !*moved {
-                                *moved = true;
-                                self.borrows.insert(name.clone(), BorrowState::Consumed);
-                            }
+                        if let Some(moved) = self.affine_moves.get_mut(name) && !*moved {
+                            *moved = true;
+                            self.borrows.insert(name.clone(), BorrowState::Consumed);
                         }
                     }
                 }
