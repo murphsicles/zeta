@@ -166,7 +166,7 @@ impl Resolver {
                     continue;
                 }
                 if let MirStmt::Call { func: ref f2, args: ref a2, dest: ref d2 } = &mir.stmts[i + 1]
-                    && f2.as_str() == "add" && *a2[0] == *d1
+                    && f2.as_str() == "add" && a2[0] == d1
                 {
                     mir.stmts[i] = MirStmt::SemiringFold {
                         op: SemiringOp::Add,
