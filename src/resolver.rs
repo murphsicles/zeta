@@ -98,9 +98,12 @@ impl Resolver {
 
                 // Fast-path trait lookup
                 if let Some(recv_ty) = recv_ty
-                    && let Some(impls) = self.direct_impls.get(&("Addable".to_string(), recv_ty.clone()))
+                    && let Some(impls) = self
+                        .direct_impls
+                        .get(&("Addable".to_string(), recv_ty.clone()))
                     && let Some((params, ret)) = impls.get(method)
-                    && params.len() == args.len() {
+                    && params.len() == args.len()
+                {
                     return ret.clone();
                 }
 
@@ -160,13 +163,23 @@ impl Resolver {
         let mut changed = false;
         let mut i = 0;
         while i + 1 < mir.stmts.len() {
-            if let MirStmt::Call { func: f1, args: a1, dest: d1 } = &mir.stmts[i] {
+            if let MirStmt::Call {
+                func: f1,
+                args: a1,
+                dest: d1,
+            } = &mir.stmts[i]
+            {
                 if f1.as_str() != "add" {
                     i += 1;
                     continue;
                 }
-                if let MirStmt::Call { func: f2, args: a2, dest: d2 } = &mir.stmts[i + 1]
-                    && f2.as_str() == "add" && a2[0] == *d1
+                if let MirStmt::Call {
+                    func: f2,
+                    args: a2,
+                    dest: d2,
+                } = &mir.stmts[i + 1]
+                    && f2.as_str() == "add"
+                    && a2[0] == *d1
                 {
                     mir.stmts[i] = MirStmt::SemiringFold {
                         op: SemiringOp::Add,
