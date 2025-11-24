@@ -16,6 +16,12 @@ struct ChannelInner {
     cond: Condvar,
 }
 
+impl Default for Channel {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Channel {
     pub fn new() -> Self {
         Self {
@@ -98,7 +104,7 @@ impl Scheduler {
 
         if let Some(sched) = SCHEDULER.get() {
             sched.actors.lock().unwrap().push_back(actor);
-            if let Some(handle) = sched.threads.lock().unwrap().get(0) {
+            if let Some(handle) = sched.threads.lock().unwrap().first() {
                 handle.thread().unpark();
             }
         }
