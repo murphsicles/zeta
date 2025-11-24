@@ -1,4 +1,7 @@
 // src/parser.rs
+//! Nom-based parser for Zeta syntax.
+//! Supports function definitions, calls, literals, variables, assigns, and TimingOwned.
+
 use crate::ast::AstNode;
 use nom::IResult;
 use nom::Parser;
@@ -9,26 +12,31 @@ use nom::combinator::{map, opt};
 use nom::multi::many0;
 use nom::sequence::{delimited, preceded};
 
+/// Whitespace wrapper for parsers.
 fn ws<'a, O>(
     inner: impl Parser<&'a str, Output = O, Error = nom::error::Error<&'a str>>,
 ) -> impl Parser<&'a str, Output = O, Error = nom::error::Error<&'a str>> {
     delimited(multispace0, inner, multispace0)
 }
 
+/// Parses an identifier (alpha + alphanum).
 fn ident<'a>() -> impl Parser<&'a str, Output = String, Error = nom::error::Error<&'a str>> {
     map(alpha1.and(alphanumeric0), |(first, rest): (&str, &str)| {
         first.to_string() + rest
     })
 }
 
+/// Parses an integer literal.
 fn literal<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     map(nom_i64, AstNode::Lit)
 }
 
+/// Parses a variable reference.
 fn variable<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     map(ident(), AstNode::Var)
 }
 
+/// Parses expressions: lit/var + optional + lit/var (as add call).
 fn expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     let left = alt((literal(), variable()));
     let add = ws(tag("+")).and(alt((literal(), variable())));
@@ -46,11 +54,13 @@ fn expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Erro
     })
 }
 
+/// Parses function body: { expr* }.
 fn func_body<'a>() -> impl Parser<&'a str, Output = Vec<AstNode>, Error = nom::error::Error<&'a str>>
 {
     delimited(ws(tag("{")), many0(ws(expr())), ws(tag("}")))
 }
 
+/// Parses a full function definition: fn name() -> ret { body }.
 fn parse_func<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     let fn_kw = ws(tag("fn"));
     let name = ident();
@@ -80,6 +90,7 @@ fn parse_func<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
         })
 }
 
+/// Entry point: Parses multiple top-level functions.
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
     delimited(multispace0, many0(ws(parse_func())), multispace0).parse(input)
 }
