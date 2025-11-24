@@ -3,6 +3,11 @@ name = "zetac"
 version = "0.0.0"
 edition = "2024"
 license = "MIT"
+description = "The final systems language"
+repository = "https://github.com/murphsicles/zeta"
+keywords = ["programming", "language", "code", "compiler", "lang"]
+categories = ["programming", "code", "compilers"]
+readme = "README.md"
 
 [dependencies]
 chrono = { version = "0.4", features = ["serde"] }
