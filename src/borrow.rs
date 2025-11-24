@@ -47,9 +47,10 @@ impl BorrowChecker {
 
     pub fn check(&mut self, node: &AstNode) -> bool {
         match node {
-            AstNode::Var(v) => self.borrows.get(v).is_none_or(|s| {
-                matches!(s, BorrowState::Owned | BorrowState::Borrowed)
-            }),
+            AstNode::Var(v) => self
+                .borrows
+                .get(v)
+                .is_none_or(|s| matches!(s, BorrowState::Owned | BorrowState::Borrowed)),
             AstNode::Assign(v, expr) => {
                 if !self.check(expr) {
                     return false;
@@ -58,7 +59,9 @@ impl BorrowChecker {
                 true
             }
             AstNode::Call { receiver, args, .. } => {
-                if let Some(r) = receiver && !self.check(r) {
+                if let Some(r) = receiver
+                    && !self.check(r)
+                {
                     return false;
                 }
                 for arg in args {
