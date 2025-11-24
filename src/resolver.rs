@@ -117,7 +117,8 @@ impl Resolver {
 
                 // Fast-path trait lookup
                 if let Some(recv_ty) = recv_ty
-                    && let Some(impls) = self.direct_impls
+                    && let Some(impls) = self
+                        .direct_impls
                         .get(&("Addable".to_string(), recv_ty.clone()))
                     && let Some((params, ret)) = impls.get(method)
                     && params.len() == args.len()
