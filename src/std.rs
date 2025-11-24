@@ -4,7 +4,7 @@
 
 use std::ffi::c_void;
 
-/// Links to the C standard library's free function.
+// Links to the C standard library's free function.
 #[link(name = "c")]
 unsafe extern "C" {
     fn free(ptr: *mut c_void);
@@ -17,7 +17,6 @@ unsafe extern "C" {
 /// Undefined behavior if invalid or double-freed.
 pub unsafe fn std_free(ptr: *mut u8) {
     if !ptr.is_null() {
-        // Cast to void* for C free.
         unsafe { free(ptr as *mut c_void) }
     }
 }
