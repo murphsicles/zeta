@@ -24,7 +24,7 @@ pub struct MonoValue {
     pub cache_safe: bool,
 }
 
-/// Global thread-safe cache for specializations.
+// Global thread-safe cache for specializations.
 lazy_static::lazy_static! {
     static ref CACHE: Arc<RwLock<HashMap<MonoKey, MonoValue>>> = Arc::new(RwLock::new(HashMap::new()));
 }
