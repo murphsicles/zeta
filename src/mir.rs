@@ -1,10 +1,15 @@
 // src/mir.rs
+//! Mid-level IR for Zeta, bridging AST to LLVM.
+//! Supports statements, expressions, and semiring ops for algebraic optimization.
+
 use crate::ast::AstNode;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SemiringOp {
+    /// Addition (idempotent or not, per type).
     Add,
+    /// Multiplication.
     Mul,
 }
 
