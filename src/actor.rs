@@ -1,4 +1,7 @@
 // src/actor.rs
+//! Actor model runtime for Zeta concurrency.
+//! Channel-based messaging with work-stealing scheduler on thread pool.
+
 use num_cpus;
 use std::collections::VecDeque;
 use std::sync::{Arc, Condvar, Mutex, OnceLock};
@@ -6,13 +9,16 @@ use std::thread;
 
 type Message = i64;
 
+/// Thread-safe channel for actor messaging.
 #[derive(Clone)]
 pub struct Channel {
     inner: Arc<ChannelInner>,
 }
 
 struct ChannelInner {
+    /// Message queue.
     queue: Mutex<VecDeque<Message>>,
+    /// Condition for blocking recv.
     cond: Condvar,
 }
 
@@ -23,6 +29,7 @@ impl Default for Channel {
 }
 
 impl Channel {
+    /// Creates a new empty channel.
     pub fn new() -> Self {
         Self {
             inner: Arc::new(ChannelInner {
@@ -32,12 +39,14 @@ impl Channel {
         }
     }
 
+    /// Non-blocking send to channel.
     pub fn send(&self, msg: Message) {
         let mut queue = self.inner.queue.lock().unwrap();
         queue.push_back(msg);
         self.inner.cond.notify_one();
     }
 
+    /// Blocking receive from channel.
     pub fn recv(&self) -> Message {
         let mut queue = self.inner.queue.lock().unwrap();
         loop {
@@ -49,19 +58,25 @@ impl Channel {
     }
 }
 
+/// Actor representation: channel + entry function.
 struct Actor {
     chan: Channel,
     func: Box<dyn FnOnce(Channel) + Send + 'static>,
 }
 
+/// Global scheduler singleton.
 static SCHEDULER: OnceLock<Arc<Scheduler>> = OnceLock::new();
 
+/// Multi-threaded work-stealing scheduler.
 struct Scheduler {
+    /// Pending actors queue.
     actors: Mutex<VecDeque<Actor>>,
+    /// Worker thread handles.
     threads: Mutex<Vec<thread::JoinHandle<()>>>,
 }
 
 impl Scheduler {
+    /// Initializes scheduler with CPU-bound threads.
     fn new(thread_count: usize) -> Arc<Self> {
         let sched = Arc::new(Self {
             actors: Mutex::new(VecDeque::new()),
@@ -77,6 +92,7 @@ impl Scheduler {
         sched
     }
 
+    /// Worker loop: steal and run actors, park if idle.
     fn worker_loop(self: Arc<Self>) {
         loop {
             let actor = {
@@ -85,6 +101,7 @@ impl Scheduler {
             };
 
             if let Some(actor) = actor {
+                // Run actor function.
                 (actor.func)(actor.chan);
             } else {
                 thread::park();
@@ -92,6 +109,7 @@ impl Scheduler {
         }
     }
 
+    /// Spawns a new actor, enqueues and unparks a worker.
     pub fn spawn<F>(func: F)
     where
         F: FnOnce(Channel) + Send + 'static,
@@ -110,15 +128,18 @@ impl Scheduler {
         }
     }
 
+    /// Initializes global scheduler.
     pub fn init() {
         SCHEDULER.get_or_init(|| Scheduler::new(num_cpus::get().max(1)));
     }
 }
 
+/// Public runtime init.
 pub fn init_runtime() {
     Scheduler::init();
 }
 
+/// Public spawn helper.
 pub fn spawn<F>(f: F)
 where
     F: FnOnce(Channel) + Send + 'static,
