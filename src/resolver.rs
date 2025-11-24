@@ -166,7 +166,7 @@ impl Resolver {
                     continue;
                 }
                 if let MirStmt::Call { func: f2, args: a2, dest: d2 } = &mir.stmts[i + 1] {
-                    if f2.as_str() == "add" && *a2[0] == *d1 {
+                    if f2.as_str() == "add" && a2[0] == d1 {
                         mir.stmts[i] = MirStmt::SemiringFold {
                             op: SemiringOp::Add,
                             values: vec![*a1[0], *a1[1], *a2[1]],
