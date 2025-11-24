@@ -3,7 +3,7 @@
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
-use zeta::compile_and_run_zeta;
+use zetac::compile_and_run_zeta;
 
 fn bench_semiring_add(c: &mut Criterion) {
     let input = r#"
