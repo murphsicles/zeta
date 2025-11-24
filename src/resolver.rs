@@ -16,11 +16,20 @@ pub enum Type {
     Unknown,
 }
 
+type MethodSig = (Vec<Type>, Type);
+type ImplMethods = HashMap<String, MethodSig>;
+
 #[derive(Clone)]
 pub struct Resolver {
-    direct_impls: HashMap<(String, Type), HashMap<String, (Vec<Type>, Type)>>,
+    direct_impls: HashMap<(String, Type), ImplMethods>,
     type_env: HashMap<String, Type>,
     borrow_checker: BorrowChecker,
+}
+
+impl Default for Resolver {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Resolver {
@@ -88,17 +97,11 @@ impl Resolver {
                 let recv_ty = receiver.as_ref().map(|r| self.infer_type(r));
 
                 // Fast-path trait lookup
-                if let Some(recv_ty) = recv_ty {
-                    if let Some(impls) = self
-                        .direct_impls
-                        .get(&("Addable".to_string(), recv_ty.clone()))
-                    {
-                        if let Some((params, ret)) = impls.get(method) {
-                            if params.len() == args.len() {
-                                return ret.clone();
-                            }
-                        }
-                    }
+                if let Some(recv_ty) = recv_ty
+                    && let Some(impls) = self.direct_impls.get(&("Addable".to_string(), recv_ty.clone()))
+                    && let Some((params, ret)) = impls.get(method)
+                    && params.len() == args.len() {
+                    return ret.clone();
                 }
 
                 // Thin monomorphization + specialization cache
@@ -154,29 +157,31 @@ impl Resolver {
     }
 
     pub fn fold_semiring_chains(&self, mir: &mut Mir) -> bool {
-        let changed = false;
+        let mut changed = false;
         let mut i = 0;
         while i + 1 < mir.stmts.len() {
             if let (
                 MirStmt::Call {
-                    func: f1,
-                    args: a1,
-                    dest: d1,
+                    func: ref f1,
+                    args: ref a1,
+                    dest: ref d1,
                 },
                 MirStmt::Call {
-                    func: f2, args: a2, ..
+                    func: ref f2,
+                    args: ref a2,
+                    ..
                 },
             ) = (&mir.stmts[i], &mir.stmts[i + 1])
-            {
-                if f1 == "add" && f2 == "add" && a2[0] == *d1 {
-                    mir.stmts[i] = MirStmt::SemiringFold {
-                        op: SemiringOp::Add,
-                        values: vec![a1[0], a1[1], a2[1]],
-                        result: a2[1], // reuse last dest
-                    };
-                    mir.stmts.remove(i + 1);
-                    return true;
-                }
+            && f1 == "add" && f2 == "add" && a2[0] == *d1 {
+                mir.stmts[i] = MirStmt::SemiringFold {
+                    op: SemiringOp::Add,
+                    values: vec![a1[0], a1[1], a2[1]],
+                    result: a2[1], // reuse last dest
+                };
+                mir.stmts.remove(i + 1);
+                changed = true;
+                i += 1; // continue after modification
+                continue;
             }
             i += 1;
         }
