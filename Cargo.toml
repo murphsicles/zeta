@@ -10,9 +10,9 @@ categories = ["programming", "code", "compilers"]
 readme = "README.md"
 
 [dependencies]
-chrono = { version = "0.4", features = ["serde"] }
-inkwell = { version = "0.7.0", features = ["llvm19-1"] }
-lazy_static = "1.4"
+chrono = { version = "0.4.42", features = ["serde"] }
+inkwell = { version = "0.7.1", features = ["llvm19-1"] }
+lazy_static = "1.5"
 libc = "0.2"
 nom = "8.0.0"
 num_cpus = "1.16"
