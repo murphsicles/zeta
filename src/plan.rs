@@ -1,47 +1,42 @@
 // src/plan.rs
-/// Zeta Language Development Plan — Current Status (November 2025)
-///
-/// Goal: Fastest-compiling, highest-performing, AI-optimized, memory-safe systems language.
-///      comp time < Go, exec perf > Rust/Zig, no GC, EOP algebraic foundation.
-
-pub struct Plan;
-
-impl Plan {
-    pub fn status() -> &'static str {
-        "Core pipeline solid. Full expr + actors parsed. Hybrid traits + Chalk++ parallel solver + CTFE semiring eval live. Next: std embeds (http/TLS/datetime) via LLVM intrinsics."
-    }
-}
-
-/// ## COMPLETED (fully working)
-/// - Parser (nom 8): full expression grammar (precedence climbing), method calls, actors, async fn, spawn, await
-/// - AST: complete with TimingOwned, attrs, ActorDef, AsyncFn, SpawnActor, Await
-/// - Resolver: hybrid nominal + structural traits, partial specialization, parallel Chalk++ solver (v0.104.0), incremental caching
-/// - Borrow checker: affine + speculative tracking skeleton
-/// - MIR: SSA-like, SemiringFold, ConstEval
-/// - CTFE: literal add/mul chains folded at compile time → zero-cost constants
-/// - Codegen (inkwell): JIT, scalar + SIMD semiring fold, ConstEval handling
-/// - Pipeline: parse → resolve → MIR → CTFE/semiring fold → codegen → JIT exec
-/// - xAI Grok API client ready
-/// - MLGO metadata placeholders
-
-/// ## PARTIALLY COMPLETED
-/// - Testing: e2e add-chain + basic actor spawn works
-/// - Benchmarks: Criterion suite stubbed
-
-/// ## IMMEDIATE NEXT
-/// → std embeds via LLVM intrinsics
-///   • http_get(url: &str) -> String
-///   • tls_get(url: &str) -> String
-///   • datetime_now() -> i64
-///   • datetime_format(i64) -> String
-///
-/// Then:
-/// 1. TimingOwned constant-time erase codegen
-/// 2. #[ai_opt] → live Grok query → MLGO metadata injection
-/// 3. Thin monomorphization + specialization cache
-/// 4. CacheSafe trait + static race analysis
-/// 5. Full EOP hierarchy (Monoid, Group, Ring, etc.)
-/// 6. Ecosystem: zorb (build), zfmt, zippy (linter)
-/// 7. Self-hosting bootstrap
-
-/// We are on track. Core language is now expressive and extremely fast for algebraic code.
+/// Zeta Compiler Milestone Plan
+/// 
+/// v0.1: Core Language Foundation (Semirings + Basics)
+/// 
+/// Completed:
+/// - Parser (nom): Full AST parsing incl. funcs, calls, assigns, TimingOwned.
+/// - AST: Nodes for FuncDef, Call, Lit/Var/Assign, ImplBlock, Method, TimingOwned.
+/// - Resolver: Type inference, trait lookup (fast-path Addable), monomorphization cache.
+/// - BorrowChecker: Affine moves, borrow states, speculative checks.
+/// - MIR: Mid-level IR with SemiringOp (Add/Mul), gen from AST.
+/// - Codegen: LLVM JIT, intrinsics/SIMD/TBAA, std embeds (free/datetime), actors.
+/// - Lib: compile_and_run_zeta, re-exports.
+/// - Main: Self-host example loader.
+/// - Examples: add.zeta test.
+/// 
+/// Partial:
+/// - Hybrid Traits: Nominal impls only; structural dispatch pending.
+/// - Partial Specialization: Thin mono cache; full conditional impls todo.
+/// - Defer RAII: Not yet; lifetime elision basic.
+/// - Actors: Channel-based spawn; async/await sugar pending.
+/// - Opts: Semiring fold; MLGO hooks stubbed.
+/// - CTFE: Basic const eval in MIRExpr; full semiring chains todo.
+/// 
+/// To-Do (v0.1):
+/// - Stable ABI: Add resolver checks for ABI compatibility.
+/// - Thin Monomorph: Integrate with codegen for func mangling.
+/// - Fold Semiring Chains: Full multi-op fusion in resolver.
+/// - EOP Expansions:
+///   - Rings (Ch6): Add RingOp to MIR/SemiringOp (inverses/subtract).
+///   - Linear Algebra (Ch7): Vector/matrix types, ops in AST/MIR/codegen (SIMD intrinsics).
+///   - Polynomials (Ch8): Poly eval/arithmetic as semimodule impls.
+///   - Ordered Algebraic Structures (Ch5): Ordered semigroups for sort algos in std.
+///   - Transformations/Orbits (Ch2): Perm/group actions in traits.
+/// 
+/// v0.2: Advanced Features + Opts
+/// - Full hybrid traits, partial spec, defer RAII.
+/// - Async actors with channels.
+/// - AI opts: MLGO vectorize/branch pred hooks.
+/// - CTFE full eval.
+/// 
+/// Bootstrap: Self-host zeta.zeta compiler.
