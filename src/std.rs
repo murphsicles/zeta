@@ -11,7 +11,7 @@ unsafe extern "C" {
 }
 
 /// Frees heap-allocated memory, Zeta's RAII defer equivalent.
-/// 
+///
 /// # Safety
 /// `ptr` must point to valid, unfreed heap memory (e.g., from malloc).
 /// Undefined behavior if invalid or double-freed.
