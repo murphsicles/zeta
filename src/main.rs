@@ -28,10 +28,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     codegen.gen_mir(&mir);
     let ee = codegen.finalize_and_jit()?;
 
-    unsafe {
-        let free_fn = zeta::std::std_free as *const () as usize;
-        ee.add_global_mapping(&codegen.module.get_function("free").unwrap(), free_fn);
-    }
+    let free_fn = zeta::std::std_free as *const () as usize;
+    ee.add_global_mapping(&codegen.module.get_function("free").unwrap(), free_fn);
 
     type MainFn = unsafe extern "C" fn() -> i32;
     unsafe {
