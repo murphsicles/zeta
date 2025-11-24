@@ -166,11 +166,11 @@ impl Resolver {
                     continue;
                 }
                 if let MirStmt::Call { func: ref f2, args: ref a2, dest: ref d2 } = &mir.stmts[i + 1]
-                    && f2.as_str() == "add" && a2[0] == d1
+                    && f2.as_str() == "add" && a2[0] == *d1
                 {
                     mir.stmts[i] = MirStmt::SemiringFold {
                         op: SemiringOp::Add,
-                        values: vec![*a1[0], *a1[1], *a2[1]],
+                        values: vec![a1[0], a1[1], a2[1]],
                         result: *d2,
                     };
                     mir.stmts.remove(i + 1);
