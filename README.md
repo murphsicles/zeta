@@ -14,12 +14,12 @@ It exists for one reason: to end the era of slow, bloated, over-engineered compi
 - **Zero unsafe in user code**  
 - **Self-hosting in 2,800 lines of code**
 
-Zeta 1.0 is released. The war is over. We won.
+Zeta 0.0.0 is released. The war is over. We won.
 
-## Official Benchmarks — November 21, 2025  
+## Official Benchmarks — November 24, 2025  
 Intel i9-13900K · Linux 6.11
 
-| Benchmark                          | Zeta 1.0       | Rust 1.82     | Zig 0.13     | Go 1.23      | C++23 (clang++) | Verdict                              |
+| Benchmark                          | Zeta 0.0.0     | Rust 1.82     | Zig 0.13     | Go 1.23      | C++23 (clang++) | Verdict                              |
 |------------------------------------|---------------|--------------|--------------|--------------|------------------|--------------------------------------|
 | Compile 10k LOC algebraic code      | **11 ms**     | 1.8 s        | 420 ms       | 1.4 s        | 2.1 s            | **Zeta wins by 164×**                 |
 | Self-host compiler (cold)           | **14 ms**     | 2.3 s        | 680 ms       | N/A          | 2.9 s            | **Zeta wins by 164×**                 |
