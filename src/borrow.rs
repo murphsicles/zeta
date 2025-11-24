@@ -24,6 +24,12 @@ pub struct BorrowChecker {
     speculative: HashMap<String, SpeculativeState>,
 }
 
+impl Default for BorrowChecker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BorrowChecker {
     pub fn new() -> Self {
         Self {
@@ -41,7 +47,7 @@ impl BorrowChecker {
 
     pub fn check(&mut self, node: &AstNode) -> bool {
         match node {
-            AstNode::Var(v) => self.borrows.get(v).map_or(true, |s| {
+            AstNode::Var(v) => self.borrows.get(v).is_none_or(|s| {
                 matches!(s, BorrowState::Owned | BorrowState::Borrowed)
             }),
             AstNode::Assign(v, expr) => {
@@ -52,20 +58,19 @@ impl BorrowChecker {
                 true
             }
             AstNode::Call { receiver, args, .. } => {
-                if let Some(r) = receiver {
-                    if !self.check(r) {
-                        return false;
-                    }
+                if let Some(r) = receiver && !self.check(r) {
+                    return false;
                 }
                 for arg in args {
                     if !self.check(arg) {
                         return false;
                     }
-                    if let AstNode::Var(name) = arg {
-                        if let Some(moved) = self.affine_moves.get_mut(name) && !*moved {
-                            *moved = true;
-                            self.borrows.insert(name.clone(), BorrowState::Consumed);
-                        }
+                    if let AstNode::Var(name) = arg
+                        && let Some(moved) = self.affine_moves.get_mut(name)
+                        && !*moved
+                    {
+                        *moved = true;
+                        self.borrows.insert(name.clone(), BorrowState::Consumed);
                     }
                 }
                 true
