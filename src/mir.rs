@@ -48,6 +48,12 @@ pub struct MirGen {
     locals: HashMap<String, u32>,
 }
 
+impl Default for MirGen {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MirGen {
     pub fn new() -> Self {
         Self {
@@ -65,12 +71,10 @@ impl MirGen {
                 self.gen_stmt(stmt, &mut stmts, &mut exprs);
             }
 
-            if let Some(AstNode::Assign(name, expr)) = body.last() {
-                if name == "_" {
-                    let ret_val = self.gen_expr(expr, &mut exprs);
-                    let ret_id = self.materialize(ret_val, &mut exprs, &mut stmts);
-                    stmts.push(MirStmt::Return { val: ret_id });
-                }
+            if let Some(AstNode::Assign(name, expr)) = body.last() && name == "_" {
+                let ret_val = self.gen_expr(expr, &mut exprs);
+                let ret_id = self.materialize(ret_val, &mut exprs, &mut stmts);
+                stmts.push(MirStmt::Return { val: ret_id });
             }
         }
 
