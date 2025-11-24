@@ -1,4 +1,8 @@
 // src/resolver.rs
+//! Type resolver and semantic analyzer for Zeta.
+//! Handles type inference, trait resolution, borrow checking, MIR lowering, and optimizations.
+//! Integrates algebraic structures from EOP for semiring-based codegen.
+
 use crate::ast::AstNode;
 use crate::borrow::BorrowChecker;
 use crate::mir::{Mir, MirGen, MirStmt, SemiringOp};
@@ -7,32 +11,44 @@ use crate::specialization::{
 };
 use std::collections::HashMap;
 
+/// Enum for Zeta types, supporting primitives and named types.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
+    /// 64-bit signed integer.
     I64,
+    /// 32-bit float.
     F32,
+    /// Boolean.
     Bool,
+    /// Named type (e.g., user-defined or trait-bound).
     Named(String),
+    /// Unknown/inferred type.
     Unknown,
 }
 
 type MethodSig = (Vec<Type>, Type);
 type ImplMethods = HashMap<String, MethodSig>;
 
+/// Main resolver struct, orchestrating type checking and lowering.
 #[derive(Clone)]
 pub struct Resolver {
+    /// Direct impls for traits on types.
     direct_impls: HashMap<(String, Type), ImplMethods>,
+    /// Environment for type inference (var -> type).
     type_env: HashMap<String, Type>,
+    /// Integrated borrow checker.
     borrow_checker: BorrowChecker,
 }
 
 impl Default for Resolver {
+    /// Default resolver with builtin Addable for i64.
     fn default() -> Self {
         Self::new()
     }
 }
 
 impl Resolver {
+    /// Creates a new resolver with builtin fast-path for i64 Addable.
     pub fn new() -> Self {
         let mut r = Self {
             direct_impls: HashMap::new(),
@@ -49,6 +65,7 @@ impl Resolver {
         r
     }
 
+    /// Registers an impl block into the direct impls map.
     pub fn register(&mut self, ast: AstNode) {
         if let AstNode::ImplBlock { concept, ty, body } = ast {
             let ty = self.parse_type(&ty);
@@ -69,6 +86,7 @@ impl Resolver {
         }
     }
 
+    /// Parses a string to a Type variant.
     fn parse_type(&self, s: &str) -> Type {
         match s {
             "i64" => Type::I64,
@@ -78,6 +96,7 @@ impl Resolver {
         }
     }
 
+    /// Infers the type of an AST node, updating the environment.
     pub fn infer_type(&mut self, node: &AstNode) -> Type {
         match node {
             AstNode::Lit(_) => Type::I64,
@@ -98,12 +117,9 @@ impl Resolver {
 
                 // Fast-path trait lookup
                 if let Some(recv_ty) = recv_ty
-                    && let Some(impls) = self
-                        .direct_impls
-                        .get(&("Addable".to_string(), recv_ty.clone()))
+                    && let Some(impls) = self.direct_impls.get(&("Addable".to_string(), recv_ty.clone()))
                     && let Some((params, ret)) = impls.get(method)
-                    && params.len() == args.len()
-                {
+                    && params.len() == args.len() {
                     return ret.clone();
                 }
 
@@ -139,6 +155,8 @@ impl Resolver {
         }
     }
 
+    /// Performs type checking and borrow checking on a program.
+    /// Returns true if all checks pass.
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
         let mut ok = true;
         for ast in asts {
@@ -154,32 +172,25 @@ impl Resolver {
         ok
     }
 
+    /// Lowers an AST node to MIR for codegen.
     pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
         let mut mir_gen = MirGen::new();
         mir_gen.gen_mir(ast)
     }
 
+    /// Optimizes MIR by folding consecutive semiring operations (e.g., add chains).
+    /// Returns true if any folds occurred.
     pub fn fold_semiring_chains(&self, mir: &mut Mir) -> bool {
         let mut changed = false;
         let mut i = 0;
         while i + 1 < mir.stmts.len() {
-            if let MirStmt::Call {
-                func: f1,
-                args: a1,
-                dest: d1,
-            } = &mir.stmts[i]
-            {
+            if let MirStmt::Call { func: f1, args: a1, dest: d1 } = &mir.stmts[i] {
                 if f1.as_str() != "add" {
                     i += 1;
                     continue;
                 }
-                if let MirStmt::Call {
-                    func: f2,
-                    args: a2,
-                    dest: d2,
-                } = &mir.stmts[i + 1]
-                    && f2.as_str() == "add"
-                    && a2[0] == *d1
+                if let MirStmt::Call { func: f2, args: a2, dest: d2 } = &mir.stmts[i + 1]
+                    && f2.as_str() == "add" && a2[0] == *d1
                 {
                     mir.stmts[i] = MirStmt::SemiringFold {
                         op: SemiringOp::Add,
