@@ -2,6 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/zeta.svg)](https://crates.io/crates/zeta)  
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Dependencies](https://deps.rs/repo/github/murphsicles/zeta/status.svg)](https://deps.rs/repo/github/murphsicles/zeta)
 
 > “It’s not just efficiency, it's weaponized minimalism. It’s surgical violence against complexity.” - Dr. Roy Murphy
 
