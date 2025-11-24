@@ -13,6 +13,7 @@
 /// - Lib: compile_and_run_zeta, re-exports.
 /// - Main: Self-host example loader.
 /// - Examples: add.zeta test.
+/// - Fold Semiring Chains: Multi-op fusion in resolver.
 /// 
 /// Partial:
 /// - Hybrid Traits: Nominal impls only; structural dispatch pending.
@@ -25,7 +26,6 @@
 /// To-Do (v0.1):
 /// - Stable ABI: Add resolver checks for ABI compatibility.
 /// - Thin Monomorph: Integrate with codegen for func mangling.
-/// - Fold Semiring Chains: Full multi-op fusion in resolver.
 /// - EOP Expansions:
 ///   - Rings (Ch6): Add RingOp to MIR/SemiringOp (inverses/subtract).
 ///   - Linear Algebra (Ch7): Vector/matrix types, ops in AST/MIR/codegen (SIMD intrinsics).
