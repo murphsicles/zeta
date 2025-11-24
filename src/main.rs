@@ -4,8 +4,8 @@
 
 use inkwell::context::Context;
 use std::fs;
-use zeta::ast::AstNode;
-use zeta::{LLVMCodegen, Resolver, actor, parse_zeta};
+use zetac::ast::AstNode;
+use zetac::{LLVMCodegen, Resolver, actor, parse_zeta};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize actor runtime.
@@ -37,7 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ee = codegen.finalize_and_jit()?;
 
     // Map std_free to host.
-    let free_fn = zeta::std::std_free as *const () as usize;
+    let free_fn = zetac::std::std_free as *const () as usize;
     ee.add_global_mapping(&codegen.module.get_function("free").unwrap(), free_fn);
 
     // JIT execute main, print result.
