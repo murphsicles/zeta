@@ -1,37 +1,58 @@
 // src/xai.rs
+//! XAI API client for Zeta AI integration.
+//! Provides blocking HTTP client for Grok-beta chat completions.
+//! Used for MLGO hooks, CTFE eval, and dynamic specialization queries.
+//! Requires XAI_API_KEY env var.
+
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use serde_json;
 
+/// Request struct for chat completions API.
 #[derive(Serialize)]
 struct ChatRequest {
+    /// Model name (e.g., "grok-beta").
     model: String,
+    /// Array of message objects.
     messages: Vec<Message>,
 }
 
+/// Message struct for chat role/content.
 #[derive(Deserialize, Serialize, Debug)]
 struct Message {
+    /// Role: "user", "system", etc.
     role: String,
+    /// Message text.
     content: String,
 }
 
+/// Response wrapper for chat completions.
 #[derive(Deserialize, Debug)]
 struct ChatResponse {
+    /// Array of choice objects.
     choices: Vec<Choice>,
 }
 
+/// Individual choice from response.
 #[derive(Deserialize, Debug)]
 struct Choice {
+    /// Message in choice.
     message: Message,
 }
 
+/// Thread-safe blocking client for XAI API.
 pub struct XAIClient {
+    /// HTTP client instance.
     client: Client,
+    /// API key from env.
     api_key: String,
+    /// Base API URL.
     base_url: String,
 }
 
 impl XAIClient {
+    /// Creates a new client, loading API key from XAI_API_KEY env.
+    /// Returns error if key missing.
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         let api_key = std::env::var("XAI_API_KEY")?;
         let base_url = "https://api.x.ai/v1".to_string();
@@ -43,6 +64,8 @@ impl XAIClient {
         })
     }
 
+    /// Queries Grok-beta with prompt, returns response content.
+    /// Handles JSON serialization/deserialization and auth.
     pub fn query(&self, prompt: &str) -> Result<String, Box<dyn std::error::Error>> {
         let request = ChatRequest {
             model: "grok-beta".to_string(),
