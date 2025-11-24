@@ -47,7 +47,9 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
 
     type MainFn = unsafe extern "C" fn() -> i64;
     unsafe {
-        let main = ee.get_function::<MainFn>("main").map_err(|_| "No main".to_string())?;
+        let main = ee
+            .get_function::<MainFn>("main")
+            .map_err(|_| "No main".to_string())?;
         Ok(main.call())
     }
 }
