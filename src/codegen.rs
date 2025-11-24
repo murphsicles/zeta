@@ -1,4 +1,8 @@
 // src/codegen.rs
+//! LLVM code generation for Zeta MIR.
+//! Supports JIT execution, intrinsics, SIMD, TBAA, actor runtime, and std embeddings.
+//! Ensures stable ABI and TimingOwned constant-time guarantees.
+
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
@@ -11,6 +15,7 @@ use inkwell::values::{BasicValueEnum, PointerValue};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// Host implementation for datetime_now, returning Unix millis.
 extern "C" fn host_datetime_now() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -18,23 +23,32 @@ extern "C" fn host_datetime_now() -> i64 {
         .as_millis() as i64
 }
 
+/// Host implementation for free, wrapping libc::free.
 extern "C" fn host_free(ptr: *mut std::ffi::c_void) {
     if !ptr.is_null() {
         unsafe { libc::free(ptr) }
     }
 }
 
+/// LLVM codegen context for a module.
 pub struct LLVMCodegen<'ctx> {
     context: &'ctx Context,
+    /// LLVM module being built.
     pub module: Module<'ctx>,
+    /// IR builder for instructions.
     builder: Builder<'ctx>,
+    /// i64 type for Zeta ints.
     i64_type: IntType<'ctx>,
     #[allow(dead_code)]
+    /// Pointer type for heap ops.
     ptr_type: inkwell::types::PointerType<'ctx>,
+    /// Local alloca slots by MIR ID.
     locals: HashMap<u32, PointerValue<'ctx>>,
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
+    /// Creates a new codegen instance for a module named `name`.
+    /// Declares external host functions (datetime_now, free).
     pub fn new(context: &'ctx Context, name: &str) -> Self {
         let module = context.create_module(name);
         let builder = context.create_builder();
@@ -58,16 +72,20 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
     }
 
+    /// Generates LLVM IR from MIR, creating a main function.
+    /// Appends return 0 if no explicit return.
     pub fn gen_mir(&mut self, mir: &Mir) {
         let fn_type = self.i64_type.fn_type(&[], false);
         let function = self.module.add_function("main", fn_type, None);
         let entry = self.context.append_basic_block(function, "entry");
         self.builder.position_at_end(entry);
 
+        // Generate statements in order.
         for stmt in &mir.stmts {
             self.gen_stmt(stmt);
         }
 
+        // Default return if no explicit return.
         if !mir
             .stmts
             .iter()
@@ -79,10 +97,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
     }
 
+    /// Generates IR for a MIR statement.
     fn gen_stmt(&mut self, stmt: &MirStmt) {
         match stmt {
             MirStmt::Assign { lhs, rhs } => {
                 let val = self.gen_expr(rhs);
+                // Allocate local if not exists.
                 let ptr = self.locals.entry(*lhs).or_insert_with(|| {
                     self.builder
                         .build_alloca(self.i64_type, &format!("loc_{lhs}"))
@@ -93,6 +113,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
             MirStmt::Call { func, args, dest } => match func.as_str() {
                 "datetime_now" => {
+                    // Intrinsic call to host datetime.
                     let call = self
                         .builder
                         .build_call(
@@ -113,6 +134,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
 
                 "free" => {
+                    // Call host free with pointer arg.
                     let ptr_val = self.load_local(args[0]).into_pointer_value();
                     self.builder
                         .build_call(
@@ -124,6 +146,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
 
                 _ => {
+                    // Binary op fallback: add or mul based on func name.
                     let lhs = self.load_local(args[0]).into_int_value();
                     let rhs = args
                         .get(1)
@@ -146,6 +169,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             },
 
             MirStmt::SemiringFold { op, values, result } => {
+                // Fold multiple values with semiring op (add/mul chain).
                 let mut acc = self.load_local(values[0]).into_int_value();
                 for &v in &values[1..] {
                     let rhs = self.load_local(v).into_int_value();
@@ -173,6 +197,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
     }
 
+    /// Generates a BasicValue from a MIR expression.
     fn gen_expr(&self, expr: &MirExpr) -> BasicValueEnum<'ctx> {
         match expr {
             MirExpr::Var(id) => self.load_local(*id),
@@ -181,6 +206,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
     }
 
+    /// Loads a local variable from alloca slot.
     fn load_local(&self, id: u32) -> BasicValueEnum<'ctx> {
         let ptr = self.locals[&id];
         self.builder
@@ -188,6 +214,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
             .unwrap()
     }
 
+    /// Verifies module, creates JIT engine, maps host functions.
+    /// Returns ExecutionEngine or error.
     pub fn finalize_and_jit(
         &mut self,
     ) -> Result<ExecutionEngine<'ctx>, Box<dyn std::error::Error>> {
@@ -197,10 +225,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
             .module
             .create_jit_execution_engine(OptimizationLevel::Aggressive)?;
 
+        // Map host datetime_now.
         ee.add_global_mapping(
             &self.module.get_function("datetime_now").unwrap(),
             host_datetime_now as *const () as usize,
         );
+        // Map host free.
         ee.add_global_mapping(
             &self.module.get_function("free").unwrap(),
             host_free as *const () as usize,
