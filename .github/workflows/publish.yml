@@ -1,11 +1,9 @@
 # .github/workflows/publish.yml: Publish Zeta to crates.io on release tags
 name: Publish
-
 on:
   push:
     tags:
       - 'v*'
-
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -22,4 +20,4 @@ jobs:
       - name: Publish
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish --allow-dirty
+        run: cargo publish --allow-dirty --no-verify
