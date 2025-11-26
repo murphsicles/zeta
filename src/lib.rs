@@ -21,6 +21,7 @@ pub use actor::{init_runtime, spawn};
 pub use parser::parse_zeta;
 pub use resolver::Resolver;
 
+#[cfg(feature = "codegen")]
 use crate::ast::AstNode;
 #[cfg(feature = "codegen")]
 use inkwell::context::Context;
