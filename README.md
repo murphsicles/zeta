@@ -7,6 +7,8 @@
 Zeta is a systems programming language inspired by Elements of Programming (EOP) algebraic foundations.  
 It exists for one reason: to end the era of slow, bloated, over-engineered compilers.
 
+> “Complexity assersions have to be part of the interface.” - Alex Stepanov
+
 - **Compiles faster than Go**  
 - **Runs faster than Rust and Zig**  
 - **Produces smaller binaries than C**  
