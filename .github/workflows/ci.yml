@@ -17,10 +17,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install LLVM 19
-      id: install-llvm
       uses: KyleMayes/install-llvm-action@v2
       with:
         version: "19.1.7"
+        directory: ${{ runner.temp }}/llvm
     - name: Set LLVM prefix
       run: echo "LLVM_SYS_191_PREFIX=${{ env.LLVM_PATH }}" >> $GITHUB_ENV
     - name: Install Rust
@@ -48,10 +48,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install LLVM 19
-      id: install-llvm
       uses: KyleMayes/install-llvm-action@v2
       with:
         version: "19.1.7"
+        directory: ${{ runner.temp }}/llvm
     - name: Set LLVM prefix
       run: echo "LLVM_SYS_191_PREFIX=${{ env.LLVM_PATH }}" >> $GITHUB_ENV
     - name: Install Rust
@@ -76,13 +76,6 @@ jobs:
     needs: test
     steps:
     - uses: actions/checkout@v4
-    - name: Install LLVM 19
-      id: install-llvm
-      uses: KyleMayes/install-llvm-action@v2
-      with:
-        version: "19.1.7"
-    - name: Set LLVM prefix
-      run: echo "LLVM_SYS_191_PREFIX=${{ env.LLVM_PATH }}" >> $GITHUB_ENV
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
