@@ -1,29 +1,35 @@
 // src/lib.rs
 //! Zeta compiler library.
 //! Exports core components for parsing, resolving, codegen, and runtime.
+//! Enable "codegen" feature for LLVM JIT support.
 
+#[cfg(feature = "codegen")]
+pub mod codegen;
 pub mod actor;
 pub mod ast;
 pub mod borrow;
-pub mod codegen;
+#[cfg(feature = "codegen")]
 pub mod mir;
 pub mod parser;
 pub mod resolver;
 pub mod specialization;
 pub mod std;
 
-pub use actor::{init_runtime, spawn};
+#[cfg(feature = "codegen")]
 pub use codegen::LLVMCodegen;
+pub use actor::{init_runtime, spawn};
 pub use parser::parse_zeta;
 pub use resolver::Resolver;
 
 use crate::ast::AstNode;
+#[cfg(feature = "codegen")]
 use inkwell::context::Context;
 
-/// Compiles and JIT-executes Zeta code to i64 result.
+/// Compiles and JIT-executes Zeta code to i64 result (requires "codegen" feature).
+#[cfg(feature = "codegen")]
 pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
     // Init runtime.
-    init_runtime();
+    crate::actor::init_runtime();
 
     // Parse to AST.
     let (_, asts) = parse_zeta(code).map_err(|e| format!("Parse error: {:?}", e))?;
@@ -63,4 +69,10 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
             .map_err(|_| "No main".to_string())?;
         Ok(main.call())
     }
+}
+
+/// Stub without codegen: returns error.
+#[cfg(not(feature = "codegen"))]
+pub fn compile_and_run_zeta(_code: &str) -> Result<i64, String> {
+    Err("LLVM codegen requires 'codegen' feature".to_string())
 }
