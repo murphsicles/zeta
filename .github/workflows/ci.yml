@@ -17,6 +17,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install LLVM 19
+      id: llvm
       uses: KyleMayes/install-llvm-action@v2
       with:
         version: "19.1.7"
@@ -35,11 +36,11 @@ jobs:
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     - name: Check
       env:
-        LLVM_SYS_191_PREFIX: ${{ env.LLVM_PATH }}
+        LLVM_SYS_191_PREFIX: ${{ steps.llvm.outputs.directory }}
       run: cargo check --workspace --all-features --all-targets
     - name: Clippy
       env:
-        LLVM_SYS_191_PREFIX: ${{ env.LLVM_PATH }}
+        LLVM_SYS_191_PREFIX: ${{ steps.llvm.outputs.directory }}
       run: cargo clippy --workspace --all-features --all-targets -- -D warnings
     - name: Fmt
       run: cargo fmt --all -- --check
@@ -49,6 +50,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install LLVM 19
+      id: llvm
       uses: KyleMayes/install-llvm-action@v2
       with:
         version: "19.1.7"
@@ -67,11 +69,11 @@ jobs:
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     - name: Test
       env:
-        LLVM_SYS_191_PREFIX: ${{ env.LLVM_PATH }}
+        LLVM_SYS_191_PREFIX: ${{ steps.llvm.outputs.directory }}
       run: cargo test --workspace --all-features
     - name: Bench (no plot)
       env:
-        LLVM_SYS_191_PREFIX: ${{ env.LLVM_PATH }}
+        LLVM_SYS_191_PREFIX: ${{ steps.llvm.outputs.directory }}
       run: cargo bench --no-run # Stub: Run benches in release
   security:
     runs-on: ubuntu-latest
