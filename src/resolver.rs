@@ -3,33 +3,16 @@
 //! Handles type inference, trait resolution, borrow checking, MIR lowering, and optimizations.
 //! Integrates algebraic structures from EOP for semiring-based codegen.
 
-#[cfg(feature = "codegen")]
 use crate::ast::AstNode;
 use crate::borrow::BorrowChecker;
 #[cfg(feature = "codegen")]
 use crate::mir::{Mir, MirGen, MirStmt, SemiringOp};
+#[cfg(feature = "codegen")]
 use crate::specialization::{
     MonoKey, MonoValue, is_cache_safe, lookup_specialization, record_specialization,
 };
 use std::collections::HashMap;
 
-#[cfg(feature = "codegen")]
-/// Enum for Zeta types, supporting primitives and named types.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Type {
-    /// 64-bit signed integer.
-    I64,
-    /// 32-bit float.
-    F32,
-    /// Boolean.
-    Bool,
-    /// Named type (e.g., user-defined or trait-bound).
-    Named(String),
-    /// Unknown/inferred type.
-    Unknown,
-}
-
-#[cfg(not(feature = "codegen"))]
 /// Enum for Zeta types, supporting primitives and named types.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
@@ -54,8 +37,10 @@ type ImplMethods = HashMap<String, MethodSig>;
 #[derive(Clone)]
 pub struct Resolver {
     /// Direct impls for traits on types.
+    #[cfg(feature = "codegen")]
     direct_impls: HashMap<(String, Type), ImplMethods>,
     /// Environment for type inference (var -> type).
+    #[cfg(feature = "codegen")]
     type_env: HashMap<String, Type>,
     /// Integrated borrow checker.
     borrow_checker: BorrowChecker,
@@ -72,7 +57,9 @@ impl Resolver {
     /// Creates a new resolver with builtin fast-path for i64 Addable.
     pub fn new() -> Self {
         let mut r = Self {
+            #[cfg(feature = "codegen")]
             direct_impls: HashMap::new(),
+            #[cfg(feature = "codegen")]
             type_env: HashMap::new(),
             borrow_checker: BorrowChecker::new(),
         };
@@ -90,30 +77,29 @@ impl Resolver {
     }
 
     /// Registers an impl block into the direct impls map.
+    #[cfg(feature = "codegen")]
     pub fn register(&mut self, ast: AstNode) {
-        #[cfg(feature = "codegen")]
-        {
-            if let AstNode::ImplBlock { concept, ty, body } = ast {
-                let ty = self.parse_type(&ty);
-                let mut methods = HashMap::new();
-                for node in body {
-                    if let AstNode::Method { name, params, ret } = node {
-                        let sig = (
-                            params
-                                .into_iter()
-                                .map(|(_, t)| self.parse_type(&t))
-                                .collect(),
-                            self.parse_type(&ret),
-                        );
-                        methods.insert(name, sig);
-                    }
+        if let AstNode::ImplBlock { concept, ty, body } = ast {
+            let ty = self.parse_type(&ty);
+            let mut methods = HashMap::new();
+            for node in body {
+                if let AstNode::Method { name, params, ret } = node {
+                    let sig = (
+                        params
+                            .into_iter()
+                            .map(|(_, t)| self.parse_type(&t))
+                            .collect(),
+                        self.parse_type(&ret),
+                    );
+                    methods.insert(name, sig);
                 }
-                self.direct_impls.insert((concept, ty), methods);
             }
+            self.direct_impls.insert((concept, ty), methods);
         }
     }
 
     /// Parses a string to a Type variant.
+    #[cfg(feature = "codegen")]
     fn parse_type(&self, s: &str) -> Type {
         match s {
             "i64" => Type::I64,
@@ -124,86 +110,79 @@ impl Resolver {
     }
 
     /// Infers the type of an AST node, updating the environment.
+    #[cfg(feature = "codegen")]
     pub fn infer_type(&mut self, node: &AstNode) -> Type {
-        #[cfg(feature = "codegen")]
-        {
-            match node {
-                AstNode::Lit(_) => Type::I64,
-                AstNode::Var(v) => self.type_env.get(v).cloned().unwrap_or(Type::Unknown),
-                AstNode::Assign(name, expr) => {
-                    let ty = self.infer_type(expr);
-                    self.type_env.insert(name.clone(), ty.clone());
-                    ty
-                }
-                AstNode::Call {
-                    receiver,
-                    method,
-                    type_args,
-                    args,
-                    ..
-                } => {
-                    let recv_ty = receiver.as_ref().map(|r| self.infer_type(r));
-
-                    // Fast-path trait lookup
-                    if let Some(recv_ty) = recv_ty
-                        && let Some(impls) = self
-                            .direct_impls
-                            .get(&("Addable".to_string(), recv_ty.clone()))
-                        && let Some((params, ret)) = impls.get(method)
-                        && params.len() == args.len()
-                    {
-                        return ret.clone();
-                    }
-
-                    // Thin monomorphization + specialization cache
-                    let key = MonoKey {
-                        func_name: method.clone(),
-                        type_args: type_args.clone(),
-                    };
-
-                    if let Some(cached) = lookup_specialization(&key) {
-                        Type::Named(cached.llvm_func_name)
-                    } else {
-                        let mut mangled = method.clone();
-                        if !type_args.is_empty() {
-                            mangled.push_str("__");
-                            for t in type_args {
-                                mangled.push_str(&t.replace(['<', '>', ':'], "_"));
-                                mangled.push('_');
-                            }
-                        }
-                        let cache_safe = type_args.iter().all(|t| is_cache_safe(t));
-                        record_specialization(
-                            key,
-                            MonoValue {
-                                llvm_func_name: mangled.clone(),
-                                cache_safe,
-                            },
-                        );
-                        Type::Named(mangled)
-                    }
-                }
-                _ => Type::Unknown,
+        match node {
+            AstNode::Lit(_) => Type::I64,
+            AstNode::Var(v) => self.type_env.get(v).cloned().unwrap_or(Type::Unknown),
+            AstNode::Assign(name, expr) => {
+                let ty = self.infer_type(expr);
+                self.type_env.insert(name.clone(), ty.clone());
+                ty
             }
-        }
+            AstNode::Call {
+                receiver,
+                method,
+                type_args,
+                args,
+                ..
+            } => {
+                let recv_ty = receiver.as_ref().map(|r| self.infer_type(r));
 
-        #[cfg(not(feature = "codegen"))]
-        Type::Unknown
+                // Fast-path trait lookup
+                if let Some(recv_ty) = recv_ty
+                    && let Some(impls) = self
+                        .direct_impls
+                        .get(&("Addable".to_string(), recv_ty.clone()))
+                    && let Some((params, ret)) = impls.get(method)
+                    && params.len() == args.len()
+                {
+                    return ret.clone();
+                }
+
+                // Thin monomorphization + specialization cache
+                let key = MonoKey {
+                    func_name: method.clone(),
+                    type_args: type_args.clone(),
+                };
+
+                if let Some(cached) = lookup_specialization(&key) {
+                    Type::Named(cached.llvm_func_name)
+                } else {
+                    let mut mangled = method.clone();
+                    if !type_args.is_empty() {
+                        mangled.push_str("__");
+                        for t in type_args {
+                            mangled.push_str(&t.replace(['<', '>', ':'], "_"));
+                            mangled.push('_');
+                        }
+                    }
+                    let cache_safe = type_args.iter().all(|t| is_cache_safe(t));
+                    record_specialization(
+                        key,
+                        MonoValue {
+                            llvm_func_name: mangled.clone(),
+                            cache_safe,
+                        },
+                    );
+                    Type::Named(mangled)
+                }
+            }
+            _ => Type::Unknown,
+        }
     }
 
     /// Performs type checking and borrow checking on a program.
     /// Returns true if all checks pass.
+    #[cfg(feature = "codegen")]
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
         let mut ok = true;
-        #[cfg(feature = "codegen")]
-        {
-            for ast in asts {
-                if let AstNode::FuncDef { body, .. } = ast {
-                    for stmt in body {
-                        self.infer_type(stmt);
-                        if !self.borrow_checker.check(stmt) {
-                            ok = false;
-                        }
+        for ast in asts {
+            if let AstNode::FuncDef { body, .. } = ast {
+                for stmt in body {
+                    self.infer_type(stmt);
+                    if !self.borrow_checker.check(stmt) {
+                        ok = false;
                     }
                 }
             }
