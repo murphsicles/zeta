@@ -106,6 +106,7 @@ impl Resolver {
                 self.type_env.insert(name.clone(), ty.clone());
                 ty
             }
+            AstNode::Defer(inner) => self.infer_type(inner),
             AstNode::Call {
                 receiver,
                 method,
@@ -116,7 +117,7 @@ impl Resolver {
                 let recv_ty = receiver.as_ref().map(|r| self.infer_type(r));
 
                 // Fast-path trait lookup
-                if let Some(recv_ty) = recv_ty
+                if let Some(recv_ty) = &recv_ty
                     && let Some(impls) = self
                         .direct_impls
                         .get(&("Addable".to_string(), recv_ty.clone()))
@@ -126,33 +127,39 @@ impl Resolver {
                     return ret.clone();
                 }
 
-                // Thin monomorphization + specialization cache
+                // Partial specialization: Check for partial match on type_args
                 let key = MonoKey {
                     func_name: method.clone(),
                     type_args: type_args.clone(),
                 };
 
                 if let Some(cached) = lookup_specialization(&key) {
-                    Type::Named(cached.llvm_func_name)
-                } else {
-                    let mut mangled = method.clone();
-                    if !type_args.is_empty() {
-                        mangled.push_str("__");
-                        for t in type_args {
+                    return Type::Named(cached.llvm_func_name);
+                }
+
+                // Generate mangled name for partial spec
+                let mut mangled = format!("{}_{}", method, recv_ty.as_ref().map_or("unknown", |t| t.to_string()));
+                if !type_args.is_empty() {
+                    mangled.push_str("__partial");
+                    for t in type_args {
+                        if is_cache_safe(t) {
                             mangled.push_str(&t.replace(['<', '>', ':'], "_"));
                             mangled.push('_');
+                        } else {
+                            mangled.push_str("dyn_");
                         }
                     }
-                    let cache_safe = type_args.iter().all(|t| is_cache_safe(t));
-                    record_specialization(
-                        key,
-                        MonoValue {
-                            llvm_func_name: mangled.clone(),
-                            cache_safe,
-                        },
-                    );
-                    Type::Named(mangled)
                 }
+
+                let cache_safe = type_args.iter().all(|t| is_cache_safe(t)) && recv_ty.is_some();
+                record_specialization(
+                    key,
+                    MonoValue {
+                        llvm_func_name: mangled.clone(),
+                        cache_safe,
+                    },
+                );
+                Type::Named(mangled)
             }
             _ => Type::Unknown,
         }
