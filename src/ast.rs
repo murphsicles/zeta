@@ -37,6 +37,11 @@ pub enum AstNode {
         args: Vec<AstNode>,
         type_args: Vec<String>,
     },
+    /// Actor spawn: spawn func(args).
+    Spawn {
+        func: String,
+        args: Vec<AstNode>,
+    },
     /// Integer literal.
     Lit(i64),
     /// Variable reference.
