@@ -76,6 +76,18 @@ pub extern "C" fn host_channel_recv(chan_ptr: *mut std::ffi::c_void) -> i64 {
     }
 }
 
+/// Host spawn wrapper: simplified, spawns a no-arg actor returning void.
+#[unsafe(no_mangle)]
+pub extern "C" fn host_spawn(func_ptr: i64) {
+    // Simplified: assume func_ptr is host fn ptr, spawn simple actor
+    let chan = Channel::new();
+    // Placeholder: spawn thread running func(chan)
+    // In full, marshal func_ptr to Rust closure
+    thread::spawn(move || {
+        // Dummy actor
+    });
+}
+
 /// Actor representation: channel + entry function.
 struct Actor {
     chan: Channel,
