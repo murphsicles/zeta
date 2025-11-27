@@ -1,6 +1,6 @@
 // src/parser.rs
 //! Nom-based parser for Zeta syntax.
-//! Supports function definitions, calls, literals, variables, assigns, TimingOwned, defer, concepts, and impls.
+//! Supports function definitions, calls, literals, variables, assigns, TimingOwned, defer, concepts, impls, and spawn.
 
 use crate::ast::AstNode;
 use nom::IResult;
@@ -88,9 +88,23 @@ fn defer_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
     map(preceded(ws(tag("defer")), ws(expr())), |e| AstNode::Defer(Box::new(e)))
 }
 
-/// Parses a statement: defer or expr.
+/// Parses spawn: spawn ident(args).
+fn spawn_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    let kw = ws(tag("spawn"));
+    let func = ident();
+    let args = delimited(tag("("), many0(ws(expr())), tag(")"));
+    map(
+        (kw, func, args),
+        |(_, func, args)| AstNode::Spawn {
+            func,
+            args,
+        },
+    )
+}
+
+/// Parses a statement: spawn | defer | expr.
 fn stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    alt((defer_stmt(), expr()))
+    alt((spawn_stmt(), defer_stmt(), expr()))
 }
 
 /// Parses function body: { stmt* }.
