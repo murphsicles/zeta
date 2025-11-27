@@ -31,6 +31,10 @@ pub enum MirStmt {
         args: Vec<u32>,
         dest: u32,
     },
+    VoidCall {
+        func: String,
+        args: Vec<u32>,
+    },
     Return {
         val: u32,
     },
@@ -48,9 +52,16 @@ pub enum MirExpr {
     ConstEval(i64),
 }
 
+#[derive(Debug, Clone)]
+struct DeferInfo {
+    func: String,
+    args: Vec<u32>,
+}
+
 pub struct MirGen {
     next_id: u32,
     locals: HashMap<String, u32>,
+    defers: Vec<DeferInfo>,
 }
 
 impl Default for MirGen {
@@ -64,6 +75,7 @@ impl MirGen {
         Self {
             next_id: 0,
             locals: HashMap::new(),
+            defers: vec![],
         }
     }
 
@@ -73,7 +85,38 @@ impl MirGen {
 
         if let AstNode::FuncDef { body, .. } = ast {
             for stmt in body {
-                self.gen_stmt(stmt, &mut stmts, &mut exprs);
+                match stmt {
+                    AstNode::Defer(boxed) => {
+                        if let AstNode::Call {
+                            receiver: None,
+                            method,
+                            args,
+                            ..
+                        } = *boxed
+                        {
+                            let mut arg_ids = vec![];
+                            for arg in args {
+                                if let AstNode::Var(ref v) = arg {
+                                    let id = *self.locals.entry(v.clone()).or_insert(self.next_id);
+                                    arg_ids.push(id);
+                                }
+                            }
+                            self.defers.push(DeferInfo {
+                                func: method,
+                                args: arg_ids,
+                            });
+                        }
+                    }
+                    _ => self.gen_stmt(stmt, &mut stmts, &mut exprs),
+                }
+            }
+
+            // Insert defers before return in reverse order
+            for info in self.defers.iter().rev() {
+                stmts.push(MirStmt::VoidCall {
+                    func: info.func.clone(),
+                    args: info.args.clone(),
+                });
             }
 
             if let Some(AstNode::Assign(name, expr)) = body.last()
