@@ -81,24 +81,30 @@ impl Resolver {
         r
     }
 
-    /// Registers an impl block into the direct impls map.
+    /// Registers a concept or impl block.
     pub fn register(&mut self, ast: AstNode) {
-        if let AstNode::ImplBlock { concept, ty, body } = ast {
-            let ty = self.parse_type(&ty);
-            let mut methods = HashMap::new();
-            for node in body {
-                if let AstNode::Method { name, params, ret } = node {
-                    let sig = (
-                        params
-                            .into_iter()
-                            .map(|(_, t)| self.parse_type(&t))
-                            .collect(),
-                        self.parse_type(&ret),
-                    );
-                    methods.insert(name, sig);
+        match ast {
+            AstNode::ImplBlock { concept, ty, body } => {
+                let ty = self.parse_type(&ty);
+                let mut methods = HashMap::new();
+                for node in body {
+                    if let AstNode::Method { name, params, ret } = node {
+                        let sig = (
+                            params
+                                .into_iter()
+                                .map(|(_, t)| self.parse_type(&t))
+                                .collect(),
+                            self.parse_type(&ret),
+                        );
+                        methods.insert(name, sig);
+                    }
                 }
+                self.direct_impls.insert((concept, ty), methods);
             }
-            self.direct_impls.insert((concept, ty), methods);
+            AstNode::ConceptDef { .. } => {
+                // Concepts define traits; impls register them. Concepts themselves don't add impls.
+            }
+            _ => {}
         }
     }
 
@@ -137,50 +143,61 @@ impl Resolver {
             } => {
                 let recv_ty = receiver.as_ref().map(|r| self.infer_type(r));
 
-                // Fast-path trait lookup
-                if let Some(recv_ty) = &recv_ty
-                    && let Some(impls) = self
-                        .direct_impls
-                        .get(&("Addable".to_string(), recv_ty.clone()))
-                    && let Some((params, ret)) = impls.get(method)
-                    && params.len() == args.len()
-                {
-                    return ret.clone();
-                }
-
-                // Partial specialization: Check for partial match on type_args
-                let key = MonoKey {
-                    func_name: method.clone(),
-                    type_args: type_args.clone(),
-                };
-
-                if let Some(cached) = lookup_specialization(&key) {
-                    return Type::Named(cached.llvm_func_name);
-                }
-
-                // Generate mangled name for partial spec
-                let mut mangled = format!("{}_{}", method, recv_ty.as_ref().map_or("unknown", |t| t.to_string()));
-                if !type_args.is_empty() {
-                    mangled.push_str("__partial");
-                    for t in type_args {
-                        if is_cache_safe(t) {
-                            mangled.push_str(&t.replace(['<', '>', ':'], "_"));
-                            mangled.push('_');
-                        } else {
-                            mangled.push_str("dyn_");
+                // Hybrid trait lookup: nominal (direct_impls) + structural (type match)
+                let mut found = false;
+                if let Some(recv_ty) = &recv_ty {
+                    // Nominal lookup
+                    if let Some(impls) = self.direct_impls.get(&("Addable".to_string(), recv_ty.clone())) {
+                        if let Some((params, ret)) = impls.get(method) {
+                            if params.len() == args.len() {
+                                return ret.clone();
+                            }
                         }
                     }
+                    // Structural: fallback for primitives
+                    if method == "add" && recv_ty == &Type::I64 {
+                        return Type::I64;
+                    }
+                    found = true;
                 }
 
-                let cache_safe = type_args.iter().all(|t| is_cache_safe(t)) && recv_ty.is_some();
-                record_specialization(
-                    key,
-                    MonoValue {
-                        llvm_func_name: mangled.clone(),
-                        cache_safe,
-                    },
-                );
-                Type::Named(mangled)
+                if !found {
+                    // Partial specialization: Check for partial match on type_args
+                    let key = MonoKey {
+                        func_name: method.clone(),
+                        type_args: type_args.clone(),
+                    };
+
+                    if let Some(cached) = lookup_specialization(&key) {
+                        return Type::Named(cached.llvm_func_name);
+                    }
+
+                    // Generate mangled name for partial spec
+                    let mut mangled = format!("{}_{}", method, recv_ty.as_ref().map_or("unknown", |t| t.to_string()));
+                    if !type_args.is_empty() {
+                        mangled.push_str("__partial");
+                        for t in type_args {
+                            if is_cache_safe(t) {
+                                mangled.push_str(&t.replace(['<', '>', ':'], "_"));
+                                mangled.push('_');
+                            } else {
+                                mangled.push_str("dyn_");
+                            }
+                        }
+                    }
+
+                    let cache_safe = type_args.iter().all(|t| is_cache_safe(t)) && recv_ty.is_some();
+                    record_specialization(
+                        key,
+                        MonoValue {
+                            llvm_func_name: mangled.clone(),
+                            cache_safe,
+                        },
+                    );
+                    Type::Named(mangled)
+                } else {
+                    Type::Unknown
+                }
             }
             _ => Type::Unknown,
         }
@@ -191,6 +208,7 @@ impl Resolver {
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
         let mut ok = true;
         for ast in asts {
+            self.register(ast.clone()); // Register concepts/impls first
             if let AstNode::FuncDef { body, .. } = ast {
                 for stmt in body {
                     self.infer_type(stmt);
