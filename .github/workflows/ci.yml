@@ -17,12 +17,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install LLVM 19
-      id: llvm
       uses: KyleMayes/install-llvm-action@v2
       with:
         version: "19.1.7"
-    - name: Configure llvm-sys
-      run: echo "LLVM_SYS_191_PREFIX=${{ env.LLVM_PATH }}" >> $GITHUB_ENV
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
@@ -36,14 +33,14 @@ jobs:
           ~/.cargo/git
           target
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-    - name: Check (no codegen)
-      run: cargo check --workspace --no-default-features
-    - name: Check (codegen)
-      run: cargo check --workspace --features codegen
-    - name: Clippy (no codegen)
-      run: cargo clippy --workspace --no-default-features --all-targets -- -D warnings
-    - name: Clippy (codegen)
-      run: cargo clippy --workspace --features codegen --all-targets -- -D warnings
+    - name: Check
+      env:
+        LLVM_SYS_191_PREFIX: ${{ env.LLVM_PATH }}
+      run: cargo check --workspace --all-features --all-targets
+    - name: Clippy
+      env:
+        LLVM_SYS_191_PREFIX: ${{ env.LLVM_PATH }}
+      run: cargo clippy --workspace --all-features --all-targets -- -D warnings
     - name: Fmt
       run: cargo fmt --all -- --check
   test:
@@ -52,12 +49,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install LLVM 19
-      id: llvm
       uses: KyleMayes/install-llvm-action@v2
       with:
         version: "19.1.7"
-    - name: Configure llvm-sys
-      run: echo "LLVM_SYS_191_PREFIX=${{ env.LLVM_PATH }}" >> $GITHUB_ENV
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
@@ -71,12 +65,14 @@ jobs:
           ~/.cargo/git
           target
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-    - name: Test (no codegen)
-      run: cargo test --workspace --no-default-features
-    - name: Test (codegen)
-      run: cargo test --workspace --features codegen
-    - name: Bench (codegen, no plot)
-      run: cargo bench --no-run --features codegen # Stub: Run benches in release
+    - name: Test
+      env:
+        LLVM_SYS_191_PREFIX: ${{ env.LLVM_PATH }}
+      run: cargo test --workspace --all-features
+    - name: Bench (no plot)
+      env:
+        LLVM_SYS_191_PREFIX: ${{ env.LLVM_PATH }}
+      run: cargo bench --no-run # Stub: Run benches in release
   security:
     runs-on: ubuntu-latest
     needs: test
@@ -86,7 +82,7 @@ jobs:
       uses: dtolnay/rust-toolchain@master
       with:
         toolchain: nightly
-    - name: Audit deps (no codegen)
+    - name: Audit deps
       uses: EmbarkStudios/cargo-deny-action@v2
       with:
         command: check licenses
