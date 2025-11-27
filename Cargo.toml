@@ -7,7 +7,7 @@ license = "MIT"
 description = "The final systems language"
 repository = "https://github.com/murphsicles/zeta"
 keywords = ["programming", "language", "code", "compiler", "lang"]
-categories = ["programming", "code", "compilers"]
+categories = ["compilers", "development-tools"]
 readme = "README.md"
 
 [dependencies]
