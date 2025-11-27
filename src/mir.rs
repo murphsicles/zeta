@@ -93,7 +93,7 @@ impl MirGen {
                             method,
                             args,
                             ..
-                        } = *boxed
+                        } = **boxed
                         {
                             let mut arg_ids = vec![];
                             for arg in args {
