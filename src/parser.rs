@@ -10,7 +10,7 @@ use nom::bytes::complete::tag;
 use nom::character::complete::{alpha1, alphanumeric0, i64 as nom_i64, multispace0};
 use nom::combinator::{map, opt};
 use nom::multi::many0;
-use nom::sequence::{delimited, preceded, tuple};
+use nom::sequence::{delimited, preceded};
 
 /// Whitespace wrapper for parsers.
 fn ws<'a, O>(
@@ -42,7 +42,7 @@ fn method_sig<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
     let params = delimited(tag("("), many0(ws(ident().and(ws(tag(":"))).and(ws(ident())))), tag(")"));
     let ret = opt(preceded(ws(tag("->")), ws(ident())));
     map(
-        tuple((name, params, ret)),
+        (name, params, ret),
         |(name, params, ret_opt)| {
             let ret: String = ret_opt.unwrap_or_else(|| "i64".to_string());
             AstNode::Method {
@@ -57,14 +57,8 @@ fn method_sig<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
 /// Parses TimingOwned<ty> (expr).
 fn timing_owned<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     map(
-        tuple((
-            ws(tag("TimingOwned")),
-            ws(delimited(tag("<"), ident(), tag(">"))),
-            ws(tag("(")),
-            ws(expr()),
-            ws(tag(")")),
-        )),
-        |((_, ty), _, _, inner, _)| AstNode::TimingOwned {
+        (ws(tag("TimingOwned")), ws(delimited(tag("<"), ident(), tag(">"))), ws(tag("(")), ws(expr()), ws(tag(")"))),
+        |(_, ty, _, inner, _)| AstNode::TimingOwned {
             ty,
             inner: Box::new(inner),
         },
@@ -113,26 +107,20 @@ fn parse_func<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
     let rparen = ws(tag(")"));
     let ret_type = opt(preceded(ws(tag("->")), ws(ident())));
     let body = func_body();
-    fn_kw
-        .and(name)
-        .and(lparen)
-        .and(rparen)
-        .and(ret_type)
-        .and(body)
-        .map(|(((((_, name), _), _), ret_opt), body)| {
-            let ret: String = ret_opt
-                .map(|s: String| s)
-                .unwrap_or_else(|| "i64".to_string());
-            AstNode::FuncDef {
-                name,
-                generics: vec![],
-                params: vec![],
-                ret,
-                body,
-                attrs: vec![],
-                ret_expr: None,
-            }
-        })
+    (fn_kw, name, lparen, rparen, ret_type, body).map(|((((( _, name), _), _), ret_opt), body)| {
+        let ret: String = ret_opt
+            .map(|s: String| s)
+            .unwrap_or_else(|| "i64".to_string());
+        AstNode::FuncDef {
+            name,
+            generics: vec![],
+            params: vec![],
+            ret,
+            body,
+            attrs: vec![],
+            ret_expr: None,
+        }
+    })
 }
 
 /// Parses concept definition: concept Name { methods }.
@@ -140,13 +128,10 @@ fn parse_concept<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::er
     let kw = ws(tag("concept"));
     let name = ident();
     let body = delimited(ws(tag("{")), many0(ws(method_sig())), ws(tag("}")));
-    map(
-        tuple((kw, name, body)),
-        |((_, name), body)| AstNode::ConceptDef {
-            name,
-            methods: body,
-        },
-    )
+    (kw, name, body).map(|(_, name, body)| AstNode::ConceptDef {
+        name,
+        methods: body,
+    })
 }
 
 /// Parses impl block: impl Concept for Ty { methods }.
@@ -156,14 +141,11 @@ fn parse_impl<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
     let for_kw = ws(tag("for"));
     let ty = ident();
     let body = delimited(ws(tag("{")), many0(ws(method_sig())), ws(tag("}")));
-    map(
-        tuple((kw, concept, for_kw, ty, body)),
-        |(((_, concept), _), ty, body)| AstNode::ImplBlock {
-            concept,
-            ty,
-            body,
-        },
-    )
+    ((kw, concept), for_kw, ty, body).map(|((_, concept), _, ty, body)| AstNode::ImplBlock {
+        concept,
+        ty,
+        body,
+    })
 }
 
 /// Entry point: Parses multiple top-level items (funcs/concepts/impls).
