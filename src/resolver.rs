@@ -10,6 +10,7 @@ use crate::specialization::{
     MonoKey, MonoValue, is_cache_safe, lookup_specialization, record_specialization,
 };
 use std::collections::HashMap;
+use std::fmt;
 
 /// Enum for Zeta types, supporting primitives and named types.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -24,6 +25,18 @@ pub enum Type {
     Named(String),
     /// Unknown/inferred type.
     Unknown,
+}
+
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Type::I64 => write!(f, "i64"),
+            Type::F32 => write!(f, "f32"),
+            Type::Bool => write!(f, "bool"),
+            Type::Named(s) => write!(f, "{}", s),
+            Type::Unknown => write!(f, "unknown"),
+        }
+    }
 }
 
 type MethodSig = (Vec<Type>, Type);
