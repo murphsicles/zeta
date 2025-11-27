@@ -59,7 +59,7 @@ impl Channel {
 }
 
 /// Host send wrapper for LLVM intrinsic.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn host_channel_send(chan_ptr: *mut std::ffi::c_void, msg: i64) {
     if let Some(chan) = unsafe { (chan_ptr as *mut Channel).as_ref() } {
         chan.send(msg);
@@ -67,7 +67,7 @@ pub extern "C" fn host_channel_send(chan_ptr: *mut std::ffi::c_void, msg: i64) {
 }
 
 /// Host recv wrapper for LLVM intrinsic.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn host_channel_recv(chan_ptr: *mut std::ffi::c_void) -> i64 {
     if let Some(chan) = unsafe { (chan_ptr as *mut Channel).as_ref() } {
         chan.recv()
