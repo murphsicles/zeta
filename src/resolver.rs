@@ -3,14 +3,16 @@
 //! Handles type inference, trait resolution, borrow checking, MIR lowering, and optimizations.
 //! Integrates algebraic structures from EOP for semiring-based codegen.
 
-use crate::ast::AstNode;
 use crate::borrow::BorrowChecker;
+#[cfg(feature = "codegen")]
+use crate::ast::AstNode;
 #[cfg(feature = "codegen")]
 use crate::mir::{Mir, MirGen, MirStmt, SemiringOp};
 #[cfg(feature = "codegen")]
 use crate::specialization::{
     MonoKey, MonoValue, is_cache_safe, lookup_specialization, record_specialization,
 };
+#[cfg(feature = "codegen")]
 use std::collections::HashMap;
 
 /// Enum for Zeta types, supporting primitives and named types.
@@ -43,6 +45,7 @@ pub struct Resolver {
     #[cfg(feature = "codegen")]
     type_env: HashMap<String, Type>,
     /// Integrated borrow checker.
+    #[allow(dead_code)]
     borrow_checker: BorrowChecker,
 }
 
@@ -56,7 +59,7 @@ impl Default for Resolver {
 impl Resolver {
     /// Creates a new resolver with builtin fast-path for i64 Addable.
     pub fn new() -> Self {
-        let mut r = Self {
+        let r = Self {
             #[cfg(feature = "codegen")]
             direct_impls: HashMap::new(),
             #[cfg(feature = "codegen")]
@@ -64,15 +67,17 @@ impl Resolver {
             borrow_checker: BorrowChecker::new(),
         };
 
-        // Fast-path: i64 implements Addable
         #[cfg(feature = "codegen")]
         {
+            let mut r_mut = r;
             let mut addable = HashMap::new();
             addable.insert("add".to_string(), (vec![Type::I64], Type::I64));
-            r.direct_impls
+            r_mut.direct_impls
                 .insert(("Addable".to_string(), Type::I64), addable);
+            r_mut
         }
 
+        #[cfg(not(feature = "codegen"))]
         r
     }
 
@@ -174,20 +179,25 @@ impl Resolver {
 
     /// Performs type checking and borrow checking on a program.
     /// Returns true if all checks pass.
-    #[cfg(feature = "codegen")]
-    pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
-        let mut ok = true;
-        for ast in asts {
-            if let AstNode::FuncDef { body, .. } = ast {
-                for stmt in body {
-                    self.infer_type(stmt);
-                    if !self.borrow_checker.check(stmt) {
-                        ok = false;
+    pub fn typecheck(&mut self, #[allow(unused_variables)] asts: &[AstNode]) -> bool {
+        #[cfg(feature = "codegen")]
+        {
+            let mut ok = true;
+            for ast in asts {
+                if let AstNode::FuncDef { body, .. } = ast {
+                    for stmt in body {
+                        self.infer_type(stmt);
+                        if !self.borrow_checker.check(stmt) {
+                            ok = false;
+                        }
                     }
                 }
             }
+            ok
         }
-        ok
+
+        #[cfg(not(feature = "codegen"))]
+        true
     }
 
     /// Lowers an AST node to MIR for codegen.
