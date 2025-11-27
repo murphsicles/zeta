@@ -1,6 +1,6 @@
 // src/parser.rs
 //! Nom-based parser for Zeta syntax.
-//! Supports function definitions, calls, literals, variables, assigns, TimingOwned, and defer.
+//! Supports function definitions, calls, literals, variables, assigns, TimingOwned, defer, concepts, and impls.
 
 use crate::ast::AstNode;
 use nom::IResult;
@@ -34,6 +34,24 @@ fn literal<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::E
 /// Parses a variable reference.
 fn variable<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     map(ident(), AstNode::Var)
+}
+
+/// Parses method signature: name(params) -> ret.
+fn method_sig<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    let name = ident();
+    let params = delimited(tag("("), many0(ws(ident().and(ws(tag(":"))).and(ws(ident())))), tag(")"));
+    let ret = opt(preceded(ws(tag("->")), ws(ident())));
+    map(
+        tuple((name, params, ret)),
+        |(name, params, ret_opt)| {
+            let ret: String = ret_opt.unwrap_or_else(|| "i64".to_string());
+            AstNode::Method {
+                name,
+                params: params.into_iter().map(|((n, _), t)| (n, t)).collect(),
+                ret,
+            }
+        },
+    )
 }
 
 /// Parses TimingOwned<ty> (expr).
@@ -117,7 +135,43 @@ fn parse_func<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
         })
 }
 
-/// Entry point: Parses multiple top-level functions.
+/// Parses concept definition: concept Name { methods }.
+fn parse_concept<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    let kw = ws(tag("concept"));
+    let name = ident();
+    let body = delimited(ws(tag("{")), many0(ws(method_sig())), ws(tag("}")));
+    map(
+        tuple((kw, name, body)),
+        |((_, name), body)| AstNode::ConceptDef {
+            name,
+            methods: body,
+        },
+    )
+}
+
+/// Parses impl block: impl Concept for Ty { methods }.
+fn parse_impl<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    let kw = ws(tag("impl"));
+    let concept = ident();
+    let for_kw = ws(tag("for"));
+    let ty = ident();
+    let body = delimited(ws(tag("{")), many0(ws(method_sig())), ws(tag("}")));
+    map(
+        tuple((kw, concept, for_kw, ty, body)),
+        |(((_, concept), _), ty, body)| AstNode::ImplBlock {
+            concept,
+            ty,
+            body,
+        },
+    )
+}
+
+/// Entry point: Parses multiple top-level items (funcs/concepts/impls).
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
-    delimited(multispace0, many0(ws(parse_func())), multispace0).parse(input)
+    delimited(
+        multispace0,
+        many0(ws(alt((parse_func(), parse_concept(), parse_impl())))),
+        multispace0,
+    )
+    .parse(input)
 }
