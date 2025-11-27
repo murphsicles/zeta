@@ -50,6 +50,7 @@ pub enum MirExpr {
     Var(u32),
     Lit(i64),
     ConstEval(i64),
+    TimingOwned(u32), // Wraps inner expr ID for constant-time
 }
 
 #[derive(Debug, Clone)]
@@ -181,15 +182,31 @@ impl MirGen {
         }
     }
 
-    fn gen_expr(&mut self, node: &AstNode, _exprs: &mut HashMap<u32, MirExpr>) -> MirExpr {
+    fn gen_expr(&mut self, node: &AstNode, exprs: &mut HashMap<u32, MirExpr>) -> MirExpr {
         match node {
             AstNode::Lit(n) => MirExpr::Lit(*n),
             AstNode::Var(v) => MirExpr::Var(self.lookup_or_alloc(v)),
+            AstNode::TimingOwned { inner, .. } => {
+                let inner_id = self.materialize_inner(inner, exprs);
+                MirExpr::TimingOwned(inner_id)
+            }
             AstNode::Call { .. } => {
                 let id = self.next_id();
                 MirExpr::Var(id)
             }
             _ => MirExpr::Lit(0),
+        }
+    }
+
+    fn materialize_inner(&mut self, node: &AstNode, exprs: &mut HashMap<u32, MirExpr>) -> u32 {
+        let expr = self.gen_expr(node, exprs);
+        match expr {
+            MirExpr::Var(id) => id,
+            _ => {
+                let id = self.next_id();
+                exprs.insert(id, expr);
+                id
+            }
         }
     }
 
@@ -201,6 +218,11 @@ impl MirGen {
     ) -> u32 {
         match expr {
             MirExpr::Var(id) => id,
+            MirExpr::TimingOwned(inner_id) => {
+                let id = self.next_id();
+                exprs.insert(id, MirExpr::TimingOwned(inner_id));
+                id
+            }
             _ => {
                 let id = self.next_id();
                 out.push(MirStmt::Assign {
