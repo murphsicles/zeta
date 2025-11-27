@@ -12,7 +12,7 @@ readme = "README.md"
 
 [dependencies]
 chrono = { version = "0.4.42", features = ["serde"] }
-inkwell = { version = "0.7.1", optional = true, features = ["llvm19-1"] }
+inkwell = { version = "0.7.1", features = ["llvm19-1"] }
 lazy_static = "1.5.0"
 libc = "0.2.177"
 nom = "8.0.0"
@@ -23,12 +23,13 @@ reqwest = { version = "0.12.24", features = ["blocking", "json"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 
+# Chalk++ parallel trait solver
+chalk-ir = "0.104"
+chalk-solve = "0.104"
+chalk-recursive = "0.104"
+
 # Benchmarks
 criterion = { version = "0.7.0", features = ["html_reports"] }
-
-[features]
-default = []
-codegen = ["dep:inkwell"]
 
 [[bench]]
 name = "zeta_bench"
