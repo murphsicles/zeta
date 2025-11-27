@@ -4,6 +4,7 @@
 //! Ensures stable ABI and TimingOwned constant-time guarantees.
 
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
+use crate::actor::{Channel, host_channel_send, host_channel_recv};
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
 use inkwell::builder::Builder;
@@ -48,7 +49,7 @@ pub struct LLVMCodegen<'ctx> {
 
 impl<'ctx> LLVMCodegen<'ctx> {
     /// Creates a new codegen instance for a module named `name`.
-    /// Declares external host functions (datetime_now, free).
+    /// Declares external host functions (datetime_now, free, actor intrinsics).
     pub fn new(context: &'ctx Context, name: &str) -> Self {
         let module = context.create_module(name);
         let builder = context.create_builder();
@@ -61,6 +62,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
         let free_type = void_type.fn_type(&[ptr_type.into()], false);
         module.add_function("free", free_type, Some(Linkage::External));
+
+        // Actor intrinsics
+        let channel_ptr_type = ptr_type; // Simplified Channel* as i8*
+        let send_type = void_type.fn_type(&[channel_ptr_type.into(), i64_type.into()], false);
+        module.add_function("channel_send", send_type, Some(Linkage::External));
+
+        let recv_type = i64_type.fn_type(&[channel_ptr_type.into()], false);
+        module.add_function("channel_recv", recv_type, Some(Linkage::External));
 
         Self {
             context,
@@ -145,6 +154,34 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         .unwrap();
                 }
 
+                "channel_send" => {
+                    let chan_ptr = self.load_local(args[0]).into_pointer_value();
+                    let msg = self.load_local(args[1]);
+                    self.builder
+                        .build_call(
+                            self.module.get_function("channel_send").unwrap(),
+                            &[chan_ptr.into(), msg.into()],
+                            "",
+                        )
+                        .unwrap();
+                }
+
+                "channel_recv" => {
+                    let chan_ptr = self.load_local(args[0]).into_pointer_value();
+                    let call = self.builder
+                        .build_call(
+                            self.module.get_function("channel_recv").unwrap(),
+                            &[chan_ptr.into()],
+                            "recv_tmp",
+                        )
+                        .unwrap();
+                    let val = call.try_as_basic_value().expect_basic("recv must return i64");
+                    let ptr = self.locals.entry(*dest).or_insert_with(|| {
+                        self.builder.build_alloca(self.i64_type, "recv_res").unwrap()
+                    });
+                    self.builder.build_store(*ptr, val).unwrap();
+                }
+
                 _ => {
                     // Binary op fallback: add or mul based on func name.
                     let lhs = self.load_local(args[0]).into_int_value();
@@ -165,6 +202,31 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             .unwrap()
                     });
                     self.builder.build_store(*ptr, result).unwrap();
+                }
+            },
+
+            MirStmt::VoidCall { func, args } => match func.as_str() {
+                "channel_send" => {
+                    let chan_ptr = self.load_local(args[0]).into_pointer_value();
+                    let msg = self.load_local(args[1]);
+                    self.builder
+                        .build_call(
+                            self.module.get_function("channel_send").unwrap(),
+                            &[chan_ptr.into(), msg.into()],
+                            "",
+                        )
+                        .unwrap();
+                }
+                _ => {
+                    // Generic void call fallback
+                    let arg_vals: Vec<BasicValueEnum> = args.iter().map(|&id| self.load_local(id)).collect();
+                    self.builder
+                        .build_call(
+                            self.module.get_function(func).unwrap_or_else(|| self.module.add_function(func, self.context.void_type().fn_type(&[self.i64_type.into()], false), None)),
+                            &arg_vals,
+                            "",
+                        )
+                        .unwrap();
                 }
             },
 
@@ -234,6 +296,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
         ee.add_global_mapping(
             &self.module.get_function("free").unwrap(),
             host_free as *const () as usize,
+        );
+        // Map actor intrinsics.
+        ee.add_global_mapping(
+            &self.module.get_function("channel_send").unwrap(),
+            host_channel_send as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("channel_recv").unwrap(),
+            host_channel_recv as *const () as usize,
         );
 
         Ok(ee)
