@@ -9,7 +9,7 @@ use std::thread;
 
 type Message = i64;
 
-/// Thread-safe channel for actor messaging.
+#[repr(C)]
 #[derive(Clone)]
 pub struct Channel {
     inner: Arc<ChannelInner>,
@@ -55,6 +55,24 @@ impl Channel {
             }
             queue = self.inner.cond.wait(queue).unwrap();
         }
+    }
+}
+
+/// Host send wrapper for LLVM intrinsic.
+#[no_mangle]
+pub extern "C" fn host_channel_send(chan_ptr: *mut std::ffi::c_void, msg: i64) {
+    if let Some(chan) = unsafe { (chan_ptr as *mut Channel).as_ref() } {
+        chan.send(msg);
+    }
+}
+
+/// Host recv wrapper for LLVM intrinsic.
+#[no_mangle]
+pub extern "C" fn host_channel_recv(chan_ptr: *mut std::ffi::c_void) -> i64 {
+    if let Some(chan) = unsafe { (chan_ptr as *mut Channel).as_ref() } {
+        chan.recv()
+    } else {
+        0
     }
 }
 
