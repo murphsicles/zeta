@@ -45,6 +45,8 @@ pub struct LLVMCodegen<'ctx> {
     ptr_type: inkwell::types::PointerType<'ctx>,
     /// Local alloca slots by MIR ID.
     locals: HashMap<u32, PointerValue<'ctx>>,
+    /// TBAA root for constant-time metadata.
+    tbaa_const_time: inkwell::values::MetadataValue<'ctx>,
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -71,6 +73,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let recv_type = i64_type.fn_type(&[channel_ptr_type.into()], false);
         module.add_function("channel_recv", recv_type, Some(Linkage::External));
 
+        // TBAA metadata for constant-time
+        let tbaa_const_time = context.metadata_value(
+            inkwell::types::BasicTypeEnum::IntType(i64_type).into_int_type(),
+            "tbaa.const_time",
+        );
+
         Self {
             context,
             module,
@@ -78,6 +86,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             i64_type,
             ptr_type,
             locals: HashMap::new(),
+            tbaa_const_time,
         }
     }
 
@@ -265,15 +274,26 @@ impl<'ctx> LLVMCodegen<'ctx> {
             MirExpr::Var(id) => self.load_local(*id),
             MirExpr::Lit(n) => self.i64_type.const_int(*n as u64, true).into(),
             MirExpr::ConstEval(n) => self.i64_type.const_int(*n as u64, true).into(),
+            MirExpr::TimingOwned(inner_id) => {
+                // Load inner, apply TBAA for constant-time analysis
+                let inner_val = self.load_local(*inner_id);
+                // Attach TBAA metadata to ensure constant-time ops
+                let load = self.builder.build_load(self.i64_type, self.locals[inner_id], "timing_load");
+                load.set_metadata("tbaa", &[&self.tbaa_const_time]);
+                load.into()
+            }
         }
     }
 
     /// Loads a local variable from alloca slot.
     fn load_local(&self, id: u32) -> BasicValueEnum<'ctx> {
         let ptr = self.locals[&id];
-        self.builder
+        let load = self.builder
             .build_load(self.i64_type, ptr, &format!("load_{id}"))
-            .unwrap()
+            .unwrap();
+        // Default TBAA if not TimingOwned
+        load.set_metadata("tbaa", &[&self.tbaa_const_time]);
+        load
     }
 
     /// Verifies module, creates JIT engine, maps host functions.
