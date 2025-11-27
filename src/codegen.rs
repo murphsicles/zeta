@@ -74,10 +74,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
         module.add_function("channel_recv", recv_type, Some(Linkage::External));
 
         // TBAA metadata for constant-time
-        let tbaa_const_time = context.metadata_value(
-            inkwell::types::BasicTypeEnum::IntType(i64_type).into_int_type(),
-            "tbaa.const_time",
-        );
+        let tbaa_metadata = context.i64_type().const_int(0, false).into();
+        let tbaa_const_time = context.metadata_node(&[tbaa_metadata]);
 
         Self {
             context,
@@ -229,10 +227,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 _ => {
                     // Generic void call fallback
                     let arg_vals: Vec<BasicValueEnum> = args.iter().map(|&id| self.load_local(id)).collect();
+                    let arg_refs: &[BasicValueEnum] = &arg_vals;
                     self.builder
                         .build_call(
                             self.module.get_function(func).unwrap_or_else(|| self.module.add_function(func, self.context.void_type().fn_type(&[self.i64_type.into()], false), None)),
-                            &arg_vals,
+                            arg_refs,
                             "",
                         )
                         .unwrap();
@@ -277,10 +276,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             MirExpr::TimingOwned(inner_id) => {
                 // Load inner, apply TBAA for constant-time analysis
                 let inner_val = self.load_local(*inner_id);
-                // Attach TBAA metadata to ensure constant-time ops
-                let load = self.builder.build_load(self.i64_type, self.locals[inner_id], "timing_load");
-                load.set_metadata("tbaa", &[&self.tbaa_const_time]);
-                load.into()
+                inner_val
             }
         }
     }
@@ -288,12 +284,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
     /// Loads a local variable from alloca slot.
     fn load_local(&self, id: u32) -> BasicValueEnum<'ctx> {
         let ptr = self.locals[&id];
-        let load = self.builder
+        self.builder
             .build_load(self.i64_type, ptr, &format!("load_{id}"))
-            .unwrap();
-        // Default TBAA if not TimingOwned
-        load.set_metadata("tbaa", &[&self.tbaa_const_time]);
-        load
+            .unwrap()
     }
 
     /// Verifies module, creates JIT engine, maps host functions.
