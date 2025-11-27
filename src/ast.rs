@@ -45,4 +45,6 @@ pub enum AstNode {
     Assign(String, Box<AstNode>),
     /// TimingOwned: Constant-time owned value abstraction.
     TimingOwned { ty: String, inner: Box<AstNode> },
+    /// Defer statement for RAII cleanup.
+    Defer(Box<AstNode>),
 }
