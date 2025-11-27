@@ -134,6 +134,13 @@ impl Resolver {
                 Type::TimingOwned(Box::new(inner_ty))
             }
             AstNode::Defer(inner) => self.infer_type(inner),
+            AstNode::Spawn { func, args } => {
+                // Spawn returns Channel
+                for arg in args {
+                    let _ = self.infer_type(arg);
+                }
+                Type::Named("Channel".to_string())
+            }
             AstNode::Call {
                 receiver,
                 method,
