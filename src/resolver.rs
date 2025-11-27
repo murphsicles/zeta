@@ -25,6 +25,8 @@ pub enum Type {
     Named(String),
     /// Unknown/inferred type.
     Unknown,
+    /// TimingOwned wrapper for constant-time.
+    TimingOwned(Box<Type>),
 }
 
 impl fmt::Display for Type {
@@ -35,6 +37,7 @@ impl fmt::Display for Type {
             Type::Bool => write!(f, "bool"),
             Type::Named(s) => write!(f, "{}", s),
             Type::Unknown => write!(f, "unknown"),
+            Type::TimingOwned(ty) => write!(f, "TimingOwned<{}>", ty),
         }
     }
 }
@@ -118,6 +121,11 @@ impl Resolver {
                 let ty = self.infer_type(expr);
                 self.type_env.insert(name.clone(), ty.clone());
                 ty
+            }
+            AstNode::TimingOwned { ty: ty_str, inner } => {
+                let inner_ty = self.infer_type(inner);
+                // Enforce constant-time wrapper
+                Type::TimingOwned(Box::new(inner_ty))
             }
             AstNode::Defer(inner) => self.infer_type(inner),
             AstNode::Call {
