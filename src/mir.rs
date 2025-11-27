@@ -108,6 +108,19 @@ impl MirGen {
                             });
                         }
                     }
+                    AstNode::Spawn { func, args } => {
+                        let mut arg_ids = vec![];
+                        for arg in args {
+                            let e = self.gen_expr(arg, &mut exprs);
+                            arg_ids.push(self.materialize(e, &mut exprs, &mut stmts));
+                        }
+                        let dest = self.next_id();
+                        stmts.push(MirStmt::Call {
+                            func: format!("spawn_{}", func),
+                            args: arg_ids,
+                            dest,
+                        });
+                    }
                     _ => self.gen_stmt(stmt, &mut stmts, &mut exprs),
                 }
             }
