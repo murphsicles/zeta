@@ -173,7 +173,7 @@ impl Resolver {
                     }
 
                     // Generate mangled name for partial spec
-                    let mut mangled = format!("{}_{}", method, recv_ty.as_ref().map_or("unknown", |t| t.to_string()));
+                    let mut mangled = format!("{}_{}", method, recv_ty.as_ref().map_or("unknown", |t| t.to_string().as_str()));
                     if !type_args.is_empty() {
                         mangled.push_str("__partial");
                         for t in type_args {
