@@ -1,6 +1,6 @@
 // src/parser.rs
 //! Nom-based parser for Zeta syntax.
-//! Supports function definitions, calls, literals, variables, assigns, and TimingOwned.
+//! Supports function definitions, calls, literals, variables, assigns, TimingOwned, and defer.
 
 use crate::ast::AstNode;
 use nom::IResult;
@@ -10,7 +10,7 @@ use nom::bytes::complete::tag;
 use nom::character::complete::{alpha1, alphanumeric0, i64 as nom_i64, multispace0};
 use nom::combinator::{map, opt};
 use nom::multi::many0;
-use nom::sequence::{delimited, preceded};
+use nom::sequence::{delimited, preceded, tuple};
 
 /// Whitespace wrapper for parsers.
 fn ws<'a, O>(
@@ -36,10 +36,27 @@ fn variable<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::
     map(ident(), AstNode::Var)
 }
 
-/// Parses expressions: lit/var + optional + lit/var (as add call).
+/// Parses TimingOwned<ty> (expr).
+fn timing_owned<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    map(
+        tuple((
+            ws(tag("TimingOwned")),
+            ws(delimited(tag("<"), ident(), tag(">"))),
+            ws(tag("(")),
+            ws(expr()),
+            ws(tag(")")),
+        )),
+        |((_, ty), _, _, inner, _)| AstNode::TimingOwned {
+            ty,
+            inner: Box::new(inner),
+        },
+    )
+}
+
+/// Parses expressions: lit/var + optional + lit/var (as add call) | TimingOwned.
 fn expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    let left = alt((literal(), variable()));
-    let add = ws(tag("+")).and(alt((literal(), variable())));
+    let left = alt((literal(), variable(), timing_owned()));
+    let add = ws(tag("+")).and(alt((literal(), variable(), timing_owned())));
     left.and(opt(add)).map(|(left, opt_add)| {
         if let Some((_, right)) = opt_add {
             AstNode::Call {
@@ -54,10 +71,20 @@ fn expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Erro
     })
 }
 
-/// Parses function body: { expr* }.
+/// Parses a defer statement: defer expr.
+fn defer_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    map(preceded(ws(tag("defer")), ws(expr())), |e| AstNode::Defer(Box::new(e)))
+}
+
+/// Parses a statement: defer or expr.
+fn stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    alt((defer_stmt(), expr()))
+}
+
+/// Parses function body: { stmt* }.
 fn func_body<'a>() -> impl Parser<&'a str, Output = Vec<AstNode>, Error = nom::error::Error<&'a str>>
 {
-    delimited(ws(tag("{")), many0(ws(expr())), ws(tag("}")))
+    delimited(ws(tag("{")), many0(ws(stmt())), ws(tag("}")))
 }
 
 /// Parses a full function definition: fn name() -> ret { body }.
