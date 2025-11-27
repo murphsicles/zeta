@@ -4,7 +4,7 @@
 //! Ensures stable ABI and TimingOwned constant-time guarantees.
 
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
-use crate::actor::{host_channel_send, host_channel_recv};
+use crate::actor::{host_channel_send, host_channel_recv, host_spawn};
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
 use inkwell::builder::Builder;
@@ -72,6 +72,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
         let recv_type = i64_type.fn_type(&[channel_ptr_type.into()], false);
         module.add_function("channel_recv", recv_type, Some(Linkage::External));
+
+        // Spawn intrinsic: void spawn(i64 func_ptr, ...args)
+        let spawn_type = void_type.fn_type(&[i64_type.into()], false); // Simplified: func ptr + varargs
+        module.add_function("spawn", spawn_type, Some(Linkage::External));
 
         // TBAA metadata for constant-time
         let tbaa_metadata = context.i64_type().const_int(0, false).into();
@@ -187,6 +191,19 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         self.builder.build_alloca(self.i64_type, "recv_res").unwrap()
                     });
                     self.builder.build_store(*ptr, val).unwrap();
+                }
+
+                _ if func.starts_with("spawn_") => {
+                    // Spawn call: void spawn_i64(args...)
+                    let arg_vals: Vec<BasicValueEnum> = args.iter().map(|&id| self.load_local(id)).collect();
+                    let arg_refs: &[BasicValueEnum] = &arg_vals;
+                    self.builder
+                        .build_call(
+                            self.module.get_function("spawn").unwrap(),
+                            arg_refs,
+                            "",
+                        )
+                        .unwrap();
                 }
 
                 _ => {
@@ -318,6 +335,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
         ee.add_global_mapping(
             &self.module.get_function("channel_recv").unwrap(),
             host_channel_recv as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("spawn").unwrap(),
+            host_spawn as *const () as usize,
         );
 
         Ok(ee)
