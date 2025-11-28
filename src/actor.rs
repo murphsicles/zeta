@@ -81,6 +81,29 @@ pub extern "C" fn host_spawn(_func_id: i64) -> i64 {
     1i64
 }
 
+/// Simplified host HTTP GET: returns response length or -1 error.
+#[no_mangle]
+pub extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
+    use std::ffi::CStr;
+    if let Ok(url_str) = unsafe { CStr::from_ptr(url) }.to_str() {
+        // Dummy: always return 200
+        200i64
+    } else {
+        -1i64
+    }
+}
+
+/// Simplified host TLS handshake: returns 0 success, -1 error.
+#[no_mangle]
+pub extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i64 {
+    use std::ffi::CStr;
+    if let Ok(_) = unsafe { CStr::from_ptr(host) }.to_str() {
+        0i64
+    } else {
+        -1i64
+    }
+}
+
 /// Actor representation: channel + entry function.
 struct Actor {
     chan: Channel,
