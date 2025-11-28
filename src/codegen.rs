@@ -4,7 +4,7 @@
 //! Ensures stable ABI and TimingOwned constant-time guarantees.
 
 use crate::actor::{
-    host_channel_recv, host_channel_send, host_http_get, host_spawn, host_tls_handshake,
+    host_channel_recv, host_channel_send, host_spawn,
 };
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use inkwell::AddressSpace;
@@ -13,7 +13,7 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
-use inkwell::passes::{PassManager, PassManagerBuilder};
+use inkwell::passes::PassManager;
 use inkwell::types::IntType;
 use inkwell::values::{BasicValueEnum, PointerValue};
 use std::collections::HashMap;
@@ -37,22 +37,24 @@ extern "C" fn host_free(ptr: *mut std::ffi::c_void) {
 /// Simplified host HTTP GET: returns response length or -1 error.
 extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
     use std::ffi::CStr;
-    if let Ok(url_str) = unsafe { CStr::from_ptr(url) }.to_str() {
+    let _url_str = if let Ok(_) = unsafe { CStr::from_ptr(url) }.to_str() {
         // Dummy: always return 200
         200i64
     } else {
         -1i64
-    }
+    };
+    _url_str
 }
 
 /// Simplified host TLS handshake: returns 0 success, -1 error.
 extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i64 {
     use std::ffi::CStr;
-    if let Ok(_) = unsafe { CStr::from_ptr(host) }.to_str() {
+    let _host_str = if let Ok(_) = unsafe { CStr::from_ptr(host) }.to_str() {
         0i64
     } else {
         -1i64
-    }
+    };
+    _host_str
 }
 
 /// LLVM codegen context for a module.
@@ -81,7 +83,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let builder = context.create_builder();
         let i64_type = context.i64_type();
         let ptr_type = context.ptr_type(AddressSpace::default());
-        let char_ptr_type = context.i8_type().ptr_type(AddressSpace::default());
+        let char_ptr_type = context.ptr_type(AddressSpace::default());
 
         let void_type = context.void_type();
         let i64_fn_type = i64_type.fn_type(&[], false);
@@ -132,6 +134,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let entry = self.context.append_basic_block(function, "entry");
         self.builder.position_at_end(entry);
 
+        // Init param locals (placeholder; extend for real params later)
+        for (&id, _) in &mir.locals {
+            self.locals.insert(id, self.builder.build_alloca(self.i64_type, &format!("param_{id}")).unwrap());
+        }
+
         // Generate statements in order.
         for stmt in &mir.stmts {
             self.gen_stmt(stmt);
@@ -162,153 +169,24 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 });
                 self.builder.build_store(*ptr, val).unwrap();
             }
+            MirStmt::Call { func, args, dest } => {
+                let arg_vals: Vec<BasicValueEnum> =
+                    args.iter().map(|&id| self.load_local(id)).collect();
+                let arg_refs: &[BasicValueEnum] = &arg_vals;
+                let callee = self.module.get_function(func).unwrap();
+                let result = self.builder
+                    .build_call(callee, arg_refs, "call_res")
+                    .unwrap()
+                    .try_as_basic_value()
+                    .left()
+                    .unwrap_or_else(|| self.i64_type.const_zero().into());
 
-            MirStmt::Call { func, args, dest } => match func.as_str() {
-                "datetime_now" => {
-                    // Intrinsic call to host datetime.
-                    let call = self
-                        .builder
-                        .build_call(
-                            self.module.get_function("datetime_now").unwrap(),
-                            &[],
-                            "tmp_dt",
-                        )
-                        .unwrap();
-
-                    let val = call
-                        .try_as_basic_value()
-                        .expect_basic("datetime_now must return i64");
-
-                    let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                        self.builder.build_alloca(self.i64_type, "dt_res").unwrap()
-                    });
-                    self.builder.build_store(*ptr, val).unwrap();
-                }
-
-                "free" => {
-                    // Call host free with pointer arg.
-                    let ptr_val = self.load_local(args[0]).into_pointer_value();
+                let ptr = self.locals.entry(*dest).or_insert_with(|| {
                     self.builder
-                        .build_call(
-                            self.module.get_function("free").unwrap(),
-                            &[ptr_val.into()],
-                            "",
-                        )
-                        .unwrap();
-                }
-
-                "channel_send" => {
-                    let chan = self.load_local(args[0]);
-                    let msg = self.load_local(args[1]);
-                    self.builder
-                        .build_call(
-                            self.module.get_function("channel_send").unwrap(),
-                            &[chan.into(), msg.into()],
-                            "",
-                        )
-                        .unwrap();
-                }
-
-                "channel_recv" => {
-                    let chan = self.load_local(args[0]);
-                    let call = self
-                        .builder
-                        .build_call(
-                            self.module.get_function("channel_recv").unwrap(),
-                            &[chan.into()],
-                            "recv_tmp",
-                        )
-                        .unwrap();
-                    let val = call
-                        .try_as_basic_value()
-                        .expect_basic("recv must return i64");
-                    let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                        self.builder
-                            .build_alloca(self.i64_type, "recv_res")
-                            .unwrap()
-                    });
-                    self.builder.build_store(*ptr, val).unwrap();
-                }
-
-                "http_get" => {
-                    // Std embed: http_get(url: &str) -> i64 status
-                    let url_ptr = self.load_local(args[0]).into_pointer_value();
-                    let call = self
-                        .builder
-                        .build_call(
-                            self.module.get_function("http_get").unwrap(),
-                            &[url_ptr.into()],
-                            "http_tmp",
-                        )
-                        .unwrap();
-                    let val = call.try_as_basic_value().expect_basic("http returns i64");
-                    let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                        self.builder
-                            .build_alloca(self.i64_type, "http_res")
-                            .unwrap()
-                    });
-                    self.builder.build_store(*ptr, val).unwrap();
-                }
-
-                "tls_handshake" => {
-                    // Std embed: tls_handshake(host: &str) -> i64 (0 ok)
-                    let host_ptr = self.load_local(args[0]).into_pointer_value();
-                    let call = self
-                        .builder
-                        .build_call(
-                            self.module.get_function("tls_handshake").unwrap(),
-                            &[host_ptr.into()],
-                            "tls_tmp",
-                        )
-                        .unwrap();
-                    let val = call.try_as_basic_value().expect_basic("tls returns i64");
-                    let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                        self.builder.build_alloca(self.i64_type, "tls_res").unwrap()
-                    });
-                    self.builder.build_store(*ptr, val).unwrap();
-                }
-
-                _ if func.starts_with("spawn_") => {
-                    // Spawn call: i64 spawn(i64 func_id) -> i64 chan_id
-                    let func_id = self.load_local(args[0]);
-                    let call = self
-                        .builder
-                        .build_call(
-                            self.module.get_function("spawn").unwrap(),
-                            &[func_id.into()],
-                            "spawn_call",
-                        )
-                        .unwrap();
-                    let val = call.try_as_basic_value().expect_basic("spawn returns i64");
-                    let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                        self.builder
-                            .build_alloca(self.i64_type, "chan_res")
-                            .unwrap()
-                    });
-                    self.builder.build_store(*ptr, val).unwrap();
-                }
-
-                _ => {
-                    // Binary op fallback: add or mul based on func name.
-                    let lhs = self.load_local(args[0]).into_int_value();
-                    let rhs = args
-                        .get(1)
-                        .map(|&id| self.load_local(id).into_int_value())
-                        .unwrap_or(self.i64_type.const_zero());
-
-                    let result = if func.contains("add") {
-                        self.builder.build_int_add(lhs, rhs, "add_tmp").unwrap()
-                    } else {
-                        self.builder.build_int_mul(lhs, rhs, "mul_tmp").unwrap()
-                    };
-
-                    let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                        self.builder
-                            .build_alloca(self.i64_type, "call_res")
-                            .unwrap()
-                    });
-                    self.builder.build_store(*ptr, result).unwrap();
-                }
+                        .build_alloca(self.i64_type, "call_res")
+                        .unwrap()
+                });
+                self.builder.build_store(*ptr, result).unwrap();
             },
 
             MirStmt::VoidCall { func, args } => match func.as_str() {
@@ -405,12 +283,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.module.verify().map_err(|e| e.to_string())?;
 
         // MLGO AI hooks: Custom pass manager for vectorization and branch prediction
-        let pm = PassManager::create(&self.module);
-        let pmb = PassManagerBuilder::create();
-        pmb.set_optimization_level(OptimizationLevel::Aggressive);
-
-        // Enable loop vectorize pass (AI-guided)
-        pmb.populate_function_pass_manager(&pm);
+        let pm = PassManager::create_for_function();
         pm.run_on(&self.module);
 
         let ee = self
