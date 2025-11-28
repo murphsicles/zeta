@@ -54,7 +54,7 @@ fn method_sig<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
     )
 }
 
-/// Parses expressions: lit/var + optional + lit/var (as add call) | TimingOwned.
+/// Parses expressions: lit/var + optional + lit/var (as add call) | TimingOwned | call.
 fn expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     let rec_expr = recursive(|expr| {
         let timing_owned = map(
@@ -70,9 +70,19 @@ fn expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Erro
                 inner: Box::new(inner),
             },
         );
-        let left = alt((literal(), variable(), timing_owned));
-        let add = ws(tag("+")).and(left);
-        left.and(opt(add)).map(|(left, opt_add)| {
+        let base = alt((literal(), variable(), timing_owned));
+        let add = ws(tag("+")).and(base);
+        let call = delimited(
+            tag("("),
+            many0(ws(expr())),
+            tag(")"),
+        ).and(base).map(|(args, recv)| AstNode::Call {
+            receiver: Some(Box::new(recv)),
+            method: "call".to_string(), // Placeholder; actual method from context
+            args,
+            type_args: vec![],
+        });
+        alt((call, base.and(opt(add)).map(|(left, opt_add)| {
             if let Some((_, right)) = opt_add {
                 AstNode::Call {
                     receiver: Some(Box::new(left)),
@@ -83,7 +93,7 @@ fn expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Erro
             } else {
                 left
             }
-        })
+        })))
     });
     rec_expr
 }
@@ -98,7 +108,7 @@ fn assign_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::erro
 
 /// Parses a defer statement: defer expr;.
 fn defer_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    map(preceded(ws(tag("defer")), ws(expr())), |e| {
+    map(tuple((ws(tag("defer")), ws(expr()), ws(tag(";")))), |(_, e, _)| {
         AstNode::Defer(Box::new(e))
     })
 }
@@ -108,7 +118,7 @@ fn spawn_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
     let kw = ws(tag("spawn"));
     let func = ident();
     let args = delimited(tag("("), many0(ws(expr())), tag(")"));
-    map((kw, func, args), |(_, func, args)| AstNode::Spawn {
+    map(tuple((kw, func, args, ws(tag(";")))), |(_, func, args, _)| AstNode::Spawn {
         func,
         args,
     })
@@ -116,15 +126,7 @@ fn spawn_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
 
 /// Parses a statement: assign | spawn | defer | expr;.
 fn stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    alt((assign_stmt(), spawn_stmt(), defer_stmt(), map(expr(), |e| {
-        // Wrap standalone expr in block-like for consistency
-        AstNode::Call {
-            receiver: None,
-            method: "".to_string(), // Marker for expr stmt
-            args: vec![e],
-            type_args: vec![],
-        }
-    })))
+    alt((assign_stmt(), spawn_stmt(), defer_stmt(), tuple((ws(expr()), ws(tag(";")))).map(|(e, _)| e)))
 }
 
 /// Parses function body: { stmt* }.
@@ -133,22 +135,22 @@ fn func_body<'a>() -> impl Parser<&'a str, Output = Vec<AstNode>, Error = nom::e
     delimited(ws(tag("{")), many0(ws(stmt())), ws(tag("}")))
 }
 
-/// Parses a full function definition: fn name() -> ret { body }.
+/// Parses a full function definition: fn name(param: i64) -> ret { body }.
 fn parse_func<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     let fn_kw = ws(tag("fn"));
     let name = ident();
-    let lparen = ws(tag("("));
-    let rparen = ws(tag(")"));
+    let param_pair = ws(ident()).and(ws(tag(":"))).and(ws(ident()));
+    let params = delimited(tag("("), many0(param_pair), tag(")"));
     let ret_type = opt(preceded(ws(tag("->")), ws(ident())));
     let body = func_body();
     map(
-        (fn_kw, name, lparen, rparen, ret_type, body),
-        |(_, name, _, _, ret_opt, body)| {
+        (fn_kw, name, params, ret_type, body),
+        |(_, name, params, ret_opt, body)| {
             let ret: String = ret_opt.unwrap_or_else(|| "i64".to_string());
             AstNode::FuncDef {
                 name,
                 generics: vec![],
-                params: vec![],
+                params: params.into_iter().map(|((n, _), t)| (n, t)).collect(),
                 ret,
                 body,
                 attrs: vec![],
