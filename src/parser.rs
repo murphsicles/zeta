@@ -3,13 +3,13 @@
 //! Supports function definitions, calls, literals, variables, assigns, TimingOwned, defer, concepts, impls, and spawn.
 
 use crate::ast::AstNode;
-use nom::IResult;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{alpha1, alphanumeric0, i64 as nom_i64, multispace0};
-use nom::combinator::{map, opt};
+use nom::combinator::{map, opt, recursive};
 use nom::multi::many0;
 use nom::sequence::{delimited, preceded};
+use nom::{IResult, Parser};
 
 /// Whitespace wrapper for parsers.
 fn ws<'a, O>(
@@ -43,7 +43,7 @@ fn method_sig<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
     let ret = opt(preceded(ws(tag("->")), ws(ident())));
     map(
         (name, params, ret),
-        |(name, params, ret_opt): (String, Vec<((String, String), String)>, Option<String>)| {
+        |(name, params, ret_opt): (String, Vec<((String, &str), String)>, Option<String>)| {
             let ret: String = ret_opt.unwrap_or_else(|| "i64".to_string());
             AstNode::Method {
                 name,
@@ -54,37 +54,40 @@ fn method_sig<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
     )
 }
 
-/// Parses TimingOwned<ty> (expr).
-fn timing_owned<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    let expr_parser = expr;
-    map(
-        (ws(tag("TimingOwned")), ws(delimited(tag("<"), ident(), tag(">"))), ws(tag("(")), ws(expr_parser()), ws(tag(")"))),
-        |(_, ty, _, inner, _)| AstNode::TimingOwned {
-            ty,
-            inner: Box::new(inner),
-        },
-    )
-}
-
 /// Parses expressions: lit/var + optional + lit/var (as add call) | TimingOwned.
 fn expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    let left = alt((literal(), variable(), timing_owned()));
-    let add = ws(tag("+")).and(alt((literal(), variable(), timing_owned())));
-    map(
-        left.and(opt(add)),
-        |(left, opt_add)| {
-            if let Some((_, right)) = opt_add {
-                AstNode::Call {
-                    receiver: Some(Box::new(left)),
-                    method: "add".to_string(),
-                    args: vec![right],
-                    type_args: vec![],
+    let rec_expr = recursive(|expr| {
+        let timing_owned = map(
+            (
+                ws(tag("TimingOwned")),
+                ws(delimited(tag("<"), ident(), tag(">"))),
+                ws(tag("(")),
+                ws(expr),
+                ws(tag(")")),
+            ),
+            |(_, ty, _, inner, _)| AstNode::TimingOwned {
+                ty,
+                inner: Box::new(inner),
+            },
+        );
+        let left = alt((literal(), variable(), timing_owned));
+        let add = ws(tag("+")).and(left);
+        left
+            .and(opt(add))
+            .map(|(left, opt_add)| {
+                if let Some((_, right)) = opt_add {
+                    AstNode::Call {
+                        receiver: Some(Box::new(left)),
+                        method: "add".to_string(),
+                        args: vec![right],
+                        type_args: vec![],
+                    }
+                } else {
+                    left
                 }
-            } else {
-                left
-            }
-        },
-    )
+            })
+    });
+    rec_expr
 }
 
 /// Parses a defer statement: defer expr.
@@ -126,7 +129,7 @@ fn parse_func<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
     let body = func_body();
     map(
         (fn_kw, name, lparen, rparen, ret_type, body),
-        |(fn_kw, name, lparen, rparen, ret_opt, body)| {
+        |(_, name, _, _, ret_opt, body)| {
             let ret: String = ret_opt.unwrap_or_else(|| "i64".to_string());
             AstNode::FuncDef {
                 name,
@@ -148,7 +151,7 @@ fn parse_concept<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::er
     let body = delimited(ws(tag("{")), many0(ws(method_sig())), ws(tag("}")));
     map(
         (kw, name, body),
-        |(kw, name, body)| AstNode::ConceptDef {
+        |(_, name, body)| AstNode::ConceptDef {
             name,
             methods: body,
         },
@@ -163,8 +166,8 @@ fn parse_impl<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
     let ty = ident();
     let body = delimited(ws(tag("{")), many0(ws(method_sig())), ws(tag("}")));
     map(
-        ((kw, concept), for_kw, ty, body),
-        |((kw, concept), for_kw, ty, body)| AstNode::ImplBlock {
+        (kw, concept, for_kw, ty, body),
+        |(_, concept, _, ty, body)| AstNode::ImplBlock {
             concept,
             ty,
             body,
