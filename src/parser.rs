@@ -7,7 +7,7 @@ use crate::ast::AstNode;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while1};
 use nom::character::complete::{alpha1, alphanumeric0, i64 as nom_i64, multispace0};
-use nom::combinator::{map, opt, recursive, value};
+use nom::combinator::{map, opt, value};
 use nom::multi::{many0, many1};
 use nom::sequence::{delimited, preceded};
 use nom::{IResult, Parser};
@@ -72,13 +72,13 @@ fn method_sig<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
 
 /// Parses expressions: lit/var/str + optional + lit/var (as add call) | TimingOwned | call | path::call.
 fn expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    let rec_expr = recursive(|expr| {
+    let rec_expr = || {
         let timing_owned = map(
             (
                 ws(tag("TimingOwned")),
                 ws(delimited(tag("<"), ident(), tag(">"))),
                 ws(tag("(")),
-                ws(expr),
+                expr(),
                 ws(tag(")")),
             ),
             |(_, ty, _, inner, _)| AstNode::TimingOwned {
@@ -118,11 +118,11 @@ fn expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Erro
                 left
             }
         })))
-    });
-    rec_expr
+    };
+    rec_expr()
 }
 
-/// Parses assignment: ident = expr;.
+/// Parses an assign statement: ident = expr;.
 fn assign_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     map(
         (ws(ident()), ws(tag("=")), ws(expr()), ws(tag(";"))),
