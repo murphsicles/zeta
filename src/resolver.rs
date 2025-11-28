@@ -12,6 +12,7 @@ use crate::specialization::{
 use std::collections::HashMap;
 use std::fmt;
 
+#[allow(unused_assignments)]
 /// Enum for Zeta types, supporting primitives and named types.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
@@ -157,25 +158,7 @@ impl Resolver {
                 // Enforce constant-time wrapper
                 Type::TimingOwned(Box::new(inner_ty))
             }
-            AstNode::Defer(inner) => self.infer_type(inner),
-            AstNode::Spawn { func, args } => {
-                // Infer args, return Channel
-                for arg in args {
-                    let _ = self.infer_type(arg);
-                }
-                if let Some(sig) = self.func_sigs.get(func) {
-                    sig.1.clone() // Use func ret
-                } else {
-                    Type::Named("Channel".to_string())
-                }
-            }
-            AstNode::Call {
-                receiver,
-                method,
-                type_args,
-                args,
-                ..
-            } => {
+            AstNode::Call { receiver, method, args, type_args } => {
                 let recv_ty = receiver.as_ref().map(|r| self.infer_type(r));
                 let arg_tys: Vec<_> = args.iter().map(|a| self.infer_type(a)).collect();
 
