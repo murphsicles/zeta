@@ -12,7 +12,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     actor::init_runtime();
 
     // Load self-host example.
-    let code = fs::read_to_string("examples/add.zeta")?;
+    let code = fs::read_to_string("examples/add.z")?;
     let (_, asts) = parse_zeta(&code).map_err(|e| format!("Parse error: {:?}", e))?;
 
     // Register and typecheck.
