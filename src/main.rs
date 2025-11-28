@@ -12,15 +12,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     actor::init_runtime();
 
     // Load self-host example.
-    let code = fs::read_to_string("examples/add.z")?;
+    let code = fs::read_to_string("examples/selfhost.z")?;
     let (_, asts) = parse_zeta(&code).map_err(|e| format!("Parse error: {:?}", e))?;
 
-    // Register and typecheck.
+    // Register impls and typecheck.
     let mut resolver = Resolver::new();
     for ast in &asts {
         resolver.register(ast.clone());
     }
-    let _ = resolver.typecheck(&asts); // Ignore for now
+    resolver.typecheck(&asts);
 
     // Lower all FuncDefs to MIR.
     let mirs: Vec<_> = asts.iter()
@@ -33,7 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     codegen.gen_mirs(&mirs);
     let ee = codegen.finalize_and_jit()?;
 
-    // Map std_free.
+    // Map std_free to host.
     let free_fn = zetac::std::std_free as *const () as usize;
     ee.add_global_mapping(&codegen.module.get_function("free").unwrap(), free_fn);
 
