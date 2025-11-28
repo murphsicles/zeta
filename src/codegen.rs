@@ -3,8 +3,10 @@
 //! Supports JIT execution, intrinsics, SIMD, TBAA, actor runtime, and std embeddings.
 //! Ensures stable ABI and TimingOwned constant-time guarantees.
 
+use crate::actor::{
+    host_channel_recv, host_channel_send, host_http_get, host_spawn, host_tls_handshake,
+};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
-use crate::actor::{host_channel_send, host_channel_recv, host_spawn, host_http_get, host_tls_handshake};
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
 use inkwell::builder::Builder;
@@ -209,16 +211,21 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
                 "channel_recv" => {
                     let chan = self.load_local(args[0]);
-                    let call = self.builder
+                    let call = self
+                        .builder
                         .build_call(
                             self.module.get_function("channel_recv").unwrap(),
                             &[chan.into()],
                             "recv_tmp",
                         )
                         .unwrap();
-                    let val = call.try_as_basic_value().expect_basic("recv must return i64");
+                    let val = call
+                        .try_as_basic_value()
+                        .expect_basic("recv must return i64");
                     let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                        self.builder.build_alloca(self.i64_type, "recv_res").unwrap()
+                        self.builder
+                            .build_alloca(self.i64_type, "recv_res")
+                            .unwrap()
                     });
                     self.builder.build_store(*ptr, val).unwrap();
                 }
@@ -226,7 +233,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 "http_get" => {
                     // Std embed: http_get(url: &str) -> i64 status
                     let url_ptr = self.load_local(args[0]).into_pointer_value();
-                    let call = self.builder
+                    let call = self
+                        .builder
                         .build_call(
                             self.module.get_function("http_get").unwrap(),
                             &[url_ptr.into()],
@@ -235,7 +243,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         .unwrap();
                     let val = call.try_as_basic_value().expect_basic("http returns i64");
                     let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                        self.builder.build_alloca(self.i64_type, "http_res").unwrap()
+                        self.builder
+                            .build_alloca(self.i64_type, "http_res")
+                            .unwrap()
                     });
                     self.builder.build_store(*ptr, val).unwrap();
                 }
@@ -243,7 +253,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 "tls_handshake" => {
                     // Std embed: tls_handshake(host: &str) -> i64 (0 ok)
                     let host_ptr = self.load_local(args[0]).into_pointer_value();
-                    let call = self.builder
+                    let call = self
+                        .builder
                         .build_call(
                             self.module.get_function("tls_handshake").unwrap(),
                             &[host_ptr.into()],
@@ -260,7 +271,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 _ if func.starts_with("spawn_") => {
                     // Spawn call: i64 spawn(i64 func_id) -> i64 chan_id
                     let func_id = self.load_local(args[0]);
-                    let call = self.builder
+                    let call = self
+                        .builder
                         .build_call(
                             self.module.get_function("spawn").unwrap(),
                             &[func_id.into()],
@@ -269,7 +281,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         .unwrap();
                     let val = call.try_as_basic_value().expect_basic("spawn returns i64");
                     let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                        self.builder.build_alloca(self.i64_type, "chan_res").unwrap()
+                        self.builder
+                            .build_alloca(self.i64_type, "chan_res")
+                            .unwrap()
                     });
                     self.builder.build_store(*ptr, val).unwrap();
                 }
@@ -311,11 +325,20 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
                 _ => {
                     // Generic void call fallback
-                    let arg_vals: Vec<BasicValueEnum> = args.iter().map(|&id| self.load_local(id)).collect();
+                    let arg_vals: Vec<BasicValueEnum> =
+                        args.iter().map(|&id| self.load_local(id)).collect();
                     let arg_refs: &[BasicValueEnum] = &arg_vals;
                     self.builder
                         .build_call(
-                            self.module.get_function(func).unwrap_or_else(|| self.module.add_function(func, self.context.void_type().fn_type(&[self.i64_type.into()], false), None)),
+                            self.module.get_function(func).unwrap_or_else(|| {
+                                self.module.add_function(
+                                    func,
+                                    self.context
+                                        .void_type()
+                                        .fn_type(&[self.i64_type.into()], false),
+                                    None,
+                                )
+                            }),
                             arg_refs,
                             "",
                         )
