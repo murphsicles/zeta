@@ -15,6 +15,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let code = fs::read_to_string("examples/selfhost.z")?;
     let (_, asts) = parse_zeta(&code).map_err(|e| format!("Parse error: {:?}", e))?;
 
+    // Print parsed nodes count for test.
+    println!("Parsed {} nodes from selfhost.z", asts.len());
+
     // Register impls and typecheck.
     let mut resolver = Resolver::new();
     for ast in &asts {
