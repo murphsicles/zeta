@@ -44,10 +44,6 @@ pub enum MirStmt {
         values: Vec<u32>,
         result: u32,
     },
-    ParamInit { // New: Init param from caller arg
-        param: u32,
-        arg_pos: usize,
-    },
 }
 
 #[derive(Debug, Clone)]
@@ -108,7 +104,10 @@ impl MirGen {
                             let mut arg_ids = vec![];
                             for arg in args.iter() {
                                 if let AstNode::Var(ref v) = *arg {
-                                    let id = *self.locals.entry(v.clone()).or_insert_with(|| self.next_id());
+                                    let id = *self
+                                        .locals
+                                        .entry(v.clone())
+                                        .or_insert_with(|| self.next_id());
                                     arg_ids.push(id);
                                 }
                             }
@@ -126,7 +125,7 @@ impl MirGen {
                         }
                         let dest = self.next_id();
                         stmts.push(MirStmt::Call {
-                            func: format!("spawn_{}", func),
+                            func: format!("actor_spawn_{}", func),
                             args: arg_ids,
                             dest,
                         });
@@ -264,7 +263,8 @@ impl MirGen {
     }
 
     fn lookup_or_alloc(&mut self, name: &str) -> u32 {
-        *self.locals.entry(name.to_string()).or_insert_with(|| self.next_id())
+        let id = self.next_id;
+        *self.locals.entry(name.to_string()).or_insert(id)
     }
 
     fn next_id(&mut self) -> u32 {
