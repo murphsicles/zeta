@@ -114,7 +114,7 @@ impl Resolver {
                         .collect(),
                     self.parse_type(&ret),
                 );
-                self.func_sigs.insert(name, sig);
+                self.func_sigs.insert(name.clone(), sig.clone());
                 // Declare params in env & borrow owned
                 for (pname, pty) in &sig.0 {
                     self.type_env.insert(pname.clone(), pty.clone());
@@ -246,7 +246,7 @@ impl Resolver {
                             cache_safe,
                         },
                     );
-                    Type::Named(mangled)
+                    return Type::Named(mangled);
                 }
                 Type::Unknown
             }
