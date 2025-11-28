@@ -8,7 +8,7 @@ use nom::bytes::complete::tag;
 use nom::character::complete::{alpha1, alphanumeric0, i64 as nom_i64, multispace0};
 use nom::combinator::{map, opt, recursive};
 use nom::multi::many0;
-use nom::sequence::{delimited, preceded};
+use nom::sequence::{delimited, preceded, tuple};
 use nom::{IResult, Parser};
 
 /// Whitespace wrapper for parsers.
@@ -88,14 +88,22 @@ fn expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Erro
     rec_expr
 }
 
-/// Parses a defer statement: defer expr.
+/// Parses assignment: ident = expr;.
+fn assign_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    map(
+        tuple((ws(ident()), ws(tag("=")), ws(expr()), ws(tag(";")))),
+        |(name, _, expr, _)| AstNode::Assign(name, Box::new(expr)),
+    )
+}
+
+/// Parses a defer statement: defer expr;.
 fn defer_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     map(preceded(ws(tag("defer")), ws(expr())), |e| {
         AstNode::Defer(Box::new(e))
     })
 }
 
-/// Parses spawn: spawn ident(args).
+/// Parses spawn: spawn ident(args);.
 fn spawn_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     let kw = ws(tag("spawn"));
     let func = ident();
@@ -106,9 +114,17 @@ fn spawn_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
     })
 }
 
-/// Parses a statement: spawn | defer | expr.
+/// Parses a statement: assign | spawn | defer | expr;.
 fn stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    alt((spawn_stmt(), defer_stmt(), expr()))
+    alt((assign_stmt(), spawn_stmt(), defer_stmt(), map(expr(), |e| {
+        // Wrap standalone expr in block-like for consistency
+        AstNode::Call {
+            receiver: None,
+            method: "".to_string(), // Marker for expr stmt
+            args: vec![e],
+            type_args: vec![],
+        }
+    })))
 }
 
 /// Parses function body: { stmt* }.
