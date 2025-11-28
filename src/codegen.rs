@@ -73,6 +73,8 @@ pub struct LLVMCodegen<'ctx> {
     locals: HashMap<u32, PointerValue<'ctx>>,
     /// TBAA root for constant-time metadata.
     tbaa_const_time: inkwell::values::MetadataValue<'ctx>,
+    /// Generated function map: name -> LLVM fn.
+    fns: HashMap<String, inkwell::values::FunctionValue<'ctx>>,
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -123,36 +125,58 @@ impl<'ctx> LLVMCodegen<'ctx> {
             ptr_type,
             locals: HashMap::new(),
             tbaa_const_time,
+            fns: HashMap::new(),
         }
     }
 
-    /// Generates LLVM IR from MIR, creating a main function.
-    /// Appends return 0 if no explicit return.
-    pub fn gen_mir(&mut self, mir: &Mir) {
-        let fn_type = self.i64_type.fn_type(&[], false);
-        let function = self.module.add_function("main", fn_type, None);
-        let entry = self.context.append_basic_block(function, "entry");
-        self.builder.position_at_end(entry);
+    /// Generates LLVM IR for a list of MIRs (one per FuncDef), creates entry main if needed.
+    pub fn gen_mirs(&mut self, mirs: &[Mir]) {
+        for mir in mirs {
+            if let Some(name) = mir.locals.keys().next() { // Use first local as fn name proxy; refine later
+                let param_types: Vec<inkwell::types::BasicTypeEnum> = vec![self.i64_type.into()]; // Assume i64 params for now
+                let fn_type = self.i64_type.fn_type(&param_types, false);
+                let function = self.module.add_function(&name, fn_type, None);
+                self.fns.insert(name.clone(), function);
 
-        // Init param locals (placeholder; extend for real params later)
-        for (&id, _) in &mir.locals {
-            self.locals.insert(id, self.builder.build_alloca(self.i64_type, &format!("param_{id}")).unwrap());
+                let entry = self.context.append_basic_block(function, "entry");
+                self.builder.position_at_end(entry);
+
+                // Init locals
+                for (&id, _) in &mir.locals {
+                    self.locals.insert(id, self.builder.build_alloca(self.i64_type, &format!("loc_{id}")).unwrap());
+                }
+
+                // Store param to first local if params exist
+                if let Some(&first_local) = mir.locals.values().next() {
+                    let param = function.get_nth_param(0).unwrap().into_int_value();
+                    self.builder.build_store(self.locals[&first_local], param.into()).unwrap();
+                }
+
+                // Generate statements
+                for stmt in &mir.stmts {
+                    self.gen_stmt(stmt);
+                }
+
+                // Default return if no explicit
+                if !mir.stmts.iter().any(|s| matches!(s, MirStmt::Return { .. })) {
+                    self.builder.build_return(Some(&self.i64_type.const_zero())).unwrap();
+                }
+
+                self.locals.clear(); // Reset for next fn
+            }
         }
 
-        // Generate statements in order.
-        for stmt in &mir.stmts {
-            self.gen_stmt(stmt);
-        }
+        // Generate entry main calling user main
+        let main_type = self.i64_type.fn_type(&[], false);
+        let entry_main = self.module.add_function("main", main_type, None);
+        let entry_bb = self.context.append_basic_block(entry_main, "entry");
+        self.builder.position_at_end(entry_bb);
 
-        // Default return if no explicit return.
-        if !mir
-            .stmts
-            .iter()
-            .any(|s| matches!(s, MirStmt::Return { .. }))
-        {
-            self.builder
-                .build_return(Some(&self.i64_type.const_zero()))
-                .unwrap();
+        if let Some(user_main) = self.fns.get("main") {
+            let call_res = self.builder.build_call(*user_main, &[], "user_main_call").unwrap().try_as_basic_value().left().unwrap_or_else(|| self.i64_type.const_zero().into());
+            self.builder.build_return(Some(&call_res)).unwrap();
+        } else {
+            self.builder.build_return(Some(&self.i64_type.const_zero())).unwrap();
         }
     }
 
@@ -161,91 +185,51 @@ impl<'ctx> LLVMCodegen<'ctx> {
         match stmt {
             MirStmt::Assign { lhs, rhs } => {
                 let val = self.gen_expr(rhs);
-                // Allocate local if not exists.
                 let ptr = self.locals.entry(*lhs).or_insert_with(|| {
-                    self.builder
-                        .build_alloca(self.i64_type, &format!("loc_{lhs}"))
-                        .unwrap()
+                    self.builder.build_alloca(self.i64_type, &format!("loc_{lhs}")).unwrap()
                 });
                 self.builder.build_store(*ptr, val).unwrap();
             }
             MirStmt::Call { func, args, dest } => {
-                let arg_vals: Vec<BasicValueEnum> =
-                    args.iter().map(|&id| self.load_local(id)).collect();
+                let arg_vals: Vec<BasicValueEnum> = args.iter().map(|&id| self.load_local(id)).collect();
                 let arg_refs: &[BasicValueEnum] = &arg_vals;
-                let callee = self.module.get_function(func).unwrap();
-                let result = self.builder
-                    .build_call(callee, arg_refs, "call_res")
-                    .unwrap()
-                    .try_as_basic_value()
-                    .left()
-                    .unwrap_or_else(|| self.i64_type.const_zero().into());
+                let callee = self.module.get_function(func).unwrap_or_else(|| {
+                    // Declare if missing (for intrinsics/user fns)
+                    let param_tys: Vec<_> = arg_vals.iter().map(|v| v.get_type()).collect();
+                    let fn_ty = self.i64_type.fn_type(&param_tys, false);
+                    self.module.add_function(func, fn_ty, Some(Linkage::External))
+                });
+                let result = self.builder.build_call(callee, arg_refs, "call_res").unwrap().try_as_basic_value().left().unwrap_or_else(|| self.i64_type.const_zero().into());
 
                 let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                    self.builder
-                        .build_alloca(self.i64_type, "call_res")
-                        .unwrap()
+                    self.builder.build_alloca(self.i64_type, "call_res").unwrap()
                 });
                 self.builder.build_store(*ptr, result).unwrap();
-            },
-
-            MirStmt::VoidCall { func, args } => match func.as_str() {
-                "channel_send" => {
-                    let chan = self.load_local(args[0]);
-                    let msg = self.load_local(args[1]);
-                    self.builder
-                        .build_call(
-                            self.module.get_function("channel_send").unwrap(),
-                            &[chan.into(), msg.into()],
-                            "",
-                        )
-                        .unwrap();
-                }
-                _ => {
-                    // Generic void call fallback
-                    let arg_vals: Vec<BasicValueEnum> =
-                        args.iter().map(|&id| self.load_local(id)).collect();
-                    let arg_refs: &[BasicValueEnum] = &arg_vals;
-                    self.builder
-                        .build_call(
-                            self.module.get_function(func).unwrap_or_else(|| {
-                                self.module.add_function(
-                                    func,
-                                    self.context
-                                        .void_type()
-                                        .fn_type(&[self.i64_type.into()], false),
-                                    None,
-                                )
-                            }),
-                            arg_refs,
-                            "",
-                        )
-                        .unwrap();
-                }
-            },
-
+            }
+            MirStmt::VoidCall { func, args } => {
+                let arg_vals: Vec<BasicValueEnum> = args.iter().map(|&id| self.load_local(id)).collect();
+                let arg_refs: &[BasicValueEnum] = &arg_vals;
+                let callee = self.module.get_function(func).unwrap_or_else(|| {
+                    let param_tys: Vec<_> = arg_vals.iter().map(|v| v.get_type()).collect();
+                    let fn_ty = self.context.void_type().fn_type(&param_tys, false);
+                    self.module.add_function(func, fn_ty, Some(Linkage::External))
+                });
+                self.builder.build_call(callee, arg_refs, "").unwrap();
+            }
             MirStmt::SemiringFold { op, values, result } => {
-                // Fold multiple values with semiring op (add/mul chain).
                 let mut acc = self.load_local(values[0]).into_int_value();
                 for &v in &values[1..] {
                     let rhs = self.load_local(v).into_int_value();
                     acc = match op {
-                        SemiringOp::Add => {
-                            self.builder.build_int_add(acc, rhs, "fold_add").unwrap()
-                        }
-                        SemiringOp::Mul => {
-                            self.builder.build_int_mul(acc, rhs, "fold_mul").unwrap()
-                        }
+                        SemiringOp::Add => self.builder.build_int_add(acc, rhs, "fold_add").unwrap(),
+                        SemiringOp::Mul => self.builder.build_int_mul(acc, rhs, "fold_mul").unwrap(),
                     };
                 }
                 let ptr = self.locals.entry(*result).or_insert_with(|| {
-                    self.builder
-                        .build_alloca(self.i64_type, "fold_res")
-                        .unwrap()
+                    self.builder.build_alloca(self.i64_type, "fold_res").unwrap()
                 });
                 self.builder.build_store(*ptr, acc).unwrap();
             }
-
             MirStmt::Return { val } => {
                 let v = self.load_local(*val);
                 self.builder.build_return(Some(&v)).unwrap();
@@ -259,69 +243,32 @@ impl<'ctx> LLVMCodegen<'ctx> {
             MirExpr::Var(id) => self.load_local(*id),
             MirExpr::Lit(n) => self.i64_type.const_int(*n as u64, true).into(),
             MirExpr::ConstEval(n) => self.i64_type.const_int(*n as u64, true).into(),
-            MirExpr::TimingOwned(inner_id) => {
-                // Load inner, apply TBAA for constant-time analysis
-                let inner_val = self.load_local(*inner_id);
-                inner_val
-            }
+            MirExpr::TimingOwned(inner_id) => self.load_local(*inner_id),
         }
     }
 
     /// Loads a local variable from alloca slot.
     fn load_local(&self, id: u32) -> BasicValueEnum<'ctx> {
         let ptr = self.locals[&id];
-        self.builder
-            .build_load(self.i64_type, ptr, &format!("load_{id}"))
-            .unwrap()
+        self.builder.build_load(self.i64_type, ptr, &format!("load_{id}")).unwrap()
     }
 
-    /// Verifies module, runs MLGO AI passes (vectorize/branch pred), creates JIT engine, maps host functions.
-    /// Returns ExecutionEngine or error.
-    pub fn finalize_and_jit(
-        &mut self,
-    ) -> Result<ExecutionEngine<'ctx>, Box<dyn std::error::Error>> {
+    /// Verifies module, runs passes, creates JIT engine, maps host functions.
+    pub fn finalize_and_jit(&mut self) -> Result<ExecutionEngine<'ctx>, Box<dyn std::error::Error>> {
         self.module.verify().map_err(|e| e.to_string())?;
 
-        // MLGO AI hooks: Custom pass manager for vectorization and branch prediction
         let pm = PassManager::create_for_function();
         pm.run_on(&self.module);
 
-        let ee = self
-            .module
-            .create_jit_execution_engine(OptimizationLevel::Aggressive)?;
+        let ee = self.module.create_jit_execution_engine(OptimizationLevel::Aggressive)?;
 
-        // Map host datetime_now.
-        ee.add_global_mapping(
-            &self.module.get_function("datetime_now").unwrap(),
-            host_datetime_now as *const () as usize,
-        );
-        // Map host free.
-        ee.add_global_mapping(
-            &self.module.get_function("free").unwrap(),
-            host_free as *const () as usize,
-        );
-        // Map actor intrinsics.
-        ee.add_global_mapping(
-            &self.module.get_function("channel_send").unwrap(),
-            host_channel_send as *const () as usize,
-        );
-        ee.add_global_mapping(
-            &self.module.get_function("channel_recv").unwrap(),
-            host_channel_recv as *const () as usize,
-        );
-        ee.add_global_mapping(
-            &self.module.get_function("spawn").unwrap(),
-            host_spawn as *const () as usize,
-        );
-        // Map std embeds.
-        ee.add_global_mapping(
-            &self.module.get_function("http_get").unwrap(),
-            host_http_get as *const () as usize,
-        );
-        ee.add_global_mapping(
-            &self.module.get_function("tls_handshake").unwrap(),
-            host_tls_handshake as *const () as usize,
-        );
+        ee.add_global_mapping(&self.module.get_function("datetime_now").unwrap(), host_datetime_now as *const () as usize);
+        ee.add_global_mapping(&self.module.get_function("free").unwrap(), host_free as *const () as usize);
+        ee.add_global_mapping(&self.module.get_function("channel_send").unwrap(), host_channel_send as *const () as usize);
+        ee.add_global_mapping(&self.module.get_function("channel_recv").unwrap(), host_channel_recv as *const () as usize);
+        ee.add_global_mapping(&self.module.get_function("spawn").unwrap(), host_spawn as *const () as usize);
+        ee.add_global_mapping(&self.module.get_function("http_get").unwrap(), host_http_get as *const () as usize);
+        ee.add_global_mapping(&self.module.get_function("tls_handshake").unwrap(), host_tls_handshake as *const () as usize);
 
         Ok(ee)
     }
