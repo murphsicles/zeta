@@ -128,13 +128,13 @@ impl Resolver {
                 self.type_env.insert(name.clone(), ty.clone());
                 ty
             }
-            AstNode::TimingOwned { ty: ty_str, inner } => {
+            AstNode::TimingOwned { ty: _ty_str, inner } => {
                 let inner_ty = self.infer_type(inner);
                 // Enforce constant-time wrapper
                 Type::TimingOwned(Box::new(inner_ty))
             }
             AstNode::Defer(inner) => self.infer_type(inner),
-            AstNode::Spawn { func, args } => {
+            AstNode::Spawn { func: _func, args } => {
                 // Spawn returns Channel
                 for arg in args {
                     let _ = self.infer_type(arg);
@@ -180,7 +180,8 @@ impl Resolver {
                     }
 
                     // Generate mangled name for partial spec
-                    let mut mangled = format!("{}_{}", method, recv_ty.as_ref().map_or("unknown", |t| t.to_string().as_str()));
+                    let recv_str = recv_ty.as_ref().map_or_else(|| "unknown".to_string(), |t| t.to_string());
+                    let mut mangled = format!("{}_{}", method, recv_str);
                     if !type_args.is_empty() {
                         mangled.push_str("__partial");
                         for t in type_args {
