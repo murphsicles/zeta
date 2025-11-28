@@ -154,7 +154,10 @@ impl Resolver {
                 let mut found = false;
                 if let Some(recv_ty) = &recv_ty {
                     // Nominal lookup
-                    if let Some(impls) = self.direct_impls.get(&("Addable".to_string(), recv_ty.clone())) {
+                    if let Some(impls) = self
+                        .direct_impls
+                        .get(&("Addable".to_string(), recv_ty.clone()))
+                    {
                         if let Some((params, ret)) = impls.get(method) {
                             if params.len() == args.len() {
                                 return ret.clone();
@@ -180,7 +183,9 @@ impl Resolver {
                     }
 
                     // Generate mangled name for partial spec
-                    let recv_str = recv_ty.as_ref().map_or_else(|| "unknown".to_string(), |t| t.to_string());
+                    let recv_str = recv_ty
+                        .as_ref()
+                        .map_or_else(|| "unknown".to_string(), |t| t.to_string());
                     let mut mangled = format!("{}_{}", method, recv_str);
                     if !type_args.is_empty() {
                         mangled.push_str("__partial");
@@ -194,7 +199,8 @@ impl Resolver {
                         }
                     }
 
-                    let cache_safe = type_args.iter().all(|t| is_cache_safe(t)) && recv_ty.is_some();
+                    let cache_safe =
+                        type_args.iter().all(|t| is_cache_safe(t)) && recv_ty.is_some();
                     record_specialization(
                         key,
                         MonoValue {
