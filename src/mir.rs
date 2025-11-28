@@ -96,7 +96,7 @@ impl MirGen {
                         } = *boxed
                         {
                             let mut arg_ids = vec![];
-                            for arg in args {
+                            for arg in args.iter() {
                                 if let AstNode::Var(ref v) = *arg {
                                     let id = *self.locals.entry(v.clone()).or_insert_with(|| self.next_id());
                                     arg_ids.push(id);
@@ -111,7 +111,7 @@ impl MirGen {
                     AstNode::Spawn { func, args } => {
                         let mut arg_ids = vec![];
                         for arg in args {
-                            let e = self.gen_expr(arg, &mut exprs);
+                            let e = self.gen_expr(&arg, &mut exprs);
                             arg_ids.push(self.materialize(e, &mut exprs, &mut stmts));
                         }
                         let dest = self.next_id();
