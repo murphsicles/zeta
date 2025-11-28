@@ -1,6 +1,7 @@
 // src/ast.rs
 //! Abstract Syntax Tree for Zeta.
 //! Defines nodes for expressions, statements, definitions, and algebraic constructs.
+//! Extended for self-host: enums, structs, tokens.
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AstNode {
@@ -29,6 +30,16 @@ pub enum AstNode {
         body: Vec<AstNode>,
         attrs: Vec<String>,
         ret_expr: Option<Box<AstNode>>,
+    },
+    /// Enum definition.
+    EnumDef {
+        name: String,
+        variants: Vec<String>,
+    },
+    /// Struct definition.
+    StructDef {
+        name: String,
+        fields: Vec<(String, String)>,
     },
     /// Method/trait call.
     Call {
