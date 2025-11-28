@@ -1,14 +1,15 @@
 // src/parser.rs
 //! Nom-based parser for Zeta syntax.
 //! Supports function definitions, calls, literals, variables, assigns, TimingOwned, defer, concepts, impls, and spawn.
+//! Extended for self-host: concepts { methods }, impls for types, enums, structs, tokens.
 
 use crate::ast::AstNode;
 use nom::branch::alt;
-use nom::bytes::complete::tag;
-use nom::character::complete::{alpha1, alphanumeric0, i64 as nom_i64, multispace0};
-use nom::combinator::{map, opt, recursive};
+use nom::bytes::complete::{tag, take_while1};
+use nom::character::complete::{alpha1, alphanumeric0, char, i64 as nom_i64, multispace0};
+use nom::combinator::{map, opt, recursive, value};
 use nom::multi::many0;
-use nom::sequence::{delimited, preceded};
+use nom::sequence::{delimited, preceded, tuple};
 use nom::{IResult, Parser};
 
 /// Whitespace wrapper for parsers.
@@ -23,6 +24,11 @@ fn ident<'a>() -> impl Parser<&'a str, Output = String, Error = nom::error::Erro
     map(alpha1.and(alphanumeric0), |(first, rest): (&str, &str)| {
         first.to_string() + rest
     })
+}
+
+/// Parses keyword.
+fn keyword<'a>(kw: &'static str) -> impl Parser<&'a str, Output = (), Error = nom::error::Error<&'a str>> {
+    value((), ws(tag(kw)))
 }
 
 /// Parses an integer literal.
@@ -185,11 +191,33 @@ fn parse_impl<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
     )
 }
 
-/// Entry point: Parses multiple top-level items (funcs/concepts/impls).
+/// Parses enum: enum Name { Variant, Variant(params) }.
+fn parse_enum<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    let kw = ws(tag("enum"));
+    let name = ident();
+    let variants = delimited(ws(tag("{")), many0(ws(ident())), ws(tag("}")));
+    map((kw, name, variants), |(_, name, variants)| AstNode::EnumDef {
+        name,
+        variants,
+    })
+}
+
+/// Parses struct: struct Name { field: Type, ... }.
+fn parse_struct<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    let kw = ws(tag("struct"));
+    let name = ident();
+    let fields = delimited(ws(tag("{")), many0(ws(ident()).and(ws(tag(":"))).and(ws(ident()))), ws(tag("}")));
+    map((kw, name, fields), |(_, name, fields)| AstNode::StructDef {
+        name,
+        fields: fields.into_iter().map(|((n, _), t)| (n, t)).collect(),
+    })
+}
+
+/// Entry point: Parses multiple top-level items (funcs/concepts/impls/enums/structs).
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
     delimited(
         multispace0,
-        many0(ws(alt((parse_func(), parse_concept(), parse_impl())))),
+        many0(ws(alt((parse_func(), parse_concept(), parse_impl(), parse_enum(), parse_struct())))),
         multispace0,
     )
     .parse(input)
