@@ -98,7 +98,10 @@ impl MirGen {
                             let mut arg_ids = vec![];
                             for arg in args.iter() {
                                 if let AstNode::Var(ref v) = *arg {
-                                    let id = *self.locals.entry(v.clone()).or_insert_with(|| self.next_id());
+                                    let id = *self
+                                        .locals
+                                        .entry(v.clone())
+                                        .or_insert_with(|| self.next_id());
                                     arg_ids.push(id);
                                 }
                             }
