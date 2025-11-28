@@ -84,7 +84,11 @@ impl MirGen {
         let mut stmts = vec![];
         let mut exprs = HashMap::new();
 
-        if let AstNode::FuncDef { body, .. } = ast {
+        if let AstNode::FuncDef { params, body, .. } = ast {
+            // Init param locals
+            for (pname, _) in params.iter() {
+                self.alloc_local(pname);
+            }
             for stmt in body {
                 match stmt {
                     AstNode::Defer(ref boxed) => {
