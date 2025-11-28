@@ -238,7 +238,9 @@ impl Resolver {
     /// Lowers an AST node to MIR for codegen.
     pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
         let mut mir_gen = MirGen::new();
-        mir_gen.gen_mir(ast)
+        let mut mir = mir_gen.gen_mir(ast);
+        self.fold_semiring_chains(&mut mir);
+        mir
     }
 
     /// Optimizes MIR by folding consecutive semiring operations (e.g., add chains).
