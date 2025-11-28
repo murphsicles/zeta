@@ -93,13 +93,14 @@ impl MirGen {
             }
             for stmt in body {
                 match stmt {
-                    AstNode::Defer(ref boxed) => {
+                    AstNode::Defer(boxed) => {
+                        let boxed = *boxed;
                         if let AstNode::Call {
                             receiver: None,
                             ref method,
                             ref args,
                             ..
-                        } = **boxed
+                        } = boxed
                         {
                             let mut arg_ids = vec![];
                             for arg in args.iter() {
@@ -107,7 +108,10 @@ impl MirGen {
                                     let id = *self
                                         .locals
                                         .entry(v.clone())
-                                        .or_insert_with(|| self.next_id());
+                                        .or_insert_with(|| {
+                                            let id = self.next_id();
+                                            id
+                                        });
                                     arg_ids.push(id);
                                 }
                             }
@@ -263,8 +267,7 @@ impl MirGen {
     }
 
     fn lookup_or_alloc(&mut self, name: &str) -> u32 {
-        let id = self.next_id;
-        *self.locals.entry(name.to_string()).or_insert(id)
+        *self.locals.entry(name.to_string()).or_insert_with(|| self.next_id())
     }
 
     fn next_id(&mut self) -> u32 {
