@@ -94,13 +94,13 @@ impl MirGen {
             for stmt in body {
                 match stmt {
                     AstNode::Defer(boxed) => {
-                        let boxed = *boxed;
+                        let unboxed = *boxed;
                         if let AstNode::Call {
                             receiver: None,
                             ref method,
                             ref args,
                             ..
-                        } = boxed
+                        } = unboxed
                         {
                             let mut arg_ids = vec![];
                             for arg in args.iter() {
