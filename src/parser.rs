@@ -7,7 +7,7 @@ use crate::ast::AstNode;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while1};
 use nom::character::complete::{alpha1, alphanumeric0, i64 as nom_i64, multispace0};
-use nom::combinator::{map, opt, value};
+use nom::combinator::{map, opt, recursive, value};
 use nom::multi::{many0, many1};
 use nom::sequence::{delimited, preceded};
 use nom::{IResult, Parser};
@@ -63,7 +63,7 @@ fn method_sig<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
             let ret: String = ret_opt.unwrap_or_else(|| "i64".to_string());
             AstNode::Method {
                 name,
-                params: params.into_iter().map(|((n, _), t)| (n, t)).collect(),
+                params: params.into_iter().map |((n, _), t)| (n, t)).collect(),
                 ret,
             }
         },
@@ -72,54 +72,63 @@ fn method_sig<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
 
 /// Parses expressions: lit/var/str + optional + lit/var (as add call) | TimingOwned | call | path::call.
 fn expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    let rec_expr = || {
+    recursive(|expr| {
         let timing_owned = map(
-            (
-                ws(tag("TimingOwned")),
-                ws(delimited(tag("<"), ident(), tag(">"))),
-                ws(tag("(")),
-                expr(),
-                ws(tag(")")),
-            ),
-            |(_, ty, _, inner, _)| AstNode::TimingOwned {
+            ws(tag("TimingOwned"))
+                .and(ws(delimited(tag("<"), ident(), tag(">"))))
+                .and(ws(tag("(")))
+                .and(expr)
+                .and(ws(tag(")"))),
+            |(((((kw, ty), _open), inner), _close)| AstNode::TimingOwned {
                 ty,
                 inner: Box::new(inner),
             },
         );
-        let base = alt((literal(), string_lit(), variable(), timing_owned));
-        let add = ws(tag("+")).and(base);
+
+        let atom = alt((literal(), string_lit(), variable(), timing_owned));
+
         let path_call = map(
-            (path(), ws(tag("::")), ident(), delimited(tag("("), many0(ws(expr())), tag(")"))),
-            |(path, _, method, args)| AstNode::PathCall {
+            path()
+                .and(ws(tag("::")))
+                .and(ident())
+                .and(delimited(tag("("), many0(ws(expr)), tag(")"))),
+            |((((path, _), method), args)| AstNode::PathCall {
                 path,
                 method,
                 args,
             },
         );
-        let call = delimited(
-            tag("("),
-            many0(ws(expr())),
-            tag(")"),
-        ).and(base).map(|(args, recv)| AstNode::Call {
-            receiver: Some(Box::new(recv)),
-            method: "call".to_string(),
-            args,
-            type_args: vec![],
-        });
-        alt((path_call, call, base.and(opt(add)).map(|(left, opt_add)| {
-            if let Some((_, right)) = opt_add {
-                AstNode::Call {
-                    receiver: Some(Box::new(left)),
-                    method: "add".to_string(),
-                    args: vec![right],
-                    type_args: vec![],
+
+        let call = map(
+            delimited(tag("("), many0(ws(expr)), tag(")"))
+                .and(atom),
+            |(args, recv)| AstNode::Call {
+                receiver: Some(Box::new(recv)),
+                method: "call".to_string(),
+                args,
+                type_args: vec![],
+            },
+        );
+
+        let primary = map(
+            atom
+                .and(opt(ws(tag("+")).and(expr))),
+            |(left, opt_add)| {
+                if let Some((_, right)) = opt_add {
+                    AstNode::Call {
+                        receiver: Some(Box::new(left)),
+                        method: "add".to_string(),
+                        args: vec![right],
+                        type_args: vec![],
+                    }
+                } else {
+                    left
                 }
-            } else {
-                left
-            }
-        })))
-    };
-    rec_expr()
+            },
+        );
+
+        alt((path_call, call, primary))
+    })
 }
 
 /// Parses an assign statement: ident = expr;.
