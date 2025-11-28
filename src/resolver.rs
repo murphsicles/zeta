@@ -187,7 +187,11 @@ impl Resolver {
                 // Trait lookup fallback
                 let mut found = false;
                 if let Some(recv_ty) = &recv_ty {
-                    if let Some(impls) = self.direct_impls.get(&("Addable".to_string(), recv_ty.clone())) {
+                    // Nominal lookup
+                    if let Some(impls) = self
+                        .direct_impls
+                        .get(&("Addable".to_string(), recv_ty.clone()))
+                    {
                         if let Some((params, ret)) = impls.get(method) {
                             if params.len() == arg_tys.len() {
                                 found = true;
@@ -195,6 +199,7 @@ impl Resolver {
                             }
                         }
                     }
+                    // Structural: fallback for primitives
                     if method == "add" && recv_ty == &Type::I64 {
                         found = true;
                         return Type::I64;
@@ -202,15 +207,20 @@ impl Resolver {
                 }
 
                 if !found {
-                    // Partial spec mangling
+                    // Partial specialization: Check for partial match on type_args
                     let key = MonoKey {
                         func_name: method.clone(),
                         type_args: type_args.clone(),
                     };
+
                     if let Some(cached) = lookup_specialization(&key) {
                         return Type::Named(cached.llvm_func_name);
                     }
-                    let recv_str = recv_ty.as_ref().map_or_else(|| "unknown".to_string(), |t| t.to_string());
+
+                    // Generate mangled name for partial spec
+                    let recv_str = recv_ty
+                        .as_ref()
+                        .map_or_else(|| "unknown".to_string(), |t| t.to_string());
                     let mut mangled = format!("{}_{}", method, recv_str);
                     if !type_args.is_empty() {
                         mangled.push_str("__partial");
@@ -223,8 +233,16 @@ impl Resolver {
                             }
                         }
                     }
-                    let cache_safe = type_args.iter().all(|t| is_cache_safe(t)) && recv_ty.is_some();
-                    record_specialization(key, MonoValue { llvm_func_name: mangled.clone(), cache_safe });
+
+                    let cache_safe =
+                        type_args.iter().all(|t| is_cache_safe(t)) && recv_ty.is_some();
+                    record_specialization(
+                        key,
+                        MonoValue {
+                            llvm_func_name: mangled.clone(),
+                            cache_safe,
+                        },
+                    );
                     Type::Named(mangled)
                 }
                 Type::Unknown
@@ -238,7 +256,7 @@ impl Resolver {
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
         let mut ok = true;
         for ast in asts {
-            self.register(ast.clone());
+            self.register(ast.clone()); // Register concepts/impls first
             if let AstNode::FuncDef { name, body, .. } = ast {
                 // Reset borrow states per fn
                 self.borrow_checker = BorrowChecker::new();
