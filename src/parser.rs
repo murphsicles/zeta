@@ -1,12 +1,12 @@
 // src/parser.rs
 //! Nom-based parser for Zeta syntax.
 //! Supports function definitions, calls, literals, variables, assigns, TimingOwned, defer, concepts, impls, and spawn.
-//! Extended for self-host: concepts { methods }, impls for types, enums, structs, tokens.
+//! Extended for self-host: enums/structs/strings/path calls.
 
 use crate::ast::AstNode;
 use nom::branch::alt;
-use nom::bytes::complete::{tag, take_while1};
-use nom::character::complete::{alpha1, alphanumeric0, char, i64 as nom_i64, multispace0};
+use nom::bytes::complete::{tag, take_until, take_while1};
+use nom::character::complete::{alpha1, alphanumeric0, i64 as nom_i64, multispace0};
 use nom::combinator::{map, opt, recursive, value};
 use nom::multi::many0;
 use nom::sequence::{delimited, preceded};
@@ -36,9 +36,19 @@ fn literal<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::E
     map(nom_i64, AstNode::Lit)
 }
 
+/// Parses string literal (r#"..."# stub as "..." for now).
+fn string_lit<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    map(delimited(tag("\""), take_while1(|c| c != '"'), tag("\"")), |s: &str| AstNode::StringLit(s.to_string()))
+}
+
 /// Parses a variable reference.
 fn variable<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     map(ident(), AstNode::Var)
+}
+
+/// Parses path: A::B.
+fn path<'a>() -> impl Parser<&'a str, Output = Vec<String>, Error = nom::error::Error<&'a str>> {
+    map(many1(preceded(opt(tag("::")), ident())), |ids| ids.into_iter().map(|id| id).collect())
 }
 
 /// Parses method signature: name(params) -> ret.
@@ -60,7 +70,7 @@ fn method_sig<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
     )
 }
 
-/// Parses expressions: lit/var + optional + lit/var (as add call) | TimingOwned | call.
+/// Parses expressions: lit/var/str + optional + lit/var (as add call) | TimingOwned | call | path::call.
 fn expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     let rec_expr = recursive(|expr| {
         let timing_owned = map(
@@ -76,19 +86,27 @@ fn expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Erro
                 inner: Box::new(inner),
             },
         );
-        let base = alt((literal(), variable(), timing_owned));
+        let base = alt((literal(), string_lit(), variable(), timing_owned));
         let add = ws(tag("+")).and(base);
+        let path_call = map(
+            (path(), ws(tag("::")), ident(), delimited(tag("("), many0(ws(expr())), tag(")"))),
+            |(path, _, method, args)| AstNode::PathCall {
+                path,
+                method,
+                args,
+            },
+        );
         let call = delimited(
             tag("("),
             many0(ws(expr())),
             tag(")"),
         ).and(base).map(|(args, recv)| AstNode::Call {
             receiver: Some(Box::new(recv)),
-            method: "call".to_string(), // Placeholder; actual method from context
+            method: "call".to_string(),
             args,
             type_args: vec![],
         });
-        alt((call, base.and(opt(add)).map(|(left, opt_add)| {
+        alt((path_call, call, base.and(opt(add)).map(|(left, opt_add)| {
             if let Some((_, right)) = opt_add {
                 AstNode::Call {
                     receiver: Some(Box::new(left)),
