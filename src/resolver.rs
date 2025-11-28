@@ -86,7 +86,7 @@ impl Resolver {
         r
     }
 
-    /// Registers a concept, impl, or func.
+    /// Registers a concept, impl, or func; declares param borrows.
     pub fn register(&mut self, ast: AstNode) {
         match ast {
             AstNode::ImplBlock { concept, ty, body } => {
@@ -115,13 +115,14 @@ impl Resolver {
                     self.parse_type(&ret),
                 );
                 self.func_sigs.insert(name, sig);
-                // Declare params in env
-                for (pname, pty) in sig.0 {
-                    self.type_env.insert(pname, pty);
+                // Declare params in env & borrow owned
+                for (pname, pty) in &sig.0 {
+                    self.type_env.insert(pname.clone(), pty.clone());
+                    self.borrow_checker.declare(pname.clone(), crate::borrow::BorrowState::Owned);
                 }
             }
             AstNode::ConceptDef { .. } => {
-                // Concepts define traits; impls register them.
+                // Concepts define traits; impls register them. Concepts themselves don't add impls.
             }
             _ => {}
         }
@@ -145,10 +146,12 @@ impl Resolver {
             AstNode::Assign(name, expr) => {
                 let ty = self.infer_type(expr);
                 self.type_env.insert(name.clone(), ty.clone());
+                self.borrow_checker.declare(name.clone(), crate::borrow::BorrowState::Owned);
                 ty
             }
             AstNode::TimingOwned { ty: _ty_str, inner } => {
                 let inner_ty = self.infer_type(inner);
+                // Enforce constant-time wrapper
                 Type::TimingOwned(Box::new(inner_ty))
             }
             AstNode::Defer(inner) => self.infer_type(inner),
@@ -236,7 +239,14 @@ impl Resolver {
         let mut ok = true;
         for ast in asts {
             self.register(ast.clone());
-            if let AstNode::FuncDef { body, .. } = ast {
+            if let AstNode::FuncDef { name, body, .. } = ast {
+                // Reset borrow states per fn
+                self.borrow_checker = BorrowChecker::new();
+                if let Some(sig) = self.func_sigs.get(name) {
+                    for (pname, _) in &sig.0 {
+                        self.borrow_checker.declare(pname.clone(), crate::borrow::BorrowState::Owned);
+                    }
+                }
                 for stmt in body {
                     self.infer_type(stmt);
                     if !self.borrow_checker.check(stmt) {
