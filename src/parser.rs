@@ -8,7 +8,7 @@ use nom::bytes::complete::tag;
 use nom::character::complete::{alpha1, alphanumeric0, i64 as nom_i64, multispace0};
 use nom::combinator::{map, opt, recursive};
 use nom::multi::many0;
-use nom::sequence::{delimited, preceded, tuple};
+use nom::sequence::{delimited, preceded};
 use nom::{IResult, Parser};
 
 /// Whitespace wrapper for parsers.
@@ -101,14 +101,14 @@ fn expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Erro
 /// Parses assignment: ident = expr;.
 fn assign_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     map(
-        tuple((ws(ident()), ws(tag("=")), ws(expr()), ws(tag(";")))),
+        (ws(ident()), ws(tag("=")), ws(expr()), ws(tag(";"))),
         |(name, _, expr, _)| AstNode::Assign(name, Box::new(expr)),
     )
 }
 
 /// Parses a defer statement: defer expr;.
 fn defer_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    map(tuple((ws(tag("defer")), ws(expr()), ws(tag(";")))), |(_, e, _)| {
+    map((ws(tag("defer")), ws(expr()), ws(tag(";"))), |(_, e, _)| {
         AstNode::Defer(Box::new(e))
     })
 }
@@ -118,7 +118,7 @@ fn spawn_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
     let kw = ws(tag("spawn"));
     let func = ident();
     let args = delimited(tag("("), many0(ws(expr())), tag(")"));
-    map(tuple((kw, func, args, ws(tag(";")))), |(_, func, args, _)| AstNode::Spawn {
+    map((kw, func, args, ws(tag(";"))), |(_, func, args, _)| AstNode::Spawn {
         func,
         args,
     })
@@ -126,7 +126,7 @@ fn spawn_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
 
 /// Parses a statement: assign | spawn | defer | expr;.
 fn stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    alt((assign_stmt(), spawn_stmt(), defer_stmt(), tuple((ws(expr()), ws(tag(";")))).map(|(e, _)| e)))
+    alt((assign_stmt(), spawn_stmt(), defer_stmt(), (ws(expr()), ws(tag(";"))).map(|(e, _)| e)))
 }
 
 /// Parses function body: { stmt* }.
