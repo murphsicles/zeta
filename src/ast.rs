@@ -1,7 +1,7 @@
 // src/ast.rs
 //! Abstract Syntax Tree for Zeta.
 //! Defines nodes for expressions, statements, definitions, and algebraic constructs.
-//! Extended for self-host: enums, structs, tokens.
+//! Extended for self-host: enums, structs, strings, path calls.
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AstNode {
@@ -48,10 +48,18 @@ pub enum AstNode {
         args: Vec<AstNode>,
         type_args: Vec<String>,
     },
+    /// Path call (A::B).
+    PathCall {
+        path: Vec<String>,
+        method: String,
+        args: Vec<AstNode>,
+    },
     /// Actor spawn: spawn func(args).
     Spawn { func: String, args: Vec<AstNode> },
     /// Integer literal.
     Lit(i64),
+    /// String literal.
+    StringLit(String),
     /// Variable reference.
     Var(String),
     /// Assignment.
