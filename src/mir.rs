@@ -87,23 +87,23 @@ impl MirGen {
         if let AstNode::FuncDef { body, .. } = ast {
             for stmt in body {
                 match stmt {
-                    AstNode::Defer(boxed) => {
+                    AstNode::Defer(ref boxed) => {
                         if let AstNode::Call {
                             receiver: None,
-                            method,
-                            args,
+                            ref method,
+                            ref args,
                             ..
-                        } = **boxed
+                        } = *boxed
                         {
                             let mut arg_ids = vec![];
                             for arg in args {
-                                if let AstNode::Var(ref v) = arg {
-                                    let id = *self.locals.entry(v.clone()).or_insert(self.next_id);
+                                if let AstNode::Var(ref v) = *arg {
+                                    let id = *self.locals.entry(v.clone()).or_insert_with(|| self.next_id());
                                     arg_ids.push(id);
                                 }
                             }
                             self.defers.push(DeferInfo {
-                                func: method,
+                                func: method.clone(),
                                 args: arg_ids,
                             });
                         }
