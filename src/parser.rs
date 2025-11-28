@@ -1,14 +1,14 @@
 // src/parser.rs
 //! Nom-based parser for Zeta syntax.
 //! Supports function definitions, calls, literals, variables, assigns, TimingOwned, defer, concepts, impls, and spawn.
-//! Extended for self-host: enums/structs/strings/path calls.
+//! Extended for self-host: concepts { methods }, impls for types, enums, structs, tokens.
 
 use crate::ast::AstNode;
 use nom::branch::alt;
-use nom::bytes::complete::{tag, take_until, take_while1};
+use nom::bytes::complete::{tag, take_while1};
 use nom::character::complete::{alpha1, alphanumeric0, i64 as nom_i64, multispace0};
 use nom::combinator::{map, opt, recursive, value};
-use nom::multi::many0;
+use nom::multi::{many0, many1};
 use nom::sequence::{delimited, preceded};
 use nom::{IResult, Parser};
 
@@ -48,7 +48,7 @@ fn variable<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::
 
 /// Parses path: A::B.
 fn path<'a>() -> impl Parser<&'a str, Output = Vec<String>, Error = nom::error::Error<&'a str>> {
-    map(many1(preceded(opt(tag("::")), ident())), |ids| ids.into_iter().map(|id| id).collect())
+    map(many1(preceded(opt(tag("::")), ident())), |ids: Vec<String>| ids)
 }
 
 /// Parses method signature: name(params) -> ret.
