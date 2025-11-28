@@ -9,7 +9,7 @@ use nom::bytes::complete::{tag, take_while1};
 use nom::character::complete::{alpha1, alphanumeric0, char, i64 as nom_i64, multispace0};
 use nom::combinator::{map, opt, recursive, value};
 use nom::multi::many0;
-use nom::sequence::{delimited, preceded, tuple};
+use nom::sequence::{delimited, preceded};
 use nom::{IResult, Parser};
 
 /// Whitespace wrapper for parsers.
