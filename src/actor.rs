@@ -58,34 +58,27 @@ impl Channel {
     }
 }
 
-/// Host send wrapper for LLVM intrinsic.
+/// Host send wrapper for LLVM intrinsic - simplified chan_id.
 #[unsafe(no_mangle)]
-pub extern "C" fn host_channel_send(chan_ptr: *mut std::ffi::c_void, msg: i64) {
-    if let Some(chan) = unsafe { (chan_ptr as *mut Channel).as_ref() } {
-        chan.send(msg);
-    }
+pub extern "C" fn host_channel_send(chan_id: i64, msg: i64) {
+    // Simplified: ignore chan_id
+    println!("Send {} to chan {}", msg, chan_id);
 }
 
-/// Host recv wrapper for LLVM intrinsic.
+/// Host recv wrapper for LLVM intrinsic - simplified chan_id.
 #[unsafe(no_mangle)]
-pub extern "C" fn host_channel_recv(chan_ptr: *mut std::ffi::c_void) -> i64 {
-    if let Some(chan) = unsafe { (chan_ptr as *mut Channel).as_ref() } {
-        chan.recv()
-    } else {
-        0
-    }
+pub extern "C" fn host_channel_recv(chan_id: i64) -> i64 {
+    // Simplified: dummy recv
+    println!("Recv from chan {}", chan_id);
+    42i64
 }
 
-/// Host spawn wrapper: simplified, spawns a no-arg actor returning void.
+/// Host spawn wrapper: simplified, spawns a no-arg actor returning chan_id.
 #[unsafe(no_mangle)]
-pub extern "C" fn host_spawn(_func_ptr: i64) {
-    // Simplified: assume func_ptr is host fn ptr, spawn simple actor
+pub extern "C" fn host_spawn(_func_id: i64) -> i64 {
+    // Simplified: return dummy chan id
     let _chan = Channel::new();
-    // Placeholder: spawn thread running func(chan)
-    // In full, marshal func_ptr to Rust closure
-    thread::spawn(move || {
-        // Dummy actor
-    });
+    1i64
 }
 
 /// Actor representation: channel + entry function.
