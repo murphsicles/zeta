@@ -18,6 +18,7 @@ pub struct Mir {
     pub stmts: Vec<MirStmt>,
     pub locals: HashMap<String, u32>,
     pub exprs: HashMap<u32, MirExpr>,
+    pub name: Option<String>, // Fn name for codegen
 }
 
 #[derive(Debug, Clone)]
@@ -42,6 +43,10 @@ pub enum MirStmt {
         op: SemiringOp,
         values: Vec<u32>,
         result: u32,
+    },
+    ParamInit { // New: Init param from caller arg
+        param: u32,
+        arg_pos: usize,
     },
 }
 
@@ -83,10 +88,11 @@ impl MirGen {
     pub fn gen_mir(&mut self, ast: &AstNode) -> Mir {
         let mut stmts = vec![];
         let mut exprs = HashMap::new();
+        let name = if let AstNode::FuncDef { name, .. } = ast { Some(name.clone()) } else { None };
 
         if let AstNode::FuncDef { params, body, .. } = ast {
-            // Init param locals
-            for (pname, _) in params.iter() {
+            // Alloc param locals (no init here; caller passes args)
+            for (pname, _) in params {
                 self.alloc_local(pname);
             }
             for stmt in body {
@@ -102,10 +108,7 @@ impl MirGen {
                             let mut arg_ids = vec![];
                             for arg in args.iter() {
                                 if let AstNode::Var(ref v) = *arg {
-                                    let id = *self
-                                        .locals
-                                        .entry(v.clone())
-                                        .or_insert_with(|| self.next_id());
+                                    let id = *self.locals.entry(v.clone()).or_insert_with(|| self.next_id());
                                     arg_ids.push(id);
                                 }
                             }
@@ -151,6 +154,7 @@ impl MirGen {
             stmts,
             locals: self.locals.clone(),
             exprs,
+            name,
         }
     }
 
@@ -260,8 +264,7 @@ impl MirGen {
     }
 
     fn lookup_or_alloc(&mut self, name: &str) -> u32 {
-        let id = self.next_id;
-        *self.locals.entry(name.to_string()).or_insert(id)
+        *self.locals.entry(name.to_string()).or_insert_with(|| self.next_id())
     }
 
     fn next_id(&mut self) -> u32 {
