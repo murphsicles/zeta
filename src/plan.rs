@@ -1,8 +1,7 @@
 // src/plan.rs
 //! Zeta Compiler Development Plan.
 //! Checklist for milestones. Mark as [x] when complete. Prioritize: Parser -> Resolver -> MIR -> Codegen -> Opts -> Actors/Std -> Bootstrap.
-//! Current: Parser/AST/Res/MIR/codegen basics; next: Self-host parse selfhost.z, typecheck concepts/impls, eval simple.
-
+//! Current: Parser/AST/Res/MIR/codegen basics + actors/std embeds + thin mono cache; next: Generics/hybrids/partial spec parsing, param inits/affine in MIR, SIMD/MLGO, full self-host eval/bootstrap.
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
@@ -11,13 +10,12 @@ pub mod checklist {
 [x] Function defs (fn name(params: Type) -> Ret { stmts })
 [x] Concepts (concept Name { method_sigs })
 [x] Impls (impl Concept for Type { method_sigs })
-[ ] Enums (enum Name { Variant(Type), ... })
-[ ] Structs (struct Name { field: Type, ... })
+[x] Enums (enum Name { Variant, Variant(params) } - basic variants)
+[x] Structs (struct Name { field: Type, ... })
 [ ] Generics (fn foo<T>(x: T) -> T)
 [ ] Traits hybrid (nominal + structural dispatch)
 [ ] Partial specialization (mangle on safe types)
     "#;
-
     /// Semantic Analysis
     pub const RESOLVER: &str = r#"
 [x] Type inference (env, builtins i64 Addable)
@@ -28,7 +26,6 @@ pub mod checklist {
 [ ] Stable ABI checks (no UB, const-time TimingOwned)
 [ ] CTFE (const eval semirings)
     "#;
-
     /// MIR (Mid-level IR)
     pub const MIR: &str = r#"
 [x] Lower AST to MIR (stmts/exprs/locals)
@@ -40,7 +37,6 @@ pub mod checklist {
 [ ] ParamInit (from caller args)
 [ ] Affine moves (consume after call)
     "#;
-
     /// Codegen (LLVM)
     pub const CODEGEN: &str = r#"
 [x] Multi-fn (gen_mirs from Mirs, entry main calls user main)
@@ -52,30 +48,27 @@ pub mod checklist {
 [ ] SIMD (vec ops via MLGO passes)
 [ ] Stable ABI (no UB, thin mono via specialization)
     "#;
-
     /// Optimizations
     pub const OPTS: &str = r#"
 [x] Semiring fold (add/mul chains)
 [ ] MLGO AI (vectorize/branch-pred hooks)
-[ ] Thin monomorph (cache mangled names)
+[x] Thin monomorph (cache mangled names)
 [ ] CTFE in MIR (const eval before codegen)
     "#;
-
     /// Concurrency/Std
     pub const ACTORS_STD: &str = r#"
 [x] Actor runtime (channels/scheduler/spawn host)
 [x] Spawn lowering (intrinsic call)
 [x] Channel send/recv (intrinsics)
+[x] Std embeds (http_get/tls_handshake/datetime_now)
 [ ] Async (spawn blocks, channels)
-[ ] Std embeds (http_get/tls_handshake/datetime_now)
     "#;
-
     /// Bootstrap/Self-host
     pub const BOOTSTRAP: &str = r#"
-[ ] Parse selfhost.z (concepts/impls/enums/structs/tokens)
-[ ] Typecheck selfhost (Parser/TypeChecker/Eval/Compile impls)
-[ ] MIR lower selfhost (stub build_ast/eval)
-[ ] Codegen selfhost (JIT compile_and_run)
+[x] Parse selfhost.z (concepts/impls/enums/structs/tokens)
+[x] Typecheck selfhost (Parser/TypeChecker/Eval/Compile impls)
+[x] MIR lower selfhost (stub build_ast/eval)
+[x] Codegen selfhost (JIT compile_and_run)
 [ ] Eval 42+1=43 (main calls ZetaCompiler::compile)
 [ ] Full bootstrap (Zeta compiles Zeta)
     "#;
