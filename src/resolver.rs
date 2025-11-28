@@ -231,7 +231,6 @@ impl Resolver {
                     );
                     return Type::Named(mangled);
                 }
-                Type::Unknown
             }
             _ => Type::Unknown,
         }
