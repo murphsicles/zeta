@@ -60,7 +60,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let module = context.create_module(name);
         let builder = context.create_builder();
         let i64_type = context.i64_type();
-        let ptr_type = context.ptr_type(AddressSpace::default());
+        let ptr_type = context.ptr_type(AddressSpace::Generic);
 
         let void_type = context.void_type();
         let i64_fn_type = i64_type.fn_type(&[], false);
@@ -81,7 +81,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         module.add_function("spawn", spawn_type, Some(Linkage::External));
 
         // Std embeds: http_get(url: &str) -> i64 (status)
-        let char_ptr_type = context.ptr_type(AddressSpace::default());
+        let char_ptr_type = context.ptr_type(AddressSpace::Generic);
         let http_type = i64_type.fn_type(&[char_ptr_type.into()], false);
         module.add_function("http_get", http_type, Some(Linkage::External));
 
@@ -119,10 +119,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
                 // Alloc and init params
                 let params = fn_val.get_params();
-                for (i, (&param_id, _)) in mir.locals.iter().enumerate() {
+                for (i, (pname, param_id)) in mir.locals.iter().enumerate() {
                     if i >= params.len() { break; }
-                    let alloca = self.builder.build_alloca(self.i64_type, &format!("param_{}", i)).unwrap();
-                    self.locals.insert(param_id, alloca);
+                    let alloca = self.builder.build_alloca(self.i64_type, pname).unwrap();
+                    self.locals.insert(*param_id, alloca);
                     self.builder.build_store(alloca, params[i]).unwrap();
                 }
 
@@ -147,8 +147,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let bb = self.context.append_basic_block(main_fn, "entry");
         self.builder.position_at_end(bb);
 
-        let call_res = self.builder.build_call(user_main, &[], "user_main_call").unwrap()
-            .try_as_basic_value().unwrap_or(self.i64_type.const_zero().into());
+        let call_site = self.builder.build_call(user_main, &[], "user_main_call").unwrap();
+        let call_res = match call_site.try_as_basic_value() {
+            Ok(v) => v,
+            Err(_) => self.i64_type.const_zero().into(),
+        };
         self.builder.build_return(Some(&call_res));
     }
 
@@ -170,8 +173,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let fn_ty = self.i64_type.fn_type(&param_meta, false);
                     self.module.add_function(func, fn_ty, Some(Linkage::External))
                 });
-                let result = self.builder.build_call(callee, &arg_metadata, "call_res").unwrap()
-                    .try_as_basic_value().unwrap_or(self.i64_type.const_zero().into());
+                let call_site = self.builder.build_call(callee, &arg_metadata, "call_res").unwrap();
+                let result = match call_site.try_as_basic_value() {
+                    Ok(v) => v,
+                    Err(_) => self.i64_type.const_zero().into(),
+                };
 
                 let ptr = self.locals.entry(*dest).or_insert_with(|| self.builder.build_alloca(self.i64_type, "call_res").unwrap());
                 self.builder.build_store(*ptr, result).unwrap();
