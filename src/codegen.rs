@@ -4,7 +4,7 @@
 //! Ensures stable ABI and TimingOwned constant-time guarantees.
 
 use crate::actor::{
-    host_channel_recv, host_channel_send, host_spawn, host_http_get, host_tls_handshake,
+    host_channel_recv, host_channel_send, host_spawn,
 };
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use inkwell::AddressSpace;
@@ -135,7 +135,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             if let Some(ref name) = mir.name {
                 // Fn type from #params (all i64 for now)
                 let param_types: Vec<inkwell::types::BasicTypeEnum<'ctx>> = mir.locals.iter().map(|_| self.i64_type.into()).take(4).collect();
-                let fn_type = self.i64_type.fn_type(&param_types, false);
+                let fn_type = self.i64_type.fn_type(&param_types[..], false);
                 let function = self.module.add_function(name, fn_type, None);
                 self.fns.insert(name.clone(), function);
 
@@ -177,7 +177,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
         if let Some(user_main) = self.fns.get("main") {
             let call_res = self.builder.build_call(*user_main, &[], "user_main_call").unwrap()
-                .try_as_basic_value().left().unwrap_or_else(|| self.i64_type.const_zero().into());
+                .try_as_basic_value().unwrap_or_else(|| self.i64_type.const_zero().into());
             self.builder.build_return(Some(&call_res)).unwrap();
         } else {
             self.builder.build_return(Some(&self.i64_type.const_zero())).unwrap();
@@ -199,12 +199,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 } else {
                     self.module.get_function(func).unwrap_or_else(|| {
                         let param_tys: Vec<_> = arg_vals.iter().map(|v| v.get_type()).collect();
-                        let fn_ty = self.i64_type.fn_type(&param_tys, false);
+                        let fn_ty = self.i64_type.fn_type(&param_tys[..], false);
                         self.module.add_function(func, fn_ty, Some(Linkage::External))
                     })
                 };
-                let result = self.builder.build_call(callee, &arg_vals, "call_res").unwrap()
-                    .try_as_basic_value().left().unwrap_or_else(|| self.i64_type.const_zero().into());
+                let result = self.builder.build_call(callee, &arg_vals[..], "call_res").unwrap()
+                    .try_as_basic_value().unwrap_or_else(|| self.i64_type.const_zero().into());
 
                 let ptr = self.locals.entry(*dest).or_insert_with(|| self.builder.build_alloca(self.i64_type, "call_res").unwrap());
                 self.builder.build_store(ptr, result).unwrap();
@@ -213,10 +213,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let arg_vals: Vec<BasicValueEnum<'ctx>> = args.iter().map(|&id| self.load_local(id)).collect();
                 let callee = self.module.get_function(func).unwrap_or_else(|| {
                     let param_tys: Vec<_> = arg_vals.iter().map(|v| v.get_type()).collect();
-                    let fn_ty = self.context.void_type().fn_type(&param_tys, false);
+                    let fn_ty = self.context.void_type().fn_type(&param_tys[..], false);
                     self.module.add_function(func, fn_ty, Some(Linkage::External))
                 });
-                self.builder.build_call(callee, &arg_vals, "").unwrap();
+                self.builder.build_call(callee, &arg_vals[..], "").unwrap();
             }
             MirStmt::SemiringFold { op, values, result } => {
                 // Fold multiple values with semiring op (add/mul chain).
@@ -233,7 +233,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         .build_alloca(self.i64_type, "fold_res")
                         .unwrap()
                 });
-                self.builder.build_store(*ptr, acc).unwrap();
+                self.builder.build_store(ptr, acc).unwrap();
             }
             MirStmt::Return { val } => {
                 let v = self.load_local(*val);
@@ -272,7 +272,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.module.verify().map_err(|e| e.to_string())?;
 
         // MLGO AI hooks: Custom pass manager for vectorization and branch prediction
-        let pm = PassManager::create_for_function();
+        let pm = PassManager::create(&self.module);
         pm.run_on(&self.module);
 
         let ee = self
