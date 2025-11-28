@@ -44,6 +44,8 @@ impl fmt::Display for Type {
 
 type MethodSig = (Vec<Type>, Type);
 type ImplMethods = HashMap<String, MethodSig>;
+type FuncSig = (Vec<(String, Type)>, Type); // params -> ret
+type FuncMap = HashMap<String, FuncSig>;
 
 /// Main resolver struct, orchestrating type checking and lowering.
 #[derive(Clone)]
@@ -52,6 +54,8 @@ pub struct Resolver {
     direct_impls: HashMap<(String, Type), ImplMethods>,
     /// Environment for type inference (var -> type).
     type_env: HashMap<String, Type>,
+    /// Function signatures.
+    func_sigs: FuncMap,
     /// Integrated borrow checker.
     borrow_checker: BorrowChecker,
 }
@@ -69,6 +73,7 @@ impl Resolver {
         let mut r = Self {
             direct_impls: HashMap::new(),
             type_env: HashMap::new(),
+            func_sigs: HashMap::new(),
             borrow_checker: BorrowChecker::new(),
         };
 
@@ -81,7 +86,7 @@ impl Resolver {
         r
     }
 
-    /// Registers a concept or impl block.
+    /// Registers a concept, impl, or func.
     pub fn register(&mut self, ast: AstNode) {
         match ast {
             AstNode::ImplBlock { concept, ty, body } => {
@@ -101,8 +106,22 @@ impl Resolver {
                 }
                 self.direct_impls.insert((concept, ty), methods);
             }
+            AstNode::FuncDef { name, params, ret, .. } => {
+                let sig = (
+                    params
+                        .into_iter()
+                        .map(|(n, t)| (n, self.parse_type(&t)))
+                        .collect(),
+                    self.parse_type(&ret),
+                );
+                self.func_sigs.insert(name, sig);
+                // Declare params in env
+                for (pname, pty) in sig.0 {
+                    self.type_env.insert(pname, pty);
+                }
+            }
             AstNode::ConceptDef { .. } => {
-                // Concepts define traits; impls register them. Concepts themselves don't add impls.
+                // Concepts define traits; impls register them.
             }
             _ => {}
         }
@@ -130,16 +149,19 @@ impl Resolver {
             }
             AstNode::TimingOwned { ty: _ty_str, inner } => {
                 let inner_ty = self.infer_type(inner);
-                // Enforce constant-time wrapper
                 Type::TimingOwned(Box::new(inner_ty))
             }
             AstNode::Defer(inner) => self.infer_type(inner),
-            AstNode::Spawn { func: _func, args } => {
-                // Spawn returns Channel
+            AstNode::Spawn { func, args } => {
+                // Infer args, return Channel
                 for arg in args {
                     let _ = self.infer_type(arg);
                 }
-                Type::Named("Channel".to_string())
+                if let Some(sig) = self.func_sigs.get(func) {
+                    sig.1.clone() // Use func ret
+                } else {
+                    Type::Named("Channel".to_string())
+                }
             }
             AstNode::Call {
                 receiver,
@@ -149,43 +171,43 @@ impl Resolver {
                 ..
             } => {
                 let recv_ty = receiver.as_ref().map(|r| self.infer_type(r));
+                let arg_tys: Vec<_> = args.iter().map(|a| self.infer_type(a)).collect();
 
-                // Hybrid trait lookup: nominal (direct_impls) + structural (type match)
+                // Lookup func sig first
+                if let Some(sig) = self.func_sigs.get(method) {
+                    if sig.0.len() == arg_tys.len() {
+                        // Check arg compat (simplified)
+                        return sig.1.clone();
+                    }
+                }
+
+                // Trait lookup fallback
                 let mut found = false;
                 if let Some(recv_ty) = &recv_ty {
-                    // Nominal lookup
-                    if let Some(impls) = self
-                        .direct_impls
-                        .get(&("Addable".to_string(), recv_ty.clone()))
-                    {
+                    if let Some(impls) = self.direct_impls.get(&("Addable".to_string(), recv_ty.clone())) {
                         if let Some((params, ret)) = impls.get(method) {
-                            if params.len() == args.len() {
+                            if params.len() == arg_tys.len() {
+                                found = true;
                                 return ret.clone();
                             }
                         }
                     }
-                    // Structural: fallback for primitives
                     if method == "add" && recv_ty == &Type::I64 {
+                        found = true;
                         return Type::I64;
                     }
-                    found = true;
                 }
 
                 if !found {
-                    // Partial specialization: Check for partial match on type_args
+                    // Partial spec mangling
                     let key = MonoKey {
                         func_name: method.clone(),
                         type_args: type_args.clone(),
                     };
-
                     if let Some(cached) = lookup_specialization(&key) {
                         return Type::Named(cached.llvm_func_name);
                     }
-
-                    // Generate mangled name for partial spec
-                    let recv_str = recv_ty
-                        .as_ref()
-                        .map_or_else(|| "unknown".to_string(), |t| t.to_string());
+                    let recv_str = recv_ty.as_ref().map_or_else(|| "unknown".to_string(), |t| t.to_string());
                     let mut mangled = format!("{}_{}", method, recv_str);
                     if !type_args.is_empty() {
                         mangled.push_str("__partial");
@@ -198,20 +220,11 @@ impl Resolver {
                             }
                         }
                     }
-
-                    let cache_safe =
-                        type_args.iter().all(|t| is_cache_safe(t)) && recv_ty.is_some();
-                    record_specialization(
-                        key,
-                        MonoValue {
-                            llvm_func_name: mangled.clone(),
-                            cache_safe,
-                        },
-                    );
+                    let cache_safe = type_args.iter().all(|t| is_cache_safe(t)) && recv_ty.is_some();
+                    record_specialization(key, MonoValue { llvm_func_name: mangled.clone(), cache_safe });
                     Type::Named(mangled)
-                } else {
-                    Type::Unknown
                 }
+                Type::Unknown
             }
             _ => Type::Unknown,
         }
@@ -222,7 +235,7 @@ impl Resolver {
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
         let mut ok = true;
         for ast in asts {
-            self.register(ast.clone()); // Register concepts/impls first
+            self.register(ast.clone());
             if let AstNode::FuncDef { body, .. } = ast {
                 for stmt in body {
                     self.infer_type(stmt);
@@ -274,10 +287,13 @@ impl Resolver {
                     };
                     mir.stmts.remove(i + 1);
                     changed = true;
-                    continue;
+                    // No i += 1; check new stmt at i
+                } else {
+                    i += 1;
                 }
+            } else {
+                i += 1;
             }
-            i += 1;
         }
         changed
     }
