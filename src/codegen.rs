@@ -4,7 +4,7 @@
 //! Ensures stable ABI and TimingOwned constant-time guarantees.
 
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
-use crate::actor::{host_channel_send, host_channel_recv, host_spawn};
+use crate::actor::{host_channel_send, host_channel_recv, host_spawn, host_http_get, host_tls_handshake};
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
 use inkwell::builder::Builder;
@@ -31,6 +31,27 @@ extern "C" fn host_free(ptr: *mut std::ffi::c_void) {
     }
 }
 
+/// Simplified host HTTP GET: returns response length or -1 error.
+extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
+    use std::ffi::CStr;
+    if let Ok(url_str) = unsafe { CStr::from_ptr(url) }.to_str() {
+        // Dummy: always return 200
+        200i64
+    } else {
+        -1i64
+    }
+}
+
+/// Simplified host TLS handshake: returns 0 success, -1 error.
+extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i64 {
+    use std::ffi::CStr;
+    if let Ok(_) = unsafe { CStr::from_ptr(host) }.to_str() {
+        0i64
+    } else {
+        -1i64
+    }
+}
+
 /// LLVM codegen context for a module.
 pub struct LLVMCodegen<'ctx> {
     context: &'ctx Context,
@@ -51,12 +72,13 @@ pub struct LLVMCodegen<'ctx> {
 
 impl<'ctx> LLVMCodegen<'ctx> {
     /// Creates a new codegen instance for a module named `name`.
-    /// Declares external host functions (datetime_now, free, actor intrinsics).
+    /// Declares external host functions (datetime_now, free, actor intrinsics, std embeds).
     pub fn new(context: &'ctx Context, name: &str) -> Self {
         let module = context.create_module(name);
         let builder = context.create_builder();
         let i64_type = context.i64_type();
         let ptr_type = context.ptr_type(AddressSpace::default());
+        let char_ptr_type = context.i8_type().ptr_type(AddressSpace::default());
 
         let void_type = context.void_type();
         let i64_fn_type = i64_type.fn_type(&[], false);
@@ -75,6 +97,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
         // Spawn intrinsic: i64 spawn(i64 func_id) -> i64 chan_id
         let spawn_type = i64_type.fn_type(&[i64_type.into()], false);
         module.add_function("spawn", spawn_type, Some(Linkage::External));
+
+        // Std embeds: http_get(url: &str) -> i64 (status)
+        let http_type = i64_type.fn_type(&[char_ptr_type.into()], false);
+        module.add_function("http_get", http_type, Some(Linkage::External));
+
+        // TLS handshake(host: &str) -> i64 (0 ok)
+        let tls_type = i64_type.fn_type(&[char_ptr_type.into()], false);
+        module.add_function("tls_handshake", tls_type, Some(Linkage::External));
 
         // TBAA metadata for constant-time
         let tbaa_metadata = context.i64_type().const_int(0, false).into();
@@ -188,6 +218,40 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let val = call.try_as_basic_value().expect_basic("recv must return i64");
                     let ptr = self.locals.entry(*dest).or_insert_with(|| {
                         self.builder.build_alloca(self.i64_type, "recv_res").unwrap()
+                    });
+                    self.builder.build_store(*ptr, val).unwrap();
+                }
+
+                "http_get" => {
+                    // Std embed: http_get(url: &str) -> i64 status
+                    let url_ptr = self.load_local(args[0]).into_pointer_value();
+                    let call = self.builder
+                        .build_call(
+                            self.module.get_function("http_get").unwrap(),
+                            &[url_ptr.into()],
+                            "http_tmp",
+                        )
+                        .unwrap();
+                    let val = call.try_as_basic_value().expect_basic("http returns i64");
+                    let ptr = self.locals.entry(*dest).or_insert_with(|| {
+                        self.builder.build_alloca(self.i64_type, "http_res").unwrap()
+                    });
+                    self.builder.build_store(*ptr, val).unwrap();
+                }
+
+                "tls_handshake" => {
+                    // Std embed: tls_handshake(host: &str) -> i64 (0 ok)
+                    let host_ptr = self.load_local(args[0]).into_pointer_value();
+                    let call = self.builder
+                        .build_call(
+                            self.module.get_function("tls_handshake").unwrap(),
+                            &[host_ptr.into()],
+                            "tls_tmp",
+                        )
+                        .unwrap();
+                    let val = call.try_as_basic_value().expect_basic("tls returns i64");
+                    let ptr = self.locals.entry(*dest).or_insert_with(|| {
+                        self.builder.build_alloca(self.i64_type, "tls_res").unwrap()
                     });
                     self.builder.build_store(*ptr, val).unwrap();
                 }
@@ -342,6 +406,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
         ee.add_global_mapping(
             &self.module.get_function("spawn").unwrap(),
             host_spawn as *const () as usize,
+        );
+        // Map std embeds.
+        ee.add_global_mapping(
+            &self.module.get_function("http_get").unwrap(),
+            host_http_get as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("tls_handshake").unwrap(),
+            host_tls_handshake as *const () as usize,
         );
 
         Ok(ee)
