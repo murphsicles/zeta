@@ -12,6 +12,7 @@ pub mod specialization;
 pub mod std;
 pub use actor::{init_runtime, spawn};
 pub use codegen::LLVMCodegen;
+pub use mir::Mir;
 pub use parser::parse_zeta;
 pub use resolver::Resolver;
 use crate::ast::AstNode;
