@@ -136,9 +136,7 @@ impl MirGen {
                 });
             }
 
-            if let Some(AstNode::Assign(name, expr)) = body.last()
-                && name == "_"
-            {
+            if let Some(AstNode::Assign(_, expr)) = body.last() {
                 let ret_val = self.gen_expr(expr, &mut exprs);
                 let ret_id = self.materialize(ret_val, &mut exprs, &mut stmts);
                 stmts.push(MirStmt::Return { val: ret_id });
