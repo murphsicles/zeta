@@ -63,7 +63,7 @@ fn method_sig<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
             let ret: String = ret_opt.unwrap_or_else(|| "i64".to_string());
             AstNode::Method {
                 name,
-                params: params.into_iter().map |((n, _), t)| (n, t)).collect(),
+                params: params.into_iter().map(|((n, _), t)| (n, t)).collect(),
                 ret,
             }
         },
@@ -79,7 +79,7 @@ fn expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Erro
                 .and(ws(tag("(")))
                 .and(expr)
                 .and(ws(tag(")"))),
-            |(((((kw, ty), _open), inner), _close)| AstNode::TimingOwned {
+            |((((kw, ty), open), inner), close)| AstNode::TimingOwned {
                 ty,
                 inner: Box::new(inner),
             },
@@ -92,7 +92,7 @@ fn expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Erro
                 .and(ws(tag("::")))
                 .and(ident())
                 .and(delimited(tag("("), many0(ws(expr)), tag(")"))),
-            |((((path, _), method), args)| AstNode::PathCall {
+            |(((path, _), method), args)| AstNode::PathCall {
                 path,
                 method,
                 args,
