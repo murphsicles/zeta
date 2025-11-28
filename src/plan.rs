@@ -3,20 +3,17 @@
 //! Sections: Completed (fully working), Partially Completed (stubbed/partial), To Do (next milestones).
 //! EOP Focus: Algebraic structures (semirings, semimodules, semigroups) for codegen/optimizations.
 //! Prioritize: Speed (thin mono, CTFE eval), Safety (affine borrowck), Efficiency (SIMD/async).
-
 pub enum Status {
     Completed,
     Partial,
     Todo,
 }
-
 pub struct PlanItem {
     pub name: &'static str,
     pub status: Status,
     pub description: &'static str,
     pub eop_link: Option<&'static str>, // EOP chapter/section reference
 }
-
 pub const PLAN: &[PlanItem] = &[
     // Completed
     PlanItem {
@@ -97,6 +94,18 @@ pub const PLAN: &[PlanItem] = &[
         description: "Load/parse/register/typecheck. Lower main to MIR/codegen/JIT. Map free. Exec/print.",
         eop_link: None,
     },
+    PlanItem {
+        name: "Std Embeds (http/TLS/datetime/free)",
+        status: Status::Completed,
+        description: "Host fns (datetime_now/free/http_get/tls_handshake). Full integration in codegen.",
+        eop_link: None,
+    },
+    PlanItem {
+        name: "MLGO AI Hooks (Vectorize/Branch Pred)",
+        status: Status::Completed,
+        description: "Pass manager in codegen (loop vectorize/populate). MLGO stubs for AI-guided opts.",
+        eop_link: Some("Ch 9: Sorting"),
+    },
     // Partially Completed
     PlanItem {
         name: "Hybrid Traits (Nominal + Structural)",
@@ -121,18 +130,6 @@ pub const PLAN: &[PlanItem] = &[
         status: Status::Partial,
         description: "AST node. Codegen guarantees (TBAA/no-branch). Borrowck affine.",
         eop_link: None,
-    },
-    PlanItem {
-        name: "Std Embeds (http/TLS/datetime/free)",
-        status: Status::Partial,
-        description: "Host fns (datetime_now/free). Stub http/TLS (reqwest/tokio-tls embeds).",
-        eop_link: None,
-    },
-    PlanItem {
-        name: "MLGO AI Hooks (Vectorize/Branch Pred)",
-        status: Status::Partial,
-        description: "Stub in codegen (pass manager). Full: MLGO integration for opts.",
-        eop_link: Some("Ch 9: Sorting"),
     },
     PlanItem {
         name: "CTFE Semiring Eval",
