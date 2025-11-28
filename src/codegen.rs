@@ -65,16 +65,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let free_type = void_type.fn_type(&[ptr_type.into()], false);
         module.add_function("free", free_type, Some(Linkage::External));
 
-        // Actor intrinsics
-        let channel_ptr_type = ptr_type; // Simplified Channel* as i8*
-        let send_type = void_type.fn_type(&[channel_ptr_type.into(), i64_type.into()], false);
+        // Actor intrinsics - simplified to i64 for chan_id
+        let send_type = void_type.fn_type(&[i64_type.into(), i64_type.into()], false);
         module.add_function("channel_send", send_type, Some(Linkage::External));
 
-        let recv_type = i64_type.fn_type(&[channel_ptr_type.into()], false);
+        let recv_type = i64_type.fn_type(&[i64_type.into()], false);
         module.add_function("channel_recv", recv_type, Some(Linkage::External));
 
-        // Spawn intrinsic: void spawn(i64 func_ptr, ...args) - simplified to i64 args for now
-        let spawn_type = void_type.fn_type(&[i64_type.into()], false);
+        // Spawn intrinsic: i64 spawn(i64 func_id) -> i64 chan_id
+        let spawn_type = i64_type.fn_type(&[i64_type.into()], false);
         module.add_function("spawn", spawn_type, Some(Linkage::External));
 
         // TBAA metadata for constant-time
@@ -166,23 +165,23 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
 
                 "channel_send" => {
-                    let chan_ptr = self.load_local(args[0]).into_pointer_value();
+                    let chan = self.load_local(args[0]);
                     let msg = self.load_local(args[1]);
                     self.builder
                         .build_call(
                             self.module.get_function("channel_send").unwrap(),
-                            &[chan_ptr.into(), msg.into()],
+                            &[chan.into(), msg.into()],
                             "",
                         )
                         .unwrap();
                 }
 
                 "channel_recv" => {
-                    let chan_ptr = self.load_local(args[0]).into_pointer_value();
+                    let chan = self.load_local(args[0]);
                     let call = self.builder
                         .build_call(
                             self.module.get_function("channel_recv").unwrap(),
-                            &[chan_ptr.into()],
+                            &[chan.into()],
                             "recv_tmp",
                         )
                         .unwrap();
@@ -194,16 +193,20 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
 
                 _ if func.starts_with("spawn_") => {
-                    // Spawn call: void spawn(i64 args...)
-                    let arg_vals: Vec<BasicValueEnum> = args.iter().map(|&id| self.load_local(id)).collect();
-                    let arg_refs: &[BasicValueEnum] = &arg_vals;
-                    self.builder
+                    // Spawn call: i64 spawn(i64 func_id) -> i64 chan_id
+                    let func_id = self.load_local(args[0]);
+                    let call = self.builder
                         .build_call(
                             self.module.get_function("spawn").unwrap(),
-                            arg_refs,
+                            &[func_id.into()],
                             "spawn_call",
                         )
                         .unwrap();
+                    let val = call.try_as_basic_value().expect_basic("spawn returns i64");
+                    let ptr = self.locals.entry(*dest).or_insert_with(|| {
+                        self.builder.build_alloca(self.i64_type, "chan_res").unwrap()
+                    });
+                    self.builder.build_store(*ptr, val).unwrap();
                 }
 
                 _ => {
@@ -231,12 +234,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
             MirStmt::VoidCall { func, args } => match func.as_str() {
                 "channel_send" => {
-                    let chan_ptr = self.load_local(args[0]).into_pointer_value();
+                    let chan = self.load_local(args[0]);
                     let msg = self.load_local(args[1]);
                     self.builder
                         .build_call(
                             self.module.get_function("channel_send").unwrap(),
-                            &[chan_ptr.into(), msg.into()],
+                            &[chan.into(), msg.into()],
                             "",
                         )
                         .unwrap();
