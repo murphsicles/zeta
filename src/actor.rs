@@ -85,21 +85,17 @@ pub extern "C" fn host_spawn(_func_id: i64) -> i64 {
 #[no_mangle]
 pub extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
     use std::ffi::CStr;
-    unsafe {
-        let url_str = CStr::from_ptr(url).to_str().unwrap_or("");
-        // Dummy: always return 200
-        200i64
-    }
+    let _url_str = unsafe { CStr::from_ptr(url).to_str().map_or("", |s| s) };
+    // Dummy: always return 200
+    200i64
 }
 
 /// Simplified host TLS handshake: returns 0 success, -1 error.
 #[no_mangle]
 pub extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i64 {
     use std::ffi::CStr;
-    unsafe {
-        let host_str = CStr::from_ptr(host).to_str().unwrap_or("");
-        0i64
-    }
+    let _host_str = unsafe { CStr::from_ptr(host).to_str().map_or("", |s| s) };
+    0i64
 }
 
 /// Actor representation: channel + entry function.
