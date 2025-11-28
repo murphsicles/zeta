@@ -22,18 +22,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     resolver.typecheck(&asts);
 
+    // Lower all FuncDefs to MIR.
+    let mirs: Vec<_> = asts.iter().filter_map(|ast| {
+        if let AstNode::FuncDef { .. } = ast {
+            Some(resolver.lower_to_mir(ast))
+        } else {
+            None
+        }
+    }).collect();
+
     // Setup LLVM.
     let context = Context::create();
     let mut codegen = LLVMCodegen::new(&context, "selfhost");
-
-    // Find and lower main func to MIR.
-    let main_func = asts
-        .iter()
-        .find(|a| matches!(a, AstNode::FuncDef { name, .. } if name == "main"))
-        .ok_or("No main function")?;
-
-    let mir = resolver.lower_to_mir(main_func);
-    codegen.gen_mir(&mir);
+    codegen.gen_mirs(&mirs);
     let ee = codegen.finalize_and_jit()?;
 
     // Map std_free to host.
