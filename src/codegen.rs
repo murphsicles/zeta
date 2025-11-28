@@ -60,7 +60,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let module = context.create_module(name);
         let builder = context.create_builder();
         let i64_type = context.i64_type();
-        let ptr_type = context.ptr_type(AddressSpace::Generic);
+        let ptr_type = context.ptr_type(AddressSpace::default());
 
         let void_type = context.void_type();
         let i64_fn_type = i64_type.fn_type(&[], false);
@@ -81,7 +81,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         module.add_function("spawn", spawn_type, Some(Linkage::External));
 
         // Std embeds: http_get(url: &str) -> i64 (status)
-        let char_ptr_type = context.ptr_type(AddressSpace::Generic);
+        let char_ptr_type = context.ptr_type(AddressSpace::default());
         let http_type = i64_type.fn_type(&[char_ptr_type.into()], false);
         module.add_function("http_get", http_type, Some(Linkage::External));
 
@@ -148,9 +148,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.builder.position_at_end(bb);
 
         let call_site = self.builder.build_call(user_main, &[], "user_main_call").unwrap();
-        let call_res = match call_site.try_as_basic_value() {
-            Ok(v) => v,
-            Err(_) => self.i64_type.const_zero().into(),
+        let call_res = if let Ok(v) = call_site.try_as_basic_value() {
+            v
+        } else {
+            self.i64_type.const_zero().into()
         };
         self.builder.build_return(Some(&call_res));
     }
@@ -166,7 +167,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
             MirStmt::Call { func, args, dest } => {
                 let arg_vals: Vec<BasicValueEnum<'ctx>> = args.iter().map(|&id| self.load_local(id)).collect();
-                let arg_metadata: Vec<BasicMetadataValueEnum<'ctx>> = arg_vals.iter().map(|v| v.into()).collect();
+                let arg_metadata: Vec<BasicMetadataValueEnum<'ctx>> = arg_vals.iter().map(|v| (*v).into()).collect();
                 let callee = self.module.get_function(func).unwrap_or_else(|| {
                     let param_tys: Vec<BasicTypeEnum<'ctx>> = arg_vals.iter().map(|v| v.get_type()).collect();
                     let param_meta: Vec<BasicMetadataTypeEnum<'ctx>> = param_tys.iter().map(|t| (*t).into()).collect();
@@ -174,9 +175,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     self.module.add_function(func, fn_ty, Some(Linkage::External))
                 });
                 let call_site = self.builder.build_call(callee, &arg_metadata, "call_res").unwrap();
-                let result = match call_site.try_as_basic_value() {
-                    Ok(v) => v,
-                    Err(_) => self.i64_type.const_zero().into(),
+                let result = if let Ok(v) = call_site.try_as_basic_value() {
+                    v
+                } else {
+                    self.i64_type.const_zero().into()
                 };
 
                 let ptr = self.locals.entry(*dest).or_insert_with(|| self.builder.build_alloca(self.i64_type, "call_res").unwrap());
@@ -184,7 +186,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
             MirStmt::VoidCall { func, args } => {
                 let arg_vals: Vec<BasicValueEnum<'ctx>> = args.iter().map(|&id| self.load_local(id)).collect();
-                let arg_metadata: Vec<BasicMetadataValueEnum<'ctx>> = arg_vals.iter().map(|v| v.into()).collect();
+                let arg_metadata: Vec<BasicMetadataValueEnum<'ctx>> = arg_vals.iter().map(|v| (*v).into()).collect();
                 let callee = self.module.get_function(func).unwrap_or_else(|| {
                     let param_tys: Vec<BasicTypeEnum<'ctx>> = arg_vals.iter().map(|v| v.get_type()).collect();
                     let param_meta: Vec<BasicMetadataTypeEnum<'ctx>> = param_tys.iter().map(|t| (*t).into()).collect();
