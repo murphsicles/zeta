@@ -73,8 +73,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let recv_type = i64_type.fn_type(&[channel_ptr_type.into()], false);
         module.add_function("channel_recv", recv_type, Some(Linkage::External));
 
-        // Spawn intrinsic: void spawn(i64 func_ptr, ...args)
-        let spawn_type = void_type.fn_type(&[i64_type.into()], false); // Simplified: func ptr + varargs
+        // Spawn intrinsic: void spawn(i64 func_ptr, ...args) - simplified to i64 args for now
+        let spawn_type = void_type.fn_type(&[i64_type.into()], false);
         module.add_function("spawn", spawn_type, Some(Linkage::External));
 
         // TBAA metadata for constant-time
@@ -194,14 +194,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
 
                 _ if func.starts_with("spawn_") => {
-                    // Spawn call: void spawn_i64(args...)
+                    // Spawn call: void spawn(i64 args...)
                     let arg_vals: Vec<BasicValueEnum> = args.iter().map(|&id| self.load_local(id)).collect();
                     let arg_refs: &[BasicValueEnum] = &arg_vals;
                     self.builder
                         .build_call(
                             self.module.get_function("spawn").unwrap(),
                             arg_refs,
-                            "",
+                            "spawn_call",
                         )
                         .unwrap();
                 }
