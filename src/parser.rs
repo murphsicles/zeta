@@ -4,7 +4,6 @@
 
 use crate::ast::AstNode;
 use nom::IResult;
-use nom::Parser;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{alpha1, alphanumeric0, i64 as nom_i64, multispace0};
@@ -39,11 +38,12 @@ fn variable<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::
 /// Parses method signature: name(params) -> ret.
 fn method_sig<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     let name = ident();
-    let params = delimited(tag("("), many0(ws(ident().and(ws(tag(":"))).and(ws(ident())))), tag(")"));
+    let param_pair = ws(ident()).and(ws(tag(":"))).and(ws(ident()));
+    let params = delimited(tag("("), many0(param_pair), tag(")"));
     let ret = opt(preceded(ws(tag("->")), ws(ident())));
     map(
         (name, params, ret),
-        |(name, params, ret_opt)| {
+        |(name, params, ret_opt): (String, Vec<((String, String), String)>, Option<String>)| {
             let ret: String = ret_opt.unwrap_or_else(|| "i64".to_string());
             AstNode::Method {
                 name,
@@ -56,8 +56,9 @@ fn method_sig<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
 
 /// Parses TimingOwned<ty> (expr).
 fn timing_owned<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    let expr_parser = expr;
     map(
-        (ws(tag("TimingOwned")), ws(delimited(tag("<"), ident(), tag(">"))), ws(tag("(")), ws(expr()), ws(tag(")"))),
+        (ws(tag("TimingOwned")), ws(delimited(tag("<"), ident(), tag(">"))), ws(tag("(")), ws(expr_parser()), ws(tag(")"))),
         |(_, ty, _, inner, _)| AstNode::TimingOwned {
             ty,
             inner: Box::new(inner),
@@ -69,18 +70,21 @@ fn timing_owned<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::err
 fn expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     let left = alt((literal(), variable(), timing_owned()));
     let add = ws(tag("+")).and(alt((literal(), variable(), timing_owned())));
-    left.and(opt(add)).map(|(left, opt_add)| {
-        if let Some((_, right)) = opt_add {
-            AstNode::Call {
-                receiver: Some(Box::new(left)),
-                method: "add".to_string(),
-                args: vec![right],
-                type_args: vec![],
+    map(
+        left.and(opt(add)),
+        |(left, opt_add)| {
+            if let Some((_, right)) = opt_add {
+                AstNode::Call {
+                    receiver: Some(Box::new(left)),
+                    method: "add".to_string(),
+                    args: vec![right],
+                    type_args: vec![],
+                }
+            } else {
+                left
             }
-        } else {
-            left
-        }
-    })
+        },
+    )
 }
 
 /// Parses a defer statement: defer expr.
@@ -108,8 +112,7 @@ fn stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Erro
 }
 
 /// Parses function body: { stmt* }.
-fn func_body<'a>() -> impl Parser<&'a str, Output = Vec<AstNode>, Error = nom::error::Error<&'a str>>
-{
+fn func_body<'a>() -> impl Parser<&'a str, Output = Vec<AstNode>, Error = nom::error::Error<&'a str>> {
     delimited(ws(tag("{")), many0(ws(stmt())), ws(tag("}")))
 }
 
@@ -121,20 +124,21 @@ fn parse_func<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
     let rparen = ws(tag(")"));
     let ret_type = opt(preceded(ws(tag("->")), ws(ident())));
     let body = func_body();
-    (fn_kw, name, lparen, rparen, ret_type, body).map(|((((( _, name), _), _), ret_opt), body)| {
-        let ret: String = ret_opt
-            .map(|s: String| s)
-            .unwrap_or_else(|| "i64".to_string());
-        AstNode::FuncDef {
-            name,
-            generics: vec![],
-            params: vec![],
-            ret,
-            body,
-            attrs: vec![],
-            ret_expr: None,
-        }
-    })
+    map(
+        (fn_kw, name, lparen, rparen, ret_type, body),
+        |(fn_kw, name, lparen, rparen, ret_opt, body)| {
+            let ret: String = ret_opt.unwrap_or_else(|| "i64".to_string());
+            AstNode::FuncDef {
+                name,
+                generics: vec![],
+                params: vec![],
+                ret,
+                body,
+                attrs: vec![],
+                ret_expr: None,
+            }
+        },
+    )
 }
 
 /// Parses concept definition: concept Name { methods }.
@@ -142,10 +146,13 @@ fn parse_concept<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::er
     let kw = ws(tag("concept"));
     let name = ident();
     let body = delimited(ws(tag("{")), many0(ws(method_sig())), ws(tag("}")));
-    (kw, name, body).map(|(_, name, body)| AstNode::ConceptDef {
-        name,
-        methods: body,
-    })
+    map(
+        (kw, name, body),
+        |(kw, name, body)| AstNode::ConceptDef {
+            name,
+            methods: body,
+        },
+    )
 }
 
 /// Parses impl block: impl Concept for Ty { methods }.
@@ -155,11 +162,14 @@ fn parse_impl<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
     let for_kw = ws(tag("for"));
     let ty = ident();
     let body = delimited(ws(tag("{")), many0(ws(method_sig())), ws(tag("}")));
-    ((kw, concept), for_kw, ty, body).map(|((_, concept), _, ty, body)| AstNode::ImplBlock {
-        concept,
-        ty,
-        body,
-    })
+    map(
+        ((kw, concept), for_kw, ty, body),
+        |((kw, concept), for_kw, ty, body)| AstNode::ImplBlock {
+            concept,
+            ty,
+            body,
+        },
+    )
 }
 
 /// Entry point: Parses multiple top-level items (funcs/concepts/impls).
