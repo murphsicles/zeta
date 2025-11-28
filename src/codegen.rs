@@ -4,7 +4,7 @@
 //! Ensures stable ABI and TimingOwned constant-time guarantees.
 
 use crate::actor::{
-    host_channel_recv, host_channel_send, host_spawn,
+    host_channel_recv, host_channel_send, host_spawn, host_http_get, host_tls_handshake,
 };
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use inkwell::AddressSpace;
@@ -13,9 +13,8 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
-use inkwell::passes::{ModulePassManager, PassManagerBuilder};
-use inkwell::types::{BasicMetadataTypeEnum, BasicMetadataValueEnum, IntType};
-use inkwell::values::{BasicValueEnum, PointerValue};
+use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, IntType};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -32,29 +31,6 @@ extern "C" fn host_free(ptr: *mut std::ffi::c_void) {
     if !ptr.is_null() {
         unsafe { libc::free(ptr) }
     }
-}
-
-/// Simplified host HTTP GET: returns response length or -1 error.
-extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
-    use std::ffi::CStr;
-    let _url_str = if let Ok(_) = unsafe { CStr::from_ptr(url) }.to_str() {
-        // Dummy: always return 200
-        200i64
-    } else {
-        -1i64
-    };
-    _url_str
-}
-
-/// Simplified host TLS handshake: returns 0 success, -1 error.
-extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i64 {
-    use std::ffi::CStr;
-    let _host_str = if let Ok(_) = unsafe { CStr::from_ptr(host) }.to_str() {
-        0i64
-    } else {
-        -1i64
-    };
-    _host_str
 }
 
 /// LLVM codegen context for a module.
@@ -84,7 +60,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let module = context.create_module(name);
         let builder = context.create_builder();
         let i64_type = context.i64_type();
-        let ptr_type = i64_type.ptr_type(AddressSpace::default());
+        let ptr_type = context.ptr_type(AddressSpace::default());
 
         let void_type = context.void_type();
         let i64_fn_type = i64_type.fn_type(&[], false);
@@ -105,7 +81,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         module.add_function("spawn", spawn_type, Some(Linkage::External));
 
         // Std embeds: http_get(url: &str) -> i64 (status)
-        let char_ptr_type = context.i8_type().ptr_type(AddressSpace::default());
+        let char_ptr_type = context.ptr_type(AddressSpace::default());
         let http_type = i64_type.fn_type(&[char_ptr_type.into()], false);
         module.add_function("http_get", http_type, Some(Linkage::External));
 
@@ -134,8 +110,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
         for mir in mirs {
             if let Some(ref name) = mir.name {
                 // Fn type from #params (all i64 for now)
-                let param_types: Vec<inkwell::types::BasicTypeEnum<'ctx>> = mir.locals.iter().map(|_| self.i64_type.into()).take(4).collect();
-                let param_metadata: Vec<BasicMetadataTypeEnum<'ctx>> = param_types.iter().map(|t| t.into()).collect();
+                let param_types: Vec<BasicTypeEnum<'ctx>> = mir.locals.iter().map(|_| self.i64_type.into()).collect();
+                let param_metadata: Vec<BasicMetadataTypeEnum<'ctx>> = param_types.iter().map(|t| (*t).into()).collect();
                 let fn_type = self.i64_type.fn_type(&param_metadata, false);
                 let fn_val = self.module.add_function(name, fn_type, None);
                 let bb = self.context.append_basic_block(fn_val, "entry");
@@ -143,9 +119,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
                 // Alloc and init params
                 let params = fn_val.get_params();
-                for (i, (pname, &param_id)) in mir.locals.iter().enumerate() {
+                for (i, (&param_id, _)) in mir.locals.iter().enumerate() {
                     if i >= params.len() { break; }
-                    let alloca = self.builder.build_alloca(self.i64_type, pname).unwrap();
+                    let alloca = self.builder.build_alloca(self.i64_type, &format!("param_{}", i)).unwrap();
                     self.locals.insert(param_id, alloca);
                     self.builder.build_store(alloca, params[i]).unwrap();
                 }
@@ -166,16 +142,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
         // Gen main calling first user fn (assume "main")
         let user_main = self.module.get_function("main").expect("No main fn");
-        let main_type = self.context.void_type().fn_type(&[], false);
+        let main_type = self.i64_type.fn_type(&[], false);
         let main_fn = self.module.add_function("main", main_type, None);
         let bb = self.context.append_basic_block(main_fn, "entry");
         self.builder.position_at_end(bb);
 
         let call_res = self.builder.build_call(user_main, &[], "user_main_call").unwrap()
-            .try_as_basic_value().unwrap_or_else(|| self.i64_type.const_zero().into());
+            .try_as_basic_value().unwrap_or(self.i64_type.const_zero().into());
         self.builder.build_return(Some(&call_res));
-
-        self.builder.clear_insert_block();
     }
 
     fn gen_stmt(&mut self, stmt: &MirStmt) {
@@ -192,12 +166,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let arg_metadata: Vec<BasicMetadataValueEnum<'ctx>> = arg_vals.iter().map(|v| v.into()).collect();
                 let callee = self.module.get_function(func).unwrap_or_else(|| {
                     let param_tys: Vec<BasicTypeEnum<'ctx>> = arg_vals.iter().map(|v| v.get_type()).collect();
-                    let param_meta: Vec<BasicMetadataTypeEnum<'ctx>> = param_tys.iter().map(|t| t.into()).collect();
+                    let param_meta: Vec<BasicMetadataTypeEnum<'ctx>> = param_tys.iter().map(|t| (*t).into()).collect();
                     let fn_ty = self.i64_type.fn_type(&param_meta, false);
                     self.module.add_function(func, fn_ty, Some(Linkage::External))
                 });
                 let result = self.builder.build_call(callee, &arg_metadata, "call_res").unwrap()
-                    .try_as_basic_value().unwrap_or_else(|| self.i64_type.const_zero().into());
+                    .try_as_basic_value().unwrap_or(self.i64_type.const_zero().into());
 
                 let ptr = self.locals.entry(*dest).or_insert_with(|| self.builder.build_alloca(self.i64_type, "call_res").unwrap());
                 self.builder.build_store(*ptr, result).unwrap();
@@ -207,7 +181,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let arg_metadata: Vec<BasicMetadataValueEnum<'ctx>> = arg_vals.iter().map(|v| v.into()).collect();
                 let callee = self.module.get_function(func).unwrap_or_else(|| {
                     let param_tys: Vec<BasicTypeEnum<'ctx>> = arg_vals.iter().map(|v| v.get_type()).collect();
-                    let param_meta: Vec<BasicMetadataTypeEnum<'ctx>> = param_tys.iter().map(|t| t.into()).collect();
+                    let param_meta: Vec<BasicMetadataTypeEnum<'ctx>> = param_tys.iter().map(|t| (*t).into()).collect();
                     let fn_ty = self.context.void_type().fn_type(&param_meta, false);
                     self.module.add_function(func, fn_ty, Some(Linkage::External))
                 });
@@ -265,13 +239,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
         &mut self,
     ) -> Result<ExecutionEngine<'ctx>, Box<dyn std::error::Error>> {
         self.module.verify().map_err(|e| e.to_string())?;
-
-        // MLGO AI hooks: Custom pass manager for vectorization and branch prediction
-        let pm = ModulePassManager::create(&self.module);
-        let pmb = PassManagerBuilder::create();
-        pmb.set_optimization_level(OptimizationLevel::Aggressive);
-        pmb.populate_module_pass_manager(&pm);
-        pm.run_on(&self.module);
 
         let ee = self
             .module
