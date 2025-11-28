@@ -4,7 +4,7 @@
 //! Ensures stable ABI and TimingOwned constant-time guarantees.
 
 use crate::actor::{
-    host_channel_recv, host_channel_send, host_spawn,
+    host_channel_recv, host_channel_send, host_spawn, host_http_get, host_tls_handshake,
 };
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use inkwell::AddressSpace;
@@ -14,8 +14,8 @@ use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::passes::PassManager;
-use inkwell::types::IntType;
-use inkwell::values::{BasicValueEnum, PointerValue};
+use inkwell::types::BasicType;
+use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -34,29 +34,6 @@ extern "C" fn host_free(ptr: *mut std::ffi::c_void) {
     }
 }
 
-/// Simplified host HTTP GET: returns response length or -1 error.
-extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
-    use std::ffi::CStr;
-    let _url_str = if let Ok(_) = unsafe { CStr::from_ptr(url) }.to_str() {
-        // Dummy: always return 200
-        200i64
-    } else {
-        -1i64
-    };
-    _url_str
-}
-
-/// Simplified host TLS handshake: returns 0 success, -1 error.
-extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i64 {
-    use std::ffi::CStr;
-    let _host_str = if let Ok(_) = unsafe { CStr::from_ptr(host) }.to_str() {
-        0i64
-    } else {
-        -1i64
-    };
-    _host_str
-}
-
 /// LLVM codegen context for a module.
 pub struct LLVMCodegen<'ctx> {
     context: &'ctx Context,
@@ -65,7 +42,7 @@ pub struct LLVMCodegen<'ctx> {
     /// IR builder for instructions.
     builder: Builder<'ctx>,
     /// i64 type for Zeta ints.
-    i64_type: IntType<'ctx>,
+    i64_type: inkwell::types::IntType<'ctx>,
     #[allow(dead_code)]
     /// Pointer type for heap ops.
     ptr_type: inkwell::types::PointerType<'ctx>,
@@ -74,7 +51,7 @@ pub struct LLVMCodegen<'ctx> {
     /// TBAA root for constant-time metadata.
     tbaa_const_time: inkwell::values::MetadataValue<'ctx>,
     /// Generated function map: name -> LLVM fn.
-    fns: HashMap<String, inkwell::values::FunctionValue<'ctx>>,
+    fns: HashMap<String, FunctionValue<'ctx>>,
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -85,7 +62,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let builder = context.create_builder();
         let i64_type = context.i64_type();
         let ptr_type = context.ptr_type(AddressSpace::default());
-        let char_ptr_type = context.ptr_type(AddressSpace::default());
 
         let void_type = context.void_type();
         let i64_fn_type = i64_type.fn_type(&[], false);
@@ -94,22 +70,21 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let free_type = void_type.fn_type(&[ptr_type.into()], false);
         module.add_function("free", free_type, Some(Linkage::External));
 
-        // Actor intrinsics - simplified to i64 for chan_id
+        // Actor intrinsics
         let send_type = void_type.fn_type(&[i64_type.into(), i64_type.into()], false);
         module.add_function("channel_send", send_type, Some(Linkage::External));
 
         let recv_type = i64_type.fn_type(&[i64_type.into()], false);
         module.add_function("channel_recv", recv_type, Some(Linkage::External));
 
-        // Spawn intrinsic: i64 spawn(i64 func_id) -> i64 chan_id
         let spawn_type = i64_type.fn_type(&[i64_type.into()], false);
         module.add_function("spawn", spawn_type, Some(Linkage::External));
 
-        // Std embeds: http_get(url: &str) -> i64 (status)
+        // Std embeds
+        let char_ptr_type = context.ptr_type(AddressSpace::default());
         let http_type = i64_type.fn_type(&[char_ptr_type.into()], false);
         module.add_function("http_get", http_type, Some(Linkage::External));
 
-        // TLS handshake(host: &str) -> i64 (0 ok)
         let tls_type = i64_type.fn_type(&[char_ptr_type.into()], false);
         module.add_function("tls_handshake", tls_type, Some(Linkage::External));
 
@@ -132,24 +107,27 @@ impl<'ctx> LLVMCodegen<'ctx> {
     /// Generates LLVM IR for a list of MIRs (one per FuncDef), creates entry main if needed.
     pub fn gen_mirs(&mut self, mirs: &[Mir]) {
         for mir in mirs {
-            if let Some(name) = mir.locals.keys().next() { // Use first local as fn name proxy; refine later
-                let param_types: Vec<inkwell::types::BasicTypeEnum> = vec![self.i64_type.into()]; // Assume i64 params for now
+            if let Some(ref name) = mir.name {
+                // Fn type from #params (all i64 for now)
+                let param_types: Vec<inkwell::types::BasicTypeEnum<'ctx>> = mir.locals.len().min(4).times(|_| self.i64_type.into()).collect(); // Cap at 4
                 let fn_type = self.i64_type.fn_type(&param_types, false);
-                let function = self.module.add_function(&name, fn_type, None);
+                let function = self.module.add_function(name, fn_type, None);
                 self.fns.insert(name.clone(), function);
 
                 let entry = self.context.append_basic_block(function, "entry");
                 self.builder.position_at_end(entry);
 
-                // Init locals
+                // Alloc all locals
                 for (&id, _) in &mir.locals {
-                    self.locals.insert(id, self.builder.build_alloca(self.i64_type, &format!("loc_{id}")).unwrap());
+                    self.locals.insert(id, self.builder.build_alloca(self.i64_type, &format!("loc_{}", id)).unwrap());
                 }
 
-                // Store param to first local if params exist
-                if let Some(&first_local) = mir.locals.values().next() {
-                    let param = function.get_nth_param(0).unwrap().into_int_value();
-                    self.builder.build_store(self.locals[&first_local], param.into()).unwrap();
+                // Init params from args (simplified: first N locals = params)
+                let param_locals: Vec<_> = mir.locals.iter().take(param_types.len()).map(|(&k, _)| k).collect();
+                for (pos, &param_id) in param_locals.iter().enumerate() {
+                    if let Some(arg) = function.get_nth_param(pos as u32) {
+                        self.builder.build_store(self.locals[&param_id], arg.into()).unwrap();
+                    }
                 }
 
                 // Generate statements
@@ -157,64 +135,58 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     self.gen_stmt(stmt);
                 }
 
-                // Default return if no explicit
+                // Default return
                 if !mir.stmts.iter().any(|s| matches!(s, MirStmt::Return { .. })) {
                     self.builder.build_return(Some(&self.i64_type.const_zero())).unwrap();
                 }
 
-                self.locals.clear(); // Reset for next fn
+                self.locals.clear(); // Reset
             }
         }
 
-        // Generate entry main calling user main
+        // Entry main: call user main if exists
         let main_type = self.i64_type.fn_type(&[], false);
         let entry_main = self.module.add_function("main", main_type, None);
         let entry_bb = self.context.append_basic_block(entry_main, "entry");
         self.builder.position_at_end(entry_bb);
 
         if let Some(user_main) = self.fns.get("main") {
-            let call_res = self.builder.build_call(*user_main, &[], "user_main_call").unwrap().try_as_basic_value().left().unwrap_or_else(|| self.i64_type.const_zero().into());
+            let call_res = self.builder.build_call(*user_main, &[], "user_main_call").unwrap()
+                .try_as_basic_value().left().unwrap_or_else(|| self.i64_type.const_zero().into());
             self.builder.build_return(Some(&call_res)).unwrap();
         } else {
             self.builder.build_return(Some(&self.i64_type.const_zero())).unwrap();
         }
     }
 
-    /// Generates IR for a MIR statement.
     fn gen_stmt(&mut self, stmt: &MirStmt) {
         match stmt {
             MirStmt::Assign { lhs, rhs } => {
                 let val = self.gen_expr(rhs);
-                let ptr = self.locals.entry(*lhs).or_insert_with(|| {
-                    self.builder.build_alloca(self.i64_type, &format!("loc_{lhs}")).unwrap()
-                });
-                self.builder.build_store(*ptr, val).unwrap();
+                let ptr = self.locals.entry(*lhs).or_insert_with(|| self.builder.build_alloca(self.i64_type, &format!("loc_{}", lhs)).unwrap());
+                self.builder.build_store(ptr, val).unwrap();
             }
             MirStmt::Call { func, args, dest } => {
-                let arg_vals: Vec<BasicValueEnum> = args.iter().map(|&id| self.load_local(id)).collect();
-                let arg_refs: &[BasicValueEnum] = &arg_vals;
+                let arg_vals: Vec<BasicValueEnum<'ctx>> = args.iter().map(|&id| self.load_local(id)).collect();
                 let callee = self.module.get_function(func).unwrap_or_else(|| {
-                    // Declare if missing (for intrinsics/user fns)
                     let param_tys: Vec<_> = arg_vals.iter().map(|v| v.get_type()).collect();
                     let fn_ty = self.i64_type.fn_type(&param_tys, false);
                     self.module.add_function(func, fn_ty, Some(Linkage::External))
                 });
-                let result = self.builder.build_call(callee, arg_refs, "call_res").unwrap().try_as_basic_value().left().unwrap_or_else(|| self.i64_type.const_zero().into());
+                let result = self.builder.build_call(callee, &arg_vals, "call_res").unwrap()
+                    .try_as_basic_value().left().unwrap_or_else(|| self.i64_type.const_zero().into());
 
-                let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                    self.builder.build_alloca(self.i64_type, "call_res").unwrap()
-                });
-                self.builder.build_store(*ptr, result).unwrap();
+                let ptr = self.locals.entry(*dest).or_insert_with(|| self.builder.build_alloca(self.i64_type, "call_res").unwrap());
+                self.builder.build_store(ptr, result).unwrap();
             }
             MirStmt::VoidCall { func, args } => {
-                let arg_vals: Vec<BasicValueEnum> = args.iter().map(|&id| self.load_local(id)).collect();
-                let arg_refs: &[BasicValueEnum] = &arg_vals;
+                let arg_vals: Vec<BasicValueEnum<'ctx>> = args.iter().map(|&id| self.load_local(id)).collect();
                 let callee = self.module.get_function(func).unwrap_or_else(|| {
                     let param_tys: Vec<_> = arg_vals.iter().map(|v| v.get_type()).collect();
                     let fn_ty = self.context.void_type().fn_type(&param_tys, false);
                     self.module.add_function(func, fn_ty, Some(Linkage::External))
                 });
-                self.builder.build_call(callee, arg_refs, "").unwrap();
+                self.builder.build_call(callee, &arg_vals, "").unwrap();
             }
             MirStmt::SemiringFold { op, values, result } => {
                 let mut acc = self.load_local(values[0]).into_int_value();
@@ -225,19 +197,17 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         SemiringOp::Mul => self.builder.build_int_mul(acc, rhs, "fold_mul").unwrap(),
                     };
                 }
-                let ptr = self.locals.entry(*result).or_insert_with(|| {
-                    self.builder.build_alloca(self.i64_type, "fold_res").unwrap()
-                });
-                self.builder.build_store(*ptr, acc).unwrap();
+                let ptr = self.locals.entry(*result).or_insert_with(|| self.builder.build_alloca(self.i64_type, "fold_res").unwrap());
+                self.builder.build_store(ptr, acc).unwrap();
             }
             MirStmt::Return { val } => {
                 let v = self.load_local(*val);
                 self.builder.build_return(Some(&v)).unwrap();
             }
+            _ => {} // ParamInit handled in gen_mirs
         }
     }
 
-    /// Generates a BasicValue from a MIR expression.
     fn gen_expr(&self, expr: &MirExpr) -> BasicValueEnum<'ctx> {
         match expr {
             MirExpr::Var(id) => self.load_local(*id),
@@ -247,10 +217,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
     }
 
-    /// Loads a local variable from alloca slot.
     fn load_local(&self, id: u32) -> BasicValueEnum<'ctx> {
         let ptr = self.locals[&id];
-        self.builder.build_load(self.i64_type, ptr, &format!("load_{id}")).unwrap()
+        self.builder.build_load(self.i64_type, ptr, &format!("load_{}", id)).unwrap()
     }
 
     /// Verifies module, runs passes, creates JIT engine, maps host functions.
