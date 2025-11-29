@@ -13,9 +13,9 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
-use inkwell::passes::{PassManager, PassManagerBuilder};
+use inkwell::passes::ModulePassManager;
 use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, IntType};
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue, ValueKind};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -135,14 +135,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
             if let Some(ref name) = mir.name {
                 // Fn type from #params (all i64 for now)
                 let param_types: Vec<BasicTypeEnum<'ctx>> = mir.locals.iter().map(|_| self.i64_type.into()).take(4).collect();
-                let param_meta_types: Vec<BasicMetadataTypeEnum<'ctx>> = param_types.iter().map(|t| t.into()).collect();
+                let param_meta_types: Vec<BasicMetadataTypeEnum<'ctx>> = param_types.iter().map(|t| (*t).into()).collect();
                 let fn_type = self.i64_type.fn_type(&param_meta_types, false);
                 let fn_val = self.module.add_function(name, fn_type, None);
                 let basic_block = self.context.append_basic_block(fn_val, "entry");
                 self.builder.position_at_end(basic_block);
 
                 // Alloc locals
-                for (&id, _) in &mir.locals {
+                for (_, &id) in &mir.locals {
                     let alloca = self.builder.build_alloca(self.i64_type, &format!("local_{}", id)).unwrap();
                     self.locals.insert(id, alloca);
                 }
@@ -173,9 +173,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let fn_ty = self.i64_type.fn_type(&param_tys, false);
                     self.module.add_function(func, fn_ty, Some(Linkage::External))
                 });
-                let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> = arg_vals.iter().map(|v| v.into()).collect();
+                let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> = arg_vals.iter().map(|v| (*v).into()).collect();
                 let call_site = self.builder.build_call(callee, &arg_meta_vals, "call_res").unwrap();
-                let call_res = call_site.try_as_basic_value().unwrap_or(self.i64_type.const_zero().into());
+                let call_res = if let Some(bv) = call_site.try_as_basic_value() {
+                    bv
+                } else {
+                    self.i64_type.const_zero().into()
+                };
 
                 let ptr = self.locals.entry(*dest).or_insert_with(|| self.builder.build_alloca(self.i64_type, "call_res").unwrap());
                 self.builder.build_store(*ptr, call_res).unwrap();
@@ -187,9 +191,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let fn_ty = self.context.void_type().fn_type(&param_tys, false);
                     self.module.add_function(func, fn_ty, Some(Linkage::External))
                 });
-                let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> = arg_vals.iter().map(|v| v.into()).collect();
+                let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> = arg_vals.iter().map(|v| (*v).into()).collect();
                 let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
-                let _result = call_site.try_as_basic_value().unwrap_or(self.i64_type.const_zero().into());
+                let _result = if let Some(bv) = call_site.try_as_basic_value() {
+                    bv
+                } else {
+                    self.i64_type.const_zero().into()
+                };
             }
             MirStmt::SemiringFold { op, values, result } => {
                 // Fold multiple values with semiring op (add/mul chain).
@@ -245,7 +253,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.module.verify().map_err(|e| e.to_string())?;
 
         // MLGO AI hooks: Custom pass manager for vectorization and branch prediction
-        let pm = PassManager::create(&self.module);
+        let pm = ModulePassManager::create(&self.module);
         pm.run_on(&self.module);
 
         let ee = self
