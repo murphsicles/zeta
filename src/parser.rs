@@ -7,7 +7,7 @@ use crate::ast::AstNode;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while1};
 use nom::character::complete::{alpha1, alphanumeric0, i64 as nom_i64, multispace0};
-use nom::combinator::{map, opt, recursive, value};
+use nom::combinator::{map, opt, value};
 use nom::multi::{many0, many1};
 use nom::sequence::{delimited, preceded, terminated};
 use nom::{IResult, Parser};
@@ -83,7 +83,7 @@ fn parse_base_expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::
 
 /// Parses add: base + base (as binary add).
 fn parse_add<'a>() -> impl Parser<&'a str, Output = ((), AstNode), Error = nom::error::Error<&'a str>> {
-    ws(tag("+")).and(parse_base_expr())
+    value((), ws(tag("+"))).and(parse_base_expr())
 }
 
 /// Parses call: (args) base.
@@ -118,7 +118,7 @@ fn parse_path_call<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::
 
 /// Parses expression recursively.
 fn parse_expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    recursive(|parse_expr| {
+    nom::combinator::recursive(|parse_expr| {
         let base_or_add = parse_base_expr()
             .and(opt(parse_add()))
             .map(|(left, opt_add)| {
@@ -212,7 +212,7 @@ fn parse_func_body<'a>() -> impl Parser<&'a str, Output = Vec<AstNode>, Error = 
 
 /// Parses function: fn name (params) -> ret { body }.
 fn parse_func<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    let parse_fn_kw = ws(tag("fn"));
+    let parse_fn_kw = value((), ws(tag("fn")));
     let parse_name = parse_ident();
     let parse_param_pair = ws(parse_ident())
         .and(ws(tag(":")))
@@ -241,7 +241,7 @@ fn parse_func<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
 
 /// Parses concept: concept name { methods }.
 fn parse_concept<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    let parse_kw = ws(tag("concept"));
+    let parse_kw = value((), ws(tag("concept")));
     let parse_name = parse_ident();
     let parse_body = delimited(ws(tag("{")), many0(ws(parse_method_sig())), ws(tag("}")));
 
@@ -256,9 +256,9 @@ fn parse_concept<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::er
 
 /// Parses impl: impl concept for ty { methods }.
 fn parse_impl<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    let parse_kw = ws(tag("impl"));
+    let parse_kw = value((), ws(tag("impl")));
     let parse_concept = parse_ident();
-    let parse_for_kw = ws(tag("for"));
+    let parse_for_kw = value((), ws(tag("for")));
     let parse_ty = parse_ident();
     let parse_body = delimited(ws(tag("{")), many0(ws(parse_method_sig())), ws(tag("}")));
 
@@ -270,7 +270,7 @@ fn parse_impl<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
 
 /// Parses enum: enum name { variants }.
 fn parse_enum<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    let parse_kw = ws(tag("enum"));
+    let parse_kw = value((), ws(tag("enum")));
     let parse_name = parse_ident();
     let parse_variants = delimited(ws(tag("{")), many0(ws(parse_ident())), ws(tag("}")));
 
@@ -285,7 +285,7 @@ fn parse_enum<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
 
 /// Parses struct: struct name { fields }.
 fn parse_struct<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    let parse_kw = ws(tag("struct"));
+    let parse_kw = value((), ws(tag("struct")));
     let parse_name = parse_ident();
     let parse_field = ws(parse_ident())
         .and(ws(tag(":")))
