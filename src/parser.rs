@@ -7,7 +7,7 @@ use crate::ast::AstNode;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while1};
 use nom::character::complete::{alpha1, alphanumeric0, i64 as nom_i64, multispace0};
-use nom::combinator::{map, opt, recursive, value};
+use nom::combinator::{map, opt, value};
 use nom::multi::{many0, many1};
 use nom::sequence::{delimited, preceded};
 use nom::{IResult, Parser};
@@ -72,76 +72,66 @@ fn method_sig<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
 
 /// Parses expressions: lit/var/str + optional + lit/var (as add call) | TimingOwned | call | path::call.
 fn expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    recursive(|expr| {
+    let rec_expr = nom::combinator::recursive(|expr| {
         let timing_owned = map(
-            ws(tag("TimingOwned"))
-                .and(ws(delimited(tag("<"), ident(), tag(">"))))
-                .and(ws(tag("(")))
-                .and(expr)
-                .and(ws(tag(")"))),
-            |((((kw, ty), open), inner), close)| AstNode::TimingOwned {
+            (
+                ws(tag("TimingOwned")),
+                ws(delimited(tag("<"), ident(), tag(">"))),
+                ws(tag("(")),
+                ws(expr),
+                ws(tag(")")),
+            ),
+            |(_, ty, _, inner, _)| AstNode::TimingOwned {
                 ty,
                 inner: Box::new(inner),
             },
         );
-
-        let atom = alt((literal(), string_lit(), variable(), timing_owned));
-
+        let base = alt((literal(), string_lit(), variable(), timing_owned));
+        let add = ws(tag("+")).and(base);
         let path_call = map(
-            path()
-                .and(ws(tag("::")))
-                .and(ident())
-                .and(delimited(tag("("), many0(ws(expr)), tag(")"))),
-            |(((path, _), method), args)| AstNode::PathCall {
+            (path(), ws(tag("::")), ident(), delimited(tag("("), many0(ws(expr)), tag(")"))),
+            |(path, _, method, args)| AstNode::PathCall {
                 path,
                 method,
                 args,
             },
         );
-
-        let call = map(
-            delimited(tag("("), many0(ws(expr)), tag(")"))
-                .and(atom),
-            |(args, recv)| AstNode::Call {
-                receiver: Some(Box::new(recv)),
-                method: "call".to_string(),
-                args,
-                type_args: vec![],
-            },
-        );
-
-        let primary = map(
-            atom
-                .and(opt(ws(tag("+")).and(expr))),
-            |(left, opt_add)| {
-                if let Some((_, right)) = opt_add {
-                    AstNode::Call {
-                        receiver: Some(Box::new(left)),
-                        method: "add".to_string(),
-                        args: vec![right],
-                        type_args: vec![],
-                    }
-                } else {
-                    left
+        let call = delimited(
+            tag("("),
+            many0(ws(expr)),
+            tag(")"),
+        ).and(base).map(|(args, recv)| AstNode::Call {
+            receiver: Some(Box::new(recv)),
+            method: "call".to_string(),
+            args,
+            type_args: vec![],
+        });
+        alt((path_call, call, base.and(opt(add)).map(|(left, opt_add)| {
+            if let Some((_, right)) = opt_add {
+                AstNode::Call {
+                    receiver: Some(Box::new(left)),
+                    method: "add".to_string(),
+                    args: vec![right],
+                    type_args: vec![],
                 }
-            },
-        );
-
-        alt((path_call, call, primary))
-    })
+            } else {
+                left
+            }
+        })))
+    });
+    rec_expr
 }
 
-/// Parses an assign statement: ident = expr;.
 fn assign_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     map(
-        (ws(ident()), ws(tag("=")), ws(expr()), ws(tag(";"))),
+        (ws(ident()), ws(tag("=")), ws(expr), ws(tag(";"))),
         |(name, _, expr, _)| AstNode::Assign(name, Box::new(expr)),
     )
 }
 
 /// Parses a defer statement: defer expr;.
 fn defer_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    map((ws(tag("defer")), ws(expr()), ws(tag(";"))), |(_, e, _)| {
+    map((ws(tag("defer")), ws(expr), ws(tag(";"))), |(_, e, _)| {
         AstNode::Defer(Box::new(e))
     })
 }
@@ -150,7 +140,7 @@ fn defer_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
 fn spawn_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     let kw = ws(tag("spawn"));
     let func = ident();
-    let args = delimited(tag("("), many0(ws(expr())), tag(")"));
+    let args = delimited(tag("("), many0(ws(expr)), tag(")"));
     map((kw, func, args, ws(tag(";"))), |(_, func, args, _)| AstNode::Spawn {
         func,
         args,
@@ -159,13 +149,13 @@ fn spawn_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
 
 /// Parses a statement: assign | spawn | defer | expr;.
 fn stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    alt((assign_stmt(), spawn_stmt(), defer_stmt(), (ws(expr()), ws(tag(";"))).map(|(e, _)| e)))
+    alt((assign_stmt(), spawn_stmt(), defer_stmt(), (ws(expr), ws(tag(";"))).map(|(e, _)| e)))
 }
 
 /// Parses function body: { stmt* }.
 fn func_body<'a>() -> impl Parser<&'a str, Output = Vec<AstNode>, Error = nom::error::Error<&'a str>>
 {
-    delimited(ws(tag("{")), many0(ws(stmt())), ws(tag("}")))
+    delimited(ws(tag("{")), many0(ws(stmt)), ws(tag("}")))
 }
 
 /// Parses a full function definition: fn name(param: i64) -> ret { body }.
@@ -198,7 +188,7 @@ fn parse_concept<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::er
 {
     let kw = ws(tag("concept"));
     let name = ident();
-    let body = delimited(ws(tag("{")), many0(ws(method_sig())), ws(tag("}")));
+    let body = delimited(ws(tag("{")), many0(ws(method_sig)), ws(tag("}")));
     map((kw, name, body), |(_, name, body)| AstNode::ConceptDef {
         name,
         methods: body,
@@ -211,7 +201,7 @@ fn parse_impl<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
     let concept = ident();
     let for_kw = ws(tag("for"));
     let ty = ident();
-    let body = delimited(ws(tag("{")), many0(ws(method_sig())), ws(tag("}")));
+    let body = delimited(ws(tag("{")), many0(ws(method_sig)), ws(tag("}")));
     map(
         (kw, concept, for_kw, ty, body),
         |(_, concept, _, ty, body)| AstNode::ImplBlock { concept, ty, body },
@@ -222,7 +212,7 @@ fn parse_impl<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
 fn parse_enum<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     let kw = ws(tag("enum"));
     let name = ident();
-    let variants = delimited(ws(tag("{")), many0(ws(ident())), ws(tag("}")));
+    let variants = delimited(ws(tag("{")), many0(ws(ident)), ws(tag("}")));
     map((kw, name, variants), |(_, name, variants)| AstNode::EnumDef {
         name,
         variants,
@@ -233,7 +223,7 @@ fn parse_enum<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
 fn parse_struct<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     let kw = ws(tag("struct"));
     let name = ident();
-    let fields = delimited(ws(tag("{")), many0(ws(ident()).and(ws(tag(":"))).and(ws(ident()))), ws(tag("}")));
+    let fields = delimited(ws(tag("{")), many0(ws(ident()).and(ws(tag(":"))).and(ws(ident))), ws(tag("}")));
     map((kw, name, fields), |(_, name, fields)| AstNode::StructDef {
         name,
         fields: fields.into_iter().map(|((n, _), t)| (n, t)).collect(),
