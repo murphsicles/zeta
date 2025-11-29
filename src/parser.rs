@@ -9,13 +9,13 @@ use nom::bytes::complete::{tag, take_while1};
 use nom::character::complete::{alpha1, alphanumeric0, i64 as nom_i64, multispace0};
 use nom::combinator::{map, opt, recursive, value};
 use nom::multi::{many0, many1};
-use nom::sequence::{delimited, preceded, terminated};
+use nom::sequence::{delimited, preceded, terminated, tuple};
 use nom::{IResult, Parser};
 
 /// Whitespace wrapper for parsers.
-fn ws<'a, O, E: nom::error::ParseError<&'a str>>(
-    inner: impl Parser<&'a str, O, E>,
-) -> impl Parser<&'a str, O, E> {
+fn ws<'a, O>(
+    inner: impl Parser<&'a str, Output = O, Error = nom::error::Error<&'a str>>,
+) -> impl Parser<&'a str, Output = O, Error = nom::error::Error<&'a str>> {
     delimited(multispace0, inner, multispace0)
 }
 
@@ -89,7 +89,8 @@ fn parse_add<'a>() -> impl Parser<&'a str, ((), AstNode), nom::error::Error<&'a 
 /// Parses call: (args) base.
 fn parse_call<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>> {
     map(
-        delimited(tag("("), many0(ws(parse_expr())), tag(")")).and(parse_base_expr()),
+        delimited(tag("("), many0(ws(parse_expr())), tag(")")
+            .and(parse_base_expr()),
         |(args, recv)| AstNode::Call {
             receiver: Some(Box::new(recv)),
             method: "call".to_string(),
