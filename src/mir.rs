@@ -105,7 +105,13 @@ impl MirGen {
                             let mut arg_ids = vec![];
                             for arg in args.iter() {
                                 if let AstNode::Var(ref v) = *arg {
-                                    let id = self.lookup_or_alloc(v);
+                                    let id = *self
+                                        .locals
+                                        .entry(v.clone())
+                                        .or_insert_with(|| {
+                                            let id = self.next_id();
+                                            id
+                                        });
                                     arg_ids.push(id);
                                 }
                             }
@@ -261,13 +267,7 @@ impl MirGen {
     }
 
     fn lookup_or_alloc(&mut self, name: &str) -> u32 {
-        if let Some(&id) = self.locals.get(name) {
-            id
-        } else {
-            let id = self.next_id();
-            self.locals.insert(name.to_string(), id);
-            id
-        }
+        *self.locals.entry(name.to_string()).or_insert_with(|| self.next_id())
     }
 
     fn next_id(&mut self) -> u32 {
