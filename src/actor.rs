@@ -85,17 +85,25 @@ pub unsafe extern "C" fn host_spawn(_func_id: i64) -> i64 {
 #[no_mangle]
 pub unsafe extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
     use std::ffi::CStr;
-    let _url_str = unsafe { CStr::from_ptr(url).to_str().map_or("", |s| s) };
-    // Dummy: always return 200
-    200i64
+    let _url_str = if let Ok(s) = unsafe { CStr::from_ptr(url) }.to_str() {
+        // Dummy: always return 200
+        200i64
+    } else {
+        -1i64
+    };
+    _url_str
 }
 
 /// Simplified host TLS handshake: returns 0 success, -1 error.
 #[no_mangle]
 pub unsafe extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i64 {
     use std::ffi::CStr;
-    let _host_str = unsafe { CStr::from_ptr(host).to_str().map_or("", |s| s) };
-    0i64
+    let _host_str = if let Ok(s) = unsafe { CStr::from_ptr(host) }.to_str() {
+        0i64
+    } else {
+        -1i64
+    };
+    _host_str
 }
 
 /// Actor representation: channel + entry function.
@@ -135,12 +143,12 @@ impl Scheduler {
     /// Worker loop: steal and run actors, park if idle.
     fn worker_loop(self: Arc<Self>) {
         loop {
-            let actor_opt = {
+            let actor = {
                 let mut actors = self.actors.lock().unwrap();
                 actors.pop_front()
             };
 
-            if let Some(actor) = actor_opt {
+            if let Some(actor) = actor {
                 // Run actor function.
                 (actor.func)(actor.chan);
             } else {
