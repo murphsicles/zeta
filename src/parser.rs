@@ -7,7 +7,7 @@ use crate::ast::AstNode;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while1};
 use nom::character::complete::{alpha1, alphanumeric0, i64 as nom_i64, multispace0};
-use nom::combinator::{map, opt, value, recursive};
+use nom::combinator::{map, opt, value};
 use nom::multi::{many0, many1};
 use nom::sequence::{delimited, preceded, terminated};
 use nom::{IResult, Parser};
@@ -127,23 +127,21 @@ fn parse_path_call<'a>()
 
 /// Parses expression recursively.
 fn parse_expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    recursive(|parse_expr| {
-        let base_or_add = parse_base_expr()
-            .and(opt(parse_add()))
-            .map(|(left, opt_add)| {
-                if let Some((_, right)) = opt_add {
-                    AstNode::Call {
-                        receiver: Some(Box::new(left)),
-                        method: "add".to_string(),
-                        args: vec![right],
-                        type_args: vec![],
-                    }
-                } else {
-                    left
+    let base_or_add = parse_base_expr()
+        .and(opt(parse_add()))
+        .map(|(left, opt_add)| {
+            if let Some((_, right)) = opt_add {
+                AstNode::Call {
+                    receiver: Some(Box::new(left)),
+                    method: "add".to_string(),
+                    args: vec![right],
+                    type_args: vec![],
                 }
-            });
-        alt((parse_path_call(), parse_call(), base_or_add))
-    })
+            } else {
+                left
+            }
+        });
+    alt((parse_path_call(), parse_call(), base_or_add))
 }
 
 /// Parses defer: defer expr;.
@@ -228,6 +226,22 @@ fn parse_func<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
                 ret_expr: None,
             }
         },
+    )
+}
+
+/// Parses method sig for concept/impl.
+fn parse_method_sig<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    let parse_name = parse_ident();
+    let parse_params = delimited(tag("("), many0(parse_ident()), tag(")"));
+    let parse_ret = preceded(ws(tag("->")), ws(parse_ident()));
+
+    map(
+        (parse_name, parse_params, parse_ret),
+        | (name, params, ret) | AstNode::Method {
+            name,
+            params: params.into_iter().map(|p| (p.clone(), "i64".to_string())).collect(),
+            ret,
+        }
     )
 }
 
