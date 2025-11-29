@@ -20,24 +20,24 @@ fn ws<'a, O>(
 }
 
 /// Parses an identifier (alpha + alphanum).
-fn parse_ident<'a>() -> impl Parser<&'a str, String, nom::error::Error<&'a str>> {
+fn parse_ident<'a>() -> impl Parser<&'a str, Output = String, Error = nom::error::Error<&'a str>> {
     map(alpha1.and(alphanumeric0), |(first, rest): (&str, &str)| {
         first.to_string() + rest
     })
 }
 
 /// Parses keyword.
-fn parse_keyword<'a>(kw: &'static str) -> impl Parser<&'a str, (), nom::error::Error<&'a str>> {
+fn parse_keyword<'a>(kw: &'static str) -> impl Parser<&'a str, Output = (), Error = nom::error::Error<&'a str>> {
     value((), ws(tag(kw)))
 }
 
 /// Parses an integer literal.
-fn parse_literal<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>> {
+fn parse_literal<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     map(nom_i64, AstNode::Lit)
 }
 
 /// Parses string literal (r#"..."# stub as "..." for now).
-fn parse_string_lit<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>> {
+fn parse_string_lit<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     map(
         delimited(tag("\""), take_while1(|c| c != '"'), tag("\"")),
         |s: &str| AstNode::StringLit(s.to_string()),
@@ -45,17 +45,17 @@ fn parse_string_lit<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a
 }
 
 /// Parses a variable reference.
-fn parse_variable<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>> {
+fn parse_variable<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     map(parse_ident(), AstNode::Var)
 }
 
 /// Parses path: A::B.
-fn parse_path<'a>() -> impl Parser<&'a str, Vec<String>, nom::error::Error<&'a str>> {
+fn parse_path<'a>() -> impl Parser<&'a str, Output = Vec<String>, Error = nom::error::Error<&'a str>> {
     map(many1(preceded(opt(tag("::")), parse_ident())), |ids: Vec<String>| ids)
 }
 
 /// Parses TimingOwned<ty>(inner).
-fn parse_timing_owned<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>> {
+fn parse_timing_owned<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     map(
         (
             ws(tag("TimingOwned")),
@@ -72,7 +72,7 @@ fn parse_timing_owned<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&
 }
 
 /// Parses base expression: lit | var | str | TimingOwned.
-fn parse_base_expr<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>> {
+fn parse_base_expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     alt((
         parse_literal(),
         parse_string_lit(),
@@ -82,12 +82,12 @@ fn parse_base_expr<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a 
 }
 
 /// Parses add: base + base (as binary add).
-fn parse_add<'a>() -> impl Parser<&'a str, ((), AstNode), nom::error::Error<&'a str>> {
+fn parse_add<'a>() -> impl Parser<&'a str, Output = ((), AstNode), Error = nom::error::Error<&'a str>> {
     ws(tag("+")).and(parse_base_expr())
 }
 
 /// Parses call: (args) base.
-fn parse_call<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>> {
+fn parse_call<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     map(
         delimited(tag("("), many0(ws(parse_expr())), tag(")")).and(parse_base_expr()),
         |(args, recv)| AstNode::Call {
@@ -100,7 +100,7 @@ fn parse_call<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>>
 }
 
 /// Parses path call: path :: method (args).
-fn parse_path_call<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>> {
+fn parse_path_call<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     map(
         (
             parse_path(),
@@ -117,7 +117,7 @@ fn parse_path_call<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a 
 }
 
 /// Parses expression recursively.
-fn parse_expr<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>> {
+fn parse_expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     recursive(|parse_expr| {
         let base_or_add = parse_base_expr()
             .and(opt(parse_add()))
@@ -139,7 +139,7 @@ fn parse_expr<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>>
 }
 
 /// Parses method signature: name(params) -> ret.
-fn parse_method_sig<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>> {
+fn parse_method_sig<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     let parse_param_pair = ws(parse_ident())
         .and(ws(tag(":")))
         .and(ws(parse_ident()))
@@ -163,7 +163,7 @@ fn parse_method_sig<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a
 }
 
 /// Parses assign: ident = expr;.
-fn parse_assign_stmt<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>> {
+fn parse_assign_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     map(
         (
             ws(parse_ident()),
@@ -176,7 +176,7 @@ fn parse_assign_stmt<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'
 }
 
 /// Parses defer: defer expr;.
-fn parse_defer_stmt<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>> {
+fn parse_defer_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     map(
         (ws(tag("defer")), ws(parse_expr()), ws(tag(";"))),
         |(_, e, _)| AstNode::Defer(Box::new(e)),
@@ -184,7 +184,7 @@ fn parse_defer_stmt<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a
 }
 
 /// Parses spawn: spawn ident (args);.
-fn parse_spawn_stmt<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>> {
+fn parse_spawn_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     let parse_kw = ws(tag("spawn"));
     let parse_func = parse_ident();
     let parse_args = delimited(tag("("), many0(ws(parse_expr())), tag(")"));
@@ -196,7 +196,7 @@ fn parse_spawn_stmt<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a
 }
 
 /// Parses statement: assign | spawn | defer | expr;.
-fn parse_stmt<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>> {
+fn parse_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     alt((
         parse_assign_stmt(),
         parse_spawn_stmt(),
@@ -206,12 +206,12 @@ fn parse_stmt<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>>
 }
 
 /// Parses function body: { stmt* }.
-fn parse_func_body<'a>() -> impl Parser<&'a str, Vec<AstNode>, nom::error::Error<&'a str>> {
+fn parse_func_body<'a>() -> impl Parser<&'a str, Output = Vec<AstNode>, Error = nom::error::Error<&'a str>> {
     delimited(ws(tag("{")), many0(ws(parse_stmt())), ws(tag("}")))
 }
 
 /// Parses function: fn name (params) -> ret { body }.
-fn parse_func<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>> {
+fn parse_func<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     let parse_fn_kw = ws(tag("fn"));
     let parse_name = parse_ident();
     let parse_param_pair = ws(parse_ident())
@@ -240,7 +240,7 @@ fn parse_func<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>>
 }
 
 /// Parses concept: concept name { methods }.
-fn parse_concept<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>> {
+fn parse_concept<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     let parse_kw = ws(tag("concept"));
     let parse_name = parse_ident();
     let parse_body = delimited(ws(tag("{")), many0(ws(parse_method_sig())), ws(tag("}")));
@@ -255,7 +255,7 @@ fn parse_concept<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a st
 }
 
 /// Parses impl: impl concept for ty { methods }.
-fn parse_impl<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>> {
+fn parse_impl<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     let parse_kw = ws(tag("impl"));
     let parse_concept = parse_ident();
     let parse_for_kw = ws(tag("for"));
@@ -269,7 +269,7 @@ fn parse_impl<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>>
 }
 
 /// Parses enum: enum name { variants }.
-fn parse_enum<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>> {
+fn parse_enum<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     let parse_kw = ws(tag("enum"));
     let parse_name = parse_ident();
     let parse_variants = delimited(ws(tag("{")), many0(ws(parse_ident())), ws(tag("}")));
@@ -284,7 +284,7 @@ fn parse_enum<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>>
 }
 
 /// Parses struct: struct name { fields }.
-fn parse_struct<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>> {
+fn parse_struct<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     let parse_kw = ws(tag("struct"));
     let parse_name = parse_ident();
     let parse_field = ws(parse_ident())
