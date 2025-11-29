@@ -9,7 +9,7 @@ use nom::bytes::complete::{tag, take_while1};
 use nom::character::complete::{alpha1, alphanumeric0, i64 as nom_i64, multispace0};
 use nom::combinator::{map, opt, recursive, value};
 use nom::multi::{many0, many1};
-use nom::sequence::{delimited, preceded, terminated, tuple};
+use nom::sequence::{delimited, preceded, terminated};
 use nom::{IResult, Parser};
 
 /// Whitespace wrapper for parsers.
@@ -57,13 +57,13 @@ fn parse_path<'a>() -> impl Parser<&'a str, Vec<String>, nom::error::Error<&'a s
 /// Parses TimingOwned<ty>(inner).
 fn parse_timing_owned<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>> {
     map(
-        tuple((
+        (
             ws(tag("TimingOwned")),
             delimited(tag("<"), parse_ident(), tag(">")),
             tag("("),
             parse_expr(),
             tag(")"),
-        )),
+        ),
         |(_, ty, _, inner, _)| AstNode::TimingOwned {
             ty,
             inner: Box::new(inner),
@@ -102,12 +102,12 @@ fn parse_call<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>>
 /// Parses path call: path :: method (args).
 fn parse_path_call<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>> {
     map(
-        tuple((
+        (
             parse_path(),
             ws(tag("::")),
             parse_ident(),
             delimited(tag("("), many0(ws(parse_expr())), tag(")")),
-        )),
+        ),
         |(path, _, method, args)| AstNode::PathCall {
             path,
             method,
@@ -150,7 +150,7 @@ fn parse_method_sig<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a
     let parse_ret = opt(preceded(ws(tag("->")), ws(parse_ident())));
 
     map(
-        tuple((parse_ident(), parse_params, parse_ret)),
+        (parse_ident(), parse_params, parse_ret),
         |(name, params, ret_opt): (String, Vec<(String, String)>, Option<String>)| {
             let ret = ret_opt.unwrap_or_else(|| "i64".to_string());
             AstNode::Method {
@@ -165,12 +165,12 @@ fn parse_method_sig<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a
 /// Parses assign: ident = expr;.
 fn parse_assign_stmt<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>> {
     map(
-        tuple((
+        (
             ws(parse_ident()),
             ws(tag("=")),
             ws(parse_expr()),
             ws(tag(";")),
-        )),
+        ),
         |(name, _, expr, _)| AstNode::Assign(name, Box::new(expr)),
     )
 }
@@ -178,7 +178,7 @@ fn parse_assign_stmt<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'
 /// Parses defer: defer expr;.
 fn parse_defer_stmt<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>> {
     map(
-        tuple((ws(tag("defer")), ws(parse_expr()), ws(tag(";")))),
+        (ws(tag("defer")), ws(parse_expr()), ws(tag(";"))),
         |(_, e, _)| AstNode::Defer(Box::new(e)),
     )
 }
@@ -190,7 +190,7 @@ fn parse_spawn_stmt<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a
     let parse_args = delimited(tag("("), many0(ws(parse_expr())), tag(")"));
 
     map(
-        tuple((parse_kw, parse_func, parse_args, ws(tag(";")))),
+        (parse_kw, parse_func, parse_args, ws(tag(";"))),
         |(_, func, args, _)| AstNode::Spawn { func, args },
     )
 }
@@ -223,7 +223,7 @@ fn parse_func<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>>
     let parse_body = parse_func_body();
 
     map(
-        tuple((parse_fn_kw, parse_name, parse_params, parse_ret, parse_body)),
+        (parse_fn_kw, parse_name, parse_params, parse_ret, parse_body),
         |(_, name, params, ret_opt, body): ((), String, Vec<(String, String)>, Option<String>, Vec<AstNode>)| {
             let ret = ret_opt.unwrap_or_else(|| "i64".to_string());
             AstNode::FuncDef {
@@ -246,7 +246,7 @@ fn parse_concept<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a st
     let parse_body = delimited(ws(tag("{")), many0(ws(parse_method_sig())), ws(tag("}")));
 
     map(
-        tuple((parse_kw, parse_name, parse_body)),
+        (parse_kw, parse_name, parse_body),
         |(_, name, body): ((), String, Vec<AstNode>)| AstNode::ConceptDef {
             name,
             methods: body,
@@ -263,7 +263,7 @@ fn parse_impl<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>>
     let parse_body = delimited(ws(tag("{")), many0(ws(parse_method_sig())), ws(tag("}")));
 
     map(
-        tuple((parse_kw, parse_concept, parse_for_kw, parse_ty, parse_body)),
+        (parse_kw, parse_concept, parse_for_kw, parse_ty, parse_body),
         |(_, concept, _, ty, body): ((), String, (), String, Vec<AstNode>)| AstNode::ImplBlock { concept, ty, body },
     )
 }
@@ -275,7 +275,7 @@ fn parse_enum<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>>
     let parse_variants = delimited(ws(tag("{")), many0(ws(parse_ident())), ws(tag("}")));
 
     map(
-        tuple((parse_kw, parse_name, parse_variants)),
+        (parse_kw, parse_name, parse_variants),
         |(_, name, variants): ((), String, Vec<String>)| AstNode::EnumDef {
             name,
             variants,
@@ -294,7 +294,7 @@ fn parse_struct<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str
     let parse_fields = delimited(ws(tag("{")), many0(parse_field), ws(tag("}")));
 
     map(
-        tuple((parse_kw, parse_name, parse_fields)),
+        (parse_kw, parse_name, parse_fields),
         |(_, name, fields): ((), String, Vec<(String, String)>)| AstNode::StructDef {
             name,
             fields,
