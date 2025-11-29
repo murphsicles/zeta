@@ -59,14 +59,14 @@ impl Channel {
 }
 
 /// Host send wrapper for LLVM intrinsic - simplified chan_id.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn host_channel_send(chan_id: i64, msg: i64) {
     // Simplified: ignore chan_id
     println!("Send {} to chan {}", msg, chan_id);
 }
 
 /// Host recv wrapper for LLVM intrinsic - simplified chan_id.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn host_channel_recv(chan_id: i64) -> i64 {
     // Simplified: dummy recv
     println!("Recv from chan {}", chan_id);
@@ -74,7 +74,7 @@ pub unsafe extern "C" fn host_channel_recv(chan_id: i64) -> i64 {
 }
 
 /// Host spawn wrapper: simplified, spawns a no-arg actor returning chan_id.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn host_spawn(_func_id: i64) -> i64 {
     // Simplified: return dummy chan id
     let _chan = Channel::new();
@@ -82,10 +82,10 @@ pub unsafe extern "C" fn host_spawn(_func_id: i64) -> i64 {
 }
 
 /// Simplified host HTTP GET: returns response length or -1 error.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
     use std::ffi::CStr;
-    let _url_str = if let Ok(s) = unsafe { CStr::from_ptr(url) }.to_str() {
+    let _url_str = if let Ok(_s) = unsafe { CStr::from_ptr(url) }.to_str() {
         // Dummy: always return 200
         200i64
     } else {
@@ -95,10 +95,10 @@ pub unsafe extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
 }
 
 /// Simplified host TLS handshake: returns 0 success, -1 error.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i64 {
     use std::ffi::CStr;
-    let _host_str = if let Ok(s) = unsafe { CStr::from_ptr(host) }.to_str() {
+    let _host_str = if let Ok(_s) = unsafe { CStr::from_ptr(host) }.to_str() {
         0i64
     } else {
         -1i64
