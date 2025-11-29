@@ -262,7 +262,13 @@ impl MirGen {
 
     fn lookup_or_alloc(&mut self, name: &str) -> u32 {
         let key = name.to_string();
-        *self.locals.entry(key).or_insert_with(|| self.next_id())
+        if !self.locals.contains_key(&key) {
+            let id = self.next_id();
+            self.locals.insert(key, id);
+            id
+        } else {
+            *self.locals.get(&key).unwrap()
+        }
     }
 
     fn next_id(&mut self) -> u32 {
