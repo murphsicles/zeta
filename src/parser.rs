@@ -89,8 +89,7 @@ fn parse_add<'a>() -> impl Parser<&'a str, ((), AstNode), nom::error::Error<&'a 
 /// Parses call: (args) base.
 fn parse_call<'a>() -> impl Parser<&'a str, AstNode, nom::error::Error<&'a str>> {
     map(
-        delimited(tag("("), many0(ws(parse_expr())), tag(")")
-            .and(parse_base_expr()),
+        delimited(tag("("), many0(ws(parse_expr())), tag(")")).and(parse_base_expr()),
         |(args, recv)| AstNode::Call {
             receiver: Some(Box::new(recv)),
             method: "call".to_string(),
