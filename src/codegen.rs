@@ -3,9 +3,7 @@
 //! Supports JIT execution, intrinsics, SIMD, TBAA, actor runtime, and std embeddings.
 //! Ensures stable ABI and TimingOwned constant-time guarantees.
 
-use crate::actor::{
-    host_channel_recv, host_channel_send, host_spawn,
-};
+use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
@@ -13,9 +11,9 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
-use inkwell::passes::ModulePassManager;
+use inkwell::passes::PassManager;
 use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, IntType};
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue, ValueKind};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -134,20 +132,31 @@ impl<'ctx> LLVMCodegen<'ctx> {
         for mir in mirs {
             if let Some(ref name) = mir.name {
                 // Fn type from #params (all i64 for now)
-                let param_types: Vec<BasicTypeEnum<'ctx>> = mir.locals.iter().map(|_| self.i64_type.into()).take(4).collect();
-                let param_meta_types: Vec<BasicMetadataTypeEnum<'ctx>> = param_types.iter().map(|t| (*t).into()).collect();
-                let fn_type = self.i64_type.fn_type(&param_meta_types, false);
-                let fn_val = self.module.add_function(name, fn_type, None);
-                let basic_block = self.context.append_basic_block(fn_val, "entry");
-                self.builder.position_at_end(basic_block);
+                let param_types: Vec<BasicTypeEnum<'ctx>> = mir
+                    .locals
+                    .iter()
+                    .map(|_| self.i64_type.into())
+                    .take(4)
+                    .collect();
+                let fn_type = self.i64_type.fn_type(&param_types, false);
+                let func = self.module.add_function(name, fn_type, None);
+                self.fns.insert(name.clone(), func);
 
-                // Alloc locals
-                for (_, &id) in &mir.locals {
-                    let alloca = self.builder.build_alloca(self.i64_type, &format!("local_{}", id)).unwrap();
-                    self.locals.insert(id, alloca);
+                // Setup entry block
+                let entry = self.context.append_basic_block(func, "entry");
+                self.builder.position_at_end(entry);
+
+                // Allocate locals
+                self.locals.clear();
+                for (local_name, &id) in &mir.locals {
+                    let ptr = self
+                        .builder
+                        .build_alloca(self.i64_type, &format!("local_{}", local_name))
+                        .unwrap();
+                    self.locals.insert(id, ptr);
                 }
 
-                // Gen stmts
+                // Generate statements
                 for stmt in &mir.stmts {
                     self.gen_stmt(stmt);
                 }
@@ -155,49 +164,53 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
     }
 
+    /// Generates LLVM IR for a single MIR statement.
     fn gen_stmt(&mut self, stmt: &MirStmt) {
         match stmt {
             MirStmt::Assign { lhs, rhs } => {
                 let val = self.gen_expr(rhs);
                 let ptr = self.locals.entry(*lhs).or_insert_with(|| {
                     self.builder
-                        .build_alloca(self.i64_type, "assign_lhs")
+                        .build_alloca(self.i64_type, "tmp")
                         .unwrap()
                 });
                 self.builder.build_store(*ptr, val).unwrap();
             }
             MirStmt::Call { func, args, dest } => {
-                let arg_vals: Vec<BasicValueEnum<'ctx>> = args.iter().map(|&id| self.load_local(id)).collect();
-                let param_tys: Vec<BasicMetadataTypeEnum<'ctx>> = arg_vals.iter().map(|v| v.get_type().into()).collect();
+                let arg_vals: Vec<BasicValueEnum<'ctx>> =
+                    args.iter().map(|&id| self.load_local(id)).collect();
+                let param_tys: Vec<BasicMetadataTypeEnum<'ctx>> =
+                    arg_vals.iter().map(|v| v.get_type().into()).collect();
                 let callee = self.module.get_function(func).unwrap_or_else(|| {
                     let fn_ty = self.i64_type.fn_type(&param_tys, false);
-                    self.module.add_function(func, fn_ty, Some(Linkage::External))
+                    self.module
+                        .add_function(func, fn_ty, Some(Linkage::External))
                 });
-                let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> = arg_vals.iter().map(|v| (*v).into()).collect();
-                let call_site = self.builder.build_call(callee, &arg_meta_vals, "call_res").unwrap();
-                let call_res = if let Some(bv) = call_site.try_as_basic_value() {
-                    bv
-                } else {
-                    self.i64_type.const_zero().into()
-                };
-
-                let ptr = self.locals.entry(*dest).or_insert_with(|| self.builder.build_alloca(self.i64_type, "call_res").unwrap());
+                let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
+                    arg_vals.iter().map(|v| (*v).into()).collect();
+                let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
+                let call_res = call_site.try_as_basic_value().left().unwrap_or(self.i64_type.const_zero().into());
+                let ptr = self.locals.entry(*dest).or_insert_with(|| {
+                    self.builder
+                        .build_alloca(self.i64_type, "call_res")
+                        .unwrap()
+                });
                 self.builder.build_store(*ptr, call_res).unwrap();
             }
             MirStmt::VoidCall { func, args } => {
-                let arg_vals: Vec<BasicValueEnum<'ctx>> = args.iter().map(|&id| self.load_local(id)).collect();
-                let param_tys: Vec<BasicMetadataTypeEnum<'ctx>> = arg_vals.iter().map(|v| v.get_type().into()).collect();
+                let arg_vals: Vec<BasicValueEnum<'ctx>> =
+                    args.iter().map(|&id| self.load_local(id)).collect();
+                let param_tys: Vec<BasicMetadataTypeEnum<'ctx>> =
+                    arg_vals.iter().map(|v| v.get_type().into()).collect();
                 let callee = self.module.get_function(func).unwrap_or_else(|| {
                     let fn_ty = self.context.void_type().fn_type(&param_tys, false);
-                    self.module.add_function(func, fn_ty, Some(Linkage::External))
+                    self.module
+                        .add_function(func, fn_ty, Some(Linkage::External))
                 });
-                let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> = arg_vals.iter().map(|v| (*v).into()).collect();
+                let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
+                    arg_vals.iter().map(|v| (*v).into()).collect();
                 let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
-                let _result = if let Some(bv) = call_site.try_as_basic_value() {
-                    bv
-                } else {
-                    self.i64_type.const_zero().into()
-                };
+                let _result = call_site.try_as_basic_value().left().unwrap_or(self.i64_type.const_zero().into());
             }
             MirStmt::SemiringFold { op, values, result } => {
                 // Fold multiple values with semiring op (add/mul chain).
@@ -205,8 +218,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 for &v in &values[1..] {
                     let rhs = self.load_local(v).into_int_value();
                     acc = match op {
-                        SemiringOp::Add => self.builder.build_int_add(acc, rhs, "fold_add").unwrap(),
-                        SemiringOp::Mul => self.builder.build_int_mul(acc, rhs, "fold_mul").unwrap(),
+                        SemiringOp::Add => {
+                            self.builder.build_int_add(acc, rhs, "fold_add").unwrap()
+                        }
+                        SemiringOp::Mul => {
+                            self.builder.build_int_mul(acc, rhs, "fold_mul").unwrap()
+                        }
                     };
                 }
                 let ptr = self.locals.entry(*result).or_insert_with(|| {
@@ -253,7 +270,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.module.verify().map_err(|e| e.to_string())?;
 
         // MLGO AI hooks: Custom pass manager for vectorization and branch prediction
-        let pm = ModulePassManager::create(&self.module);
+        let pm = PassManager::create(&self.module);
         pm.run_on(&self.module);
 
         let ee = self
