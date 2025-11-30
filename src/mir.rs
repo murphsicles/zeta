@@ -97,8 +97,8 @@ impl MirGen {
             }
             for stmt in body {
                 match stmt {
-                    AstNode::Defer(boxed) => {
-                        let unboxed = *boxed;
+                    AstNode::Defer(ref boxed) => {
+                        let unboxed = **boxed;
                         if let AstNode::Call {
                             receiver: None,
                             ref method,
