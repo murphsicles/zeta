@@ -11,7 +11,7 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
-use inkwell::passes::PassManager;
+use inkwell::passes::{PassManager, PassManagerTypes};
 use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, IntType};
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue};
 use std::collections::HashMap;
@@ -190,10 +190,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
                     arg_vals.iter().map(|v| (*v).into()).collect();
                 let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
-                let call_res = if let Ok(bv) = call_site.try_as_basic_value() {
-                    bv
-                } else {
-                    self.i64_type.const_zero().into()
+                let call_res = match call_site.try_as_basic_value() {
+                    Ok(_) => self.i64_type.const_zero().into(),
+                    Err(bv) => bv,
                 };
                 let ptr = self.locals.entry(*dest).or_insert_with(|| {
                     self.builder
@@ -215,10 +214,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
                     arg_vals.iter().map(|v| (*v).into()).collect();
                 let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
-                let _result = if let Ok(bv) = call_site.try_as_basic_value() {
-                    bv
-                } else {
-                    self.i64_type.const_zero().into()
+                let _result = match call_site.try_as_basic_value() {
+                    Ok(_) => self.i64_type.const_zero().into(),
+                    Err(bv) => bv,
                 };
             }
             MirStmt::SemiringFold { op, values, result } => {
@@ -279,7 +277,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.module.verify().map_err(|e| e.to_string())?;
 
         // MLGO AI hooks: Custom pass manager for vectorization and branch prediction
-        let pm = PassManager::create(&self.module);
+        let pm = PassManagerTypes::ModulePassManager::create(&self.module);
         pm.run_on(&self.module);
 
         let ee = self
