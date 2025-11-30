@@ -7,7 +7,7 @@ use crate::ast::AstNode;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while1};
 use nom::character::complete::{alpha1, alphanumeric0, i64 as nom_i64, multispace0};
-use nom::combinator::{map, opt, value};
+use nom::combinator::{map, opt, value, recursive};
 use nom::multi::{many0, many1};
 use nom::sequence::{delimited, preceded, terminated};
 use nom::{IResult, Parser};
@@ -63,33 +63,41 @@ fn parse_path<'a>() -> impl Parser<&'a str, Output = Vec<String>, Error = nom::e
     )
 }
 
-/// Parses TimingOwned<ty>(inner).
-fn parse_timing_owned<'a>()
--> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    map(
-        (
-            ws(tag("TimingOwned")),
-            delimited(tag("<"), parse_ident(), tag(">")),
-            tag("("),
-            parse_base_expr(),
-            tag(")"),
-        ),
-        |(_, ty, _, inner, _)| AstNode::TimingOwned {
-            ty,
-            inner: Box::new(inner),
-        },
-    )
-}
-
-/// Parses base expression: lit | var | str | TimingOwned.
-fn parse_base_expr<'a>()
--> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+/// Parses atom: lit | var | str.
+fn parse_atom<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     alt((
         parse_literal(),
         parse_string_lit(),
         parse_variable(),
-        parse_timing_owned(),
     ))
+}
+
+/// Parses postfix: atom | TimingOwned<ty>(postfix).
+fn parse_postfix<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    recursive(|postfix| {
+        alt((
+            parse_atom(),
+            map(
+                (
+                    ws(tag("TimingOwned")),
+                    delimited(tag("<"), parse_ident(), tag(">")),
+                    tag("("),
+                    postfix,
+                    tag(")"),
+                ),
+                |(_, ty, _, inner, _)| AstNode::TimingOwned {
+                    ty,
+                    inner: Box::new(inner),
+                },
+            ),
+        ))
+    })
+}
+
+/// Parses base expression: postfix.
+fn parse_base_expr<'a>()
+-> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    parse_postfix()
 }
 
 /// Parses add: base + base (as binary add).
