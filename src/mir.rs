@@ -84,7 +84,11 @@ impl MirGen {
     pub fn gen_mir(&mut self, ast: &AstNode) -> Mir {
         let mut stmts = vec![];
         let mut exprs = HashMap::new();
-        let name = if let AstNode::FuncDef { name, .. } = ast { Some(name.clone()) } else { None };
+        let name = if let AstNode::FuncDef { name, .. } = ast {
+            Some(name.clone())
+        } else {
+            None
+        };
 
         if let AstNode::FuncDef { params, body, .. } = ast {
             // Alloc param locals (no init here; caller passes args)
