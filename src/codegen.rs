@@ -11,7 +11,7 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
-use inkwell::passes::PassManager;
+use inkwell::passes::ModulePassManager;
 use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, IntType};
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue};
 use std::collections::HashMap;
@@ -138,7 +138,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .map(|_| self.i64_type.into())
                     .take(4)
                     .collect();
-                let param_meta_types: Vec<BasicMetadataTypeEnum<'ctx>> = param_types.iter().map(|t| t.into()).collect();
+                let param_meta_types: Vec<BasicMetadataTypeEnum<'ctx>> = param_types.iter().cloned().map(|t| t.into()).collect();
                 let fn_type = self.i64_type.fn_type(&param_meta_types, false);
                 let func = self.module.add_function(name, fn_type, None);
                 self.fns.insert(name.clone(), func);
@@ -190,7 +190,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
                     arg_vals.iter().map(|v| (*v).into()).collect();
                 let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
-                let call_res = call_site.try_as_basic_value().unwrap_or(self.i64_type.const_zero().into());
+                let call_res = call_site.try_as_basic_value().ok().unwrap_or(self.i64_type.const_zero().into());
                 let ptr = self.locals.entry(*dest).or_insert_with(|| {
                     self.builder
                         .build_alloca(self.i64_type, "call_res")
@@ -211,7 +211,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
                     arg_vals.iter().map(|v| (*v).into()).collect();
                 let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
-                let _result = call_site.try_as_basic_value().unwrap_or(self.i64_type.const_zero().into());
+                let _result = call_site.try_as_basic_value().ok().unwrap_or(self.i64_type.const_zero().into());
             }
             MirStmt::SemiringFold { op, values, result } => {
                 // Fold multiple values with semiring op (add/mul chain).
@@ -271,9 +271,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.module.verify().map_err(|e| e.to_string())?;
 
         // MLGO AI hooks: Custom pass manager for vectorization and branch prediction
-        // TODO: Fix PassManager creation for inkwell 0.7
-        let pm = PassManager::create(&self.module);
-        // pm.run_on(&self.module);
+        let pm = ModulePassManager::create(&self.module);
+        pm.run_on(&self.module);
 
         let ee = self
             .module
