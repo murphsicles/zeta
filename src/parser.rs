@@ -7,7 +7,7 @@ use crate::ast::AstNode;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while1};
 use nom::character::complete::{alpha1, alphanumeric0, i64 as nom_i64, multispace0};
-use nom::combinator::{map, opt, value, recursive};
+use nom::combinator::{map, opt, value};
 use nom::multi::{many0, many1};
 use nom::sequence::{delimited, preceded, terminated};
 use nom::{IResult, Parser};
@@ -74,24 +74,20 @@ fn parse_atom<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
 
 /// Parses postfix: atom | TimingOwned<ty>(postfix).
 fn parse_postfix<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    recursive(|postfix| {
-        alt((
-            parse_atom(),
-            map(
-                (
-                    ws(tag("TimingOwned")),
-                    delimited(tag("<"), parse_ident(), tag(">")),
-                    tag("("),
-                    postfix,
-                    tag(")"),
-                ),
-                |(_, ty, _, inner, _)| AstNode::TimingOwned {
-                    ty,
-                    inner: Box::new(inner),
-                },
-            ),
-        ))
-    })
+    let timing_owned = map(
+        (
+            ws(tag("TimingOwned")),
+            delimited(tag("<"), parse_ident(), tag(">")),
+            tag("("),
+            parse_postfix(),
+            tag(")"),
+        ),
+        |(_, ty, _, inner, _)| AstNode::TimingOwned {
+            ty,
+            inner: Box::new(inner),
+        },
+    );
+    alt((parse_atom(), timing_owned))
 }
 
 /// Parses base expression: postfix.
@@ -321,11 +317,13 @@ fn parse_struct<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::err
 
 /// Entry point: Parses multiple top-level items (funcs/concepts/impls/enums/structs).
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
-    many0(ws(alt((
+    let top_level_parser = alt((
         parse_func(),
         parse_concept(),
         parse_impl(),
         parse_enum(),
         parse_struct(),
-    ))))(input)
+    ));
+    let parser = many0(ws(top_level_parser));
+    parser(input)
 }
