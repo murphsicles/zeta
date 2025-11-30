@@ -71,7 +71,7 @@ fn parse_timing_owned<'a>()
             ws(tag("TimingOwned")),
             delimited(tag("<"), parse_ident(), tag(">")),
             tag("("),
-            parse_expr(),
+            parse_base_expr(),
             tag(")"),
         ),
         |(_, ty, _, inner, _)| AstNode::TimingOwned {
@@ -101,7 +101,7 @@ fn parse_add<'a>()
 /// Parses call: (args) base.
 fn parse_call<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     map(
-        delimited(tag("("), many0(ws(parse_expr())), tag(")")).and(parse_base_expr()),
+        delimited(tag("("), many0(ws(parse_base_expr())), tag(")")).and(parse_base_expr()),
         |(args, recv)| AstNode::Call {
             receiver: Some(Box::new(recv)),
             method: "call".to_string(),
@@ -119,7 +119,7 @@ fn parse_path_call<'a>()
             parse_path(),
             ws(tag("::")),
             parse_ident(),
-            delimited(tag("("), many0(ws(parse_expr())), tag(")")),
+            delimited(tag("("), many0(ws(parse_base_expr())), tag(")")),
         ),
         |(path, _, method, args)| AstNode::PathCall { path, method, args },
     )
@@ -170,7 +170,7 @@ fn parse_assign_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom
 fn parse_spawn_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     let parse_kw = value((), ws(tag("spawn")));
     let parse_func = parse_ident();
-    let parse_args = delimited(tag("("), many0(ws(parse_expr())), tag(")"));
+    let parse_args = delimited(tag("("), many0(ws(parse_base_expr())), tag(")"));
 
     map(
         (parse_kw, parse_func, parse_args, ws(tag(";"))),
@@ -233,15 +233,15 @@ fn parse_func<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
 fn parse_method_sig<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     let parse_name = parse_ident();
     let parse_params = delimited(tag("("), many0(parse_ident()), tag(")"));
-    let parse_ret = preceded(ws(tag("->")), ws(parse_ident()));
+    let parse_ret = opt(preceded(ws(tag("->")), ws(parse_ident())));
 
     map(
         (parse_name, parse_params, parse_ret),
-        | (name, params, ret) | AstNode::Method {
+        |(name, params, ret_opt)| AstNode::Method {
             name,
             params: params.into_iter().map(|p| (p.clone(), "i64".to_string())).collect(),
-            ret,
-        }
+            ret: ret_opt.unwrap_or_else(|| "i64".to_string()),
+        },
     )
 }
 
