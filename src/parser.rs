@@ -72,28 +72,28 @@ fn parse_atom<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
     ))
 }
 
-/// Parses postfix: atom | TimingOwned<ty>(postfix).
-fn parse_postfix<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    let timing_owned = map(
+/// Parses TimingOwned<ty>(atom).
+fn parse_timing_owned<'a>()
+-> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    map(
         (
             ws(tag("TimingOwned")),
             delimited(tag("<"), parse_ident(), tag(">")),
             tag("("),
-            parse_postfix(),
+            parse_atom(),
             tag(")"),
         ),
         |(_, ty, _, inner, _)| AstNode::TimingOwned {
             ty,
             inner: Box::new(inner),
         },
-    );
-    alt((parse_atom(), timing_owned))
+    )
 }
 
-/// Parses base expression: postfix.
+/// Parses base expression: atom | TimingOwned.
 fn parse_base_expr<'a>()
 -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    parse_postfix()
+    alt((parse_atom(), parse_timing_owned()))
 }
 
 /// Parses add: base + base (as binary add).
@@ -317,13 +317,11 @@ fn parse_struct<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::err
 
 /// Entry point: Parses multiple top-level items (funcs/concepts/impls/enums/structs).
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
-    let top_level_parser = alt((
+    many0(ws(alt((
         parse_func(),
         parse_concept(),
         parse_impl(),
         parse_enum(),
         parse_struct(),
-    ));
-    let parser = many0(ws(top_level_parser));
-    parser(input)
+    ))))(input)
 }
