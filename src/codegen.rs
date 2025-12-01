@@ -11,9 +11,9 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
-use inkwell::passes::PassBuilderOptions;
 use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, IntType};
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue};
+use inkwell::passes::PassBuilderOptions;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -172,9 +172,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
                                 arg_vals.iter().map(|v| (*v).into()).collect();
                             let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
-                            let call_res = match call_site.try_as_basic_value() {
-                                Ok(bv) => bv,
-                                Err(_) => self.i64_type.const_zero().into(),
+                            let fn_ret_type = callee.get_type().get_return_type();
+                            let call_res = if fn_ret_type.is_void_type() {
+                                self.i64_type.const_zero().into()
+                            } else {
+                                call_site.as_basic_value().unwrap()
                             };
                             let ptr = self.locals.entry(*dest).or_insert_with(|| {
                                 self.builder
@@ -258,7 +260,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.module.verify().map_err(|e| e.to_string())?;
 
         // MLGO AI hooks: Custom pass manager for vectorization and branch prediction
-        self.module.run_passes(&["default<O3>"], &[], PassBuilderOptions::default())?;
+        self.module.run_passes("default<O3>", None, &PassBuilderOptions::create())?;
 
         let ee = self
             .module
