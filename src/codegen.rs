@@ -11,7 +11,7 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
-use inkwell::passes::PassManager;
+use inkwell::passes::PassBuilderOptions;
 use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, IntType};
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue};
 use std::collections::HashMap;
@@ -138,7 +138,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .map(|_| self.i64_type.into())
                     .take(4)
                     .collect();
-                let param_meta_types: Vec<BasicMetadataTypeEnum<'ctx>> = param_types.iter().map(|t| t.into()).collect();
+                let param_meta_types: Vec<BasicMetadataTypeEnum<'ctx>> = param_types.iter().map(|t| (*t).into()).collect();
                 let fn_type = self.i64_type.fn_type(&param_meta_types, false);
                 let fn_val = self.module.add_function(name, fn_type, None);
                 let basic_block = self.context.append_basic_block(fn_val, "entry");
@@ -172,10 +172,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
                                 arg_vals.iter().map(|v| (*v).into()).collect();
                             let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
-                            let call_res = if callee.get_return_type().is_void_type() {
-                                self.i64_type.const_zero().into()
-                            } else {
-                                call_site.try_as_basic_value().unwrap()
+                            let call_res = match call_site.try_as_basic_value() {
+                                Ok(bv) => bv,
+                                Err(_) => self.i64_type.const_zero().into(),
                             };
                             let ptr = self.locals.entry(*dest).or_insert_with(|| {
                                 self.builder
@@ -259,8 +258,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.module.verify().map_err(|e| e.to_string())?;
 
         // MLGO AI hooks: Custom pass manager for vectorization and branch prediction
-        let pm = PassManager::create(&self.module);
-        pm.run_on(&self.module);
+        self.module.run_passes(&["default<O3>"], &[], PassBuilderOptions::default())?;
 
         let ee = self
             .module
