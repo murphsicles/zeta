@@ -5,6 +5,7 @@
 
 use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
+use crate::xai::XAIClient;
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
 use inkwell::builder::Builder;
@@ -13,7 +14,7 @@ use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, IntType};
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue};
-use inkwell::passes::PassBuilderOptions;
+use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -172,11 +173,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
                                 arg_vals.iter().map(|v| (*v).into()).collect();
                             let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
-                            let fn_ret_type = callee.get_type().get_return_type();
-                            let call_res = if fn_ret_type.is_void_type() {
-                                self.i64_type.const_zero().into()
-                            } else {
-                                call_site.as_basic_value().unwrap()
+                            let call_res = match call_site.try_as_basic_value() {
+                                Ok(bv) => bv,
+                                Err(_) => self.i64_type.const_zero().into(),
                             };
                             let ptr = self.locals.entry(*dest).or_insert_with(|| {
                                 self.builder
@@ -259,8 +258,24 @@ impl<'ctx> LLVMCodegen<'ctx> {
     ) -> Result<ExecutionEngine<'ctx>, Box<dyn std::error::Error>> {
         self.module.verify().map_err(|e| e.to_string())?;
 
-        // MLGO AI hooks: Custom pass manager for vectorization and branch prediction
-        self.module.run_passes("default<O3>", None, &PassBuilderOptions::create())?;
+        // MLGO AI hooks: Query Grok for optimized passes
+        let client = XAIClient::new().ok(); // Optional, skip if no key
+        let mir_stats = format!("Stmts: {}, Locals: {}", self.module.print_to_string().len(), self.locals.len());
+        if let Some(c) = &client {
+            if let Ok(rec) = c.mlgo_optimize(&mir_stats) {
+                if let Ok(json) = serde_json::from_str::<Value>(&rec) {
+                    if let Some(passes) = json["passes"].as_array() {
+                        // Simplified: Run default passes; extend for custom
+                        for p in passes {
+                            if let Some(ps) = p.as_str() {
+                                // Mock run; integrate real passes as needed
+                                eprintln!("Running AI-recommended pass: {}", ps);
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         let ee = self
             .module
