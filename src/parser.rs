@@ -65,11 +65,7 @@ fn parse_path<'a>() -> impl Parser<&'a str, Output = Vec<String>, Error = nom::e
 
 /// Parses atom: lit | var | str.
 fn parse_atom<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    alt((
-        parse_literal(),
-        parse_string_lit(),
-        parse_variable(),
-    ))
+    alt((parse_literal(), parse_string_lit(), parse_variable()))
 }
 
 /// Parses TimingOwned<ty>(atom).
@@ -145,56 +141,34 @@ fn parse_expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
                 left
             }
         });
-    alt((parse_path_call(), parse_call(), base_or_add))
+    alt((base_or_add, parse_call(), parse_path_call()))
 }
 
-/// Parses defer: defer expr;.
-fn parse_defer_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    map(
-        preceded(ws(tag("defer")), terminated(parse_expr(), ws(tag(";")))),
-        |e| AstNode::Defer(Box::new(e)),
-    )
-}
-
-/// Parses assign: let var = expr;.
-fn parse_assign_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    map(
-        (
-            ws(tag("let")),
-            parse_ident(),
-            ws(tag("=")),
-            parse_expr(),
-            ws(tag(";")),
-        ),
-        |(_, name, _, expr, _)| AstNode::Assign(name, Box::new(expr)),
-    )
-}
-
-/// Parses spawn: spawn func(args);.
-fn parse_spawn_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    let parse_kw = value((), ws(tag("spawn")));
-    let parse_func = parse_ident();
-    let parse_args = delimited(tag("("), many0(ws(parse_base_expr())), tag(")"));
-
-    map(
-        (parse_kw, parse_func, parse_args, ws(tag(";"))),
-        |(_, func, args, _)| AstNode::Spawn { func, args },
-    )
-}
-
-/// Parses statement: assign | spawn | defer | expr;.
+/// Parses statement: expr | assign | defer.
 fn parse_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     alt((
-        parse_assign_stmt(),
-        parse_spawn_stmt(),
-        parse_defer_stmt(),
-        terminated(parse_expr(), ws(tag(";"))),
+        map(
+            ws(parse_expr()),
+            |e| match e {
+                AstNode::Call { .. } | AstNode::PathCall { .. } => e,
+                _ => AstNode::Call {
+                    receiver: Some(Box::new(e)),
+                    method: "print".to_string(),
+                    args: vec![],
+                    type_args: vec![],
+                },
+            },
+        ),
+        map(
+            ws(parse_ident().and(ws(tag("=")).and(ws(parse_expr())))),
+            |((name, _), expr): ((String, &'a str), AstNode)| AstNode::Assign(name, Box::new(expr)),
+        ),
+        map(ws(tag("defer")).and(ws(parse_expr())), |(_, expr)| AstNode::Defer(Box::new(expr))),
     ))
 }
 
-/// Parses function body: { stmt* }.
-fn parse_func_body<'a>()
--> impl Parser<&'a str, Output = Vec<AstNode>, Error = nom::error::Error<&'a str>> {
+/// Parses function body: { stmts }.
+fn parse_func_body<'a>() -> impl Parser<&'a str, Output = Vec<AstNode>, Error = nom::error::Error<&'a str>> {
     delimited(ws(tag("{")), many0(ws(parse_stmt())), ws(tag("}")))
 }
 
@@ -234,7 +208,8 @@ fn parse_func<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
 }
 
 /// Parses method sig for concept/impl.
-fn parse_method_sig<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+fn parse_method_sig<'a>()
+-> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     let parse_name = parse_ident();
     let parse_params = delimited(tag("("), many0(parse_ident()), tag(")"));
     let parse_ret = opt(preceded(ws(tag("->")), ws(parse_ident())));
@@ -243,7 +218,10 @@ fn parse_method_sig<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom:
         (parse_name, parse_params, parse_ret),
         |(name, params, ret_opt)| AstNode::Method {
             name,
-            params: params.into_iter().map(|p| (p.clone(), "i64".to_string())).collect(),
+            params: params
+                .into_iter()
+                .map(|p| (p.clone(), "i64".to_string()))
+                .collect(),
             ret: ret_opt.unwrap_or_else(|| "i64".to_string()),
         },
     )
