@@ -1,9 +1,7 @@
-// src/xai.rs
 //! XAI API client for Zeta AI integration.
 //! Provides blocking HTTP client for Grok-beta chat completions.
 //! Used for MLGO hooks, CTFE eval, and dynamic specialization queries.
 //! Requires XAI_API_KEY env var.
-
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -83,5 +81,15 @@ impl XAIClient {
             .send()?;
         let response: ChatResponse = res.json()?;
         Ok(response.choices[0].message.content.clone())
+    }
+
+    /// MLGO hook: Queries Grok for LLVM pass optimization recommendations.
+    /// Prompt includes MIR stats; returns JSON pass order/params.
+    pub fn mlgo_optimize(&self, mir_stats: &str) -> Result<String, Box<dyn std::error::Error>> {
+        let prompt = format!(
+            "Given LLVM MIR stats: {}. Recommend optimized pass pipeline for vectorization/branch-pred/MLGO. Output JSON: {{ \"passes\": [\"pass1\", \"pass2\"], \"params\": {{ \"vec-threshold\": 128 }} }}",
+            mir_stats
+        );
+        self.query(&prompt)
     }
 }
