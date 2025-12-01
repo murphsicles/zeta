@@ -138,15 +138,16 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .map(|_| self.i64_type.into())
                     .take(4)
                     .collect();
-                let fn_type = self.i64_type.fn_type(&param_types, false);
+                let param_meta_types: Vec<BasicMetadataTypeEnum<'ctx>> = param_types.iter().map(|t| t.into()).collect();
+                let fn_type = self.i64_type.fn_type(&param_meta_types, false);
                 let fn_val = self.module.add_function(name, fn_type, None);
                 let basic_block = self.context.append_basic_block(fn_val, "entry");
                 self.builder.position_at_end(basic_block);
 
                 // Alloc locals
                 self.locals.clear();
-                for (&id, _) in &mir.locals {
-                    let alloca = self.builder.build_alloca(self.i64_type, &format!("local_{}", id)).unwrap();
+                for (name, &id) in &mir.locals {
+                    let alloca = self.builder.build_alloca(self.i64_type, &format!("local_{}", name)).unwrap();
                     self.locals.insert(id, alloca);
                 }
 
@@ -155,7 +156,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     match stmt {
                         MirStmt::Assign { lhs, rhs } => {
                             let val = self.gen_expr(rhs);
-                            let ptr = self.locals[&lhs];
+                            let ptr = self.locals[lhs];
                             self.builder.build_store(ptr, val).unwrap();
                         }
                         MirStmt::Call { func, args, dest } => {
@@ -171,10 +172,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
                                 arg_vals.iter().map(|v| (*v).into()).collect();
                             let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
-                            let call_res = if call_site.get_type().is_void_type() {
+                            let call_res = if callee.get_return_type().is_void_type() {
                                 self.i64_type.const_zero().into()
                             } else {
-                                call_site.as_basic_value().unwrap()
+                                call_site.try_as_basic_value().unwrap()
                             };
                             let ptr = self.locals.entry(*dest).or_insert_with(|| {
                                 self.builder
@@ -195,8 +196,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             });
                             let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
                                 arg_vals.iter().map(|v| (*v).into()).collect();
-                            let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
-                            let _result = self.i64_type.const_zero().into(); // Void calls return nothing
+                            let _call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
                         }
                         MirStmt::SemiringFold { op, values, result } => {
                             // Fold multiple values with semiring op (add/mul chain).
@@ -259,7 +259,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.module.verify().map_err(|e| e.to_string())?;
 
         // MLGO AI hooks: Custom pass manager for vectorization and branch prediction
-        let pm = PassManager::create_for_module(&self.module);
+        let pm = PassManager::create(&self.module);
         pm.run_on(&self.module);
 
         let ee = self
