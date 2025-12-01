@@ -162,7 +162,7 @@ fn parse_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
         map(
             ws(parse_ident().and(ws(tag("=")).and(ws(parse_expr())))),
             |res| {
-                let ((name, _), expr) = res;
+                let (name, (_, expr)) = res;
                 AstNode::Assign(name, Box::new(expr))
             },
         ),
