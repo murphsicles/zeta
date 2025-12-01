@@ -10,6 +10,7 @@ pub mod parser;
 pub mod resolver;
 pub mod specialization;
 pub mod std;
+pub mod xai;
 pub use actor::{init_runtime, spawn};
 pub use codegen::LLVMCodegen;
 pub use mir::Mir;
