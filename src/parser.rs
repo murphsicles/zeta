@@ -9,7 +9,7 @@ use nom::bytes::complete::{tag, take_while1};
 use nom::character::complete::{alpha1, alphanumeric0, i64 as nom_i64, multispace0};
 use nom::combinator::{map, opt, value};
 use nom::multi::{many0, many1};
-use nom::sequence::{delimited, preceded, terminated};
+use nom::sequence::{delimited, preceded};
 use nom::{IResult, Parser};
 
 /// Whitespace wrapper for parsers.
@@ -161,7 +161,10 @@ fn parse_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
         ),
         map(
             ws(parse_ident().and(ws(tag("=")).and(ws(parse_expr())))),
-            |((name, _), expr): ((String, &'a str), AstNode)| AstNode::Assign(name, Box::new(expr)),
+            |res| {
+                let ((name, _), expr) = res;
+                AstNode::Assign(name, Box::new(expr))
+            },
         ),
         map(ws(tag("defer")).and(ws(parse_expr())), |(_, expr)| AstNode::Defer(Box::new(expr))),
     ))
