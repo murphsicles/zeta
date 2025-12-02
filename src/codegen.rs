@@ -6,6 +6,7 @@
 use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use crate::xai::XAIClient;
+use either::Either;
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
 use inkwell::builder::Builder;
@@ -146,8 +147,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.builder.position_at_end(basic_block);
 
                 // Alloc locals
-                for (name, &id) in &mir.locals {
-                    let alloca = self.builder.build_alloca(self.i64_type, &format!("local_{}", id)).unwrap();
+                for (local_name, &id) in &mir.locals {
+                    let alloca = self.builder.build_alloca(self.i64_type, &format!("local_{}", local_name)).unwrap();
                     self.locals.insert(id, alloca);
                 }
 
@@ -171,10 +172,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
                                 arg_vals.iter().map(|v| (*v).into()).collect();
                             let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
-                            let call_res = if let Some(bv) = call_site.try_as_basic_value() {
-                                bv
-                            } else {
-                                self.i64_type.const_zero().into()
+                            let either_val = call_site.try_as_basic_value();
+                            let call_res = match either_val {
+                                Either::Left(bv) => bv,
+                                Either::Right(_) => self.i64_type.const_zero().into(),
                             };
                             let ptr = *self.locals.entry(*dest).or_insert_with(|| {
                                 self.builder
