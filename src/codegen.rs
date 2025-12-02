@@ -140,13 +140,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .take(4)
                     .collect();
                 let param_meta_types: Vec<BasicMetadataTypeEnum<'ctx>> = param_types.iter().map(|t| (*t).into()).collect();
-                let fn_type = self.i64_type.fn_type(&param_meta_types, false);
+                let fn_type = self.i64_type.fn_type(param_meta_types.as_slice(), false);
                 let fn_val = self.module.add_function(name, fn_type, None);
                 let basic_block = self.context.append_basic_block(fn_val, "entry");
                 self.builder.position_at_end(basic_block);
 
                 // Alloc locals
-                for (&id, _) in &mir.locals {
+                for (_, &id) in &mir.locals {
                     let alloca = self.builder.build_alloca(self.i64_type, &format!("local_{}", id)).unwrap();
                     self.locals.insert(id, alloca);
                 }
@@ -156,25 +156,23 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     match stmt {
                         MirStmt::Assign { lhs, rhs } => {
                             let val = self.gen_expr(rhs);
-                            let ptr = self.locals[lhs];
+                            let ptr = *self.locals.get(lhs).expect("local not found");
                             self.builder.build_store(ptr, val).unwrap();
                         }
                         MirStmt::Call { func, args, dest } => {
                             let arg_vals: Vec<BasicValueEnum<'ctx>> = args.iter().map(|&aid| self.load_local(aid)).collect();
+                            let param_tys: Vec<BasicTypeEnum<'ctx>> = arg_vals.iter().map(|v| v.get_type()).collect();
+                            let param_meta_tys: Vec<BasicMetadataTypeEnum<'ctx>> = param_tys.iter().map(|t| (*t).into()).collect();
                             let callee = self.fns.get(func).cloned().unwrap_or_else(|| {
-                                let param_tys: Vec<BasicTypeEnum<'ctx>> = arg_vals.iter().map(|v| v.get_type()).collect();
-                                let fn_ty = self.context.i64_type().fn_type(&param_tys, false);
+                                let fn_ty = self.context.i64_type().fn_type(param_meta_tys.as_slice(), false);
                                 self.module
                                     .add_function(func, fn_ty, Some(Linkage::External))
                             });
                             let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
                                 arg_vals.iter().map(|v| (*v).into()).collect();
                             let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
-                            let call_res = match call_site.try_as_basic_value() {
-                                Some(bv) => bv,
-                                None => self.i64_type.const_zero().into(),
-                            };
-                            let ptr = self.locals.entry(*dest).or_insert_with(|| {
+                            let call_res = call_site.try_as_basic_value().unwrap_or_else(|| self.i64_type.const_zero().into());
+                            let ptr = *self.locals.entry(*dest).or_insert_with(|| {
                                 self.builder
                                     .build_alloca(self.i64_type, "call_res")
                                     .unwrap()
@@ -183,9 +181,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         }
                         MirStmt::VoidCall { func, args } => {
                             let arg_vals: Vec<BasicValueEnum<'ctx>> = args.iter().map(|&aid| self.load_local(aid)).collect();
+                            let param_tys: Vec<BasicTypeEnum<'ctx>> = arg_vals.iter().map(|v| v.get_type()).collect();
+                            let param_meta_tys: Vec<BasicMetadataTypeEnum<'ctx>> = param_tys.iter().map(|t| (*t).into()).collect();
                             let callee = self.fns.get(func).cloned().unwrap_or_else(|| {
-                                let param_tys: Vec<BasicTypeEnum<'ctx>> = arg_vals.iter().map(|v| v.get_type()).collect();
-                                let fn_ty = self.context.void_type().fn_type(&param_tys, false);
+                                let fn_ty = self.context.void_type().fn_type(param_meta_tys.as_slice(), false);
                                 self.module
                                     .add_function(func, fn_ty, Some(Linkage::External))
                             });
@@ -207,12 +206,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                     }
                                 };
                             }
-                            let ptr = self.locals.entry(*result).or_insert_with(|| {
+                            let ptr = *self.locals.entry(*result).or_insert_with(|| {
                                 self.builder
                                     .build_alloca(self.i64_type, "fold_res")
                                     .unwrap()
                             });
-                            self.builder.build_store(*ptr, acc).unwrap();
+                            self.builder.build_store(ptr, acc).unwrap();
                         }
                         MirStmt::Return { val } => {
                             let v = self.load_local(*val);
@@ -240,7 +239,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     /// Loads a local variable from alloca slot.
     fn load_local(&self, id: u32) -> BasicValueEnum<'ctx> {
-        let ptr = self.locals[&id];
+        let ptr = *self.locals.get(&id).expect("local not found");
         self.builder
             .build_load(self.i64_type, ptr, &format!("load_{id}"))
             .unwrap()
