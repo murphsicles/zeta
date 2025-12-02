@@ -146,7 +146,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.builder.position_at_end(basic_block);
 
                 // Alloc locals
-                for (_, &id) in &mir.locals {
+                for (name, &id) in &mir.locals {
                     let alloca = self.builder.build_alloca(self.i64_type, &format!("local_{}", id)).unwrap();
                     self.locals.insert(id, alloca);
                 }
@@ -171,7 +171,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
                                 arg_vals.iter().map(|v| (*v).into()).collect();
                             let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
-                            let call_res = call_site.try_as_basic_value().unwrap_or_else(|| self.i64_type.const_zero().into());
+                            let call_res = if let Some(bv) = call_site.try_as_basic_value() {
+                                bv
+                            } else {
+                                self.i64_type.const_zero().into()
+                            };
                             let ptr = *self.locals.entry(*dest).or_insert_with(|| {
                                 self.builder
                                     .build_alloca(self.i64_type, "call_res")
