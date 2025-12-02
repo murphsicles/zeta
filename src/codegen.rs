@@ -172,8 +172,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
                                 arg_vals.iter().map(|v| (*v).into()).collect();
                             let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
-                            let either_val = call_site.try_as_basic_value();
-                            let call_res = match either_val {
+                            let call_res = match call_site.try_as_basic_value() {
                                 Either::Left(bv) => bv,
                                 Either::Right(_) => self.i64_type.const_zero().into(),
                             };
