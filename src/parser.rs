@@ -141,36 +141,40 @@ fn parse_expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
                 left
             }
         });
-    alt((base_or_add, parse_call(), parse_path_call()))
+
+    let expr = alt((parse_call(), parse_path_call(), base_or_add));
+
+    map(expr, |e| e)
 }
 
-/// Parses statement: expr | assign | defer.
+/// Parses statement: assign | call | defer | spawn.
 fn parse_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     alt((
+        // Assign: var = expr
         map(
-            ws(parse_expr()),
-            |e| match e {
-                AstNode::Call { .. } | AstNode::PathCall { .. } => e,
-                _ => AstNode::Call {
-                    receiver: Some(Box::new(e)),
-                    method: "print".to_string(),
-                    args: vec![],
-                    type_args: vec![],
-                },
-            },
+            (parse_ident(), ws(tag("=")), parse_expr()),
+            |(name, _, expr)| AstNode::Assign(name, Box::new(expr)),
         ),
+        // Call stmt
+        parse_call(),
+        // Defer: defer expr
         map(
-            ws(parse_ident().and(ws(tag("=")).and(ws(parse_expr())))),
-            |res| {
-                let (name, (_, expr)) = res;
-                AstNode::Assign(name, Box::new(expr))
-            },
+            (ws(tag("defer")), parse_expr()),
+            |(_, expr)| AstNode::Defer(Box::new(expr)),
         ),
-        map(ws(tag("defer")).and(ws(parse_expr())), |(_, expr)| AstNode::Defer(Box::new(expr))),
+        // Spawn: spawn func(args)
+        map(
+            (
+                ws(tag("spawn")),
+                parse_ident(),
+                delimited(tag("("), many0(ws(parse_expr())), tag(")")),
+            ),
+            |(_, func, args)| AstNode::Spawn { func, args },
+        ),
     ))
 }
 
-/// Parses function body: { stmts }.
+/// Parses function body: { stmts }
 fn parse_func_body<'a>() -> impl Parser<&'a str, Output = Vec<AstNode>, Error = nom::error::Error<&'a str>> {
     delimited(ws(tag("{")), many0(ws(parse_stmt())), ws(tag("}")))
 }
