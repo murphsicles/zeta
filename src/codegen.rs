@@ -146,9 +146,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.builder.position_at_end(basic_block);
 
                 // Alloc locals
-                self.locals.clear();
-                for (name, &id) in &mir.locals {
-                    let alloca = self.builder.build_alloca(self.i64_type, &format!("local_{}", name)).unwrap();
+                for (&id, _) in &mir.locals {
+                    let alloca = self.builder.build_alloca(self.i64_type, &format!("local_{}", id)).unwrap();
                     self.locals.insert(id, alloca);
                 }
 
@@ -161,12 +160,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             self.builder.build_store(ptr, val).unwrap();
                         }
                         MirStmt::Call { func, args, dest } => {
-                            let arg_vals: Vec<BasicValueEnum<'ctx>> =
-                                args.iter().map(|&id| self.load_local(id)).collect();
-                            let param_tys: Vec<BasicMetadataTypeEnum<'ctx>> =
-                                arg_vals.iter().map(|v| v.get_type().into()).collect();
-                            let callee = self.module.get_function(func).unwrap_or_else(|| {
-                                let fn_ty = self.i64_type.fn_type(&param_tys, false);
+                            let arg_vals: Vec<BasicValueEnum<'ctx>> = args.iter().map(|&aid| self.load_local(aid)).collect();
+                            let callee = self.fns.get(func).cloned().unwrap_or_else(|| {
+                                let param_tys: Vec<BasicTypeEnum<'ctx>> = arg_vals.iter().map(|v| v.get_type()).collect();
+                                let fn_ty = self.context.i64_type().fn_type(&param_tys, false);
                                 self.module
                                     .add_function(func, fn_ty, Some(Linkage::External))
                             });
@@ -174,22 +171,20 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 arg_vals.iter().map(|v| (*v).into()).collect();
                             let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
                             let call_res = match call_site.try_as_basic_value() {
-                                Ok(bv) => bv,
-                                Err(_) => self.i64_type.const_zero().into(),
+                                Some(bv) => bv,
+                                None => self.i64_type.const_zero().into(),
                             };
                             let ptr = self.locals.entry(*dest).or_insert_with(|| {
                                 self.builder
                                     .build_alloca(self.i64_type, "call_res")
                                     .unwrap()
                             });
-                            self.builder.build_store(*ptr, call_res).unwrap();
+                            self.builder.build_store(ptr, call_res).unwrap();
                         }
                         MirStmt::VoidCall { func, args } => {
-                            let arg_vals: Vec<BasicValueEnum<'ctx>> =
-                                args.iter().map(|&id| self.load_local(id)).collect();
-                            let param_tys: Vec<BasicMetadataTypeEnum<'ctx>> =
-                                arg_vals.iter().map(|v| v.get_type().into()).collect();
-                            let callee = self.module.get_function(func).unwrap_or_else(|| {
+                            let arg_vals: Vec<BasicValueEnum<'ctx>> = args.iter().map(|&aid| self.load_local(aid)).collect();
+                            let callee = self.fns.get(func).cloned().unwrap_or_else(|| {
+                                let param_tys: Vec<BasicTypeEnum<'ctx>> = arg_vals.iter().map(|v| v.get_type()).collect();
                                 let fn_ty = self.context.void_type().fn_type(&param_tys, false);
                                 self.module
                                     .add_function(func, fn_ty, Some(Linkage::External))
@@ -260,7 +255,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
         // MLGO AI hooks: Query Grok for optimized passes
         let client = XAIClient::new().ok(); // Optional, skip if no key
-        let mir_stats = format!("Stmts: {}, Locals: {}", self.module.print_to_string().len(), self.locals.len());
+        let mir_stats = format!("Stmts: {}, Locals: {}", self.module.print_to_string().to_str().map_or(0, |s| s.len()), self.locals.len());
         if let Some(c) = &client {
             if let Ok(rec) = c.mlgo_optimize(&mir_stats) {
                 if let Ok(json) = serde_json::from_str::<Value>(&rec) {
