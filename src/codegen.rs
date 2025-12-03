@@ -6,6 +6,7 @@
 use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use crate::xai::XAIClient;
+use either::Either;
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
 use inkwell::builder::Builder;
@@ -13,7 +14,7 @@ use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, IntType};
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue, ValueKind};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -171,10 +172,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
                                 arg_vals.iter().map(|v| (*v).into()).collect();
                             let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
-                            let kind = call_site.get_value_kind();
-                            let call_res = match kind {
-                                ValueKind::BasicValue(bv) => bv,
-                                _ => self.i64_type.const_zero().into(),
+                            let call_res = match call_site.try_as_basic_value() {
+                                Either::Left(bv) => bv,
+                                Either::Right(_) => self.i64_type.const_zero().into(),
                             };
                             let ptr = *self.locals.entry(*dest).or_insert_with(|| {
                                 self.builder
