@@ -171,10 +171,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
                                 arg_vals.iter().map(|v| (*v).into()).collect();
                             let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
-                            let call_res = call_site.try_as_basic_value().as_basic_value_enum();
-                                either::Either::Left(bv) => bv,
-                                either::Either::Right(_) => self.i64_type.const_zero().into(),
-                                                        
+                            // try_as_basic_value returns an Option-like result
+                            let call_res = call_site.try_as_basic_value()
+                                .into_result()
+                                .unwrap_or_else(|_| self.i64_type.const_zero().into());
+                            
                             let ptr = *self.locals.entry(*dest).or_insert_with(|| {
                                 self.builder
                                     .build_alloca(self.i64_type, "call_res")
