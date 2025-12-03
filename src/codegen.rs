@@ -172,10 +172,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 arg_vals.iter().map(|v| (*v).into()).collect();
                             let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
                             
-                            // For Inkwell 0.7.1, try_as_basic_value() returns ValueKind
-                            let call_res = match call_site.try_as_basic_value() {
-                                val => val.as_basic_value_enum(),
-                            };
+                            // In Inkwell 0.7.1, try_as_basic_value returns BasicValueEnum directly
+                            let call_res = call_site.try_as_basic_value();
                             
                             let ptr = *self.locals.entry(*dest).or_insert_with(|| {
                                 self.builder
