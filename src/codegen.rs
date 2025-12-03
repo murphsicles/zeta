@@ -170,9 +170,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             });
                             let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
                                 arg_vals.iter().map(|v| (*v).into()).collect();
-                            let call_res = call_site
-                                .try_as_basic_value()
-                                .expect_basic_value_or(self.i64_type.const_zero().into());
+                            let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
+                            
+                            // For Inkwell 0.7.1, try_as_basic_value() returns ValueKind
+                            let call_res = match call_site.try_as_basic_value() {
+                                val => val.as_basic_value_enum(),
+                            };
                             
                             let ptr = *self.locals.entry(*dest).or_insert_with(|| {
                                 self.builder
