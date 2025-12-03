@@ -185,6 +185,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                     .build_alloca(self.i64_type, "call_res")
                                     .unwrap()
                             });
+                        }
                             self.builder.build_store(ptr, call_res).unwrap();
                         MirStmt::VoidCall { func, args } => {
                             let arg_vals: Vec<BasicValueEnum<'ctx>> = args.iter().map(|&aid| self.load_local(aid)).collect();
