@@ -71,6 +71,7 @@ pub struct LLVMCodegen<'ctx> {
     /// Local alloca slots by MIR ID.
     locals: HashMap<u32, PointerValue<'ctx>>,
     /// TBAA root for constant-time metadata.
+    #[allow(dead_code)]
     tbaa_const_time: inkwell::values::MetadataValue<'ctx>,
     /// Generated function map: name -> LLVM fn.
     fns: HashMap<String, inkwell::values::FunctionValue<'ctx>>,
