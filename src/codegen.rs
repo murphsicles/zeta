@@ -172,11 +172,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 arg_vals.iter().map(|v| (*v).into()).collect();
                             let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
 
-                            // ValueKind needs to be unwrapped - check if it's a value or instruction
-                            let call_res = if let Some(basic_val) = call_site.try_as_basic_value().left() {
-                                basic_val
-                            } else {
-                                self.i64_type.const_zero().into()
+                            let call_res: BasicValueEnum<'ctx> = unsafe {
+                                std::mem::transmute(call_site.try_as_basic_value())
                             };
                             
                             let ptr = *self.locals.entry(*dest).or_insert_with(|| {
