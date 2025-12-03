@@ -4,9 +4,8 @@
 //! Ensures stable ABI and TimingOwned constant-time guarantees.
 
 use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
-use crate::mir::{Mir, MirExpr, MirStmt};
+use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use crate::xai::XAIClient;
-use either::Either;
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
 use inkwell::builder::Builder;
@@ -171,13 +170,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             });
                             let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
                                 arg_vals.iter().map(|v| (*v).into()).collect();
-                            let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
-                            
+                           let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
+
                             // try_as_basic_value returns Either<BasicValueEnum, InstructionValue>
-                            let call_res = call_site
-                                .try_as_basic_value()
-                                .left_or_else(|_| self.i64_type.const_zero().into());
-                            
+                            let call_res = match call_site.try_as_basic_value() {
+                                either::Either::Left(bv) => bv,
+                                either::Either::Right(_) => self.i64_type.const_zero().into(),
+                            };
+                                                        
                             let ptr = *self.locals.entry(*dest).or_insert_with(|| {
                                 self.builder
                                     .build_alloca(self.i64_type, "call_res")
