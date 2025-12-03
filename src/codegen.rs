@@ -4,7 +4,7 @@
 //! Ensures stable ABI and TimingOwned constant-time guarantees.
 
 use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
-use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
+use crate::mir::{Mir, MirExpr, MirStmt};
 use crate::xai::XAIClient;
 use either::Either;
 use inkwell::AddressSpace;
