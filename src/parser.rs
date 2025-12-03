@@ -300,13 +300,13 @@ fn parse_struct<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::err
     )
 }
 
-/// Entry point: Parses multiple top-level items (funcs/concepts/impls/enums/structs).
+/// Entry point: Parses multiple top-level items.
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
     many0(ws(alt((
-        parse_func,
-        parse_concept,
-        parse_impl,
-        parse_enum,
-        parse_struct,
+        parse_func(),
+        parse_concept(),
+        parse_impl(),
+        parse_enum(),
+        parse_struct(),
     ))))(input)
 }
