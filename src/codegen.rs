@@ -173,10 +173,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 arg_vals.iter().map(|v| (*v).into()).collect();
                             let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
                             
-                            // Use pattern matching with Either since try_as_basic_value returns Either
-                            let call_res = match call_site.try_as_basic_value() {
-                                Either::Left(bv) => bv,
-                                Either::Right(_) => self.i64_type.const_zero().into(),
+                            // try_as_basic_value returns Either<BasicValueEnum, InstructionValue>
+                            let call_res = call_site
+                                .try_as_basic_value()
+                                .left_or_else(|_| self.i64_type.const_zero().into());
                             };
                             
                             let ptr = *self.locals.entry(*dest).or_insert_with(|| {
