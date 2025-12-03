@@ -174,7 +174,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             let call_res = call_site.try_as_basic_value().as_basic_value_enum();
                                 either::Either::Left(bv) => bv,
                                 either::Either::Right(_) => self.i64_type.const_zero().into(),
-                            };
                                                         
                             let ptr = *self.locals.entry(*dest).or_insert_with(|| {
                                 self.builder
