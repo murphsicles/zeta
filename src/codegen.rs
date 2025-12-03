@@ -177,15 +177,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             let call_res = call_site
                                 .try_as_basic_value()
                                 .left_or_else(|_| self.i64_type.const_zero().into());
-                            };
                             
                             let ptr = *self.locals.entry(*dest).or_insert_with(|| {
                                 self.builder
                                     .build_alloca(self.i64_type, "call_res")
                                     .unwrap()
                             });
-                        }
                             self.builder.build_store(ptr, call_res).unwrap();
+                        }
                         MirStmt::VoidCall { func, args } => {
                             let arg_vals: Vec<BasicValueEnum<'ctx>> = args.iter().map(|&aid| self.load_local(aid)).collect();
                             let param_tys: Vec<BasicTypeEnum<'ctx>> = arg_vals.iter().map(|v| v.get_type()).collect();
