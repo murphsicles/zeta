@@ -58,7 +58,8 @@ impl Channel {
     }
 }
 
-/// Host send wrapper for LLVM intrinsic - simplified chan_id.
+/// # Safety
+/// No safety concerns as parameters are plain i64 values.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn host_channel_send(chan_id: i64, msg: i64) {
     // Simplified: ignore chan_id
