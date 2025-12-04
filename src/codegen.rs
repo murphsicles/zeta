@@ -145,12 +145,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.builder.position_at_end(basic_block);
 
                 // Store params to locals (simplified, assume 0-3 params)
-                for (i, &local_id) in mir.locals.values().enumerate().take(4) {
+                for (i, local_id) in mir.locals.values().enumerate().take(4) {
                     if i < fn_val.count_params() as usize {
                         let param = fn_val.get_nth_param(i as u32).unwrap();
                         let ptr = self.builder.build_alloca(self.i64_type, &format!("param_{}", i)).unwrap();
                         self.builder.build_store(ptr, &param).unwrap();
-                        self.locals.insert(local_id, ptr);
+                        self.locals.insert(*local_id, ptr);
                     }
                 }
 
@@ -178,11 +178,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 let _call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
                             }
                             // Store to dest if needed (simplified, assume call returns to dest)
-                            if let Some(d) = dest {
-                                let call_val = self.load_local(*d); // Placeholder
-                                let ptr = *self.locals.entry(*d).or_insert_with(|| self.builder.build_alloca(self.i64_type, &format!("call_res_{}", d)).unwrap());
-                                self.builder.build_store(ptr, &call_val).unwrap();
-                            }
+                            let ptr = *self.locals.entry(*dest).or_insert_with(|| self.builder.build_alloca(self.i64_type, &format!("call_res_{}", dest)).unwrap());
+                            // Assume call returns i64 to store (placeholder for actual call val)
+                            let call_val = self.i64_type.const_int(0, false); // Placeholder
+                            self.builder.build_store(ptr, &call_val).unwrap();
                         }
                         MirStmt::VoidCall { func, args } => {
                             let arg_vals: Vec<BasicValueEnum<'ctx>> = args.iter().map(|&id| self.load_local(id)).collect();
@@ -230,7 +229,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
 
         // Create main if no main
-        if !self.module.get_function("main").is_some() {
+        if self.module.get_function("main").is_none() {
             let main_ty = self.i64_type.fn_type(&[], false);
             let main_fn = self.module.add_function("main", main_ty, None);
             let entry = self.context.append_basic_block(main_fn, "entry");
