@@ -130,7 +130,8 @@ fn parse_path_call<'a>()
 
 /// Parses expression recursively.
 fn parse_expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    let base_or_add = parse_base_expr()
+    // Recursive for chains, but simplified to single add for now
+    parse_base_expr()
         .and(opt(parse_add()))
         .map(|(left, opt_add)| {
             if let Some((_, right)) = opt_add {
@@ -143,10 +144,7 @@ fn parse_expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
             } else {
                 left
             }
-        });
-
-    // Recursive for chains, but simplified to single add for now
-    base_or_add
+        })
 }
 
 /// Parses statement: assign | call | path_call | spawn | defer.
