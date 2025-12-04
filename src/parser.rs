@@ -1,3 +1,4 @@
+// src/parser.rs
 //! Nom-based parser for Zeta syntax.
 //! Supports function definitions, calls, literals, variables, assigns, TimingOwned, defer, concepts, impls, and spawn.
 //! Extended for self-host: concepts { methods }, impls for types, enums, structs, tokens.
@@ -156,7 +157,7 @@ fn parse_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
             parse_ident()
                 .and(ws(tag("=")))
                 .and(parse_expr()),
-            |(name, (_, expr))| AstNode::Assign(name, Box::new(expr)),
+            |((name, _), expr)| AstNode::Assign(name, Box::new(expr)),
         ),
         // Call
         parse_call(),
@@ -167,7 +168,7 @@ fn parse_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
             ws(tag("spawn"))
                 .and(parse_ident())
                 .and(delimited(tag("("), many0(ws(parse_expr())), tag(")"))),
-            |((_, (func, args)))| AstNode::Spawn { func, args },
+            |((_, func), args)| AstNode::Spawn { func, args },
         ),
         // Defer: defer call
         map(
