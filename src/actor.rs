@@ -66,7 +66,7 @@ pub unsafe extern "C" fn host_channel_send(chan_id: i64, msg: i64) {
 }
 
 /// # Safety
-/// The parameters are plain i64 values with no pointer dereferences.
+/// No safety concerns as parameters are plain i64 values.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn host_channel_recv(chan_id: i64) -> i64 {
     // Simplified: dummy recv
@@ -75,7 +75,7 @@ pub unsafe extern "C" fn host_channel_recv(chan_id: i64) -> i64 {
 }
 
 /// # Safety
-/// The parameter is a plain i64 value with no pointer dereferences.
+/// No safety concerns as parameter is plain i64 value.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn host_spawn(_func_id: i64) -> i64 {
     // Simplified: return dummy chan id
