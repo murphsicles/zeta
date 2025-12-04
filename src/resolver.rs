@@ -106,7 +106,9 @@ impl Resolver {
                 }
                 self.direct_impls.insert((concept, ty), methods);
             }
-            AstNode::FuncDef { name, params, ret, .. } => {
+            AstNode::FuncDef {
+                name, params, ret, ..
+            } => {
                 let sig = (
                     params
                         .into_iter()
@@ -118,7 +120,8 @@ impl Resolver {
                 // Declare params in env & borrow owned
                 for (pname, pty) in &sig.0 {
                     self.type_env.insert(pname.clone(), pty.clone());
-                    self.borrow_checker.declare(pname.clone(), crate::borrow::BorrowState::Owned);
+                    self.borrow_checker
+                        .declare(pname.clone(), crate::borrow::BorrowState::Owned);
                 }
             }
             AstNode::ConceptDef { .. } => {
@@ -149,7 +152,8 @@ impl Resolver {
             AstNode::Assign(name, expr) => {
                 let ty = self.infer_type(expr);
                 self.type_env.insert(name.clone(), ty.clone());
-                self.borrow_checker.declare(name.clone(), crate::borrow::BorrowState::Owned);
+                self.borrow_checker
+                    .declare(name.clone(), crate::borrow::BorrowState::Owned);
                 ty
             }
             AstNode::TimingOwned { ty: _ty_str, inner } => {
@@ -157,7 +161,12 @@ impl Resolver {
                 // Enforce constant-time wrapper
                 Type::TimingOwned(Box::new(inner_ty))
             }
-            AstNode::Call { receiver, method, args, type_args } => {
+            AstNode::Call {
+                receiver,
+                method,
+                args,
+                type_args,
+            } => {
                 let recv_ty = receiver.as_ref().map(|r| self.infer_type(r));
                 let arg_tys: Vec<_> = args.iter().map(|a| self.infer_type(a)).collect();
 
@@ -215,8 +224,7 @@ impl Resolver {
                     }
                 }
 
-                let cache_safe =
-                    type_args.iter().all(|t| is_cache_safe(t)) && recv_ty.is_some();
+                let cache_safe = type_args.iter().all(|t| is_cache_safe(t)) && recv_ty.is_some();
                 record_specialization(
                     key,
                     MonoValue {
@@ -241,7 +249,8 @@ impl Resolver {
                 self.borrow_checker = BorrowChecker::new();
                 if let Some(sig) = self.func_sigs.get(name) {
                     for (pname, _) in &sig.0 {
-                        self.borrow_checker.declare(pname.clone(), crate::borrow::BorrowState::Owned);
+                        self.borrow_checker
+                            .declare(pname.clone(), crate::borrow::BorrowState::Owned);
                     }
                 }
                 for stmt in body {
