@@ -184,7 +184,7 @@ impl MirGen {
                 let mut arg_ids = args
                     .iter()
                     .map(|a| {
-                        let e = self.gen_expr(a, &mut exprs);
+                        let e = self.gen_expr(a, exprs);
                         self.materialize(e, exprs, out)
                     })
                     .collect::<Vec<_>>();
