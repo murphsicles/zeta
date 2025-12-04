@@ -36,24 +36,22 @@ extern "C" fn host_free(ptr: *mut std::ffi::c_void) {
 /// Simplified host HTTP GET: returns response length or -1 error.
 extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
     use std::ffi::CStr;
-    let _url_str = if let Ok(_) = unsafe { CStr::from_ptr(url) }.to_str() {
+    if unsafe { CStr::from_ptr(url) }.to_str().is_ok() {
         // Dummy: always return 200
         200i64
     } else {
         -1i64
-    };
-    _url_str
+    }
 }
 
 /// Simplified host TLS handshake: returns 0 success, -1 error.
 extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i64 {
     use std::ffi::CStr;
-    let _host_str = if let Ok(_) = unsafe { CStr::from_ptr(host) }.to_str() {
+    if unsafe { CStr::from_ptr(host) }.to_str().is_ok() {
         0i64
     } else {
         -1i64
-    };
-    _host_str
+    }
 }
 
 /// LLVM codegen context for a module.
@@ -141,15 +139,19 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .take(4)
                     .collect();
                 let param_meta_types: Vec<BasicMetadataTypeEnum<'ctx>> = param_types.iter().map(|t| (*t).into()).collect();
-                let fn_type = self.i64_type.fn_type(param_meta_types.as_slice(), false);
-                let fn_val = self.module.add_function(name, fn_type, None);
+                let fn_ty = self.i64_type.fn_type(&param_types, false);
+                let fn_val = self.module.add_function(name, fn_ty, None);
                 let basic_block = self.context.append_basic_block(fn_val, "entry");
                 self.builder.position_at_end(basic_block);
 
-                // Alloc locals
-                for (local_name, &id) in &mir.locals {
-                    let alloca = self.builder.build_alloca(self.i64_type, &format!("local_{}", local_name)).unwrap();
-                    self.locals.insert(id, alloca);
+                // Store params to locals (simplified, assume 0-3 params)
+                for (i, &local_id) in mir.locals.values().enumerate().take(4) {
+                    if i < fn_val.count_params() as usize {
+                        let param = fn_val.get_nth_param(i as u32).unwrap();
+                        let ptr = self.builder.build_alloca(self.i64_type, &format!("param_{}", i)).unwrap();
+                        self.builder.build_store(ptr, &param).unwrap();
+                        self.locals.insert(local_id, ptr);
+                    }
                 }
 
                 // Gen stmts
@@ -157,45 +159,43 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     match stmt {
                         MirStmt::Assign { lhs, rhs } => {
                             let val = self.gen_expr(rhs);
-                            let ptr = *self.locals.get(lhs).expect("local not found");
-                            self.builder.build_store(ptr, val).unwrap();
+                            let ptr = *self.locals.entry(*lhs).or_insert_with(|| {
+                                self.builder.build_alloca(self.i64_type, &format!("local_{}", lhs)).unwrap()
+                            });
+                            self.builder.build_store(ptr, &val).unwrap();
                         }
                         MirStmt::Call { func, args, dest } => {
-                            let arg_vals: Vec<BasicValueEnum<'ctx>> = args.iter().map(|&aid| self.load_local(aid)).collect();
-                            let param_tys: Vec<BasicTypeEnum<'ctx>> = arg_vals.iter().map(|v| v.get_type()).collect();
-                            let param_meta_tys: Vec<BasicMetadataTypeEnum<'ctx>> = param_tys.iter().map(|t| (*t).into()).collect();
-                            let callee = self.fns.get(func).cloned().unwrap_or_else(|| {
-                                let fn_ty = self.context.i64_type().fn_type(param_meta_tys.as_slice(), false);
-                                self.module
-                                    .add_function(func, fn_ty, Some(Linkage::External))
-                            });
-                            let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
-                                arg_vals.iter().map(|v| (*v).into()).collect();
-                            let call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
-
-                            let call_res: BasicValueEnum<'ctx> = unsafe {
-                                std::mem::transmute(call_site.try_as_basic_value())
-                            };
-                            
-                            let ptr = *self.locals.entry(*dest).or_insert_with(|| {
-                                self.builder
-                                    .build_alloca(self.i64_type, "call_res")
-                                    .unwrap()
-                            });
-                            self.builder.build_store(ptr, call_res).unwrap();
+                            let arg_vals: Vec<BasicValueEnum<'ctx>> = args.iter().map(|&id| self.load_local(id)).collect();
+                            if let Some(callee) = self.fns.get(func) {
+                                let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> = arg_vals.iter().map(|v| (*v).into()).collect();
+                                let _call_site = self.builder.build_call(*callee, &arg_meta_vals, "").unwrap();
+                            } else {
+                                // External call
+                                let i64_ty = self.i64_type;
+                                let fn_ty = i64_ty.fn_type(&vec![i64_ty.into(); args.len()], false);
+                                let callee = self.module.add_function(func, fn_ty, Some(Linkage::External));
+                                let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> = arg_vals.iter().map(|v| (*v).into()).collect();
+                                let _call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
+                            }
+                            // Store to dest if needed (simplified, assume call returns to dest)
+                            if let Some(d) = dest {
+                                let call_val = self.load_local(*d); // Placeholder
+                                let ptr = *self.locals.entry(*d).or_insert_with(|| self.builder.build_alloca(self.i64_type, &format!("call_res_{}", d)).unwrap());
+                                self.builder.build_store(ptr, &call_val).unwrap();
+                            }
                         }
                         MirStmt::VoidCall { func, args } => {
-                            let arg_vals: Vec<BasicValueEnum<'ctx>> = args.iter().map(|&aid| self.load_local(aid)).collect();
-                            let param_tys: Vec<BasicTypeEnum<'ctx>> = arg_vals.iter().map(|v| v.get_type()).collect();
-                            let param_meta_tys: Vec<BasicMetadataTypeEnum<'ctx>> = param_tys.iter().map(|t| (*t).into()).collect();
-                            let callee = self.fns.get(func).cloned().unwrap_or_else(|| {
-                                let fn_ty = self.context.void_type().fn_type(param_meta_tys.as_slice(), false);
-                                self.module
-                                    .add_function(func, fn_ty, Some(Linkage::External))
-                            });
-                            let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
-                                arg_vals.iter().map(|v| (*v).into()).collect();
-                            let _call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
+                            let arg_vals: Vec<BasicValueEnum<'ctx>> = args.iter().map(|&id| self.load_local(id)).collect();
+                            if let Some(callee) = self.fns.get(func) {
+                                let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> = arg_vals.iter().map(|v| (*v).into()).collect();
+                                let _ = self.builder.build_call(*callee, &arg_meta_vals, "");
+                            } else {
+                                let void_ty = self.context.void_type();
+                                let fn_ty = void_ty.fn_type(&vec![self.i64_type.into(); args.len()], false);
+                                let callee = self.module.add_function(func, fn_ty, Some(Linkage::External));
+                                let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> = arg_vals.iter().map(|v| (*v).into()).collect();
+                                let _call_site = self.builder.build_call(callee, &arg_meta_vals, "");
+                            }
                         }
                         MirStmt::SemiringFold { op, values, result } => {
                             // Fold multiple values with semiring op (add/mul chain).
@@ -224,7 +224,18 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         }
                     }
                 }
+
+                self.fns.insert(name.clone(), fn_val);
             }
+        }
+
+        // Create main if no main
+        if !self.module.get_function("main").is_some() {
+            let main_ty = self.i64_type.fn_type(&[], false);
+            let main_fn = self.module.add_function("main", main_ty, None);
+            let entry = self.context.append_basic_block(main_fn, "entry");
+            self.builder.position_at_end(entry);
+            self.builder.build_return(Some(&self.i64_type.const_int(0, false))).unwrap();
         }
     }
 
@@ -236,8 +247,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             MirExpr::ConstEval(n) => self.i64_type.const_int(*n as u64, true).into(),
             MirExpr::TimingOwned(inner_id) => {
                 // Load inner, apply TBAA for constant-time analysis
-                let inner_val = self.load_local(*inner_id);
-                inner_val
+                self.load_local(*inner_id)
             }
         }
     }
