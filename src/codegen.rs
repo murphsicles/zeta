@@ -138,7 +138,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .map(|_| self.i64_type.into())
                     .take(4)
                     .collect();
-                let param_meta_types: Vec<BasicMetadataTypeEnum<'ctx>> = param_types.iter().cloned().map(|t| t.into()).collect();
+                let param_meta_types: Vec<BasicMetadataTypeEnum<'ctx>> =
+                    param_types.iter().cloned().map(|t| t.into()).collect();
                 let fn_ty = self.i64_type.fn_type(&param_meta_types, false);
                 let fn_val = self.module.add_function(name, fn_ty, None);
                 let basic_block = self.context.append_basic_block(fn_val, "entry");
@@ -148,7 +149,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 for (i, local_id) in mir.locals.values().enumerate().take(4) {
                     if i < fn_val.count_params() as usize {
                         let param = fn_val.get_nth_param(i as u32).unwrap();
-                        let ptr = self.builder.build_alloca(self.i64_type, &format!("param_{}", i)).unwrap();
+                        let ptr = self
+                            .builder
+                            .build_alloca(self.i64_type, &format!("param_{}", i))
+                            .unwrap();
                         self.builder.build_store(ptr, param).unwrap();
                         self.locals.insert(*local_id, ptr);
                     }
@@ -160,40 +164,62 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         MirStmt::Assign { lhs, rhs } => {
                             let val = self.gen_expr(rhs);
                             let ptr = *self.locals.entry(*lhs).or_insert_with(|| {
-                                self.builder.build_alloca(self.i64_type, &format!("local_{}", lhs)).unwrap()
+                                self.builder
+                                    .build_alloca(self.i64_type, &format!("local_{}", lhs))
+                                    .unwrap()
                             });
                             self.builder.build_store(ptr, val).unwrap();
                         }
                         MirStmt::Call { func, args, dest } => {
-                            let arg_vals: Vec<BasicValueEnum<'ctx>> = args.iter().map(|&id| self.load_local(id)).collect();
+                            let arg_vals: Vec<BasicValueEnum<'ctx>> =
+                                args.iter().map(|&id| self.load_local(id)).collect();
                             if let Some(callee) = self.fns.get(func) {
-                                let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> = arg_vals.iter().map(|v| (*v).into()).collect();
-                                let _call_site = self.builder.build_call(*callee, &arg_meta_vals, "").unwrap();
+                                let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
+                                    arg_vals.iter().map(|v| (*v).into()).collect();
+                                let _call_site = self
+                                    .builder
+                                    .build_call(*callee, &arg_meta_vals, "")
+                                    .unwrap();
                             } else {
                                 // External call
                                 let i64_ty = self.i64_type;
                                 let fn_ty = i64_ty.fn_type(&vec![i64_ty.into(); args.len()], false);
-                                let callee = self.module.add_function(func, fn_ty, Some(Linkage::External));
-                                let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> = arg_vals.iter().map(|v| (*v).into()).collect();
-                                let _call_site = self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
+                                let callee =
+                                    self.module
+                                        .add_function(func, fn_ty, Some(Linkage::External));
+                                let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
+                                    arg_vals.iter().map(|v| (*v).into()).collect();
+                                let _call_site =
+                                    self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
                             }
                             // Store to dest if needed (simplified, assume call returns to dest)
-                            let ptr = *self.locals.entry(*dest).or_insert_with(|| self.builder.build_alloca(self.i64_type, &format!("call_res_{}", dest)).unwrap());
+                            let ptr = *self.locals.entry(*dest).or_insert_with(|| {
+                                self.builder
+                                    .build_alloca(self.i64_type, &format!("call_res_{}", dest))
+                                    .unwrap()
+                            });
                             // Assume call returns i64 to store (placeholder for actual call val)
                             let call_val = self.i64_type.const_int(0, false);
                             self.builder.build_store(ptr, call_val).unwrap();
                         }
                         MirStmt::VoidCall { func, args } => {
-                            let arg_vals: Vec<BasicValueEnum<'ctx>> = args.iter().map(|&id| self.load_local(id)).collect();
+                            let arg_vals: Vec<BasicValueEnum<'ctx>> =
+                                args.iter().map(|&id| self.load_local(id)).collect();
                             if let Some(callee) = self.fns.get(func) {
-                                let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> = arg_vals.iter().map(|v| (*v).into()).collect();
+                                let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
+                                    arg_vals.iter().map(|v| (*v).into()).collect();
                                 let _ = self.builder.build_call(*callee, &arg_meta_vals, "");
                             } else {
                                 let void_ty = self.context.void_type();
-                                let fn_ty = void_ty.fn_type(&vec![self.i64_type.into(); args.len()], false);
-                                let callee = self.module.add_function(func, fn_ty, Some(Linkage::External));
-                                let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> = arg_vals.iter().map(|v| (*v).into()).collect();
-                                let _call_site = self.builder.build_call(callee, &arg_meta_vals, "");
+                                let fn_ty =
+                                    void_ty.fn_type(&vec![self.i64_type.into(); args.len()], false);
+                                let callee =
+                                    self.module
+                                        .add_function(func, fn_ty, Some(Linkage::External));
+                                let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
+                                    arg_vals.iter().map(|v| (*v).into()).collect();
+                                let _call_site =
+                                    self.builder.build_call(callee, &arg_meta_vals, "");
                             }
                         }
                         MirStmt::SemiringFold { op, values, result } => {
@@ -234,7 +260,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
             let main_fn = self.module.add_function("main", main_ty, None);
             let entry = self.context.append_basic_block(main_fn, "entry");
             self.builder.position_at_end(entry);
-            self.builder.build_return(Some(&self.i64_type.const_int(0, false))).unwrap();
+            self.builder
+                .build_return(Some(&self.i64_type.const_int(0, false)))
+                .unwrap();
         }
     }
 
@@ -268,7 +296,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
         // MLGO AI hooks: Query Grok for optimized passes
         let client = XAIClient::new().ok(); // Optional, skip if no key
-        let mir_stats = format!("Stmts: {}, Locals: {}", self.module.print_to_string().to_str().map_or(0, |s| s.len()), self.locals.len());
+        let mir_stats = format!(
+            "Stmts: {}, Locals: {}",
+            self.module
+                .print_to_string()
+                .to_str()
+                .map_or(0, |s| s.len()),
+            self.locals.len()
+        );
         if let Some(c) = &client {
             if let Ok(rec) = c.mlgo_optimize(&mir_stats) {
                 if let Ok(json) = serde_json::from_str::<Value>(&rec) {
