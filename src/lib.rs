@@ -11,13 +11,13 @@ pub mod resolver;
 pub mod specialization;
 pub mod std;
 pub mod xai;
+use crate::ast::AstNode;
 pub use actor::{init_runtime, spawn};
 pub use codegen::LLVMCodegen;
+use inkwell::context::Context;
 pub use mir::Mir;
 pub use parser::parse_zeta;
 pub use resolver::Resolver;
-use crate::ast::AstNode;
-use inkwell::context::Context;
 /// Compiles and JIT-executes Zeta code to i64 result.
 pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
     // Init runtime.
