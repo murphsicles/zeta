@@ -32,10 +32,7 @@ pub enum AstNode {
         ret_expr: Option<Box<AstNode>>,
     },
     /// Enum definition.
-    EnumDef {
-        name: String,
-        variants: Vec<String>,
-    },
+    EnumDef { name: String, variants: Vec<String> },
     /// Struct definition.
     StructDef {
         name: String,
