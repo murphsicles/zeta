@@ -120,8 +120,8 @@ impl MirGen {
                     }
                     AstNode::Spawn { func, args } => {
                         let mut arg_ids = vec![];
-                        for arg in args {
-                            let e = self.gen_expr(&arg, &mut exprs);
+                        for arg in &args {
+                            let e = self.gen_expr(arg, &mut exprs);
                             arg_ids.push(self.materialize(e, &mut exprs, &mut stmts));
                         }
                         let dest = self.next_id();
@@ -184,7 +184,7 @@ impl MirGen {
                 let mut arg_ids = args
                     .iter()
                     .map(|a| {
-                        let e = self.gen_expr(a, exprs);
+                        let e = self.gen_expr(a, &mut exprs);
                         self.materialize(e, exprs, out)
                     })
                     .collect::<Vec<_>>();
