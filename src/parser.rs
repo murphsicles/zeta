@@ -27,6 +27,7 @@ fn parse_ident<'a>() -> impl Parser<&'a str, Output = String, Error = nom::error
 }
 
 /// Parses keyword.
+#[allow(dead_code)]
 fn parse_keyword<'a>(
     kw: &'static str,
 ) -> impl Parser<&'a str, Output = (), Error = nom::error::Error<&'a str>> {
