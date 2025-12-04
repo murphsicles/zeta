@@ -26,8 +26,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     resolver.typecheck(&asts);
 
     // Lower all FuncDefs to MIR.
-    let mirs: Vec<_> = asts.iter()
-        .filter_map(|ast| if let AstNode::FuncDef { .. } = ast { Some(resolver.lower_to_mir(ast)) } else { None })
+    let mirs: Vec<_> = asts
+        .iter()
+        .filter_map(|ast| {
+            if let AstNode::FuncDef { .. } = ast {
+                Some(resolver.lower_to_mir(ast))
+            } else {
+                None
+            }
+        })
         .collect();
 
     // Setup LLVM.
