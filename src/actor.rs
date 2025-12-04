@@ -83,7 +83,8 @@ pub unsafe extern "C" fn host_spawn(_func_id: i64) -> i64 {
     1i64
 }
 
-/// Simplified host HTTP GET: returns response length or -1 error.
+/// # Safety
+/// The `url` pointer must be a valid null-terminated C string.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
     use std::ffi::CStr;
@@ -96,7 +97,7 @@ pub unsafe extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
 }
 
 /// # Safety
-/// The `url` pointer must be a valid null-terminated C string.
+/// The `host` pointer must be a valid null-terminated C string.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i64 {
     use std::ffi::CStr;
