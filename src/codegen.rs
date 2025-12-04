@@ -138,8 +138,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .map(|_| self.i64_type.into())
                     .take(4)
                     .collect();
-                let param_meta_types: Vec<BasicMetadataTypeEnum<'ctx>> = param_types.iter().map(|t| (*t).into()).collect();
-                let fn_ty = self.i64_type.fn_type(&param_types, false);
+                let param_meta_types: Vec<BasicMetadataTypeEnum<'ctx>> = param_types.iter().cloned().map(|t| t.into()).collect();
+                let fn_ty = self.i64_type.fn_type(&param_meta_types, false);
                 let fn_val = self.module.add_function(name, fn_ty, None);
                 let basic_block = self.context.append_basic_block(fn_val, "entry");
                 self.builder.position_at_end(basic_block);
@@ -149,7 +149,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     if i < fn_val.count_params() as usize {
                         let param = fn_val.get_nth_param(i as u32).unwrap();
                         let ptr = self.builder.build_alloca(self.i64_type, &format!("param_{}", i)).unwrap();
-                        self.builder.build_store(ptr, &param).unwrap();
+                        self.builder.build_store(ptr, param).unwrap();
                         self.locals.insert(*local_id, ptr);
                     }
                 }
@@ -162,7 +162,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             let ptr = *self.locals.entry(*lhs).or_insert_with(|| {
                                 self.builder.build_alloca(self.i64_type, &format!("local_{}", lhs)).unwrap()
                             });
-                            self.builder.build_store(ptr, &val).unwrap();
+                            self.builder.build_store(ptr, val).unwrap();
                         }
                         MirStmt::Call { func, args, dest } => {
                             let arg_vals: Vec<BasicValueEnum<'ctx>> = args.iter().map(|&id| self.load_local(id)).collect();
@@ -180,8 +180,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             // Store to dest if needed (simplified, assume call returns to dest)
                             let ptr = *self.locals.entry(*dest).or_insert_with(|| self.builder.build_alloca(self.i64_type, &format!("call_res_{}", dest)).unwrap());
                             // Assume call returns i64 to store (placeholder for actual call val)
-                            let call_val = self.i64_type.const_int(0, false); // Placeholder
-                            self.builder.build_store(ptr, &call_val).unwrap();
+                            let call_val = self.i64_type.const_int(0, false);
+                            self.builder.build_store(ptr, call_val).unwrap();
                         }
                         MirStmt::VoidCall { func, args } => {
                             let arg_vals: Vec<BasicValueEnum<'ctx>> = args.iter().map(|&id| self.load_local(id)).collect();
