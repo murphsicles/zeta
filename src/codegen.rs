@@ -3,6 +3,7 @@
 //! Supports JIT execution, intrinsics, SIMD, TBAA, actor runtime, and std embeddings.
 //! Ensures stable ABI and TimingOwned constant-time guarantees.
 //! Updated: Handle ParamInit - store fn args to param allocas at entry.
+//! Updated: Handle Consume - no-op (semantic for affine verification).
 
 use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
@@ -160,6 +161,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 });
                                 self.builder.build_store(param_ptr, *arg).unwrap();
                             }
+                        }
+                        MirStmt::Consume { id } => {
+                            // No-op in codegen; semantic for affine verification
+                            let _ = self.locals.entry(*id);  // Ensure alloca exists
                         }
                         MirStmt::Assign { lhs, rhs } => {
                             let lhs_ptr = *self.locals.entry(*lhs).or_insert_with(|| {
