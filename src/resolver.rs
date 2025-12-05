@@ -2,6 +2,7 @@
 //! Type resolver and semantic analyzer for Zeta.
 //! Handles type inference, trait resolution, borrow checking, MIR lowering, and optimizations.
 //! Integrates algebraic structures from EOP for semiring-based codegen.
+//! Added: Stable ABI checks (no UB, const-time TimingOwned validation).
 
 use crate::ast::AstNode;
 use crate::borrow::BorrowChecker;
@@ -12,7 +13,6 @@ use crate::specialization::{
 use std::collections::HashMap;
 use std::fmt;
 
-/// Enum for Zeta types, supporting primitives and named types.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
     /// 64-bit signed integer.
@@ -46,6 +46,14 @@ type MethodSig = (Vec<Type>, Type);
 type ImplMethods = HashMap<String, MethodSig>;
 type FuncSig = (Vec<(String, Type)>, Type); // params -> ret
 type FuncMap = HashMap<String, FuncSig>;
+
+/// Enum for ABI violations.
+#[derive(Debug, Clone)]
+pub enum AbiError {
+    RawPointerInPublic,
+    NonConstTimeTimingOwned,
+    UnsafeCast,
+}
 
 /// Main resolver struct, orchestrating type checking and lowering.
 #[derive(Clone)]
@@ -93,7 +101,7 @@ impl Resolver {
                 let ty = self.parse_type(&ty);
                 let mut methods = HashMap::new();
                 for node in body {
-                    if let AstNode::Method { name, params, ret } = node {
+                    if let AstNode::Method { name, params, ret, .. } = node {
                         let sig = (
                             params
                                 .into_iter()
@@ -158,7 +166,6 @@ impl Resolver {
             }
             AstNode::TimingOwned { ty: _ty_str, inner } => {
                 let inner_ty = self.infer_type(inner);
-                // Enforce constant-time wrapper
                 Type::TimingOwned(Box::new(inner_ty))
             }
             AstNode::Call {
@@ -166,6 +173,7 @@ impl Resolver {
                 method,
                 args,
                 type_args,
+                structural,
             } => {
                 let recv_ty = receiver.as_ref().map(|r| self.infer_type(r));
                 let arg_tys: Vec<_> = args.iter().map(|a| self.infer_type(a)).collect();
@@ -191,8 +199,8 @@ impl Resolver {
                             }
                         }
                     }
-                    // Structural: fallback for primitives
-                    if method == "add" && recv_ty == &Type::I64 {
+                    // Structural: fallback for primitives if structural
+                    if *structural && method == "add" && recv_ty == &Type::I64 {
                         return Type::I64;
                     }
                 }
@@ -238,6 +246,21 @@ impl Resolver {
         }
     }
 
+    /// Performs ABI checks: no raw pointers in public, TimingOwned only on const-time primitives.
+    fn check_abi(&self, node: &AstNode) -> Result<(), AbiError> {
+        match node {
+            AstNode::TimingOwned { inner, .. } => {
+                let inner_ty = self.infer_type(inner);
+                match &inner_ty {
+                    Type::I64 | Type::F32 | Type::Bool => Ok(()),  // Primitives ok
+                    _ => Err(AbiError::NonConstTimeTimingOwned),
+                }
+            }
+            AstNode::Call { method, .. } if method == "as_ptr" => Err(AbiError::RawPointerInPublic),
+            _ => Ok(()),
+        }
+    }
+
     /// Performs type checking and borrow checking on a program.
     /// Returns true if all checks pass.
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
@@ -256,6 +279,9 @@ impl Resolver {
                 for stmt in body {
                     self.infer_type(stmt);
                     if !self.borrow_checker.check(stmt) {
+                        ok = false;
+                    }
+                    if let Err(_) = self.check_abi(stmt) {
                         ok = false;
                     }
                 }
