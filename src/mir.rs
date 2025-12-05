@@ -2,6 +2,7 @@
 //! Mid-level IR for Zeta, bridging AST to LLVM.
 //! Supports statements, expressions, and semiring ops for algebraic optimization.
 //! Added: ParamInit - store caller args to local allocas at fn entry.
+//! Added: Affine moves - Consume stmt after calls for by-value args (semantic marker).
 
 use crate::ast::AstNode;
 use std::collections::HashMap;
@@ -45,9 +46,12 @@ pub enum MirStmt {
         values: Vec<u32>,
         result: u32,
     },
-    ParamInit {  // New: Initialize param local from arg index
+    ParamInit {  // Initialize param local from arg index
         param_id: u32,
         arg_index: usize,
+    },
+    Consume {  // New: Mark local as consumed post-move (affine semantic)
+        id: u32,
     },
 }
 
@@ -143,12 +147,15 @@ impl MirGen {
                         let mut arg_ids = vec![];
                         for arg in args.iter() {
                             let e = self.gen_expr(arg, &mut exprs);
-                            arg_ids.push(self.materialize(e, &mut exprs, &mut stmts));
+                            let arg_id = self.materialize(e, &mut exprs, &mut stmts);
+                            arg_ids.push(arg_id);
+                            // Consume args post-spawn (affine move to actor)
+                            stmts.push(MirStmt::Consume { id: arg_id });
                         }
                         let dest = self.next_id();
                         stmts.push(MirStmt::Call {
                             func: format!("actor_spawn_{}", func),
-                            args: arg_ids,
+                            args: arg_ids.clone(),
                             dest,
                         });
                     }
@@ -217,9 +224,14 @@ impl MirGen {
                 let dest = self.next_id();
                 out.push(MirStmt::Call {
                     func: method.clone(),
-                    args: arg_ids,
+                    args: arg_ids.clone(),
                     dest,
                 });
+
+                // Affine: Consume by-value args post-call (assume all Var args moved)
+                for arg_id in arg_ids.iter().filter(|id| matches!(self.exprs.get(id), Some(MirExpr::Var(_)))) {
+                    out.push(MirStmt::Consume { id: *arg_id });
+                }
             }
             _ => {}
         }
