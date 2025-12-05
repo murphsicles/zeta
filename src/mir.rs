@@ -1,6 +1,7 @@
 // src/mir.rs
 //! Mid-level IR for Zeta, bridging AST to LLVM.
 //! Supports statements, expressions, and semiring ops for algebraic optimization.
+//! Added: ParamInit - store caller args to local allocas at fn entry.
 
 use crate::ast::AstNode;
 use std::collections::HashMap;
@@ -44,6 +45,10 @@ pub enum MirStmt {
         values: Vec<u32>,
         result: u32,
     },
+    ParamInit {  // New: Initialize param local from arg index
+        param_id: u32,
+        arg_index: usize,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -64,6 +69,8 @@ pub struct MirGen {
     next_id: u32,
     locals: HashMap<String, u32>,
     defers: Vec<DeferInfo>,
+    // Track param indices for init
+    param_indices: Vec<(String, usize)>,  // (name, arg position)
 }
 
 impl Default for MirGen {
@@ -78,6 +85,7 @@ impl MirGen {
             next_id: 0,
             locals: HashMap::new(),
             defers: vec![],
+            param_indices: vec![],
         }
     }
 
@@ -91,10 +99,23 @@ impl MirGen {
         };
 
         if let AstNode::FuncDef { params, body, .. } = ast {
-            // Alloc param locals (no init here; caller passes args)
-            for (pname, _) in params {
-                self.alloc_local(pname);
+            // Alloc param locals and track for init
+            self.param_indices.clear();
+            for (i, (pname, _)) in params.iter().enumerate() {
+                let id = self.alloc_local(pname);
+                self.param_indices.push((pname.clone(), i));
             }
+
+            // Add ParamInit stmts at entry
+            for (pname, arg_idx) in &self.param_indices {
+                if let Some(param_id) = self.locals.get(pname) {
+                    stmts.push(MirStmt::ParamInit {
+                        param_id: *param_id,
+                        arg_index: *arg_idx,
+                    });
+                }
+            }
+
             for stmt in body {
                 match stmt {
                     AstNode::Defer(boxed) => {
