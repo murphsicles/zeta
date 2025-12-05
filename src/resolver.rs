@@ -3,6 +3,7 @@
 //! Handles type inference, trait resolution, borrow checking, MIR lowering, and optimizations.
 //! Integrates algebraic structures from EOP for semiring-based codegen.
 //! Added: Stable ABI checks (no UB, const-time TimingOwned validation).
+//! Added: CTFE (const eval semirings) for literal/semiring folding during inference.
 
 use crate::ast::AstNode;
 use crate::borrow::BorrowChecker;
@@ -53,6 +54,14 @@ pub enum AbiError {
     RawPointerInPublic,
     NonConstTimeTimingOwned,
     UnsafeCast,
+}
+
+/// Enum for constant values (for CTFE).
+#[derive(Debug, Clone)]
+pub enum ConstValue {
+    Int(i64),
+    Float(f32),
+    Bool(bool),
 }
 
 /// Main resolver struct, orchestrating type checking and lowering.
@@ -152,8 +161,44 @@ impl Resolver {
         }
     }
 
+    /// Constant-time folding evaluation for semiring ops on literals.
+    /// Returns Some(ConstValue) if fully constant, else None.
+    fn const_eval_semiring(&self, node: &AstNode) -> Option<ConstValue> {
+        match node {
+            AstNode::Lit(n) => Some(ConstValue::Int(*n)),
+            AstNode::Call {
+                receiver: Some(recv),
+                method,
+                args,
+                type_args: _,
+                structural: _,
+            } if method == "add" && args.len() == 1 => {
+                if let Some(left) = self.const_eval_semiring(recv) {
+                    if let Some(ConstValue::Int(right)) = self.const_eval_semiring(&args[0]) {
+                        if let ConstValue::Int(l) = left {
+                            return Some(ConstValue::Int(l + right));
+                        }
+                    }
+                }
+                None
+            }
+            // Extend for mul, other semirings
+            _ => None,
+        }
+    }
+
     /// Infers the type of an AST node, updating the environment.
+    /// Applies CTFE if possible.
     pub fn infer_type(&mut self, node: &AstNode) -> Type {
+        // Try CTFE first
+        if let Some(const_val) = self.const_eval_semiring(node) {
+            match const_val {
+                ConstValue::Int(_) => return Type::I64,
+                ConstValue::Float(_) => return Type::F32,
+                ConstValue::Bool(_) => return Type::Bool,
+            }
+        }
+
         match node {
             AstNode::Lit(_) => Type::I64,
             AstNode::Var(v) => self.type_env.get(v).cloned().unwrap_or(Type::Unknown),
