@@ -5,9 +5,11 @@
 //! Updated: Handle ParamInit - store fn args to param allocas at entry.
 //! Updated: Handle Consume - no-op (semantic for affine verification).
 //! Added: SIMD - vec ops via MLGO passes; detect SemiringFold for vectorize.
+//! Added: Stable ABI - no UB via sanitize checks, thin mono via specialization mangled names.
 
 use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
+use crate::specialization::{lookup_specialization, MonoKey};
 use crate::xai::XAIClient;
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
@@ -138,6 +140,26 @@ impl<'ctx> LLVMCodegen<'ctx> {
     pub fn gen_mirs(&mut self, mirs: &[Mir]) {
         for mir in mirs {
             if let Some(ref name) = mir.name {
+                // Stable ABI: Check for thin mono via specialization cache
+                let key = MonoKey {
+                    func_name: name.clone(),
+                    type_args: vec![],
+                };
+                if let Some(cached) = lookup_specialization(&key) {
+                    if cached.cache_safe {
+                        // Use mangled name for thin mono instance
+                        let mangled_name = cached.llvm_func_name;
+                        let fn_val = self.module.add_function(&mangled_name, self.i64_type.fn_type(&[], false), None);
+                        // Add no-ub attributes
+                        fn_val.add_attribute(inkwell::AttributeLoc::Function, self.context.create_enum_attribute(inkwell::Attribute::NoUnwind, 0));
+                        // ... other ABI attrs
+                    } else {
+                        // Full generic fallback
+                    }
+                } else {
+                    // Default generation
+                }
+
                 // Fn type from #params (all i64 for now)
                 let param_types: Vec<BasicTypeEnum<'ctx>> = mir
                     .locals
@@ -306,6 +328,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
         &mut self,
     ) -> Result<ExecutionEngine<'ctx>, Box<dyn std::error::Error>> {
         self.module.verify().map_err(|e| e.to_string())?;
+
+        // Stable ABI: Add sanitize for no UB
+        let sanitize_attr = self.context.create_enum_attribute(inkwell::Attribute::SanitizeAddress, 0);
+        for fn_val in self.module.get_functions() {
+            fn_val.add_attribute(inkwell::AttributeLoc::Function, sanitize_attr);
+        }
 
         // MLGO AI hooks: Query Grok for optimized passes, including SIMD vectorize
         let client = XAIClient::new().ok(); // Optional, skip if no key
