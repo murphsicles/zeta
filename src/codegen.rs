@@ -2,6 +2,7 @@
 //! LLVM code generation for Zeta MIR.
 //! Supports JIT execution, intrinsics, SIMD, TBAA, actor runtime, and std embeddings.
 //! Ensures stable ABI and TimingOwned constant-time guarantees.
+//! Updated: Handle ParamInit - store fn args to param allocas at entry.
 
 use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
@@ -145,82 +146,56 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let basic_block = self.context.append_basic_block(fn_val, "entry");
                 self.builder.position_at_end(basic_block);
 
-                // Store params to locals (simplified, assume 0-3 params)
-                for (i, local_id) in mir.locals.values().enumerate().take(4) {
-                    if i < fn_val.count_params() as usize {
-                        let param = fn_val.get_nth_param(i as u32).unwrap();
-                        let ptr = self
-                            .builder
-                            .build_alloca(self.i64_type, &format!("param_{}", i))
-                            .unwrap();
-                        self.builder.build_store(ptr, param).unwrap();
-                        self.locals.insert(*local_id, ptr);
-                    }
-                }
+                // Get fn args for ParamInit
+                let fn_args: Vec<_> = fn_val.get_params().into_iter().collect();
 
-                // Gen stmts
                 for stmt in &mir.stmts {
                     match stmt {
+                        MirStmt::ParamInit { param_id, arg_index } => {
+                            if let Some(arg) = fn_args.get(*arg_index) {
+                                let param_ptr = *self.locals.entry(*param_id).or_insert_with(|| {
+                                    self.builder
+                                        .build_alloca(self.i64_type, "param")
+                                        .unwrap()
+                                });
+                                self.builder.build_store(param_ptr, *arg).unwrap();
+                            }
+                        }
                         MirStmt::Assign { lhs, rhs } => {
-                            let val = self.gen_expr(rhs);
-                            let ptr = *self.locals.entry(*lhs).or_insert_with(|| {
+                            let lhs_ptr = *self.locals.entry(*lhs).or_insert_with(|| {
                                 self.builder
-                                    .build_alloca(self.i64_type, &format!("local_{}", lhs))
+                                    .build_alloca(self.i64_type, "local")
                                     .unwrap()
                             });
-                            self.builder.build_store(ptr, val).unwrap();
+                            let rhs_val = self.gen_expr(rhs);
+                            self.builder.build_store(lhs_ptr, rhs_val).unwrap();
                         }
                         MirStmt::Call { func, args, dest } => {
-                            let arg_vals: Vec<BasicValueEnum<'ctx>> =
-                                args.iter().map(|&id| self.load_local(id)).collect();
-                            if let Some(callee) = self.fns.get(func) {
-                                let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
-                                    arg_vals.iter().map(|v| (*v).into()).collect();
-                                let _call_site = self
-                                    .builder
-                                    .build_call(*callee, &arg_meta_vals, "")
-                                    .unwrap();
-                            } else {
-                                // External call
-                                let i64_ty = self.i64_type;
-                                let fn_ty = i64_ty.fn_type(&vec![i64_ty.into(); args.len()], false);
-                                let callee =
-                                    self.module
-                                        .add_function(func, fn_ty, Some(Linkage::External));
-                                let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
-                                    arg_vals.iter().map(|v| (*v).into()).collect();
-                                let _call_site =
-                                    self.builder.build_call(callee, &arg_meta_vals, "").unwrap();
-                            }
-                            // Store to dest if needed (simplified, assume call returns to dest)
-                            let ptr = *self.locals.entry(*dest).or_insert_with(|| {
-                                self.builder
-                                    .build_alloca(self.i64_type, &format!("call_res_{}", dest))
-                                    .unwrap()
+                            let callee = self.module.get_function(func).unwrap_or_else(|| {
+                                self.module.add_function(func, self.i64_type.fn_type(&[self.i64_type.into()], false), Some(Linkage::External))
                             });
-                            // Assume call returns i64 to store (placeholder for actual call val)
-                            let call_val = self.i64_type.const_int(0, false);
-                            self.builder.build_store(ptr, call_val).unwrap();
+                            let mut arg_vals = vec![];
+                            for &arg_id in args {
+                                arg_vals.push(self.load_local(arg_id).into_int_value());
+                            }
+                            let arg_meta_vals: Vec<BasicMetadataValueEnum> = arg_vals.iter().map(|v| v.into()).collect();
+                            let call_val = self.builder.build_call(callee, &arg_meta_vals, "");
+                            let dest_ptr = *self.locals.entry(*dest).or_insert_with(|| {
+                                self.builder.build_alloca(self.i64_type, "call_res").unwrap()
+                            });
+                            self.builder.build_store(dest_ptr, call_val.try_as_basic_value().left().unwrap()).unwrap();
                         }
                         MirStmt::VoidCall { func, args } => {
-                            let arg_vals: Vec<BasicValueEnum<'ctx>> =
-                                args.iter().map(|&id| self.load_local(id)).collect();
-                            if let Some(callee) = self.fns.get(func) {
-                                let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
-                                    arg_vals.iter().map(|v| (*v).into()).collect();
-                                let _ = self.builder.build_call(*callee, &arg_meta_vals, "");
-                            } else {
-                                let void_ty = self.context.void_type();
-                                let fn_ty =
-                                    void_ty.fn_type(&vec![self.i64_type.into(); args.len()], false);
-                                let callee =
-                                    self.module
-                                        .add_function(func, fn_ty, Some(Linkage::External));
-                                let arg_meta_vals: Vec<BasicMetadataValueEnum<'ctx>> =
-                                    arg_vals.iter().map(|v| (*v).into()).collect();
-                                let _call_site =
-                                    self.builder.build_call(callee, &arg_meta_vals, "");
+                            let callee = self.module.get_function(func).unwrap_or_else(|| {
+                                let void_type = self.context.void_type();
+                                self.module.add_function(func, void_type.fn_type(&[self.i64_type.into()], false), Some(Linkage::External))
+                            });
+                            let mut arg_vals = vec![];
+                            for &arg_id in args {
+                                arg_vals.push(self.load_local(arg_id).into_int_value());
                             }
+                            let arg_meta_vals: Vec<BasicMetadataValueEnum> = arg_vals.iter().map(|v| v.into()).collect();
+                            self.builder.build_call(callee, &arg_meta_vals, "");
                         }
                         MirStmt::SemiringFold { op, values, result } => {
                             // Fold multiple values with semiring op (add/mul chain).
