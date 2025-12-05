@@ -3,7 +3,7 @@
 //! Checklist for milestones. Mark as [x] when complete. Prioritize: Parser -> Resolver -> MIR -> Codegen -> Opts -> Actors/Std -> Bootstrap.
 //! Current: Parser/AST/Res/MIR/codegen basics + actors/std embeds + thin mono cache; next: Generics/hybrids/partial spec parsing, param inits/affine in MIR, SIMD/MLGO, full self-host eval/bootstrap.
 //! v0.0.1 released Dec 4, 2025: Core complete. Now advancing to v0.0.2 with generics, ABI checks, param inits.
-//! Dec 5, 2025: Added generics parsing [x], hybrid traits syntax (structural ? in calls) [x]; partial spec parsing (type_args in calls) [x]; ABI checks in resolver [x]; CTFE in resolver [x]; ParamInit in MIR [x]; next: Affine moves in MIR, CTFE in MIR opts.
+//! Dec 5, 2025: Added generics parsing [x], hybrid traits syntax (structural ? in calls) [x]; partial spec parsing (type_args in calls) [x]; ABI checks in resolver [x]; CTFE in resolver [x]; ParamInit in MIR [x]; Affine moves in MIR [x]; next: CTFE in MIR opts, SIMD in codegen.
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
@@ -37,7 +37,7 @@ pub mod checklist {
 [x] Spawn (Call to actor_spawn_)
 [x] SemiringFold opt (add chains)
 [x] ParamInit (from caller args)
-[ ] Affine moves (consume after call)
+[x] Affine moves (consume after call)
     "#;
     /// Codegen (LLVM)
     pub const CODEGEN: &str = r#"
