@@ -3,7 +3,7 @@
 //! Checklist for milestones. Mark as [x] when complete. Prioritize: Parser -> Resolver -> MIR -> Codegen -> Opts -> Actors/Std -> Bootstrap.
 //! Current: Parser/AST/Res/MIR/codegen basics + actors/std embeds + thin mono cache; next: Generics/hybrids/partial spec parsing, param inits/affine in MIR, SIMD/MLGO, full self-host eval/bootstrap.
 //! v0.0.1 released Dec 4, 2025: Core complete. Now advancing to v0.0.2 with generics, ABI checks, param inits.
-//! Dec 5, 2025: Added generics parsing [x], hybrid traits syntax (structural ? in calls) [x]; partial spec parsing (type_args in calls) [x]; ABI checks in resolver [x]; CTFE in resolver [x]; ParamInit in MIR [x]; Affine moves in MIR [x]; next: CTFE in MIR opts, SIMD in codegen.
+//! Dec 5, 2025: Added generics parsing [x], hybrid traits syntax (structural ? in calls) [x]; partial spec parsing (type_args in calls) [x]; ABI checks in resolver [x]; CTFE in resolver [x]; ParamInit in MIR [x]; Affine moves in MIR [x]; SIMD in codegen [x]; next: Stable ABI in codegen, MLGO in opts.
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
@@ -47,7 +47,7 @@ pub mod checklist {
 [x] Intrinsics (datetime/free/channel/spawn/http/tls)
 [x] TBAA (TimingOwned const-time metadata)
 [x] JIT (verify/pass_mgr/ee/map hosts)
-[ ] SIMD (vec ops via MLGO passes)
+[x] SIMD (vec ops via MLGO passes)
 [ ] Stable ABI (no UB, thin mono via specialization)
     "#;
     /// Optimizations
