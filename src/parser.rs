@@ -4,6 +4,7 @@
 //! Extended for self-host: concepts { methods }, impls for types, enums, structs, tokens.
 //! Now with generics: fn name<T,U>(params) -> Ret { body }
 //! Added hybrid traits: structural dispatch via method? (e.g., obj.add?(b) for ad-hoc structural lookup)
+//! Added partial specialization: method::<T,U>(args) for type args in calls.
 
 use crate::ast::AstNode;
 use nom::branch::alt;
@@ -111,19 +112,32 @@ fn parse_structural<'a>() -> impl Parser<&'a str, Output = bool, Error = nom::er
     map(opt(nom_char('?')), |opt_q| opt_q.is_some())
 }
 
-/// Parses call: recv.method(args) or recv.method?(args) for structural.
+/// Parses type args: <T,U>.
+fn parse_type_args<'a>() -> impl Parser<&'a str, Output = Vec<String>, Error = nom::error::Error<&'a str>> {
+    delimited(
+        tag("<"),
+        separated_list(tag(","), parse_ident()),
+        tag(">"),
+    )
+}
+
+/// Parses call: recv.method::<T,U>(args) or recv.method?(args) for structural.
 fn parse_call<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     parse_base_expr()
         .and(ws(tag(".")))
         .and(parse_ident())
         .and(parse_structural())
+        .and(opt(ws(parse_type_args())))
         .and(delimited(tag("("), many0(ws(parse_base_expr())), tag(")")))
-        .map(|((recv, _), (method, (structural, args)))| AstNode::Call {
-            receiver: Some(Box::new(recv)),
-            method,
-            args,
-            type_args: vec![],
-            structural,  // New field for hybrid dispatch hint
+        .map(|(recv, (((((_, method), structural), type_args_opt), _), args))| {
+            let type_args = type_args_opt.unwrap_or(vec![]);
+            AstNode::Call {
+                receiver: Some(Box::new(recv)),
+                method,
+                args,
+                type_args,
+                structural,
+            }
         })
 }
 
