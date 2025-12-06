@@ -3,7 +3,6 @@
 //! Supports statements, expressions, and semiring ops for algebraic optimization.
 //! Added: ParamInit - store caller args to local allocas at fn entry.
 //! Added: Affine moves - Consume stmt after calls for by-value args (semantic marker).
-//! Added: CTFE pass - constant folding on literals and semiring ops before codegen.
 
 use crate::ast::AstNode;
 use std::collections::HashMap;
@@ -189,47 +188,9 @@ impl MirGen {
         };
 
         // Apply CTFE optimization
-        mir.optimize_ctfe();
+        Mir::optimize_ctfe(&mut mir);
 
         mir
-    }
-
-    /// CTFE optimization pass: Fold constant expressions in MIR.
-    fn optimize_ctfe(&mut self, mir: &mut Mir) {
-        let mut i = 0;
-        while i < mir.stmts.len() {
-            if let MirStmt::Assign { lhs, rhs } = &mut mir.stmts[i] {
-                if let Some(folded) = self.eval_expr(rhs, &mir.exprs) {
-                    *rhs = folded;
-                    // If lhs is used only here, could propagate, but simple: keep assign to Lit
-                }
-            } else if let MirStmt::Call { func, args, dest } = &mut mir.stmts[i] {
-                // If call to semiring op with all const args, fold
-                if func == "add" || func == "mul" {
-                    let op = if func == "add" { SemiringOp::Add } else { SemiringOp::Mul };
-                    let all_const = args.iter().all(|&id| matches!(mir.exprs.get(&id), Some(MirExpr::Lit(_))));
-                    if all_const {
-                        let values: Vec<i64> = args.iter().map(|&id| if let MirExpr::Lit(n) = mir.exprs[&id] { *n } else { 0 }).collect();
-                        let folded = match op {
-                            SemiringOp::Add => values.iter().sum(),
-                            SemiringOp::Mul => values.iter().product(),
-                        };
-                        mir.exprs.insert(*dest, MirExpr::ConstEval(folded));
-                        // Replace stmt with assign from ConstEval
-                        mir.stmts[i] = MirStmt::Assign { lhs: *dest, rhs: MirExpr::ConstEval(folded) };
-                    }
-                }
-            }
-            i += 1;
-        }
-    }
-
-    fn eval_expr(&self, expr: &MirExpr, exprs: &HashMap<u32, MirExpr>) -> Option<MirExpr> {
-        match expr {
-            MirExpr::Var(id) => if let Some(e) = exprs.get(id) { self.eval_expr(e, exprs) } else { None },
-            MirExpr::Lit(_) | MirExpr::ConstEval(_) => Some(expr.clone()),
-            MirExpr::TimingOwned(id) => if let Some(inner) = exprs.get(id) { self.eval_expr(inner, exprs) } else { None },
-        }
     }
 
     fn gen_stmt(
@@ -363,7 +324,28 @@ impl MirGen {
 impl Mir {
     /// Apply CTFE pass to fold constants.
     pub fn optimize_ctfe(&mut self) {
-        let mut mir_gen = MirGen::new(); // Reuse gen for eval
-        mir_gen.optimize_ctfe(self);
+        let mut i = 0;
+        while i < self.stmts.len() {
+            if let MirStmt::Call { func, args, dest } = &mut self.stmts[i] {
+                // If call to semiring op with all const args, fold
+                if func == "add" || func == "mul" {
+                    let op = if func == "add" { SemiringOp::Add } else { SemiringOp::Mul };
+                    let all_const = args.iter().all(|&id| matches!(self.exprs.get(&id), Some(MirExpr::Lit(_))));
+                    if all_const {
+                        let values: Vec<i64> = args.iter().map(|&id| {
+                            if let MirExpr::Lit(n) = self.exprs[&id] { n } else { 0 }
+                        }).collect();
+                        let folded = match op {
+                            SemiringOp::Add => values.iter().sum(),
+                            SemiringOp::Mul => values.iter().product(),
+                        };
+                        self.exprs.insert(*dest, MirExpr::ConstEval(folded));
+                        // Replace stmt with assign from ConstEval
+                        self.stmts[i] = MirStmt::Assign { lhs: *dest, rhs: MirExpr::ConstEval(folded) };
+                    }
+                }
+            }
+            i += 1;
+        }
     }
 }
