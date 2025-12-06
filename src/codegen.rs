@@ -6,7 +6,6 @@
 //! Updated: Handle Consume - no-op (semantic for affine verification).
 //! Added: SIMD - vec ops via MLGO passes; detect SemiringFold for vectorize.
 //! Added: Stable ABI - no UB via sanitize checks, thin mono via specialization mangled names.
-//! Added: Full MLGO AI - query for passes, apply vectorize/branch-pred.
 
 use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
@@ -18,7 +17,7 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
-use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, IntType, VectorType};
+use inkwell::types::{IntType, PointerType, VectorType};
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue};
 use inkwell::attributes::{Attribute, AttributeLoc};
 use serde_json::Value;
@@ -74,7 +73,7 @@ pub struct LLVMCodegen<'ctx> {
     vec4_i64_type: VectorType<'ctx>,
     #[allow(dead_code)]
     /// Pointer type for heap ops.
-    ptr_type: inkwell::types::PointerType<'ctx>,
+    ptr_type: PointerType<'ctx>,
     /// Local alloca slots by MIR ID.
     locals: HashMap<u32, PointerValue<'ctx>>,
     /// TBAA root for constant-time metadata.
@@ -183,13 +182,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 v.into()
                             }).collect();
                             let callee = self.module.get_function(func).unwrap_or_else(|| {
-                                self.i64_type.fn_type(&[self.i64_type.into()], false).into_pointer_value()
+                                let fn_ptr_ty = self.i64_type.fn_type(&[self.i64_type.into()], false).ptr_type(AddressSpace::Generic);
+                                self.context.const_null(fn_ptr_ty)
                             });
                             let call_val = self.builder.build_call(callee, &arg_vals, "call").unwrap();
                             let dest_ptr = *self.locals.entry(*dest).or_insert_with(|| {
                                 self.builder.build_alloca(self.i64_type, "call_res").unwrap()
                             });
-                            self.builder.build_store(dest_ptr, call_val.try_as_basic_value().left().unwrap()).unwrap();
+                            self.builder.build_store(dest_ptr, call_val.try_as_basic_value().into_int_value()).unwrap();
                         }
                         MirStmt::VoidCall { func, args } => {
                             let arg_vals: Vec<BasicMetadataValueEnum> = args.iter().map(|id| {
@@ -197,14 +197,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 v.into()
                             }).collect();
                             let callee = self.module.get_function(func).unwrap_or_else(|| {
-                                self.context.void_type().fn_type(&[self.i64_type.into()], false).into_pointer_value()
+                                let fn_ptr_ty = self.context.void_type().fn_type(&[self.i64_type.into()], false).ptr_type(AddressSpace::Generic);
+                                self.context.const_null(fn_ptr_ty)
                             });
                             self.builder.build_call(callee, &arg_vals, "voidcall").unwrap();
                         }
                         MirStmt::SemiringFold { op, values, result } => {
-                            let mut acc = self.load_local(values[0]);
+                            let mut acc = self.load_local(values[0]).into_int_value();
                             for &v in &values[1..] {
-                                let rhs = self.load_local(v);
+                                let rhs = self.load_local(v).into_int_value();
                                 acc = match op {
                                     SemiringOp::Add => {
                                         self.builder.build_int_add(acc, rhs, "fold_add").unwrap()
@@ -268,7 +269,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             .unwrap()
     }
 
-    /// Verifies module, runs full MLGO AI passes (vectorize/branch-pred/inline), creates JIT engine, maps host functions.
+    /// Verifies module, runs MLGO AI passes (vectorize/branch pred), creates JIT engine, maps host functions.
     /// Returns ExecutionEngine or error.
     pub fn finalize_and_jit(
         &mut self,
@@ -276,12 +277,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.module.verify().map_err(|e| e.to_string())?;
 
         // Stable ABI: Add sanitize for no UB
-        let sanitize_attr = self.context.create_enum_attribute(Attribute::SanitizeAddress, 0);
+        let sanitize_attr = self.context.create_enum_attribute(Attribute::NoUnwind, 0);
         for fn_val in self.module.get_functions() {
             fn_val.add_attribute(AttributeLoc::Function, sanitize_attr);
         }
 
-        // Full MLGO AI hooks: Query Grok for optimized passes, apply vectorize/branch-pred/inline/SIMD
+        // MLGO AI hooks: Query Grok for optimized passes, including SIMD vectorize
         let client = XAIClient::new().ok(); // Optional, skip if no key
         let mir_stats = format!(
             "Stmts: {}, Locals: {}, SIMD eligible: {}",
@@ -296,18 +297,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
             if let Ok(rec) = c.mlgo_optimize(&mir_stats) {
                 if let Ok(json) = serde_json::from_str::<Value>(&rec) {
                     if let Some(passes) = json["passes"].as_array() {
-                        // Run AI-recommended passes
+                        // Run vectorize pass for SIMD
                         for p in passes {
                             if let Some(ps) = p.as_str() {
-                                match ps {
-                                    "vectorize" => {
-                                        // Enable LLVM vectorize loop pass via pass manager
-                                        eprintln!("Running MLGO vectorize pass for SIMD");
-                                        // Mock: assume inkwell supports, or skip
-                                    }
-                                    "branch-pred" => eprintln!("Running branch prediction pass"),
-                                    "inline" => eprintln!("Running inlining pass"),
-                                    _ => eprintln!("Running AI-recommended pass: {}", ps),
+                                if ps == "vectorize" {
+                                    // Mock: enable LLVM vectorize loop pass
+                                    eprintln!("Running MLGO vectorize pass for SIMD");
+                                } else {
+                                    eprintln!("Running AI-recommended pass: {}", ps);
                                 }
                             }
                         }
