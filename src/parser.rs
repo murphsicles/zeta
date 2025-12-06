@@ -154,7 +154,7 @@ fn parse_generics<'a>() -> impl Parser<&'a str, Output = Vec<String>, Error = no
 fn parse_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     alt((
         // Add more stmt parsers as needed
-        map(preceded(ws(tag("defer")), parse_call()), AstNode::Defer),
+        map(preceded(ws(tag("defer")), parse_call()), |call| AstNode::Defer(Box::new(call))),
         map(
             separated_list1(ws(tag(",")), parse_base_expr()),
             |exprs| {
