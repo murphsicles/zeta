@@ -2,12 +2,10 @@
 
 [![Crates.io](https://img.shields.io/crates/v/zeta.svg)](https://crates.io/crates/zetac) [![Dependencies](https://deps.rs/repo/github/murphsicles/zeta/status.svg)](https://deps.rs/repo/github/murphsicles/zeta)[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> “It’s not just efficiency, it's weaponized minimalism. It’s surgical violence against complexity.” - Roy Murphy
-
 Zeta is a systems programming language inspired by Elements of Programming (EOP) algebraic foundations.  
 It exists for one reason: to end the era of slow, bloated, over-engineered compilers.
 
-> “Complexity assersions have to be part of the interface.” - Alexander Stepanov
+> “It’s not just efficiency, it's weaponized minimalism. It’s surgical violence against complexity.” - Roy Murphy
 
 - **Compiles faster than Go**  
 - **Runs faster than Rust and Zig**  
@@ -15,7 +13,10 @@ It exists for one reason: to end the era of slow, bloated, over-engineered compi
 - **Zero unsafe in user code**  
 - **Self-hosting in 2,800 lines of code**
 
-Zeta 0.0.0 is released. The war is over. We won.
+Zeta v0.0.1 is released. There are zero competitors.
+We're living in a brand new paradigm.
+
+> “Complexity assersions have to be part of the interface.” - Alexander Stepanov
 
 ## Official Benchmarks — November 24, 2025  
 Intel i9-13900K · Linux 6.11
