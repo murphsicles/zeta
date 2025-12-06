@@ -149,7 +149,7 @@ impl Scheduler {
     async fn worker_loop(self: Arc<Self>) {
         loop {
             let actor_opt = {
-                let mut actors = self.actors.lock().await;
+                let mut actors: std::collections::VecDeque<Actor> = self.actors.lock().await;
                 actors.pop_front()
             };
 
@@ -176,20 +176,21 @@ impl Scheduler {
         };
 
         if let Some(sched) = SCHEDULER.get() {
-            let mut actors = sched.actors.lock().await;
+            let mut actors: std::collections::VecDeque<Actor> = sched.actors.lock().await;
             actors.push_back(actor);
         }
     }
 
     /// Initializes global async scheduler.
-    pub async fn init() {
-        let _ = SCHEDULER.get_or_init(|| tokio::runtime::Runtime::new().unwrap().block_on(Self::new(num_cpus::get().max(1))));
+    pub fn init() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(Self::new(num_cpus::get().max(1)));
     }
 }
 
 /// Public runtime init - now async.
-pub async fn init_runtime() {
-    Scheduler::init().await;
+pub fn init_runtime() {
+    Scheduler::init();
 }
 
 /// Public async spawn helper.
