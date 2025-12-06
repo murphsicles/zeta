@@ -2,7 +2,7 @@
 name = "zetac"
 version = "0.0.2"
 edition = "2024"
-rust-version = "1.85.0"
+rust-version = "1.93.0"
 license = "MIT"
 description = "The final systems language"
 repository = "https://github.com/murphsicles/zeta"
