@@ -6,7 +6,6 @@
 use num_cpus;
 use std::collections::VecDeque;
 use std::sync::{Arc, OnceLock};
-use std::thread;
 use tokio::sync::mpsc;
 use tokio::task;
 
@@ -34,14 +33,14 @@ impl Default for Channel {
 impl Channel {
     /// Creates a new empty channel.
     pub fn new() -> Self {
-        let (tx, rx) = mpsc::channel(1024);
+        let (tx, mut rx) = mpsc::channel(1024);
         let inner = Arc::new(ChannelInner {
             queue: tx,
             _cond: (),
         });
         // Spawn receiver task
         task::spawn(async move {
-            while let Some(msg) = rx.recv().await {
+            while let Some(_msg) = rx.recv().await {
                 // Process or store, for now dummy
             }
         });
@@ -149,7 +148,7 @@ impl Scheduler {
     async fn worker_loop(self: Arc<Self>) {
         loop {
             let actor_opt = {
-                let mut actors: std::collections::VecDeque<Actor> = self.actors.lock().await;
+                let mut actors = self.actors.lock().await;
                 actors.pop_front()
             };
 
@@ -176,7 +175,7 @@ impl Scheduler {
         };
 
         if let Some(sched) = SCHEDULER.get() {
-            let mut actors: std::collections::VecDeque<Actor> = sched.actors.lock().await;
+            let mut actors = sched.actors.lock().await;
             actors.push_back(actor);
         }
     }
