@@ -11,7 +11,7 @@ use zetac::{LLVMCodegen, Resolver, actor, parse_zeta};
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize async actor runtime.
-    actor::init_runtime().await;
+    actor::init_runtime();
 
     // Load self-host example (assume contains main { let x = 42; x.add(1); } -> 43)
     let code = fs::read_to_string("examples/selfhost.z")?;
