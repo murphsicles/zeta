@@ -1,6 +1,6 @@
 [package]
 name = "zetac"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2024"
 rust-version = "1.85.0"
 license = "MIT"
@@ -9,7 +9,6 @@ repository = "https://github.com/murphsicles/zeta"
 keywords = ["programming", "language", "code", "compiler", "lang"]
 categories = ["compilers", "development-tools"]
 readme = "README.md"
-
 [dependencies]
 chrono = { version = "0.4.42", features = ["serde"] }
 either = "1.15.0"
@@ -23,15 +22,13 @@ rayon = "1.11.0"
 reqwest = { version = "0.12.24", features = ["blocking", "json"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
-
+tokio = { version = "1.40.0", features = ["full"] }
 # Chalk++ parallel trait solver
 chalk-ir = "0.104.0"
 chalk-solve = "0.104.0"
 chalk-recursive = "0.104.0"
-
 # Benchmarks
 criterion = { version = "0.8.0", features = ["html_reports"] }
-
 [[bench]]
 name = "zeta_bench"
 harness = false
