@@ -191,7 +191,7 @@ impl Resolver {
                 }
             }
             // Structural: fallback for primitives if structural
-            if *structural && method == "add" && recv_ty == &Type::I64 {
+            if structural && method == "add" && recv_ty == &Type::I64 {
                 return Type::I64;
             }
         }
@@ -237,7 +237,7 @@ impl Resolver {
     /// Infers type for an AST node, resolving methods and folding constants.
     pub fn infer_type(&mut self, node: &AstNode) -> Type {
         match node {
-            AstNode::Lit(n) => Type::I64,
+            AstNode::Lit(_n) => Type::I64,
             AstNode::Var(v) => self.type_env.get(v).cloned().unwrap_or(Type::Unknown),
             AstNode::Call {
                 receiver,
