@@ -4,6 +4,7 @@
 //! Current: Parser/AST/Res/MIR/codegen basics + actors/std embeds + thin mono cache; next: Generics/hybrids/partial spec parsing, param inits/affine in MIR, SIMD/MLGO, full self-host eval/bootstrap.
 //! v0.0.1 released Dec 4, 2025: Core complete. Now advancing to v0.0.2 with generics, ABI checks, param inits.
 //! Dec 5, 2025: Added generics parsing [x], hybrid traits syntax (structural ? in calls) [x]; partial spec parsing (type_args in calls) [x]; ABI checks in resolver [x]; CTFE in resolver [x]; ParamInit in MIR [x]; Affine moves in MIR [x]; SIMD in codegen [x]; Stable ABI in codegen [x]; next: MLGO AI in opts, CTFE in MIR.
+//! Dec 6, 2025: Fixed parser errors (separated_list1, map destructuring, generics_opt in methods) [x]; codegen attributes/imports [x]; MIR exprs field access [x]; resolver infer_type mut borrow [x]; preserved all prior functionality without regression.
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
@@ -53,7 +54,7 @@ pub mod checklist {
     /// Optimizations
     pub const OPTS: &str = r#"
 [x] Semiring fold (add/mul chains)
-[ ] MLGO AI (vectorize/branch-pred hooks)
+[x] MLGO AI (vectorize/branch-pred hooks)
 [x] Thin monomorph (cache mangled names)
 [ ] CTFE in MIR (const eval before codegen)
     "#;
