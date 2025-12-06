@@ -75,6 +75,7 @@ pub struct MirGen {
     defers: Vec<DeferInfo>,
     // Track param indices for init
     param_indices: Vec<(String, usize)>,  // (name, arg position)
+    exprs: HashMap<u32, MirExpr>,
 }
 
 impl Default for MirGen {
@@ -90,6 +91,7 @@ impl MirGen {
             locals: HashMap::new(),
             defers: vec![],
             param_indices: vec![],
+            exprs: HashMap::new(),
         }
     }
 
@@ -106,7 +108,7 @@ impl MirGen {
             // Alloc param locals and track for init
             self.param_indices.clear();
             for (i, (pname, _)) in params.iter().enumerate() {
-                let id = self.alloc_local(pname);
+                self.alloc_local(pname);
                 self.param_indices.push((pname.clone(), i));
             }
 
@@ -229,7 +231,7 @@ impl MirGen {
                 });
 
                 // Affine: Consume by-value args post-call (assume all Var args moved)
-                for arg_id in arg_ids.iter().filter(|id| matches!(self.exprs.get(id), Some(MirExpr::Var(_)))) {
+                for arg_id in arg_ids.iter().filter(|id| matches!(exprs.get(id), Some(MirExpr::Var(_)))) {
                     out.push(MirStmt::Consume { id: *arg_id });
                 }
             }
