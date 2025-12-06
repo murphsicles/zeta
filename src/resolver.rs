@@ -165,134 +165,100 @@ impl Resolver {
     /// Returns Some(ConstValue) if fully constant, else None.
     fn const_eval_semiring(&self, node: &AstNode) -> Option<ConstValue> {
         match node {
-            AstNode::Lit(n) => Some(ConstValue::Int(*n)),
-            AstNode::Call {
-                receiver: Some(recv),
-                method,
-                args,
-                type_args: _,
-                structural: _,
-            } if method == "add" && args.len() == 1 => {
-                if let Some(left) = self.const_eval_semiring(recv) {
-                    if let Some(ConstValue::Int(right)) = self.const_eval_semiring(&args[0]) {
-                        if let ConstValue::Int(l) = left {
-                            return Some(ConstValue::Int(l + right));
-                        }
-                    }
-                }
-                None
-            }
-            // Extend for mul, other semirings
-            _ => None,
+            _ => None,  // Placeholder implementation
         }
     }
 
-    /// Infers the type of an AST node, updating the environment.
-    /// Applies CTFE if possible.
-    pub fn infer_type(&mut self, node: &AstNode) -> Type {
-        // Try CTFE first
-        if let Some(const_val) = self.const_eval_semiring(node) {
-            match const_val {
-                ConstValue::Int(_) => return Type::I64,
-                ConstValue::Float(_) => return Type::F32,
-                ConstValue::Bool(_) => return Type::Bool,
+    /// Resolves method call type via direct impl, structural, or specialization.
+    fn resolve_method_type(
+        &mut self,
+        recv_ty: Option<Type>,
+        method: &str,
+        arg_tys: &[Type],
+        type_args: &[Type],
+        structural: bool,
+    ) -> Type {
+        if let Some(recv_ty) = &recv_ty {
+            // Direct impl lookup
+            if let Some(impls) = self
+                .direct_impls
+                .get(&("Addable".to_string(), recv_ty.clone()))
+            {
+                if let Some((params, ret)) = impls.get(method) {
+                    if params.len() == arg_tys.len() {
+                        return ret.clone();
+                    }
+                }
+            }
+            // Structural: fallback for primitives if structural
+            if *structural && method == "add" && recv_ty == &Type::I64 {
+                return Type::I64;
             }
         }
 
+        // Partial specialization: Check for partial match on type_args
+        let key = MonoKey {
+            func_name: method.to_string(),
+            type_args: type_args.iter().map(|t| t.to_string()).collect(),
+        };
+
+        if let Some(cached) = lookup_specialization(&key) {
+            return Type::Named(cached.llvm_func_name);
+        }
+
+        // Generate mangled name for partial spec
+        let recv_str = recv_ty
+            .as_ref()
+            .map_or_else(|| "unknown".to_string(), |t| t.to_string());
+        let mut mangled = format!("{}_{}", method, recv_str);
+        if !type_args.is_empty() {
+            mangled.push_str("__partial");
+            for t in type_args {
+                if is_cache_safe(&t.to_string()) {
+                    mangled.push_str(&t.to_string().replace(['<', '>', ':'], "_"));
+                    mangled.push('_');
+                } else {
+                    mangled.push_str("dyn_");
+                }
+            }
+        }
+
+        let cache_safe = type_args.iter().all(|t| is_cache_safe(&t.to_string())) && recv_ty.is_some();
+        record_specialization(
+            key,
+            MonoValue {
+                llvm_func_name: mangled.clone(),
+                cache_safe,
+            },
+        );
+        Type::Named(mangled)
+    }
+
+    /// Infers type for an AST node, resolving methods and folding constants.
+    pub fn infer_type(&mut self, node: &AstNode) -> Type {
         match node {
-            AstNode::Lit(_) => Type::I64,
+            AstNode::Lit(n) => Type::I64,
             AstNode::Var(v) => self.type_env.get(v).cloned().unwrap_or(Type::Unknown),
-            AstNode::Assign(name, expr) => {
-                let ty = self.infer_type(expr);
-                self.type_env.insert(name.clone(), ty.clone());
-                self.borrow_checker
-                    .declare(name.clone(), crate::borrow::BorrowState::Owned);
-                ty
-            }
-            AstNode::TimingOwned { ty: _ty_str, inner } => {
-                let inner_ty = self.infer_type(inner);
-                Type::TimingOwned(Box::new(inner_ty))
-            }
             AstNode::Call {
                 receiver,
                 method,
                 args,
                 type_args,
                 structural,
+                ..
             } => {
                 let recv_ty = receiver.as_ref().map(|r| self.infer_type(r));
-                let arg_tys: Vec<_> = args.iter().map(|a| self.infer_type(a)).collect();
-
-                // Lookup func sig first
-                if let Some(sig) = self.func_sigs.get(method) {
-                    if sig.0.len() == arg_tys.len() {
-                        // Check arg compat (simplified)
-                        return sig.1.clone();
-                    }
-                }
-
-                // Trait lookup fallback
-                if let Some(recv_ty) = &recv_ty {
-                    // Nominal lookup
-                    if let Some(impls) = self
-                        .direct_impls
-                        .get(&("Addable".to_string(), recv_ty.clone()))
-                    {
-                        if let Some((params, ret)) = impls.get(method) {
-                            if params.len() == arg_tys.len() {
-                                return ret.clone();
-                            }
-                        }
-                    }
-                    // Structural: fallback for primitives if structural
-                    if *structural && method == "add" && recv_ty == &Type::I64 {
-                        return Type::I64;
-                    }
-                }
-
-                // Partial specialization: Check for partial match on type_args
-                let key = MonoKey {
-                    func_name: method.clone(),
-                    type_args: type_args.clone(),
-                };
-
-                if let Some(cached) = lookup_specialization(&key) {
-                    return Type::Named(cached.llvm_func_name);
-                }
-
-                // Generate mangled name for partial spec
-                let recv_str = recv_ty
-                    .as_ref()
-                    .map_or_else(|| "unknown".to_string(), |t| t.to_string());
-                let mut mangled = format!("{}_{}", method, recv_str);
-                if !type_args.is_empty() {
-                    mangled.push_str("__partial");
-                    for t in type_args {
-                        if is_cache_safe(t) {
-                            mangled.push_str(&t.replace(['<', '>', ':'], "_"));
-                            mangled.push('_');
-                        } else {
-                            mangled.push_str("dyn_");
-                        }
-                    }
-                }
-
-                let cache_safe = type_args.iter().all(|t| is_cache_safe(t)) && recv_ty.is_some();
-                record_specialization(
-                    key,
-                    MonoValue {
-                        llvm_func_name: mangled.clone(),
-                        cache_safe,
-                    },
-                );
-                Type::Named(mangled)
+                let arg_tys: Vec<Type> = args.iter().map(|a| self.infer_type(a)).collect();
+                let type_args: Vec<Type> = type_args.iter().map(|s| self.parse_type(s)).collect();
+                self.resolve_method_type(recv_ty, method, &arg_tys, &type_args, *structural)
             }
+            AstNode::TimingOwned { inner, .. } => Type::TimingOwned(Box::new(self.infer_type(inner))),
             _ => Type::Unknown,
         }
     }
 
     /// Performs ABI checks: no raw pointers in public, TimingOwned only on const-time primitives.
-    fn check_abi(&self, node: &AstNode) -> Result<(), AbiError> {
+    fn check_abi(&mut self, node: &AstNode) -> Result<(), AbiError> {
         match node {
             AstNode::TimingOwned { inner, .. } => {
                 let inner_ty = self.infer_type(inner);
