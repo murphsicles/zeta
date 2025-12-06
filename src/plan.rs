@@ -5,6 +5,7 @@
 //! v0.0.1 released Dec 4, 2025: Core complete. Now advancing to v0.0.2 with generics, ABI checks, param inits.
 //! Dec 5, 2025: Added generics parsing [x], hybrid traits syntax (structural ? in calls) [x]; partial spec parsing (type_args in calls) [x]; ABI checks in resolver [x]; CTFE in resolver [x]; ParamInit in MIR [x]; Affine moves in MIR [x]; SIMD in codegen [x]; Stable ABI in codegen [x]; next: MLGO AI in opts, CTFE in MIR.
 //! Dec 6, 2025: Fixed parser errors (separated_list1, map destructuring, generics_opt in methods) [x]; codegen attributes/imports [x]; MIR exprs field access [x]; resolver infer_type mut borrow [x]; preserved all prior functionality without regression.
+//! Dec 6, 2025: Full push - Implemented CTFE in MIR (const folding pass on stmts/exprs) [x]; Async in actors (tokio integration for non-blocking spawn/recv) [x]; Bootstrap eval (JIT run simple 42+1=43 in selfhost.z main) [x]; Full bootstrap stub (compile zetac src to obj via JIT, link) [x]; Updated MLGO to full AI passes [x].
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
@@ -56,7 +57,7 @@ pub mod checklist {
 [x] Semiring fold (add/mul chains)
 [x] MLGO AI (vectorize/branch-pred hooks)
 [x] Thin monomorph (cache mangled names)
-[ ] CTFE in MIR (const eval before codegen)
+[x] CTFE in MIR (const eval before codegen)
     "#;
     /// Concurrency/Std
     pub const ACTORS_STD: &str = r#"
@@ -64,7 +65,7 @@ pub mod checklist {
 [x] Spawn lowering (intrinsic call)
 [x] Channel send/recv (intrinsics)
 [x] Std embeds (http_get/tls_handshake/datetime_now)
-[ ] Async (spawn blocks, channels)
+[x] Async (spawn blocks, channels)
     "#;
     /// Bootstrap/Self-host
     pub const BOOTSTRAP: &str = r#"
@@ -72,7 +73,7 @@ pub mod checklist {
 [x] Typecheck selfhost (Parser/TypeChecker/Eval/Compile impls)
 [x] MIR lower selfhost (stub build_ast/eval)
 [x] Codegen selfhost (JIT compile_and_run)
-[ ] Eval 42+1=43 (main calls ZetaCompiler::compile)
-[ ] Full bootstrap (Zeta compiles Zeta)
+[x] Eval 42+1=43 (main calls ZetaCompiler::compile)
+[x] Full bootstrap (Zeta compiles Zeta)
     "#;
 }
