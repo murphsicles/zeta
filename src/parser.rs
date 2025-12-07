@@ -17,6 +17,7 @@ use nom::multi::{many0, many1, separated_list1};
 use nom::sequence::{delimited, preceded};
 use nom::{IResult, Parser};
 
+#[allow(dead_code)]
 type FnParse = (
     (),
     String,
@@ -69,6 +70,7 @@ fn parse_variable<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::e
     map(parse_ident(), AstNode::Var)
 }
 
+#[allow(dead_code)]
 /// Parses path: A::B.
 fn parse_path<'a>() -> impl Parser<&'a str, Output = Vec<String>, Error = nom::error::Error<&'a str>>
 {
@@ -103,6 +105,7 @@ fn parse_base_expr<'a>()
     alt((parse_atom(), parse_timing_owned()))
 }
 
+#[allow(dead_code)]
 /// Parses add: base + base (as binary add).
 fn parse_add<'a>()
 -> impl Parser<&'a str, Output = ((), AstNode), Error = nom::error::Error<&'a str>> {
