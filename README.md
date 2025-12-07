@@ -13,7 +13,7 @@ It exists for one reason: to end the era of slow, bloated, over-engineered compi
 - **Zero unsafe in user code**  
 - **Self-hosting in 2,800 lines of code**
 
-Zeta v0.0.1 is released. There are zero competitors.
+Zeta v0.0.2 is released. There are zero competitors.
 We're living in a brand new paradigm.
 
 > “Complexity assersions have to be part of the interface.” - Alexander Stepanov
@@ -31,7 +31,7 @@ Intel i9-13900K · Linux 6.11
 | 100k actors ping-pong               | **0.94 ms**    | 1.41 ms      | 1.12 ms      | 2.8 ms       | 1.08 ms          | **Zeta wins by 50%**                    |
 
 ```bash
-$ time zeta compile src/main.zeta -o zeta2
+$ time zeta compile src/main.z -o zeta2
 0.014s  ← compiles itself in fourteen milliseconds.
 ```
 
@@ -68,7 +68,7 @@ Rust 2024 edition · Dependencies: `nom`, `inkwell`, `rayon`, `reqwest`, `serde`
 
 ## Status
 
-Zeta 0.0.0 is released.  
+Zeta 0.0.2 is released.  
 See [plan.rs](src/plan.rs) for the final victory log.
 
 ## License
