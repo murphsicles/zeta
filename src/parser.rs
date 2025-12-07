@@ -123,13 +123,14 @@ fn parse_type_args<'a>()
 
 /// Parses call: recv.method::<T,U>(args) or recv.method?(args) for structural.
 fn parse_call<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    parse_base_expr()
+    let base = parse_base_expr()
         .and(ws(tag(".")))
         .and(parse_ident())
         .and(parse_structural())
-        .and(opt(ws(parse_type_args())))
-        .and(delimited(tag("("), many0(ws(parse_base_expr())), tag(")")))
-        .map(|(recv, dot, method, structural, type_args_opt, args)| {
+        .and(opt(ws(parse_type_args())));
+    base.and(delimited(tag("("), many0(ws(parse_base_expr())), tag(")")))
+        .map(|(prev, (open, args, close))| {
+            let (recv, (dot, (method, (structural, type_args_opt)))) = prev;
             let type_args: Vec<String> = type_args_opt.unwrap_or(vec![]);
             AstNode::Call {
                 receiver: Some(Box::new(recv)),
