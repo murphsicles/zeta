@@ -69,6 +69,7 @@ pub struct LLVMCodegen<'ctx> {
     builder: Builder<'ctx>,
     /// i64 type for Zeta ints.
     i64_type: IntType<'ctx>,
+    #[allow(dead_code)]
     /// SIMD vector type (e.g., <4 x i64> for quad).
     vec4_i64_type: VectorType<'ctx>,
     #[allow(dead_code)]
