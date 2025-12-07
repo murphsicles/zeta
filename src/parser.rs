@@ -147,12 +147,14 @@ fn parse_call<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
 
 /// Parses generics: <T,U>.
 #[allow(dead_code)]
-fn parse_generics<'a>() -> impl Parser<&'a str, Output = Vec<String>, Error = nom::error::Error<&'a str>> {
+fn parse_generics<'a>()
+-> impl Parser<&'a str, Output = Vec<String>, Error = nom::error::Error<&'a str>> {
     delimited(tag("<"), separated_list1(tag(","), parse_ident()), tag(">"))
 }
 
 /// Parses assignment: var = expr.
-fn parse_assign<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+fn parse_assign<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>>
+{
     parse_ident()
         .and(ws(tag("=")))
         .and(parse_base_expr())
