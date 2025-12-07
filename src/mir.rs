@@ -77,6 +77,7 @@ pub struct MirGen {
     defers: Vec<DeferInfo>,
     // Track param indices for init
     param_indices: Vec<(String, usize)>, // (name, arg position)
+    #[allow(dead_code)]
     exprs: HashMap<u32, MirExpr>,
 }
 
@@ -182,16 +183,12 @@ impl MirGen {
             }
         }
 
-        let mut mir = Mir {
+        let mir = Mir {
             stmts,
             locals: self.locals.clone(),
             exprs,
             name,
         };
-
-        // Apply CTFE optimization
-        Mir::optimize_ctfe(&mut mir);
-
         mir
     }
 
