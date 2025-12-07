@@ -6,7 +6,7 @@
 use num_cpus;
 use std::collections::VecDeque;
 use std::sync::{Arc, OnceLock};
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{Mutex, mpsc};
 
 #[allow(unused_imports)]
 use tokio::task;
