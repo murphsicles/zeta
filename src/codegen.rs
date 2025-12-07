@@ -9,17 +9,17 @@
 
 use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
-use crate::specialization::{lookup_specialization, MonoKey};
+use crate::specialization::{MonoKey, lookup_specialization};
 use crate::xai::XAIClient;
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
+use inkwell::attributes::{Attribute, AttributeLoc};
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::types::{IntType, PointerType, VectorType};
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue};
-use inkwell::attributes::{Attribute, AttributeLoc};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -90,7 +90,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let module = context.create_module(name);
         let builder = context.create_builder();
         let i64_type = context.i64_type();
-        let vec4_i64_type = i64_type.vec_type(4);  // Quad i64 for SIMD
+        let vec4_i64_type = i64_type.vec_type(4); // Quad i64 for SIMD
         let ptr_type = context.ptr_type(AddressSpace::default());
         let char_ptr_type = context.ptr_type(AddressSpace::default());
 
@@ -157,12 +157,18 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
                 // Create param alloca
                 let param_ptr = self.builder.build_alloca(self.i64_type, "param").unwrap();
-                let param_val = self.builder.build_load(self.i64_type, param_ptr, "param_load").unwrap();
-                self.locals.insert(0, param_ptr);  // Assume id 0 for param
+                let param_val = self
+                    .builder
+                    .build_load(self.i64_type, param_ptr, "param_load")
+                    .unwrap();
+                self.locals.insert(0, param_ptr); // Assume id 0 for param
 
                 for stmt in &mir.stmts {
                     match stmt {
-                        MirStmt::ParamInit { param_id, arg_index } => {
+                        MirStmt::ParamInit {
+                            param_id,
+                            arg_index,
+                        } => {
                             // Store arg to alloca; for simplicity, use param_val
                             let ptr = *self.locals.entry(*param_id).or_insert_with(|| {
                                 self.builder.build_alloca(self.i64_type, "local").unwrap()
@@ -177,30 +183,53 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             self.builder.build_store(ptr, val).unwrap();
                         }
                         MirStmt::Call { func, args, dest } => {
-                            let arg_vals: Vec<BasicMetadataValueEnum> = args.iter().map(|id| {
-                                let v = self.load_local(*id);
-                                v.into()
-                            }).collect();
+                            let arg_vals: Vec<BasicMetadataValueEnum> = args
+                                .iter()
+                                .map(|id| {
+                                    let v = self.load_local(*id);
+                                    v.into()
+                                })
+                                .collect();
                             let callee = self.module.get_function(func).unwrap_or_else(|| {
-                                let fn_ptr_ty = self.i64_type.fn_type(&[self.i64_type.into()], false).ptr_type(AddressSpace::Generic);
+                                let fn_ptr_ty = self
+                                    .i64_type
+                                    .fn_type(&[self.i64_type.into()], false)
+                                    .ptr_type(AddressSpace::Generic);
                                 self.context.const_null(fn_ptr_ty)
                             });
-                            let call_val = self.builder.build_call(callee, &arg_vals, "call").unwrap();
+                            let call_val =
+                                self.builder.build_call(callee, &arg_vals, "call").unwrap();
                             let dest_ptr = *self.locals.entry(*dest).or_insert_with(|| {
-                                self.builder.build_alloca(self.i64_type, "call_res").unwrap()
+                                self.builder
+                                    .build_alloca(self.i64_type, "call_res")
+                                    .unwrap()
                             });
-                            self.builder.build_store(dest_ptr, call_val.try_as_basic_value().into_int_value()).unwrap();
+                            self.builder
+                                .build_store(
+                                    dest_ptr,
+                                    call_val.try_as_basic_value().into_int_value(),
+                                )
+                                .unwrap();
                         }
                         MirStmt::VoidCall { func, args } => {
-                            let arg_vals: Vec<BasicMetadataValueEnum> = args.iter().map(|id| {
-                                let v = self.load_local(*id);
-                                v.into()
-                            }).collect();
+                            let arg_vals: Vec<BasicMetadataValueEnum> = args
+                                .iter()
+                                .map(|id| {
+                                    let v = self.load_local(*id);
+                                    v.into()
+                                })
+                                .collect();
                             let callee = self.module.get_function(func).unwrap_or_else(|| {
-                                let fn_ptr_ty = self.context.void_type().fn_type(&[self.i64_type.into()], false).ptr_type(AddressSpace::Generic);
+                                let fn_ptr_ty = self
+                                    .context
+                                    .void_type()
+                                    .fn_type(&[self.i64_type.into()], false)
+                                    .ptr_type(AddressSpace::Generic);
                                 self.context.const_null(fn_ptr_ty)
                             });
-                            self.builder.build_call(callee, &arg_vals, "voidcall").unwrap();
+                            self.builder
+                                .build_call(callee, &arg_vals, "voidcall")
+                                .unwrap();
                         }
                         MirStmt::SemiringFold { op, values, result } => {
                             let mut acc = self.load_local(values[0]).into_int_value();
@@ -291,7 +320,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 .to_str()
                 .map_or(0, |s| s.len()),
             self.locals.len(),
-            1  // Placeholder for SIMD count
+            1 // Placeholder for SIMD count
         );
         if let Some(c) = &client {
             if let Ok(rec) = c.mlgo_optimize(&mir_stats) {
