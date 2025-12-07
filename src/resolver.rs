@@ -181,7 +181,9 @@ impl Resolver {
         structural: bool,
     ) -> Type {
         if let Some(recv_ty) = &recv_ty
-            && let Some(impls) = self.direct_impls.get(&("Addable".to_string(), recv_ty.clone()))
+            && let Some(impls) = self
+                .direct_impls
+                .get(&("Addable".to_string(), recv_ty.clone()))
             && let Some((params, ret)) = impls.get(method)
             && params.len() == arg_tys.len()
         {
