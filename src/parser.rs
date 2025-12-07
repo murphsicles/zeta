@@ -9,7 +9,9 @@
 use crate::ast::AstNode;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while1};
-use nom::character::complete::{alpha1, alphanumeric0, i64 as nom_i64, multispace0, char as nom_char};
+use nom::character::complete::{
+    alpha1, alphanumeric0, char as nom_char, i64 as nom_i64, multispace0,
+};
 use nom::combinator::{map, opt, value};
 use nom::multi::{many0, many1, separated_list1};
 use nom::sequence::{delimited, preceded};
@@ -108,17 +110,15 @@ fn parse_add<'a>()
 }
 
 /// Parses structural marker: ? after method name.
-fn parse_structural<'a>() -> impl Parser<&'a str, Output = bool, Error = nom::error::Error<&'a str>> {
+fn parse_structural<'a>() -> impl Parser<&'a str, Output = bool, Error = nom::error::Error<&'a str>>
+{
     map(opt(nom_char('?')), |opt_q| opt_q.is_some())
 }
 
 /// Parses type args: <T,U>.
-fn parse_type_args<'a>() -> impl Parser<&'a str, Output = Vec<String>, Error = nom::error::Error<&'a str>> {
-    delimited(
-        tag("<"),
-        separated_list1(tag(","), parse_ident()),
-        tag(">"),
-    )
+fn parse_type_args<'a>()
+-> impl Parser<&'a str, Output = Vec<String>, Error = nom::error::Error<&'a str>> {
+    delimited(tag("<"), separated_list1(tag(","), parse_ident()), tag(">"))
 }
 
 /// Parses call: recv.method::<T,U>(args) or recv.method?(args) for structural.
@@ -129,42 +129,40 @@ fn parse_call<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
         .and(parse_structural())
         .and(opt(ws(parse_type_args())))
         .and(delimited(tag("("), many0(ws(parse_base_expr())), tag(")")))
-        .map(|(recv, ((((_dot, method), structural), type_args_opt), args))| {
-            let type_args: Vec<String> = type_args_opt.unwrap_or(vec![]);
-            AstNode::Call {
-                receiver: Some(Box::new(recv)),
-                method,
-                args,
-                type_args,
-                structural,
-            }
-        })
+        .map(
+            |(recv, ((((_dot, method), structural), type_args_opt), args))| {
+                let type_args: Vec<String> = type_args_opt.unwrap_or(vec![]);
+                AstNode::Call {
+                    receiver: Some(Box::new(recv)),
+                    method,
+                    args,
+                    type_args,
+                    structural,
+                }
+            },
+        )
 }
 
 /// Parses generics: <T,U>.
-fn parse_generics<'a>() -> impl Parser<&'a str, Output = Vec<String>, Error = nom::error::Error<&'a str>> {
-    delimited(
-        tag("<"),
-        separated_list1(tag(","), parse_ident()),
-        tag(">"),
-    )
+fn parse_generics<'a>()
+-> impl Parser<&'a str, Output = Vec<String>, Error = nom::error::Error<&'a str>> {
+    delimited(tag("<"), separated_list1(tag(","), parse_ident()), tag(">"))
 }
 
 #[allow(dead_code)]
 fn parse_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     alt((
         // Add more stmt parsers as needed
-        map(preceded(ws(tag("defer")), parse_call()), |call| AstNode::Defer(Box::new(call))),
-        map(
-            separated_list1(ws(tag(",")), parse_base_expr()),
-            |exprs| {
-                if exprs.len() == 1 {
-                    exprs.into_iter().next().unwrap()
-                } else {
-                    AstNode::Lit(0) // Placeholder
-                }
-            },
-        ),
+        map(preceded(ws(tag("defer")), parse_call()), |call| {
+            AstNode::Defer(Box::new(call))
+        }),
+        map(separated_list1(ws(tag(",")), parse_base_expr()), |exprs| {
+            if exprs.len() == 1 {
+                exprs.into_iter().next().unwrap()
+            } else {
+                AstNode::Lit(0) // Placeholder
+            }
+        }),
     ))
 }
 
@@ -187,19 +185,21 @@ fn parse_func<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
         .and(parse_params)
         .and(parse_ret)
         .and(parse_body)
-        .map(|(((((_fn_kw, name), generics_opt), params), ret_opt), body)| {
-            let generics = generics_opt.unwrap_or(vec![]);
-            let ret = ret_opt.unwrap_or_else(|| "i64".to_string());
-            AstNode::FuncDef {
-                name,
-                generics,
-                params,
-                ret,
-                body,
-                attrs: vec![],
-                ret_expr: None,
-            }
-        })
+        .map(
+            |(((((_fn_kw, name), generics_opt), params), ret_opt), body)| {
+                let generics = generics_opt.unwrap_or(vec![]);
+                let ret = ret_opt.unwrap_or_else(|| "i64".to_string());
+                AstNode::FuncDef {
+                    name,
+                    generics,
+                    params,
+                    ret,
+                    body,
+                    attrs: vec![],
+                    ret_expr: None,
+                }
+            },
+        )
 }
 
 /// Parses method sig for concept/impl: name(params) -> ret, with optional generics.
@@ -214,15 +214,17 @@ fn parse_method_sig<'a>()
         .and(parse_generics_opt)
         .and(parse_params)
         .and(parse_ret)
-        .map(|(((name, generics_opt), params), ret_opt)| AstNode::Method {
-            name,
-            params: params
-                .into_iter()
-                .map(|p| (p.clone(), "i64".to_string()))
-                .collect(),
-            ret: ret_opt.unwrap_or_else(|| "i64".to_string()),
-            generics: generics_opt.unwrap_or(vec![]),  // New: generics in methods
-        })
+        .map(
+            |(((name, generics_opt), params), ret_opt)| AstNode::Method {
+                name,
+                params: params
+                    .into_iter()
+                    .map(|p| (p.clone(), "i64".to_string()))
+                    .collect(),
+                ret: ret_opt.unwrap_or_else(|| "i64".to_string()),
+                generics: generics_opt.unwrap_or(vec![]), // New: generics in methods
+            },
+        )
 }
 
 /// Parses concept: concept name { methods }.
@@ -254,11 +256,7 @@ fn parse_impl<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
         .and(parse_for_kw)
         .and(parse_ty)
         .and(parse_body)
-        .map(|((((_, concept), _), ty), body)| AstNode::ImplBlock {
-            concept,
-            ty,
-            body,
-        })
+        .map(|((((_, concept), _), ty), body)| AstNode::ImplBlock { concept, ty, body })
 }
 
 /// Parses enum: enum name { variants }.
@@ -287,10 +285,7 @@ fn parse_struct<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::err
     parse_kw
         .and(parse_name)
         .and(parse_fields)
-        .map(|((_, name), fields)| AstNode::StructDef {
-            name,
-            fields,
-        })
+        .map(|((_, name), fields)| AstNode::StructDef { name, fields })
 }
 
 /// Entry point: Parses multiple top-level items.
