@@ -144,29 +144,45 @@ fn parse_call<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
 }
 
 /// Parses generics: <T,U>.
-fn parse_generics<'a>()
--> impl Parser<&'a str, Output = Vec<String>, Error = nom::error::Error<&'a str>> {
+#[allow(dead_code)]
+fn parse_generics<'a>() -> impl Parser<&'a str, Output = Vec<String>, Error = nom::error::Error<&'a str>> {
     delimited(tag("<"), separated_list1(tag(","), parse_ident()), tag(">"))
 }
 
-#[allow(dead_code)]
-fn parse_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    alt((
-        // Add more stmt parsers as needed
-        map(preceded(ws(tag("defer")), parse_call()), |call| {
-            AstNode::Defer(Box::new(call))
-        }),
-        map(separated_list1(ws(tag(",")), parse_base_expr()), |exprs| {
-            if exprs.len() == 1 {
-                exprs.into_iter().next().unwrap()
-            } else {
-                AstNode::Lit(0) // Placeholder
-            }
-        }),
-    ))
+/// Parses assignment: var = expr.
+fn parse_assign<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    parse_ident()
+        .and(ws(tag("=")))
+        .and(parse_base_expr())
+        .map(|((name, _), expr)| AstNode::Assign(name, Box::new(expr)))
 }
 
-/// Parses function: fn name<T,U>(params: types) -> Ret { body }.
+/// Parses defer: defer expr.
+fn parse_defer<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    ws(tag("defer"))
+        .and(ws(parse_base_expr()))
+        .map(|(_, inner)| AstNode::Defer(Box::new(inner)))
+}
+
+/// Parses spawn: spawn func(args).
+fn parse_spawn<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    ws(tag("spawn"))
+        .and(parse_ident())
+        .and(delimited(tag("("), many0(ws(parse_base_expr())), tag(")")))
+        .map(|((_, func), args)| AstNode::Spawn { func, args })
+}
+
+/// Parses statement: assign | call | defer | spawn.
+fn parse_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    ws(alt((
+        parse_assign(),
+        parse_call(),
+        parse_defer(),
+        parse_spawn(),
+    )))
+}
+
+/// Parses function: fn name(generics)(params) -> ret { body }.
 fn parse_func<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     let parse_fn_kw = value((), ws(tag("fn")));
     let parse_name = ws(parse_ident());
