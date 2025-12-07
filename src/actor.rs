@@ -6,7 +6,7 @@
 use num_cpus;
 use std::collections::VecDeque;
 use std::sync::{Arc, OnceLock};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Mutex};
 use tokio::task;
 
 type Message = i64;
@@ -124,7 +124,7 @@ struct Scheduler {
     /// Pending actors queue.
     actors: tokio::sync::Mutex<VecDeque<Actor>>,
     /// Worker tasks.
-    _tasks: Vec<task::JoinHandle<()>>,
+    _tasks: tokio::sync::Mutex<Vec<task::JoinHandle<()>>>,
 }
 
 impl Scheduler {
@@ -132,13 +132,14 @@ impl Scheduler {
     async fn new(thread_count: usize) -> Arc<Self> {
         let sched = Arc::new(Self {
             actors: tokio::sync::Mutex::new(VecDeque::new()),
-            _tasks: vec![],
+            _tasks: tokio::sync::Mutex::new(vec![]),
         });
 
         for _ in 0..thread_count {
-            let sched_clone = sched.clone();
+            let sched_clone = Arc::clone(&sched);
             let handle = task::spawn(async move { sched_clone.worker_loop().await });
-            sched._tasks.push(handle);
+            let mut tasks = sched._tasks.lock().await;
+            tasks.push(handle);
         }
 
         sched
@@ -185,7 +186,8 @@ impl Scheduler {
     /// Initializes global async scheduler.
     pub fn init() {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(Self::new(num_cpus::get().max(1)));
+        let sched = rt.block_on(Self::new(num_cpus::get().max(1)));
+        SCHEDULER.set(sched).unwrap();
     }
 }
 
