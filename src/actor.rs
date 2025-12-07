@@ -115,18 +115,9 @@ pub unsafe extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i6
 }
 
 /// Actor representation: channel + async entry function.
-#[derive(Debug)]
 struct Actor {
     chan: Channel,
     func: Box<dyn FnOnce(Channel) + Send + 'static>,
-}
-
-impl fmt::Debug for Actor {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Actor")
-            .field("chan", &self.chan)
-            .finish_non_exhaustive()
-    }
 }
 
 /// Global scheduler singleton.
