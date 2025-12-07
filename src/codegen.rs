@@ -13,7 +13,7 @@ use crate::specialization::{MonoKey, lookup_specialization};
 use crate::xai::XAIClient;
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
-use inkwell::attributes::{Attribute, AttributeLoc};
+use inkwell::attributes::{AttributeKind, AttributeLoc};
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
@@ -137,6 +137,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
     }
 
+    #[allow(deprecated)]
     /// Generates LLVM IR for a list of MIRs (one per FuncDef), creates entry main if needed.
     pub fn gen_mirs(&mut self, mirs: &[Mir]) {
         for mir in mirs {
@@ -194,8 +195,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 let fn_ptr_ty = self
                                     .i64_type
                                     .fn_type(&[self.i64_type.into()], false)
-                                    .ptr_type(AddressSpace::Generic);
-                                self.context.const_null(fn_ptr_ty)
+                                    .ptr_type(AddressSpace::default());
+                                fn_ptr_ty.const_null()
                             });
                             let call_val =
                                 self.builder.build_call(callee, &arg_vals, "call").unwrap();
@@ -207,7 +208,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             self.builder
                                 .build_store(
                                     dest_ptr,
-                                    call_val.try_as_basic_value().into_int_value(),
+                                    call_val.try_as_basic_value().unwrap().into_int_value(),
                                 )
                                 .unwrap();
                         }
@@ -224,8 +225,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                     .context
                                     .void_type()
                                     .fn_type(&[self.i64_type.into()], false)
-                                    .ptr_type(AddressSpace::Generic);
-                                self.context.const_null(fn_ptr_ty)
+                                    .ptr_type(AddressSpace::default());
+                                fn_ptr_ty.const_null()
                             });
                             self.builder
                                 .build_call(callee, &arg_vals, "voidcall")
@@ -306,7 +307,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.module.verify().map_err(|e| e.to_string())?;
 
         // Stable ABI: Add sanitize for no UB
-        let sanitize_attr = self.context.create_enum_attribute(Attribute::NoUnwind, 0);
+        let sanitize_attr = self.context.create_enum_attribute(AttributeKind::NoUnwind, 0);
         for fn_val in self.module.get_functions() {
             fn_val.add_attribute(AttributeLoc::Function, sanitize_attr);
         }
