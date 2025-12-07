@@ -183,13 +183,12 @@ impl MirGen {
             }
         }
 
-        let mir = Mir {
+        Mir {
             stmts,
             locals: self.locals.clone(),
             exprs,
             name,
-        };
-        mir
+        }
     }
 
     fn gen_stmt(
