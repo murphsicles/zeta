@@ -93,7 +93,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         })
         .collect();
-    let mut boot_codegen = LLVMCodegen::new(&Context::create(), "bootstrap");
+    let boot_context = Context::create();
+    let mut boot_codegen = LLVMCodegen::new(&boot_context, "bootstrap");
     boot_codegen.gen_mirs(&boot_mirs);
     let boot_ee = boot_codegen.finalize_and_jit()?;
     // Execute bootstrap main (zetac's main).
