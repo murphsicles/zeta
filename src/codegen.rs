@@ -190,7 +190,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                     v.into()
                                 })
                                 .collect();
-                            let callee = self.module.get_function(func).expect("function not found");
+                            let callee =
+                                self.module.get_function(func).expect("function not found");
                             let call_val =
                                 self.builder.build_call(callee, &arg_vals, "call").unwrap();
                             let dest_ptr = *self.locals.entry(*dest).or_insert_with(|| {
@@ -201,7 +202,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             self.builder
                                 .build_store(
                                     dest_ptr,
-                                    call_val.try_as_basic_value().unwrap_basic().into_int_value(),
+                                    call_val
+                                        .try_as_basic_value()
+                                        .unwrap_basic()
+                                        .into_int_value(),
                                 )
                                 .unwrap();
                         }
@@ -213,7 +217,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                     v.into()
                                 })
                                 .collect();
-                            let callee = self.module.get_function(func).expect("function not found");
+                            let callee =
+                                self.module.get_function(func).expect("function not found");
                             self.builder
                                 .build_call(callee, &arg_vals, "voidcall")
                                 .unwrap();
