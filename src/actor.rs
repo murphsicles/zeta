@@ -120,6 +120,7 @@ struct Actor {
 static SCHEDULER: OnceLock<Arc<Scheduler>> = OnceLock::new();
 
 /// Multi-threaded work-stealing scheduler with async support.
+#[derive(Debug)]
 struct Scheduler {
     /// Pending actors queue.
     actors: tokio::sync::Mutex<VecDeque<Actor>>,
@@ -187,7 +188,7 @@ impl Scheduler {
     pub fn init() {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let sched = rt.block_on(Self::new(num_cpus::get().max(1)));
-        SCHEDULER.set(sched).unwrap();
+        let _ = SCHEDULER.set(sched);
     }
 }
 
