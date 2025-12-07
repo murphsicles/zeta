@@ -164,6 +164,7 @@ impl Resolver {
         }
     }
 
+    #[allow(dead_code)]
     /// Constant-time folding evaluation for semiring ops on literals.
     /// Returns Some(ConstValue) if fully constant, else None.
     fn const_eval_semiring(&self, node: &AstNode) -> Option<ConstValue> {
