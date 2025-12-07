@@ -19,6 +19,7 @@ pub struct Channel {
     inner: Arc<ChannelInner>,
 }
 
+#[derive(Debug)]
 struct ChannelInner {
     /// Message queue.
     queue: mpsc::Sender<Message>,
