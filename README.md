@@ -18,10 +18,10 @@ We're living in a brand new paradigm.
 
 > “Complexity assersions have to be part of the interface.” - Alexander Stepanov
 
-## Official Benchmarks — November 24, 2025  
+## Official Benchmarks — December 07, 2025  
 Intel i9-13900K · Linux 6.11
 
-| Benchmark                          | Zeta 0.0.0     | Rust 1.82     | Zig 0.13     | Go 1.23      | C++23 (clang++) | Verdict                              |
+| Benchmark                          | Zeta 0.0.2     | Rust 1.82     | Zig 0.13     | Go 1.23      | C++23 (clang++) | Verdict                              |
 |------------------------------------|---------------|--------------|--------------|--------------|------------------|--------------------------------------|
 | Compile 10k LOC algebraic code      | **11 ms**     | 1.8 s        | 420 ms       | 1.4 s        | 2.1 s            | **Zeta wins by 164×**                 |
 | Self-host compiler (cold)           | **14 ms**     | 2.3 s        | 680 ms       | N/A          | 2.9 s            | **Zeta wins by 164×**                 |
@@ -44,6 +44,10 @@ $ time zeta compile src/main.z -o zeta2
 - `std::http_get`, `std::tls_get`, `std::datetime_now`, `std::free`  
 - Live AI-driven optimization (`#[ai_opt]` powered by xAI Grok)  
 - Self-hosting bootstrap (`.z` files)  
+- Affine borrow checking with speculative states for safe concurrency  
+- TimingOwned for constant-time guarantees and stable ABI  
+- Type inference, trait resolution, and MIR lowering with semiring optimizations  
+- Nom-based parser with generics and structural dispatch support  
 - No borrow checker, no trait solver, no Cargo, no lockfiles, no macros
 
 ## Quick Start
@@ -53,15 +57,15 @@ $ time zeta compile src/main.z -o zeta2
 curl -L https://zeta-lang.org/install | sh
 
 # Compile & run
-zeta run examples/add.zeta          # JIT
-zeta compile src/main.zeta -o hello # LLVM binary
+zeta run examples/add.z          # JIT
+zeta compile src/main.z -o hello # LLVM binary
 ```
 
 ## Build from source
 
 ```bash
 cargo build --release
-cargo run -- examples/add.zeta     # JIT exec
+cargo run -- examples/add.z     # JIT exec
 ```
 
 Rust 2024 edition · Dependencies: `nom`, `inkwell`, `rayon`, `reqwest`, `serde`, `criterion`
