@@ -156,7 +156,9 @@ impl Scheduler {
                 // Run actor function async.
                 task::spawn(async move {
                     (actor.func)(actor.chan);
-                }).await.unwrap();
+                })
+                .await
+                .unwrap();
             } else {
                 task::yield_now().await;
             }
