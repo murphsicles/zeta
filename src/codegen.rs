@@ -292,7 +292,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.module.verify().map_err(|e| e.to_string())?;
 
         // Stable ABI: Add sanitize for no UB
-        let sanitize_attr = self.context.create_bool_attribute("nounwind", true);
+        let nounwind_id = Attribute::get_named_enum_kind_id("nounwind");
+        let sanitize_attr = self.context.create_enum_attribute(nounwind_id, 1);
         for fn_val in self.module.get_functions() {
             fn_val.add_attribute(AttributeLoc::Function, sanitize_attr);
         }
