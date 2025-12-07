@@ -110,7 +110,10 @@ impl Resolver {
                 let ty = self.parse_type(&ty);
                 let mut methods = HashMap::new();
                 for node in body {
-                    if let AstNode::Method { name, params, ret, .. } = node {
+                    if let AstNode::Method {
+                        name, params, ret, ..
+                    } = node
+                    {
                         let sig = (
                             params
                                 .into_iter()
@@ -165,7 +168,7 @@ impl Resolver {
     /// Returns Some(ConstValue) if fully constant, else None.
     fn const_eval_semiring(&self, node: &AstNode) -> Option<ConstValue> {
         match node {
-            _ => None,  // Placeholder implementation
+            _ => None, // Placeholder implementation
         }
     }
 
@@ -223,7 +226,8 @@ impl Resolver {
             }
         }
 
-        let cache_safe = type_args.iter().all(|t| is_cache_safe(&t.to_string())) && recv_ty.is_some();
+        let cache_safe =
+            type_args.iter().all(|t| is_cache_safe(&t.to_string())) && recv_ty.is_some();
         record_specialization(
             key,
             MonoValue {
@@ -252,7 +256,9 @@ impl Resolver {
                 let type_args: Vec<Type> = type_args.iter().map(|s| self.parse_type(s)).collect();
                 self.resolve_method_type(recv_ty, method, &arg_tys, &type_args, *structural)
             }
-            AstNode::TimingOwned { inner, .. } => Type::TimingOwned(Box::new(self.infer_type(inner))),
+            AstNode::TimingOwned { inner, .. } => {
+                Type::TimingOwned(Box::new(self.infer_type(inner)))
+            }
             _ => Type::Unknown,
         }
     }
@@ -263,7 +269,7 @@ impl Resolver {
             AstNode::TimingOwned { inner, .. } => {
                 let inner_ty = self.infer_type(inner);
                 match &inner_ty {
-                    Type::I64 | Type::F32 | Type::Bool => Ok(()),  // Primitives ok
+                    Type::I64 | Type::F32 | Type::Bool => Ok(()), // Primitives ok
                     _ => Err(AbiError::NonConstTimeTimingOwned),
                 }
             }
