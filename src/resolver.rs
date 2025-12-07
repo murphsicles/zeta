@@ -167,10 +167,8 @@ impl Resolver {
     #[allow(dead_code)]
     /// Constant-time folding evaluation for semiring ops on literals.
     /// Returns Some(ConstValue) if fully constant, else None.
-    fn const_eval_semiring(&self, node: &AstNode) -> Option<ConstValue> {
-        match node {
-            _ => None, // Placeholder implementation
-        }
+    fn const_eval_semiring(&self, _node: &AstNode) -> Option<ConstValue> {
+        None // Placeholder implementation
     }
 
     /// Resolves method call type via direct impl, structural, or specialization.
@@ -182,22 +180,16 @@ impl Resolver {
         type_args: &[Type],
         structural: bool,
     ) -> Type {
-        if let Some(recv_ty) = &recv_ty {
-            // Direct impl lookup
-            if let Some(impls) = self
-                .direct_impls
-                .get(&("Addable".to_string(), recv_ty.clone()))
-            {
-                if let Some((params, ret)) = impls.get(method) {
-                    if params.len() == arg_tys.len() {
-                        return ret.clone();
-                    }
-                }
-            }
-            // Structural: fallback for primitives if structural
-            if structural && method == "add" && recv_ty == &Type::I64 {
-                return Type::I64;
-            }
+        if let Some(recv_ty) = &recv_ty
+            && let Some(impls) = self.direct_impls.get(&("Addable".to_string(), recv_ty.clone()))
+            && let Some((params, ret)) = impls.get(method)
+            && params.len() == arg_tys.len()
+        {
+            return ret.clone();
+        }
+        // Structural: fallback for primitives if structural
+        if structural && method == "add" && recv_ty.as_ref() == Some(&Type::I64) {
+            return Type::I64;
         }
 
         // Partial specialization: Check for partial match on type_args
@@ -299,7 +291,7 @@ impl Resolver {
                     if !self.borrow_checker.check(stmt) {
                         ok = false;
                     }
-                    if let Err(_) = self.check_abi(stmt) {
+                    if self.check_abi(stmt).is_err() {
                         ok = false;
                     }
                 }
