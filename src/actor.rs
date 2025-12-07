@@ -5,7 +5,6 @@
 
 use num_cpus;
 use std::collections::VecDeque;
-use std::fmt;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::{mpsc, Mutex};
 
@@ -124,7 +123,6 @@ struct Actor {
 static SCHEDULER: OnceLock<Arc<Scheduler>> = OnceLock::new();
 
 /// Multi-threaded work-stealing scheduler with async support.
-#[derive(Debug)]
 struct Scheduler {
     /// Pending actors queue.
     actors: Mutex<VecDeque<Actor>>,
