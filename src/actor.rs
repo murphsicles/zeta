@@ -5,6 +5,7 @@
 
 use num_cpus;
 use std::collections::VecDeque;
+use std::fmt;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::{mpsc, Mutex};
 
@@ -114,28 +115,38 @@ pub unsafe extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i6
 }
 
 /// Actor representation: channel + async entry function.
+#[derive(Debug)]
 struct Actor {
     chan: Channel,
     func: Box<dyn FnOnce(Channel) + Send + 'static>,
+}
+
+impl fmt::Debug for Actor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Actor")
+            .field("chan", &self.chan)
+            .finish_non_exhaustive()
+    }
 }
 
 /// Global scheduler singleton.
 static SCHEDULER: OnceLock<Arc<Scheduler>> = OnceLock::new();
 
 /// Multi-threaded work-stealing scheduler with async support.
+#[derive(Debug)]
 struct Scheduler {
     /// Pending actors queue.
-    actors: tokio::sync::Mutex<VecDeque<Actor>>,
+    actors: Mutex<VecDeque<Actor>>,
     /// Worker tasks.
-    _tasks: tokio::sync::Mutex<Vec<task::JoinHandle<()>>>,
+    _tasks: Mutex<Vec<task::JoinHandle<()>>>,
 }
 
 impl Scheduler {
     /// Initializes scheduler with CPU-bound async tasks.
     async fn new(thread_count: usize) -> Arc<Self> {
         let sched = Arc::new(Self {
-            actors: tokio::sync::Mutex::new(VecDeque::new()),
-            _tasks: tokio::sync::Mutex::new(vec![]),
+            actors: Mutex::new(VecDeque::new()),
+            _tasks: Mutex::new(vec![]),
         });
 
         for _ in 0..thread_count {
