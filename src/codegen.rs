@@ -151,7 +151,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let _cached = lookup_specialization(&key);
 
                 let fn_ty = self.i64_type.fn_type(&[self.i64_type.into()], false);
-                let fn_val = self.module.add_function(&name, fn_ty, None);
+                let fn_val = self.module.add_function(name, fn_ty, None);
                 let entry = self.context.append_basic_block(fn_val, "entry");
                 self.builder.position_at_end(entry);
 
@@ -310,21 +310,19 @@ impl<'ctx> LLVMCodegen<'ctx> {
             self.locals.len(),
             1 // Placeholder for SIMD count
         );
-        if let Some(c) = &client {
-            if let Ok(rec) = c.mlgo_optimize(&mir_stats) {
-                if let Ok(json) = serde_json::from_str::<Value>(&rec) {
-                    if let Some(passes) = json["passes"].as_array() {
-                        // Run vectorize pass for SIMD
-                        for p in passes {
-                            if let Some(ps) = p.as_str() {
-                                if ps == "vectorize" {
-                                    // Mock: enable LLVM vectorize loop pass
-                                    eprintln!("Running MLGO vectorize pass for SIMD");
-                                } else {
-                                    eprintln!("Running AI-recommended pass: {}", ps);
-                                }
-                            }
-                        }
+        if let Some(c) = &client
+            && let Ok(rec) = c.mlgo_optimize(&mir_stats)
+            && let Ok(json) = serde_json::from_str::<Value>(&rec)
+            && let Some(passes) = json["passes"].as_array()
+        {
+            // Run vectorize pass for SIMD
+            for p in passes {
+                if let Some(ps) = p.as_str() {
+                    if ps == "vectorize" {
+                        // Mock: enable LLVM vectorize loop pass
+                        eprintln!("Running MLGO vectorize pass for SIMD");
+                    } else {
+                        eprintln!("Running AI-recommended pass: {}", ps);
                     }
                 }
             }
