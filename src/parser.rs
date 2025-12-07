@@ -129,8 +129,8 @@ fn parse_call<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
         .and(parse_structural())
         .and(opt(ws(parse_type_args())));
     base.and(delimited(tag("("), many0(ws(parse_base_expr())), tag(")")))
-        .map(|(prev, (open, args, close))| {
-            let (recv, (dot, (method, (structural, type_args_opt)))) = prev;
+        .map(|(base_tuple, args)| {
+            let ((((recv, _dot), method), structural), type_args_opt) = base_tuple;
             let type_args: Vec<String> = type_args_opt.unwrap_or(vec![]);
             AstNode::Call {
                 receiver: Some(Box::new(recv)),
