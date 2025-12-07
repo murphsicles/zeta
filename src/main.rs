@@ -76,7 +76,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // For full, would need to write JITed code to file, link with rustc or ld.
     // Here, simple: re-parse zetac src as Zeta code (assume .z extension for src).
     let zetac_code = fs::read_to_string("src/main.z")?; // Assume renamed
-    let (_, zetac_asts) = parse_zeta(&zetac_code).map_err(|e| format!("Bootstrap parse: {:?}", e))?;
+    let (_, zetac_asts) =
+        parse_zeta(&zetac_code).map_err(|e| format!("Bootstrap parse: {:?}", e))?;
     let mut boot_resolver = Resolver::new();
     for ast in &zetac_asts {
         boot_resolver.register(ast.clone());
@@ -84,14 +85,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     boot_resolver.typecheck(&zetac_asts);
     let boot_mirs: Vec<_> = zetac_asts
         .iter()
-        .filter_map(|ast| if let AstNode::FuncDef { .. } = ast { Some(boot_resolver.lower_to_mir(ast)) } else { None })
+        .filter_map(|ast| {
+            if let AstNode::FuncDef { .. } = ast {
+                Some(boot_resolver.lower_to_mir(ast))
+            } else {
+                None
+            }
+        })
         .collect();
     let mut boot_codegen = LLVMCodegen::new(&Context::create(), "bootstrap");
     boot_codegen.gen_mirs(&boot_mirs);
     let boot_ee = boot_codegen.finalize_and_jit()?;
     // Execute bootstrap main (zetac's main).
     unsafe {
-        let boot_main = boot_ee.get_function::<MainFn>("main").map_err(|_| "No boot main")?;
+        let boot_main = boot_ee
+            .get_function::<MainFn>("main")
+            .map_err(|_| "No boot main")?;
         let boot_result = boot_main.call();
         println!("Zeta bootstrap result: {}", boot_result);
     }
