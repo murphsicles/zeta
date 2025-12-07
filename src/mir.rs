@@ -46,11 +46,13 @@ pub enum MirStmt {
         values: Vec<u32>,
         result: u32,
     },
-    ParamInit {  // Initialize param local from arg index
+    ParamInit {
+        // Initialize param local from arg index
         param_id: u32,
         arg_index: usize,
     },
-    Consume {  // New: Mark local as consumed post-move (affine semantic)
+    Consume {
+        // New: Mark local as consumed post-move (affine semantic)
         id: u32,
     },
 }
@@ -74,7 +76,7 @@ pub struct MirGen {
     locals: HashMap<String, u32>,
     defers: Vec<DeferInfo>,
     // Track param indices for init
-    param_indices: Vec<(String, usize)>,  // (name, arg position)
+    param_indices: Vec<(String, usize)>, // (name, arg position)
     exprs: HashMap<u32, MirExpr>,
 }
 
@@ -236,7 +238,10 @@ impl MirGen {
                 });
 
                 // Affine: Consume by-value args post-call (assume all Var args moved)
-                for arg_id in arg_ids.iter().filter(|id| matches!(exprs.get(id), Some(MirExpr::Var(_)))) {
+                for arg_id in arg_ids
+                    .iter()
+                    .filter(|id| matches!(exprs.get(id), Some(MirExpr::Var(_))))
+                {
                     out.push(MirStmt::Consume { id: *arg_id });
                 }
             }
@@ -329,19 +334,35 @@ impl Mir {
             if let MirStmt::Call { func, args, dest } = &mut self.stmts[i] {
                 // If call to semiring op with all const args, fold
                 if func == "add" || func == "mul" {
-                    let op = if func == "add" { SemiringOp::Add } else { SemiringOp::Mul };
-                    let all_const = args.iter().all(|&id| matches!(self.exprs.get(&id), Some(MirExpr::Lit(_))));
+                    let op = if func == "add" {
+                        SemiringOp::Add
+                    } else {
+                        SemiringOp::Mul
+                    };
+                    let all_const = args
+                        .iter()
+                        .all(|&id| matches!(self.exprs.get(&id), Some(MirExpr::Lit(_))));
                     if all_const {
-                        let values: Vec<i64> = args.iter().map(|&id| {
-                            if let MirExpr::Lit(n) = self.exprs[&id] { n } else { 0 }
-                        }).collect();
+                        let values: Vec<i64> = args
+                            .iter()
+                            .map(|&id| {
+                                if let MirExpr::Lit(n) = self.exprs[&id] {
+                                    n
+                                } else {
+                                    0
+                                }
+                            })
+                            .collect();
                         let folded = match op {
                             SemiringOp::Add => values.iter().sum(),
                             SemiringOp::Mul => values.iter().product(),
                         };
                         self.exprs.insert(*dest, MirExpr::ConstEval(folded));
                         // Replace stmt with assign from ConstEval
-                        self.stmts[i] = MirStmt::Assign { lhs: *dest, rhs: MirExpr::ConstEval(folded) };
+                        self.stmts[i] = MirStmt::Assign {
+                            lhs: *dest,
+                            rhs: MirExpr::ConstEval(folded),
+                        };
                     }
                 }
             }
