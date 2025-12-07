@@ -147,9 +147,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     func_name: name.clone(),
                     type_args: vec![],
                 };
-                if let Some(cached) = lookup_specialization(&key) {
-                    // Use cached mangled name
-                }
+                let _cached = lookup_specialization(&key);
 
                 let fn_ty = self.i64_type.fn_type(&[self.i64_type.into()], false);
                 let fn_val = self.module.add_function(&name, fn_ty, None);
@@ -168,7 +166,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     match stmt {
                         MirStmt::ParamInit {
                             param_id,
-                            arg_index,
+                            arg_index: _arg_index,
                         } => {
                             // Store arg to alloca; for simplicity, use param_val
                             let ptr = *self.locals.entry(*param_id).or_insert_with(|| {
@@ -243,7 +241,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             let v = self.load_local(*val);
                             self.builder.build_return(Some(&v)).unwrap();
                         }
-                        MirStmt::Consume { id } => {
+                        MirStmt::Consume { id: _id } => {
                             // No-op for LLVM, semantic only
                         }
                     }
@@ -294,7 +292,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.module.verify().map_err(|e| e.to_string())?;
 
         // Stable ABI: Add sanitize for no UB
-        let sanitize_attr = self.context.create_enum_attribute(Attribute::NoUnwind, 0);
+        let sanitize_attr = self.context.create_bool_attribute("nounwind", true);
         for fn_val in self.module.get_functions() {
             fn_val.add_attribute(AttributeLoc::Function, sanitize_attr);
         }
