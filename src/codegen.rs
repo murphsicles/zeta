@@ -13,7 +13,7 @@ use crate::specialization::{MonoKey, lookup_specialization};
 use crate::xai::XAIClient;
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
-use inkwell::attributes::{AttributeKind, AttributeLoc};
+use inkwell::attributes::{Attribute, AttributeLoc};
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
@@ -191,13 +191,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                     v.into()
                                 })
                                 .collect();
-                            let callee = self.module.get_function(func).unwrap_or_else(|| {
-                                let fn_ptr_ty = self
-                                    .i64_type
-                                    .fn_type(&[self.i64_type.into()], false)
-                                    .ptr_type(AddressSpace::default());
-                                fn_ptr_ty.const_null()
-                            });
+                            let callee = self.module.get_function(func).expect("function not found");
                             let call_val =
                                 self.builder.build_call(callee, &arg_vals, "call").unwrap();
                             let dest_ptr = *self.locals.entry(*dest).or_insert_with(|| {
@@ -208,7 +202,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             self.builder
                                 .build_store(
                                     dest_ptr,
-                                    call_val.try_as_basic_value().unwrap().into_int_value(),
+                                    call_val.try_as_basic_value().unwrap_basic().into_int_value(),
                                 )
                                 .unwrap();
                         }
@@ -220,14 +214,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                     v.into()
                                 })
                                 .collect();
-                            let callee = self.module.get_function(func).unwrap_or_else(|| {
-                                let fn_ptr_ty = self
-                                    .context
-                                    .void_type()
-                                    .fn_type(&[self.i64_type.into()], false)
-                                    .ptr_type(AddressSpace::default());
-                                fn_ptr_ty.const_null()
-                            });
+                            let callee = self.module.get_function(func).expect("function not found");
                             self.builder
                                 .build_call(callee, &arg_vals, "voidcall")
                                 .unwrap();
@@ -307,7 +294,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.module.verify().map_err(|e| e.to_string())?;
 
         // Stable ABI: Add sanitize for no UB
-        let sanitize_attr = self.context.create_enum_attribute(AttributeKind::NoUnwind, 0);
+        let sanitize_attr = self.context.create_enum_attribute(Attribute::NoUnwind, 0);
         for fn_val in self.module.get_functions() {
             fn_val.add_attribute(AttributeLoc::Function, sanitize_attr);
         }
