@@ -7,12 +7,14 @@ use num_cpus;
 use std::collections::VecDeque;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::{mpsc, Mutex};
+
+#[allow(unused_imports)]
 use tokio::task;
 
 type Message = i64;
 
 #[repr(C)]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Channel {
     inner: Arc<ChannelInner>,
 }
@@ -111,7 +113,6 @@ pub unsafe extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i6
 }
 
 /// Actor representation: channel + async entry function.
-#[derive(Debug)]
 struct Actor {
     chan: Channel,
     func: Box<dyn FnOnce(Channel) + Send + 'static>,
@@ -121,7 +122,6 @@ struct Actor {
 static SCHEDULER: OnceLock<Arc<Scheduler>> = OnceLock::new();
 
 /// Multi-threaded work-stealing scheduler with async support.
-#[derive(Debug)]
 struct Scheduler {
     /// Pending actors queue.
     actors: tokio::sync::Mutex<VecDeque<Actor>>,
