@@ -81,11 +81,24 @@ fn parse_fstring_part<'a>() -> impl Parser<&'a str, Output = AstNode, Error = no
 fn parse_fstring<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     preceded(tag("f\""), 
         map(separated_list1(success(()), parse_fstring_part()), |parts| {
-            // Fold parts into concat calls, stub as single StringLit for now
-            if parts.len() == 1 {
+            // Fold parts into concat calls
+            if parts.is_empty() {
+                AstNode::StringLit("".to_string())
+            } else if parts.len() == 1 {
                 parts[0].clone()
             } else {
-                AstNode::StringLit("fstring_stub".to_string()) // Full: build Call concat
+                // Build chained concat: ((part0.concat part1).concat part2)...
+                let mut current = parts[0].clone();
+                for part in parts[1..].iter() {
+                    current = AstNode::Call {
+                        receiver: Some(Box::new(current)),
+                        method: "concat".to_string(),
+                        args: vec![part.clone()],
+                        type_args: vec![],
+                        structural: false,
+                    };
+                }
+                current
             }
         })
     ).and(tag("\"")).map(|(node, _)| node)
@@ -169,7 +182,7 @@ where
                 // Recover by skipping to next ws or ;
                 let skipped = take_while1(|c| c != ';' && !c.is_whitespace())(i);
                 match skipped {
-                    Ok((rest, _)) => Ok((rest, success(AstNode::Var("recover".to_string())).parse(rest)?)), // Stub node
+                    Ok((rest, _)) => Ok((rest, AstNode::Var("recover".to_string()))), // Stub node
                     Err(e) => Err(e),
                 }
             }
@@ -178,9 +191,16 @@ where
     }
 }
 
-/// Parses postfix: primary (.field | .method?(<types>)(args)).
+/// Parses postfix: primary .field.
 fn parse_postfix<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    parse_primary()
+    let field_access = parse_primary()
+        .and(ws(tag(".")))
+        .and(parse_ident())
+        .map(|((receiver, _), field)| AstNode::FieldAccess {
+            receiver: Box::new(receiver),
+            field,
+        });
+    alt((field_access, parse_primary()))
 }
 
 /// Parses pattern for match arms (basic lit | var).
@@ -188,8 +208,8 @@ fn parse_pattern<'a>() -> impl Parser<&'a str, Output = Pattern, Error = nom::er
     alt((
         map(nom_i64, Pattern::Lit),
         map(parse_ident(), Pattern::Var),
-        // Stub for variant: tag("Variant(").and(...).but skip for basic
-        value(Pattern::Variant("Variant".to_string(), vec![]), tag("Variant")),
+        // Variant: Variant(subpat)
+        preceded(tag("Variant("), delimited(tag("("), parse_pattern(), tag(")"))).map(|pat| Pattern::Variant("Variant".to_string(), vec![pat])),
     ))
 }
 
@@ -208,11 +228,11 @@ fn parse_match<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::erro
         .and(ws(delimited(tag("{"), separated_list1(tag(","), parse_arm()), tag("}"))))
         .map(|((_, expr), arms)| AstNode::Match {
             expr: Box::new(expr),
-            arms,
+            arms: arms.into_iter().map(|(p, e)| (p, Box::new(e))).collect(),
         })
 }
 
-/// Parses base expression: primary | match.
+/// Parses base expression: postfix | match.
 fn parse_base_expr<'a>()
 -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     alt((parse_postfix(), parse_match()))
@@ -250,16 +270,21 @@ fn parse_generics<'a>() -> impl Parser<&'a str, Output = Vec<String>, Error = no
     delimited(tag("<"), separated_list1(tag(","), parse_ident()), tag(">"))
 }
 
-/// Parses call or field: recv.method?(<T,U>)(args) or recv.method? for structural, or recv.field.
-/// Updated to use postfix.
+/// Parses call: base.method?(<T,U>)(args).
 fn parse_call<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    parse_base_expr() // Now includes postfix
-}
-
-/// Stub, since integrated in postfix.
-#[allow(dead_code)]
-fn parse_call_part<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    parse_base_expr()
+    let base = parse_base_expr()
+        .and(ws(tag(".")))
+        .and(parse_ident())
+        .and(parse_structural())
+        .and(opt(ws(parse_type_args())))
+        .and(delimited(tag("("), separated_list1(tag(","), parse_postfix()), tag(")")));
+    base.map(|((((((base, _), method), structural), type_args_opt), args)| AstNode::Call {
+        receiver: Some(Box::new(base)),
+        method,
+        args,
+        type_args: type_args_opt.unwrap_or(vec![]),
+        structural,
+    })
 }
 
 /// Parses assign: ident = expr.
@@ -290,7 +315,6 @@ fn parse_expr_recover<'a>() -> impl Parser<&'a str, Output = AstNode, Error = no
 }
 
 /// Parses expr: base for now.
-type ParseExpr = fn() -> impl Parser<...>; // Stub
 fn parse_expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     parse_base_expr()
 }
@@ -320,6 +344,11 @@ fn parse_func<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
             |((((((docs_opt, _fn_kw), name), generics_opt), params), ret_opt), body)| {
                 let generics = generics_opt.unwrap_or(vec![]);
                 let ret = ret_opt.unwrap_or_else(|| "i64".to_string());
+                let docs = if let Some(AstNode::DocComment(s)) = docs_opt {
+                    Some(s)
+                } else {
+                    None
+                };
                 AstNode::FuncDef {
                     name,
                     generics,
@@ -328,7 +357,7 @@ fn parse_func<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
                     body,
                     attrs: vec![],
                     ret_expr: None,
-                    docs: docs_opt.map(|d| if let AstNode::DocComment(s) = d { Some(s) } else { None }).flatten(),
+                    docs,
                 }
             },
         )
@@ -340,7 +369,7 @@ fn parse_method_sig<'a>()
     let docs_opt = opt(ws(parse_doc_comment()));
     let parse_name = parse_ident();
     let parse_generics_opt = opt(ws(parse_generics()));
-    let parse_params = delimited(tag("("), many0(parse_ident()), tag(")")); // Stub types as i64
+    let parse_params = delimited(tag("("), many0(parse_ident()), tag(")")); // Types as i64
     let parse_ret = opt(preceded(ws(tag("->")), ws(parse_type())));
 
     docs_opt
@@ -349,15 +378,22 @@ fn parse_method_sig<'a>()
         .and(parse_params)
         .and(parse_ret)
         .map(
-            |((((docs_opt, name), generics_opt), params), ret_opt)| AstNode::Method {
-                name,
-                params: params
-                    .into_iter()
-                    .map(|p| (p.clone(), "i64".to_string()))
-                    .collect(),
-                ret: ret_opt.unwrap_or_else(|| "i64".to_string()),
-                generics: generics_opt.unwrap_or(vec![]),
-                docs: docs_opt.map(|d| if let AstNode::DocComment(s) = d { Some(s) } else { None }).flatten(),
+            |((((docs_opt, name), generics_opt), params), ret_opt)| {
+                let docs = if let Some(AstNode::DocComment(s)) = docs_opt {
+                    Some(s)
+                } else {
+                    None
+                };
+                AstNode::Method {
+                    name,
+                    params: params
+                        .into_iter()
+                        .map(|p| (p.clone(), "i64".to_string()))
+                        .collect(),
+                    ret: ret_opt.unwrap_or_else(|| "i64".to_string()),
+                    generics: generics_opt.unwrap_or(vec![]),
+                    docs,
+                }
             },
         )
 }
@@ -374,11 +410,18 @@ fn parse_concept<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::er
         .and(parse_kw)
         .and(parse_name)
         .and(parse_body)
-        .map(|(((docs_opt, (_, name)), body)| AstNode::ConceptDef {
-            name,
-            methods: body,
-            docs: docs_opt.map(|d| if let AstNode::DocComment(s) = d { Some(s) } else { None }).flatten(),
-        })
+        .map(|(((docs_opt, (_, name)), body)| {
+            let docs = if let Some(AstNode::DocComment(s)) = docs_opt {
+                Some(s)
+            } else {
+                None
+            };
+            AstNode::ConceptDef {
+                name,
+                methods: body,
+                docs,
+            }
+        }))
 }
 
 /// Parses impl: optional docs, <gens> impl concept for ty { methods }.
@@ -398,12 +441,19 @@ fn parse_impl<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
         .and(parse_for_kw)
         .and(parse_ty)
         .and(parse_body)
-        .map(|(docs_opt, (generics_opt, ((((_, concept), _), ty)), body))| AstNode::ImplBlock {
-            generics: generics_opt.unwrap_or(vec![]),
-            concept,
-            ty,
-            body,
-            docs: docs_opt.map(|d| if let AstNode::DocComment(s) = d { Some(s) } else { None }).flatten(),
+        .map(|(docs_opt, (generics_opt, ((((_, concept), _), ty)), body))| {
+            let docs = if let Some(AstNode::DocComment(s)) = docs_opt {
+                Some(s)
+            } else {
+                None
+            };
+            AstNode::ImplBlock {
+                generics: generics_opt.unwrap_or(vec![]),
+                concept,
+                ty,
+                body,
+                docs,
+            }
         })
 }
 
@@ -418,7 +468,14 @@ fn parse_enum<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
         .and(parse_kw)
         .and(parse_name)
         .and(parse_variants)
-        .map(|((docs_opt, ((_, name))), variants)| AstNode::EnumDef { name, variants, docs: docs_opt.map(|d| if let AstNode::DocComment(s) = d { Some(s) } else { None }).flatten() })
+        .map(|((docs_opt, ((_, name))), variants)| {
+            let docs = if let Some(AstNode::DocComment(s)) = docs_opt {
+                Some(s)
+            } else {
+                None
+            };
+            AstNode::EnumDef { name, variants, docs }
+        })
 }
 
 /// Parses struct: optional docs, struct name { fields }.
@@ -437,7 +494,14 @@ fn parse_struct<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::err
         .and(parse_kw)
         .and(parse_name)
         .and(parse_fields)
-        .map(|((docs_opt, ((_, name))), fields)| AstNode::StructDef { name, fields, docs: docs_opt.map(|d| if let AstNode::DocComment(s) = d { Some(s) } else { None }).flatten() })
+        .map(|((docs_opt, ((_, name))), fields)| {
+            let docs = if let Some(AstNode::DocComment(s)) = docs_opt {
+                Some(s)
+            } else {
+                None
+            };
+            AstNode::StructDef { name, fields, docs }
+        })
 }
 
 /// Entry point: Parses multiple top-level items, with recovery.
