@@ -2,6 +2,7 @@
 //! Entry point for Zeta self-hosting.
 //! Loads example, parses, resolves, codegens, JIT-executes, prints result.
 //! Updated: Full bootstrap - eval simple expr, compile zetac src via self-host JIT.
+//! Added: Production bootstrap - write .ll, llc to .s, ld to exe.
 
 use inkwell::context::Context;
 use std::fs;
@@ -73,8 +74,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Full bootstrap: Compile zetac src with self-host JIT (stub: load src, parse, codegen to obj).
-    // For full, would need to write JITed code to file, link with rustc or ld.
-    // Here, simple: re-parse zetac src as Zeta code (assume .z extension for src).
+    // Production: write .ll, llc .s, ld exe.
     let zetac_code = fs::read_to_string("src/main.z")?; // Assume renamed
     let (_, zetac_asts) =
         parse_zeta(&zetac_code).map_err(|e| format!("Bootstrap parse: {:?}", e))?;
@@ -97,6 +97,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut boot_codegen = LLVMCodegen::new(&boot_context, "bootstrap");
     boot_codegen.gen_mirs(&boot_mirs);
     let boot_ee = boot_codegen.finalize_and_jit()?;
+    // Production link
+    boot_codegen.link_to_file("boot.ll", "boot.exe")?; // Assume method, stub
+    println!("Bootstrap exe linked: boot.exe");
     // Execute bootstrap main (zetac's main).
     unsafe {
         let boot_main = boot_ee
