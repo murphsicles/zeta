@@ -21,13 +21,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let args: Vec<String> = std::env::args().collect();
     let wasm = args.contains(&"--wasm".to_string());
+    if let Some(ai_query) = args.get(1) {
+        if ai_query == "new" {
+            // AI code gen template
+            let client = XAIClient::new().ok();
+            if let Some(c) = client {
+                let template = c.generate_scaffold("api").ok(); // Stub
+                println!("AI scaffold: {}", template.unwrap_or_default());
+            }
+            return Ok(());
+        }
+    }
     if args.len() > 1 && !args[1].starts_with("--") {
         // File mode
+        let start = Instant::now();
         let code = fs::read_to_string(&args[1])?;
         let (_, asts) = parse_zeta(&code).map_err(|e| format!("Parse error: {:?}", e))?;
+        let parse_time = start.elapsed();
 
         // Print parsed nodes count for test.
-        println!("Parsed {} nodes from {}", asts.len(), args[1]);
+        println!("Parsed {} nodes from {} in {:?}", asts.len(), args[1], parse_time);
 
         // Register impls and typecheck.
         let mut resolver = Resolver::new();
@@ -121,19 +134,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Zeta bootstrap result: {}", boot_result);
         }
     } else {
-        // REPL mode or AI templates
-        if let Some(ai_query) = args.get(1) {
-            if ai_query == "new" {
-                // AI code gen template
-                let client = XAIClient::new().ok();
-                if let Some(c) = client {
-                    let template = c.generate_scaffold("api").ok(); // Stub
-                    println!("AI scaffold: {}", template.unwrap_or_default());
-                }
-                return Ok(());
-            }
-        }
-        println!("Zeta REPL (v0.0.4) - type 'exit' to quit.");
+        // REPL mode
+        println!("Zeta REPL (v0.0.3) - type 'exit' to quit.");
         let stdin = io::stdin();
         let mut resolver = Resolver::new();
         let mut context = Context::create();
@@ -156,15 +158,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let ee = codegen.finalize_and_jit().map_err(|e| format!("JIT: {}", e))?;
             type EvalFn = unsafe extern "C" fn() -> i64;
             unsafe {
-                if let Ok(eval) = ee.get_function::<EvalFn>("main") {
-                    let res = eval.call();
-                    println!("=> {}", res);
-                } else {
-                    println!("Eval failed");
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
+                if let Ok(eval)
