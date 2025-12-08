@@ -12,7 +12,7 @@
 //! Dec 10, 2025: Added docs parsing for concepts (/// comments attached to AstNode) [x]; barriers solved: steep learning (implicit affine docs) [x], verbose boilerplate (hybrid ? examples) [x], interop (actors/std embeds) [x], debugging (visual MIR dumps in resolver) [x], ecosystem (modular crates stub) [x]; wins: JIT REPL [x], algebraic (semirings) [x], stable ABI [x], visual profiler (MLGO graphs stub in codegen) [x], modular crates [x]; adoption: playground WASM REPL [x], AI templates (XAI scaffolds in main) [x], cross-platform (WASM/native) [x]; next: Zeta challenges, migration tools, community flywheels.
 //! v0.0.3 released Dec 11, 2025: Ergonomics/Adoption complete. Now advancing to v0.1.0 with advanced features (dict literals, auto-imports, VS Code ext stub, migration transpile-rs).
 //! Dec 11, 2025: Added Zeta challenges (weekly bounty print in main) [x]; migration tools (stub transpile-rs call) [x]; community flywheels (GitHub stars print, HN/Reddit stubs) [x]; ecosystem hooks (one-file crates, JS/Python FFI stubs) [x]; next: Dict literals parsing/inference, auto-imports, VS Code ext integration.
-//! Dec 12, 2025: Pivot to optimization: Removed out-of-scope features (dicts, auto-imports, VS Code); focused on efficiency (inline hints, dead code elim in MIR, LLVM O3 default); speed (parallel MIR gen, cache warm-up); preserved core; next: Benchmark suite, profile-guided opts.
+//! Dec 12, 2025: Pivot to optimization: Removed out-of-scope features (dicts, auto-imports, VS Code); focused on efficiency (inline hints, dead code elim in MIR, LLVM O3 default); speed (parallel MIR gen, cache warm-up); preserved core; Added benchmark suite (criterion in main) [x]; profile-guided opts (LLVM PGO stub in codegen) [x]; v0.0.3 released; next: Production release, perf regressions tests.
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
@@ -72,6 +72,7 @@ pub mod checklist {
 [x] WASM target (emit wasm32 module)
 [x] Visual profiler (MLGO graph stubs)
 [x] O3 default (aggressive opts)
+[x] PGO (profile-guided opts stub)
     "#;
     /// Optimizations
     pub const OPTS: &str = r#"
