@@ -7,6 +7,7 @@
 //! Added: AI code gen templates: use XAI for scaffolds in REPL.
 //! Added: Cross-platform: WASM if --wasm flag.
 
+use std::time::Instant;
 use inkwell::context::Context;
 use std::fs;
 use std::io::{self, BufRead};
@@ -66,7 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Setup LLVM.
         let context = Context::create();
-        let mut codegen = LLVMCodegen::new(&context, "selfhost", wasm);
+        let mut codegen = LLVMCodegen::new(&context, "selfhost", wasm, false);
         codegen.gen_mirs(&mirs);
         let ee = codegen.finalize_and_jit()?;
 
@@ -119,7 +120,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             })
             .collect();
         let boot_context = Context::create();
-        let mut boot_codegen = LLVMCodegen::new(&boot_context, "bootstrap", wasm);
+        let mut boot_codegen = LLVMCodegen::new(&boot_context, "bootstrap", wasm, false);
         boot_codegen.gen_mirs(&boot_mirs);
         let boot_ee = boot_codegen.finalize_and_jit()?;
         // Production link
@@ -139,7 +140,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let stdin = io::stdin();
         let mut resolver = Resolver::new();
         let mut context = Context::create();
-        let mut codegen = LLVMCodegen::new(&context, "repl", wasm);
+        let mut codegen = LLVMCodegen::new(&context, "repl", wasm, false);
         for line in stdin.lock().lines() {
             let line = line?;
             if line.trim() == "exit" {
@@ -158,4 +159,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let ee = codegen.finalize_and_jit().map_err(|e| format!("JIT: {}", e))?;
             type EvalFn = unsafe extern "C" fn() -> i64;
             unsafe {
-                if let Ok(eval)
+                if let Ok(eval_fn) = ee.get_function::<EvalFn>("main") {
+                    let result = eval_fn.call();
+                    println!("Eval: {}", result);
+                }
+            }
+        }
+    }
+    Ok(())
+}
