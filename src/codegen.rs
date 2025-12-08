@@ -14,6 +14,7 @@
 //! Added: WASM: if flag, use wasm32 target (stub module).
 //! Added: Visual profiler: stub MLGO graph output to dot file.
 //! Added: O3 default: set OptimizationLevel::Aggressive everywhere.
+//! Added: PGO stub: add sample_pgo flag, LLVM PGO attrs.
 
 use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
@@ -98,12 +99,14 @@ pub struct LLVMCodegen<'ctx> {
     fns: HashMap<String, inkwell::values::FunctionValue<'ctx>>,
     /// WASM target flag.
     wasm: bool,
+    /// PGO sample flag.
+    pgo: bool,
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
     /// Creates a new codegen instance for a module named `name`.
     /// Declares external host functions (datetime_now, free, actor intrinsics, std embeds).
-    pub fn new(context: &'ctx Context, name: &str, wasm: bool) -> Self {
+    pub fn new(context: &'ctx Context, name: &str, wasm: bool, pgo: bool) -> Self {
         let module = if wasm {
             // Stub WASM: use wasm32 target
             Target::initialize_wasm(&InitializationConfig::default());
@@ -171,6 +174,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             tbaa_const_time,
             fns: HashMap::new(),
             wasm,
+            pgo,
         }
     }
 
@@ -199,6 +203,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 if mir.stmts.len() < 5 {
                     let inline_attr = self.context.create_enum_attribute(Attribute::get_named_enum_kind_id("alwaysinline"), 1);
                     fn_val.add_attribute(AttributeLoc::Function, inline_attr);
+                }
+                // PGO stub
+                if self.pgo {
+                    let pgo_attr = self.context.create_enum_attribute(Attribute::get_named_enum_kind_id("sample-profile"), 1);
+                    fn_val.add_attribute(AttributeLoc::Function, pgo_attr);
                 }
                 let entry = self.context.append_basic_block(fn_val, "entry");
                 self.builder.position_at_end(entry);
