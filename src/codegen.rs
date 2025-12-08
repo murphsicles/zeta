@@ -2,7 +2,7 @@
 //! LLVM code generation for Zeta MIR.
 //! Supports JIT execution, intrinsics, SIMD, TBAA, actor runtime, and std embeddings.
 //! Ensures stable ABI and TimingOwned constant-time guarantees.
-//! Updated: Handle ParamInit - store fn args to param allocas at entry.
+//! Updated: Handle ParamInit - store fn args to local allocas at entry.
 //! Updated: Handle Consume - no-op (semantic for affine verification).
 //! Added: SIMD - vec ops via MLGO passes; detect SemiringFold for vectorize.
 //! Added: Stable ABI - no UB via sanitize checks, thin mono via specialization mangled names.
@@ -12,6 +12,7 @@
 //! Added: String type as i8*.
 //! Added: Inlining: add always_inline attr to small fns.
 //! Added: WASM: if flag, use wasm32 target (stub module).
+//! Added: Visual profiler: stub MLGO graph output to dot file.
 
 use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
@@ -31,6 +32,8 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::process::Command;
+use std::fs::File;
+use std::io::Write;
 
 /// Host implementation for datetime_now, returning Unix millis.
 extern "C" fn host_datetime_now() -> i64 {
@@ -339,6 +342,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         eprintln!("Running AI-recommended pass: {}", ps);
                     }
                 }
+            }
+            // Visual profiler: stub graph to dot
+            if let Some(graph) = json.get("graph") {
+                let dot = format!("digraph {{ {} }}", graph); // Stub
+                let mut file = File::create("profiler.dot").unwrap();
+                file.write_all(dot.as_bytes()).unwrap();
+                println!("Profiler graph: profiler.dot");
             }
         }
 
