@@ -8,6 +8,7 @@
 //! Added: FieldAccess type lookup.
 //! Added: Basic match inference (assume i64 arms).
 //! Added: Generic impls (key with ty string incl generics).
+//! Added: Visual MIR dumps for debugging (print_mir method).
 
 use crate::ast::{AstNode, Pattern};
 use crate::borrow::BorrowChecker;
@@ -123,15 +124,16 @@ impl Resolver {
         r
     }
 
-    /// Registers a concept, impl, or func; declares param borrows.
+    /// Registers a concept, impl, or func; declares param borrows; attaches docs.
     pub fn register(&mut self, ast: AstNode) {
         match ast {
-            AstNode::ImplBlock { generics: _, concept, ty, body } => {
+            AstNode::ImplBlock { generics: _, concept, ty, body, docs } => {
                 let ty_parsed = self.parse_type(&ty); // Handles generics as Named(ty)
                 let mut methods = HashMap::new();
                 for node in body {
                     if let AstNode::Method {
                         name, params, ret, generics: _,
+                        ..
                     } = node
                     {
                         let sig = (
@@ -145,9 +147,13 @@ impl Resolver {
                     }
                 }
                 self.direct_impls.insert((concept, ty_parsed), methods);
+                // Docs attached, but for now print
+                if let Some(d) = docs {
+                    println!("Impl docs: {}", d);
+                }
             }
             AstNode::FuncDef {
-                name, params, ret, ..
+                name, params, ret, docs, ..
             } => {
                 let sig = (
                     params
@@ -163,19 +169,32 @@ impl Resolver {
                     self.borrow_checker
                         .declare(pname.clone(), crate::borrow::BorrowState::Owned);
                 }
+                // Docs
+                if let Some(d) = docs {
+                    println!("Fn docs: {}", d);
+                }
             }
-            AstNode::ConceptDef { .. } => {
+            AstNode::ConceptDef { name, methods, docs } => {
                 // Concepts define traits; impls register them. Concepts themselves don't add impls.
+                if let Some(d) = docs {
+                    println!("Concept docs: {}", d);
+                }
             }
-            AstNode::EnumDef { name, .. } | AstNode::StructDef { name, .. } => {
+            AstNode::EnumDef { name, docs, .. } | AstNode::StructDef { name, docs, .. } => {
                 self.type_env.insert(name.clone(), Type::Named(name));
+                if let Some(d) = docs {
+                    println!("Type docs: {}", d);
+                }
             }
-            AstNode::StructDef { name, fields, .. } => {
+            AstNode::StructDef { name, fields, docs, .. } => {
                 let field_types: Vec<(String, Type)> = fields
                     .into_iter()
                     .map(|(f, ft)| (f, self.parse_type(&ft)))
                     .collect();
-                self.struct_fields.insert(name, field_types);
+                self.struct_fields.insert(name.clone(), field_types);
+                if let Some(d) = docs {
+                    println!("Struct docs: {}", d);
+                }
             }
             _ => {}
         }
@@ -377,5 +396,13 @@ impl Resolver {
             }
         }
         changed
+    }
+
+    /// Visual dump MIR for debugging.
+    pub fn dump_mir(&self, mir: &Mir) {
+        println!("MIR dump for {:?}:", mir.name);
+        for (i, stmt) in mir.stmts.iter().enumerate() {
+            println!("  {}: {:?}", i, stmt);
+        }
     }
 }
