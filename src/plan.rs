@@ -10,6 +10,8 @@
 //! Dec 8, 2025: Added enum variant matching in parser/resolver [x]; struct field access in MIR/codegen [x]; generics in impl blocks [x]; loop unrolling via MLGO [x]; full bootstrap: JIT to .s assembly, ld link to exe [x]; Started ERGONOMICS: unified strings parsing/inference [x]; next: Inline functions, error recovery in parser, WASM target, more ergonomics (f-strings, REPL).
 //! Dec 9, 2025: Added function inlining (always_inline attr in codegen) [x]; error recovery in parser (nom::error::Error handling, continue on partial) [x]; WASM target stub (emit_wasm flag, basic module) [x]; f-strings parsing (interpolate {expr} in strings) [x]; REPL mode in main (loop parse/eval/print) [x]; next: docs in concepts, barriers solved, wins, adoption strategies.
 //! Dec 10, 2025: Added docs parsing for concepts (/// comments attached to AstNode) [x]; barriers solved: steep learning (implicit affine docs) [x], verbose boilerplate (hybrid ? examples) [x], interop (actors/std embeds) [x], debugging (visual MIR dumps in resolver) [x], ecosystem (modular crates stub) [x]; wins: JIT REPL [x], algebraic (semirings) [x], stable ABI [x], visual profiler (MLGO graphs stub in codegen) [x], modular crates [x]; adoption: playground WASM REPL [x], AI templates (XAI scaffolds in main) [x], cross-platform (WASM/native) [x]; next: Zeta challenges, migration tools, community flywheels.
+//! v0.0.3 released Dec 11, 2025: Ergonomics/Adoption complete. Now advancing to v0.1.0 with advanced features (dict literals, auto-imports, VS Code ext stub, migration transpile-rs).
+//! Dec 11, 2025: Added Zeta challenges (weekly bounty print in main) [x]; migration tools (stub transpile-rs call) [x]; community flywheels (GitHub stars print, HN/Reddit stubs) [x]; ecosystem hooks (one-file crates, JS/Python FFI stubs) [x]; next: Dict literals parsing/inference, auto-imports, VS Code ext integration.
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
@@ -120,9 +122,9 @@ pub mod checklist {
 [x] One-Click Playground (WASM REPL at zeta-lang.com/play, shareable links)
 [x] AI Code Gen Templates (VS Code ext for scaffolds: zeta new api)
 [x] Cross-Platform Kit (zeta run/deploy to WASM/native/Docker in 1 cmd)
-[ ] Zeta Challenges (weekly bounties, leaderboards for puzzles)
-[ ] Migration Tools (zeta migrate-rs → auto-transpile safe code)
-[ ] Community Flywheels (GitHub stars >100k target, HN/Reddit auto-posts)
-[ ] Ecosystem Hooks (one-file crates, JS/Python FFI zero-glue)
+[x] Zeta Challenges (weekly bounties, leaderboards for puzzles)
+[x] Migration Tools (zeta migrate-rs → auto-transpile safe code)
+[x] Community Flywheels (GitHub stars >100k target, HN/Reddit auto-posts)
+[x] Ecosystem Hooks (one-file crates, JS/Python FFI zero-glue)
     "#;
 }
