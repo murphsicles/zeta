@@ -13,6 +13,7 @@
 //! Added: Inlining: add always_inline attr to small fns.
 //! Added: WASM: if flag, use wasm32 target (stub module).
 //! Added: Visual profiler: stub MLGO graph output to dot file.
+//! Added: O3 default: set OptimizationLevel::Aggressive everywhere.
 
 use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
@@ -111,7 +112,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 &"wasm32-unknown-unknown",
                 "generic",
                 "",
-                OptimizationLevel::Default,
+                OptimizationLevel::Aggressive, // O3
                 inkwell::targets::RelocMode::Static,
                 inkwell::targets::CodeModel::Default,
             ).unwrap();
@@ -354,7 +355,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
         let ee = self
             .module
-            .create_jit_execution_engine(OptimizationLevel::Aggressive)?;
+            .create_jit_execution_engine(OptimizationLevel::Aggressive)?; // O3
 
         // Map host functions...
         ee.add_global_mapping(
