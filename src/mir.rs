@@ -6,7 +6,7 @@
 //! Added: Basic Switch for match lowering (on i64).
 //! Added: Dead code elim: remove unused locals/stmts.
 
-use crate::ast::AstNode;
+use crate::ast::{AstNode, Pattern};
 use rayon::prelude::*;
 use std::collections::HashMap;
 
