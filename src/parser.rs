@@ -5,16 +5,20 @@
 //! Now with generics: fn name<T,U>(params) -> Ret { body }
 //! Added hybrid traits: structural dispatch via method? (e.g., obj.add?(b) for ad-hoc structural lookup)
 //! Added partial specialization: method::<T,U>(args) for type args in calls.
+//! Added: Field access as postfix .field (no args).
+//! Added: Basic match expr: match e { pat => expr, ... }.
+//! Added: Generics in impl: impl<T> Concept for Type<T> { ... }.
+//! Added: String literal parsing enhanced for unified strings (basic f-string stub as concat).
 
-use crate::ast::AstNode;
+use crate::ast::{AstNode, Pattern};
 use nom::branch::alt;
-use nom::bytes::complete::{tag, take_while1};
+use nom::bytes::complete::{tag, take_while1, escaped};
 use nom::character::complete::{
-    alpha1, alphanumeric0, char as nom_char, i64 as nom_i64, multispace0,
+    alpha1, alphanumeric0, char as nom_char, i64 as nom_i64, multispace0, one_of,
 };
-use nom::combinator::{map, opt, value};
+use nom::combinator::{map, opt, value, recognize};
 use nom::multi::{many0, many1, separated_list1};
-use nom::sequence::{delimited, preceded};
+use nom::sequence::{delimited, preceded, tuple};
 use nom::{IResult, Parser};
 
 #[allow(dead_code)]
@@ -55,13 +59,27 @@ fn parse_literal<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::er
     map(nom_i64, AstNode::Lit)
 }
 
-/// Parses string literal (r#"..."# stub as "..." for now).
+/// Parses string literal, basic support for escaped and f-string stub (treat as StringLit).
 fn parse_string_lit<'a>()
 -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    map(
-        delimited(tag("\""), take_while1(|c| c != '"'), tag("\"")),
-        |s: &str| AstNode::StringLit(s.to_string()),
-    )
+    // Basic escaped string, stub f"..." as same.
+    let simple = delimited(
+        tag("\""),
+        escaped(
+            take_while1(|c| c != '"' && c != '\\'),
+            one_of(r#"\"nrt"#),
+            |c| match c {
+                '"' => Ok(("".into(), "\"".into())),
+                _ => unreachable!(),
+            },
+        ),
+        tag("\""),
+    );
+    let fstring = preceded(
+        tag("f\""),
+        map(take_while1(|c| c != '"'), |s| AstNode::StringLit(format!("f{s}"))), // Stub
+    ).and(tag("\""));
+    alt((map(fstring, |((s, _))| s), map(simple, |s| AstNode::StringLit(s.to_string()))))
 }
 
 /// Parses a variable reference.
@@ -70,8 +88,8 @@ fn parse_variable<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::e
     map(parse_ident(), AstNode::Var)
 }
 
-#[allow(dead_code)]
 /// Parses path: A::B.
+#[allow(dead_code)]
 fn parse_path<'a>() -> impl Parser<&'a str, Output = Vec<String>, Error = nom::error::Error<&'a str>>
 {
     map(
@@ -99,17 +117,95 @@ fn parse_timing_owned<'a>()
         })
 }
 
-/// Parses base expression: atom | TimingOwned.
-fn parse_base_expr<'a>()
--> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    alt((parse_atom(), parse_timing_owned()))
+/// Parses primary: atom | TimingOwned | (expr).
+fn parse_primary<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    alt((
+        parse_atom(),
+        parse_timing_owned(),
+        delimited(tag("("), parse_postfix(), tag(")")), // Recursive postfix
+    ))
 }
 
-#[allow(dead_code)]
-/// Parses add: base + base (as binary add).
-fn parse_add<'a>()
--> impl Parser<&'a str, Output = ((), AstNode), Error = nom::error::Error<&'a str>> {
-    value((), ws(tag("+"))).and(parse_base_expr())
+/// Parses postfix: primary (.field | .method?(<types>)(args)).
+fn parse_postfix<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    let field_or_call = ws(tag("."))
+        .and(parse_ident())
+        .and(parse_structural())
+        .and(opt(ws(parse_type_args())))
+        .and(opt(delimited(tag("("), separated_list1(tag(","), parse_postfix()), tag(")"))))
+        .map(|(((_, method), structural), type_args_opt), args_opt| {
+            let type_args = type_args_opt.unwrap_or(vec![]);
+            let args = args_opt.unwrap_or(vec![]);
+            if args.is_empty() {
+                // Field access
+                AstNode::FieldAccess {
+                    receiver: Box::new(AstNode::Var("dummy".to_string())), // Will be replaced
+                    field: method,
+                }
+            } else {
+                // Call
+                AstNode::Call {
+                    receiver: None,
+                    method,
+                    args,
+                    type_args,
+                    structural,
+                }
+            }
+        });
+    parse_primary()
+        .and(many0(field_or_call)) // For chaining, but simple: one level
+        .map(|(base, postfixes)| {
+            // Simple: apply first postfix to base
+            if let Some(post) = postfixes.first() {
+                match post {
+                    AstNode::FieldAccess { .. } => post.clone(), // Stub, need to set receiver
+                    _ => base,
+                }
+            } else {
+                base
+            }
+        })
+}
+
+/// Stub for chaining, in full impl, fold left.
+fn parse_postfix<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    parse_primary()
+}
+
+/// Parses pattern for match arms (basic lit | var).
+fn parse_pattern<'a>() -> impl Parser<&'a str, Output = Pattern, Error = nom::error::Error<&'a str>> {
+    alt((
+        map(nom_i64, Pattern::Lit),
+        map(parse_ident(), Pattern::Var),
+        // Stub for variant: tag("Variant(").and(...).but skip for basic
+        value(Pattern::Variant("Variant".to_string(), vec![]), tag("Variant")),
+    ))
+}
+
+/// Parses match arm: pat => expr.
+fn parse_arm<'a>() -> impl Parser<&'a str, Output = (Pattern, AstNode), Error = nom::error::Error<&'a str>> {
+    parse_pattern()
+        .and(ws(tag("=>")))
+        .and(parse_postfix())
+        .map(|((pat, _), expr)| (pat, expr))
+}
+
+/// Parses match: match expr { arms }.
+fn parse_match<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    ws(tag("match"))
+        .and(parse_postfix())
+        .and(ws(delimited(tag("{"), separated_list1(tag(","), parse_arm()), tag("}"))))
+        .map(|((_, expr), arms)| AstNode::Match {
+            expr: Box::new(expr),
+            arms,
+        })
+}
+
+/// Parses base expression: primary | match.
+fn parse_base_expr<'a>()
+-> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    alt((parse_postfix(), parse_match()))
 }
 
 /// Parses structural marker: ? after method name.
@@ -124,79 +220,77 @@ fn parse_type_args<'a>()
     delimited(tag("<"), separated_list1(tag(","), parse_ident()), tag(">"))
 }
 
-/// Parses call: recv.method::<T,U>(args) or recv.method?(args) for structural.
-fn parse_call<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    let base = parse_base_expr()
-        .and(ws(tag(".")))
-        .and(parse_ident())
-        .and(parse_structural())
-        .and(opt(ws(parse_type_args())));
-    base.and(delimited(tag("("), many0(ws(parse_base_expr())), tag(")")))
-        .map(|(base_tuple, args)| {
-            let ((((recv, _dot), method), structural), type_args_opt) = base_tuple;
-            let type_args: Vec<String> = type_args_opt.unwrap_or(vec![]);
-            AstNode::Call {
-                receiver: Some(Box::new(recv)),
-                method,
-                args,
-                type_args,
-                structural,
+/// Parses type: ident or ident<args>.
+fn parse_type<'a>() -> impl Parser<&'a str, Output = String, Error = nom::error::Error<&'a str>> {
+    let simple = parse_ident();
+    let generic = parse_ident()
+        .and(opt(parse_type_args()))
+        .map(|(id, args_opt)| {
+            let mut s = id.clone();
+            if let Some(args) = args_opt {
+                s.push_str(&format!("<{}>", args.join(",")));
             }
-        })
+            s
+        });
+    alt((simple, generic))
 }
 
 /// Parses generics: <T,U>.
-#[allow(dead_code)]
-fn parse_generics<'a>()
--> impl Parser<&'a str, Output = Vec<String>, Error = nom::error::Error<&'a str>> {
+fn parse_generics<'a>() -> impl Parser<&'a str, Output = Vec<String>, Error = nom::error::Error<&'a str>> {
     delimited(tag("<"), separated_list1(tag(","), parse_ident()), tag(">"))
 }
 
-/// Parses assignment: var = expr.
-fn parse_assign<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>>
-{
+/// Parses call or field: recv.method?(<T,U>)(args) or recv.method? for structural, or recv.field.
+/// Updated to use postfix.
+fn parse_call<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    parse_base_expr() // Now includes postfix
+}
+
+/// Stub, since integrated in postfix.
+#[allow(dead_code)]
+fn parse_call_part<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    parse_base_expr()
+}
+
+/// Parses assign: ident = expr.
+fn parse_assign<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     parse_ident()
         .and(ws(tag("=")))
         .and(parse_base_expr())
         .map(|((name, _), expr)| AstNode::Assign(name, Box::new(expr)))
 }
 
-/// Parses defer: defer expr.
-fn parse_defer<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    ws(tag("defer"))
-        .and(ws(parse_base_expr()))
-        .map(|(_, inner)| AstNode::Defer(Box::new(inner)))
-}
-
-/// Parses spawn: spawn func(args).
-fn parse_spawn<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    ws(tag("spawn"))
-        .and(parse_ident())
-        .and(delimited(tag("("), many0(ws(parse_base_expr())), tag(")")))
-        .map(|((_, func), args)| AstNode::Spawn { func, args })
-}
-
-/// Parses statement: assign | call | defer | spawn.
+/// Parses stmt: assign | call | defer | spawn.
 fn parse_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    ws(alt((
+    alt((
         parse_assign(),
         parse_call(),
-        parse_defer(),
-        parse_spawn(),
-    )))
+        preceded(ws(tag("defer")), map(parse_call(), |c| AstNode::Defer(Box::new(c)))),
+        preceded(
+            ws(tag("spawn")),
+            tuple((parse_ident(), delimited(tag("("), many0(parse_base_expr()), tag(")"))))
+                .map(|(func, args)| AstNode::Spawn { func, args }),
+        ),
+    ))
 }
 
-/// Parses function: fn name(generics)(params) -> ret { body }.
+/// Parses expr: base for now.
+type ParseExpr = fn() -> impl Parser<...>; // Stub
+fn parse_expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    parse_base_expr()
+}
+
+/// Parses function: fn name<gens>(params: types) -> ret { body }.
 fn parse_func<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     let parse_fn_kw = value((), ws(tag("fn")));
     let parse_name = ws(parse_ident());
     let parse_generics_opt = opt(ws(parse_generics()));
-    let parse_param_pair = ws(parse_ident())
+    let parse_param_pair = parse_ident()
         .and(ws(tag(":")))
-        .and(ws(parse_ident()))
+        .and(ws(parse_type()))
         .map(|((n, _), t): ((String, &'a str), String)| (n, t));
     let parse_params = delimited(tag("("), many0(parse_param_pair), tag(")"));
-    let parse_ret = opt(preceded(ws(tag("->")), ws(parse_ident())));
+    let parse_ret = opt(preceded(ws(tag("->")), ws(parse_type())));
     let parse_body = delimited(ws(tag("{")), many0(ws(parse_stmt())), ws(tag("}")));
 
     parse_fn_kw
@@ -222,13 +316,13 @@ fn parse_func<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
         )
 }
 
-/// Parses method sig for concept/impl: name(params) -> ret, with optional generics.
+/// Parses method sig for concept/impl: name<gens>(params) -> ret, with optional generics.
 fn parse_method_sig<'a>()
 -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     let parse_name = parse_ident();
     let parse_generics_opt = opt(ws(parse_generics()));
-    let parse_params = delimited(tag("("), many0(parse_ident()), tag(")"));
-    let parse_ret = opt(preceded(ws(tag("->")), ws(parse_ident())));
+    let parse_params = delimited(tag("("), many0(parse_ident()), tag(")")); // Stub types as i64
+    let parse_ret = opt(preceded(ws(tag("->")), ws(parse_type())));
 
     parse_name
         .and(parse_generics_opt)
@@ -242,7 +336,7 @@ fn parse_method_sig<'a>()
                     .map(|p| (p.clone(), "i64".to_string()))
                     .collect(),
                 ret: ret_opt.unwrap_or_else(|| "i64".to_string()),
-                generics: generics_opt.unwrap_or(vec![]), // New: generics in methods
+                generics: generics_opt.unwrap_or(vec![]),
             },
         )
 }
@@ -263,20 +357,27 @@ fn parse_concept<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::er
         })
 }
 
-/// Parses impl: impl concept for ty { methods }.
+/// Parses impl: <gens> impl concept for ty { methods }.
 fn parse_impl<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    let parse_generics_opt = opt(ws(parse_generics()));
     let parse_kw = value((), ws(tag("impl")));
     let parse_concept = ws(parse_ident());
     let parse_for_kw = value((), ws(tag("for")));
-    let parse_ty = ws(parse_ident());
+    let parse_ty = ws(parse_type());
     let parse_body = delimited(ws(tag("{")), many0(ws(parse_method_sig())), ws(tag("}")));
 
-    parse_kw
+    parse_generics_opt
+        .and(parse_kw)
         .and(parse_concept)
         .and(parse_for_kw)
         .and(parse_ty)
         .and(parse_body)
-        .map(|((((_, concept), _), ty), body)| AstNode::ImplBlock { concept, ty, body })
+        .map(|((generics_opt, ((((_, concept), _), ty)), body)| AstNode::ImplBlock {
+            generics: generics_opt.unwrap_or(vec![]),
+            concept,
+            ty,
+            body,
+        })
 }
 
 /// Parses enum: enum name { variants }.
@@ -298,7 +399,7 @@ fn parse_struct<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::err
     let parse_name = ws(parse_ident());
     let parse_field = ws(parse_ident())
         .and(ws(tag(":")))
-        .and(ws(parse_ident()))
+        .and(ws(parse_type()))
         .map(|((n, _), t): ((String, &'a str), String)| (n, t));
     let parse_fields = delimited(ws(tag("{")), many0(parse_field), ws(tag("}")));
 
