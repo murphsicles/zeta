@@ -10,6 +10,8 @@
 //! Added: Struct GEP for GetField.
 //! Added: Loop unroll attribute via MLGO.
 //! Added: String type as i8*.
+//! Added: Inlining: add always_inline attr to small fns.
+//! Added: WASM: if flag, use wasm32 target (stub module).
 
 use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
@@ -22,6 +24,7 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
+use inkwell::targets::{InitializationConfig, Target};
 use inkwell::types::{BasicType, BasicTypeEnum, IntType, PointerType, StructType, VectorType};
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue};
 use serde_json::Value;
@@ -89,13 +92,30 @@ pub struct LLVMCodegen<'ctx> {
     tbaa_const_time: inkwell::values::MetadataValue<'ctx>,
     /// Generated function map: name -> LLVM fn.
     fns: HashMap<String, inkwell::values::FunctionValue<'ctx>>,
+    /// WASM target flag.
+    wasm: bool,
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
     /// Creates a new codegen instance for a module named `name`.
     /// Declares external host functions (datetime_now, free, actor intrinsics, std embeds).
-    pub fn new(context: &'ctx Context, name: &str) -> Self {
-        let module = context.create_module(name);
+    pub fn new(context: &'ctx Context, name: &str, wasm: bool) -> Self {
+        let module = if wasm {
+            // Stub WASM: use wasm32 target
+            Target::initialize_wasm(&InitializationConfig::default());
+            let target = Target::from_triple("wasm32-unknown-unknown").unwrap();
+            let target_machine = target.create_target_machine(
+                &"wasm32-unknown-unknown",
+                "generic",
+                "",
+                OptimizationLevel::Default,
+                inkwell::targets::RelocMode::Static,
+                inkwell::targets::CodeModel::Default,
+            ).unwrap();
+            context.create_module_with_target_machine(&name, &target_machine)
+        } else {
+            context.create_module(name)
+        }.unwrap_or_else(|_| context.create_module(name));
         let builder = context.create_builder();
         let i64_type = context.i64_type();
         let i8_type = context.i8_type();
@@ -146,6 +166,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             type_map: HashMap::new(),
             tbaa_const_time,
             fns: HashMap::new(),
+            wasm,
         }
     }
 
@@ -170,6 +191,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 // Create fn type stub i64() -> i64
                 let fn_type = self.i64_type.fn_type(&[self.i64_type.into(); 0], false);
                 let fn_val = self.module.add_function(name, fn_type, None);
+                // Inline small fns (stub: if stmts < 5)
+                if mir.stmts.len() < 5 {
+                    let inline_attr = self.context.create_enum_attribute(Attribute::get_named_enum_kind_id("alwaysinline"), 1);
+                    fn_val.add_attribute(AttributeLoc::Function, inline_attr);
+                }
                 let entry = self.context.append_basic_block(fn_val, "entry");
                 self.builder.position_at_end(entry);
 
