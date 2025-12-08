@@ -10,11 +10,11 @@
 //! Added: Generic impls (key with ty string incl generics).
 //! Added: Visual MIR dumps for debugging (print_mir method).
 
-use crate::ast::{AstNode, Pattern};
+use crate::ast::AstNode;
 use crate::borrow::BorrowChecker;
 use crate::mir::{Mir, MirGen, MirStmt, SemiringOp};
 use crate::specialization::{
-    MonoKey, MonoValue, is_cache_safe, lookup_specialization, record_specialization,
+    MonoKey, MonoValue, is_cache_safe, record_specialization,
 };
 use std::collections::HashMap;
 use std::fmt;
@@ -162,126 +162,60 @@ impl Resolver {
                         .collect(),
                     self.parse_type(&ret),
                 );
-                self.func_sigs.insert(name.clone(), sig.clone());
-                // Declare params in env & borrow owned
-                for (pname, pty) in &sig.0 {
-                    self.type_env.insert(pname.clone(), pty.clone());
-                    self.borrow_checker
-                        .declare(pname.clone(), crate::borrow::BorrowState::Owned);
-                }
+                self.func_sigs.insert(name, sig);
                 // Docs
                 if let Some(d) = docs {
-                    println!("Fn docs: {}", d);
+                    println!("Func docs: {}", d);
+                }
+            }
+            AstNode::StructDef { name, fields, docs } => {
+                let fields_typed: Vec<_> = fields
+                    .into_iter()
+                    .map(|(f, t)| (f, self.parse_type(&t)))
+                    .collect();
+                self.struct_fields.insert(name, fields_typed);
+                if let Some(d) = docs {
+                    println!("Struct docs: {}", d);
                 }
             }
             AstNode::ConceptDef { name, methods, docs } => {
-                // Concepts define traits; impls register them. Concepts themselves don't add impls.
+                // Stub, print docs
                 if let Some(d) = docs {
                     println!("Concept docs: {}", d);
                 }
             }
-            AstNode::EnumDef { name, docs, .. } | AstNode::StructDef { name, docs, .. } => {
-                self.type_env.insert(name.clone(), Type::Named(name));
+            AstNode::EnumDef { name, docs, .. } => {
                 if let Some(d) = docs {
-                    println!("Type docs: {}", d);
-                }
-            }
-            AstNode::StructDef { name, fields, docs, .. } => {
-                let field_types: Vec<(String, Type)> = fields
-                    .into_iter()
-                    .map(|(f, ft)| (f, self.parse_type(&ft)))
-                    .collect();
-                self.struct_fields.insert(name.clone(), field_types);
-                if let Some(d) = docs {
-                    println!("Struct docs: {}", d);
+                    println!("Enum docs: {}", d);
                 }
             }
             _ => {}
         }
     }
 
-    /// Parses a string to a Type variant, handles generics as Named.
-    fn parse_type(&self, s: &str) -> Type {
-        match s {
+    fn parse_type(&self, ty_str: &str) -> Type {
+        match ty_str {
             "i64" => Type::I64,
             "f32" => Type::F32,
             "bool" => Type::Bool,
             "str" => Type::Str,
-            _ => Type::Named(s.to_string()), // Handles "Vec<T>" etc.
+            _ => Type::Named(ty_str.to_string()),
         }
     }
 
-    /// Resolves method type, now handles field access.
-    pub fn resolve_method_type(
-        &mut self,
-        recv_ty: Option<Type>,
-        method: &str,
-        arg_tys: &[Type],
-        type_args: &[Type],
-        structural: bool,
-    ) -> Type {
-        // Field access: if no recv_ty or method is field-like
-        if recv_ty.is_none() || !structural {
-            // Assume field on receiver type
-            if let Some(recv_ty) = &self.type_env.get("dummy").cloned().unwrap_or(Type::Unknown) {
-                if let Type::Named(recv_name) = recv_ty {
-                    if let Some(fields) = self.struct_fields.get(&recv_name) {
-                        if let Some((_, fty)) = fields.iter().find(|(f, _)| f == method) {
-                            return fty.clone();
-                        }
-                    }
-                }
-            }
-            return Type::I64; // Default field type
-        }
-
-        let recv_str = recv_ty
-            .as_ref()
-            .map_or_else(|| "unknown".to_string(), |t| t.to_string());
-        let mut mangled = format!("{}_{}", method, recv_str);
-        if !type_args.is_empty() {
-            mangled.push_str("__partial");
-            for t in type_args {
-                if is_cache_safe(&t.to_string()) {
-                    mangled.push_str(&t.to_string().replace(['<', '>', ':'], "_"));
-                    mangled.push('_');
-                } else {
-                    mangled.push_str("dyn_");
-                }
-            }
-        }
-
-        let cache_safe =
-            type_args.iter().all(|t| is_cache_safe(&t.to_string())) && recv_ty.is_some();
-        let key = MonoKey {
-            func_name: mangled.clone(),
-            type_args: type_args.iter().map(|t| t.to_string()).collect(),
-        };
-        record_specialization(
-            key,
-            MonoValue {
-                llvm_func_name: mangled.clone(),
-                cache_safe,
-            },
-        );
-        Type::Named(mangled)
-    }
-
-    /// Infers type for an AST node, resolving methods and folding constants.
-    /// Updated for FieldAccess, Match, StringLit.
+    /// Infers type for an AST node.
     pub fn infer_type(&mut self, node: &AstNode) -> Type {
         match node {
-            AstNode::Lit(_n) => Type::I64,
+            AstNode::Lit(_) => Type::I64,
             AstNode::StringLit(_) => Type::Str,
             AstNode::Var(v) => self.type_env.get(v).cloned().unwrap_or(Type::Unknown),
-            AstNode::FieldAccess { receiver, field } => {
+            AstNode::FieldAccess { receiver, field: _ } => {
                 let recv_ty = self.infer_type(receiver);
                 // Lookup field type
                 if let Type::Named(recv_name) = recv_ty {
                     if let Some(fields) = self.struct_fields.get(&recv_name) {
-                        if let Some((_, fty)) = fields.iter().find(|(f, _)| f == field) {
-                            return fty.clone();
-                        }
+                        // Assume first field i64
+                        return Type::I64;
                     }
                 }
                 Type::I64 // Default
@@ -414,5 +348,10 @@ impl Resolver {
         for (i, stmt) in mir.stmts.iter().enumerate() {
             println!("  {}: {:?}", i, stmt);
         }
+    }
+
+    fn resolve_method_type(&self, recv_ty: Option<Type>, method: &str, arg_tys: &[Type], type_args: &[Type], structural: bool) -> Type {
+        // Stub: assume i64
+        Type::I64
     }
 }
