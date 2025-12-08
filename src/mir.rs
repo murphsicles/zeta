@@ -163,15 +163,21 @@ impl MirGen {
         // Dead code elim: remove unused
         let mut used = self.used_locals.clone();
         for stmt in &stmts {
-            if let MirStmt::Assign { lhs, .. } = stmt {
-                used.insert(*lhs, true);
+            match stmt {
+                MirStmt::Assign { lhs, .. } => {
+                    used.insert(*lhs, true);
+                }
+                MirStmt::Call { dest, .. } => {
+                    used.insert(*dest, true);
+                }
+                _ => {}
             }
         }
         let stmts = stmts.into_iter().filter(|stmt| {
-            if let MirStmt::Assign { lhs, .. } = stmt {
-                *used.get(lhs).unwrap_or(&false)
-            } else {
-                true
+            match stmt {
+                MirStmt::Assign { lhs, .. } => *used.get(lhs).unwrap_or(&false),
+                MirStmt::Call { dest, .. } => *used.get(dest).unwrap_or(&false),
+                _ => true,
             }
         }).collect();
 
@@ -237,7 +243,7 @@ impl MirGen {
             }
             AstNode::FieldAccess { receiver, field } => {
                 let base_id = self.materialize(self.gen_expr(receiver, exprs), exprs, out);
-                let field_idx = 0; // Stub index
+                let field_idx = 0; // Assume first field, in full impl lookup
                 let dest = self.next_id();
                 out.push(MirStmt::Assign {
                     lhs: dest,
@@ -248,14 +254,14 @@ impl MirGen {
             AstNode::Match { expr, arms } => {
                 let val_id = self.materialize(self.gen_expr(expr, exprs), exprs, out);
                 let mut arm_dests = vec![];
-                let mut default = self.next_id(); // Stub
+                let default = self.next_id(); // Default return 0
                 for (pat, arm) in arms {
                     match pat {
                         Pattern::Lit(n) => {
                             let arm_id = self.materialize(self.gen_expr(arm, exprs), exprs, out);
                             arm_dests.push((*n, arm_id));
                         }
-                        _ => {} // Stub
+                        _ => {} // Other patterns stub to default
                     }
                 }
                 out.push(MirStmt::Switch {
@@ -397,15 +403,21 @@ impl Mir {
             // Dead code elim
             let mut used = HashMap::new();
             for stmt in &mir.stmts {
-                if let MirStmt::Assign { lhs, .. } = stmt {
-                    used.insert(*lhs, true);
+                match stmt {
+                    MirStmt::Assign { lhs, .. } => {
+                        used.insert(*lhs, true);
+                    }
+                    MirStmt::Call { dest, .. } => {
+                        used.insert(*dest, true);
+                    }
+                    _ => {}
                 }
             }
             mir.stmts.retain(|stmt| {
-                if let MirStmt::Assign { lhs, .. } = stmt {
-                    *used.get(lhs).unwrap_or(&false)
-                } else {
-                    true
+                match stmt {
+                    MirStmt::Assign { lhs, .. } => *used.get(lhs).unwrap_or(&false),
+                    MirStmt::Call { dest, .. } => *used.get(dest).unwrap_or(&false),
+                    _ => true,
                 }
             });
         });
