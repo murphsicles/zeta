@@ -3,8 +3,9 @@
 //! Supports statements, expressions, and semiring ops for algebraic optimization.
 //! Added: ParamInit - store caller args to local allocas at fn entry.
 //! Added: Affine moves - Consume stmt after calls for by-value args (semantic marker).
+//! Added: Basic Switch for match lowering (on i64).
 
-use crate::ast::AstNode;
+use crate::ast::{AstNode, Pattern};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -55,6 +56,11 @@ pub enum MirStmt {
         // New: Mark local as consumed post-move (affine semantic)
         id: u32,
     },
+    Switch {
+        val: u32,
+        arms: Vec<(i64, u32)>, // (lit, dest block id stub)
+        default: u32,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -63,6 +69,10 @@ pub enum MirExpr {
     Lit(i64),
     ConstEval(i64),
     TimingOwned(u32), // Wraps inner expr ID for constant-time
+    GetField {
+        base: u32,
+        field_idx: usize,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -126,46 +136,7 @@ impl MirGen {
             }
 
             for stmt in body {
-                match stmt {
-                    AstNode::Defer(boxed) => {
-                        if let AstNode::Call {
-                            receiver: None,
-                            ref method,
-                            ref args,
-                            ..
-                        } = **boxed
-                        {
-                            let mut arg_ids = vec![];
-                            for arg in args.iter() {
-                                if let AstNode::Var(ref v) = *arg {
-                                    let id = self.lookup_or_alloc(v);
-                                    arg_ids.push(id);
-                                }
-                            }
-                            self.defers.push(DeferInfo {
-                                func: method.clone(),
-                                args: arg_ids,
-                            });
-                        }
-                    }
-                    AstNode::Spawn { func, args } => {
-                        let mut arg_ids = vec![];
-                        for arg in args.iter() {
-                            let e = self.gen_expr(arg, &mut exprs);
-                            let arg_id = self.materialize(e, &mut exprs, &mut stmts);
-                            arg_ids.push(arg_id);
-                            // Consume args post-spawn (affine move to actor)
-                            stmts.push(MirStmt::Consume { id: arg_id });
-                        }
-                        let dest = self.next_id();
-                        stmts.push(MirStmt::Call {
-                            func: format!("actor_spawn_{}", func),
-                            args: arg_ids.clone(),
-                            dest,
-                        });
-                    }
-                    _ => self.gen_stmt(stmt, &mut stmts, &mut exprs),
-                }
+                self.gen_stmt(stmt, &mut stmts, &mut exprs);
             }
 
             // Insert defers before return in reverse order
@@ -176,10 +147,11 @@ impl MirGen {
                 });
             }
 
-            if let Some(AstNode::Assign(_, expr)) = body.last() {
-                let ret_val = self.gen_expr(expr, &mut exprs);
-                let ret_id = self.materialize(ret_val, &mut exprs, &mut stmts);
-                stmts.push(MirStmt::Return { val: ret_id });
+            // Stub return last
+            if !stmts.is_empty() {
+                if let MirStmt::Assign { lhs, .. } = stmts.last().unwrap() {
+                    stmts.push(MirStmt::Return { val: *lhs });
+                }
             }
         }
 
@@ -240,6 +212,34 @@ impl MirGen {
                 {
                     out.push(MirStmt::Consume { id: *arg_id });
                 }
+            }
+            AstNode::FieldAccess { receiver, field } => {
+                let base_id = self.materialize(self.gen_expr(receiver, exprs), exprs, out);
+                let field_idx = 0; // Stub index
+                let dest = self.next_id();
+                out.push(MirStmt::Assign {
+                    lhs: dest,
+                    rhs: MirExpr::GetField { base: base_id, field_idx },
+                });
+            }
+            AstNode::Match { expr, arms } => {
+                let val_id = self.materialize(self.gen_expr(expr, exprs), exprs, out);
+                let mut arm_dests = vec![];
+                let mut default = self.next_id(); // Stub
+                for (pat, arm) in arms {
+                    match pat {
+                        Pattern::Lit(n) => {
+                            let arm_id = self.materialize(self.gen_expr(arm, exprs), exprs, out);
+                            arm_dests.push((*n, arm_id));
+                        }
+                        _ => {} // Stub
+                    }
+                }
+                out.push(MirStmt::Switch {
+                    val: val_id,
+                    arms: arm_dests,
+                    default,
+                });
             }
             _ => {}
         }
