@@ -11,6 +11,7 @@
 //! Added: String literal parsing enhanced for unified strings (basic f-string stub as concat).
 //! Added: Full f-strings: f"hello {expr} world" parsed as concat calls.
 //! Added: Error recovery: use nom's .recover() or alt with empty on error.
+//! Added: Doc comments: /// text before defs, attached to AstNode.
 
 use crate::ast::{AstNode, Pattern};
 use nom::branch::alt;
@@ -38,6 +39,11 @@ fn ws<'a, O>(
     inner: impl Parser<&'a str, Output = O, Error = nom::error::Error<&'a str>>,
 ) -> impl Parser<&'a str, Output = O, Error = nom::error::Error<&'a str>> {
     delimited(multispace0, inner, multispace0)
+}
+
+/// Parses doc comment: /// text.
+fn parse_doc_comment<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    preceded(tag("///"), take_until("\n")).map(|(docs, _)| AstNode::DocComment(docs.to_string()))
 }
 
 /// Parses an identifier (alpha + alphanum).
@@ -289,8 +295,9 @@ fn parse_expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
     parse_base_expr()
 }
 
-/// Parses function: fn name<gens>(params: types) -> ret { body }.
+/// Parses function: optional docs, fn name<gens>(params: types) -> ret { body }.
 fn parse_func<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    let docs_opt = opt(ws(parse_doc_comment()));
     let parse_fn_kw = value((), ws(tag("fn")));
     let parse_name = ws(parse_ident());
     let parse_generics_opt = opt(ws(parse_generics()));
@@ -302,14 +309,15 @@ fn parse_func<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
     let parse_ret = opt(preceded(ws(tag("->")), ws(parse_type())));
     let parse_body = delimited(ws(tag("{")), many0(ws(parse_stmt())), ws(tag("}")));
 
-    parse_fn_kw
+    docs_opt
+        .and(parse_fn_kw)
         .and(parse_name)
         .and(parse_generics_opt)
         .and(parse_params)
         .and(parse_ret)
         .and(parse_body)
         .map(
-            |(((((_fn_kw, name), generics_opt), params), ret_opt), body)| {
+            |((((((docs_opt, _fn_kw), name), generics_opt), params), ret_opt), body)| {
                 let generics = generics_opt.unwrap_or(vec![]);
                 let ret = ret_opt.unwrap_or_else(|| "i64".to_string());
                 AstNode::FuncDef {
@@ -320,25 +328,28 @@ fn parse_func<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
                     body,
                     attrs: vec![],
                     ret_expr: None,
+                    docs: docs_opt.map(|d| if let AstNode::DocComment(s) = d { Some(s) } else { None }).flatten(),
                 }
             },
         )
 }
 
-/// Parses method sig for concept/impl: name<gens>(params) -> ret, with optional generics.
+/// Parses method sig for concept/impl: optional docs, name<gens>(params) -> ret, with optional generics.
 fn parse_method_sig<'a>()
 -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    let docs_opt = opt(ws(parse_doc_comment()));
     let parse_name = parse_ident();
     let parse_generics_opt = opt(ws(parse_generics()));
     let parse_params = delimited(tag("("), many0(parse_ident()), tag(")")); // Stub types as i64
     let parse_ret = opt(preceded(ws(tag("->")), ws(parse_type())));
 
-    parse_name
+    docs_opt
+        .and(parse_name)
         .and(parse_generics_opt)
         .and(parse_params)
         .and(parse_ret)
         .map(
-            |(((name, generics_opt), params), ret_opt)| AstNode::Method {
+            |((((docs_opt, name), generics_opt), params), ret_opt)| AstNode::Method {
                 name,
                 params: params
                     .into_iter()
@@ -346,28 +357,33 @@ fn parse_method_sig<'a>()
                     .collect(),
                 ret: ret_opt.unwrap_or_else(|| "i64".to_string()),
                 generics: generics_opt.unwrap_or(vec![]),
+                docs: docs_opt.map(|d| if let AstNode::DocComment(s) = d { Some(s) } else { None }).flatten(),
             },
         )
 }
 
-/// Parses concept: concept name { methods }.
+/// Parses concept: optional docs, concept name { methods }.
 fn parse_concept<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>>
 {
+    let docs_opt = opt(ws(parse_doc_comment()));
     let parse_kw = value((), ws(tag("concept")));
     let parse_name = ws(parse_ident());
     let parse_body = delimited(ws(tag("{")), many0(ws(parse_method_sig())), ws(tag("}")));
 
-    parse_kw
+    docs_opt
+        .and(parse_kw)
         .and(parse_name)
         .and(parse_body)
-        .map(|((_, name), body)| AstNode::ConceptDef {
+        .map(|(((docs_opt, (_, name)), body)| AstNode::ConceptDef {
             name,
             methods: body,
+            docs: docs_opt.map(|d| if let AstNode::DocComment(s) = d { Some(s) } else { None }).flatten(),
         })
 }
 
-/// Parses impl: <gens> impl concept for ty { methods }.
+/// Parses impl: optional docs, <gens> impl concept for ty { methods }.
 fn parse_impl<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    let docs_opt = opt(ws(parse_doc_comment()));
     let parse_generics_opt = opt(ws(parse_generics()));
     let parse_kw = value((), ws(tag("impl")));
     let parse_concept = ws(parse_ident());
@@ -375,35 +391,40 @@ fn parse_impl<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
     let parse_ty = ws(parse_type());
     let parse_body = delimited(ws(tag("{")), many0(ws(parse_method_sig())), ws(tag("}")));
 
-    parse_generics_opt
+    docs_opt
+        .and(parse_generics_opt)
         .and(parse_kw)
         .and(parse_concept)
         .and(parse_for_kw)
         .and(parse_ty)
         .and(parse_body)
-        .map(|((generics_opt, ((((_, concept), _), ty)), body)| AstNode::ImplBlock {
+        .map(|(docs_opt, (generics_opt, ((((_, concept), _), ty)), body))| AstNode::ImplBlock {
             generics: generics_opt.unwrap_or(vec![]),
             concept,
             ty,
             body,
+            docs: docs_opt.map(|d| if let AstNode::DocComment(s) = d { Some(s) } else { None }).flatten(),
         })
 }
 
-/// Parses enum: enum name { variants }.
+/// Parses enum: optional docs, enum name { variants }.
 fn parse_enum<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    let docs_opt = opt(ws(parse_doc_comment()));
     let parse_kw = value((), ws(tag("enum")));
     let parse_name = ws(parse_ident());
     let parse_variants = delimited(ws(tag("{")), many0(ws(parse_ident())), ws(tag("}")));
 
-    parse_kw
+    docs_opt
+        .and(parse_kw)
         .and(parse_name)
         .and(parse_variants)
-        .map(|((_, name), variants)| AstNode::EnumDef { name, variants })
+        .map(|((docs_opt, ((_, name))), variants)| AstNode::EnumDef { name, variants, docs: docs_opt.map(|d| if let AstNode::DocComment(s) = d { Some(s) } else { None }).flatten() })
 }
 
-/// Parses struct: struct name { fields }.
+/// Parses struct: optional docs, struct name { fields }.
 fn parse_struct<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>>
 {
+    let docs_opt = opt(ws(parse_doc_comment()));
     let parse_kw = value((), ws(tag("struct")));
     let parse_name = ws(parse_ident());
     let parse_field = ws(parse_ident())
@@ -412,15 +433,17 @@ fn parse_struct<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::err
         .map(|((n, _), t): ((String, &'a str), String)| (n, t));
     let parse_fields = delimited(ws(tag("{")), many0(parse_field), ws(tag("}")));
 
-    parse_kw
+    docs_opt
+        .and(parse_kw)
         .and(parse_name)
         .and(parse_fields)
-        .map(|((_, name), fields)| AstNode::StructDef { name, fields })
+        .map(|((docs_opt, ((_, name))), fields)| AstNode::StructDef { name, fields, docs: docs_opt.map(|d| if let AstNode::DocComment(s) = d { Some(s) } else { None }).flatten() })
 }
 
 /// Entry point: Parses multiple top-level items, with recovery.
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
     let parser = many0(ws(alt((
+        parse_doc_comment(), // Standalone docs
         parse_func(),
         parse_concept(),
         parse_impl(),
