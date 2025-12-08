@@ -5,6 +5,7 @@
 //! Added: generics in FuncDef/Method, structural flag in Call for hybrid dispatch.
 //! Added: Pattern enum for match, Match node, FieldAccess node.
 //! Added: generics in ImplBlock.
+//! Added: DocComment for /// docs attached to defs.
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Pattern {
@@ -21,13 +22,14 @@ pub enum AstNode {
     /// Full program as list of nodes.
     Program(Vec<AstNode>),
     /// Trait/concept definition with methods.
-    ConceptDef { name: String, methods: Vec<AstNode> },
+    ConceptDef { name: String, methods: Vec<AstNode>, docs: Option<String> },
     /// Impl block for concept on type, now with generics.
     ImplBlock {
         generics: Vec<String>,
         concept: String,
         ty: String,
         body: Vec<AstNode>,
+        docs: Option<String>,
     },
     /// Method signature in impl/concept.
     Method {
@@ -35,6 +37,7 @@ pub enum AstNode {
         params: Vec<(String, String)>,
         ret: String,
         generics: Vec<String>, // New: generics support
+        docs: Option<String>,
     },
     /// Function definition.
     FuncDef {
@@ -45,13 +48,15 @@ pub enum AstNode {
         body: Vec<AstNode>,
         attrs: Vec<String>,
         ret_expr: Option<Box<AstNode>>,
+        docs: Option<String>,
     },
     /// Enum definition.
-    EnumDef { name: String, variants: Vec<String> },
+    EnumDef { name: String, variants: Vec<String>, docs: Option<String> },
     /// Struct definition.
     StructDef {
         name: String,
         fields: Vec<(String, String)>,
+        docs: Option<String>,
     },
     /// Method/trait call, with structural flag for hybrid dispatch.
     Call {
@@ -91,4 +96,6 @@ pub enum AstNode {
     },
     /// Defer statement for RAII cleanup.
     Defer(Box<AstNode>),
+    /// Doc comment: /// text.
+    DocComment(String),
 }
