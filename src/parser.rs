@@ -252,7 +252,7 @@ fn parse_call<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
         .and(parse_structural())
         .and(opt(ws(parse_type_args())))
         .and(delimited(tag("("), separated_list1(tag(","), parse_postfix()), tag(")")));
-    base.map(|((((((base, _), method), structural), type_args_opt), args)| AstNode::Call {
+    base.map(|(((((base, _), method), structural), type_args_opt), args)| AstNode::Call {
         receiver: Some(Box::new(base)),
         method,
         args,
