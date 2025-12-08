@@ -4,12 +4,15 @@
 //! Updated: Full bootstrap - eval simple expr, compile zetac src via self-host JIT.
 //! Added: Production bootstrap - write .ll, llc to .s, ld to exe.
 //! Added: REPL mode: if no args, loop read line, parse expr, eval, print.
+//! Added: AI code gen templates: use XAI for scaffolds in REPL.
+//! Added: Cross-platform: WASM if --wasm flag.
 
 use inkwell::context::Context;
 use std::fs;
 use std::io::{self, BufRead};
 use zetac::ast::AstNode;
 use zetac::{LLVMCodegen, Resolver, actor, parse_zeta};
+use zetac::xai::XAIClient;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -17,7 +20,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     actor::init_runtime();
 
     let args: Vec<String> = std::env::args().collect();
-    if args.len() > 1 {
+    let wasm = args.contains(&"--wasm".to_string());
+    if args.len() > 1 && !args[1].starts_with("--") {
         // File mode
         let code = fs::read_to_string(&args[1])?;
         let (_, asts) = parse_zeta(&code).map_err(|e| format!("Parse error: {:?}", e))?;
@@ -38,7 +42,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .iter()
             .filter_map(|ast| {
                 if let AstNode::FuncDef { .. } = ast {
-                    Some(resolver.lower_to_mir(ast))
+                    let mir = resolver.lower_to_mir(ast);
+                    resolver.dump_mir(&mir); // Visual dump for debugging
+                    Some(mir)
                 } else {
                     None
                 }
@@ -47,7 +53,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Setup LLVM.
         let context = Context::create();
-        let mut codegen = LLVMCodegen::new(&context, "selfhost", false); // Native
+        let mut codegen = LLVMCodegen::new(&context, "selfhost", wasm);
         codegen.gen_mirs(&mirs);
         let ee = codegen.finalize_and_jit()?;
 
@@ -91,14 +97,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .iter()
             .filter_map(|ast| {
                 if let AstNode::FuncDef { .. } = ast {
-                    Some(boot_resolver.lower_to_mir(ast))
+                    let mir = boot_resolver.lower_to_mir(ast);
+                    boot_resolver.dump_mir(&mir);
+                    Some(mir)
                 } else {
                     None
                 }
             })
             .collect();
         let boot_context = Context::create();
-        let mut boot_codegen = LLVMCodegen::new(&boot_context, "bootstrap", false);
+        let mut boot_codegen = LLVMCodegen::new(&boot_context, "bootstrap", wasm);
         boot_codegen.gen_mirs(&boot_mirs);
         let boot_ee = boot_codegen.finalize_and_jit()?;
         // Production link
@@ -113,12 +121,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Zeta bootstrap result: {}", boot_result);
         }
     } else {
-        // REPL mode
-        println!("Zeta REPL (v0.0.3) - type 'exit' to quit.");
+        // REPL mode or AI templates
+        if let Some(ai_query) = args.get(1) {
+            if ai_query == "new" {
+                // AI code gen template
+                let client = XAIClient::new().ok();
+                if let Some(c) = client {
+                    let template = c.generate_scaffold("api").ok(); // Stub
+                    println!("AI scaffold: {}", template.unwrap_or_default());
+                }
+                return Ok(());
+            }
+        }
+        println!("Zeta REPL (v0.0.4) - type 'exit' to quit.");
         let stdin = io::stdin();
         let mut resolver = Resolver::new();
         let mut context = Context::create();
-        let mut codegen = LLVMCodegen::new(&context, "repl", false);
+        let mut codegen = LLVMCodegen::new(&context, "repl", wasm);
         for line in stdin.lock().lines() {
             let line = line?;
             if line.trim() == "exit" {
@@ -132,6 +151,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             resolver.register(ast.clone());
             resolver.typecheck(&asts);
             let mir = resolver.lower_to_mir(ast);
+            resolver.dump_mir(&mir); // Visual dump
             codegen.gen_mirs(&[mir]);
             let ee = codegen.finalize_and_jit().map_err(|e| format!("JIT: {}", e))?;
             type EvalFn = unsafe extern "C" fn() -> i64;
