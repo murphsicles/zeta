@@ -101,16 +101,9 @@ fn parse_string_lit<'a>()
         // Regular "..."
         delimited(
             tag("\""),
-            escaped(
-                take_while1(|c| c != '"' && c != '\\'),
-                one_of(r#"\"nrt"#),
-                |c| match c {
-                    '"' => Ok(("".into(), "\"".into())),
-                    _ => unreachable!(),
-                },
-            ),
+            take_until("\""),
             tag("\""),
-        ).map(|s| AstNode::StringLit(s.to_string()))
+        ).map(|(s, _)| AstNode::StringLit(s.to_string()))
     ))
 }
 /// Parses a variable reference.
@@ -153,7 +146,7 @@ fn parse_primary<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::er
     ))
 }
 /// Error recovery wrapper: try parser, fallback to empty/partial.
-fn recover<F, O, E: ParseError<&'a str>>(
+fn recover<'a, F, O, E: ParseError<&'a str>>(
     mut inner: F,
 ) -> impl FnMut(&'a str) -> IResult<&'a str, O, E>
 where
@@ -275,7 +268,7 @@ fn parse_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
         preceded(ws(tag("defer")), map(parse_call(), |c| AstNode::Defer(Box::new(c)))),
         preceded(
             ws(tag("spawn")),
-            tuple((parse_ident(), delimited(tag("("), many0(parse_base_expr()), tag(")"))))
+            (parse_ident(), delimited(tag("("), many0(parse_base_expr()), tag(")")))
                 .map(|(func, args)| AstNode::Spawn { func, args }),
         ),
     ))
@@ -283,6 +276,9 @@ fn parse_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
 /// Recursive expr parser with recovery.
 fn parse_expr_recover<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     recover(parse_base_expr)
+}
+fn parse_postfix_recover<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    recover(parse_postfix)
 }
 /// Parses expr: base for now.
 fn parse_expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
@@ -374,7 +370,7 @@ fn parse_concept<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::er
         .and(parse_kw)
         .and(parse_name)
         .and(parse_body)
-        .map(|(((docs_opt, (_, name)), body)| {
+        .map(|(((docs_opt, ()), name), body)| {
             let docs = if let Some(AstNode::DocComment(s)) = docs_opt {
                 Some(s)
             } else {
@@ -385,7 +381,7 @@ fn parse_concept<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::er
                 methods: body,
                 docs,
             }
-        }))
+        })
 }
 /// Parses impl: optional docs, <gens> impl concept for ty { methods }.
 fn parse_impl<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
@@ -428,7 +424,7 @@ fn parse_enum<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
         .and(parse_kw)
         .and(parse_name)
         .and(parse_variants)
-        .map(|((docs_opt, ((_, name))), variants)| {
+        .map(|((docs_opt, (_, name)), variants)| {
             let docs = if let Some(AstNode::DocComment(s)) = docs_opt {
                 Some(s)
             } else {
@@ -452,7 +448,7 @@ fn parse_struct<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::err
         .and(parse_kw)
         .and(parse_name)
         .and(parse_fields)
-        .map(|((docs_opt, ((_, name))), fields)| {
+        .map(|((docs_opt, (_, name)), fields)| {
             let docs = if let Some(AstNode::DocComment(s)) = docs_opt {
                 Some(s)
             } else {
@@ -471,15 +467,5 @@ pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
         parse_enum(),
         parse_struct(),
     ))));
-    match parser(input) {
-        Ok(res) => Ok(res),
-        Err(e) => {
-            // Recovery: try all_consuming on partial
-            if let Err(nom::Err::Incomplete(_)) = e {
-                Ok((input, vec![]))
-            } else {
-                Err(e)
-            }
-        }
-    }
+    parser(input)
 }
