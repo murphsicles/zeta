@@ -3,6 +3,18 @@
 //! Defines nodes for expressions, statements, definitions, and algebraic constructs.
 //! Extended for self-host: enums, structs, strings, path calls.
 //! Added: generics in FuncDef/Method, structural flag in Call for hybrid dispatch.
+//! Added: Pattern enum for match, Match node, FieldAccess node.
+//! Added: generics in ImplBlock.
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Pattern {
+    /// Literal pattern.
+    Lit(i64),
+    /// Variable binding pattern.
+    Var(String),
+    /// Enum variant pattern with subpatterns.
+    Variant(String, Vec<Pattern>),
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AstNode {
@@ -10,8 +22,9 @@ pub enum AstNode {
     Program(Vec<AstNode>),
     /// Trait/concept definition with methods.
     ConceptDef { name: String, methods: Vec<AstNode> },
-    /// Impl block for concept on type.
+    /// Impl block for concept on type, now with generics.
     ImplBlock {
+        generics: Vec<String>,
         concept: String,
         ty: String,
         body: Vec<AstNode>,
@@ -64,8 +77,18 @@ pub enum AstNode {
     Var(String),
     /// Assignment.
     Assign(String, Box<AstNode>),
+    /// Field access: expr.field.
+    FieldAccess {
+        receiver: Box<AstNode>,
+        field: String,
+    },
     /// TimingOwned: Constant-time owned value abstraction.
     TimingOwned { ty: String, inner: Box<AstNode> },
+    /// Match expression: match expr { pat => expr, ... }.
+    Match {
+        expr: Box<AstNode>,
+        arms: Vec<(Pattern, Box<AstNode>)>,
+    },
     /// Defer statement for RAII cleanup.
     Defer(Box<AstNode>),
 }
