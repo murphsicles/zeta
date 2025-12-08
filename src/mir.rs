@@ -6,7 +6,7 @@
 //! Added: Basic Switch for match lowering (on i64).
 //! Added: Dead code elim: remove unused locals/stmts.
 
-use crate::ast::{AstNode, Pattern};
+use crate::ast::AstNode;
 use rayon::prelude::*;
 use std::collections::HashMap;
 
@@ -198,63 +198,32 @@ impl MirGen {
         match node {
             AstNode::Assign(name, expr) => {
                 let lhs = self.alloc_local(name);
-                let rhs = self.gen_expr(expr, exprs);
-                out.push(MirStmt::Assign { lhs, rhs });
-                self.used_locals.insert(lhs, true);
+                let rhs_id = self.materialize(self.gen_expr(expr, exprs), exprs, out);
+                out.push(MirStmt::Assign { lhs, rhs: MirExpr::Var(rhs_id) });
             }
-            AstNode::Call {
-                receiver,
-                method,
-                args,
-                ..
-            } => {
-                let receiver_id = receiver.as_ref().map(|r| {
-                    let e = self.gen_expr(r, exprs);
-                    self.materialize(e, exprs, out)
-                });
-
-                let mut arg_ids = args
-                    .iter()
-                    .map(|a| {
-                        let e = self.gen_expr(a, exprs);
-                        self.materialize(e, exprs, out)
-                    })
-                    .collect::<Vec<_>>();
-
-                if let Some(rid) = receiver_id {
-                    arg_ids.insert(0, rid);
+            AstNode::Call { receiver, method, args, .. } => {
+                let mut call_args = vec![];
+                if let Some(recv) = receiver {
+                    let base_id = self.materialize(self.gen_expr(recv, exprs), exprs, out);
+                    call_args.push(base_id);
                 }
-
+                for arg in args {
+                    let arg_id = self.materialize(self.gen_expr(arg, exprs), exprs, out);
+                    call_args.push(arg_id);
+                    // Affine: consume after move
+                    out.push(MirStmt::Consume { id: arg_id });
+                }
                 let dest = self.next_id();
                 out.push(MirStmt::Call {
                     func: method.clone(),
-                    args: arg_ids.clone(),
+                    args: call_args,
                     dest,
                 });
-                self.used_locals.insert(dest, true);
-
-                // Affine: Consume by-value args post-call (assume all Var args moved)
-                for arg_id in arg_ids
-                    .iter()
-                    .filter(|id| matches!(exprs.get(id), Some(MirExpr::Var(_))))
-                {
-                    out.push(MirStmt::Consume { id: *arg_id });
-                }
-            }
-            AstNode::FieldAccess { receiver, field } => {
-                let base_id = self.materialize(self.gen_expr(receiver, exprs), exprs, out);
-                let field_idx = 0; // Assume first field, in full impl lookup
-                let dest = self.next_id();
-                out.push(MirStmt::Assign {
-                    lhs: dest,
-                    rhs: MirExpr::GetField { base: base_id, field_idx },
-                });
-                self.used_locals.insert(dest, true);
             }
             AstNode::Match { expr, arms } => {
                 let val_id = self.materialize(self.gen_expr(expr, exprs), exprs, out);
                 let mut arm_dests = vec![];
-                let default = self.next_id(); // Default return 0
+                let default = self.next_id();
                 for (pat, arm) in arms {
                     match pat {
                         Pattern::Lit(n) => {
