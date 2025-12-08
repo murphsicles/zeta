@@ -4,8 +4,10 @@
 //! Added: ParamInit - store caller args to local allocas at fn entry.
 //! Added: Affine moves - Consume stmt after calls for by-value args (semantic marker).
 //! Added: Basic Switch for match lowering (on i64).
+//! Added: Dead code elim: remove unused locals/stmts.
 
 use crate::ast::{AstNode, Pattern};
+use rayon::prelude::*;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -89,6 +91,8 @@ pub struct MirGen {
     param_indices: Vec<(String, usize)>, // (name, arg position)
     #[allow(dead_code)]
     exprs: HashMap<u32, MirExpr>,
+    // Used locals for dead code elim
+    used_locals: HashMap<u32, bool>,
 }
 
 impl Default for MirGen {
@@ -105,6 +109,7 @@ impl MirGen {
             defers: vec![],
             param_indices: vec![],
             exprs: HashMap::new(),
+            used_locals: HashMap::new(),
         }
     }
 
@@ -155,6 +160,21 @@ impl MirGen {
             }
         }
 
+        // Dead code elim: remove unused
+        let mut used = self.used_locals.clone();
+        for stmt in &stmts {
+            if let MirStmt::Assign { lhs, .. } = stmt {
+                used.insert(*lhs, true);
+            }
+        }
+        let stmts = stmts.into_iter().filter(|stmt| {
+            if let MirStmt::Assign { lhs, .. } = stmt {
+                *used.get(lhs).unwrap_or(&false)
+            } else {
+                true
+            }
+        }).collect();
+
         Mir {
             stmts,
             locals: self.locals.clone(),
@@ -174,6 +194,7 @@ impl MirGen {
                 let lhs = self.alloc_local(name);
                 let rhs = self.gen_expr(expr, exprs);
                 out.push(MirStmt::Assign { lhs, rhs });
+                self.used_locals.insert(lhs, true);
             }
             AstNode::Call {
                 receiver,
@@ -204,6 +225,7 @@ impl MirGen {
                     args: arg_ids.clone(),
                     dest,
                 });
+                self.used_locals.insert(dest, true);
 
                 // Affine: Consume by-value args post-call (assume all Var args moved)
                 for arg_id in arg_ids
@@ -221,6 +243,7 @@ impl MirGen {
                     lhs: dest,
                     rhs: MirExpr::GetField { base: base_id, field_idx },
                 });
+                self.used_locals.insert(dest, true);
             }
             AstNode::Match { expr, arms } => {
                 let val_id = self.materialize(self.gen_expr(expr, exprs), exprs, out);
@@ -301,6 +324,7 @@ impl MirGen {
     fn alloc_local(&mut self, name: &str) -> u32 {
         let id = self.next_id();
         self.locals.insert(name.to_string(), id);
+        self.used_locals.insert(id, false);
         id
     }
 
@@ -309,6 +333,7 @@ impl MirGen {
         if !self.locals.contains_key(&key) {
             let id = self.next_id();
             self.locals.insert(key, id);
+            self.used_locals.insert(id, false);
             id
         } else {
             *self.locals.get(&key).unwrap()
@@ -364,5 +389,25 @@ impl Mir {
             }
             i += 1;
         }
+    }
+
+    /// Parallel dead code elim across MIRs.
+    pub fn parallel_optimize(mirs: &mut [Mir]) {
+        mirs.par_iter_mut().for_each(|mir| {
+            // Dead code elim
+            let mut used = HashMap::new();
+            for stmt in &mir.stmts {
+                if let MirStmt::Assign { lhs, .. } = stmt {
+                    used.insert(*lhs, true);
+                }
+            }
+            mir.stmts.retain(|stmt| {
+                if let MirStmt::Assign { lhs, .. } = stmt {
+                    *used.get(lhs).unwrap_or(&false)
+                } else {
+                    true
+                }
+            });
+        });
     }
 }
