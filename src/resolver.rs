@@ -117,7 +117,7 @@ impl Resolver {
 
         // Str concept stub
         let mut str_methods = HashMap::new();
-        str_methods.insert("concat".to_string(), (vec![Type::Str], Type::Str)); // Stub
+        str_methods.insert("concat".to_string(), (vec![Type::Str], Type::Str));
         r.direct_impls
             .insert(("Str".to_string(), Type::Str), str_methods);
 
@@ -220,16 +220,19 @@ impl Resolver {
         type_args: &[Type],
         structural: bool,
     ) -> Type {
-        // Stub for field: if no recv_ty, assume field on struct
-        if method != "add" && recv_ty.is_none() { // Assume field if no method lookup
-            if let Type::Named(recv_name) = &self.type_env.get("dummy").cloned().unwrap_or(Type::Unknown) {
-                if let Some(fields) = self.struct_fields.get(recv_name) {
-                    if let Some((_, fty)) = fields.iter().find(|(f, _)| f == method) {
-                        return fty.clone();
+        // Field access: if no recv_ty or method is field-like
+        if recv_ty.is_none() || !structural {
+            // Assume field on receiver type
+            if let Some(recv_ty) = &self.type_env.get("dummy").cloned().unwrap_or(Type::Unknown) {
+                if let Type::Named(recv_name) = recv_ty {
+                    if let Some(fields) = self.struct_fields.get(&recv_name) {
+                        if let Some((_, fty)) = fields.iter().find(|(f, _)| f == method) {
+                            return fty.clone();
+                        }
                     }
                 }
             }
-            return Type::Unknown;
+            return Type::I64; // Default field type
         }
 
         let recv_str = recv_ty
@@ -273,8 +276,15 @@ impl Resolver {
             AstNode::Var(v) => self.type_env.get(v).cloned().unwrap_or(Type::Unknown),
             AstNode::FieldAccess { receiver, field } => {
                 let recv_ty = self.infer_type(receiver);
-                // Stub: assume field type i64
-                Type::I64 // Use resolve_method_type with no recv_ty for field
+                // Lookup field type
+                if let Type::Named(recv_name) = recv_ty {
+                    if let Some(fields) = self.struct_fields.get(&recv_name) {
+                        if let Some((_, fty)) = fields.iter().find(|(f, _)| f == field) {
+                            return fty.clone();
+                        }
+                    }
+                }
+                Type::I64 // Default
             }
             AstNode::Match { arms, .. } => {
                 // Assume all arms same type, basic i64
