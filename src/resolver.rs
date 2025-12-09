@@ -176,19 +176,18 @@ impl Resolver {
         }
     }
 
-    /// Simple direct-impl method lookup (replaces the old resolve_method_type call)
+    /// Simple direct-impl method lookup (temporary replacement for resolve_method_type)
     fn lookup_method(&self, recv_ty: Option<&Type>, method: &str, args: &[Type]) -> Option<Type> {
         recv_ty.and_then(|ty| {
-            self.direct_impls.iter()
-                .find_map(|((_, impl_ty), methods)| {
-                    if impl_ty == ty {
-                        methods.get(method)
-                            .filter(|(param_tys, _)| param_tys.len() == args.len())
-                            .map(|(_, ret_ty)| ret_ty.clone())
-                    } else {
-                        None
-                    }
-                })
+            self.direct_impls.iter().find_map(|((_, impl_ty), methods)| {
+                if impl_ty == ty {
+                    methods.get(method)
+                        .filter(|(param_tys, _)| param_tys.len() == args.len())
+                        .map(|(_, ret_ty)| ret_ty.clone())
+                } else {
+                    None
+                }
+            })
         })
     }
 
