@@ -13,7 +13,7 @@ It exists for one reason: to end the era of slow, bloated, over-engineered compi
 - **Zero unsafe in user code**  
 - **Self-hosting in 2,800 lines of code**
 
-Zeta v0.0.2 is released. There are zero competitors.
+Zeta v0.0.3 is released. There are zero competitors.
 We're living in a brand new paradigm.
 
 > “Complexity assersions have to be part of the interface.” - Alexander Stepanov
@@ -72,7 +72,7 @@ Rust 2024 edition · Dependencies: `nom`, `inkwell`, `rayon`, `reqwest`, `serde`
 
 ## Status
 
-Zeta 0.0.2 is released.  
+Zeta 0.0.3 is released.  
 See [plan.rs](src/plan.rs) for the final victory log.
 
 ## License
