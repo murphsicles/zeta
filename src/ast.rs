@@ -3,7 +3,7 @@
 //! Defines nodes for expressions, statements, definitions, and algebraic constructs.
 //! Extended for self-host: enums, structs, strings, path calls.
 //! Added: generics in FuncDef/Method, structural flag in Call for hybrid dispatch.
-//! Updated Dec 9, 2025: Added StringLit as first-class, plus Str type variant.
+//! Updated Dec 9, 2025: Added first-class unified string support with Str type and StringLit node.
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AstNode {
@@ -59,7 +59,7 @@ pub enum AstNode {
     Spawn { func: String, args: Vec<AstNode> },
     /// Integer literal.
     Lit(i64),
-    /// UTF-8 string literal (unified string type).
+    /// Unified UTF-8 owned string literal.
     StringLit(String),
     /// Variable reference.
     Var(String),
