@@ -20,7 +20,7 @@ use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::types::{IntType, PointerType, VectorType};
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue};
+use inkwell::values::{BasicValueEnum, IntValue, PointerValue};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -295,8 +295,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 global.set_linkage(Linkage::Private);
                 global.set_constant(true);
                 let values: Vec<_> = bytes
-                    .into_iter()
-                    .map(|b| self.context.i8_type().const_int(b as u64, false))
+                    .iter()
+                    .map(|&b| self.context.i8_type().const_int(b as u64, false))
                     .collect();
                 let array_val = self.context.i8_type().const_array(&values);
                 global.set_initializer(&array_val);
