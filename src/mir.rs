@@ -3,6 +3,7 @@
 //! Supports statements, expressions, and semiring ops for algebraic optimization.
 //! Added: ParamInit - store caller args to local allocas at fn entry.
 //! Added: Affine moves - Consume stmt after calls for by-value args (semantic marker).
+//! Updated Dec 9, 2025: Added StringLit to MirExpr for unified string lowering.
 
 use crate::ast::AstNode;
 use std::collections::HashMap;
@@ -47,12 +48,10 @@ pub enum MirStmt {
         result: u32,
     },
     ParamInit {
-        // Initialize param local from arg index
         param_id: u32,
         arg_index: usize,
     },
     Consume {
-        // New: Mark local as consumed post-move (affine semantic)
         id: u32,
     },
 }
@@ -61,8 +60,9 @@ pub enum MirStmt {
 pub enum MirExpr {
     Var(u32),
     Lit(i64),
+    StringLit(String),
     ConstEval(i64),
-    TimingOwned(u32), // Wraps inner expr ID for constant-time
+    TimingOwned(u32),
 }
 
 #[derive(Debug, Clone)]
@@ -75,9 +75,7 @@ pub struct MirGen {
     next_id: u32,
     locals: HashMap<String, u32>,
     defers: Vec<DeferInfo>,
-    // Track param indices for init
-    param_indices: Vec<(String, usize)>, // (name, arg position)
-    #[allow(dead_code)]
+    param_indices: Vec<(String, usize)>,
     exprs: HashMap<u32, MirExpr>,
 }
 
@@ -108,14 +106,12 @@ impl MirGen {
         };
 
         if let AstNode::FuncDef { params, body, .. } = ast {
-            // Alloc param locals and track for init
             self.param_indices.clear();
             for (i, (pname, _)) in params.iter().enumerate() {
                 self.alloc_local(pname);
                 self.param_indices.push((pname.clone(), i));
             }
 
-            // Add ParamInit stmts at entry
             for (pname, arg_idx) in &self.param_indices {
                 if let Some(param_id) = self.locals.get(pname) {
                     stmts.push(MirStmt::ParamInit {
@@ -154,7 +150,6 @@ impl MirGen {
                             let e = self.gen_expr(arg, &mut exprs);
                             let arg_id = self.materialize(e, &mut exprs, &mut stmts);
                             arg_ids.push(arg_id);
-                            // Consume args post-spawn (affine move to actor)
                             stmts.push(MirStmt::Consume { id: arg_id });
                         }
                         let dest = self.next_id();
@@ -168,7 +163,6 @@ impl MirGen {
                 }
             }
 
-            // Insert defers before return in reverse order
             for info in self.defers.iter().rev() {
                 stmts.push(MirStmt::VoidCall {
                     func: info.func.clone(),
@@ -233,7 +227,6 @@ impl MirGen {
                     dest,
                 });
 
-                // Affine: Consume by-value args post-call (assume all Var args moved)
                 for arg_id in arg_ids
                     .iter()
                     .filter(|id| matches!(exprs.get(id), Some(MirExpr::Var(_))))
@@ -248,6 +241,7 @@ impl MirGen {
     fn gen_expr(&mut self, node: &AstNode, exprs: &mut HashMap<u32, MirExpr>) -> MirExpr {
         match node {
             AstNode::Lit(n) => MirExpr::Lit(*n),
+            AstNode::StringLit(s) => MirExpr::StringLit(s.clone()),
             AstNode::Var(v) => MirExpr::Var(self.lookup_or_alloc(v)),
             AstNode::TimingOwned { inner, .. } => {
                 let inner_id = self.materialize_inner(inner, exprs);
@@ -323,12 +317,10 @@ impl MirGen {
 }
 
 impl Mir {
-    /// Apply CTFE pass to fold constants.
     pub fn optimize_ctfe(&mut self) {
         let mut i = 0;
         while i < self.stmts.len() {
             if let MirStmt::Call { func, args, dest } = &mut self.stmts[i] {
-                // If call to semiring op with all const args, fold
                 if func == "add" || func == "mul" {
                     let op = if func == "add" {
                         SemiringOp::Add
@@ -354,7 +346,6 @@ impl Mir {
                             SemiringOp::Mul => values.iter().product(),
                         };
                         self.exprs.insert(*dest, MirExpr::ConstEval(folded));
-                        // Replace stmt with assign from ConstEval
                         self.stmts[i] = MirStmt::Assign {
                             lhs: *dest,
                             rhs: MirExpr::ConstEval(folded),
