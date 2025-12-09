@@ -104,18 +104,14 @@ impl Resolver {
         r.direct_impls
             .insert(("Addable".to_string(), Type::I64), addable);
 
-        // Builtin StrOps concept for unified strings
+        // Builtin StrOps for unified strings
         let mut str_ops = HashMap::new();
         str_ops.insert("len".to_string(), (vec![], Type::I64));
         str_ops.insert("concat".to_string(), (vec![Type::Str], Type::Str));
         str_ops.insert("contains".to_string(), (vec![Type::Str], Type::Bool));
         str_ops.insert("trim".to_string(), (vec![], Type::Str));
-        str_ops.insert(
-            "split".to_string(),
-            (vec![Type::Str], Type::Named("Vec<str>".to_string())),
-        );
-        r.direct_impls
-            .insert(("StrOps".to_string(), Type::Str), str_ops);
+        str_ops.insert("split".to_string(), (vec![Type::Str], Type::Named("Vec<str>".to_string())));
+        r.direct_impls.insert(("StrOps".to_string(), Type::Str), str_ops);
 
         r
     }
@@ -212,7 +208,7 @@ impl Resolver {
             AstNode::TimingOwned { inner, .. } => {
                 let inner_ty = self.infer_type(inner);
                 match &inner_ty {
-                    Type::I64 | Type::F32 | Type::Bool => Ok(()), // Primitives ok
+                    Type::I64 | Type::F32 | Type::Bool => Ok(()),
                     _ => Err(AbiError::NonConstTimeTimingOwned),
                 }
             }
@@ -226,9 +222,8 @@ impl Resolver {
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
         let mut ok = true;
         for ast in asts {
-            self.register(ast.clone()); // Register concepts/impls first
+            self.register(ast.clone());
             if let AstNode::FuncDef { name, body, .. } = ast {
-                // Reset borrow states per fn
                 self.borrow_checker = BorrowChecker::new();
                 if let Some(sig) = self.func_sigs.get(name) {
                     for (pname, _) in &sig.0 {
