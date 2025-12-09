@@ -176,6 +176,22 @@ impl Resolver {
         }
     }
 
+    /// Simple direct-impl method lookup (replaces the old resolve_method_type call)
+    fn lookup_method(&self, recv_ty: Option<&Type>, method: &str, args: &[Type]) -> Option<Type> {
+        recv_ty.and_then(|ty| {
+            self.direct_impls.iter()
+                .find_map(|((_, impl_ty), methods)| {
+                    if impl_ty == ty {
+                        methods.get(method)
+                            .filter(|(param_tys, _)| param_tys.len() == args.len())
+                            .map(|(_, ret_ty)| ret_ty.clone())
+                    } else {
+                        None
+                    }
+                })
+        })
+    }
+
     /// Infers type for an AST node, resolving methods and folding constants.
     pub fn infer_type(&mut self, node: &AstNode) -> Type {
         match node {
@@ -186,14 +202,16 @@ impl Resolver {
                 receiver,
                 method,
                 args,
-                type_args,
                 structural,
                 ..
             } => {
                 let recv_ty = receiver.as_ref().map(|r| self.infer_type(r));
                 let arg_tys: Vec<Type> = args.iter().map(|a| self.infer_type(a)).collect();
-                let type_args: Vec<Type> = type_args.iter().map(|s| self.parse_type(s)).collect();
-                self.resolve_method_type(recv_ty, method, &arg_tys, &type_args, *structural)
+                if *structural {
+                    Type::Unknown
+                } else {
+                    self.lookup_method(recv_ty.as_ref(), method, &arg_tys).unwrap_or(Type::Unknown)
+                }
             }
             AstNode::TimingOwned { inner, .. } => {
                 Type::TimingOwned(Box::new(self.infer_type(inner)))
