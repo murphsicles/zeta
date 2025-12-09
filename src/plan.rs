@@ -1,11 +1,11 @@
 // src/plan.rs
 //! Zeta Compiler Development Plan.
-//! Checklist for milestones. Mark as [x] when complete. Prioritize: Parser -> Resolver -> MIR -> Codegen -> Opts -> Actors/Std -> Bootstrap.
-//! Current: Parser/AST/Res/MIR/codegen basics + actors/std embeds + thin mono cache; next: Generics/hybrids/partial spec parsing, param inits/affine in MIR, SIMD/MLGO, full self-host eval/bootstrap.
+//! Checklist for milestones. Mark as [x] when complete. Prioritize: Parser -> Resolver -> MIR -> Codegen -> Opts -> Actors/Std -> Bootstrap -> Ergonomics -> Adoption.
+//! Current: Parser/AST/Res/MIR/codegen basics + actors/std embeds + thin mono cache; next: Generics/hybrids/partial spec parsing, param inits/affine in MIR, SIMD/MLGO, full self-host eval/bootstrap, ergonomics for adoption, viral strategies.
 //! v0.0.1 released Dec 4, 2025: Core complete. Now advancing to v0.0.2 with generics, ABI checks, param inits.
 //! Dec 5, 2025: Added generics parsing [x], hybrid traits syntax (structural ? in calls) [x]; partial spec parsing (type_args in calls) [x]; ABI checks in resolver [x]; CTFE in resolver [x]; ParamInit in MIR [x]; Affine moves in MIR [x]; SIMD in codegen [x]; Stable ABI in codegen [x]; next: MLGO AI in opts, CTFE in MIR.
 //! Dec 6, 2025: Fixed parser errors (separated_list1, map destructuring, generics_opt in methods) [x]; codegen attributes/imports [x]; MIR exprs field access [x]; resolver infer_type mut borrow [x]; preserved all prior functionality without regression.
-//! Dec 6, 2025: Full push - Implemented CTFE in MIR (const folding pass on stmts/exprs) [x]; Async in actors (tokio integration for non-blocking spawn/recv) [x]; Bootstrap eval (JIT run simple 42+1=43 in selfhost.z main) [x]; Full bootstrap stub (compile zetac src to obj via JIT, link) [x]; Updated MLGO to full AI passes [x].
+//! Dec 6, 2025: Implemented CTFE in MIR (const folding pass on stmts/exprs) [x]; Async in actors (tokio dep added, non-blocking spawn/recv) [x]; Bootstrap eval (JIT run simple 42+1=43 in selfhost.z main) [x]; Full bootstrap stub (compile zetac src to obj via JIT, link) [x]; Updated MLGO to full AI passes [x]; Ergonomics milestone expanded with adoption barriers/wins [ ]; Added 2 barriers (debugging pain, ecosystem lock-in) +2 wins (visual profiler, modular crates) [ ]; New ADOPTION section for viral strategies [ ].
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
@@ -75,5 +75,35 @@ pub mod checklist {
 [x] Codegen selfhost (JIT compile_and_run)
 [x] Eval 42+1=43 (main calls ZetaCompiler::compile)
 [x] Full bootstrap (Zeta compiles Zeta)
+    "#;
+    /// Ergonomics (Ease of Use for Adoption)
+    pub const ERGONOMICS: &str = r#"
+[ ] Unified strings (default UTF-8 str type, Python/Go-like: literals auto-validate, += concat, f-strings)
+[ ] Implicit conversions (&str <-> str, no lifetimes for strings)
+[ ] Rich string methods (split/trim/format via Str concept, structural ? for ad-hoc)
+[ ] Go-like simplicity (no-brace single-line fns, manual errors with ? prop)
+[ ] Python expressiveness (f-strings, dict literals map[key]=val, auto-imports)
+[ ] Interactive REPL (JIT eval for quick prototyping)
+[ ] Docs in concepts (/// comments, auto-gen)
+[ ] Barriers Solved: Steep learning curve (implicit affine, no lifetimes) [ ]
+[ ] Barriers Solved: Verbose boilerplate (hybrid concepts with ?) [ ]
+[ ] Barriers Solved: Interop friction (built-in actors + std embeds) [ ]
+[ ] Barriers Solved: Debugging pain (visual MIR dumps, auto-step JIT) [ ]
+[ ] Barriers Solved: Ecosystem lock-in (modular crates, easy FFI) [ ]
+[ ] Wins: Instant JIT REPL (Python-like eval) [ ]
+[ ] Wins: Algebraic ergonomics (auto-SIMD semirings) [ ]
+[ ] Wins: Stable ABI const-time (TimingOwned default) [ ]
+[ ] Wins: Visual profiler (MLGO-integrated graphs) [ ]
+[ ] Wins: Modular crates (one-file packages, auto-link) [ ]
+    "#;
+    /// Adoption (Viral Strategies for 30-Year Dominance)
+    pub const ADOPTION: &str = r#"
+[ ] One-Click Playground (WASM REPL at zeta-lang.com/play, shareable links)
+[ ] AI Code Gen Templates (VS Code ext for scaffolds: zeta new api)
+[ ] Cross-Platform Kit (zeta run/deploy to WASM/native/Docker in 1 cmd)
+[ ] Zeta Challenges (weekly bounties, leaderboards for puzzles)
+[ ] Migration Tools (zeta migrate-rs → auto-transpile safe code)
+[ ] Community Flywheels (GitHub stars >100k target, HN/Reddit auto-posts)
+[ ] Ecosystem Hooks (one-file crates, JS/Python FFI zero-glue)
     "#;
 }
