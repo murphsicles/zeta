@@ -3,6 +3,7 @@
 //! Defines nodes for expressions, statements, definitions, and algebraic constructs.
 //! Extended for self-host: enums, structs, strings, path calls.
 //! Added: generics in FuncDef/Method, structural flag in Call for hybrid dispatch.
+//! Updated Dec 9, 2025: Added StringLit as first-class, plus Str type variant.
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AstNode {
@@ -21,12 +22,12 @@ pub enum AstNode {
         name: String,
         params: Vec<(String, String)>,
         ret: String,
-        generics: Vec<String>, // New: generics support
+        generics: Vec<String>,
     },
     /// Function definition.
     FuncDef {
         name: String,
-        generics: Vec<String>, // Updated: now parsed
+        generics: Vec<String>,
         params: Vec<(String, String)>,
         ret: String,
         body: Vec<AstNode>,
@@ -46,7 +47,7 @@ pub enum AstNode {
         method: String,
         args: Vec<AstNode>,
         type_args: Vec<String>,
-        structural: bool, // New: true for structural dispatch (e.g., method?)
+        structural: bool,
     },
     /// Path call (A::B).
     PathCall {
@@ -58,7 +59,7 @@ pub enum AstNode {
     Spawn { func: String, args: Vec<AstNode> },
     /// Integer literal.
     Lit(i64),
-    /// String literal.
+    /// UTF-8 string literal (unified string type).
     StringLit(String),
     /// Variable reference.
     Var(String),
