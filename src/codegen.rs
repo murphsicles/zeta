@@ -18,7 +18,6 @@
 
 use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt};
-use crate::specialization::{MonoKey};
 use crate::xai::XAIClient;
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
@@ -26,10 +25,10 @@ use inkwell::attributes::{Attribute, AttributeLoc};
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
-use inkwell::module::{Linkage, Module};
+use inkwell::module::Module;
 use inkwell::targets::{InitializationConfig, Target, TargetTriple};
 use inkwell::types::{BasicType, BasicTypeEnum, IntType, PointerType, VectorType};
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue, FunctionValue};
+use inkwell::values::{BasicValueEnum, PointerValue};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -134,17 +133,29 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 inkwell::targets::RelocMode::Static,
                 inkwell::targets::CodeModel::Default,
             ).unwrap();
-            context.create_module(name)
+            context.create_module_with_target_machine(name, &triple, target_machine)
         } else {
             context.create_module(name)
         };
+
         let builder = context.create_builder();
         let i64_type = context.i64_type();
-        let i8_type = context.i8_type();
-        let str_type = context.ptr_type(AddressSpace::Generic);
-        let vec4_i64_type = i64_type.vector_type(4);
-        let ptr_type = context.ptr_type(AddressSpace::Generic);
-        let tbaa_const_time = builder.create_tbaa_metadata("const_time", None);
+        let str_type = context.i8_type().ptr_type(AddressSpace::Generic);
+        let vec4_i64_type = i64_type.vec_type(4);
+        let ptr_type = i64_type.ptr_type(AddressSpace::Generic);
+
+        // Declare external host functions
+        module.add_function("datetime_now", i64_type.fn_type(&[], false), None);
+        module.add_function("free", context.void_type().fn_type(&[str_type.into()], false), None);
+        module.add_function("channel_send", context.void_type().fn_type(&[i64_type.into(), i64_type.into()], false), None);
+        module.add_function("channel_recv", i64_type.fn_type(&[i64_type.into()], false), None);
+        module.add_function("spawn", i64_type.fn_type(&[i64_type.into()], false), None);
+        module.add_function("http_get", i64_type.fn_type(&[str_type.into()], false), None);
+        module.add_function("tls_handshake", i64_type.fn_type(&[str_type.into()], false), None);
+
+        // TBAA stub for const-time
+        let tbaa_const_time = builder.create_metadata("!tbaa.const_time", &[]);
+
         Self {
             context,
             module,
@@ -163,86 +174,128 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
     }
 
+    /// Generates LLVM IR for a list of MIRs, creating functions and basic blocks.
     pub fn gen_mirs(&mut self, mirs: &[Mir]) {
         for mir in mirs {
-            self.gen_mir(mir);
+            if let Some(name) = &mir.name {
+                let fn_type = self.i64_type.fn_type(&vec![self.i64_type; mir.locals.len() as usize], false);
+                let fn_val = self.module.add_function(name, fn_type, None);
+                let basic_block = self.context.append_basic_block(fn_val, "entry");
+                self.builder.position_at_end(basic_block);
+
+                // Alloc locals
+                for (var_name, &id) in &mir.locals {
+                    let alloca = self.builder.build_alloca(self.i64_type, var_name);
+                    self.locals.insert(id, alloca);
+                }
+
+                // Gen stmts
+                for stmt in &mir.stmts {
+                    self.gen_stmt(stmt);
+                }
+
+                self.fns.insert(name.clone(), fn_val);
+            }
         }
-    }
-
-    fn gen_mir(&mut self, mir: &Mir) {
-        let fn_type = self.i64_type.fn_type(&[], false);
-        let fn_val = self.module.add_function(&mir.name.as_ref().unwrap_or(&"main".to_string()), fn_type, None);
-        let entry_bb = self.context.append_basic_block(fn_val, "entry");
-        self.builder.position_at_end(entry_bb);
-
-        // Alloc locals
-        for (name, id) in &mir.locals {
-            let alloca = self.builder.build_alloca(self.i64_type, &format!("local_{}", name)).unwrap();
-            self.locals.insert(*id, alloca);
-        }
-
-        for stmt in &mir.stmts {
-            self.gen_stmt(stmt);
-        }
-
-        // Stub return
-        self.builder.build_return(None);
     }
 
     fn gen_stmt(&mut self, stmt: &MirStmt) {
         match stmt {
             MirStmt::Assign { lhs, rhs } => {
                 let val = self.gen_expr(rhs);
-                let ptr = self.locals.get(lhs).unwrap();
-                self.builder.build_store(*ptr, val);
+                let ptr = *self.locals.get(lhs).unwrap();
+                self.builder.build_store(ptr, val);
             }
             MirStmt::Call { func, args, dest } => {
-                let arg_vals: Vec<_> = args.iter().map(|&id| self.load_local(id)).collect();
-                let callee = self.module.get_function(func).unwrap();
-                let res = self.builder.build_call(callee, &arg_vals, "call").unwrap().try_into_basic_value().left().unwrap();
-                let ptr = self.locals.get(dest).unwrap();
-                self.builder.build_store(*ptr, res);
-            }
-            MirStmt::VoidCall { func, args } => {
-                let arg_vals: Vec<_> = args.iter().map(|&id| self.load_local(id)).collect();
-                let callee = self.module.get_function(func).unwrap();
-                self.builder.build_call(callee, &arg_vals, "voidcall").unwrap();
-            }
-            MirStmt::Return { val } => {
-                let v = self.load_local(*val);
-                self.builder.build_return(Some(&v));
-            }
-            MirStmt::ParamInit { param_id, arg_index } => {
-                let arg = self.fn_args[*arg_index];
-                let ptr = self.locals.get(param_id).unwrap();
-                self.builder.build_store(ptr, arg);
-            }
-            MirStmt::Consume { id } => {
-                // No-op
-            }
-            MirStmt::Switch { val, arms, default } => {
-                let v = self.load_local(*val);
-                let default_bb = self.context.append_basic_block(self.builder.get_insert_block().unwrap().get_parent().unwrap(), "default");
-                let sw = self.builder.build_switch(v.into_int_value(), default_bb, "switch").unwrap();
-                for (lit, dest) in arms {
-                    let case_bb = self.context.append_basic_block(self.builder.get_insert_block().unwrap().get_parent().unwrap(), "case");
-                    sw.add_case(self.i64_type.const_int(*lit as u64, false).into(), case_bb);
+                if let Some(f) = self.fns.get(func) {
+                    let arg_vals: Vec<_> = args.iter().map(|&id| self.load_local(id)).collect();
+                    let call = self.builder.build_call(*f, &arg_vals, "call");
+                    let res = call.try_as_basic_value().left().unwrap();
+                    let ptr = *self.locals.get(dest).unwrap();
+                    self.builder.build_store(ptr, res);
+                } else if func == "add" {
+                    // Semiring intrinsic
+                    let a = self.load_local(args[0]);
+                    let b = self.load_local(args[1]);
+                    let sum = self.builder.build_int_add(a.into_int_value(), b.into_int_value(), "add");
+                    let ptr = *self.locals.get(dest).unwrap();
+                    self.builder.build_store(ptr, sum);
+                } else if func == "mul" {
+                    let a = self.load_local(args[0]);
+                    let b = self.load_local(args[1]);
+                    let prod = self.builder.build_int_mul(a.into_int_value(), b.into_int_value(), "mul");
+                    let ptr = *self.locals.get(dest).unwrap();
+                    self.builder.build_store(ptr, prod);
                 }
             }
-            _ => {}
+            MirStmt::VoidCall { func, args } => {
+                if let Some(f) = self.fns.get(func) {
+                    let arg_vals: Vec<_> = args.iter().map(|&id| self.load_local(id)).collect();
+                    self.builder.build_call(*f, &arg_vals, "voidcall");
+                }
+            }
+            MirStmt::Return { val } => {
+                let loaded = self.load_local(*val);
+                self.builder.build_return(Some(&loaded));
+            }
+            MirStmt::SemiringFold { op, values, result } => {
+                let mut folded = self.load_local(values[0]);
+                for &v in &values[1..] {
+                    let next = self.load_local(v);
+                    folded = match op {
+                        SemiringOp::Add => self.builder.build_int_add(folded.into_int_value(), next.into_int_value(), "fold_add"),
+                        SemiringOp::Mul => self.builder.build_int_mul(folded.into_int_value(), next.into_int_value(), "fold_mul"),
+                    };
+                }
+                let ptr = *self.locals.get(result).unwrap();
+                self.builder.build_store(ptr, folded);
+            }
+            MirStmt::ParamInit { param_id, arg_index } => {
+                if let Some(arg) = self.fn_args.get(*arg_index) {
+                    let ptr = *self.locals.get(param_id).unwrap();
+                    self.builder.build_store(ptr, *arg);
+                }
+            }
+            MirStmt::Consume { id } => {
+                // No-op, semantic for affine
+            }
+            MirStmt::Switch { val, arms, default } => {
+                let cond = self.load_local(*val).into_int_value();
+                let mut branches = vec![];
+                for &(lit, dest) in arms {
+                    let arm_block = self.context.append_basic_block(self.builder.get_insert_block().unwrap().get_parent().unwrap(), "arm");
+                    self.builder.position_at_end(arm_block);
+                    // Stub dest load
+                    let dest_val = self.load_local(dest);
+                    self.builder.build_return(Some(&dest_val));
+                    branches.push((self.i64_type.const_int(lit as u64, false), arm_block));
+                }
+                let default_block = self.context.append_basic_block(self.builder.get_insert_block().unwrap().get_parent().unwrap(), "default");
+                self.builder.position_at_end(default_block);
+                let default_val = self.load_local(*default);
+                self.builder.build_return(Some(&default_val));
+                branches.push((self.i64_type.const_int(0, false), default_block)); // Default case
+                let switch = self.builder.build_switch(cond, default_block, branches.len() as u32);
+                switch.add_case(self.i64_type.const_int(0, false), default_block); // Stub
+                self.builder.position_at_end(self.builder.get_insert_block().unwrap().get_parent().unwrap().entry_basic_block().unwrap());
+            }
         }
     }
 
-    fn gen_expr(&self, expr: &MirExpr) -> BasicValueEnum<'ctx> {
+    fn gen_expr(&mut self, expr: &MirExpr) -> BasicValueEnum<'ctx> {
         match expr {
             MirExpr::Var(id) => self.load_local(*id),
             MirExpr::Lit(n) => self.i64_type.const_int(*n as u64, false).into(),
             MirExpr::ConstEval(n) => self.i64_type.const_int(*n as u64, false).into(),
-            MirExpr::TimingOwned(id) => self.load_local(*id),
+            MirExpr::TimingOwned(inner_id) => {
+                // Const-time load with TBAA
+                let inner = self.load_local(*inner_id);
+                inner // Stub, add tbaa later
+            }
             MirExpr::GetField { base, field_idx } => {
-                let base_ptr = self.locals.get(base).unwrap();
+                let base_ptr = *self.locals.get(base).unwrap();
                 let gep = self.builder.build_struct_gep(
-                    self.builder.build_load(self.ptr_type, *base_ptr, "load_base").into_pointer_value(),
+                    self.builder.build_load(self.ptr_type, base_ptr, "load_base").into_pointer_value(),
                     *field_idx as u32,
                     "gep",
                 ).unwrap();
@@ -318,7 +371,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             .module
             .create_jit_execution_engine(OptimizationLevel::Aggressive)?; // O3
 
-        // Map host functions...
+        // Map host functions
         ee.add_global_mapping(
             &self.module.get_function("datetime_now").unwrap(),
             host_datetime_now as *const () as usize,
