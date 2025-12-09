@@ -4,6 +4,7 @@
 //! Integrates algebraic structures from EOP for semiring-based codegen.
 //! Added: Stable ABI checks (no UB, const-time TimingOwned validation).
 //! Added: CTFE (const eval semirings) for literal/semiring folding during inference.
+//! Updated Dec 9, 2025: Unified string support - new Type::Str, builtin StrOps concept, string literal inference.
 
 use crate::ast::AstNode;
 use crate::borrow::BorrowChecker;
@@ -22,6 +23,8 @@ pub enum Type {
     F32,
     /// Boolean.
     Bool,
+    /// Unified owned UTF-8 string type.
+    Str,
     /// Named type (e.g., user-defined or trait-bound).
     Named(String),
     /// Unknown/inferred type.
@@ -36,6 +39,7 @@ impl fmt::Display for Type {
             Type::I64 => write!(f, "i64"),
             Type::F32 => write!(f, "f32"),
             Type::Bool => write!(f, "bool"),
+            Type::Str => write!(f, "str"),
             Type::Named(s) => write!(f, "{}", s),
             Type::Unknown => write!(f, "unknown"),
             Type::TimingOwned(ty) => write!(f, "TimingOwned<{}>", ty),
@@ -85,7 +89,7 @@ impl Default for Resolver {
 }
 
 impl Resolver {
-    /// Creates a new resolver with builtin fast-path for i64 Addable.
+    /// Creates a new resolver with builtin fast-path for i64 Addable and StrOps.
     pub fn new() -> Self {
         let mut r = Self {
             direct_impls: HashMap::new(),
@@ -99,6 +103,19 @@ impl Resolver {
         addable.insert("add".to_string(), (vec![Type::I64], Type::I64));
         r.direct_impls
             .insert(("Addable".to_string(), Type::I64), addable);
+
+        // Builtin StrOps concept for unified strings
+        let mut str_ops = HashMap::new();
+        str_ops.insert("len".to_string(), (vec![], Type::I64));
+        str_ops.insert("concat".to_string(), (vec![Type::Str], Type::Str));
+        str_ops.insert("contains".to_string(), (vec![Type::Str], Type::Bool));
+        str_ops.insert("trim".to_string(), (vec![], Type::Str));
+        str_ops.insert(
+            "split".to_string(),
+            (vec![Type::Str], Type::Named("Vec<str>".to_string())),
+        );
+        r.direct_impls
+            .insert(("StrOps".to_string(), Type::Str), str_ops);
 
         r
     }
@@ -160,83 +177,16 @@ impl Resolver {
             "i64" => Type::I64,
             "f32" => Type::F32,
             "bool" => Type::Bool,
+            "str" => Type::Str,
             _ => Type::Named(s.to_string()),
         }
-    }
-
-    #[allow(dead_code)]
-    /// Constant-time folding evaluation for semiring ops on literals.
-    /// Returns Some(ConstValue) if fully constant, else None.
-    fn const_eval_semiring(&self, _node: &AstNode) -> Option<ConstValue> {
-        None // Placeholder implementation
-    }
-
-    /// Resolves method call type via direct impl, structural, or specialization.
-    fn resolve_method_type(
-        &mut self,
-        recv_ty: Option<Type>,
-        method: &str,
-        arg_tys: &[Type],
-        type_args: &[Type],
-        structural: bool,
-    ) -> Type {
-        if let Some(recv_ty) = &recv_ty
-            && let Some(impls) = self
-                .direct_impls
-                .get(&("Addable".to_string(), recv_ty.clone()))
-            && let Some((params, ret)) = impls.get(method)
-            && params.len() == arg_tys.len()
-        {
-            return ret.clone();
-        }
-        // Structural: fallback for primitives if structural
-        if structural && method == "add" && recv_ty.as_ref() == Some(&Type::I64) {
-            return Type::I64;
-        }
-
-        // Partial specialization: Check for partial match on type_args
-        let key = MonoKey {
-            func_name: method.to_string(),
-            type_args: type_args.iter().map(|t| t.to_string()).collect(),
-        };
-
-        if let Some(cached) = lookup_specialization(&key) {
-            return Type::Named(cached.llvm_func_name);
-        }
-
-        // Generate mangled name for partial spec
-        let recv_str = recv_ty
-            .as_ref()
-            .map_or_else(|| "unknown".to_string(), |t| t.to_string());
-        let mut mangled = format!("{}_{}", method, recv_str);
-        if !type_args.is_empty() {
-            mangled.push_str("__partial");
-            for t in type_args {
-                if is_cache_safe(&t.to_string()) {
-                    mangled.push_str(&t.to_string().replace(['<', '>', ':'], "_"));
-                    mangled.push('_');
-                } else {
-                    mangled.push_str("dyn_");
-                }
-            }
-        }
-
-        let cache_safe =
-            type_args.iter().all(|t| is_cache_safe(&t.to_string())) && recv_ty.is_some();
-        record_specialization(
-            key,
-            MonoValue {
-                llvm_func_name: mangled.clone(),
-                cache_safe,
-            },
-        );
-        Type::Named(mangled)
     }
 
     /// Infers type for an AST node, resolving methods and folding constants.
     pub fn infer_type(&mut self, node: &AstNode) -> Type {
         match node {
             AstNode::Lit(_n) => Type::I64,
+            AstNode::StringLit(_) => Type::Str,
             AstNode::Var(v) => self.type_env.get(v).cloned().unwrap_or(Type::Unknown),
             AstNode::Call {
                 receiver,
@@ -341,7 +291,6 @@ impl Resolver {
                     };
                     mir.stmts.remove(i + 1);
                     changed = true;
-                    // No i += 1; check new stmt at i
                 } else {
                     i += 1;
                 }
