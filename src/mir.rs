@@ -317,6 +317,7 @@ impl MirGen {
 }
 
 impl Mir {
+    /// Apply CTFE pass to fold constants.
     pub fn optimize_ctfe(&mut self) {
         let mut i = 0;
         while i < self.stmts.len() {
