@@ -161,9 +161,7 @@ impl Resolver {
                         .declare(pname.clone(), crate::borrow::BorrowState::Owned);
                 }
             }
-            AstNode::ConceptDef { .. } => {
-                // Concepts define traits; impls register them. Concepts themselves don't add impls.
-            }
+            AstNode::ConceptDef { .. } => {}
             AstNode::EnumDef { name, .. } | AstNode::StructDef { name, .. } => {
                 self.type_env.insert(name.clone(), Type::Named(name));
             }
