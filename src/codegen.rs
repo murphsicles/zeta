@@ -20,7 +20,7 @@ use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::types::{IntType, PointerType, VectorType};
-use inkwell::values::{BasicValueEnum, IntValue, PointerValue};
+use inkwell::values::{BasicValueEnum, PointerValue};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -149,11 +149,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     func_name: name.clone(),
                     type_args: vec![],
                 };
-                let mangled = if let Some(cached) = lookup_specialization(&key) {
-                    cached.llvm_func_name
-                } else {
-                    name.clone()
-                };
+                let mangled = lookup_specialization(&key)
+                    .map(|v| v.llvm_func_name)
+                    .unwrap_or_else(|| name.clone());
 
                 let fn_type = self.i64_type.fn_type(&[], false);
                 let fn_val = self.module.add_function(&mangled, fn_type, None);
