@@ -1,4 +1,4 @@
-// examples/selfhost.zeta: Expanded self-hosting Zeta compiler
+// examples/selfhost.z Expanded self-hosting Zeta compiler
 // Parses Zeta syntax, builds AST, typechecks (stub), evals simple exprs.
 // Bootstraps by compiling Zeta programs via Zeta impl.
 

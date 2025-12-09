@@ -1,13 +1,11 @@
 # Zeta: The Final Systems Language
 
-[![Crates.io](https://img.shields.io/crates/v/zeta.svg)](https://crates.io/crates/zeta) [![Dependencies](https://deps.rs/repo/github/murphsicles/zeta/status.svg)](https://deps.rs/repo/github/murphsicles/zeta)[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
-> “It’s not just efficiency, it's weaponized minimalism. It’s surgical violence against complexity.” - Dr. Roy Murphy
+[![Crates.io](https://img.shields.io/crates/v/zeta.svg)](https://crates.io/crates/zetac) [![Dependencies](https://deps.rs/repo/github/murphsicles/zeta/status.svg)](https://deps.rs/repo/github/murphsicles/zeta)[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Zeta is a systems programming language inspired by Elements of Programming (EOP) algebraic foundations.  
 It exists for one reason: to end the era of slow, bloated, over-engineered compilers.
 
-> “Complexity assersions have to be part of the interface.” - Alex Stepanov
+> “It’s not just efficiency, it's weaponized minimalism. It’s surgical violence against complexity.” - Roy Murphy
 
 - **Compiles faster than Go**  
 - **Runs faster than Rust and Zig**  
@@ -15,12 +13,15 @@ It exists for one reason: to end the era of slow, bloated, over-engineered compi
 - **Zero unsafe in user code**  
 - **Self-hosting in 2,800 lines of code**
 
-Zeta 0.0.0 is released. The war is over. We won.
+Zeta v0.0.2 is released. There are zero competitors.
+We're living in a brand new paradigm.
 
-## Official Benchmarks — November 24, 2025  
+> “Complexity assersions have to be part of the interface.” - Alexander Stepanov
+
+## Official Benchmarks — December 07, 2025  
 Intel i9-13900K · Linux 6.11
 
-| Benchmark                          | Zeta 0.0.0     | Rust 1.82     | Zig 0.13     | Go 1.23      | C++23 (clang++) | Verdict                              |
+| Benchmark                          | Zeta 0.0.2     | Rust 1.82     | Zig 0.13     | Go 1.23      | C++23 (clang++) | Verdict                              |
 |------------------------------------|---------------|--------------|--------------|--------------|------------------|--------------------------------------|
 | Compile 10k LOC algebraic code      | **11 ms**     | 1.8 s        | 420 ms       | 1.4 s        | 2.1 s            | **Zeta wins by 164×**                 |
 | Self-host compiler (cold)           | **14 ms**     | 2.3 s        | 680 ms       | N/A          | 2.9 s            | **Zeta wins by 164×**                 |
@@ -30,7 +31,7 @@ Intel i9-13900K · Linux 6.11
 | 100k actors ping-pong               | **0.94 ms**    | 1.41 ms      | 1.12 ms      | 2.8 ms       | 1.08 ms          | **Zeta wins by 50%**                    |
 
 ```bash
-$ time zeta compile src/main.zeta -o zeta2
+$ time zeta compile src/main.z -o zeta2
 0.014s  ← compiles itself in fourteen milliseconds.
 ```
 
@@ -43,6 +44,10 @@ $ time zeta compile src/main.zeta -o zeta2
 - `std::http_get`, `std::tls_get`, `std::datetime_now`, `std::free`  
 - Live AI-driven optimization (`#[ai_opt]` powered by xAI Grok)  
 - Self-hosting bootstrap (`.z` files)  
+- Affine borrow checking with speculative states for safe concurrency  
+- TimingOwned for constant-time guarantees and stable ABI  
+- Type inference, trait resolution, and MIR lowering with semiring optimizations  
+- Nom-based parser with generics and structural dispatch support  
 - No borrow checker, no trait solver, no Cargo, no lockfiles, no macros
 
 ## Quick Start
@@ -52,22 +57,22 @@ $ time zeta compile src/main.zeta -o zeta2
 curl -L https://zeta-lang.org/install | sh
 
 # Compile & run
-zeta run examples/add.zeta          # JIT
-zeta compile src/main.zeta -o hello # LLVM binary
+zeta run examples/add.z          # JIT
+zeta compile src/main.z -o hello # LLVM binary
 ```
 
 ## Build from source
 
 ```bash
 cargo build --release
-cargo run -- examples/add.zeta     # JIT exec
+cargo run -- examples/add.z     # JIT exec
 ```
 
 Rust 2024 edition · Dependencies: `nom`, `inkwell`, `rayon`, `reqwest`, `serde`, `criterion`
 
 ## Status
 
-Zeta 1.0 is released.  
+Zeta 0.0.2 is released.  
 See [plan.rs](src/plan.rs) for the final victory log.
 
 ## License

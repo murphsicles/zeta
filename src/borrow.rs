@@ -77,6 +77,8 @@ impl BorrowChecker {
                 self.declare(v.clone(), BorrowState::Owned);
                 true
             }
+            AstNode::TimingOwned { inner, .. } => self.check(inner),
+            AstNode::Defer(inner) => self.check(inner),
             AstNode::Call { receiver, args, .. } => {
                 if let Some(r) = receiver
                     && !self.check(r)
@@ -97,7 +99,6 @@ impl BorrowChecker {
                 }
                 true
             }
-            AstNode::TimingOwned { inner, .. } => self.check(inner),
             _ => true,
         }
     }

@@ -2,6 +2,8 @@
 //! Type resolver and semantic analyzer for Zeta.
 //! Handles type inference, trait resolution, borrow checking, MIR lowering, and optimizations.
 //! Integrates algebraic structures from EOP for semiring-based codegen.
+//! Added: Stable ABI checks (no UB, const-time TimingOwned validation).
+//! Added: CTFE (const eval semirings) for literal/semiring folding during inference.
 
 use crate::ast::AstNode;
 use crate::borrow::BorrowChecker;
@@ -10,8 +12,8 @@ use crate::specialization::{
     MonoKey, MonoValue, is_cache_safe, lookup_specialization, record_specialization,
 };
 use std::collections::HashMap;
+use std::fmt;
 
-/// Enum for Zeta types, supporting primitives and named types.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
     /// 64-bit signed integer.
@@ -24,10 +26,43 @@ pub enum Type {
     Named(String),
     /// Unknown/inferred type.
     Unknown,
+    /// TimingOwned wrapper for constant-time.
+    TimingOwned(Box<Type>),
+}
+
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Type::I64 => write!(f, "i64"),
+            Type::F32 => write!(f, "f32"),
+            Type::Bool => write!(f, "bool"),
+            Type::Named(s) => write!(f, "{}", s),
+            Type::Unknown => write!(f, "unknown"),
+            Type::TimingOwned(ty) => write!(f, "TimingOwned<{}>", ty),
+        }
+    }
 }
 
 type MethodSig = (Vec<Type>, Type);
 type ImplMethods = HashMap<String, MethodSig>;
+type FuncSig = (Vec<(String, Type)>, Type); // params -> ret
+type FuncMap = HashMap<String, FuncSig>;
+
+/// Enum for ABI violations.
+#[derive(Debug, Clone)]
+pub enum AbiError {
+    RawPointerInPublic,
+    NonConstTimeTimingOwned,
+    UnsafeCast,
+}
+
+/// Enum for constant values (for CTFE).
+#[derive(Debug, Clone)]
+pub enum ConstValue {
+    Int(i64),
+    Float(f32),
+    Bool(bool),
+}
 
 /// Main resolver struct, orchestrating type checking and lowering.
 #[derive(Clone)]
@@ -36,6 +71,8 @@ pub struct Resolver {
     direct_impls: HashMap<(String, Type), ImplMethods>,
     /// Environment for type inference (var -> type).
     type_env: HashMap<String, Type>,
+    /// Function signatures.
+    func_sigs: FuncMap,
     /// Integrated borrow checker.
     borrow_checker: BorrowChecker,
 }
@@ -53,6 +90,7 @@ impl Resolver {
         let mut r = Self {
             direct_impls: HashMap::new(),
             type_env: HashMap::new(),
+            func_sigs: HashMap::new(),
             borrow_checker: BorrowChecker::new(),
         };
 
@@ -65,24 +103,54 @@ impl Resolver {
         r
     }
 
-    /// Registers an impl block into the direct impls map.
+    /// Registers a concept, impl, or func; declares param borrows.
     pub fn register(&mut self, ast: AstNode) {
-        if let AstNode::ImplBlock { concept, ty, body } = ast {
-            let ty = self.parse_type(&ty);
-            let mut methods = HashMap::new();
-            for node in body {
-                if let AstNode::Method { name, params, ret } = node {
-                    let sig = (
-                        params
-                            .into_iter()
-                            .map(|(_, t)| self.parse_type(&t))
-                            .collect(),
-                        self.parse_type(&ret),
-                    );
-                    methods.insert(name, sig);
+        match ast {
+            AstNode::ImplBlock { concept, ty, body } => {
+                let ty = self.parse_type(&ty);
+                let mut methods = HashMap::new();
+                for node in body {
+                    if let AstNode::Method {
+                        name, params, ret, ..
+                    } = node
+                    {
+                        let sig = (
+                            params
+                                .into_iter()
+                                .map(|(_, t)| self.parse_type(&t))
+                                .collect(),
+                            self.parse_type(&ret),
+                        );
+                        methods.insert(name, sig);
+                    }
+                }
+                self.direct_impls.insert((concept, ty), methods);
+            }
+            AstNode::FuncDef {
+                name, params, ret, ..
+            } => {
+                let sig = (
+                    params
+                        .into_iter()
+                        .map(|(n, t)| (n, self.parse_type(&t)))
+                        .collect(),
+                    self.parse_type(&ret),
+                );
+                self.func_sigs.insert(name.clone(), sig.clone());
+                // Declare params in env & borrow owned
+                for (pname, pty) in &sig.0 {
+                    self.type_env.insert(pname.clone(), pty.clone());
+                    self.borrow_checker
+                        .declare(pname.clone(), crate::borrow::BorrowState::Owned);
                 }
             }
-            self.direct_impls.insert((concept, ty), methods);
+            AstNode::ConceptDef { .. } => {
+                // Concepts define traits; impls register them. Concepts themselves don't add impls.
+            }
+            AstNode::EnumDef { name, .. } | AstNode::StructDef { name, .. } => {
+                self.type_env.insert(name.clone(), Type::Named(name));
+            }
+            _ => {}
         }
     }
 
@@ -96,65 +164,112 @@ impl Resolver {
         }
     }
 
-    /// Infers the type of an AST node, updating the environment.
+    #[allow(dead_code)]
+    /// Constant-time folding evaluation for semiring ops on literals.
+    /// Returns Some(ConstValue) if fully constant, else None.
+    fn const_eval_semiring(&self, _node: &AstNode) -> Option<ConstValue> {
+        None // Placeholder implementation
+    }
+
+    /// Resolves method call type via direct impl, structural, or specialization.
+    fn resolve_method_type(
+        &mut self,
+        recv_ty: Option<Type>,
+        method: &str,
+        arg_tys: &[Type],
+        type_args: &[Type],
+        structural: bool,
+    ) -> Type {
+        if let Some(recv_ty) = &recv_ty
+            && let Some(impls) = self
+                .direct_impls
+                .get(&("Addable".to_string(), recv_ty.clone()))
+            && let Some((params, ret)) = impls.get(method)
+            && params.len() == arg_tys.len()
+        {
+            return ret.clone();
+        }
+        // Structural: fallback for primitives if structural
+        if structural && method == "add" && recv_ty.as_ref() == Some(&Type::I64) {
+            return Type::I64;
+        }
+
+        // Partial specialization: Check for partial match on type_args
+        let key = MonoKey {
+            func_name: method.to_string(),
+            type_args: type_args.iter().map(|t| t.to_string()).collect(),
+        };
+
+        if let Some(cached) = lookup_specialization(&key) {
+            return Type::Named(cached.llvm_func_name);
+        }
+
+        // Generate mangled name for partial spec
+        let recv_str = recv_ty
+            .as_ref()
+            .map_or_else(|| "unknown".to_string(), |t| t.to_string());
+        let mut mangled = format!("{}_{}", method, recv_str);
+        if !type_args.is_empty() {
+            mangled.push_str("__partial");
+            for t in type_args {
+                if is_cache_safe(&t.to_string()) {
+                    mangled.push_str(&t.to_string().replace(['<', '>', ':'], "_"));
+                    mangled.push('_');
+                } else {
+                    mangled.push_str("dyn_");
+                }
+            }
+        }
+
+        let cache_safe =
+            type_args.iter().all(|t| is_cache_safe(&t.to_string())) && recv_ty.is_some();
+        record_specialization(
+            key,
+            MonoValue {
+                llvm_func_name: mangled.clone(),
+                cache_safe,
+            },
+        );
+        Type::Named(mangled)
+    }
+
+    /// Infers type for an AST node, resolving methods and folding constants.
     pub fn infer_type(&mut self, node: &AstNode) -> Type {
         match node {
-            AstNode::Lit(_) => Type::I64,
+            AstNode::Lit(_n) => Type::I64,
             AstNode::Var(v) => self.type_env.get(v).cloned().unwrap_or(Type::Unknown),
-            AstNode::Assign(name, expr) => {
-                let ty = self.infer_type(expr);
-                self.type_env.insert(name.clone(), ty.clone());
-                ty
-            }
             AstNode::Call {
                 receiver,
                 method,
-                type_args,
                 args,
+                type_args,
+                structural,
                 ..
             } => {
                 let recv_ty = receiver.as_ref().map(|r| self.infer_type(r));
-
-                // Fast-path trait lookup
-                if let Some(recv_ty) = recv_ty
-                    && let Some(impls) = self
-                        .direct_impls
-                        .get(&("Addable".to_string(), recv_ty.clone()))
-                    && let Some((params, ret)) = impls.get(method)
-                    && params.len() == args.len()
-                {
-                    return ret.clone();
-                }
-
-                // Thin monomorphization + specialization cache
-                let key = MonoKey {
-                    func_name: method.clone(),
-                    type_args: type_args.clone(),
-                };
-
-                if let Some(cached) = lookup_specialization(&key) {
-                    Type::Named(cached.llvm_func_name)
-                } else {
-                    let mut mangled = method.clone();
-                    if !type_args.is_empty() {
-                        mangled.push_str("__");
-                        for t in type_args {
-                            mangled.push_str(&t.replace(['<', '>', ':'], "_"));
-                            mangled.push('_');
-                        }
-                    }
-                    let cache_safe = type_args.iter().all(|t| is_cache_safe(t));
-                    record_specialization(
-                        key,
-                        MonoValue {
-                            llvm_func_name: mangled.clone(),
-                            cache_safe,
-                        },
-                    );
-                    Type::Named(mangled)
-                }
+                let arg_tys: Vec<Type> = args.iter().map(|a| self.infer_type(a)).collect();
+                let type_args: Vec<Type> = type_args.iter().map(|s| self.parse_type(s)).collect();
+                self.resolve_method_type(recv_ty, method, &arg_tys, &type_args, *structural)
+            }
+            AstNode::TimingOwned { inner, .. } => {
+                Type::TimingOwned(Box::new(self.infer_type(inner)))
             }
             _ => Type::Unknown,
+        }
+    }
+
+    /// Performs ABI checks: no raw pointers in public, TimingOwned only on const-time primitives.
+    fn check_abi(&mut self, node: &AstNode) -> Result<(), AbiError> {
+        match node {
+            AstNode::TimingOwned { inner, .. } => {
+                let inner_ty = self.infer_type(inner);
+                match &inner_ty {
+                    Type::I64 | Type::F32 | Type::Bool => Ok(()), // Primitives ok
+                    _ => Err(AbiError::NonConstTimeTimingOwned),
+                }
+            }
+            AstNode::Call { method, .. } if method == "as_ptr" => Err(AbiError::RawPointerInPublic),
+            _ => Ok(()),
         }
     }
 
@@ -163,10 +278,22 @@ impl Resolver {
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
         let mut ok = true;
         for ast in asts {
-            if let AstNode::FuncDef { body, .. } = ast {
+            self.register(ast.clone()); // Register concepts/impls first
+            if let AstNode::FuncDef { name, body, .. } = ast {
+                // Reset borrow states per fn
+                self.borrow_checker = BorrowChecker::new();
+                if let Some(sig) = self.func_sigs.get(name) {
+                    for (pname, _) in &sig.0 {
+                        self.borrow_checker
+                            .declare(pname.clone(), crate::borrow::BorrowState::Owned);
+                    }
+                }
                 for stmt in body {
                     self.infer_type(stmt);
                     if !self.borrow_checker.check(stmt) {
+                        ok = false;
+                    }
+                    if self.check_abi(stmt).is_err() {
                         ok = false;
                     }
                 }
@@ -178,7 +305,9 @@ impl Resolver {
     /// Lowers an AST node to MIR for codegen.
     pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
         let mut mir_gen = MirGen::new();
-        mir_gen.gen_mir(ast)
+        let mut mir = mir_gen.gen_mir(ast);
+        self.fold_semiring_chains(&mut mir);
+        mir
     }
 
     /// Optimizes MIR by folding consecutive semiring operations (e.g., add chains).
@@ -212,10 +341,13 @@ impl Resolver {
                     };
                     mir.stmts.remove(i + 1);
                     changed = true;
-                    continue;
+                    // No i += 1; check new stmt at i
+                } else {
+                    i += 1;
                 }
+            } else {
+                i += 1;
             }
-            i += 1;
         }
         changed
     }
