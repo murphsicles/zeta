@@ -12,7 +12,6 @@ use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use crate::specialization::{lookup_specialization, record_specialization, MonoKey, MonoValue};
 use crate::xai::XAIClient;
-use either::Either;
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
 use inkwell::attributes::{Attribute, AttributeLoc};
@@ -20,6 +19,7 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
+use inkwell::support::LLVMString;
 use inkwell::types::{IntType, PointerType, VectorType};
 use inkwell::values::{BasicValueEnum, IntValue, PointerValue};
 use serde_json::Value;
@@ -82,7 +82,7 @@ pub struct LLVMCodegen<'ctx> {
     #[allow(dead_code)]
     tbaa_const_time: inkwell::values::MetadataValue<'ctx>,
     /// Generated function map: name -> LLVM fn.
-    fns: HashMap<String, inkwell::values::FunctionValue<'ctx>,
+    fns: HashMap<String, inkwell::values::FunctionValue<'ctx>>,
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -196,14 +196,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 .build_call(callee, &arg_vals, "call")
                                 .expect("call failed");
 
-                                if let Either::Left(ret) = call.try_as_basic_value() {
-                                    let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                                        self.builder
-                                            .build_alloca(self.i64_type, &format!("dest_{}", dest))
-                                            .expect("alloca failed")
-                                    });
-                                    self.builder.build_store(*ptr, ret).unwrap();
-                                }
+                            if let Some(ret) = call.try_as_basic_value() {
+                                let ptr = self.locals.entry(*dest).or_insert_with(|| {
+                                    self.builder
+                                        .build_alloca(self.i64_type, &format!("dest_{}", dest))
+                                        .expect("alloca failed")
+                                });
+                                self.builder.build_store(*ptr, ret).unwrap();
+                            }
                         }
                         MirStmt::VoidCall { func, args } => {
                             let callee = self
@@ -315,7 +315,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
     pub fn finalize_and_jit(
         &mut self,
     ) -> Result<ExecutionEngine<'ctx>, Box<dyn std::error::Error>> {
-        self.module.verify().map_err(|e| e.to_string())?;
+        self.module.verify().map_err(|e: LLVMString| e.to_string())?;
 
         let nounwind_id = Attribute::get_named_enum_kind_id("nounwind");
         let sanitize_attr = self.context.create_enum_attribute(nounwind_id, 1);
@@ -326,7 +326,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let client = XAIClient::new().ok();
         let mir_stats = format!(
             "Stmts: {}, Locals: {}, SIMD eligible: {}",
-            self.module.print_to_string().to_str().map_or(0, |s| s.len()),
+            self.module.print_to_string().to_str().map_or(0, |s: &str| s.len()),
             self.locals.len(),
             1
         );
