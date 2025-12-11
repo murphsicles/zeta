@@ -92,7 +92,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let module = context.create_module(name);
         let builder = context.create_builder();
         let i64_type = context.i64_type();
-        let vec4_i64_type = i64_type.vec_type(4); // Quad i64 for SIMD
+        let vec4_i64_type = i64_type.vec_type(4);
         let ptr_type = context.ptr_type(AddressSpace::default());
         let char_ptr_type = context.ptr_type(AddressSpace::default());
 
@@ -103,26 +103,21 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let free_type = void_type.fn_type(&[ptr_type.into()], false);
         module.add_function("free", free_type, Some(Linkage::External));
 
-        // Actor intrinsics - simplified to i64 for chan_id
         let send_type = void_type.fn_type(&[i64_type.into(), i64_type.into()], false);
         module.add_function("channel_send", send_type, Some(Linkage::External));
 
         let recv_type = i64_type.fn_type(&[i64_type.into()], false);
         module.add_function("channel_recv", recv_type, Some(Linkage::External));
 
-        // Spawn intrinsic: i64 spawn(i64 func_id) -> i64 chan_id
         let spawn_type = i64_type.fn_type(&[i64_type.into()], false);
         module.add_function("spawn", spawn_type, Some(Linkage::External));
 
-        // Std embeds: http_get(url: &str) -> i64 (status)
         let http_type = i64_type.fn_type(&[char_ptr_type.into()], false);
         module.add_function("http_get", http_type, Some(Linkage::External));
 
-        // TLS handshake(host: &str) -> i64 (0 ok)
         let tls_type = i64_type.fn_type(&[char_ptr_type.into()], false);
         module.add_function("tls_handshake", tls_type, Some(Linkage::External));
 
-        // TBAA metadata for constant-time
         let tbaa_metadata = context.i64_type().const_int(0, false).into();
         let tbaa_const_time = context.metadata_node(&[tbaa_metadata]);
 
@@ -165,10 +160,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
                 for stmt in &mir.stmts {
                     match stmt {
-                        MirStmt::ParamInit {
-                            param_id,
-                            arg_index,
-                        } => {
+                        MirStmt::ParamInit { param_id, arg_index } => {
                             let param = fn_val.get_nth_param(*arg_index as u32).unwrap();
                             let ptr = *self.locals.get(param_id).unwrap();
                             self.builder.build_store(ptr, param).unwrap();
@@ -178,87 +170,47 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             let ptr = *self.locals.get(lhs).unwrap();
                             self.builder.build_store(ptr, val).unwrap();
                         }
-                        MirStmt::Call {
-                            func,
-                            args,
-                            dest,
-                        } => {
-                            let args: Vec<_> = args
-                                .iter()
-                                .map(|&id| self.load_local(id).into())
-                                .collect();
-                            let callee = self
-                                .module
-                                .get_function(func)
-                                .or_else(|| {
-                                    let ty = self.i64_type.fn_type(
-                                        &vec![self.i64_type.into(); args.len()],
-                                        false,
-                                    );
-                                    Some(self.module.add_function(func, ty, None))
-                                })
-                                .unwrap();
-                            let call = self
-                                .builder
-                                .build_call(callee, &args, "call")
-                                .unwrap();
-                            if let Some(ret) = call.try_as_basic_value() {
-                                let ptr = *self.locals.entry(*dest).or_insert_with(|| {
-                                    self.builder
-                                        .build_alloca(self.i64_type, "tmp")
-                                        .unwrap()
+                        MirStmt::Call { func, args, dest } => {
+                            let args: Vec<_> = args.iter().map(|&id| self.load_local(id).into()).collect();
+                            let callee = self.module.get_function(func).unwrap_or_else(|| {
+                                let ty = self.i64_type.fn_type(&vec![self.i64_type.into(); args.len()], false);
+                                self.module.add_function(func, ty, None)
+                            });
+                            let call = self.builder.build_call(callee, &args, "call").unwrap();
+                            if let Some(ret) = call.try_as_basic_value().left() {
+                                let ptr = self.locals.entry(*dest).or_insert_with(|| {
+                                    self.builder.build_alloca(self.i64_type, "tmp").unwrap()
                                 });
-                                self.builder.build_store(ptr, ret).unwrap();
+                                self.builder.build_store(*ptr, ret).unwrap();
                             }
                         }
                         MirStmt::VoidCall { func, args } => {
-                            let args: Vec<_> = args
-                                .iter()
-                                .map(|&id| self.load_local(id).into())
-                                .collect();
-                            let callee = self
-                                .module
-                                .get_function(func)
-                                .unwrap_or_else(|| {
-                                    let ty = self.context.void_type().fn_type(
-                                        &vec![self.i64_type.into(); args.len()],
-                                        false,
-                                    );
-                                    self.module.add_function(func, ty, None)
-                                });
+                            let args: Vec<_> = args.iter().map(|&id| self.load_local(id).into()).collect();
+                            let callee = self.module.get_function(func).unwrap_or_else(|| {
+                                let ty = self.context.void_type().fn_type(&vec![self.i64_type.into(); args.len()], false);
+                                self.module.add_function(func, ty, None)
+                            });
                             self.builder.build_call(callee, &args, "").unwrap();
                         }
-                        MirStmt::SemiringFold {
-                            op,
-                            values,
-                            result,
-                        } => {
+                        MirStmt::SemiringFold { op, values, result } => {
                             let mut acc = self.load_local(values[0]).into_int_value();
                             for &v in &values[1..] {
                                 let rhs = self.load_local(v).into_int_value();
                                 acc = match op {
-                                    SemiringOp::Add => self
-                                        .builder
-                                        .build_int_add(acc, rhs, "fold_add")
-                                        .unwrap(),
-                                    SemiringOp::Mul => self
-                                        .builder
-                                        .build_int_mul(acc, rhs, "fold_mul")
-                                        .unwrap(),
+                                    SemiringOp::Add => self.builder.build_int_add(acc, rhs, "fold_add").unwrap(),
+                                    SemiringOp::Mul => self.builder.build_int_mul(acc, rhs, "fold_mul").unwrap(),
                                 };
                             }
-                            let ptr = *self.locals.entry(*result).or_insert_with(|| {
-                                self.builder
-                                    .build_alloca(self.i64_type, "fold_res")
-                                    .unwrap()
+                            let ptr = self.locals.entry(*result).or_insert_with(|| {
+                                self.builder.build_alloca(self.i64_type, "fold_res").unwrap()
                             });
-                            self.builder.build_store(ptr, acc).unwrap();
+                            self.builder.build_store(*ptr, acc).unwrap();
                         }
                         MirStmt::Return { val } => {
                             let v = self.load_local(*val);
                             self.builder.build_return(Some(&v)).unwrap();
                         }
-                        MirStmt::Consume { id: _id } => {
+                        MirStmt::Consume { id: _ } => {
                             // No-op for LLVM, semantic only
                         }
                     }
@@ -268,7 +220,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
         }
 
-        // Create main if no main
         if self.module.get_function("main").is_none() {
             let main_ty = self.i64_type.fn_type(&[], false);
             let main_fn = self.module.add_function("main", main_ty, None);
@@ -323,37 +274,32 @@ impl<'ctx> LLVMCodegen<'ctx> {
     ) -> Result<ExecutionEngine<'ctx>, Box<dyn std::error::Error>> {
         self.module.verify().map_err(|e| e.to_string())?;
 
-        // Stable ABI: Add sanitize for no UB
         let nounwind_id = Attribute::get_named_enum_kind_id("nounwind");
         let sanitize_attr = self.context.create_enum_attribute(nounwind_id, 1);
         for fn_val in self.module.get_functions() {
             fn_val.add_attribute(AttributeLoc::Function, sanitize_attr);
         }
 
-        // MLGO AI hooks: Query Grok for optimized passes, including SIMD vectorize
-        let client = XAIClient::new().ok(); // Optional, skip if no key
+        let client = XAIClient::new().ok();
         let mir_stats = format!(
             "Stmts: {}, Locals: {}, SIMD eligible: {}",
-            self.module
-                .print_to_string()
-                .to_str()
-                .map_or(0, |s| s.len()),
+            self.module.print_to_string().to_str().map_or(0, |s| s.len()),
             self.locals.len(),
-            1 // Placeholder for SIMD count
+            1
         );
-        if let Some(c) = &client
-            && let Ok(rec) = c.mlgo_optimize(&mir_stats)
-            && let Ok(json) = serde_json::from_str::<Value>(&rec)
-            && let Some(passes) = json["passes"].as_array()
-        {
-            // Run vectorize pass for SIMD
-            for p in passes {
-                if let Some(ps) = p.as_str() {
-                    if ps == "vectorize" {
-                        // Mock: enable LLVM vectorize loop pass
-                        eprintln!("Running MLGO vectorize pass for SIMD");
-                    } else {
-                        eprintln!("Running AI-recommended pass: {}", ps);
+        if let Some(c) = &client {
+            if let Ok(rec) = c.mlgo_optimize(&mir_stats) {
+                if let Ok(json) = serde_json::from_str::<Value>(&rec) {
+                    if let Some(passes) = json["passes"].as_array() {
+                        for p in passes {
+                            if let Some(ps) = p.as_str() {
+                                if ps == "vectorize" {
+                                    eprintln!("Running MLGO vectorize pass for SIMD");
+                                } else {
+                                    eprintln!("Running AI-recommended pass: {}", ps);
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -363,38 +309,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
             .module
             .create_jit_execution_engine(OptimizationLevel::Aggressive)?;
 
-        // Map host datetime_now.
-        ee.add_global_mapping(
-            &self.module.get_function("datetime_now").unwrap(),
-            host_datetime_now as *const () as usize,
-        );
-        // Map host free.
-        ee.add_global_mapping(
-            &self.module.get_function("free").unwrap(),
-            host_free as *const () as usize,
-        );
-        // Map actor intrinsics.
-        ee.add_global_mapping(
-            &self.module.get_function("channel_send").unwrap(),
-            host_channel_send as *const () as usize,
-        );
-        ee.add_global_mapping(
-            &self.module.get_function("channel_recv").unwrap(),
-            host_channel_recv as *const () as usize,
-        );
-        ee.add_global_mapping(
-            &self.module.get_function("spawn").unwrap(),
-            host_spawn as *const () as usize,
-        );
-        // Map std embeds.
-        ee.add_global_mapping(
-            &self.module.get_function("http_get").unwrap(),
-            host_http_get as *const () as usize,
-        );
-        ee.add_global_mapping(
-            &self.module.get_function("tls_handshake").unwrap(),
-            host_tls_handshake as *const () as usize,
-        );
+        ee.add_global_mapping(&self.module.get_function("datetime_now").unwrap(), host_datetime_now as *const () as usize);
+        ee.add_global_mapping(&self.module.get_function("free").unwrap(), host_free as *const () as usize);
+        ee.add_global_mapping(&self.module.get_function("channel_send").unwrap(), host_channel_send as *const () as usize);
+        ee.add_global_mapping(&self.module.get_function("channel_recv").unwrap(), host_channel_recv as *const () as usize);
+        ee.add_global_mapping(&self.module.get_function("spawn").unwrap(), host_spawn as *const () as usize);
+        ee.add_global_mapping(&self.module.get_function("http_get").unwrap(), host_http_get as *const () as usize);
+        ee.add_global_mapping(&self.module.get_function("tls_handshake").unwrap(), host_tls_handshake as *const () as usize);
 
         Ok(ee)
     }
