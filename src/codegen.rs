@@ -21,7 +21,7 @@ use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::support::LLVMString;
 use inkwell::types::{IntType, PointerType, VectorType};
-use inkwell::values::{BasicValueEnum, IntValue, PointerValue};
+use inkwell::values::{BasicValueEnum, PointerValue};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -161,7 +161,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .take(10) // Stub: limit params
                     .map(|_| self.i64_type.into())
                     .collect();
-                let fn_ty = self.i64_type.fn_type(&params[..], false);
+                
+                // Convert BasicTypeEnum to BasicMetadataTypeEnum
+                let params_meta: Vec<inkwell::types::BasicMetadataTypeEnum<'ctx>> = params
+                    .iter()
+                    .map(|&ty| ty.into())
+                    .collect();
+                let fn_ty = self.i64_type.fn_type(&params_meta, false);
                 let fn_val = self.module.add_function(&llvm_name, fn_ty, None);
                 let entry = self.context.append_basic_block(fn_val, "entry");
                 self.builder.position_at_end(entry);
@@ -176,8 +182,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 for stmt in &mir.stmts {
                     if let MirStmt::ParamInit { param_id, arg_index } = stmt {
                         let arg_val = fn_val.get_nth_param(*arg_index as u32).unwrap();
-                        let param_ptr = self.locals[*param_id];
-                        self.builder.build_store(*param_ptr, arg_val).unwrap();
+                        let param_ptr = self.locals[param_id];
+                        self.builder.build_store(param_ptr, arg_val).unwrap();
                     }
                 }
 
@@ -192,7 +198,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                     .build_alloca(self.i64_type, "assign_res")
                                     .expect("alloca failed")
                             });
-                            self.builder.build_store(**ptr, val).unwrap();
+                            self.builder.build_store(*ptr, val).unwrap();
                         }
                         MirStmt::Call { func, args, dest: result } => {
                             let callee = self.get_callee(func);
@@ -206,16 +212,22 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                     }
                                 })
                                 .collect();
-                            let call = self.builder.build_call(callee, &arg_vals[..], "call").unwrap();
-                            if let Some(vk) = call.try_as_basic_value() {
-                                if let inkwell::Either::Left(ret) = vk {
-                                    let ptr = self.locals.entry(*result).or_insert_with(|| {
-                                        self.builder
-                                            .build_alloca(self.i64_type, "call_res")
-                                            .expect("alloca failed")
-                                    });
-                                    self.builder.build_store(**ptr, ret).unwrap();
-                                }
+                            
+                            // Convert to BasicMetadataValueEnum
+                            let arg_vals_meta: Vec<inkwell::values::BasicMetadataValueEnum<'ctx>> = arg_vals
+                                .iter()
+                                .map(|&val| val.into())
+                                .collect();
+                            let call = self.builder.build_call(callee, &arg_vals_meta, "call").unwrap();
+                            
+                            // try_as_basic_value() returns Either in inkwell 0.7.1
+                            if let Some(ret) = call.try_as_basic_value().left() {
+                                let ptr = self.locals.entry(*result).or_insert_with(|| {
+                                    self.builder
+                                        .build_alloca(self.i64_type, "call_res")
+                                        .expect("alloca failed")
+                                });
+                                self.builder.build_store(*ptr, ret).unwrap();
                             }
                         }
                         MirStmt::VoidCall { func, args } => {
@@ -224,20 +236,26 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 .iter()
                                 .map(|&id| self.load_local(id))
                                 .collect();
-                            let _ = self.builder.build_call(callee, &arg_vals[..], "voidcall").unwrap();
+                            
+                            // Convert to BasicMetadataValueEnum
+                            let arg_vals_meta: Vec<inkwell::values::BasicMetadataValueEnum<'ctx>> = arg_vals
+                                .iter()
+                                .map(|&val| val.into())
+                                .collect();
+                            let _ = self.builder.build_call(callee, &arg_vals_meta, "voidcall").unwrap();
                         }
                         MirStmt::SemiringFold { op, values, result } => {
                             let mut acc = self.i64_type.const_int(0, false);
                             match op {
                                 SemiringOp::Add => {
                                     for &val_id in values {
-                                        let val = self.load_local(val_id).into_int_value().unwrap();
+                                        let val = self.load_local(val_id).into_int_value();
                                         acc = self.builder.build_int_add(acc, val, "add").unwrap();
                                     }
                                 }
                                 SemiringOp::Mul => {
                                     for &val_id in values {
-                                        let val = self.load_local(val_id).into_int_value().unwrap();
+                                        let val = self.load_local(val_id).into_int_value();
                                         acc = self.builder.build_int_mul(acc, val, "mul").unwrap();
                                     }
                                 }
@@ -247,10 +265,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                     .build_alloca(self.i64_type, "fold_res")
                                     .expect("alloca failed")
                             });
-                            self.builder.build_store(**ptr, acc.into()).unwrap();
+                            self.builder.build_store(*ptr, acc.into()).unwrap();
                         }
                         MirStmt::Return { val } => {
-                            let v = self.load_local(*val).into_int_value().unwrap();
+                            let v = self.load_local(*val).into_int_value();
                             self.builder.build_return(Some(&v)).unwrap();
                         }
                         MirStmt::Consume { id: _ } => {
