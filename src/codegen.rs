@@ -21,6 +21,7 @@ use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::types::{IntType, PointerType, VectorType};
 use inkwell::values::{BasicValueEnum, PointerValue};
+use inkwell::Either;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -142,60 +143,55 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     func_name: name.clone(),
                     type_args: vec![],
                 };
-                let mangled = lookup_specialization(&key)
-                    .map(|v| v.llvm_func_name)
-                    .unwrap_or_else(|| name.clone());
-
-                let fn_type = self.i64_type.fn_type(&[], false);
-                let fn_val = self.module.add_function(&mangled, fn_type, None);
+                let llvm_name = if let Some(mono) = lookup_specialization(&key) {
+                    mono.llvm_func_name
+                } else {
+                    let mangled = format!("{}_{}", name, key.type_args.join("_"));
+                    record_specialization(key, MonoValue { llvm_func_name: mangled.clone(), cache_safe: true });
+                    mangled
+                };
+                let fn_type = self.i64_type.fn_type(&vec![self.i64_type.into(); mir.locals.len()], false);
+                let fn_val = self.module.add_function(&llvm_name, fn_type, None);
                 let entry = self.context.append_basic_block(fn_val, "entry");
                 self.builder.position_at_end(entry);
-
-                for (local_name, id) in &mir.locals {
-                    let alloca = self.builder.build_alloca(self.i64_type, local_name).unwrap();
-                    self.locals.insert(*id, alloca);
+                self.locals.clear();
+                for (local_name, &id) in &mir.locals {
+                    let alloca = self.builder.build_alloca(self.i64_type, local_name);
+                    self.locals.insert(id, alloca);
                 }
-
-                for stmt in &mir.stmts {
-                    match stmt {
-                        MirStmt::ParamInit { param_id, arg_index } => {
-                            let param = fn_val.get_nth_param(*arg_index as u32).unwrap();
-                            let ptr = *self.locals.get(param_id).unwrap();
-                            self.builder.build_store(ptr, param).unwrap();
-                        }
+                let mut i = 0;
+                while i < mir.stmts.len() {
+                    match &mir.stmts[i] {
                         MirStmt::Assign { lhs, rhs } => {
                             let val = self.gen_expr(rhs);
-                            let ptr = *self.locals.get(lhs).unwrap();
+                            let ptr = *self.locals.get(lhs).expect("local not found");
                             self.builder.build_store(ptr, val).unwrap();
                         }
                         MirStmt::Call { func, args, dest } => {
-                            let args: Vec<_> = args.iter().map(|&id| self.load_local(id).into()).collect();
-                            let callee = self.module.get_function(func).unwrap_or_else(|| {
-                                let ty = self.i64_type.fn_type(&vec![self.i64_type.into(); args.len()], false);
-                                self.module.add_function(func, ty, None)
-                            });
-                            let call = self.builder.build_call(callee, &args, "call").unwrap();
-
-                            // Fixed: try_as_basic_value() returns Option<BasicValueEnum<'ctx>>
-                            if let Some(ret) = call.try_as_basic_value().as_basic_value_enum() {
+                            let callee = *self.fns.get(func).expect("fn not found");
+                            let arg_vals: Vec<_> = args.iter().map(|&id| self.load_local(id).into()).collect();
+                            let call = self.builder.build_direct_call(callee, &arg_vals, "call").unwrap();
+                            if let Some(ret) = call.try_as_basic_value().left() {
                                 let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                                    self.builder.build_alloca(self.i64_type, "tmp").unwrap()
+                                    self.builder.build_alloca(self.i64_type, &format!("dest_{}", dest))
                                 });
                                 self.builder.build_store(*ptr, ret).unwrap();
                             }
                         }
                         MirStmt::VoidCall { func, args } => {
-                            let args: Vec<_> = args.iter().map(|&id| self.load_local(id).into()).collect();
-                            let callee = self.module.get_function(func).unwrap_or_else(|| {
-                                let ty = self.context.void_type().fn_type(&vec![self.i64_type.into(); args.len()], false);
-                                self.module.add_function(func, ty, None)
-                            });
-                            self.builder.build_call(callee, &args, "").unwrap();
+                            let callee = *self.fns.get(func).expect("fn not found");
+                            let arg_vals: Vec<_> = args.iter().map(|&id| self.load_local(id).into()).collect();
+                            self.builder.build_direct_call(callee, &arg_vals, "call").unwrap();
+                        }
+                        MirStmt::ParamInit { param_id, arg_index } => {
+                            let param = fn_val.get_nth_param(*arg_index as u32).expect("param not found");
+                            let ptr = *self.locals.get(param_id).expect("local not found");
+                            self.builder.build_store(ptr, param).unwrap();
                         }
                         MirStmt::SemiringFold { op, values, result } => {
-                            let mut acc = self.load_local(values[0]).into_int_value();
-                            for &v in &values[1..] {
-                                let rhs = self.load_local(v).into_int_value();
+                            let mut acc = self.load_local(values[0]);
+                            for &val_id in &values[1..] {
+                                let rhs = self.load_local(val_id);
                                 acc = match op {
                                     SemiringOp::Add => self.builder.build_int_add(acc, rhs, "fold_add").unwrap(),
                                     SemiringOp::Mul => self.builder.build_int_mul(acc, rhs, "fold_mul").unwrap(),
@@ -214,8 +210,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             // No-op for LLVM, semantic only
                         }
                     }
+                    i += 1;
                 }
-
                 self.fns.insert(name.clone(), fn_val);
             }
         }
