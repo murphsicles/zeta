@@ -18,11 +18,11 @@ jobs:
     - uses: actions/checkout@v4
     - name: Install LLVM 21
       run: |
-        wget https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.7/LLVM-21.1.7-Linux-x86_64.tar.xz
+        wget https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.7/clang+llvm-21.1.7-x86_64-linux-gnu.tar.xz
         mkdir -p llvm-install
-        tar -xf LLVM-21.1.7-Linux-x86_64.tar.xz -C llvm-install --strip-components=0
-        echo "LLVM_SYS_21_PREFIX=$(pwd)/llvm-install/llvm-21.1.7-x86_64-linux-gnu" >> $GITHUB_ENV
-        echo "$(pwd)/llvm-install/llvm-21.1.7-x86_64-linux-gnu/bin" >> $GITHUB_PATH
+        tar -xf clang+llvm-21.1.7-x86_64-linux-gnu.tar.xz -C llvm-install --strip-components=0
+        echo "LLVM_SYS_21_PREFIX=$(pwd)/llvm-install/clang+llvm-21.1.7-x86_64-linux-gnu" >> $GITHUB_ENV
+        echo "$(pwd)/llvm-install/clang+llvm-21.1.7-x86_64-linux-gnu/bin" >> $GITHUB_PATH
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
@@ -53,11 +53,11 @@ jobs:
     - uses: actions/checkout@v4
     - name: Install LLVM 21
       run: |
-        wget https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.7/LLVM-21.1.7-Linux-x86_64.tar.xz
+        wget https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.7/clang+llvm-21.1.7-x86_64-linux-gnu.tar.xz
         mkdir -p llvm-install
-        tar -xf LLVM-21.1.7-Linux-x86_64.tar.xz -C llvm-install --strip-components=0
-        echo "LLVM_SYS_21_PREFIX=$(pwd)/llvm-install/llvm-21.1.7-x86_64-linux-gnu" >> $GITHUB_ENV
-        echo "$(pwd)/llvm-install/llvm-21.1.7-x86_64-linux-gnu/bin" >> $GITHUB_PATH
+        tar -xf clang+llvm-21.1.7-x86_64-linux-gnu.tar.xz -C llvm-install --strip-components=0
+        echo "LLVM_SYS_21_PREFIX=$(pwd)/llvm-install/clang+llvm-21.1.7-x86_64-linux-gnu" >> $GITHUB_ENV
+        echo "$(pwd)/llvm-install/clang+llvm-21.1.7-x86_64-linux-gnu/bin" >> $GITHUB_PATH
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
