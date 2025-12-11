@@ -177,7 +177,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 self.module.add_function(func, ty, None)
                             });
                             let call = self.builder.build_call(callee, &args, "call").unwrap();
-                            if let Some(ret) = call.try_as_basic_value().left() {
+                            if let Some(ret) = call.try_as_basic_value() {
                                 let ptr = self.locals.entry(*dest).or_insert_with(|| {
                                     self.builder.build_alloca(self.i64_type, "tmp").unwrap()
                                 });
@@ -238,13 +238,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
             MirExpr::Lit(n) => self.i64_type.const_int(*n as u64, true).into(),
             MirExpr::StringLit(s) => {
                 let mut bytes = s.as_bytes().to_vec();
-                bytes.push(0); // null terminator
+                bytes.push(0);
                 let array_ty = self.context.i8_type().array_type(bytes.len() as u32);
                 let global = self.module.add_global(array_ty, None, ".str");
                 global.set_linkage(Linkage::Private);
                 global.set_constant(true);
-                let values: Vec<_> = bytes
-                    .iter()
+                let values: Vec<_> = bytes.iter()
                     .map(|&b| self.context.i8_type().const_int(b as u64, false))
                     .collect();
                 let array_val = self.context.i8_type().const_array(&values);
@@ -252,10 +251,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 global.as_pointer_value().into()
             }
             MirExpr::ConstEval(n) => self.i64_type.const_int(*n as u64, true).into(),
-            MirExpr::TimingOwned(inner_id) => {
-                // Load inner, apply TBAA for constant-time analysis
-                self.load_local(*inner_id)
-            }
+            MirExpr::TimingOwned(inner_id) => self.load_local(*inner_id),
         }
     }
 
@@ -305,9 +301,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
         }
 
-        let ee = self
-            .module
-            .create_jit_execution_engine(OptimizationLevel::Aggressive)?;
+        let ee = self.module.create_jit_execution_engine(OptimizationLevel::Aggressive)?;
 
         ee.add_global_mapping(&self.module.get_function("datetime_now").unwrap(), host_datetime_now as *const () as usize);
         ee.add_global_mapping(&self.module.get_function("free").unwrap(), host_free as *const () as usize);
