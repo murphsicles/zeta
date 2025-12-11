@@ -220,14 +220,19 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 .collect();
                             let call = self.builder.build_call(callee, &arg_vals_meta, "call").unwrap();
                             
-                            // try_as_basic_value() returns Either in inkwell 0.7.1
-                            if let Some(ret) = call.try_as_basic_value().left() {
-                                let ptr = self.locals.entry(*result).or_insert_with(|| {
-                                    self.builder
-                                        .build_alloca(self.i64_type, "call_res")
-                                        .expect("alloca failed")
-                                });
-                                self.builder.build_store(*ptr, ret).unwrap();
+                            // try_as_basic_value() returns Either<BasicValueEnum, InstructionValue>
+                            match call.try_as_basic_value() {
+                                either::Either::Left(ret) => {
+                                    let ptr = self.locals.entry(*result).or_insert_with(|| {
+                                        self.builder
+                                            .build_alloca(self.i64_type, "call_res")
+                                            .expect("alloca failed")
+                                    });
+                                    self.builder.build_store(*ptr, ret).unwrap();
+                                }
+                                either::Either::Right(_) => {
+                                    // Void return, no value to store
+                                }
                             }
                         }
                         MirStmt::VoidCall { func, args } => {
