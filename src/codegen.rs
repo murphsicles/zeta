@@ -200,7 +200,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 .expect("call failed");
                         
                             // Inkwell 0.7.1: try_as_basic_value() returns Either<BasicValueEnum<'ctx>, CallSiteValue<'ctx>>
-                            if let Either::Left(ret) = call.try_as_basic_value() {
+                            if let Some(ret) = call.try_as_basic_value().left() {
                                 let ptr = self.locals.entry(*dest).or_insert_with(|| {
                                     self.builder
                                         .build_alloca(self.i64_type, &format!("dest_{}", dest))
@@ -208,7 +208,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 });
                                 self.builder.build_store(*ptr, ret).unwrap();
                             }
-                            // Either::Right(_) means void return — nothing to store
                         }
                         MirStmt::VoidCall { func, args } => {
                             let callee = self
