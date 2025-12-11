@@ -206,6 +206,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                         .expect("alloca failed")
                                 });
                                 self.builder.build_store(*ptr, ret).unwrap();
+                            }
                         }
                         MirStmt::VoidCall { func, args } => {
                             let callee = self
