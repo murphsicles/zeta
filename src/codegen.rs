@@ -13,6 +13,7 @@ use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use crate::specialization::{lookup_specialization, record_specialization, MonoKey, MonoValue};
 use crate::xai::XAIClient;
 use inkwell::AddressSpace;
+use inkwell::Either;
 use inkwell::OptimizationLevel;
 use inkwell::attributes::{Attribute, AttributeLoc};
 use inkwell::builder::Builder;
@@ -20,7 +21,7 @@ use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::types::{IntType, PointerType, VectorType};
-use inkwell::values::{BasicValueEnum, CallSiteValue, IntValue, PointerValue};
+use inkwell::values::{BasicValueEnum, IntValue, PointerValue};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -196,7 +197,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 .expect("call failed");
 
                             // Correct way to extract return value from CallSiteValue
-                            if let Some(ret) = call.try_as_basic_value().left() {
+                            if let Either::Left(ret) = call.try_as_basic_value() {
                                 let ptr = self.locals.entry(*dest).or_insert_with(|| {
                                     self.builder
                                         .build_alloca(self.i64_type, &format!("dest_{}", dest))
