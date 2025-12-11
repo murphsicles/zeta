@@ -146,106 +146,99 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let llvm_name = if let Some(mono) = lookup_specialization(&key) {
                     mono.llvm_func_name
                 } else {
-                    let mangled = format!("{}_{}", name, key.type_args.join("_"));
-                    record_specialization(
-                        key,
-                        MonoValue {
-                            llvm_func_name: mangled.clone(),
-                            cache_safe: true,
-                        },
-                    );
+                    let mangled = format!("{}_{}", name, self.locals.len());
+                    let mono_val = MonoValue {
+                        llvm_func_name: mangled.clone(),
+                        cache_safe: true,
+                    };
+                    record_specialization(key, mono_val);
                     mangled
                 };
-                let fn_type = self
-                    .i64_type
-                    .fn_type(&vec![self.i64_type.into(); mir.locals.len()], false);
-                let fn_val = self.module.add_function(&llvm_name, fn_type, None);
+
+                let params: Vec<inkwell::types::BasicTypeEnum> = mir
+                    .locals
+                    .values()
+                    .take(10) // Stub: limit params
+                    .map(|_| self.i64_type.into())
+                    .collect();
+                let fn_ty = self.i64_type.fn_type(&params, false);
+                let fn_val = self.module.add_function(&llvm_name, fn_ty, None);
                 let entry = self.context.append_basic_block(fn_val, "entry");
                 self.builder.position_at_end(entry);
-                self.locals.clear();
 
-                // Allocate locals
-                for (local_name, &id) in &mir.locals {
-                    let alloca = self
-                        .builder
-                        .build_alloca(self.i64_type, local_name)
-                        .expect("alloca failed");
+                // Create allocas for all locals
+                for &id in mir.locals.values() {
+                    let alloca = self.builder.build_alloca(self.i64_type, "local").unwrap();
                     self.locals.insert(id, alloca);
+                }
+
+                // Handle ParamInit: store args to param allocas
+                for stmt in &mir.stmts {
+                    if let MirStmt::ParamInit { param_id, arg_index } = stmt {
+                        let arg_val = fn_val.get_nth_param(*arg_index as u32).unwrap();
+                        let param_ptr = self.locals[param_id];
+                        self.builder.build_store(param_ptr, arg_val).unwrap();
+                    }
                 }
 
                 let mut i = 0;
                 while i < mir.stmts.len() {
-                    match &mir.stmts[i] {
+                    let stmt = &mir.stmts[i];
+                    match stmt {
                         MirStmt::Assign { lhs, rhs } => {
                             let val = self.gen_expr(rhs);
-                            let ptr = *self.locals.get(lhs).expect("local not found");
+                            let ptr = self.locals.entry(*lhs).or_insert_with(|| {
+                                self.builder
+                                    .build_alloca(self.i64_type, "assign_res")
+                                    .expect("alloca failed")
+                            });
                             self.builder.build_store(ptr, val).unwrap();
                         }
-                        MirStmt::Call { func, args, dest } => {
-                            let callee = self
-                                .module
-                                .get_function(func)
-                                .or_else(|| self.fns.get(func).copied())
-                                .expect("function not found");
-
-                            let arg_vals: Vec<_> = args
+                        MirStmt::Call { func, args, dest: result } => {
+                            let callee = self.get_callee(func);
+                            let arg_vals: Vec<BasicValueEnum> = args
                                 .iter()
-                                .map(|&id| self.load_local(id).into())
+                                .map(|&id| {
+                                    if let Some(expr) = mir.exprs.get(&id) {
+                                        self.gen_expr(expr)
+                                    } else {
+                                        self.load_local(id)
+                                    }
+                                })
                                 .collect();
-
-                            let call = self
-                                .builder
-                                .build_call(callee, &arg_vals, "call")
-                                .expect("call failed");
-
-                            // Inkwell 0.7 with LLVM 19: try_as_basic_value() returns Option<BasicValueEnum>
-                            if let Some(ret) = call.try_as_basic_value().left() {
-                                let ptr = self.locals.entry(*dest).or_insert_with(|| {
+                            let call = self.builder.build_call(callee, &arg_vals, "call");
+                            if let Some(ret) = call.try_as_basic_value() {
+                                let ptr = self.locals.entry(*result).or_insert_with(|| {
                                     self.builder
-                                        .build_alloca(self.i64_type, &format!("dest_{dest}"))
+                                        .build_alloca(self.i64_type, "call_res")
                                         .expect("alloca failed")
                                 });
-                                self.builder.build_store(*ptr, ret).unwrap();
+                                self.builder.build_store(ptr, ret).unwrap();
                             }
                         }
                         MirStmt::VoidCall { func, args } => {
-                            let callee = self
-                                .module
-                                .get_function(func)
-                                .or_else(|| self.fns.get(func).copied())
-                                .expect("function not found");
-                            let arg_vals: Vec<_> = args
+                            let callee = self.get_callee(func);
+                            let arg_vals: Vec<BasicValueEnum> = args
                                 .iter()
-                                .map(|&id| self.load_local(id).into())
+                                .map(|&id| self.load_local(id))
                                 .collect();
-                            self.builder
-                                .build_call(callee, &arg_vals, "")
-                                .expect("void call failed");
-                        }
-                        MirStmt::ParamInit { param_id, arg_index } => {
-                            let param = fn_val
-                                .get_nth_param(*arg_index as u32)
-                                .expect("param not found")
-                                .into_int_value();
-                            let ptr = *self.locals.get(param_id).expect("local not found");
-                            self.builder.build_store(ptr, param).unwrap();
+                            self.builder.build_call(callee, &arg_vals, "voidcall");
                         }
                         MirStmt::SemiringFold { op, values, result } => {
-                            let mut acc: IntValue<'ctx> = self
-                                .load_local(values[0])
-                                .into_int_value();
-                            for &val_id in &values[1..] {
-                                let rhs = self.load_local(val_id).into_int_value();
-                                acc = match op {
-                                    SemiringOp::Add => self
-                                        .builder
-                                        .build_int_add(acc, rhs, "fold_add")
-                                        .unwrap(),
-                                    SemiringOp::Mul => self
-                                        .builder
-                                        .build_int_mul(acc, rhs, "fold_mul")
-                                        .unwrap(),
-                                };
+                            let mut acc = self.i64_type.const_int(0, false);
+                            match op {
+                                SemiringOp::Add => {
+                                    for &val_id in values {
+                                        let val = self.load_local(val_id);
+                                        acc = self.builder.build_int_add(acc, val, "add").into_int_value();
+                                    }
+                                }
+                                SemiringOp::Mul => {
+                                    for &val_id in values {
+                                        let val = self.load_local(val_id);
+                                        acc = self.builder.build_int_mul(acc, val, "mul").into_int_value();
+                                    }
+                                }
                             }
                             let ptr = self.locals.entry(*result).or_insert_with(|| {
                                 self.builder
@@ -260,6 +253,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         }
                         MirStmt::Consume { id: _ } => {
                             // No-op for LLVM, semantic only
+                        }
+                        MirStmt::ParamInit { .. } => {
+                            // Already handled above
                         }
                     }
                     i += 1;
@@ -277,6 +273,18 @@ impl<'ctx> LLVMCodegen<'ctx> {
             self.builder
                 .build_return(Some(&self.i64_type.const_int(0, false)))
                 .unwrap();
+        }
+    }
+
+    /// Gets callee function value, declares if missing.
+    fn get_callee(&mut self, func: &str) -> inkwell::values::FunctionValue<'ctx> {
+        if let Some(f) = self.fns.get(func) {
+            *f
+        } else {
+            let ty = self.i64_type.fn_type(&[self.i64_type.into()], false);
+            let f = self.module.add_function(func, ty, Some(Linkage::External));
+            self.fns.insert(func.to_string(), f);
+            f
         }
     }
 
