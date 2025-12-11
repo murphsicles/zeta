@@ -12,6 +12,7 @@ use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use crate::specialization::{lookup_specialization, record_specialization, MonoKey, MonoValue};
 use crate::xai::XAIClient;
+use either::Either;
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
 use inkwell::attributes::{Attribute, AttributeLoc};
@@ -81,7 +82,7 @@ pub struct LLVMCodegen<'ctx> {
     #[allow(dead_code)]
     tbaa_const_time: inkwell::values::MetadataValue<'ctx>,
     /// Generated function map: name -> LLVM fn.
-    fns: HashMap<String, inkwell::values::FunctionValue<'ctx>>,
+    fns: HashMap<String, inkwell::values::FunctionValue<'ctx>,
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -195,15 +196,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 .build_call(callee, &arg_vals, "call")
                                 .expect("call failed");
 
-                            // inkwell 0.7+ → try_as_basic_value() returns Option<BasicValueEnum>
-                            if let Some(ret_val) = call.try_as_basic_value() {
-                                let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                                    self.builder
-                                        .build_alloca(self.i64_type, &format!("dest_{}", dest))
-                                        .expect("alloca failed")
-                                });
-                                self.builder.build_store(*ptr, ret_val).unwrap();
-                            }
+                                if let Either::Left(ret) = call.try_as_basic_value() {
+                                    let ptr = self.locals.entry(*dest).or_insert_with(|| {
+                                        self.builder
+                                            .build_alloca(self.i64_type, &format!("dest_{}", dest))
+                                            .expect("alloca failed")
+                                    });
+                                    self.builder.build_store(*ptr, ret).unwrap();
+                                }
                         }
                         MirStmt::VoidCall { func, args } => {
                             let callee = self
