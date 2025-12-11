@@ -12,7 +12,6 @@ use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use crate::specialization::{lookup_specialization, record_specialization, MonoKey, MonoValue};
 use crate::xai::XAIClient;
-use either::Either;
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
 use inkwell::attributes::{Attribute, AttributeLoc};
@@ -22,7 +21,7 @@ use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::support::LLVMString;
 use inkwell::types::{IntType, PointerType, VectorType};
-use inkwell::values::{BasicValueEnum, CallSiteValue, IntValue, PointerValue};
+use inkwell::values::{BasicValueEnum, IntValue, PointerValue};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -202,13 +201,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             // Inkwell 0.7.1: try_as_basic_value() returns Either<BasicValueEnum<'ctx>, CallSiteValue<'ctx>>
                             if let Some(ret) = call.try_as_basic_value().left() {
                                 let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                                    self.builder
-                                        .build_alloca(self.i64_type, &format!("dest_{}", dest))
-                                        .expect("alloca failed")
+                                    self.builder.build_alloca(self.i64_type, &format!("dest_{}", dest)).unwrap()
                                 });
                                 self.builder.build_store(*ptr, ret).unwrap();
                             }
-                        }
                         MirStmt::VoidCall { func, args } => {
                             let callee = self
                                 .module
