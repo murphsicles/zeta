@@ -44,7 +44,6 @@ extern "C" fn host_free(ptr: *mut std::ffi::c_void) {
 extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
     use std::ffi::CStr;
     if unsafe { CStr::from_ptr(url) }.to_str().is_ok() {
-        // Dummy: always return 200
         200i64
     } else {
         -1i64
@@ -139,7 +138,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
     pub fn gen_mirs(&mut self, mirs: &[Mir]) {
         for mir in mirs {
             if let Some(ref name) = mir.name {
-                // Stable ABI: Check for thin mono via specialization cache
                 let key = MonoKey {
                     func_name: name.clone(),
                     type_args: vec![],
@@ -177,7 +175,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 self.module.add_function(func, ty, None)
                             });
                             let call = self.builder.build_call(callee, &args, "call").unwrap();
-                            if let Some(ret) = call.try_as_basic_value() {
+
+                            // Fixed: try_as_basic_value() returns Option<BasicValueEnum<'ctx>>
+                            if let Some(ret) = call.try_as_basic_value().as_basic_value_enum() {
                                 let ptr = self.locals.entry(*dest).or_insert_with(|| {
                                     self.builder.build_alloca(self.i64_type, "tmp").unwrap()
                                 });
