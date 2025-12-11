@@ -9,9 +9,7 @@
 use crate::ast::AstNode;
 use crate::borrow::BorrowChecker;
 use crate::mir::{Mir, MirGen, MirStmt, SemiringOp};
-use crate::specialization::{
-    MonoKey, MonoValue, is_cache_safe, lookup_specialization, record_specialization,
-};
+use crate::specialization::{MonoKey, lookup_specialization};
 use std::collections::HashMap;
 use std::fmt;
 
