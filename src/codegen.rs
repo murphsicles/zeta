@@ -187,24 +187,26 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 .get_function(func)
                                 .or_else(|| self.fns.get(func).copied())
                                 .expect("function not found");
-                        
+
                             let arg_vals: Vec<_> = args
                                 .iter()
                                 .map(|&id| self.load_local(id).into())
                                 .collect();
-                        
+
                             let call = self
                                 .builder
                                 .build_call(callee, &arg_vals, "call")
                                 .expect("call failed");
-                        
-                            // Inkwell 0.7.1: try_as_basic_value() returns Either<BasicValueEnum<'ctx>, CallSiteValue<'ctx>>
+
+                            // Inkwell 0.7 with LLVM 19: try_as_basic_value() returns Option<BasicValueEnum>
                             if let Some(ret) = call.try_as_basic_value().left() {
                                 let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                                    self.builder.build_alloca(self.i64_type, &format!("dest_{}", dest)).unwrap()
+                                    self.builder
+                                        .build_alloca(self.i64_type, &format!("dest_{dest}"))
+                                        .expect("alloca failed")
                                 });
                                 self.builder.build_store(*ptr, ret).unwrap();
-                            }
+                        }
                         MirStmt::VoidCall { func, args } => {
                             let callee = self
                                 .module
