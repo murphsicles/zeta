@@ -17,9 +17,12 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install LLVM 21
-      uses: llvm/actions/install-llvm-action@v1
-      with:
-        version: '21.1'
+      run: |
+        wget https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.7/LLVM-21.1.7-linux-x86_64.tar.xz
+        mkdir -p llvm-install
+        tar -xf LLVM-21.1.7-linux-x86_64.tar.xz -C llvm-install --strip-components=0
+        echo "LLVM_SYS_211_PREFIX=$(pwd)/llvm-install/llvm-21.1.7-x86_64-linux-gnu" >> $GITHUB_ENV
+        echo "$(pwd)/llvm-install/llvm-21.1.7-x86_64-linux-gnu/bin" >> $GITHUB_PATH
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
@@ -35,11 +38,11 @@ jobs:
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     - name: Check
       env:
-        LLVM_SYS_211_PREFIX: ${{ env.LLVM_PATH }}
+        LLVM_SYS_211_PREFIX: ${{ env.LLVM_SYS_211_PREFIX }}
       run: cargo check --workspace --all-features --all-targets
     - name: Clippy
       env:
-        LLVM_SYS_211_PREFIX: ${{ env.LLVM_PATH }}
+        LLVM_SYS_211_PREFIX: ${{ env.LLVM_SYS_211_PREFIX }}
       run: cargo clippy --workspace --all-features --all-targets -- -D warnings
     - name: Fmt
       run: cargo fmt --all -- --check
@@ -49,9 +52,12 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install LLVM 21
-      uses: llvm/actions/install-llvm-action@v1
-      with:
-        version: '21.1'
+      run: |
+        wget https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.7/LLVM-21.1.7-linux-x86_64.tar.xz
+        mkdir -p llvm-install
+        tar -xf LLVM-21.1.7-linux-x86_64.tar.xz -C llvm-install --strip-components=0
+        echo "LLVM_SYS_211_PREFIX=$(pwd)/llvm-install/llvm-21.1.7-x86_64-linux-gnu" >> $GITHUB_ENV
+        echo "$(pwd)/llvm-install/llvm-21.1.7-x86_64-linux-gnu/bin" >> $GITHUB_PATH
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
@@ -67,11 +73,11 @@ jobs:
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     - name: Test
       env:
-        LLVM_SYS_211_PREFIX: ${{ env.LLVM_PATH }}
+        LLVM_SYS_211_PREFIX: ${{ env.LLVM_SYS_211_PREFIX }}
       run: cargo test --workspace --all-features
     - name: Bench (no plot)
       env:
-        LLVM_SYS_211_PREFIX: ${{ env.LLVM_PATH }}
+        LLVM_SYS_211_PREFIX: ${{ env.LLVM_SYS_211_PREFIX }}
       run: cargo bench --no-run # Stub: Run benches
   security:
     runs-on: ubuntu-latest
