@@ -22,7 +22,7 @@ use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::support::LLVMString;
 use inkwell::types::{IntType, PointerType, VectorType};
-use inkwell::values::{BasicValueEnum, IntValue, PointerValue};
+use inkwell::values::{BasicValueEnum, CallSiteValue, IntValue, PointerValue};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -188,15 +188,18 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 .get_function(func)
                                 .or_else(|| self.fns.get(func).copied())
                                 .expect("function not found");
+                        
                             let arg_vals: Vec<_> = args
                                 .iter()
                                 .map(|&id| self.load_local(id).into())
                                 .collect();
+                        
                             let call = self
                                 .builder
                                 .build_call(callee, &arg_vals, "call")
                                 .expect("call failed");
-
+                        
+                            // Inkwell 0.7.1: try_as_basic_value() returns Either<BasicValueEnum<'ctx>, CallSiteValue<'ctx>>
                             if let Either::Left(ret) = call.try_as_basic_value() {
                                 let ptr = self.locals.entry(*dest).or_insert_with(|| {
                                     self.builder
@@ -205,6 +208,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 });
                                 self.builder.build_store(*ptr, ret).unwrap();
                             }
+                            // Either::Right(_) means void return — nothing to store
                         }
                         MirStmt::VoidCall { func, args } => {
                             let callee = self
