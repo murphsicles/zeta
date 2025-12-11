@@ -220,20 +220,16 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 .collect();
                             let call = self.builder.build_call(callee, &arg_vals_meta, "call").unwrap();
                             
-                            // try_as_basic_value() returns ValueKind in inkwell 0.7.1
-                            use inkwell::values::ValueKind;
-                            match call.try_as_basic_value() {
-                                ValueKind::BasicValue(ret) => {
-                                    let ptr = self.locals.entry(*result).or_insert_with(|| {
-                                        self.builder
-                                            .build_alloca(self.i64_type, "call_res")
-                                            .expect("alloca failed")
-                                    });
-                                    self.builder.build_store(*ptr, ret).unwrap();
-                                }
-                                ValueKind::Instruction(_) => {
-                                    // Void return, no value to store
-                                }
+                            // try_as_basic_value() returns Either<BasicValueEnum, InstructionValue>
+                            let either_val = call.try_as_basic_value();
+                            if either_val.is_left() {
+                                let ret = either_val.left().unwrap();
+                                let ptr = self.locals.entry(*result).or_insert_with(|| {
+                                    self.builder
+                                        .build_alloca(self.i64_type, "call_res")
+                                        .expect("alloca failed")
+                                });
+                                self.builder.build_store(*ptr, ret).unwrap();
                             }
                         }
                         MirStmt::VoidCall { func, args } => {
