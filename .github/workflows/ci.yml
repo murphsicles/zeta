@@ -72,7 +72,7 @@ jobs:
     - name: Bench (no plot)
       env:
         LLVM_SYS_191_PREFIX: ${{ env.LLVM_PATH }}
-      run: cargo bench --no-run # Stub: Run benches in release
+      run: cargo bench --no-run # Stub: Run benches
   security:
     runs-on: ubuntu-latest
     needs: test
