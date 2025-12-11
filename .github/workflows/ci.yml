@@ -17,9 +17,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install LLVM 21
-      uses: KyleMayes/install-llvm-action@v2
+      uses: llvm/actions/install-llvm-action@v1
       with:
-        version: "21"
+        version: '21.1'
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
@@ -49,9 +49,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install LLVM 21
-      uses: KyleMayes/install-llvm-action@v2
+      uses: llvm/actions/install-llvm-action@v1
       with:
-        version: "21"
+        version: '21.1'
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
