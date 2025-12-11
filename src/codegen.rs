@@ -268,7 +268,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                     .build_alloca(self.i64_type, "fold_res")
                                     .expect("alloca failed")
                             });
-                            self.builder.build_store(*ptr, acc.into()).unwrap();
+                            self.builder.build_store(*ptr, acc).unwrap();
                         }
                         MirStmt::Return { val } => {
                             let v = self.load_local(*val).into_int_value();
