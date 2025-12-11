@@ -20,7 +20,7 @@ use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::types::{IntType, PointerType, VectorType};
-use inkwell::values::{BasicValueEnum, IntValue, PointerValue};
+use inkwell::values::{BasicValueEnum, CallSiteValue, IntValue, PointerValue};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -194,6 +194,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 .builder
                                 .build_call(callee, &arg_vals, "call")
                                 .expect("call failed");
+
+                            // Correct way to extract return value from CallSiteValue
                             if let Some(ret) = call.try_as_basic_value().left() {
                                 let ptr = self.locals.entry(*dest).or_insert_with(|| {
                                     self.builder
