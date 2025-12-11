@@ -196,15 +196,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 .build_call(callee, &arg_vals, "call")
                                 .expect("call failed");
 
-                            // Correct extraction for inkwell 0.7+ using either::Either
-                            if let Either::Left(ret) = call.try_as_basic_value() {
-                                let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                                    self.builder
-                                        .build_alloca(self.i64_type, &format!("dest_{}", dest))
-                                        .expect("alloca failed")
-                                });
-                                self.builder.build_store(*ptr, ret).unwrap();
-                            }
+                            let ret = call.try_as_basic_value().left().unwrap();
+                            let ptr = self.locals.entry(*dest).or_insert_with(|| {
+                                self.builder
+                                    .build_alloca(self.i64_type, &format!("dest_{}", dest))
+                                    .expect("alloca failed")
+                            });
+                            self.builder.build_store(*ptr, ret).unwrap();
                         }
                         MirStmt::VoidCall { func, args } => {
                             let callee = self
