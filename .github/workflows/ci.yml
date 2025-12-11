@@ -16,10 +16,10 @@ jobs:
         toolchain: [nightly] # 2024 edition requires nightly (stable post-2024)
     steps:
     - uses: actions/checkout@v4
-    - name: Install LLVM 19
+    - name: Install LLVM 21
       uses: KyleMayes/install-llvm-action@v2
       with:
-        version: "19.1.7"
+        version: "21.1.7"
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
@@ -35,11 +35,11 @@ jobs:
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     - name: Check
       env:
-        LLVM_SYS_191_PREFIX: ${{ env.LLVM_PATH }}
+        LLVM_SYS_211_PREFIX: ${{ env.LLVM_PATH }}
       run: cargo check --workspace --all-features --all-targets
     - name: Clippy
       env:
-        LLVM_SYS_191_PREFIX: ${{ env.LLVM_PATH }}
+        LLVM_SYS_211_PREFIX: ${{ env.LLVM_PATH }}
       run: cargo clippy --workspace --all-features --all-targets -- -D warnings
     - name: Fmt
       run: cargo fmt --all -- --check
@@ -48,10 +48,10 @@ jobs:
     needs: check
     steps:
     - uses: actions/checkout@v4
-    - name: Install LLVM 19
+    - name: Install LLVM 21
       uses: KyleMayes/install-llvm-action@v2
       with:
-        version: "19.1.7"
+        version: "21.1.7"
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
@@ -67,11 +67,11 @@ jobs:
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     - name: Test
       env:
-        LLVM_SYS_191_PREFIX: ${{ env.LLVM_PATH }}
+        LLVM_SYS_211_PREFIX: ${{ env.LLVM_PATH }}
       run: cargo test --workspace --all-features
     - name: Bench (no plot)
       env:
-        LLVM_SYS_191_PREFIX: ${{ env.LLVM_PATH }}
+        LLVM_SYS_211_PREFIX: ${{ env.LLVM_PATH }}
       run: cargo bench --no-run # Stub: Run benches
   security:
     runs-on: ubuntu-latest
