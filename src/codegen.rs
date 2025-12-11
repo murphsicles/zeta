@@ -195,13 +195,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 .build_call(callee, &arg_vals, "call")
                                 .expect("call failed");
 
-                            if let Some(ret) = call.try_as_basic_value() {
+                            // inkwell 0.7+ → try_as_basic_value() returns Option<BasicValueEnum>
+                            if let Some(ret_val) = call.try_as_basic_value() {
                                 let ptr = self.locals.entry(*dest).or_insert_with(|| {
                                     self.builder
                                         .build_alloca(self.i64_type, &format!("dest_{}", dest))
                                         .expect("alloca failed")
                                 });
-                                self.builder.build_store(*ptr, ret).unwrap();
+                                self.builder.build_store(*ptr, ret_val).unwrap();
                             }
                         }
                         MirStmt::VoidCall { func, args } => {
