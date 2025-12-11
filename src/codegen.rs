@@ -202,7 +202,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 .builder
                                 .build_call(callee, &args, "call")
                                 .unwrap();
-                            if let Some(ret) = call.try_as_basic_value().left() {
+                            if let Some(ret) = call.try_as_basic_value() {
                                 let ptr = *self.locals.entry(*dest).or_insert_with(|| {
                                     self.builder
                                         .build_alloca(self.i64_type, "tmp")
