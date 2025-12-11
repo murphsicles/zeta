@@ -21,7 +21,7 @@ use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::support::LLVMString;
 use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum};
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, IntValue, PointerValue};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue};
 use inkwell::types::{IntType, PointerType, VectorType};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -204,11 +204,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                     }
                                 })
                                 .collect();
-                            let arg_metadata: Vec<BasicMetadataValueEnum<'ctx>> = arg_vals.iter().map(|a| a.into()).collect();
+                            let arg_metadata: Vec<BasicMetadataValueEnum<'ctx>> = arg_vals.iter().map(|a| (*a).into()).collect();
                             let call_site = self.builder.build_call(callee, &arg_metadata[..], "call").unwrap();
-                            if let Some(ret) = call_site.try_as_basic_value() {
-                                let ptr = self.locals[result].clone();
-                                self.builder.build_store(ptr, ret).unwrap();
+                            if let Some(vk) = call_site.try_as_basic_value() {
+                                if let inkwell::values::ValueKind::BasicValue(ret) = vk {
+                                    let ptr = self.locals[result].clone();
+                                    self.builder.build_store(ptr, ret).unwrap();
+                                }
                             }
                         }
                         MirStmt::VoidCall { func, args } => {
@@ -217,7 +219,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 .iter()
                                 .map(|&id| self.load_local(id))
                                 .collect();
-                            let arg_metadata: Vec<BasicMetadataValueEnum<'ctx>> = arg_vals.iter().map(|a| a.into()).collect();
+                            let arg_metadata: Vec<BasicMetadataValueEnum<'ctx>> = arg_vals.iter().map(|a| (*a).into()).collect();
                             let _call = self.builder.build_call(callee, &arg_metadata[..], "voidcall").unwrap();
                         }
                         MirStmt::SemiringFold { op, values, result } => {
@@ -225,14 +227,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             match op {
                                 SemiringOp::Add => {
                                     for &val_id in values {
-                                        let val = self.load_local(val_id).into_int_value().unwrap();
+                                        let val = self.load_local(val_id).into_int_value().expect("Expected IntValue");
                                         acc = self.builder.build_int_add(acc, val, "add").unwrap();
                                     }
                                 }
                                 SemiringOp::Mul => {
                                     let mut acc = self.i64_type.const_int(1, false);
                                     for &val_id in values {
-                                        let val = self.load_local(val_id).into_int_value().unwrap();
+                                        let val = self.load_local(val_id).into_int_value().expect("Expected IntValue");
                                         acc = self.builder.build_int_mul(acc, val, "mul").unwrap();
                                     }
                                 }
@@ -241,7 +243,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             self.builder.build_store(ptr, acc.into()).unwrap();
                         }
                         MirStmt::Return { val } => {
-                            let v = self.load_local(*val).into_int_value().unwrap();
+                            let v = self.load_local(*val).into_int_value().expect("Expected IntValue");
                             self.builder.build_return(Some(&v)).unwrap();
                         }
                         MirStmt::Consume { id: _ } => {
