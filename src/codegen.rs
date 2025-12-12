@@ -20,7 +20,7 @@ use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::support::LLVMString;
 use inkwell::types::BasicMetadataTypeEnum;
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, BasicValue, PointerValue};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue};
 use inkwell::types::{IntType, PointerType, VectorType};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -177,7 +177,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     if let MirStmt::ParamInit { param_id, arg_index } = &mir.stmts[i] {
                         if let Some(param_ptr) = self.locals.get(param_id) {
                             let arg_val = fn_val.get_nth_param((*arg_index) as u32).expect("param exists");
-                            self.builder.build_store(*param_ptr, arg_val);
+                            let _ = self.builder.build_store(*param_ptr, arg_val);
                         }
                         i += 1;
                         continue;
@@ -186,12 +186,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         MirStmt::Assign { lhs, rhs } => {
                             let val = self.gen_expr(rhs);
                             if let Some(ptr) = self.locals.get(lhs) {
-                                self.builder.build_store(*ptr, val);
+                                let _ = self.builder.build_store(*ptr, val);
                             }
                         }
                         MirStmt::Call { func, args, dest } => {
                             let callee = self.get_callee(func);
-                            let mut llvm_args: Vec<BasicMetadataValueEnum> = args
+                            let llvm_args: Vec<BasicMetadataValueEnum> = args
                                 .iter()
                                 .map(|&arg_id| {
                                     let arg_val = self.load_local(arg_id);
@@ -201,7 +201,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             let call = self.builder.build_call(callee, &llvm_args, "call").unwrap();
                             let ret = call.try_as_basic_value().unwrap_basic();
                             if let Some(ptr) = self.locals.get(dest) {
-                                self.builder.build_store(*ptr, ret);
+                                let _ = self.builder.build_store(*ptr, ret);
                             }
                             // Affine: Consume by-value args post-call (no-op in LLVM)
                             for &arg_id in args {
@@ -220,7 +220,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         }
                         MirStmt::Return { val } => {
                             let rv = self.load_local(*val);
-                            self.builder.build_return(Some(&rv));
+                            let _ = self.builder.build_return(Some(&rv));
                         }
                         MirStmt::SemiringFold { op, values, result } => {
                             if values.is_empty() {
@@ -228,16 +228,16 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 continue;
                             }
                             let lhs_val = self.load_local(values[0]);
-                            let mut acc = lhs_val.into_int_value();
+                            let mut acc = lhs_val.into_int_value().expect("Expected i64");
                             for &val_id in &values[1..] {
-                                let val = self.load_local(val_id).into_int_value();
+                                let val = self.load_local(val_id).into_int_value().expect("Expected i64");
                                 acc = match op {
                                     SemiringOp::Add => self.builder.build_int_add(acc, val, "add").unwrap(),
                                     SemiringOp::Mul => self.builder.build_int_mul(acc, val, "mul").unwrap(),
                                 };
                             }
                             if let Some(ptr) = self.locals.get(result) {
-                                self.builder.build_store(*ptr, acc);
+                                let _ = self.builder.build_store(*ptr, acc);
                             }
                         }
                         MirStmt::Consume { .. } => {
@@ -257,9 +257,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
             let main_fn = self.module.add_function("main", main_ty, None);
             let entry = self.context.append_basic_block(main_fn, "entry");
             self.builder.position_at_end(entry);
-            self.builder
-                .build_return(Some(&self.i64_type.const_int(0, false)))
-                .unwrap();
+            let _ = self.builder
+                .build_return(Some(&self.i64_type.const_int(0, false)));
         }
     }
 
