@@ -20,7 +20,7 @@ use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::support::LLVMString;
 use inkwell::types::BasicMetadataTypeEnum;
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, BasicValue, PointerValue};
 use inkwell::types::{IntType, PointerType, VectorType};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -228,12 +228,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 continue;
                             }
                             let lhs_val = self.load_local(values[0]);
-                            let mut acc = lhs_val.into_int_value().unwrap();
+                            let mut acc = lhs_val.into_int_value();
                             for &val_id in &values[1..] {
-                                let val = self.load_local(val_id).into_int_value().unwrap();
+                                let val = self.load_local(val_id).into_int_value();
                                 acc = match op {
-                                    SemiringOp::Add => self.builder.build_int_add(acc, val, "add").unwrap(),
-                                    SemiringOp::Mul => self.builder.build_int_mul(acc, val, "mul").unwrap(),
+                                    SemiringOp::Add => self.builder.build_int_add(acc, val, "add").unwrap().as_basic_value_enum().into_int_value(),
+                                    SemiringOp::Mul => self.builder.build_int_mul(acc, val, "mul").unwrap().as_basic_value_enum().into_int_value(),
                                 };
                             }
                             if let Some(ptr) = self.locals.get(result) {
