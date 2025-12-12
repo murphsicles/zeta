@@ -19,7 +19,7 @@ use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::support::LLVMString;
-use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum};
+use inkwell::types::BasicMetadataTypeEnum;
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue};
 use inkwell::types::{IntType, PointerType, VectorType};
 use serde_json::Value;
@@ -167,7 +167,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 // Allocate locals
                 self.locals.clear();
                 for (local_name, &local_id) in &mir.locals {
-                    let alloca = self.builder.build_alloca(self.i64_type, local_name);
+                    let alloca = self.builder.build_alloca(self.i64_type, local_name).expect("alloca failed");
                     self.locals.insert(local_id, alloca);
                 }
 
@@ -199,7 +199,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 })
                                 .collect();
                             let call = self.builder.build_call(callee, &llvm_args, "call").unwrap();
-                            let ret = call.try_as_basic_value().unwrap();
+                            let ret = call.try_as_basic_value().expect("Expected basic value");
                             if let Some(ptr) = self.locals.get(dest) {
                                 self.builder.build_store(*ptr, ret);
                             }
@@ -227,9 +227,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 i += 1;
                                 continue;
                             }
-                            let mut acc = self.load_local(values[0]).into_int_value().expect("Expected i64");
+                            let mut acc = self.load_local(values[0]).into_int_value();
                             for &val_id in &values[1..] {
-                                let val = self.load_local(val_id).into_int_value().expect("Expected i64");
+                                let val = self.load_local(val_id).into_int_value();
                                 acc = match op {
                                     SemiringOp::Add => acc.add(val),
                                     SemiringOp::Mul => acc.mul(val),
@@ -324,7 +324,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let client = XAIClient::new().ok();
         let mir_stats = format!(
             "Stmts: {}, Locals: {}, SIMD eligible: {}",
-            self.module.print_to_string().len(),
+            self.module.print_to_string().to_string().len(),
             self.locals.len(),
             1
         );
