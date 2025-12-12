@@ -232,12 +232,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             for &val_id in &values[1..] {
                                 let val = self.load_local(val_id).into_int_value();
                                 acc = match op {
-                                    SemiringOp::Add => self.builder.build_int_add(acc, val, "add").unwrap().as_basic_value_enum().into_int_value(),
-                                    SemiringOp::Mul => self.builder.build_int_mul(acc, val, "mul").unwrap().as_basic_value_enum().into_int_value(),
+                                    SemiringOp::Add => self.builder.build_int_add(acc, val, "add").unwrap(),
+                                    SemiringOp::Mul => self.builder.build_int_mul(acc, val, "mul").unwrap(),
                                 };
                             }
                             if let Some(ptr) = self.locals.get(result) {
-                                self.builder.build_store(*ptr, acc.into());
+                                self.builder.build_store(*ptr, acc);
                             }
                         }
                         MirStmt::Consume { .. } => {
