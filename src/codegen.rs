@@ -199,7 +199,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 })
                                 .collect();
                             let call = self.builder.build_call(callee, &llvm_args, "call").unwrap();
-                            let ret = call.try_as_basic_value().left().unwrap();
+                            let ret = call.try_as_basic_value().unwrap();
                             if let Some(ptr) = self.locals.get(dest) {
                                 self.builder.build_store(*ptr, ret);
                             }
@@ -228,9 +228,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 continue;
                             }
                             let lhs_val = self.load_local(values[0]);
-                            let mut acc = lhs_val.into_int_value().unwrap();
+                            let mut acc = lhs_val.into_int_value();
                             for &val_id in &values[1..] {
-                                let val = self.load_local(val_id).into_int_value().unwrap();
+                                let val = self.load_local(val_id).into_int_value();
                                 acc = match op {
                                     SemiringOp::Add => self.builder.build_int_add(acc, val, "add").into_int_value().unwrap(),
                                     SemiringOp::Mul => self.builder.build_int_mul(acc, val, "mul").into_int_value().unwrap(),
