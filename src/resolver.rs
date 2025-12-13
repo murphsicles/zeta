@@ -111,8 +111,12 @@ impl Resolver {
         str_ops.insert("concat".to_string(), (vec![Type::Str], Type::Str));
         str_ops.insert("contains".to_string(), (vec![Type::Str], Type::Bool));
         str_ops.insert("trim".to_string(), (vec![], Type::Str));
-        str_ops.insert("split".to_string(), (vec![Type::Str], Type::Named("Vec<str>".to_string())));
-        r.direct_impls.insert(("StrOps".to_string(), Type::Str), str_ops);
+        str_ops.insert(
+            "split".to_string(),
+            (vec![Type::Str], Type::Named("Vec<str>".to_string())),
+        );
+        r.direct_impls
+            .insert(("StrOps".to_string(), Type::Str), str_ops);
 
         r
     }
@@ -182,15 +186,18 @@ impl Resolver {
     /// Simple direct-impl method lookup (temporary replacement for resolve_method_type)
     fn lookup_method(&self, recv_ty: Option<&Type>, method: &str, args: &[Type]) -> Option<Type> {
         recv_ty.and_then(|ty| {
-            self.direct_impls.iter().find_map(|((_, impl_ty), methods)| {
-                if impl_ty == ty {
-                    methods.get(method)
-                        .filter(|(param_tys, _)| param_tys.len() == args.len())
-                        .map(|(_, ret_ty)| ret_ty.clone())
-                } else {
-                    None
-                }
-            })
+            self.direct_impls
+                .iter()
+                .find_map(|((_, impl_ty), methods)| {
+                    if impl_ty == ty {
+                        methods
+                            .get(method)
+                            .filter(|(param_tys, _)| param_tys.len() == args.len())
+                            .map(|(_, ret_ty)| ret_ty.clone())
+                    } else {
+                        None
+                    }
+                })
         })
     }
 
@@ -212,7 +219,8 @@ impl Resolver {
                 if *structural {
                     Type::Unknown
                 } else {
-                    self.lookup_method(recv_ty.as_ref(), method, &arg_tys).unwrap_or(Type::Unknown)
+                    self.lookup_method(recv_ty.as_ref(), method, &arg_tys)
+                        .unwrap_or(Type::Unknown)
                 }
             }
             AstNode::TimingOwned { inner, .. } => {
