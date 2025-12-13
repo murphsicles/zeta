@@ -20,7 +20,7 @@ use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::support::LLVMString;
 use inkwell::values::{BasicValueEnum, BasicMetadataValueEnum, PointerValue};
-use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, IntType, PointerType, VectorType};
+use inkwell::types::{BasicMetadataTypeEnum, IntType, PointerType, VectorType};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -191,7 +191,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             let call_result = self.builder.build_call(callee, &arg_metas, "call").expect("call failed");
                             let store_val = call_result.try_as_basic_value().unwrap_basic().into_int_value();
                             let result = self.locals[dest];
-                            self.builder.build_store(result, store_val.into());
+                            self.builder.build_store(result, store_val);
                         }
                         MirStmt::VoidCall { func, args } => {
                             let callee = self.get_callee(func);
