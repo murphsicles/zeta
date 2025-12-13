@@ -9,7 +9,7 @@
 
 use crate::ast::AstNode;
 use nom::branch::alt;
-use nom::bytes::complete::{tag, take_while1, take_until};
+use nom::bytes::complete::{tag, take_while1};
 use nom::character::complete::{
     alpha1, alphanumeric0, char as nom_char, i64 as nom_i64, multispace0,
 };
@@ -66,10 +66,10 @@ fn parse_string_lit<'a>()
 }
 
 /// Parses simple content for f-string (non-recursive).
-fn parse_fstring_content<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+fn parse_fstring_content<'a>() -> impl Parser<&'a str, Output = Vec<AstNode>, Error = nom::error::Error<&'a str>> {
     map(
-        delimited(tag("f\""), take_while1(|c| c != '{' && c != '"'), tag("\"")),
-        |s: &str| AstNode::StringLit(s.to_string()),
+        delimited(tag("f\""), take_while1(|c| c != '"' && c != '{'), tag("\"")),
+        |s: &str| vec![AstNode::StringLit(s.to_string())],
     )
 }
 
@@ -153,11 +153,13 @@ fn parse_call<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
 
 /// Parses expressions with + concat (left-assoc chaining).
 fn parse_expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    let primary = alt((parse_call(), parse_base_expr()));
-    let init = primary.clone();
+    fn primary<'b>() -> impl Parser<&'b str, Output = AstNode, Error = nom::error::Error<&'b str>> {
+        alt((parse_call(), parse_base_expr()))
+    }
+    let init = primary();
     init
-        .and(many0(ws(tag("+")).and(primary)))
-        .map(|(init, ops)| {
+        .and(many0(ws(tag("+")).and(primary())))
+        .map(|(init: AstNode, ops): (AstNode, Vec<((), AstNode)>)| {
             ops.into_iter().fold(init, |acc, (_, r)| AstNode::BinaryOp {
                 op: "concat".to_string(),
                 left: Box::new(acc),
