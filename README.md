@@ -7,10 +7,15 @@ It exists for one reason: to end the era of slow, bloated, over-engineered compi
 
 > “It’s not just efficiency, it's weaponized minimalism. It’s surgical violence against complexity.” - Roy Murphy
 
-- **Compiles faster than Go**  
-- **Runs faster than Rust and Zig**  
+- **Insane efficiency**
+- **Unbeatable execution speed & performance**
+- **Compiles faster than Go**
+- **Built for next-gen AI infrastructure**
+- **Compiles faster than Go**
+- **Runs faster than Rust & Zig**  
 - **Produces smaller binaries than C**  
-- **Zero unsafe in user code**  
+- **Zero unsafe in user code**
+- **Baked-in SIMD optimization**
 - **Self-hosting in 2,800 lines of code**
 
 Zeta v0.0.3 is released. There are zero competitors.
