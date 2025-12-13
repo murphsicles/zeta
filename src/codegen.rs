@@ -19,9 +19,8 @@ use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::support::LLVMString;
-use inkwell::types::{BasicMetadataTypeEnum};
-use inkwell::values::{BasicValueEnum, PointerValue};
-use inkwell::types::{IntType, PointerType, VectorType};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue};
+use inkwell::types::{BasicTypeEnum, IntType, PointerType, VectorType};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -100,22 +99,22 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let i64_fn_type = i64_type.fn_type(&[], false);
         module.add_function("datetime_now", i64_fn_type, Some(Linkage::External));
 
-        let free_type = void_type.fn_type(&[ptr_type.into::<inkwell::types::BasicTypeEnum>().into::<BasicMetadataTypeEnum>()], false);
+        let free_type = void_type.fn_type(&[ptr_type.into()], false);
         module.add_function("free", free_type, Some(Linkage::External));
 
-        let send_type = void_type.fn_type(&[i64_type.into::<inkwell::types::BasicTypeEnum>().into::<BasicMetadataTypeEnum>(), i64_type.into::<inkwell::types::BasicTypeEnum>().into::<BasicMetadataTypeEnum>()], false);
+        let send_type = void_type.fn_type(&[i64_type.into(), i64_type.into()], false);
         module.add_function("channel_send", send_type, Some(Linkage::External));
 
-        let recv_type = i64_type.fn_type(&[i64_type.into::<inkwell::types::BasicTypeEnum>().into::<BasicMetadataTypeEnum>()], false);
+        let recv_type = i64_type.fn_type(&[i64_type.into()], false);
         module.add_function("channel_recv", recv_type, Some(Linkage::External));
 
-        let spawn_type = i64_type.fn_type(&[i64_type.into::<inkwell::types::BasicTypeEnum>().into::<BasicMetadataTypeEnum>()], false);
+        let spawn_type = i64_type.fn_type(&[i64_type.into()], false);
         module.add_function("spawn", spawn_type, Some(Linkage::External));
 
-        let http_type = i64_type.fn_type(&[char_ptr_type.into::<inkwell::types::BasicTypeEnum>().into::<BasicMetadataTypeEnum>()], false);
+        let http_type = i64_type.fn_type(&[char_ptr_type.into()], false);
         module.add_function("http_get", http_type, Some(Linkage::External));
 
-        let tls_type = i64_type.fn_type(&[char_ptr_type.into::<inkwell::types::BasicTypeEnum>().into::<BasicMetadataTypeEnum>()], false);
+        let tls_type = i64_type.fn_type(&[char_ptr_type.into()], false);
         module.add_function("tls_handshake", tls_type, Some(Linkage::External));
 
         let tbaa_metadata = context.i64_type().const_int(0, false).into();
@@ -155,7 +154,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     });
                 }
 
-                let param_types: Vec<BasicMetadataTypeEnum> = mir.locals.keys().map(|_| self.i64_type.into::<inkwell::types::BasicTypeEnum>().into::<BasicMetadataTypeEnum>()).collect();
+                let param_types: Vec<BasicTypeEnum<'ctx>> = mir.locals.keys().map(|_| self.i64_type.into()).collect();
                 let fn_type = self.i64_type.fn_type(&param_types, false);
                 let fn_val = self.module.add_function(&name, fn_type, None);
                 let entry = self.context.append_basic_block(fn_val, "entry");
@@ -190,9 +189,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 arg_metas.push((*v).into());
                             }
                             let call_result = self.builder.build_call(callee, &arg_metas, "call").expect("call failed");
-                            let store_val = call_result.try_as_basic_value().expect("Expected basic value");
+                            let store_val = call_result.try_as_int_value().expect("Expected i64");
                             let result = self.locals[dest];
-                            self.builder.build_store(result, store_val);
+                            self.builder.build_store(result, store_val.into());
                         }
                         MirStmt::VoidCall { func, args } => {
                             let callee = self.get_callee(func);
@@ -205,13 +204,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         }
                         MirStmt::Return { val } => {
                             let return_val = self.load_local(*val);
-                            self.builder.build_return(Some(&return_val));
+                            self.builder.build_return(Some(return_val));
                         }
                         MirStmt::SemiringFold { op, values, result } => {
                             let result_ptr = self.locals[result];
                             let mut acc = self.i64_type.const_int(0, false);
                             for &val_id in values {
-                                let val = self.load_local(val_id).into_int_value();
+                                let val = self.load_local(val_id).into_int_value().expect("Expected i64");
                                 match *op {
                                     SemiringOp::Add => {
                                         acc = self.builder.build_int_add(acc, val, "semiring_add").expect("add failed");
@@ -238,7 +237,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
 
                 self.builder.position_at_end(self.context.append_basic_block(fn_val, "return"));
-                self.builder.build_return(Some(&self.i64_type.const_int(0, false)));
+                self.builder.build_return(Some(self.i64_type.const_int(0, false).into()));
 
                 self.fns.insert(name.clone(), fn_val);
             }
@@ -250,7 +249,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             let entry = self.context.append_basic_block(main_fn, "entry");
             self.builder.position_at_end(entry);
             self.builder
-                .build_return(Some(&self.i64_type.const_int(0, false)));
+                .build_return(Some(self.i64_type.const_int(0, false).into()));
         }
     }
 
@@ -259,7 +258,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         if let Some(f) = self.fns.get(func) {
             *f
         } else {
-            let param_types = vec![self.i64_type.into::<inkwell::types::BasicTypeEnum>().into::<BasicMetadataTypeEnum>()];
+            let param_types: Vec<BasicTypeEnum<'ctx>> = vec![self.i64_type.into()];
             let ty = self.i64_type.fn_type(&param_types, false);
             let f = self.module.add_function(func, ty, Some(Linkage::External));
             self.fns.insert(func.to_string(), f);
