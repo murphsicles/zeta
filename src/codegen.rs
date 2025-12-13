@@ -11,8 +11,9 @@
 
 use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
-use crate::specialization::{MonoKey, MonoValue, lookup_specialization, record_specialization};
+use crate::specialization::{MonoKey, lookup_specialization};
 use crate::xai::XAIClient;
+use inkwell::basic_block::BasicBlock;
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
 use inkwell::attributes::{Attribute, AttributeLoc};
@@ -22,7 +23,7 @@ use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::support::LLVMString;
 use inkwell::types::{BasicMetadataTypeEnum, IntType, PointerType, VectorType, StructType};
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue, FunctionValue};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -83,11 +84,11 @@ pub struct LLVMCodegen<'ctx> {
     #[allow(dead_code)]
     tbaa_const_time: inkwell::values::MetadataValue<'ctx>,
     /// Generated function map: name -> LLVM fn.
-    fns: HashMap<String, inkwell::values::FunctionValue<'ctx>>,
+    fns: HashMap<String, FunctionValue<'ctx>>,
     /// Current function being generated.
-    current_fn: inkwell::values::FunctionValue<'ctx>,
+    current_fn: FunctionValue<'ctx>,
     /// Current basic block.
-    current_block: inkwell::values::BasicBlock<'ctx>,
+    current_block: BasicBlock<'ctx>,
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -136,13 +137,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
             locals: HashMap::new(),
             tbaa_const_time,
             fns: HashMap::new(),
-            current_fn: inkwell::values::FunctionValue::invalid(),
-            current_block: inkwell::values::BasicBlock::invalid(),
+            current_fn: FunctionValue::invalid(),
+            current_block: BasicBlock::invalid(),
         };
 
         // Declare string intrinsics
         let str_ptr_type = ptr_type; // i8*
-        let vecu8_type = StructType::get(&context, &[i64_type.into()], false); // Simplified Vec<u8> as (len, ptr)
+        let vecu8_type = context.struct_type(&[i64_type.into()], false); // Simplified Vec<u8> as (len, ptr)
         let vecu8_ptr_type = context.ptr_type(AddressSpace::default());
 
         // concat(str, str) -> str (as i8*)
@@ -191,7 +192,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     name.clone()
                 };
 
-                let param_types: Vec<BasicMetadataTypeEnum<'ctx>> = mir.locals.len().min(10).iter().map(|_| self.i64_type.into()).collect();
+                let num_params = mir.locals.len().min(10) as usize;
+                let param_types: Vec<BasicMetadataTypeEnum<'ctx>> = vec![self.i64_type.into(); num_params];
                 let fn_type = self.i64_type.fn_type(&param_types, false);
                 let fn_val = self.module.add_function(&llvm_name, fn_type, None);
 
@@ -202,8 +204,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
                 // Alloc locals
                 self.locals.clear();
-                for (i, id) in mir.locals.values().enumerate() {
-                    let alloca = self.builder.build_alloca(self.i64_type, &format!("local_{}", id));
+                for id in mir.locals.values() {
+                    let alloca = self.builder.build_alloca(self.i64_type, &format!("local_{}", id)).expect("alloca failed");
                     self.locals.insert(*id, alloca);
                 }
 
@@ -226,7 +228,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         MirStmt::Call { func, args, dest } => {
                             let callee = self.get_callee(func);
                             let arg_vals: Vec<BasicMetadataValueEnum> = args.iter().map(|&id| self.gen_expr(&MirExpr::Var(id)).into()).collect();
-                            let call = self.builder.build_call(callee, &arg_vals, "call");
+                            let call = self.builder.build_call(callee, &arg_vals, "call").expect("call failed");
                             let res = call.try_as_basic_value().left().unwrap();
                             let alloca = self.locals[dest];
                             self.builder.build_store(alloca, res);
@@ -234,7 +236,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         MirStmt::VoidCall { func, args } => {
                             let callee = self.get_callee(func);
                             let arg_vals: Vec<BasicMetadataValueEnum> = args.iter().map(|&id| self.gen_expr(&MirExpr::Var(id)).into()).collect();
-                            self.builder.build_call(callee, &arg_vals, "voidcall");
+                            let _ = self.builder.build_call(callee, &arg_vals, "voidcall").expect("voidcall failed");
                         }
                         MirStmt::Return { val } => {
                             let loaded = self.load_local(*val);
@@ -248,7 +250,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             };
                             let callee = self.get_callee(callee_name);
                             let arg_vals: Vec<BasicMetadataValueEnum> = values.iter().map(|&id| self.gen_expr(&MirExpr::Var(id)).into()).collect();
-                            let call = self.builder.build_call(callee, &arg_vals, "fold");
+                            let call = self.builder.build_call(callee, &arg_vals, "fold").expect("fold call failed");
                             let res = call.try_as_basic_value().left().unwrap();
                             let alloca = self.locals[result];
                             self.builder.build_store(alloca, res);
@@ -283,7 +285,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
     }
 
     /// Gets callee function value, declares if missing.
-    fn get_callee(&mut self, func: &str) -> inkwell::values::FunctionValue<'ctx> {
+    fn get_callee(&mut self, func: &str) -> FunctionValue<'ctx> {
         if let Some(f) = self.fns.get(func) {
             *f
         } else {
