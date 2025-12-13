@@ -156,7 +156,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
                 let param_types: Vec<BasicMetadataTypeEnum<'ctx>> = mir.locals.keys().map(|_| self.i64_type.into()).collect();
                 let fn_type = self.i64_type.fn_type(&param_types, false);
-                let fn_val = self.module.add_function(&name, fn_type, None);
+                let fn_val = self.module.add_function(name, fn_type, None);
                 let entry = self.context.append_basic_block(fn_val, "entry");
                 self.builder.position_at_end(entry);
 
@@ -289,7 +289,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     /// Loads a local variable from alloca slot.
     fn load_local(&self, id: u32) -> BasicValueEnum<'ctx> {
-        let ptr = self.locals[&id].clone();
+        let ptr = self.locals[&id];
         self.builder
             .build_load(self.i64_type, ptr, &format!("load_{id}"))
             .expect("load failed")
@@ -315,19 +315,17 @@ impl<'ctx> LLVMCodegen<'ctx> {
             self.locals.len(),
             1
         );
-        if let Some(c) = &client {
-            if let Ok(rec) = c.mlgo_optimize(&mir_stats) {
-                if let Ok(json) = serde_json::from_str::<Value>(&rec) {
-                    if let Some(passes) = json["passes"].as_array() {
-                        for p in passes {
-                            if let Some(ps) = p.as_str() {
-                                if ps == "vectorize" {
-                                    eprintln!("Running MLGO vectorize pass for SIMD");
-                                } else {
-                                    eprintln!("Running AI-recommended pass: {}", ps);
-                                }
-                            }
-                        }
+        if let Some(c) = &client
+            && let Ok(rec) = c.mlgo_optimize(&mir_stats)
+            && let Ok(json) = serde_json::from_str::<Value>(&rec)
+            && let Some(passes) = json["passes"].as_array()
+        {
+            for p in passes {
+                if let Some(ps) = p.as_str() {
+                    if ps == "vectorize" {
+                        eprintln!("Running MLGO vectorize pass for SIMD");
+                    } else {
+                        eprintln!("Running AI-recommended pass: {}", ps);
                     }
                 }
             }
