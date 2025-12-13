@@ -9,7 +9,7 @@
 
 use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
-use crate::specialization::{lookup_specialization, record_specialization, MonoKey, MonoValue};
+use crate::specialization::{MonoKey, MonoValue, lookup_specialization, record_specialization};
 use crate::xai::XAIClient;
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
@@ -19,8 +19,8 @@ use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::support::LLVMString;
-use inkwell::values::{BasicValueEnum, BasicMetadataValueEnum, PointerValue};
 use inkwell::types::{BasicMetadataTypeEnum, IntType, PointerType, VectorType};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -148,13 +148,17 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         // Stub: use value.llvm_func_name
                     }
                 } else {
-                    record_specialization(key, MonoValue {
-                        llvm_func_name: name.clone(),
-                        cache_safe: true,
-                    });
+                    record_specialization(
+                        key,
+                        MonoValue {
+                            llvm_func_name: name.clone(),
+                            cache_safe: true,
+                        },
+                    );
                 }
 
-                let param_types: Vec<BasicMetadataTypeEnum<'ctx>> = mir.locals.keys().map(|_| self.i64_type.into()).collect();
+                let param_types: Vec<BasicMetadataTypeEnum<'ctx>> =
+                    mir.locals.keys().map(|_| self.i64_type.into()).collect();
                 let fn_type = self.i64_type.fn_type(&param_types, false);
                 let fn_val = self.module.add_function(name, fn_type, None);
                 let entry = self.context.append_basic_block(fn_val, "entry");
@@ -163,7 +167,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 // Alloc locals
                 self.locals.clear();
                 for (local_name, &id) in &mir.locals {
-                    let alloca = self.builder.build_alloca(self.i64_type, &format!("local_{}", local_name)).expect("Failed to allocate local");
+                    let alloca = self
+                        .builder
+                        .build_alloca(self.i64_type, &format!("local_{}", local_name))
+                        .expect("Failed to allocate local");
                     self.locals.insert(id, alloca);
                 }
 
@@ -180,24 +187,35 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         }
                         MirStmt::Call { func, args, dest } => {
                             let callee = self.get_callee(func);
-                            let arg_vals: Vec<_> = args.iter().map(|&id| self.load_local(id)).collect();
+                            let arg_vals: Vec<_> =
+                                args.iter().map(|&id| self.load_local(id)).collect();
                             let mut arg_metas: Vec<BasicMetadataValueEnum<'ctx>> = vec![];
                             for v in &arg_vals {
                                 arg_metas.push((*v).into());
                             }
-                            let call_result = self.builder.build_call(callee, &arg_metas, "call").expect("call failed");
-                            let store_val = call_result.try_as_basic_value().unwrap_basic().into_int_value();
+                            let call_result = self
+                                .builder
+                                .build_call(callee, &arg_metas, "call")
+                                .expect("call failed");
+                            let store_val = call_result
+                                .try_as_basic_value()
+                                .unwrap_basic()
+                                .into_int_value();
                             let result = self.locals[dest];
                             let _ = self.builder.build_store(result, store_val);
                         }
                         MirStmt::VoidCall { func, args } => {
                             let callee = self.get_callee(func);
-                            let arg_vals: Vec<_> = args.iter().map(|&id| self.load_local(id)).collect();
+                            let arg_vals: Vec<_> =
+                                args.iter().map(|&id| self.load_local(id)).collect();
                             let mut arg_metas: Vec<BasicMetadataValueEnum<'ctx>> = vec![];
                             for v in &arg_vals {
                                 arg_metas.push((*v).into());
                             }
-                            let _ = self.builder.build_call(callee, &arg_metas, "voidcall").expect("voidcall failed");
+                            let _ = self
+                                .builder
+                                .build_call(callee, &arg_metas, "voidcall")
+                                .expect("voidcall failed");
                         }
                         MirStmt::Return { val } => {
                             let return_val = self.load_local(*val);
@@ -210,16 +228,25 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 let val = self.load_local(val_id).into_int_value();
                                 match *op {
                                     SemiringOp::Add => {
-                                        acc = self.builder.build_int_add(acc, val, "semiring_add").expect("add failed");
+                                        acc = self
+                                            .builder
+                                            .build_int_add(acc, val, "semiring_add")
+                                            .expect("add failed");
                                     }
                                     SemiringOp::Mul => {
-                                        acc = self.builder.build_int_mul(acc, val, "semiring_mul").expect("mul failed");
+                                        acc = self
+                                            .builder
+                                            .build_int_mul(acc, val, "semiring_mul")
+                                            .expect("mul failed");
                                     }
                                 }
                             }
                             let _ = self.builder.build_store(result_ptr, acc);
                         }
-                        MirStmt::ParamInit { param_id, arg_index } => {
+                        MirStmt::ParamInit {
+                            param_id,
+                            arg_index,
+                        } => {
                             if let Some(param_val) = fn_val.get_nth_param((*arg_index) as u32) {
                                 let local_ptr = self.locals[param_id];
                                 let _ = self.builder.build_store(local_ptr, param_val);
@@ -232,8 +259,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     i += 1;
                 }
 
-                self.builder.position_at_end(self.context.append_basic_block(fn_val, "return"));
-                let _ = self.builder.build_return(Some(&self.i64_type.const_int(0, false)));
+                self.builder
+                    .position_at_end(self.context.append_basic_block(fn_val, "return"));
+                let _ = self
+                    .builder
+                    .build_return(Some(&self.i64_type.const_int(0, false)));
 
                 self.fns.insert(name.clone(), fn_val);
             }
@@ -244,7 +274,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
             let main_fn = self.module.add_function("main", main_ty, None);
             let entry = self.context.append_basic_block(main_fn, "entry");
             self.builder.position_at_end(entry);
-            let _ = self.builder
+            let _ = self
+                .builder
                 .build_return(Some(&self.i64_type.const_int(0, false)));
         }
     }
@@ -300,7 +331,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
     pub fn finalize_and_jit(
         &mut self,
     ) -> Result<ExecutionEngine<'ctx>, Box<dyn std::error::Error>> {
-        self.module.verify().map_err(|e: LLVMString| e.to_string())?;
+        self.module
+            .verify()
+            .map_err(|e: LLVMString| e.to_string())?;
 
         let nounwind_id = Attribute::get_named_enum_kind_id("nounwind");
         let sanitize_attr = self.context.create_enum_attribute(nounwind_id, 1);
@@ -311,7 +344,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let client = XAIClient::new().ok();
         let mir_stats = format!(
             "Stmts: {}, Locals: {}, SIMD eligible: {}",
-            self.module.print_to_string().to_str().map_or(0, |s: &str| s.len()),
+            self.module
+                .print_to_string()
+                .to_str()
+                .map_or(0, |s: &str| s.len()),
             self.locals.len(),
             1
         );
