@@ -168,10 +168,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
 
                 // Store param inits
-                let params = fn_val.get_params();
-                for param in params.iter() {
-                    // Assume params are i64
-                }
+                let _params = fn_val.get_params();
 
                 let mut i = 0;
                 while i < mir.stmts.len() {
@@ -179,7 +176,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         MirStmt::Assign { lhs, rhs } => {
                             let ptr = self.locals[lhs];
                             let val = self.gen_expr(rhs);
-                            self.builder.build_store(ptr, val);
+                            let _ = self.builder.build_store(ptr, val);
                         }
                         MirStmt::Call { func, args, dest } => {
                             let callee = self.get_callee(func);
@@ -191,7 +188,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             let call_result = self.builder.build_call(callee, &arg_metas, "call").expect("call failed");
                             let store_val = call_result.try_as_basic_value().unwrap_basic().into_int_value();
                             let result = self.locals[dest];
-                            self.builder.build_store(result, store_val);
+                            let _ = self.builder.build_store(result, store_val);
                         }
                         MirStmt::VoidCall { func, args } => {
                             let callee = self.get_callee(func);
@@ -204,7 +201,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         }
                         MirStmt::Return { val } => {
                             let return_val = self.load_local(*val);
-                            self.builder.build_return(Some(&return_val));
+                            let _ = self.builder.build_return(Some(&return_val));
                         }
                         MirStmt::SemiringFold { op, values, result } => {
                             let result_ptr = self.locals[result];
@@ -220,24 +217,23 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                     }
                                 }
                             }
-                            self.builder.build_store(result_ptr, acc);
+                            let _ = self.builder.build_store(result_ptr, acc);
                         }
                         MirStmt::ParamInit { param_id, arg_index } => {
                             if let Some(param_val) = fn_val.get_nth_param((*arg_index) as u32) {
                                 let local_ptr = self.locals[param_id];
-                                self.builder.build_store(local_ptr, param_val);
+                                let _ = self.builder.build_store(local_ptr, param_val);
                             }
                         }
-                        MirStmt::Consume { id } => {
+                        MirStmt::Consume { id: _ } => {
                             // No-op, semantic only
                         }
-                        _ => {}
                     }
                     i += 1;
                 }
 
                 self.builder.position_at_end(self.context.append_basic_block(fn_val, "return"));
-                self.builder.build_return(Some(&self.i64_type.const_int(0, false)));
+                let _ = self.builder.build_return(Some(&self.i64_type.const_int(0, false)));
 
                 self.fns.insert(name.clone(), fn_val);
             }
@@ -248,7 +244,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             let main_fn = self.module.add_function("main", main_ty, None);
             let entry = self.context.append_basic_block(main_fn, "entry");
             self.builder.position_at_end(entry);
-            self.builder
+            let _ = self.builder
                 .build_return(Some(&self.i64_type.const_int(0, false)));
         }
     }
