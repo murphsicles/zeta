@@ -13,7 +13,7 @@ use nom::bytes::complete::{tag, take_while1, take_until};
 use nom::character::complete::{
     alpha1, alphanumeric0, char as nom_char, i64 as nom_i64, multispace0,
 };
-use nom::combinator::{map, opt, value, recognize};
+use nom::combinator::{map, opt, value};
 use nom::multi::{many0, many1, separated_list1};
 use nom::sequence::{delimited, preceded, pair};
 use nom::{IResult, Parser};
@@ -71,8 +71,8 @@ fn parse_fstring<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::er
     let open = tag("\"");
     let close = tag("\"");
     let content = take_until("{");
-    let expr_part = delimited(tag("{"), parse_expr(), tag("}")); // Recursive, but careful with stack
-    let parts = many0(alt((content.map(|s| AstNode::StringLit(s.to_string())), map(expr_part, |e| e))));
+    let expr_part = delimited(tag("{"), parse_base_expr(), tag("}")); // Use base_expr to avoid deep recursion
+    let parts = many0(alt((content.map(|s: &str| AstNode::StringLit(s.to_string())), map(expr_part, |e| e))));
 
     preceded(f_prefix, delimited(open, parts, close)).map(AstNode::FString)
 }
@@ -98,18 +98,6 @@ fn parse_atom<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
     alt((parse_literal(), parse_string_lit(), parse_fstring(), parse_variable()))
 }
 
-/// Parses binary + op for concat sugar.
-fn parse_binary_plus<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    let left = parse_base_expr();
-    let op = ws(tag("+"));
-    let right = parse_base_expr();
-    left.and(op).and(right).map(|((l, _), r)| AstNode::BinaryOp {
-        op: "concat".to_string(),
-        left: Box::new(l),
-        right: Box::new(r),
-    })
-}
-
 /// Parses TimingOwned<ty>(atom).
 fn parse_timing_owned<'a>()
 -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
@@ -124,10 +112,10 @@ fn parse_timing_owned<'a>()
         })
 }
 
-/// Parses base expression: atom | TimingOwned | binary_plus.
+/// Parses base expression: atom | TimingOwned.
 fn parse_base_expr<'a>()
 -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    alt((parse_atom(), parse_timing_owned(), parse_binary_plus()))
+    alt((parse_atom(), parse_timing_owned()))
 }
 
 /// Parses structural marker: ? after method name.
@@ -162,9 +150,19 @@ fn parse_call<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
     })
 }
 
-/// Recursive expr parser (for f-string exprs, etc.).
+/// Parses expressions with + concat (left-assoc chaining).
 fn parse_expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    alt((parse_call(), parse_base_expr()))
+    let primary = alt((parse_call(), parse_base_expr()));
+    let init = primary;
+    init
+        .and(many0(ws(tag("+")).and(primary)))
+        .map(|(init, ops)| {
+            ops.into_iter().fold(init, |acc, (_, r)| AstNode::BinaryOp {
+                op: "concat".to_string(),
+                left: Box::new(acc),
+                right: Box::new(r),
+            })
+        })
 }
 
 /// Parses statement: assign | call | defer | spawn.
@@ -178,11 +176,11 @@ fn parse_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
         map(preceded(ws(tag("defer")), parse_expr()), |e| AstNode::Defer(Box::new(e))),
         // Spawn: spawn func(args)
         map(
-            pair(
+            preceded(
                 ws(tag("spawn")),
-                delimited(tag("("), separated_list1(tag(","), parse_expr()), tag(")")),
+                pair(parse_ident(), delimited(tag("("), separated_list1(tag(","), parse_expr()), tag(")")))
             ),
-            |((kw, func), args)| AstNode::Spawn {
+            |(func, args)| AstNode::Spawn {
                 func,
                 args,
             },
