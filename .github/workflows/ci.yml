@@ -22,9 +22,11 @@ jobs:
         chmod +x llvm.sh
         sudo ./llvm.sh 21
         sudo apt-get update
-        sudo apt-get install -y llvm-21 llvm-21-dev
+        sudo apt-get install -y llvm-21 llvm-21-dev llvm-21-tools libpolly-21-dev
     - name: Set LLVM prefix
-      run: echo "LLVM_SYS_211_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
+      run: |
+        echo "LLVM_SYS_210_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
+        echo "LLVM_SYS_211_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
@@ -55,9 +57,11 @@ jobs:
         chmod +x llvm.sh
         sudo ./llvm.sh 21
         sudo apt-get update
-        sudo apt-get install -y llvm-21 llvm-21-dev
+        sudo apt-get install -y llvm-21 llvm-21-dev llvm-21-tools libpolly-21-dev
     - name: Set LLVM prefix
-      run: echo "LLVM_SYS_211_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
+      run: |
+        echo "LLVM_SYS_210_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
+        echo "LLVM_SYS_211_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
