@@ -194,22 +194,18 @@ impl MirGen {
             }
             AstNode::BinaryOp { op, left, right } => {
                 // Lower to method call, e.g., left.concat(right)
-                {
-                    let left_expr = self.gen_expr(left, exprs);
-                    let left_id = self.materialize(left_expr, exprs, out);
-                }
-                {
-                    let right_expr = self.gen_expr(right, exprs);
-                    let right_id = self.materialize(right_expr, exprs, out);
-                }
+                let left_expr = self.gen_expr(left, exprs);
+                let left_id = self.materialize(left_expr, exprs, out);
+                let right_expr = self.gen_expr(right, exprs);
+                let right_id = self.materialize(right_expr, exprs, out);
                 let dest = self.next_id();
                 out.push(MirStmt::Call {
                     func: op.clone(), // "concat"
-                    args: vec![self.next_id() - 1, self.next_id() - 2], // Approximate, adjust ids
+                    args: vec![left_id, right_id],
                     dest,
                 });
                 // Consume if by-val
-                out.push(MirStmt::Consume { id: self.next_id() - 2 });
+                out.push(MirStmt::Consume { id: left_id });
             }
             AstNode::FString(parts) => {
                 let mut part_ids = vec![];
