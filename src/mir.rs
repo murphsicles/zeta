@@ -62,7 +62,7 @@ pub enum MirStmt {
 pub enum MirExpr {
     Var(u32),
     Lit(i64),
-    StringLit(String),     // NEW: unified string literal
+    StringLit(String), // NEW: unified string literal
     ConstEval(i64),
     TimingOwned(u32), // Wraps inner expr ID for constant-time
 }
