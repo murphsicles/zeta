@@ -22,7 +22,7 @@ use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::support::LLVMString;
-use inkwell::types::{BasicMetadataTypeEnum, IntType, PointerType, VectorType, StructType};
+use inkwell::types::{BasicMetadataTypeEnum, IntType, PointerType, VectorType};
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue, FunctionValue};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -86,9 +86,9 @@ pub struct LLVMCodegen<'ctx> {
     /// Generated function map: name -> LLVM fn.
     fns: HashMap<String, FunctionValue<'ctx>>,
     /// Current function being generated.
-    current_fn: FunctionValue<'ctx>,
+    current_fn: Option<FunctionValue<'ctx>>,
     /// Current basic block.
-    current_block: BasicBlock<'ctx>,
+    current_block: Option<BasicBlock<'ctx>>,
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -137,13 +137,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
             locals: HashMap::new(),
             tbaa_const_time,
             fns: HashMap::new(),
-            current_fn: FunctionValue::invalid(),
-            current_block: BasicBlock::invalid(),
+            current_fn: None,
+            current_block: None,
         };
 
         // Declare string intrinsics
         let str_ptr_type = ptr_type; // i8*
-        let vecu8_type = context.struct_type(&[i64_type.into()], false); // Simplified Vec<u8> as (len, ptr)
         let vecu8_ptr_type = context.ptr_type(AddressSpace::default());
 
         // concat(str, str) -> str (as i8*)
@@ -199,8 +198,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
                 let entry = self.context.append_basic_block(fn_val, "entry");
                 self.builder.position_at_end(entry);
-                self.current_block = entry;
-                self.current_fn = fn_val;
+                self.current_block = Some(entry);
+                self.current_fn = Some(fn_val);
 
                 // Alloc locals
                 self.locals.clear();
@@ -211,11 +210,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
                 let mut i = 0;
                 while i < mir.stmts.len() {
-                    self.builder.position_at_end(self.current_block);
+                    if let Some(block) = &self.current_block {
+                        self.builder.position_at_end(*block);
+                    }
                     match &mir.stmts[i] {
                         MirStmt::ParamInit { param_id, arg_index } => {
                             // Store arg to alloca
-                            let fn_args = self.current_fn.get_params();
+                            let fn_args = self.current_fn.unwrap().get_params();
                             if let (Some(arg), Some(alloca)) = (fn_args.get(*arg_index), self.locals.get(param_id)) {
                                 self.builder.build_store(*alloca, *arg);
                             }
@@ -229,7 +230,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             let callee = self.get_callee(func);
                             let arg_vals: Vec<BasicMetadataValueEnum> = args.iter().map(|&id| self.gen_expr(&MirExpr::Var(id)).into()).collect();
                             let call = self.builder.build_call(callee, &arg_vals, "call").expect("call failed");
-                            let res = call.try_as_basic_value().left().unwrap();
+                            let res = call.try_as_basic_value().unwrap().into();
                             let alloca = self.locals[dest];
                             self.builder.build_store(alloca, res);
                         }
@@ -251,7 +252,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             let callee = self.get_callee(callee_name);
                             let arg_vals: Vec<BasicMetadataValueEnum> = values.iter().map(|&id| self.gen_expr(&MirExpr::Var(id)).into()).collect();
                             let call = self.builder.build_call(callee, &arg_vals, "fold").expect("fold call failed");
-                            let res = call.try_as_basic_value().left().unwrap();
+                            let res = call.try_as_basic_value().unwrap().into();
                             let alloca = self.locals[result];
                             self.builder.build_store(alloca, res);
                         }
