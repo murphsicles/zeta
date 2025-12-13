@@ -4,6 +4,7 @@
 //! Extended for self-host: enums, structs, strings, path calls.
 //! Added: generics in FuncDef/Method, structural flag in Call for hybrid dispatch.
 //! Updated Dec 9, 2025: Added first-class unified string support with Str type and StringLit node.
+//! Updated Dec 13, 2025: Added FString node for f-strings; BinaryOp for + concat sugar.
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AstNode {
@@ -61,10 +62,18 @@ pub enum AstNode {
     Lit(i64),
     /// Unified UTF-8 owned string literal.
     StringLit(String),
+    /// F-string: f"hello {expr}!".
+    FString(Vec<AstNode>), // Alternating Lit(StringLit) and exprs
     /// Variable reference.
     Var(String),
     /// Assignment.
     Assign(String, Box<AstNode>),
+    /// Binary operation (e.g., + for concat).
+    BinaryOp {
+        op: String, // "add", "concat", etc.
+        left: Box<AstNode>,
+        right: Box<AstNode>,
+    },
     /// TimingOwned: Constant-time owned value abstraction.
     TimingOwned { ty: String, inner: Box<AstNode> },
     /// Defer statement for RAII cleanup.
