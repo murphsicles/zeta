@@ -1,3 +1,4 @@
+// src/codegen.rs
 //! LLVM code generation for Zeta MIR.
 //! Supports JIT execution, intrinsics, SIMD, TBAA, actor runtime, and std embeddings.
 //! Ensures stable ABI and TimingOwned constant-time guarantees.
@@ -11,6 +12,7 @@ use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use crate::specialization::{lookup_specialization, record_specialization, MonoKey, MonoValue};
 use crate::xai::XAIClient;
+use either::Either;
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
 use inkwell::attributes::{Attribute, AttributeLoc};
@@ -19,7 +21,7 @@ use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::support::LLVMString;
-use inkwell::types::BasicMetadataTypeEnum;
+use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum};
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue};
 use inkwell::types::{IntType, PointerType, VectorType};
 use serde_json::Value;
@@ -143,110 +145,95 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     func_name: name.clone(),
                     type_args: vec![],
                 };
-                let opt_value = lookup_specialization(&key);
-                let llvm_func_name = if let Some(value) = opt_value {
-                    value.llvm_func_name
+                if let Some(value) = lookup_specialization(&key) {
+                    // Use cached mangled name if safe
+                    if value.cache_safe {
+                        // Stub: use value.llvm_func_name
+                    }
                 } else {
-                    let mangled = format!("zeta_{}", name);
-                    let value = MonoValue {
-                        llvm_func_name: mangled.clone(),
+                    record_specialization(key, MonoValue {
+                        llvm_func_name: name.clone(),
                         cache_safe: true,
-                    };
-                    record_specialization(key, value);
-                    mangled
-                };
+                    });
+                }
 
-                // Assume all params and ret i64 for simplicity
-                let num_params = mir.locals.len().saturating_sub(1); // rough estimate
-                let param_types: Vec<BasicMetadataTypeEnum> = (0..num_params).map(|_| self.i64_type.into()).collect();
+                let param_types: Vec<BasicMetadataTypeEnum> = mir.locals.keys().map(|_| self.i64_type.into()).collect();
                 let fn_type = self.i64_type.fn_type(&param_types, false);
-                let fn_val = self.module.add_function(&llvm_func_name, fn_type, None);
+                let fn_val = self.module.add_function(&name, fn_type, None);
                 let entry = self.context.append_basic_block(fn_val, "entry");
                 self.builder.position_at_end(entry);
 
-                // Allocate locals
+                // Alloc locals
                 self.locals.clear();
-                for (local_name, &local_id) in &mir.locals {
-                    let alloca = self.builder.build_alloca(self.i64_type, local_name).expect("alloca failed");
-                    self.locals.insert(local_id, alloca);
+                for (local_name, &id) in &mir.locals {
+                    let alloca = self.builder.build_alloca(self.i64_type, &format!("local_{}", local_name));
+                    self.locals.insert(id, alloca);
                 }
 
-                // Process statements
+                // Store param inits
+                let params = fn_val.get_params();
+                for param in params.iter() {
+                    // Assume params are i64
+                }
+
                 let mut i = 0;
                 while i < mir.stmts.len() {
-                    if let MirStmt::ParamInit { param_id, arg_index } = &mir.stmts[i] {
-                        if let Some(param_ptr) = self.locals.get(param_id) {
-                            let arg_val = fn_val.get_nth_param((*arg_index) as u32).expect("param exists");
-                            let _ = self.builder.build_store(*param_ptr, arg_val);
-                        }
-                        i += 1;
-                        continue;
-                    }
                     match &mir.stmts[i] {
                         MirStmt::Assign { lhs, rhs } => {
+                            let ptr = self.locals[*lhs];
                             let val = self.gen_expr(rhs);
-                            if let Some(ptr) = self.locals.get(lhs) {
-                                let _ = self.builder.build_store(*ptr, val);
-                            }
+                            self.builder.build_store(ptr, val);
                         }
                         MirStmt::Call { func, args, dest } => {
                             let callee = self.get_callee(func);
-                            let llvm_args: Vec<BasicMetadataValueEnum> = args
-                                .iter()
-                                .map(|&arg_id| {
-                                    let arg_val = self.load_local(arg_id);
-                                    arg_val.into()
-                                })
-                                .collect();
-                            let call = self.builder.build_call(callee, &llvm_args, "call").unwrap();
-                            let ret = call.try_as_basic_value().unwrap_basic();
-                            if let Some(ptr) = self.locals.get(dest) {
-                                let _ = self.builder.build_store(*ptr, ret);
-                            }
-                            // Affine: Consume by-value args post-call (no-op in LLVM)
-                            for &arg_id in args {
-                                if let Some(MirExpr::Var(_)) = mir.exprs.get(&arg_id) {
-                                    // Semantic marker, no LLVM action
-                                }
-                            }
+                            let arg_vals: Vec<_> = args.iter().map(|&id| self.load_local(id)).collect();
+                            let call_val = self.builder.build_call(callee, &arg_vals, "call");
+                            let result = self.locals[*dest];
+                            self.builder.build_store(result, call_val.try_as_basic_value().unwrap());
                         }
                         MirStmt::VoidCall { func, args } => {
                             let callee = self.get_callee(func);
-                            let llvm_args: Vec<BasicMetadataValueEnum> = args
-                                .iter()
-                                .map(|&arg_id| self.load_local(arg_id).into())
-                                .collect();
-                            let _ = self.builder.build_call(callee, &llvm_args, "voidcall").unwrap();
+                            let arg_vals: Vec<_> = args.iter().map(|&id| self.load_local(id)).collect();
+                            self.builder.build_call(callee, &arg_vals, "voidcall");
                         }
                         MirStmt::Return { val } => {
-                            let rv = self.load_local(*val);
-                            let _ = self.builder.build_return(Some(&rv));
+                            let return_val = self.load_local(*val);
+                            self.builder.build_return(Some(&return_val));
                         }
                         MirStmt::SemiringFold { op, values, result } => {
-                            if values.is_empty() {
-                                i += 1;
-                                continue;
+                            let result_ptr = self.locals[*result];
+                            let mut acc = self.i64_type.const_int(0, false);
+                            for &val_id in values {
+                                let val = self.load_local(val_id).into_int_value();  // Fixed: removed .expect
+                                match *op {
+                                    SemiringOp::Add => {
+                                        acc = self.builder.build_int_add(acc, val, "semiring_add");
+                                    }
+                                    SemiringOp::Mul => {
+                                        acc = self.builder.build_int_mul(acc, val, "semiring_mul");
+                                    }
+                                }
                             }
-                            let lhs_val = self.load_local(values[0]);
-                            let mut acc = lhs_val.into_int_value().expect("Expected i64");
-                            for &val_id in &values[1..] {
-                                let val = self.load_local(val_id).into_int_value().expect("Expected i64");
-                                acc = match op {
-                                    SemiringOp::Add => self.builder.build_int_add(acc, val, "add").unwrap(),
-                                    SemiringOp::Mul => self.builder.build_int_mul(acc, val, "mul").unwrap(),
-                                };
-                            }
-                            if let Some(ptr) = self.locals.get(result) {
-                                let _ = self.builder.build_store(*ptr, acc);
+                            self.builder.build_store(result_ptr, acc);
+                            i += 1;  // Skip since folded
+                            continue;
+                        }
+                        MirStmt::ParamInit { param_id, arg_index } => {
+                            if let Some(param_val) = fn_val.get_nth_param(*arg_index as u32) {
+                                let local_ptr = self.locals[*param_id];
+                                self.builder.build_store(local_ptr, param_val);
                             }
                         }
-                        MirStmt::Consume { .. } => {
-                            // No-op
+                        MirStmt::Consume { id } => {
+                            // No-op, semantic only
                         }
                         _ => {}
                     }
                     i += 1;
                 }
+
+                self.builder.position_at_end(self.context.append_basic_block(fn_val, "return"));
+                self.builder.build_return(Some(&self.i64_type.const_int(0, false)));
 
                 self.fns.insert(name.clone(), fn_val);
             }
@@ -257,8 +244,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
             let main_fn = self.module.add_function("main", main_ty, None);
             let entry = self.context.append_basic_block(main_fn, "entry");
             self.builder.position_at_end(entry);
-            let _ = self.builder
-                .build_return(Some(&self.i64_type.const_int(0, false)));
+            self.builder
+                .build_return(Some(&self.i64_type.const_int(0, false)))
+                .unwrap();
         }
     }
 
@@ -324,7 +312,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let client = XAIClient::new().ok();
         let mir_stats = format!(
             "Stmts: {}, Locals: {}, SIMD eligible: {}",
-            self.module.print_to_string().to_string().len(),
+            self.module.print_to_string().to_str().map_or(0, |s: &str| s.len()),
             self.locals.len(),
             1
         );
