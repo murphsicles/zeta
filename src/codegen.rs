@@ -19,8 +19,8 @@ use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::support::LLVMString;
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue};
-use inkwell::types::{BasicTypeEnum, IntType, PointerType, VectorType};
+use inkwell::values::{BasicValueEnum, BasicMetadataValueEnum, PointerValue};
+use inkwell::types::{BasicTypeEnum, BasicMetadataTypeEnum, IntType, PointerType, VectorType};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -154,7 +154,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     });
                 }
 
-                let param_types: Vec<BasicTypeEnum<'ctx>> = mir.locals.keys().map(|_| self.i64_type.into()).collect();
+                let param_types: Vec<BasicMetadataTypeEnum<'ctx>> = mir.locals.keys().map(|_| self.i64_type.into().into()).collect();
                 let fn_type = self.i64_type.fn_type(&param_types, false);
                 let fn_val = self.module.add_function(&name, fn_type, None);
                 let entry = self.context.append_basic_block(fn_val, "entry");
@@ -184,19 +184,19 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         MirStmt::Call { func, args, dest } => {
                             let callee = self.get_callee(func);
                             let arg_vals: Vec<_> = args.iter().map(|&id| self.load_local(id)).collect();
-                            let mut arg_metas = vec![];
+                            let mut arg_metas: Vec<BasicMetadataValueEnum<'ctx>> = vec![];
                             for v in &arg_vals {
                                 arg_metas.push((*v).into());
                             }
                             let call_result = self.builder.build_call(callee, &arg_metas, "call").expect("call failed");
-                            let store_val = call_result.try_as_int_value().expect("Expected i64");
+                            let store_val = call_result.try_as_basic_value().unwrap().into_int_value().unwrap();
                             let result = self.locals[dest];
                             self.builder.build_store(result, store_val.into());
                         }
                         MirStmt::VoidCall { func, args } => {
                             let callee = self.get_callee(func);
                             let arg_vals: Vec<_> = args.iter().map(|&id| self.load_local(id)).collect();
-                            let mut arg_metas = vec![];
+                            let mut arg_metas: Vec<BasicMetadataValueEnum<'ctx>> = vec![];
                             for v in &arg_vals {
                                 arg_metas.push((*v).into());
                             }
@@ -204,13 +204,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         }
                         MirStmt::Return { val } => {
                             let return_val = self.load_local(*val);
-                            self.builder.build_return(Some(return_val));
+                            self.builder.build_return(Some(&return_val));
                         }
                         MirStmt::SemiringFold { op, values, result } => {
                             let result_ptr = self.locals[result];
                             let mut acc = self.i64_type.const_int(0, false);
                             for &val_id in values {
-                                let val = self.load_local(val_id).into_int_value().expect("Expected i64");
+                                let val = self.load_local(val_id).into_int_value();
                                 match *op {
                                     SemiringOp::Add => {
                                         acc = self.builder.build_int_add(acc, val, "semiring_add").expect("add failed");
@@ -237,7 +237,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
 
                 self.builder.position_at_end(self.context.append_basic_block(fn_val, "return"));
-                self.builder.build_return(Some(self.i64_type.const_int(0, false).into()));
+                self.builder.build_return(Some(&self.i64_type.const_int(0, false)));
 
                 self.fns.insert(name.clone(), fn_val);
             }
@@ -249,7 +249,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             let entry = self.context.append_basic_block(main_fn, "entry");
             self.builder.position_at_end(entry);
             self.builder
-                .build_return(Some(self.i64_type.const_int(0, false).into()));
+                .build_return(Some(&self.i64_type.const_int(0, false)));
         }
     }
 
@@ -258,7 +258,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         if let Some(f) = self.fns.get(func) {
             *f
         } else {
-            let param_types: Vec<BasicTypeEnum<'ctx>> = vec![self.i64_type.into()];
+            let param_types: Vec<BasicMetadataTypeEnum<'ctx>> = vec![self.i64_type.into().into()];
             let ty = self.i64_type.fn_type(&param_types, false);
             let f = self.module.add_function(func, ty, Some(Linkage::External));
             self.fns.insert(func.to_string(), f);
