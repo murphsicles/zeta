@@ -182,8 +182,8 @@ fn parse_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
                 ws(tag("spawn")),
                 delimited(tag("("), separated_list1(tag(","), parse_expr()), tag(")")),
             ),
-            |(_kw, args)| AstNode::Spawn {
-                func: "default".to_string(), // Infer func name?
+            |((kw, func), args)| AstNode::Spawn {
+                func,
                 args,
             },
         ),
