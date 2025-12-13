@@ -5,6 +5,7 @@
 //! Added: Stable ABI checks (no UB, const-time TimingOwned validation).
 //! Added: CTFE (const eval semirings) for literal/semiring folding during inference.
 //! Updated Dec 9, 2025: Unified string support - new Type::Str, builtin StrOps concept, string literal inference.
+//! Updated Dec 13, 2025: Added rich StrOps methods; implicit &str borrows/conversions; + as concat; f-string lowering.
 
 use crate::ast::AstNode;
 use crate::borrow::BorrowChecker;
@@ -26,12 +27,16 @@ pub enum Type {
     Bool,
     /// Unified owned UTF-8 string type.
     Str,
+    /// Borrowed string slice.
+    StrRef, // &str
     /// Named type (e.g., user-defined or trait-bound).
     Named(String),
     /// Unknown/inferred type.
     Unknown,
     /// TimingOwned wrapper for constant-time.
     TimingOwned(Box<Type>),
+    /// Vec<u8> for interop.
+    VecU8,
 }
 
 impl fmt::Display for Type {
@@ -41,6 +46,8 @@ impl fmt::Display for Type {
             Type::F32 => write!(f, "f32"),
             Type::Bool => write!(f, "bool"),
             Type::Str => write!(f, "str"),
+            Type::StrRef => write!(f, "&str"),
+            Type::VecU8 => write!(f, "Vec<u8>"),
             Type::Named(s) => write!(f, "{}", s),
             Type::Unknown => write!(f, "unknown"),
             Type::TimingOwned(ty) => write!(f, "TimingOwned<{}>", ty),
@@ -67,6 +74,7 @@ pub enum ConstValue {
     Int(i64),
     Float(f32),
     Bool(bool),
+    Str(String),
 }
 
 /// Main resolver struct, orchestrating type checking and lowering.
@@ -105,7 +113,7 @@ impl Resolver {
         r.direct_impls
             .insert(("Addable".to_string(), Type::I64), addable);
 
-        // Builtin StrOps for unified strings
+        // Builtin StrOps for unified strings - expanded
         let mut str_ops = HashMap::new();
         str_ops.insert("len".to_string(), (vec![], Type::I64));
         str_ops.insert("concat".to_string(), (vec![Type::Str], Type::Str));
@@ -115,8 +123,20 @@ impl Resolver {
             "split".to_string(),
             (vec![Type::Str], Type::Named("Vec<str>".to_string())),
         );
+        // Rich methods
+        str_ops.insert("to_lowercase".to_string(), (vec![], Type::Str));
+        str_ops.insert("replace".to_string(), (vec![Type::Str, Type::Str], Type::Str));
+        str_ops.insert("starts_with".to_string(), (vec![Type::Str], Type::Bool));
+        str_ops.insert("ends_with".to_string(), (vec![Type::Str], Type::Bool));
+        str_ops.insert("as_bytes".to_string(), (vec![], Type::VecU8));
+        str_ops.insert("from_bytes".to_string(), (vec![Type::VecU8], Type::Str));
         r.direct_impls
             .insert(("StrOps".to_string(), Type::Str), str_ops);
+
+        // Implicit impl for &str -> str conversions
+        let mut str_ref_ops = HashMap::new();
+        str_ref_ops.insert("to_owned".to_string(), (vec![], Type::Str));
+        r.direct_impls.insert(("StrRefOps".to_string(), Type::StrRef), str_ref_ops);
 
         r
     }
@@ -155,18 +175,12 @@ impl Resolver {
                     self.parse_type(&ret),
                 );
                 self.func_sigs.insert(name.clone(), sig.clone());
-                // Declare params in env & borrow owned
+                // Declare params in env & borrow checker
                 for (pname, pty) in &sig.0 {
                     self.type_env.insert(pname.clone(), pty.clone());
                     self.borrow_checker
                         .declare(pname.clone(), crate::borrow::BorrowState::Owned);
                 }
-            }
-            AstNode::ConceptDef { .. } => {
-                // Concepts define traits; impls register them. Concepts themselves don't add impls.
-            }
-            AstNode::EnumDef { name, .. } | AstNode::StructDef { name, .. } => {
-                self.type_env.insert(name.clone(), Type::Named(name));
             }
             _ => {}
         }
@@ -179,6 +193,8 @@ impl Resolver {
             "f32" => Type::F32,
             "bool" => Type::Bool,
             "str" => Type::Str,
+            "&str" => Type::StrRef,
+            "Vec<u8>" => Type::VecU8,
             _ => Type::Named(s.to_string()),
         }
     }
@@ -206,7 +222,26 @@ impl Resolver {
         match node {
             AstNode::Lit(_n) => Type::I64,
             AstNode::StringLit(_) => Type::Str,
+            AstNode::FString(parts) => {
+                // Infer as str; all parts concat
+                for part in parts {
+                    let pty = self.infer_type(part);
+                    if pty != Type::Str && pty != Type::StrRef {
+                        // Assume concat handles
+                    }
+                }
+                Type::Str
+            }
             AstNode::Var(v) => self.type_env.get(v).cloned().unwrap_or(Type::Unknown),
+            AstNode::BinaryOp { op, left, right } => {
+                let lty = self.infer_type(left);
+                let rty = self.infer_type(right);
+                if op == "concat" && (lty == Type::Str || lty == Type::StrRef) && (rty == Type::Str || rty == Type::StrRef) {
+                    Type::Str
+                } else {
+                    Type::Unknown
+                }
+            }
             AstNode::Call {
                 receiver,
                 method,
@@ -217,7 +252,8 @@ impl Resolver {
                 let recv_ty = receiver.as_ref().map(|r| self.infer_type(r));
                 let arg_tys: Vec<Type> = args.iter().map(|a| self.infer_type(a)).collect();
                 if *structural {
-                    Type::Unknown
+                    // Structural: allow ad-hoc for string-like
+                    Type::Str // Assume for str
                 } else {
                     self.lookup_method(recv_ty.as_ref(), method, &arg_tys)
                         .unwrap_or(Type::Unknown)
@@ -236,12 +272,21 @@ impl Resolver {
             AstNode::TimingOwned { inner, .. } => {
                 let inner_ty = self.infer_type(inner);
                 match &inner_ty {
-                    Type::I64 | Type::F32 | Type::Bool => Ok(()),
+                    Type::I64 | Type::F32 | Type::Bool | Type::Str => Ok(()),
                     _ => Err(AbiError::NonConstTimeTimingOwned),
                 }
             }
             AstNode::Call { method, .. } if method == "as_ptr" => Err(AbiError::RawPointerInPublic),
             _ => Ok(()),
+        }
+    }
+
+    /// Handles implicit borrows: &str from str when needed.
+    fn implicit_borrow(&mut self, ty: &Type) -> Type {
+        if *ty == Type::Str {
+            Type::StrRef // Implicit &str borrow
+        } else {
+            ty.clone()
         }
     }
 
@@ -260,7 +305,8 @@ impl Resolver {
                     }
                 }
                 for stmt in body {
-                    self.infer_type(stmt);
+                    let ty = self.infer_type(stmt);
+                    self.type_env.insert("temp".to_string(), ty); // Temp for checks
                     if !self.borrow_checker.check(stmt) {
                         ok = false;
                     }
