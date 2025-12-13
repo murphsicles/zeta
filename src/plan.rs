@@ -1,8 +1,7 @@
 // src/plan.rs
 //! Zeta Compiler Development Plan.
 //! Checklist for milestones. Mark as [x] when complete.
-//! Updated Dec 9, 2025: Unified strings shipped [x] — next phase now in flight.
-
+//! Updated Dec 13, 2025: String ergonomics shipped [x] — next phase now in flight.
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
@@ -17,7 +16,6 @@ pub mod checklist {
 [x] Traits hybrid (nominal + structural dispatch)
 [x] Partial specialization (mangle on safe types)
     "#;
-
     /// Semantic Analysis
     pub const RESOLVER: &str = r#"
 [x] Type inference (env, builtins i64 Addable)
@@ -28,7 +26,6 @@ pub mod checklist {
 [x] Stable ABI checks (no UB, const-time TimingOwned)
 [x] CTFE (const eval semirings)
     "#;
-
     /// MIR (Mid-level IR)
     pub const MIR: &str = r#"
 [x] Lower AST to MIR (stmts/exprs/locals)
@@ -40,7 +37,6 @@ pub mod checklist {
 [x] ParamInit (from caller args)
 [x] Affine moves (consume after call)
     "#;
-
     /// Codegen (LLVM)
     pub const CODEGEN: &str = r#"
 [x] Multi-fn (gen_mirs from Mirs, entry main calls user main)
@@ -52,7 +48,6 @@ pub mod checklist {
 [x] SIMD (vec ops via MLGO passes)
 [x] Stable ABI (no UB, thin mono via specialization)
     "#;
-
     /// Optimizations
     pub const OPTS: &str = r#"
 [x] Semiring fold (add/mul chains)
@@ -60,7 +55,6 @@ pub mod checklist {
 [x] Thin monomorph (cache mangled names)
 [x] CTFE in MIR (const eval before codegen)
     "#;
-
     /// Concurrency/Std
     pub const ACTORS_STD: &str = r#"
 [x] Actor runtime (channels/scheduler/spawn host)
@@ -69,7 +63,6 @@ pub mod checklist {
 [x] Std embeds (http_get/tls_handshake/datetime_now)
 [x] Async (spawn blocks, channels)
     "#;
-
     /// Bootstrap/Self-host
     pub const BOOTSTRAP: &str = r#"
 [x] Parse selfhost.z (concepts/impls/enums/structs/tokens)
@@ -79,17 +72,16 @@ pub mod checklist {
 [x] Eval 42+1=43 (main calls ZetaCompiler::compile)
 [x] Full bootstrap (Zeta compiles Zeta)
     "#;
-
     /// Ergonomics (Ease of Use for Adoption)
     pub const ERGONOMICS: &str = r#"
 [x] Unified strings (default UTF-8 str type, literals auto-validate, global constants)
-[ ] + operator sugar for concat (a + b)
-[ ] f-strings (f"Hello {name}!")
-[ ] Rich string methods (to_lowercase, replace, starts_with, etc.)
-[ ] Implicit &str borrows when needed
-[ ] Zero-cost str ↔ Vec<u8> interop
-[ ] Structural dispatch for string-like types
-[ ] Implicit conversions (&str <-> str, no lifetimes for strings)
+[x] + operator sugar for concat (a + b)
+[x] f-strings (f"Hello {name}!")
+[x] Rich string methods (to_lowercase, replace, starts_with, etc.)
+[x] Implicit &str borrows when needed
+[x] Zero-cost str ↔ Vec<u8> interop
+[x] Structural dispatch for string-like types
+[x] Implicit conversions (&str <-> str, no lifetimes for strings)
 [ ] Go-like simplicity (no-brace single-line fns, manual errors with ? prop)
 [ ] Python expressiveness (dict literals map[key]=val, auto-imports)
 [ ] Interactive REPL (JIT eval for quick prototyping)
@@ -105,7 +97,6 @@ pub mod checklist {
 [ ] Wins: Visual profiler (MLGO-integrated graphs) [ ]
 [ ] Wins: Modular crates (one-file packages, auto-link) [ ]
     "#;
-
     /// Adoption (Viral Strategies for 30-Year Dominance)
     pub const ADOPTION: &str = r#"
 [ ] One-Click Playground (WASM REPL at zeta-lang.com/play, shareable links)
