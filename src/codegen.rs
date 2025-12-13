@@ -154,7 +154,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     });
                 }
 
-                let param_types: Vec<BasicMetadataTypeEnum<'ctx>> = mir.locals.keys().map(|_| self.i64_type.into::<BasicTypeEnum<'ctx>>().into()).collect();
+                let param_types: Vec<BasicMetadataTypeEnum<'ctx>> = mir.locals.keys().map(|_| self.i64_type.into().into()).collect();
                 let fn_type = self.i64_type.fn_type(&param_types, false);
                 let fn_val = self.module.add_function(&name, fn_type, None);
                 let entry = self.context.append_basic_block(fn_val, "entry");
@@ -258,7 +258,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         if let Some(f) = self.fns.get(func) {
             *f
         } else {
-            let param_types: Vec<BasicMetadataTypeEnum<'ctx>> = vec![self.i64_type.into::<BasicTypeEnum<'ctx>>().into()];
+            let param_types: Vec<BasicMetadataTypeEnum<'ctx>> = vec![self.i64_type.into().into()];
             let ty = self.i64_type.fn_type(&param_types, false);
             let f = self.module.add_function(func, ty, Some(Linkage::External));
             self.fns.insert(func.to_string(), f);
