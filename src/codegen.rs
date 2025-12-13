@@ -220,7 +220,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                     }
                                 }
                             }
-                            self.builder.build_store(result_ptr, acc.into());
+                            self.builder.build_store(result_ptr, acc);
                         }
                         MirStmt::ParamInit { param_id, arg_index } => {
                             if let Some(param_val) = fn_val.get_nth_param((*arg_index) as u32) {
