@@ -20,7 +20,7 @@ use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::support::LLVMString;
 use inkwell::values::{BasicValueEnum, BasicMetadataValueEnum, PointerValue};
-use inkwell::types::{BasicMetadataTypeEnum, IntType, PointerType, VectorType};
+use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, IntType, PointerType, VectorType};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -154,7 +154,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     });
                 }
 
-                let param_types: Vec<BasicMetadataTypeEnum<'ctx>> = mir.locals.keys().map(|_| BasicMetadataTypeEnum::from(self.i64_type.into())).collect();
+                let param_types: Vec<BasicMetadataTypeEnum<'ctx>> = mir.locals.keys().map(|_| self.i64_type.into::<BasicTypeEnum<'ctx>>().into()).collect();
                 let fn_type = self.i64_type.fn_type(&param_types, false);
                 let fn_val = self.module.add_function(&name, fn_type, None);
                 let entry = self.context.append_basic_block(fn_val, "entry");
@@ -189,7 +189,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 arg_metas.push((*v).into());
                             }
                             let call_result = self.builder.build_call(callee, &arg_metas, "call").expect("call failed");
-                            let store_val = call_result.try_as_basic_value().unwrap_basic().into_int_value().expect("expected int");
+                            let store_val = call_result.try_as_basic_value().unwrap_basic().into_int_value();
                             let result = self.locals[dest];
                             self.builder.build_store(result, store_val.into());
                         }
@@ -210,7 +210,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             let result_ptr = self.locals[result];
                             let mut acc = self.i64_type.const_int(0, false);
                             for &val_id in values {
-                                let val = self.load_local(val_id).into_int_value().expect("expected i64");
+                                let val = self.load_local(val_id).into_int_value();
                                 match *op {
                                     SemiringOp::Add => {
                                         acc = self.builder.build_int_add(acc, val, "semiring_add").expect("add failed");
@@ -258,7 +258,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         if let Some(f) = self.fns.get(func) {
             *f
         } else {
-            let param_types: Vec<BasicMetadataTypeEnum<'ctx>> = vec![BasicMetadataTypeEnum::from(self.i64_type.into())];
+            let param_types: Vec<BasicMetadataTypeEnum<'ctx>> = vec![self.i64_type.into::<BasicTypeEnum<'ctx>>().into()];
             let ty = self.i64_type.fn_type(&param_types, false);
             let f = self.module.add_function(func, ty, Some(Linkage::External));
             self.fns.insert(func.to_string(), f);
