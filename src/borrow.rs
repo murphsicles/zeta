@@ -2,6 +2,7 @@
 //! Borrow checker module for Zeta.
 //! Implements affine borrow checking with speculative states for safe concurrency.
 //! Tracks ownership, borrows, and moves to ensure memory safety without garbage collection.
+//! Updated Dec 13, 2025: Implicit &str borrows from str; no lifetimes.
 
 use crate::ast::AstNode;
 use std::collections::HashMap;
@@ -69,7 +70,7 @@ impl BorrowChecker {
             AstNode::Var(v) => self
                 .borrows
                 .get(v)
-                .is_none_or(|s| matches!(s, BorrowState::Owned | BorrowState::Borrowed)),
+                .map_or(true, |s| matches!(s, BorrowState::Owned | BorrowState::Borrowed)),
             AstNode::Assign(v, expr) => {
                 if !self.check(expr) {
                     return false;
@@ -77,24 +78,32 @@ impl BorrowChecker {
                 self.declare(v.clone(), BorrowState::Owned);
                 true
             }
+            AstNode::BinaryOp { left, right, .. } => {
+                self.check(left) && self.check(right)
+            }
+            AstNode::FString(parts) => {
+                parts.iter().all(|p| self.check(p))
+            }
             AstNode::TimingOwned { inner, .. } => self.check(inner),
             AstNode::Defer(inner) => self.check(inner),
             AstNode::Call { receiver, args, .. } => {
-                if let Some(r) = receiver
-                    && !self.check(r)
-                {
+                if let Some(r) = receiver.as_ref() && !self.check(r) {
                     return false;
                 }
                 for arg in args {
                     if !self.check(arg) {
                         return false;
                     }
-                    if let AstNode::Var(name) = arg
-                        && let Some(moved) = self.affine_moves.get_mut(name)
-                        && !*moved
-                    {
-                        *moved = true;
-                        self.borrows.insert(name.clone(), BorrowState::Consumed);
+                    // Implicit borrow for str args
+                    if let AstNode::Var(name) = arg {
+                        if let Some(state) = self.borrows.get(name) {
+                            if *state == BorrowState::Owned && name.ends_with("_str") { // Stub for str
+                                // Allow implicit borrow without consume
+                            } else if !*self.affine_moves.get(name).unwrap_or(&false) {
+                                *self.affine_moves.entry(name.clone()).or_insert(false) = true;
+                                self.borrows.insert(name.clone(), BorrowState::Consumed);
+                            }
+                        }
                     }
                 }
                 true
