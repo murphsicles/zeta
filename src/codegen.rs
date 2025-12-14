@@ -244,12 +244,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
             MirStmt::ParamInit { param_id, arg_index } => {
                 // Store fn arg to param alloca
                 if let Some(fn_val) = self.current_fn {
-                    let params: Vec<BasicMetadataValueEnum<'ctx>> = fn_val.get_params().collect();
+                    let params: Vec<inkwell::values::ParameterValue<'ctx>> = fn_val.get_params().collect();
                     if let Some(arg_val) = params.get(*arg_index) {
-                        let arg_bv = arg_val.try_into_basic_value().expect("param basic");
+                        let arg_bv: BasicValueEnum<'ctx> = arg_val.into_basic_value();
                         let arg_i = arg_bv.into_int_value();
                         let ptr = self.get_or_alloc_local(*param_id);
-                        let _ = self.builder.build_store(ptr, arg_i.into()).expect("store failed");
+                        let _ = self.builder.build_store(ptr, arg_i).expect("store failed");
                     }
                 }
             }
@@ -283,8 +283,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let mut simd_acc = groups[0];
         for g in &groups[1..] {
             simd_acc = match op {
-                SemiringOp::Add => self.builder.build_int_add(simd_acc, g.clone(), "simdadd").expect("simdadd failed"),
-                SemiringOp::Mul => self.builder.build_int_mul(simd_acc, g.clone(), "simdmul").expect("simdmul failed"),
+                SemiringOp::Add => self.builder.build_vector_add(simd_acc, *g, "simdadd").expect("simdadd failed").into_vector_value(),
+                SemiringOp::Mul => self.builder.build_vector_mul(simd_acc, *g, "simdmul").expect("simdmul failed").into_vector_value(),
             };
         }
 
@@ -297,7 +297,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             scalar_sum = self.builder.build_int_add(scalar_sum, elem, "sum").expect("sum failed");
         }
         let ptr = self.get_or_alloc_local(result);
-        let _ = self.builder.build_store(ptr, scalar_sum.into()).expect("store failed");
+        let _ = self.builder.build_store(ptr, scalar_sum).expect("store failed");
     }
 
     /// Allocates alloca for local if not exists, returns pointer.
