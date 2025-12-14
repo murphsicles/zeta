@@ -142,8 +142,8 @@ impl MirGen {
             }
 
             // Assume last stmt is return if Assign
-            if let Some(last) = body.last() {
-                if let AstNode::Assign(_, expr) = last {
+            if let Some(last) = body.last()
+                && let AstNode::Assign(_, expr) = last {
                     let ret_val = self.gen_expr(expr, &mut exprs);
                     let ret_id = self.materialize(ret_val, &mut exprs, &mut stmts);
                     stmts.push(MirStmt::Return { val: ret_id });
