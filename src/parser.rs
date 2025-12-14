@@ -15,7 +15,7 @@ use nom::character::complete::{
 };
 use nom::combinator::{map, opt, value};
 use nom::multi::{many0, many1, separated_list1};
-use nom::sequence::{delimited, preceded, pair};
+use nom::sequence::{delimited, pair, preceded};
 use nom::{IResult, Parser};
 
 #[allow(dead_code)]
@@ -66,7 +66,8 @@ fn parse_string_lit<'a>()
 }
 
 /// Parses simple content for f-string (non-recursive).
-fn parse_fstring_content<'a>() -> impl Parser<&'a str, Output = Vec<AstNode>, Error = nom::error::Error<&'a str>> {
+fn parse_fstring_content<'a>()
+-> impl Parser<&'a str, Output = Vec<AstNode>, Error = nom::error::Error<&'a str>> {
     map(
         delimited(tag("f\""), take_while1(|c| c != '"' && c != '{'), tag("\"")),
         |s: &str| vec![AstNode::StringLit(s.to_string())],
@@ -74,7 +75,8 @@ fn parse_fstring_content<'a>() -> impl Parser<&'a str, Output = Vec<AstNode>, Er
 }
 
 /// Parses f-string: f"content {expr} more" - simplified to avoid recursion.
-fn parse_fstring<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+fn parse_fstring<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>>
+{
     map(parse_fstring_content(), AstNode::FString)
 }
 
@@ -96,7 +98,12 @@ fn parse_path<'a>() -> impl Parser<&'a str, Output = Vec<String>, Error = nom::e
 
 /// Parses atom: lit | var | str | fstr.
 fn parse_atom<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    alt((parse_literal(), parse_string_lit(), parse_fstring(), parse_variable()))
+    alt((
+        parse_literal(),
+        parse_string_lit(),
+        parse_fstring(),
+        parse_variable(),
+    ))
 }
 
 /// Parses TimingOwned<ty>(atom).
@@ -136,12 +143,14 @@ fn parse_type_args<'a>()
 }
 
 /// Parses generics: <T,U>.
-fn parse_generics<'a>() -> impl Parser<&'a str, Output = Vec<String>, Error = nom::error::Error<&'a str>> {
+fn parse_generics<'a>()
+-> impl Parser<&'a str, Output = Vec<String>, Error = nom::error::Error<&'a str>> {
     parse_type_args()
 }
 
 /// Parses binary op like + for concat.
-fn parse_binary_op<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+fn parse_binary_op<'a>()
+-> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     ws(parse_base_expr())
         .and(ws(nom_char('+'))) // Assume + for concat
         .and(ws(parse_base_expr()))
@@ -165,25 +174,28 @@ fn parse_call<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
         .and(parse_type_args_opt)
         .and(parse_args)
         .and(parse_struct)
-        .map(|((((recv_opt, method), type_args_opt), args), structural)| {
-            let recv = if let Some((recv, _)) = recv_opt {
-                Some(Box::new(recv))
-            } else {
-                None
-            };
-            let type_args = type_args_opt.unwrap_or(vec![]);
-            AstNode::Call {
-                receiver: recv,
-                method,
-                args,
-                type_args,
-                structural,
-            }
-        })
+        .map(
+            |((((recv_opt, method), type_args_opt), args), structural)| {
+                let recv = if let Some((recv, _)) = recv_opt {
+                    Some(Box::new(recv))
+                } else {
+                    None
+                };
+                let type_args = type_args_opt.unwrap_or(vec![]);
+                AstNode::Call {
+                    receiver: recv,
+                    method,
+                    args,
+                    type_args,
+                    structural,
+                }
+            },
+        )
 }
 
 /// Parses assignment: var = expr.
-fn parse_assign<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+fn parse_assign<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>>
+{
     let parse_lhs = ws(parse_ident());
     let parse_eq = ws(tag("="));
     let parse_rhs = ws(alt((parse_call(), parse_binary_op(), parse_base_expr())));
