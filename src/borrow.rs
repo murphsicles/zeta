@@ -96,13 +96,13 @@ impl BorrowChecker {
                     }
                     // Implicit borrow for str args
                     if let AstNode::Var(name) = arg
-                        && let Some(state) = self.borrows.get(name) {
-                            if *state == BorrowState::Owned && name.ends_with("_str") { // Stub for str
-                                // Allow implicit borrow without consume
-                            } else if !*self.affine_moves.get(name).unwrap_or(&false) {
-                                *self.affine_moves.entry(name.clone()).or_insert(false) = true;
-                                self.borrows.insert(name.clone(), BorrowState::Consumed);
-                            }
+                        && let Some(state) = self.borrows.get(name)
+                    {
+                        if *state == BorrowState::Owned && name.ends_with("_str") { // Stub for str
+                            // Allow implicit borrow without consume
+                        } else if !*self.affine_moves.get(name).unwrap_or(&false) {
+                            *self.affine_moves.entry(name.clone()).or_insert(false) = true;
+                            self.borrows.insert(name.clone(), BorrowState::Consumed);
                         }
                     }
                 }
