@@ -11,8 +11,6 @@
 
 use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
-use crate::specialization::{MonoKey, lookup_specialization};
-use crate::xai::XAIClient;
 use inkwell::basic_block::BasicBlock;
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
@@ -23,7 +21,7 @@ use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::support::LLVMString;
 use inkwell::types::{BasicMetadataTypeEnum, IntType, PointerType, VectorType};
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue, FunctionValue};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue, FunctionValue, VectorValue};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -185,9 +183,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
 
         // Default return 0 if no explicit
-        if self.builder.get_current_function_return_type().is_void_type() == false {
-            let _ = self.builder.build_return(Some(&self.i64_type.const_int(0, false)));
-        }
+        let _ = self.builder.build_return(Some(&self.i64_type.const_int(0, false)));
 
         self.current_fn = None;
         self.current_block = None;
@@ -199,7 +195,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             MirStmt::Assign { lhs, rhs } => {
                 let val = self.gen_expr(rhs);
                 let ptr = self.get_or_alloc_local(*lhs);
-                let _ = self.builder.build_store(ptr, val);
+                let _ = self.builder.build_store(ptr, val, "");
             }
             MirStmt::Call { func, args, dest } => {
                 let callee = self.get_callee(func);
@@ -207,12 +203,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .iter()
                     .map(|&id| self.gen_expr(&MirExpr::Var(id)).into())
                     .collect();
-                let call = self.builder.build_call(callee, &arg_vals, "call");
-                let res = call.try_as_basic_value().unwrap_basic().into();
-                if let Some(d) = dest {
-                    let ptr = self.get_or_alloc_local(*d);
-                    let _ = self.builder.build_store(ptr, res);
-                }
+                let call_site = self.builder.build_call(callee, &arg_vals, "call").expect("call failed");
+                let res = call_site.try_as_basic_value().unwrap_basic();
+                let dest_id = *dest;
+                let ptr = self.get_or_alloc_local(dest_id);
+                let _ = self.builder.build_store(ptr, res, "");
             }
             MirStmt::VoidCall { func, args } => {
                 let callee = self.get_callee(func);
@@ -220,7 +215,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .iter()
                     .map(|&id| self.gen_expr(&MirExpr::Var(id)).into())
                     .collect();
-                let _ = self.builder.build_call(callee, &arg_vals, "voidcall");
+                let _ = self.builder.build_call(callee, &arg_vals, "voidcall").expect("voidcall failed");
             }
             MirStmt::Return { val } => {
                 let ret_val = self.gen_expr(&MirExpr::Var(*val));
@@ -235,23 +230,23 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let mut acc = self.i64_type.const_int(0, false);
                     for &v in values {
                         let val = self.gen_expr(&MirExpr::Var(v));
+                        let val_i = val.into_int_value();
                         acc = match op {
-                            SemiringOp::Add => self.builder.build_int_add(acc, val, "add"),
-                            SemiringOp::Mul => self.builder.build_int_mul(acc, val, "mul"),
-                        }
-                        .into_int_value();
+                            SemiringOp::Add => self.builder.build_int_add(acc, val_i, "add").expect("add failed").into_int_value(),
+                            SemiringOp::Mul => self.builder.build_int_mul(acc, val_i, "mul").expect("mul failed").into_int_value(),
+                        };
                     }
                     let ptr = self.get_or_alloc_local(*result);
-                    let _ = self.builder.build_store(ptr, acc.into());
+                    let _ = self.builder.build_store(ptr, acc.into(), "");
                 }
             }
             MirStmt::ParamInit { param_id, arg_index } => {
                 // Store fn arg to param alloca
                 if let Some(fn_val) = self.current_fn {
-                    let params = fn_val.get_params();
+                    let params: Vec<_> = fn_val.get_params().collect();
                     if let Some(arg_val) = params.get(*arg_index) {
                         let ptr = self.get_or_alloc_local(*param_id);
-                        let _ = self.builder.build_store(ptr, arg_val);
+                        let _ = self.builder.build_store(ptr, *arg_val, "");
                     }
                 }
             }
@@ -267,13 +262,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let vec_ty = self.vec4_i64_type;
         let mut groups = vec![];
         for chunk in values.chunks(4) {
-            let mut vec_vals = vec![self.i64_type.const_int(0, false); 4];
+            let mut vec_vals: Vec<BasicValueEnum> = vec![self.i64_type.const_int(0, false).into(); 4];
             for (i, &vid) in chunk.iter().enumerate() {
                 if i < 4 {
-                    vec_vals[i] = self.gen_expr(&MirExpr::Var(vid)).into_int_value();
+                    vec_vals[i] = self.gen_expr(&MirExpr::Var(vid));
                 }
             }
-            let vec_const = vec_ty.const_vector(&vec_vals);
+            let vec_const = inkwell::types::VectorType::const_vector(&vec_vals);
             groups.push(vec_const);
         }
 
@@ -281,26 +276,27 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let mut simd_acc = groups[0];
         for g in &groups[1..] {
             simd_acc = match op {
-                SemiringOp::Add => self.builder.build_vector_add(simd_acc, *g, "simdadd"),
-                SemiringOp::Mul => self.builder.build_vector_mul(simd_acc, *g, "simdmul"),
-            }
-            .into_vector_value();
+                SemiringOp::Add => self.builder.build_add(simd_acc, *g, "simdadd").expect("simdadd failed").into_vector_value(),
+                SemiringOp::Mul => self.builder.build_mul(simd_acc, *g, "simdmul").expect("simdmul failed").into_vector_value(),
+            };
         }
 
         // Extract to scalar sum (horz reduce)
         let mut scalar_sum = self.i64_type.const_int(0, false);
         for i in 0..4 {
-            let elem = self.builder.build_extract_element(simd_acc, self.context.i32_type().const_int(i as u64, false), "elem");
-            scalar_sum = self.builder.build_int_add(scalar_sum, elem, "sum").into_int_value();
+            let elem_idx = self.context.i32_type().const_int(i as u64, false);
+            let elem = self.builder.build_extract_element(simd_acc, elem_idx, "elem").expect("extract failed");
+            let elem_i = elem.into_int_value();
+            scalar_sum = self.builder.build_int_add(scalar_sum, elem_i, "sum").expect("sum failed").into_int_value();
         }
         let ptr = self.get_or_alloc_local(result);
-        let _ = self.builder.build_store(ptr, scalar_sum.into());
+        let _ = self.builder.build_store(ptr, scalar_sum.into(), "");
     }
 
     /// Allocates alloca for local if not exists, returns pointer.
     fn get_or_alloc_local(&mut self, id: u32) -> PointerValue<'ctx> {
         if !self.locals.contains_key(&id) {
-            let alloca = self.builder.build_alloca(self.i64_type, &format!("local_{}", id));
+            let alloca = self.builder.build_alloca(self.i64_type, &format!("local_{}", id)).expect("alloca failed");
             self.locals.insert(id, alloca);
         }
         self.locals[&id]
