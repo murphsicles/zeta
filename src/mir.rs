@@ -147,7 +147,6 @@ impl MirGen {
                     let ret_val = self.gen_expr(expr, &mut exprs);
                     let ret_id = self.materialize(ret_val, &mut exprs, &mut stmts);
                     stmts.push(MirStmt::Return { val: ret_id });
-                }
             }
         }
         Mir { stmts, locals: self.locals.clone(), exprs, name }
