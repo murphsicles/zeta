@@ -22,7 +22,7 @@ use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::support::LLVMString;
 use inkwell::types::{BasicMetadataTypeEnum, IntType, PointerType, VectorType};
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue, FunctionValue};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue, FunctionValue, VectorValue};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -244,11 +244,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
             MirStmt::ParamInit { param_id, arg_index } => {
                 // Store fn arg to param alloca
                 if let Some(fn_val) = self.current_fn {
-                    let params: Vec<BasicMetadataValueEnum<'ctx>> = fn_val.get_params().collect();
+                    let params: Vec<BasicValueEnum<'ctx>> = fn_val.get_params().collect();
                     if let Some(arg_val) = params.get(*arg_index) {
-                        let arg_bv = arg_val.try_into_basic_value().expect("param basic");
+                        let arg_bv = arg_val.into_int_value();
                         let ptr = self.get_or_alloc_local(*param_id);
-                        let _ = self.builder.build_store(ptr, arg_bv).expect("store failed");
+                        let _ = self.builder.build_store(ptr, arg_bv.into()).expect("store failed");
                     }
                 }
             }
@@ -270,7 +270,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     vec_vals[i] = self.gen_expr(&MirExpr::Var(vid));
                 }
             }
-            let vec_const = vec_ty.const_vector(&vec_vals);
+            let vec_const = VectorType::const_vector(&vec_ty, &vec_vals);
             groups.push(vec_const);
         }
 
@@ -281,11 +281,16 @@ impl<'ctx> LLVMCodegen<'ctx> {
         // Fold groups with SIMD op
         let mut simd_acc = groups[0];
         for g in &groups[1..] {
-            let op_res = match op {
-                SemiringOp::Add => self.builder.build_add(simd_acc, *g, "simdadd").expect("simdadd failed"),
-                SemiringOp::Mul => self.builder.build_mul(simd_acc, *g, "simdmul").expect("simdmul failed"),
+            simd_acc = match op {
+                SemiringOp::Add => {
+                    let add_res = self.builder.build_int_nsw_add(simd_acc, *g, "simdadd").expect("simdadd failed");
+                    add_res.try_into_vector_value().expect("vector value")
+                }
+                SemiringOp::Mul => {
+                    let mul_res = self.builder.build_int_nsw_mul(simd_acc, *g, "simdmul").expect("simdmul failed");
+                    mul_res.try_into_vector_value().expect("vector value")
+                }
             };
-            simd_acc = op_res.try_into_vector_value().expect("vector value");
         }
 
         // Extract to scalar sum (horz reduce)
@@ -293,7 +298,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         for i in 0..4 {
             let elem_idx = self.context.i32_type().const_int(i as u64, false);
             let elem_inst = self.builder.build_extract_element(simd_acc, elem_idx, "elem").expect("extract failed");
-            let elem = elem_inst.try_into_int_value().expect("int value");
+            let elem = elem_inst.into_int_value();
             scalar_sum = self.builder.build_int_add(scalar_sum, elem, "sum").expect("sum failed");
         }
         let ptr = self.get_or_alloc_local(result);
@@ -357,7 +362,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.builder
             .build_load(self.i64_type, ptr, &format!("load_{id}"))
             .expect("load failed")
-            .into()
     }
 
     /// Verifies module, runs MLGO AI passes (vectorize/branch pred), creates JIT engine, maps host functions.
