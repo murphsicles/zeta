@@ -70,7 +70,7 @@ impl BorrowChecker {
             AstNode::Var(v) => self
                 .borrows
                 .get(v)
-                .map_or(true, |s| matches!(s, BorrowState::Owned | BorrowState::Borrowed)),
+                .is_none_or(|s| matches!(s, BorrowState::Owned | BorrowState::Borrowed)),
             AstNode::Assign(v, expr) => {
                 if !self.check(expr) {
                     return false;
@@ -95,8 +95,8 @@ impl BorrowChecker {
                         return false;
                     }
                     // Implicit borrow for str args
-                    if let AstNode::Var(name) = arg {
-                        if let Some(state) = self.borrows.get(name) {
+                    if let AstNode::Var(name) = arg
+                        && let Some(state) = self.borrows.get(name) {
                             if *state == BorrowState::Owned && name.ends_with("_str") { // Stub for str
                                 // Allow implicit borrow without consume
                             } else if !*self.affine_moves.get(name).unwrap_or(&false) {
