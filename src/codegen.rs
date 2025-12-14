@@ -244,11 +244,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
             MirStmt::ParamInit { param_id, arg_index } => {
                 // Store fn arg to param alloca
                 if let Some(fn_val) = self.current_fn {
-                    let params: Vec<BasicValueEnum<'ctx>> = fn_val.get_params().collect();
+                    let params: Vec<BasicMetadataValueEnum<'ctx>> = fn_val.get_params().collect();
                     if let Some(arg_val) = params.get(*arg_index) {
-                        let arg_bv = arg_val.into_int_value();
+                        let arg_bv = arg_val.try_as_basic_value().expect("param basic");
+                        let arg_i = arg_bv.into_int_value();
                         let ptr = self.get_or_alloc_local(*param_id);
-                        let _ = self.builder.build_store(ptr, arg_bv.into()).expect("store failed");
+                        let _ = self.builder.build_store(ptr, arg_i.into()).expect("store failed");
                     }
                 }
             }
@@ -270,7 +271,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     vec_vals[i] = self.gen_expr(&MirExpr::Var(vid));
                 }
             }
-            let vec_const = VectorType::const_vector(&vec_ty, &vec_vals);
+            let vec_const = VectorType::const_vector(&vec_vals);
             groups.push(vec_const);
         }
 
@@ -282,14 +283,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let mut simd_acc = groups[0];
         for g in &groups[1..] {
             simd_acc = match op {
-                SemiringOp::Add => {
-                    let add_res = self.builder.build_int_nsw_add(simd_acc, *g, "simdadd").expect("simdadd failed");
-                    add_res.try_into_vector_value().expect("vector value")
-                }
-                SemiringOp::Mul => {
-                    let mul_res = self.builder.build_int_nsw_mul(simd_acc, *g, "simdmul").expect("simdmul failed");
-                    mul_res.try_into_vector_value().expect("vector value")
-                }
+                SemiringOp::Add => self.builder.build_add(simd_acc, *g, "simdadd").expect("simdadd failed").try_as_vector_value().expect("vector value"),
+                SemiringOp::Mul => self.builder.build_mul(simd_acc, *g, "simdmul").expect("simdmul failed").try_as_vector_value().expect("vector value"),
             };
         }
 
