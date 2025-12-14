@@ -22,7 +22,7 @@ use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::support::LLVMString;
 use inkwell::types::{BasicMetadataTypeEnum, IntType, PointerType, VectorType};
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue, FunctionValue, VectorValue};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue, FunctionValue};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -246,7 +246,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 if let Some(fn_val) = self.current_fn {
                     let params: Vec<BasicMetadataValueEnum<'ctx>> = fn_val.get_params().collect();
                     if let Some(arg_val) = params.get(*arg_index) {
-                        let arg_bv = arg_val.try_as_basic_value().expect("param basic");
+                        let arg_bv = arg_val.try_into_basic_value().expect("param basic");
                         let arg_i = arg_bv.into_int_value();
                         let ptr = self.get_or_alloc_local(*param_id);
                         let _ = self.builder.build_store(ptr, arg_i.into()).expect("store failed");
@@ -283,8 +283,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let mut simd_acc = groups[0];
         for g in &groups[1..] {
             simd_acc = match op {
-                SemiringOp::Add => self.builder.build_add(simd_acc, *g, "simdadd").expect("simdadd failed").try_as_vector_value().expect("vector value"),
-                SemiringOp::Mul => self.builder.build_mul(simd_acc, *g, "simdmul").expect("simdmul failed").try_as_vector_value().expect("vector value"),
+                SemiringOp::Add => self.builder.build_int_add(simd_acc, g.clone(), "simdadd").expect("simdadd failed"),
+                SemiringOp::Mul => self.builder.build_int_mul(simd_acc, g.clone(), "simdmul").expect("simdmul failed"),
             };
         }
 
