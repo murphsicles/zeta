@@ -282,6 +282,7 @@ impl Resolver {
     }
 
     /// Handles implicit borrows: &str from str when needed.
+    #[allow(dead_code)]
     fn implicit_borrow(&mut self, ty: &Type) -> Type {
         if *ty == Type::Str {
             Type::StrRef // Implicit &str borrow
