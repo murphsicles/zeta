@@ -125,7 +125,10 @@ impl Resolver {
         );
         // Rich methods
         str_ops.insert("to_lowercase".to_string(), (vec![], Type::Str));
-        str_ops.insert("replace".to_string(), (vec![Type::Str, Type::Str], Type::Str));
+        str_ops.insert(
+            "replace".to_string(),
+            (vec![Type::Str, Type::Str], Type::Str),
+        );
         str_ops.insert("starts_with".to_string(), (vec![Type::Str], Type::Bool));
         str_ops.insert("ends_with".to_string(), (vec![Type::Str], Type::Bool));
         str_ops.insert("as_bytes".to_string(), (vec![], Type::VecU8));
@@ -136,7 +139,8 @@ impl Resolver {
         // Implicit impl for &str -> str conversions
         let mut str_ref_ops = HashMap::new();
         str_ref_ops.insert("to_owned".to_string(), (vec![], Type::Str));
-        r.direct_impls.insert(("StrRefOps".to_string(), Type::StrRef), str_ref_ops);
+        r.direct_impls
+            .insert(("StrRefOps".to_string(), Type::StrRef), str_ref_ops);
 
         r
     }
@@ -236,7 +240,10 @@ impl Resolver {
             AstNode::BinaryOp { op, left, right } => {
                 let lty = self.infer_type(left);
                 let rty = self.infer_type(right);
-                if op == "concat" && (lty == Type::Str || lty == Type::StrRef) && (rty == Type::Str || rty == Type::StrRef) {
+                if op == "concat"
+                    && (lty == Type::Str || lty == Type::StrRef)
+                    && (rty == Type::Str || rty == Type::StrRef)
+                {
                     Type::Str
                 } else {
                     Type::Unknown
