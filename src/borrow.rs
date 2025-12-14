@@ -78,16 +78,14 @@ impl BorrowChecker {
                 self.declare(v.clone(), BorrowState::Owned);
                 true
             }
-            AstNode::BinaryOp { left, right, .. } => {
-                self.check(left) && self.check(right)
-            }
-            AstNode::FString(parts) => {
-                parts.iter().all(|p| self.check(p))
-            }
+            AstNode::BinaryOp { left, right, .. } => self.check(left) && self.check(right),
+            AstNode::FString(parts) => parts.iter().all(|p| self.check(p)),
             AstNode::TimingOwned { inner, .. } => self.check(inner),
             AstNode::Defer(inner) => self.check(inner),
             AstNode::Call { receiver, args, .. } => {
-                if let Some(r) = receiver.as_ref() && !self.check(r) {
+                if let Some(r) = receiver.as_ref()
+                    && !self.check(r)
+                {
                     return false;
                 }
                 for arg in args {
