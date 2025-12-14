@@ -237,7 +237,7 @@ impl MirGen {
             }
         }
     }
-
+    #[allow(dead_code)]
     fn gen_stmt(&mut self, node: &AstNode, out: &mut Vec<MirStmt>, exprs: &mut HashMap<u32, MirExpr>) {
         match node {
             AstNode::Assign(name, expr) => {
