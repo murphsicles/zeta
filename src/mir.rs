@@ -143,16 +143,27 @@ impl MirGen {
 
             // Assume last stmt is return if Assign
             if let Some(last) = body.last()
-                && let AstNode::Assign(_, expr) = last {
-                    let ret_val = self.gen_expr(expr, &mut exprs);
-                    let ret_id = self.materialize(ret_val, &mut exprs, &mut stmts);
-                    stmts.push(MirStmt::Return { val: ret_id });
+                && let AstNode::Assign(_, expr) = last
+            {
+                let ret_val = self.gen_expr(expr, &mut exprs);
+                let ret_id = self.materialize(ret_val, &mut exprs, &mut stmts);
+                stmts.push(MirStmt::Return { val: ret_id });
             }
         }
-        Mir { stmts, locals: self.locals.clone(), exprs, name }
+        Mir {
+            stmts,
+            locals: self.locals.clone(),
+            exprs,
+            name,
+        }
     }
 
-    fn gen_stmt_full(&mut self, node: &AstNode, out: &mut Vec<MirStmt>, exprs: &mut HashMap<u32, MirExpr>) {
+    fn gen_stmt_full(
+        &mut self,
+        node: &AstNode,
+        out: &mut Vec<MirStmt>,
+        exprs: &mut HashMap<u32, MirExpr>,
+    ) {
         match node {
             AstNode::Defer(boxed) => {
                 if let AstNode::Call {
@@ -237,7 +248,12 @@ impl MirGen {
         }
     }
     #[allow(dead_code)]
-    fn gen_stmt(&mut self, node: &AstNode, out: &mut Vec<MirStmt>, exprs: &mut HashMap<u32, MirExpr>) {
+    fn gen_stmt(
+        &mut self,
+        node: &AstNode,
+        out: &mut Vec<MirStmt>,
+        exprs: &mut HashMap<u32, MirExpr>,
+    ) {
         match node {
             AstNode::Assign(name, expr) => {
                 let lhs = self.alloc_local(name);
