@@ -98,7 +98,7 @@ pub unsafe extern "C" fn host_spawn(_func_id: i64) -> i64 {
 /// The `url` pointer must be a valid null-terminated C string.
 pub unsafe extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
     use std::ffi::CStr;
-    if let Ok(url_str) = unsafe { CStr::from_ptr(url) }.to_str() {
+     if unsafe { CStr::from_ptr(host) }.to_str().is_ok() {
         // Real: reqwest stubbed as len
         url_str.len() as i64
     } else {
