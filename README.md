@@ -2,7 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/zeta.svg)](https://crates.io/crates/zetac) [![Dependencies](https://deps.rs/repo/github/murphsicles/zeta/status.svg)](https://deps.rs/repo/github/murphsicles/zeta)[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Zeta is a systems programming language inspired by Elements of Programming (EOP) algebraic foundations. It exists for one reason: to end the era of slow, bloated, over-engineered compilers.
+Zeta is a systems programming language inspired by Elements of Programming (EOP) algebraic foundations, by Alexander Stepanov, the Godfather of the C++ Standard Template Library. Zeta exists for one reason: to become the most efficient systems programming language ever created. First Principles enginerring with zero tolerance for bottlenecks, bloat or barriers.
 
 > “It’s not just efficiency, it's weaponized minimalism. It’s surgical violence against complexity.” - Roy Murphy
 
