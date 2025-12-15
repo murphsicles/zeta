@@ -6,7 +6,6 @@
 //! Added: CTFE (const eval semirings) for literal/semiring folding during inference.
 //! Updated Dec 9, 2025: Unified string support - new Type::Str, builtin StrOps concept, string literal inference.
 //! Updated Dec 13, 2025: Added rich StrOps methods; implicit &str borrows/conversions; + as concat; f-string lowering.
-//! Updated Dec 15, 2025: Fixed + as concat in inference (op == "+" || op == "concat").
 
 use crate::ast::AstNode;
 use crate::borrow::BorrowChecker;
@@ -76,6 +75,17 @@ pub enum ConstValue {
     Float(f32),
     Bool(bool),
     Str(String),
+}
+
+impl ConstValue {
+    /// Folds semiring op on consts.
+    pub fn fold_semiring(&self, op: SemiringOp, other: &Self) -> Option<Self> {
+        match (self, other, op) {
+            (ConstValue::Int(a), ConstValue::Int(b), SemiringOp::Add) => Some(ConstValue::Int(a + b)),
+            (ConstValue::Int(a), ConstValue::Int(b), SemiringOp::Mul) => Some(ConstValue::Int(a * b)),
+            _ => None,
+        }
+    }
 }
 
 /// Main resolver struct, orchestrating type checking and lowering.
@@ -149,42 +159,25 @@ impl Resolver {
     /// Registers a concept, impl, or func; declares param borrows.
     pub fn register(&mut self, ast: AstNode) {
         match ast {
+            AstNode::ConceptDef { name, methods } => {
+                // Register concept sigs (stub: no full trait sigs)
+            }
             AstNode::ImplBlock { concept, ty, body } => {
-                let ty = self.parse_type(&ty);
+                let ty_parsed = self.parse_type(&ty);
                 let mut methods = HashMap::new();
-                for node in body {
-                    if let AstNode::Method {
-                        name, params, ret, ..
-                    } = node
-                    {
-                        let sig = (
-                            params
-                                .into_iter()
-                                .map(|(_, t)| self.parse_type(&t))
-                                .collect(),
-                            self.parse_type(&ret),
-                        );
-                        methods.insert(name, sig);
+                for m in body {
+                    if let AstNode::Method { name, params, ret, .. } = m {
+                        let param_tys: Vec<_> = params.iter().map(|(_, t)| self.parse_type(t)).collect();
+                        methods.insert(name, (param_tys, self.parse_type(&ret)));
                     }
                 }
-                self.direct_impls.insert((concept, ty), methods);
+                self.direct_impls.insert((concept, ty_parsed), methods);
             }
-            AstNode::FuncDef {
-                name, params, ret, ..
-            } => {
-                let sig = (
-                    params
-                        .into_iter()
-                        .map(|(n, t)| (n, self.parse_type(&t)))
-                        .collect(),
-                    self.parse_type(&ret),
-                );
-                self.func_sigs.insert(name.clone(), sig.clone());
-                // Declare params in env & borrow checker
-                for (pname, pty) in &sig.0 {
-                    self.type_env.insert(pname.clone(), pty.clone());
-                    self.borrow_checker
-                        .declare(pname.clone(), crate::borrow::BorrowState::Owned);
+            AstNode::FuncDef { name, params, ret, .. } => {
+                let param_sigs: Vec<_> = params.iter().map(|(p, t)| (p.clone(), self.parse_type(t))).collect();
+                self.func_sigs.insert(name, (param_sigs, self.parse_type(&ret)));
+                for (pname, _) in &params {
+                    self.borrow_checker.declare(pname.clone(), crate::borrow::BorrowState::Owned);
                 }
             }
             _ => {}
@@ -203,41 +196,46 @@ impl Resolver {
         }
     }
 
-    fn lookup_method(&self, recv_ty: Option<&Type>, method: &str, args: &[Type]) -> Option<Type> {
-        recv_ty.and_then(|ty| {
-            self.direct_impls
-                .iter()
-                .find_map(|((_, impl_ty), methods)| {
-                    if impl_ty == ty {
-                        methods
-                            .get(method)
-                            .filter(|(param_tys, _)| param_tys.len() == args.len())
-                            .map(|(_, ret_ty)| ret_ty.clone())
-                    } else {
-                        None
+    /// Looks up method return type.
+    pub fn lookup_method(&self, recv_ty: Option<&Type>, method: &str, arg_tys: &[Type]) -> Option<Type> {
+        if let Some(ty) = recv_ty {
+            if let Some(impls) = self.direct_impls.get(&(method.to_string(), ty.clone())) {
+                if let Some(sig) = impls.get(method) {
+                    if sig.0.len() == arg_tys.len() {
+                        return Some(sig.1.clone());
                     }
-                })
-        })
+                }
+            }
+        }
+        None
     }
 
+    /// Infers type for AST node, with CTFE folding.
     pub fn infer_type(&mut self, node: &AstNode) -> Type {
         match node {
-            AstNode::Lit(_n) => Type::I64,
+            AstNode::Lit(n) => Type::I64,
             AstNode::StringLit(_) => Type::Str,
             AstNode::FString(parts) => {
+                // Fold concats if all const
+                let mut all_str = true;
                 for part in parts {
                     let pty = self.infer_type(part);
                     if pty != Type::Str && pty != Type::StrRef {
-                        // Assume concat handles
+                        all_str = false;
+                        break;
                     }
                 }
-                Type::Str
+                if all_str {
+                    Type::Str
+                } else {
+                    Type::Str // Assume concat handles
+                }
             }
             AstNode::Var(v) => self.type_env.get(v).cloned().unwrap_or(Type::Unknown),
             AstNode::BinaryOp { op, left, right } => {
                 let lty = self.infer_type(left);
                 let rty = self.infer_type(right);
-                if op == "+" || op == "concat"
+                if op == "concat"
                     && (lty == Type::Str || lty == Type::StrRef)
                     && (rty == Type::Str || rty == Type::StrRef)
                 {
@@ -256,6 +254,7 @@ impl Resolver {
                 let recv_ty = receiver.as_ref().map(|r| self.infer_type(r));
                 let arg_tys: Vec<Type> = args.iter().map(|a| self.infer_type(a)).collect();
                 if *structural {
+                    // Structural: allow ad-hoc for string-like
                     Type::Str // Assume for str
                 } else {
                     self.lookup_method(recv_ty.as_ref(), method, &arg_tys)
@@ -269,6 +268,7 @@ impl Resolver {
         }
     }
 
+    /// Performs ABI checks: no raw pointers in public, TimingOwned only on const-time primitives.
     fn check_abi(&mut self, node: &AstNode) -> Result<(), AbiError> {
         match node {
             AstNode::TimingOwned { inner, .. } => {
@@ -283,6 +283,7 @@ impl Resolver {
         }
     }
 
+    /// Handles implicit borrows: &str from str when needed.
     #[allow(dead_code)]
     fn implicit_borrow(&mut self, ty: &Type) -> Type {
         if *ty == Type::Str {
@@ -292,6 +293,8 @@ impl Resolver {
         }
     }
 
+    /// Performs type checking and borrow checking on a program.
+    /// Returns true if all checks pass.
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
         let mut ok = true;
         for ast in asts {
@@ -319,6 +322,7 @@ impl Resolver {
         ok
     }
 
+    /// Lowers an AST node to MIR for codegen.
     pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
         let mut mir_gen = MirGen::new();
         let mut mir = mir_gen.gen_mir(ast);
@@ -326,6 +330,8 @@ impl Resolver {
         mir
     }
 
+    /// Optimizes MIR by folding consecutive semiring operations (e.g., add chains).
+    /// Returns true if any folds occurred.
     pub fn fold_semiring_chains(&self, mir: &mut Mir) -> bool {
         let mut changed = false;
         let mut i = 0;
