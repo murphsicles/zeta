@@ -7,7 +7,7 @@
 //! Added: SIMD - vec ops via MLGO passes; detect SemiringFold for vectorize.
 //! Added: Stable ABI - no UB via sanitize checks, thin mono via specialization mangled names.
 //! Updated Dec 9, 2025: StringLit lowered to private global constant arrays (null-terminated).
-//! Updated Dec 15, 2025: Fixed call result handling with try_as_basic_value(); pointer offset for host functions.
+//! Updated Dec 15, 2025: Fixed call result with try_as_basic_value(); pointer offset for host; BinaryOp handled.
 
 use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
@@ -67,9 +67,9 @@ extern "C" fn host_str_concat(a: i64, b: i64) -> i64 {
         let p1 = a as *const u8;
         let p2 = b as *const u8;
         let mut len1 = 0usize;
-        while p1.offset(len1 as isize).read() != 0 { len1 += 1; }
+        while *p1.offset(len1 as isize) != 0 { len1 += 1; }
         let mut len2 = 0usize;
-        while p2.offset(len2 as isize).read() != 0 { len2 += 1; }
+        while *p2.offset(len2 as isize) != 0 { len2 += 1; }
         let total = len1 + len2 + 1;
         let new_ptr = libc::malloc(total) as *mut u8;
         if new_ptr.is_null() { return 0; }
@@ -84,7 +84,7 @@ extern "C" fn host_str_len(p: i64) -> i64 {
     unsafe {
         let mut len = 0usize;
         let ptr = p as *const u8;
-        while ptr.offset(len as isize).read() != 0 {
+        while *ptr.offset(len as isize) != 0 {
             len += 1;
         }
         len as i64
@@ -95,11 +95,11 @@ extern "C" fn host_str_to_lowercase(p: i64) -> i64 {
     unsafe {
         let ptr = p as *const u8;
         let mut len = 0usize;
-        while ptr.offset(len as isize).read() != 0 { len += 1; }
+        while *ptr.offset(len as isize) != 0 { len += 1; }
         let new_ptr = libc::malloc(len + 1) as *mut u8;
         if new_ptr.is_null() { return 0; }
         for i in 0..len {
-            let c = ptr.offset(i as isize).read();
+            let c = *ptr.offset(i as isize);
             *new_ptr.offset(i as isize) = if c >= b'A' && c <= b'Z' { c + 32 } else { c };
         }
         *new_ptr.offset(len as isize) = 0;
@@ -113,9 +113,9 @@ extern "C" fn host_str_starts_with(s: i64, prefix: i64) -> i64 {
         let p_ptr = prefix as *const u8;
         let mut i = 0usize;
         loop {
-            let pc = p_ptr.offset(i as isize).read();
+            let pc = *p_ptr.offset(i as isize);
             if pc == 0 { return 1; }
-            if s_ptr.offset(i as isize).read() != pc { return 0; }
+            if *s_ptr.offset(i as isize) != pc { return 0; }
             i += 1;
         }
     }
@@ -123,16 +123,14 @@ extern "C" fn host_str_starts_with(s: i64, prefix: i64) -> i64 {
 
 extern "C" fn host_str_ends_with(s: i64, suffix: i64) -> i64 {
     unsafe {
-        let s_ptr = s as *const u8;
-        let suffix_ptr = suffix as *const u8;
         let mut sl = 0usize;
-        while s_ptr.offset(sl as isize).read() != 0 { sl += 1; }
+        while * (s as *const u8).offset(sl as isize) != 0 { sl += 1; }
         let mut sul = 0usize;
-        while suffix_ptr.offset(sul as isize).read() != 0 { sul += 1; }
+        while * (suffix as *const u8).offset(sul as isize) != 0 { sul += 1; }
         if sul > sl { return 0; }
         let mut i = 0usize;
         while i < sul {
-            if s_ptr.offset((sl - sul + i) as isize).read() != suffix_ptr.offset(i as isize).read() { return 0; }
+            if * (s as *const u8).offset((sl - sul + i) as isize) != * (suffix as *const u8).offset(i as isize) { return 0; }
             i += 1;
         }
         1
@@ -144,17 +142,17 @@ extern "C" fn host_str_contains(hay: i64, needle: i64) -> i64 {
         let h_ptr = hay as *const u8;
         let n_ptr = needle as *const u8;
         let mut nl = 0usize;
-        while n_ptr.offset(nl as isize).read() != 0 { nl += 1; }
+        while *n_ptr.offset(nl as isize) != 0 { nl += 1; }
         if nl == 0 { return 1; }
         let mut hl = 0usize;
-        while h_ptr.offset(hl as isize).read() != 0 { hl += 1; }
+        while *h_ptr.offset(hl as isize) != 0 { hl += 1; }
         if nl > hl { return 0; }
         let mut i = 0usize;
         while i <= hl - nl {
             let mut matches = true;
             let mut j = 0usize;
             while j < nl {
-                if h_ptr.offset((i + j) as isize).read() != n_ptr.offset(j as isize).read() {
+                if *h_ptr.offset((i + j) as isize) != *n_ptr.offset(j as isize) {
                     matches = false;
                     break;
                 }
@@ -403,9 +401,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let ptr = global.as_pointer_value();
                 self.builder.build_ptr_to_int(ptr, self.i64_type, "str_ptr").expect("ptr_to_int failed").into()
             }
-            MirExpr::FString(ids) => {
-                self.gen_expr(&MirExpr::Var(ids[0]))
-            }
+            MirExpr::FString(ids) => self.gen_expr(&MirExpr::Var(ids[0])),
             MirExpr::ConstEval(n) => self.i64_type.const_int(*n as u64, true).into(),
             MirExpr::TimingOwned(inner_id) => self.load_local(*inner_id),
             MirExpr::BinaryOp { .. } => self.i64_type.const_zero().into(),
