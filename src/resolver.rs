@@ -215,16 +215,7 @@ impl Resolver {
             AstNode::StringLit(_) => Type::Str,
             AstNode::FString(parts) => {
                 // Fold concats if all const
-                let mut all_str = true;
-                for part in parts {
-                    let pty = self.infer_type(part);
-                    if pty != Type::Str && pty != Type::StrRef {
-                        all_str = false;
-                        break;
-                    }
-                }
                 Type::Str // Concat handles both str and mixed cases
-            }
             AstNode::Var(v) => self.type_env.get(v).cloned().unwrap_or(Type::Unknown),
             AstNode::BinaryOp { op, left, right } => {
                 let lty = self.infer_type(left);
