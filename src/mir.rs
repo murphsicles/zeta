@@ -202,7 +202,10 @@ impl MirGen {
                 let rhs_expr = self.gen_expr(rhs, exprs);
                 let rhs_id = self.materialize(rhs_expr, exprs, out);
                 let lhs_id = self.lookup_or_alloc(lhs);
-                out.push(MirStmt::Assign { lhs: lhs_id, rhs: MirExpr::Var(rhs_id) });
+                out.push(MirStmt::Assign {
+                    lhs: lhs_id,
+                    rhs: MirExpr::Var(rhs_id),
+                });
             }
             AstNode::BinaryOp { op, left, right } => {
                 let left_expr = self.gen_expr(left, exprs);
@@ -210,7 +213,11 @@ impl MirGen {
                 let right_expr = self.gen_expr(right, exprs);
                 let right_id = self.materialize(right_expr, exprs, out);
                 let dest = self.next_id();
-                let func = if op == "+" { "str_concat".to_string() } else { op.clone() };
+                let func = if op == "+" {
+                    "str_concat".to_string()
+                } else {
+                    op.clone()
+                };
                 out.push(MirStmt::Call {
                     func,
                     args: vec![left_id, right_id],
