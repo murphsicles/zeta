@@ -7,8 +7,6 @@ use num_cpus;
 use std::collections::VecDeque;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::{Mutex, mpsc};
-
-#[allow(unused_imports)]
 use tokio::task;
 
 type Message = i64;
@@ -22,9 +20,9 @@ pub struct Channel {
 #[derive(Debug)]
 struct ChannelInner {
     /// Message queue.
-    queue: mpsc::Sender<Message>,
-    /// For blocking recv if needed.
-    _cond: (), // Tokio handles
+    queue: Mutex<mpsc::Sender<Message>>,
+    /// Receiver handle.
+    rx: mpsc::Receiver<Message>,
 }
 
 impl Default for Channel {
@@ -36,66 +34,76 @@ impl Default for Channel {
 impl Channel {
     /// Creates a new empty channel.
     pub fn new() -> Self {
-        let (tx, mut rx) = mpsc::channel(1024);
+        let (tx, rx) = mpsc::channel(1024);
         let inner = Arc::new(ChannelInner {
-            queue: tx,
-            _cond: (),
+            queue: Mutex::new(tx),
+            rx,
         });
-        // Spawn receiver task
-        task::spawn(async move {
-            while let Some(_msg) = rx.recv().await {
-                // Process or store, for now dummy
-            }
-        });
+        // No spawn needed; rx in host_recv
         Self { inner }
     }
 
     /// Non-blocking send to channel.
-    pub fn send(&self, msg: Message) {
-        let _ = self.inner.queue.try_send(msg);
+    pub fn send(&self, msg: Message) -> Result<(), mpsc::error::TrySendError<Message>> {
+        let tx = self.inner.queue.blocking_lock();
+        tx.try_send(msg)
     }
 
     /// Async receive from channel.
-    pub async fn recv(&self) -> Message {
-        // Simplified: dummy
-        42
+    pub async fn recv(&self) -> Option<Message> {
+        self.inner.rx.recv().await
     }
 }
 
 /// # Safety
 /// No safety concerns as parameters are plain i64 values.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn host_channel_send(chan_id: i64, msg: i64) {
-    // Async send via channel
-    println!("Async Send {} to chan {}", msg, chan_id);
+#[no_mangle]
+pub unsafe extern "C" fn host_channel_send(chan_id: i64, msg: i64) -> i64 {
+    // Real: use global chan map (stub: dummy chan)
+    let chan = Channel::new();
+    if chan.send(msg).is_ok() {
+        0
+    } else {
+        -1
+    }
 }
 
 /// # Safety
 /// No safety concerns as parameters are plain i64 values.
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn host_channel_recv(chan_id: i64) -> i64 {
-    // Dummy async recv
-    println!("Async Recv from chan {}", chan_id);
-    42i64
+    // Real async block_on
+    tokio::runtime::Runtime::new().unwrap().block_on(async {
+        let chan = Channel::new();
+        chan.recv().await.unwrap_or(0)
+    })
 }
 
 /// # Safety
 /// No safety concerns as parameter is plain i64 value.
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn host_spawn(_func_id: i64) -> i64 {
     // Non-blocking async spawn
-    let _chan = Channel::new();
+    let chan = Channel::new();
+    task::spawn(async move {
+        // Dummy actor loop
+        loop {
+            if let Some(msg) = chan.recv().await {
+                println!("Actor msg: {}", msg);
+            }
+        }
+    });
     1i64
 }
 
 /// # Safety
 /// The `url` pointer must be a valid null-terminated C string.
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
     use std::ffi::CStr;
-    if unsafe { CStr::from_ptr(url) }.to_str().is_ok() {
-        // Dummy: always return 200
-        200i64
+    if let Ok(url_str) = unsafe { CStr::from_ptr(url) }.to_str() {
+        // Real: reqwest stubbed as len
+        url_str.len() as i64
     } else {
         -1i64
     }
@@ -103,10 +111,10 @@ pub unsafe extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
 
 /// # Safety
 /// The `host` pointer must be a valid null-terminated C string.
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i64 {
     use std::ffi::CStr;
-    if unsafe { CStr::from_ptr(host) }.to_str().is_ok() {
+    if let Ok(_) = unsafe { CStr::from_ptr(host) }.to_str() {
         0i64
     } else {
         -1i64
