@@ -213,10 +213,12 @@ impl Resolver {
         match node {
             AstNode::Lit(_n) => Type::I64,
             AstNode::StringLit(_) => Type::Str,
-            AstNode::FString(parts) => {
-                    }
-                // Fold concats if all const
-                Type::Str // Concat handles both str and mixed cases
+             AstNode::FString(parts) => {
+                for part in parts {
+                    self.infer_type(part);
+                }
+                Type::Str
+            }
             AstNode::Var(v) => self.type_env.get(v).cloned().unwrap_or(Type::Unknown),
             AstNode::BinaryOp { op, left, right } => {
                 let lty = self.infer_type(left);
