@@ -23,7 +23,7 @@ use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::support::LLVMString;
 use inkwell::types::{BasicMetadataTypeEnum, IntType, PointerType, VectorType};
-use inkwell::values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, PointerValue, InstructionValue};
+use inkwell::values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, PointerValue};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -292,7 +292,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let ptr = self.locals[inner_id];
                 let load = self.builder.build_load(self.i64_type, ptr, "timing_load").expect("load failed");
                 if let Some(inst) = load.as_instruction_value() {
-                    inst.set_metadata(&self.tbaa_const_time, 0);
+                    inst.set_metadata(self.tbaa_const_time, 0);
                 }
                 load
             }
