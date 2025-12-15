@@ -52,11 +52,7 @@ impl Channel {
 pub unsafe extern "C" fn host_channel_send(_chan_id: i64, msg: i64) -> i64 {
     // Real: use global chan map (stub: dummy chan)
     let chan = Channel::new();
-    if chan.send(msg).is_ok() {
-        0
-    } else {
-        -1
-    }
+    if chan.send(msg).is_ok() { 0 } else { -1 }
 }
 /// # Safety
 /// No safety concerns as parameters are plain i64 values.
