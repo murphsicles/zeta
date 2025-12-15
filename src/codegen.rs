@@ -1,3 +1,4 @@
+// src/codegen.rs
 //! LLVM code generation for Zeta MIR.
 //! Supports JIT execution, intrinsics, SIMD, TBAA, actor runtime, and std embeddings.
 //! Ensures stable ABI and TimingOwned constant-time guarantees.
@@ -6,7 +7,7 @@
 //! Added: SIMD - vec ops via MLGO passes; detect SemiringFold for vectorize.
 //! Added: Stable ABI - no UB via sanitize checks, thin mono via specialization mangled names.
 //! Updated Dec 9, 2025: StringLit lowered to private global constant arrays (null-terminated).
-//! Updated Dec 13, 2025: FString to concat calls; rich str methods via intrinsics; Vec<u8> interop.
+//! Updated Dec 15, 2025: String ptr as i64; host str_concat/len/to_lowercase/starts_with/ends_with/contains with memcpy; variable arity.
 
 use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
@@ -58,6 +59,109 @@ extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i64 {
         0i64
     } else {
         -1i64
+    }
+}
+
+extern "C" fn host_str_concat(a: i64, b: i64) -> i64 {
+    unsafe {
+        let p1 = a as *const u8;
+        let p2 = b as *const u8;
+        let mut len1 = 0usize;
+        while *p1.add(len1) != 0 { len1 += 1; }
+        let mut len2 = 0usize;
+        while *p2.add(len2) != 0 { len2 += 1; }
+        let total = len1 + len2 + 1;
+        let new_ptr = libc::malloc(total) as *mut u8;
+        if new_ptr.is_null() { return 0; }
+        libc::memcpy(new_ptr as *mut _, p1 as *const _, len1);
+        libc::memcpy(new_ptr.add(len1) as *mut _, p2 as *const _, len2);
+        *new_ptr.add(total - 1) = 0;
+        new_ptr as i64
+    }
+}
+
+extern "C" fn host_str_len(p: i64) -> i64 {
+    unsafe {
+        let ptr = p as *const u8;
+        let mut len = 0usize;
+        while *ptr.add(len) != 0 {
+            len += 1;
+        }
+        len as i64
+    }
+}
+
+extern "C" fn host_str_to_lowercase(p: i64) -> i64 {
+    unsafe {
+        let ptr = p as *const u8;
+        let mut len = 0usize;
+        while *ptr.add(len) != 0 { len += 1; }
+        let new_ptr = libc::malloc(len + 1) as *mut u8;
+        if new_ptr.is_null() { return 0; }
+        for i in 0..len {
+            let c = *ptr.add(i);
+            *new_ptr.add(i) = if c >= b'A' && c <= b'Z' { c + 32 } else { c };
+        }
+        *new_ptr.add(len) = 0;
+        new_ptr as i64
+    }
+}
+
+extern "C" fn host_str_starts_with(s: i64, prefix: i64) -> i64 {
+    unsafe {
+        let s = s as *const u8;
+        let p = prefix as *const u8;
+        let mut i = 0usize;
+        loop {
+            let pc = *p.add(i);
+            if pc == 0 { return 1; }
+            if *s.add(i) != pc { return 0; }
+            i += 1;
+        }
+    }
+}
+
+extern "C" fn host_str_ends_with(s: i64, suffix: i64) -> i64 {
+    unsafe {
+        let mut sl = 0usize;
+        while *s.add(sl) != 0 { sl += 1; }
+        let mut sul = 0usize;
+        while *suffix.add(sul) != 0 { sul += 1; }
+        if sul > sl { return 0; }
+        let mut i = 0usize;
+        while i < sul {
+            if *s.add(sl - sul + i) != *suffix.add(i) { return 0; }
+            i += 1;
+        }
+        1
+    }
+}
+
+extern "C" fn host_str_contains(hay: i64, needle: i64) -> i64 {
+    unsafe {
+        let h = hay as *const u8;
+        let n = needle as *const u8;
+        let mut nl = 0usize;
+        while *n.add(nl) != 0 { nl += 1; }
+        if nl == 0 { return 1; }
+        let mut hl = 0usize;
+        while *h.add(hl) != 0 { hl += 1; }
+        if nl > hl { return 0; }
+        let mut i = 0usize;
+        while i <= hl - nl {
+            let mut matches = true;
+            let mut j = 0usize;
+            while j < nl {
+                if *h.add(i + j) != *n.add(j) {
+                    matches = false;
+                    break;
+                }
+                j += 1;
+            }
+            if matches { return 1; }
+            i += 1;
+        }
+        0
     }
 }
 
@@ -134,7 +238,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     type_args: vec![],
                 };
                 if let Some(value) = lookup_specialization(&key) {
-                    // Use cached mangled name if safe
                     if value.cache_safe {
                         // Stub: use value.llvm_func_name
                     }
@@ -186,7 +289,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 .expect("call failed");
                             let store_val = call_result
                                 .try_as_basic_value()
-                                .unwrap_basic()
+                                .left()
+                                .unwrap()
                                 .into_int_value();
                             let result = self.locals[dest];
                             let _ = self.builder.build_store(result, store_val);
@@ -234,7 +338,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             param_id,
                             arg_index,
                         } => {
-                            if let Some(param_val) = fn_val.get_nth_param((*arg_index) as u32) {
+                            if let Some(param_val) = fn_val.get_nth_param(*arg_index as u32) {
                                 let local_ptr = self.locals[param_id];
                                 let _ = self.builder.build_store(local_ptr, param_val);
                             }
@@ -268,7 +372,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
         if let Some(f) = self.fns.get(func) {
             *f
         } else {
-            let param_types: Vec<BasicMetadataTypeEnum<'ctx>> = vec![self.i64_type.into()];
+            let arity = match func {
+                "str_concat" | "starts_with" | "ends_with" | "contains" => 2,
+                "str_len" | "to_lowercase" => 1,
+                _ => 1,
+            };
+            let param_types: Vec<BasicMetadataTypeEnum<'ctx>> = vec![self.i64_type.into(); arity];
             let ty = self.i64_type.fn_type(&param_types, false);
             let f = self.module.add_function(func, ty, Some(Linkage::External));
             self.fns.insert(func.to_string(), f);
@@ -293,14 +402,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .collect();
                 let array_val = self.context.i8_type().const_array(&values);
                 global.set_initializer(&array_val);
-                global.as_pointer_value().into()
+                let ptr = global.as_pointer_value();
+                self.builder.build_ptr_to_int(ptr, self.i64_type, "str_ptr").into()
             }
-            MirExpr::FString(ids) => {
-                // Assume first id, as chained in stmts
-                self.gen_expr(&MirExpr::Var(ids[0]))
-            }
+            MirExpr::FString(_) => self.i64_type.const_zero().into(), // Handled via BinaryOp chain
             MirExpr::ConstEval(n) => self.i64_type.const_int(*n as u64, true).into(),
             MirExpr::TimingOwned(inner_id) => self.load_local(*inner_id),
+            _ => self.i64_type.const_zero().into(),
         }
     }
     /// Loads a local variable from alloca slot.
@@ -379,6 +487,24 @@ impl<'ctx> LLVMCodegen<'ctx> {
             &self.module.get_function("tls_handshake").unwrap(),
             host_tls_handshake as *const () as usize,
         );
+        if let Some(f) = self.module.get_function("str_concat") {
+            ee.add_global_mapping(&f, host_str_concat as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("str_len") {
+            ee.add_global_mapping(&f, host_str_len as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("str_to_lowercase") {
+            ee.add_global_mapping(&f, host_str_to_lowercase as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("str_starts_with") {
+            ee.add_global_mapping(&f, host_str_starts_with as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("str_ends_with") {
+            ee.add_global_mapping(&f, host_str_ends_with as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("str_contains") {
+            ee.add_global_mapping(&f, host_str_contains as *const () as usize);
+        }
         Ok(ee)
     }
 }
