@@ -81,8 +81,12 @@ impl ConstValue {
     /// Folds semiring op on consts.
     pub fn fold_semiring(&self, op: SemiringOp, other: &Self) -> Option<Self> {
         match (self, other, op) {
-            (ConstValue::Int(a), ConstValue::Int(b), SemiringOp::Add) => Some(ConstValue::Int(a + b)),
-            (ConstValue::Int(a), ConstValue::Int(b), SemiringOp::Mul) => Some(ConstValue::Int(a * b)),
+            (ConstValue::Int(a), ConstValue::Int(b), SemiringOp::Add) => {
+                Some(ConstValue::Int(a + b))
+            }
+            (ConstValue::Int(a), ConstValue::Int(b), SemiringOp::Mul) => {
+                Some(ConstValue::Int(a * b))
+            }
             _ => None,
         }
     }
@@ -159,25 +163,39 @@ impl Resolver {
     /// Registers a concept, impl, or func; declares param borrows.
     pub fn register(&mut self, ast: AstNode) {
         match ast {
-            AstNode::ConceptDef { name: _name, methods: _methods } => {
+            AstNode::ConceptDef {
+                name: _name,
+                methods: _methods,
+            } => {
                 // Register concept sigs (stub: no full trait sigs)
             }
             AstNode::ImplBlock { concept, ty, body } => {
                 let ty_parsed = self.parse_type(&ty);
                 let mut methods = HashMap::new();
                 for m in body {
-                    if let AstNode::Method { name, params, ret, .. } = m {
-                        let param_tys: Vec<_> = params.iter().map(|(_, t)| self.parse_type(t)).collect();
+                    if let AstNode::Method {
+                        name, params, ret, ..
+                    } = m
+                    {
+                        let param_tys: Vec<_> =
+                            params.iter().map(|(_, t)| self.parse_type(t)).collect();
                         methods.insert(name, (param_tys, self.parse_type(&ret)));
                     }
                 }
                 self.direct_impls.insert((concept, ty_parsed), methods);
             }
-            AstNode::FuncDef { name, params, ret, .. } => {
-                let param_sigs: Vec<_> = params.iter().map(|(p, t)| (p.clone(), self.parse_type(t))).collect();
-                self.func_sigs.insert(name, (param_sigs, self.parse_type(&ret)));
+            AstNode::FuncDef {
+                name, params, ret, ..
+            } => {
+                let param_sigs: Vec<_> = params
+                    .iter()
+                    .map(|(p, t)| (p.clone(), self.parse_type(t)))
+                    .collect();
+                self.func_sigs
+                    .insert(name, (param_sigs, self.parse_type(&ret)));
                 for (pname, _) in &params {
-                    self.borrow_checker.declare(pname.clone(), crate::borrow::BorrowState::Owned);
+                    self.borrow_checker
+                        .declare(pname.clone(), crate::borrow::BorrowState::Owned);
                 }
             }
             _ => {}
@@ -197,8 +215,13 @@ impl Resolver {
     }
 
     /// Looks up method return type.
-    pub fn lookup_method(&self, recv_ty: Option<&Type>, method: &str, arg_tys: &[Type]) -> Option<Type> {
-       if let Some(ty) = recv_ty
+    pub fn lookup_method(
+        &self,
+        recv_ty: Option<&Type>,
+        method: &str,
+        arg_tys: &[Type],
+    ) -> Option<Type> {
+        if let Some(ty) = recv_ty
             && let Some(impls) = self.direct_impls.get(&(method.to_string(), ty.clone()))
             && let Some(sig) = impls.get(method)
             && sig.0.len() == arg_tys.len()
@@ -213,7 +236,7 @@ impl Resolver {
         match node {
             AstNode::Lit(_n) => Type::I64,
             AstNode::StringLit(_) => Type::Str,
-             AstNode::FString(parts) => {
+            AstNode::FString(parts) => {
                 for part in parts {
                     self.infer_type(part);
                 }
