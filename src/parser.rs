@@ -45,8 +45,8 @@ fn parse_ident<'a>(input: &'a str) -> IResult<&'a str, String> {
 
 /// Parses keyword.
 #[allow(dead_code)]
-fn parse_keyword<'a>(kw: &'static str) -> impl Parser<&'a str, Output = (), Error = nom::error::Error<&'a str>> {
-    value((), ws(tag(kw)))
+fn parse_keyword<'a>(kw: &'static str, input: &'a str) -> IResult<&'a str, ()> {
+    value((), ws(tag(kw)))(input)
 }
 
 /// Parses an integer literal.
