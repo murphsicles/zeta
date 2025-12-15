@@ -159,7 +159,7 @@ impl Resolver {
     /// Registers a concept, impl, or func; declares param borrows.
     pub fn register(&mut self, ast: AstNode) {
         match ast {
-            AstNode::ConceptDef { name, methods } => {
+            AstNode::ConceptDef { _name, _methods } => {
                 // Register concept sigs (stub: no full trait sigs)
             }
             AstNode::ImplBlock { concept, ty, body } => {
@@ -213,7 +213,7 @@ impl Resolver {
     /// Infers type for AST node, with CTFE folding.
     pub fn infer_type(&mut self, node: &AstNode) -> Type {
         match node {
-            AstNode::Lit(n) => Type::I64,
+            AstNode::Lit(_n) => Type::I64,
             AstNode::StringLit(_) => Type::Str,
             AstNode::FString(parts) => {
                 // Fold concats if all const
