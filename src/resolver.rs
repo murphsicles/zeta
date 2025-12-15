@@ -214,6 +214,7 @@ impl Resolver {
             AstNode::Lit(_n) => Type::I64,
             AstNode::StringLit(_) => Type::Str,
             AstNode::FString(parts) => {
+                    }
                 // Fold concats if all const
                 Type::Str // Concat handles both str and mixed cases
             AstNode::Var(v) => self.type_env.get(v).cloned().unwrap_or(Type::Unknown),
