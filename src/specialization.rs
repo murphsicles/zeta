@@ -51,5 +51,8 @@ pub fn record_specialization(key: MonoKey, value: MonoValue) {
 
 /// Checks if a type arg is cache-safe (primitives/pointers only).
 pub fn is_cache_safe(ty: &str) -> bool {
-    matches!(ty, "i64" | "f32" | "bool" | "&i64" | "&mut i64" | "str" | "&str")
+    matches!(
+        ty,
+        "i64" | "f32" | "bool" | "&i64" | "&mut i64" | "str" | "&str"
+    )
 }
