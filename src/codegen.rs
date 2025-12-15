@@ -7,7 +7,7 @@
 //! Added: SIMD - vec ops via MLGO passes; detect SemiringFold for vectorize.
 //! Added: Stable ABI - no UB via sanitize checks, thin mono via specialization mangled names.
 //! Updated Dec 9, 2025: StringLit lowered to private global constant arrays (null-terminated).
-//! Updated Dec 15, 2025: Fixed call result with try_as_basic_value(); pointer offset for host; BinaryOp handled.
+//! Updated Dec 15, 2025: Fixed call result handling with try_as_basic_value(); pointer offset for host functions.
 
 use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
@@ -27,7 +27,6 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// Host implementation for datetime_now, returning Unix millis.
 extern "C" fn host_datetime_now() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -35,14 +34,12 @@ extern "C" fn host_datetime_now() -> i64 {
         .as_millis() as i64
 }
 
-/// Host implementation for free, wrapping libc::free.
 extern "C" fn host_free(ptr: *mut std::ffi::c_void) {
     if !ptr.is_null() {
         unsafe { libc::free(ptr) }
     }
 }
 
-/// Simplified host HTTP GET: returns response length or -1 error.
 extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
     use std::ffi::CStr;
     if unsafe { CStr::from_ptr(url) }.to_str().is_ok() {
@@ -52,7 +49,6 @@ extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
     }
 }
 
-/// Simplified host TLS handshake: returns 0 success, -1 error.
 extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i64 {
     use std::ffi::CStr;
     if unsafe { CStr::from_ptr(host) }.to_str().is_ok() {
@@ -75,15 +71,15 @@ extern "C" fn host_str_concat(a: i64, b: i64) -> i64 {
         if new_ptr.is_null() { return 0; }
         libc::memcpy(new_ptr as *mut _, p1 as *const _, len1);
         libc::memcpy(new_ptr.offset(len1 as isize) as *mut _, p2 as *const _, len2);
-        *new_ptr.offset(total as isize - 1) = 0;
+        *new_ptr.offset((total - 1) as isize) = 0;
         new_ptr as i64
     }
 }
 
 extern "C" fn host_str_len(p: i64) -> i64 {
     unsafe {
-        let mut len = 0usize;
         let ptr = p as *const u8;
+        let mut len = 0usize;
         while *ptr.offset(len as isize) != 0 {
             len += 1;
         }
@@ -123,14 +119,16 @@ extern "C" fn host_str_starts_with(s: i64, prefix: i64) -> i64 {
 
 extern "C" fn host_str_ends_with(s: i64, suffix: i64) -> i64 {
     unsafe {
+        let s_ptr = s as *const u8;
+        let suffix_ptr = suffix as *const u8;
         let mut sl = 0usize;
-        while * (s as *const u8).offset(sl as isize) != 0 { sl += 1; }
+        while *s_ptr.offset(sl as isize) != 0 { sl += 1; }
         let mut sul = 0usize;
-        while * (suffix as *const u8).offset(sul as isize) != 0 { sul += 1; }
+        while *suffix_ptr.offset(sul as isize) != 0 { sul += 1; }
         if sul > sl { return 0; }
         let mut i = 0usize;
         while i < sul {
-            if * (s as *const u8).offset((sl - sul + i) as isize) != * (suffix as *const u8).offset(i as isize) { return 0; }
+            if *s_ptr.offset((sl - sul + i) as isize) != *suffix_ptr.offset(i as isize) { return 0; }
             i += 1;
         }
         1
@@ -165,33 +163,22 @@ extern "C" fn host_str_contains(hay: i64, needle: i64) -> i64 {
     }
 }
 
-/// LLVM codegen context for a module.
 pub struct LLVMCodegen<'ctx> {
     context: &'ctx Context,
-    /// LLVM module being built.
     pub module: Module<'ctx>,
-    /// IR builder for instructions.
     builder: Builder<'ctx>,
-    /// i64 type for Zeta ints.
     i64_type: IntType<'ctx>,
     #[allow(dead_code)]
-    /// SIMD vector type (e.g., <4 x i64> for quad).
     vec4_i64_type: VectorType<'ctx>,
     #[allow(dead_code)]
-    /// Pointer type for heap ops.
     ptr_type: PointerType<'ctx>,
-    /// Local alloca slots by MIR ID.
     locals: HashMap<u32, PointerValue<'ctx>>,
-    /// TBAA root for constant-time metadata.
     #[allow(dead_code)]
     tbaa_const_time: inkwell::values::MetadataValue<'ctx>,
-    /// Generated function map: name -> LLVM fn.
     fns: HashMap<String, inkwell::values::FunctionValue<'ctx>>,
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
-    /// Creates a new codegen instance for a module named `name`.
-    /// Declares external host functions (datetime_now, free, actor intrinsics, std embeds).
     pub fn new(context: &'ctx Context, name: &str) -> Self {
         let module = context.create_module(name);
         let builder = context.create_builder();
@@ -230,7 +217,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
     }
 
     #[allow(deprecated)]
-    /// Generates LLVM IR for a list of MIRs (one per FuncDef), creates entry main if needed.
     pub fn gen_mirs(&mut self, mirs: &[Mir]) {
         for mir in mirs {
             if let Some(ref name) = mir.name {
@@ -404,7 +390,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             MirExpr::FString(ids) => self.gen_expr(&MirExpr::Var(ids[0])),
             MirExpr::ConstEval(n) => self.i64_type.const_int(*n as u64, true).into(),
             MirExpr::TimingOwned(inner_id) => self.load_local(*inner_id),
-            MirExpr::BinaryOp { .. } => self.i64_type.const_zero().into(),
+            _ => self.i64_type.const_zero().into(),
         }
     }
 
