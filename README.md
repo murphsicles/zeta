@@ -25,11 +25,12 @@ Zeta is a systems programming language inspired by Elements of Programming (EOP)
 - **Baked-in SIMD optimization**
 - **Native WASM support**
 - **Self-hosting in 2,800 lines of code**
+- **Very low cyclomatic complexity**
 
 Zeta v0.0.5 is released. There are zero competitors.
 We're living in a brand new paradigm.
 
-> “Complexity assersions have to be part of the interface.” - Alexander Stepanov
+> “Complexity assersions have to be part of the interface.” - Alexander Stepanov, 1995
 
 ## Official Benchmarks — December 15, 2025  
 Intel i9-13900K · Linux 6.11
