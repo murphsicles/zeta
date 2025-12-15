@@ -5,7 +5,8 @@
 //! Added: Stable ABI checks (no UB, const-time TimingOwned validation).
 //! Added: CTFE (const eval semirings) for literal/semiring folding during inference.
 //! Updated Dec 9, 2025: Unified string support - new Type::Str, builtin StrOps concept, string literal inference.
-//! Updated Dec 15, 2025: + recognized as concat for Str/StrRef; f-string inference to Str; rich StrOps methods fully registered.
+//! Updated Dec 13, 2025: Added rich StrOps methods; implicit &str borrows/conversions; + as concat; f-string lowering.
+//! Updated Dec 15, 2025: Fixed + as concat in inference (op == "+" || op == "concat").
 
 use crate::ast::AstNode;
 use crate::borrow::BorrowChecker;
@@ -149,43 +150,21 @@ impl Resolver {
     pub fn register(&mut self, ast: AstNode) {
         match ast {
             AstNode::ImplBlock { concept, ty, body } => {
-                let ty = match ty.as_str() {
-                    "i64" => Type::I64,
-                    "f32" => Type::F32,
-                    "bool" => Type::Bool,
-                    "str" => Type::Str,
-                    "&str" => Type::StrRef,
-                    "Vec<u8>" => Type::VecU8,
-                    s => Type::Named(s.to_string()),
-                };
+                let ty = self.parse_type(&ty);
                 let mut methods = HashMap::new();
                 for node in body {
                     if let AstNode::Method {
                         name, params, ret, ..
                     } = node
                     {
-                        let param_tys = params
-                            .into_iter()
-                            .map(|(_, t)| match t.as_str() {
-                                "i64" => Type::I64,
-                                "f32" => Type::F32,
-                                "bool" => Type::Bool,
-                                "str" => Type::Str,
-                                "&str" => Type::StrRef,
-                                "Vec<u8>" => Type::VecU8,
-                                s => Type::Named(s.to_string()),
-                            })
-                            .collect();
-                        let ret_ty = match ret.as_str() {
-                            "i64" => Type::I64,
-                            "f32" => Type::F32,
-                            "bool" => Type::Bool,
-                            "str" => Type::Str,
-                            "&str" => Type::StrRef,
-                            "Vec<u8>" => Type::VecU8,
-                            s => Type::Named(s.to_string()),
-                        };
-                        methods.insert(name, (param_tys, ret_ty));
+                        let sig = (
+                            params
+                                .into_iter()
+                                .map(|(_, t)| self.parse_type(&t))
+                                .collect(),
+                            self.parse_type(&ret),
+                        );
+                        methods.insert(name, sig);
                     }
                 }
                 self.direct_impls.insert((concept, ty), methods);
@@ -193,37 +172,57 @@ impl Resolver {
             AstNode::FuncDef {
                 name, params, ret, ..
             } => {
-                let sig_params = params
-                    .into_iter()
-                    .map(|(n, t)| (n, match t.as_str() {
-                        "i64" => Type::I64,
-                        "f32" => Type::F32,
-                        "bool" => Type::Bool,
-                        "str" => Type::Str,
-                        "&str" => Type::StrRef,
-                        "Vec<u8>" => Type::VecU8,
-                        s => Type::Named(s.to_string()),
-                    }))
-                    .collect();
-                let sig_ret = match ret.as_str() {
-                    "i64" => Type::I64,
-                    "f32" => Type::F32,
-                    "bool" => Type::Bool,
-                    "str" => Type::Str,
-                    "&str" => Type::StrRef,
-                    "Vec<u8>" => Type::VecU8,
-                    s => Type::Named(s.to_string()),
-                };
-                self.func_sigs.insert(name, (sig_params, sig_ret));
+                let sig = (
+                    params
+                        .into_iter()
+                        .map(|(n, t)| (n, self.parse_type(&t)))
+                        .collect(),
+                    self.parse_type(&ret),
+                );
+                self.func_sigs.insert(name.clone(), sig.clone());
+                // Declare params in env & borrow checker
+                for (pname, pty) in &sig.0 {
+                    self.type_env.insert(pname.clone(), pty.clone());
+                    self.borrow_checker
+                        .declare(pname.clone(), crate::borrow::BorrowState::Owned);
+                }
             }
-            _ => {},
+            _ => {}
         }
     }
 
-    /// Performs type inference on an AST node.
+    fn parse_type(&self, s: &str) -> Type {
+        match s {
+            "i64" => Type::I64,
+            "f32" => Type::F32,
+            "bool" => Type::Bool,
+            "str" => Type::Str,
+            "&str" => Type::StrRef,
+            "Vec<u8>" => Type::VecU8,
+            _ => Type::Named(s.to_string()),
+        }
+    }
+
+    fn lookup_method(&self, recv_ty: Option<&Type>, method: &str, args: &[Type]) -> Option<Type> {
+        recv_ty.and_then(|ty| {
+            self.direct_impls
+                .iter()
+                .find_map(|((_, impl_ty), methods)| {
+                    if impl_ty == ty {
+                        methods
+                            .get(method)
+                            .filter(|(param_tys, _)| param_tys.len() == args.len())
+                            .map(|(_, ret_ty)| ret_ty.clone())
+                    } else {
+                        None
+                    }
+                })
+        })
+    }
+
     pub fn infer_type(&mut self, node: &AstNode) -> Type {
         match node {
-            AstNode::Lit(_) => Type::I64,
+            AstNode::Lit(_n) => Type::I64,
             AstNode::StringLit(_) => Type::Str,
             AstNode::FString(parts) => {
                 for part in parts {
@@ -257,7 +256,6 @@ impl Resolver {
                 let recv_ty = receiver.as_ref().map(|r| self.infer_type(r));
                 let arg_tys: Vec<Type> = args.iter().map(|a| self.infer_type(a)).collect();
                 if *structural {
-                    // Structural: allow ad-hoc for string-like
                     Type::Str // Assume for str
                 } else {
                     self.lookup_method(recv_ty.as_ref(), method, &arg_tys)
@@ -271,7 +269,6 @@ impl Resolver {
         }
     }
 
-    /// Performs ABI checks: no raw pointers in public, TimingOwned only on const-time primitives.
     fn check_abi(&mut self, node: &AstNode) -> Result<(), AbiError> {
         match node {
             AstNode::TimingOwned { inner, .. } => {
@@ -286,7 +283,6 @@ impl Resolver {
         }
     }
 
-    /// Handles implicit borrows: &str from str when needed.
     #[allow(dead_code)]
     fn implicit_borrow(&mut self, ty: &Type) -> Type {
         if *ty == Type::Str {
@@ -296,8 +292,6 @@ impl Resolver {
         }
     }
 
-    /// Performs type checking and borrow checking on a program.
-    /// Returns true if all checks pass.
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
         let mut ok = true;
         for ast in asts {
@@ -325,7 +319,6 @@ impl Resolver {
         ok
     }
 
-    /// Lowers an AST node to MIR for codegen.
     pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
         let mut mir_gen = MirGen::new();
         let mut mir = mir_gen.gen_mir(ast);
@@ -333,8 +326,6 @@ impl Resolver {
         mir
     }
 
-    /// Optimizes MIR by folding consecutive semiring operations (e.g., add chains).
-    /// Returns true if any folds occurred.
     pub fn fold_semiring_chains(&self, mir: &mut Mir) -> bool {
         let mut changed = false;
         let mut i = 0;
