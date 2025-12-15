@@ -127,7 +127,13 @@ fn parse_path(input: &str) -> IResult<&str, Vec<String>> {
 
 /// Parses atom: lit | var | str | fstr.
 fn parse_atom(input: &str) -> IResult<&str, AstNode> {
-    alt((parse_literal, parse_string_lit, parse_fstring, parse_variable)).parse(input)
+    alt((
+        parse_literal,
+        parse_string_lit,
+        parse_fstring,
+        parse_variable,
+    ))
+    .parse(input)
 }
 
 /// Parses TimingOwned<ty>(atom).
@@ -168,7 +174,12 @@ fn parse_structural(input: &str) -> IResult<&str, bool> {
 
 /// Parses type args: <T,U>.
 fn parse_type_args(input: &str) -> IResult<&str, Vec<String>> {
-    delimited(tag("<"), separated_list1(tag(","), ws(parse_ident)), tag(">")).parse(input)
+    delimited(
+        tag("<"),
+        separated_list1(tag(","), ws(parse_ident)),
+        tag(">"),
+    )
+    .parse(input)
 }
 
 /// Parses call: recv.method<type_args>(args)?.
@@ -176,8 +187,12 @@ fn parse_call(input: &str) -> IResult<&str, AstNode> {
     let (input, recv) = opt(parse_expr).parse(input)?;
     let (input, method) = ws(parse_ident).parse(input)?;
     let (input, targs) = opt(parse_type_args).parse(input)?;
-    let (input, args) =
-        delimited(tag("("), separated_list1(tag(","), ws(parse_expr)), tag(")")).parse(input)?;
+    let (input, args) = delimited(
+        tag("("),
+        separated_list1(tag(","), ws(parse_expr)),
+        tag(")"),
+    )
+    .parse(input)?;
     let (input, _) = parse_structural(input)?;
     Ok((
         input,
@@ -261,7 +276,8 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
     )
     .parse(input)?;
     let (input, ret_opt) = opt(preceded(ws(tag("->")), ws(parse_ident))).parse(input)?;
-    let (input, body) = delimited(ws(tag("{")), many0(ws(parse_stmt)), ws(tag("}"))).parse(input)?;
+    let (input, body) =
+        delimited(ws(tag("{")), many0(ws(parse_stmt)), ws(tag("}"))).parse(input)?;
     let generics = generics_opt.unwrap_or_default();
     let ret = ret_opt.unwrap_or_else(|| "i64".to_string());
     Ok((
@@ -304,7 +320,13 @@ fn parse_concept(input: &str) -> IResult<&str, AstNode> {
     let (input, name) = ws(parse_ident).parse(input)?;
     let (input, body) =
         delimited(ws(tag("{")), many0(ws(parse_method_sig)), ws(tag("}"))).parse(input)?;
-    Ok((input, AstNode::ConceptDef { name, methods: body }))
+    Ok((
+        input,
+        AstNode::ConceptDef {
+            name,
+            methods: body,
+        },
+    ))
 }
 
 /// Parses impl: impl concept for ty { methods }.
@@ -315,10 +337,7 @@ fn parse_impl(input: &str) -> IResult<&str, AstNode> {
     let (input, ty) = ws(parse_ident).parse(input)?;
     let (input, body) =
         delimited(ws(tag("{")), many0(ws(parse_method_sig)), ws(tag("}"))).parse(input)?;
-    Ok((
-        input,
-        AstNode::ImplBlock { concept, ty, body },
-    ))
+    Ok((input, AstNode::ImplBlock { concept, ty, body }))
 }
 
 /// Parses enum: enum name { variants }.
