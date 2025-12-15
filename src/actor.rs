@@ -22,7 +22,7 @@ struct ChannelInner {
     /// Message queue.
     queue: Mutex<mpsc::Sender<Message>>,
     /// Receiver handle.
-    rx: mpsc::Receiver<Message>,
+    rx: Mutex<mpsc::Receiver<Message>>,
 }
 
 impl Default for Channel {
@@ -37,7 +37,7 @@ impl Channel {
         let (tx, rx) = mpsc::channel(1024);
         let inner = Arc::new(ChannelInner {
             queue: Mutex::new(tx),
-            rx,
+            rx: Mutex::new(rx),
         });
         // No spawn needed; rx in host_recv
         Self { inner }
@@ -51,14 +51,14 @@ impl Channel {
 
     /// Async receive from channel.
     pub async fn recv(&self) -> Option<Message> {
-        self.inner.rx.recv().await
+        let mut rx = self.inner.rx.lock().await;
+        rx.recv().await
     }
 }
 
 /// # Safety
 /// No safety concerns as parameters are plain i64 values.
-#[no_mangle]
-pub unsafe extern "C" fn host_channel_send(chan_id: i64, msg: i64) -> i64 {
+pub unsafe extern "C" fn host_channel_send(_chan_id: i64, msg: i64) -> i64 {
     // Real: use global chan map (stub: dummy chan)
     let chan = Channel::new();
     if chan.send(msg).is_ok() {
@@ -70,8 +70,7 @@ pub unsafe extern "C" fn host_channel_send(chan_id: i64, msg: i64) -> i64 {
 
 /// # Safety
 /// No safety concerns as parameters are plain i64 values.
-#[no_mangle]
-pub unsafe extern "C" fn host_channel_recv(chan_id: i64) -> i64 {
+pub unsafe extern "C" fn host_channel_recv(_chan_id: i64) -> i64 {
     // Real async block_on
     tokio::runtime::Runtime::new().unwrap().block_on(async {
         let chan = Channel::new();
@@ -81,7 +80,6 @@ pub unsafe extern "C" fn host_channel_recv(chan_id: i64) -> i64 {
 
 /// # Safety
 /// No safety concerns as parameter is plain i64 value.
-#[no_mangle]
 pub unsafe extern "C" fn host_spawn(_func_id: i64) -> i64 {
     // Non-blocking async spawn
     let chan = Channel::new();
@@ -98,7 +96,6 @@ pub unsafe extern "C" fn host_spawn(_func_id: i64) -> i64 {
 
 /// # Safety
 /// The `url` pointer must be a valid null-terminated C string.
-#[no_mangle]
 pub unsafe extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
     use std::ffi::CStr;
     if let Ok(url_str) = unsafe { CStr::from_ptr(url) }.to_str() {
@@ -111,7 +108,6 @@ pub unsafe extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
 
 /// # Safety
 /// The `host` pointer must be a valid null-terminated C string.
-#[no_mangle]
 pub unsafe extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i64 {
     use std::ffi::CStr;
     if let Ok(_) = unsafe { CStr::from_ptr(host) }.to_str() {
