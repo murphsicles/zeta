@@ -1,10 +1,13 @@
+// src/xai.rs
 //! XAI API client for Zeta AI integration.
 //! Provides blocking HTTP client for Grok-beta chat completions.
 //! Used for MLGO hooks, CTFE eval, and dynamic specialization queries.
 //! Requires XAI_API_KEY env var.
+
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use serde_json;
+
 /// Request struct for chat completions API.
 #[derive(Serialize)]
 struct ChatRequest {
@@ -13,6 +16,7 @@ struct ChatRequest {
     /// Array of message objects.
     messages: Vec<Message>,
 }
+
 /// Message struct for chat role/content.
 #[derive(Deserialize, Serialize, Debug)]
 struct Message {
@@ -21,18 +25,21 @@ struct Message {
     /// Message text.
     content: String,
 }
+
 /// Response wrapper for chat completions.
 #[derive(Deserialize, Debug)]
 struct ChatResponse {
     /// Array of choice objects.
     choices: Vec<Choice>,
 }
+
 /// Individual choice from response.
 #[derive(Deserialize, Debug)]
 struct Choice {
     /// Message in choice.
     message: Message,
 }
+
 /// Thread-safe blocking client for XAI API.
 pub struct XAIClient {
     /// HTTP client instance.
@@ -42,6 +49,7 @@ pub struct XAIClient {
     /// Base API URL.
     base_url: String,
 }
+
 impl XAIClient {
     /// Creates a new client, loading API key from XAI_API_KEY env.
     /// Returns error if key missing.
@@ -55,6 +63,7 @@ impl XAIClient {
             base_url,
         })
     }
+
     /// Queries Grok-beta with prompt, returns response content.
     /// Handles JSON serialization/deserialization and auth.
     pub fn query(&self, prompt: &str) -> Result<String, Box<dyn std::error::Error>> {
@@ -75,6 +84,7 @@ impl XAIClient {
         let response: ChatResponse = res.json()?;
         Ok(response.choices[0].message.content.clone())
     }
+
     /// MLGO hook: Queries Grok for LLVM pass optimization recommendations.
     /// Prompt includes MIR stats; returns JSON pass order/params.
     pub fn mlgo_optimize(&self, mir_stats: &str) -> Result<String, Box<dyn std::error::Error>> {
