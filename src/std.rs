@@ -5,7 +5,7 @@
 
 use std::ffi::c_void;
 
-extern "C" {
+unsafe extern "C" {
     fn malloc(size: usize) -> *mut c_void;
     fn free(ptr: *mut c_void);
 }
