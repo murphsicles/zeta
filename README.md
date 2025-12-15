@@ -9,6 +9,8 @@ Zeta is a systems programming language inspired by Elements of Programming (EOP)
 - **Insane efficiency**
 - **Unbeatable execution speed & performance**
 - **Built for next-gen AI infrastructure**
+- **Designed for machine learning & numerical analysis**
+- **Perfect for scientific computation**
 - **Awesome for embedded hardware**
 - **Military grade security**
 - **Runs faster than Rust & Zig**
@@ -16,10 +18,12 @@ Zeta is a systems programming language inspired by Elements of Programming (EOP)
 - **Practicality of Python**
 - **Beats Julia for scienticif computation**
 - **Quicker statistics than R**
-- **Linear algebra 100,000x faster than MATLAB**
+- **Magnitudes faster algebra than MATLAB**
 - **Produces smaller binaries than C**
+- **Parse strings like Perl**
 - **Zero unsafe in user code**
 - **Baked-in SIMD optimization**
+- **Native WASM support**
 - **Self-hosting in 2,800 lines of code**
 
 Zeta v0.0.5 is released. There are zero competitors.
