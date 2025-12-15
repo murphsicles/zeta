@@ -198,14 +198,12 @@ impl Resolver {
 
     /// Looks up method return type.
     pub fn lookup_method(&self, recv_ty: Option<&Type>, method: &str, arg_tys: &[Type]) -> Option<Type> {
-        if let Some(ty) = recv_ty {
-            if let Some(impls) = self.direct_impls.get(&(method.to_string(), ty.clone())) {
-                if let Some(sig) = impls.get(method) {
-                    if sig.0.len() == arg_tys.len() {
-                        return Some(sig.1.clone());
-                    }
-                }
-            }
+       if let Some(ty) = recv_ty
+            && let Some(impls) = self.direct_impls.get(&(method.to_string(), ty.clone()))
+            && let Some(sig) = impls.get(method)
+            && sig.0.len() == arg_tys.len()
+        {
+            return Some(sig.1.clone());
         }
         None
     }
@@ -225,11 +223,7 @@ impl Resolver {
                         break;
                     }
                 }
-                if all_str {
-                    Type::Str
-                } else {
-                    Type::Str // Assume concat handles
-                }
+                Type::Str // Concat handles both str and mixed cases
             }
             AstNode::Var(v) => self.type_env.get(v).cloned().unwrap_or(Type::Unknown),
             AstNode::BinaryOp { op, left, right } => {
