@@ -18,7 +18,7 @@ unsafe extern "C" {
 /// - The size is valid and doesn't cause integer overflow
 /// - The returned pointer is freed using `std_free` to avoid memory leaks
 /// - The pointer is not used after being freed
-pub unsafe fn std_malloc(size: usize) -> *mut u8 {
+pub unsafe fn std_free(ptr: *mut u8) {
     if size == 0 {
         std::ptr::null_mut()
     } else {
