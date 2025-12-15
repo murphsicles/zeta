@@ -110,7 +110,7 @@ pub unsafe extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
 /// The `host` pointer must be a valid null-terminated C string.
 pub unsafe extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i64 {
     use std::ffi::CStr;
-    if let Ok(_) = unsafe { CStr::from_ptr(host) }.to_str() {
+    if unsafe { CStr::from_ptr(host) }.to_str().is_ok() {
         0i64
     } else {
         -1i64
