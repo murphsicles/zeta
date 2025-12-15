@@ -291,7 +291,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
             MirExpr::TimingOwned(inner_id) => {
                 let ptr = self.locals[inner_id];
                 let load = self.builder.build_load(self.i64_type, *ptr, "timing_load").expect("load failed");
-                load.set_metadata(&self.tbaa_const_time);
+                if let Some(inst) = load.as_instruction_value() {
+                    inst.set_metadata(&self.tbaa_const_time);
+                }
                 load.into()
             }
         }
