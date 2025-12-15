@@ -23,7 +23,7 @@ use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::support::LLVMString;
 use inkwell::types::{BasicMetadataTypeEnum, IntType, PointerType, VectorType};
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue};
+use inkwell::values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, PointerValue, InstructionValue};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -283,18 +283,18 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let next = self.gen_expr(&MirExpr::Var(id), _exprs);
                     let concat_fn = self.get_callee("str_concat"); // Assume intrinsic
                     let call = self.builder.build_call(concat_fn, &[res.into(), next.into()], "fconcat").expect("build_call failed");
-                    res = call.try_as_basic_value().unwrap_or(res);
+                    res = call.try_as_basic_value().unwrap();
                 }
                 res
             }
             MirExpr::ConstEval(n) => self.i64_type.const_int(*n as u64, true).into(),
             MirExpr::TimingOwned(inner_id) => {
                 let ptr = self.locals[inner_id];
-                let load = self.builder.build_load(self.i64_type, *ptr, "timing_load").expect("load failed");
+                let load = self.builder.build_load(self.i64_type, ptr, "timing_load").expect("load failed");
                 if let Some(inst) = load.as_instruction_value() {
-                    inst.set_metadata(&self.tbaa_const_time);
+                    inst.set_metadata(&self.tbaa_const_time, 0);
                 }
-                load.into()
+                load
             }
         }
     }
@@ -303,9 +303,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
     fn load_local(&self, id: u32) -> BasicValueEnum<'ctx> {
         let ptr = self.locals[&id];
         self.builder
-            .build_load(self.i64_type, *ptr, &format!("load_{id}"))
+            .build_load(self.i64_type, ptr, &format!("load_{id}"))
             .expect("load failed")
-            .into()
     }
 
     /// Verifies module, runs MLGO AI passes (vectorize/branch pred), creates JIT engine, maps host functions.
