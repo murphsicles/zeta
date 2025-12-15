@@ -81,6 +81,7 @@ pub struct MirGen {
     defers: Vec<DeferInfo>,
     // Track param indices for init
     param_indices: Vec<(String, usize)>, // (name, arg position)
+    #[allow(dead_code)]
     exprs: HashMap<u32, MirExpr>,
 }
 
