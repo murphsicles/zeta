@@ -7,7 +7,7 @@
 //! Added: SIMD - vec ops via MLGO passes; detect SemiringFold for vectorize.
 //! Added: Stable ABI - no UB via sanitize checks, thin mono via specialization mangled names.
 //! Updated Dec 9, 2025: StringLit lowered to private global constant arrays (null-terminated).
-//! Updated Dec 15, 2025: Fixed pointer arithmetic with .offset(); proper call result handling; ptr_to_int with expect.
+//! Updated Dec 15, 2025: Fixed call result handling with try_as_basic_value(); pointer offset for host functions.
 
 use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
@@ -74,8 +74,8 @@ extern "C" fn host_str_concat(a: i64, b: i64) -> i64 {
         let new_ptr = libc::malloc(total) as *mut u8;
         if new_ptr.is_null() { return 0; }
         libc::memcpy(new_ptr as *mut _, p1 as *const _, len1);
-        libc::memcpy(new_ptr.add(len1) as *mut _, p2 as *const _, len2);
-        *new_ptr.add(total - 1) = 0;
+        libc::memcpy(new_ptr.offset(len1 as isize) as *mut _, p2 as *const _, len2);
+        *new_ptr.offset(total as isize - 1) = 0;
         new_ptr as i64
     }
 }
@@ -100,9 +100,9 @@ extern "C" fn host_str_to_lowercase(p: i64) -> i64 {
         if new_ptr.is_null() { return 0; }
         for i in 0..len {
             let c = ptr.offset(i as isize).read();
-            *new_ptr.add(i) = if c >= b'A' && c <= b'Z' { c + 32 } else { c };
+            *new_ptr.offset(i as isize) = if c >= b'A' && c <= b'Z' { c + 32 } else { c };
         }
-        *new_ptr.add(len) = 0;
+        *new_ptr.offset(len as isize) = 0;
         new_ptr as i64
     }
 }
@@ -123,14 +123,16 @@ extern "C" fn host_str_starts_with(s: i64, prefix: i64) -> i64 {
 
 extern "C" fn host_str_ends_with(s: i64, suffix: i64) -> i64 {
     unsafe {
+        let s_ptr = s as *const u8;
+        let suffix_ptr = suffix as *const u8;
         let mut sl = 0usize;
-        while (s as *const u8).offset(sl as isize).read() != 0 { sl += 1; }
+        while s_ptr.offset(sl as isize).read() != 0 { sl += 1; }
         let mut sul = 0usize;
-        while (suffix as *const u8).offset(sul as isize).read() != 0 { sul += 1; }
+        while suffix_ptr.offset(sul as isize).read() != 0 { sul += 1; }
         if sul > sl { return 0; }
         let mut i = 0usize;
         while i < sul {
-            if (s as *const u8).offset((sl - sul + i) as isize).read() != (suffix as *const u8).offset(i as isize).read() { return 0; }
+            if s_ptr.offset((sl - sul + i) as isize).read() != suffix_ptr.offset(i as isize).read() { return 0; }
             i += 1;
         }
         1
@@ -139,20 +141,20 @@ extern "C" fn host_str_ends_with(s: i64, suffix: i64) -> i64 {
 
 extern "C" fn host_str_contains(hay: i64, needle: i64) -> i64 {
     unsafe {
-        let h = hay as *const u8;
-        let n = needle as *const u8;
+        let h_ptr = hay as *const u8;
+        let n_ptr = needle as *const u8;
         let mut nl = 0usize;
-        while n.offset(nl as isize).read() != 0 { nl += 1; }
+        while n_ptr.offset(nl as isize).read() != 0 { nl += 1; }
         if nl == 0 { return 1; }
         let mut hl = 0usize;
-        while h.offset(hl as isize).read() != 0 { hl += 1; }
+        while h_ptr.offset(hl as isize).read() != 0 { hl += 1; }
         if nl > hl { return 0; }
         let mut i = 0usize;
         while i <= hl - nl {
             let mut matches = true;
             let mut j = 0usize;
             while j < nl {
-                if h.offset((i + j) as isize).read() != n.offset(j as isize).read() {
+                if h_ptr.offset((i + j) as isize).read() != n_ptr.offset(j as isize).read() {
                     matches = false;
                     break;
                 }
@@ -239,7 +241,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     type_args: vec![],
                 };
                 if let Some(value) = lookup_specialization(&key) {
-                    // Use cached mangled name if safe
                     if value.cache_safe {
                         // Stub: use value.llvm_func_name
                     }
@@ -258,7 +259,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let fn_val = self.module.add_function(name, fn_type, None);
                 let entry = self.context.append_basic_block(fn_val, "entry");
                 self.builder.position_at_end(entry);
-                // Alloc locals
                 self.locals.clear();
                 for (local_name, &id) in &mir.locals {
                     let alloca = self
@@ -366,7 +366,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
     }
 
-    /// Gets callee function value, declares if missing.
     fn get_callee(&mut self, func: &str) -> inkwell::values::FunctionValue<'ctx> {
         if let Some(f) = self.fns.get(func) {
             *f
@@ -384,7 +383,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
     }
 
-    /// Generates a BasicValue from a MIR expression.
     fn gen_expr(&self, expr: &MirExpr) -> BasicValueEnum<'ctx> {
         match expr {
             MirExpr::Var(id) => self.load_local(*id),
@@ -406,16 +404,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.builder.build_ptr_to_int(ptr, self.i64_type, "str_ptr").expect("ptr_to_int failed").into()
             }
             MirExpr::FString(ids) => {
-                // Assume first id, as chained in stmts
                 self.gen_expr(&MirExpr::Var(ids[0]))
             }
             MirExpr::ConstEval(n) => self.i64_type.const_int(*n as u64, true).into(),
             MirExpr::TimingOwned(inner_id) => self.load_local(*inner_id),
-            MirExpr::BinaryOp { .. } => self.i64_type.const_zero().into(), // Lowered earlier
+            MirExpr::BinaryOp { .. } => self.i64_type.const_zero().into(),
         }
     }
 
-    /// Loads a local variable from alloca slot.
     fn load_local(&self, id: u32) -> BasicValueEnum<'ctx> {
         let ptr = self.locals[&id];
         self.builder
@@ -423,8 +419,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
             .expect("load failed")
     }
 
-    /// Verifies module, runs MLGO AI passes (vectorize/branch pred), creates JIT engine, maps host functions.
-    /// Returns ExecutionEngine or error.
     pub fn finalize_and_jit(
         &mut self,
     ) -> Result<ExecutionEngine<'ctx>, Box<dyn std::error::Error>> {
