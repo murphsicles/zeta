@@ -7,7 +7,7 @@
 //! Added: SIMD - vec ops via MLGO passes; detect SemiringFold for vectorize.
 //! Added: Stable ABI - no UB via sanitize checks, thin mono via specialization mangled names.
 //! Updated Dec 9, 2025: StringLit lowered to private global constant arrays (null-terminated).
-//! Updated Dec 15, 2025: String ptr as i64; host str_concat/len/to_lowercase/starts_with/ends_with/contains with memcpy; variable arity.
+//! Updated Dec 15, 2025: String ptr as i64; host str_concat/len/to_lowercase/starts_with/ends_with/contains with memcpy; variable arity; fixed call result handling and ptr_to_int.
 
 use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
@@ -228,6 +228,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             fns: HashMap::new(),
         }
     }
+
     #[allow(deprecated)]
     /// Generates LLVM IR for a list of MIRs (one per FuncDef), creates entry main if needed.
     pub fn gen_mirs(&mut self, mirs: &[Mir]) {
@@ -238,6 +239,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     type_args: vec![],
                 };
                 if let Some(value) = lookup_specialization(&key) {
+                    // Use cached mangled name if safe
                     if value.cache_safe {
                         // Stub: use value.llvm_func_name
                     }
@@ -265,8 +267,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         .expect("Failed to allocate local");
                     self.locals.insert(id, alloca);
                 }
-                // Store param inits
-                let _params = fn_val.get_params();
                 let mut i = 0;
                 while i < mir.stmts.len() {
                     match &mir.stmts[i] {
@@ -283,17 +283,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             for v in &arg_vals {
                                 arg_metas.push((*v).into());
                             }
-                            let call_result = self
+                            let call = self
                                 .builder
                                 .build_call(callee, &arg_metas, "call")
                                 .expect("call failed");
-                            let store_val = call_result
-                                .try_as_basic_value()
-                                .left()
-                                .unwrap()
-                                .into_int_value();
-                            let result = self.locals[dest];
-                            let _ = self.builder.build_store(result, store_val);
+                            if let Some(val) = call.try_as_basic_value().left() {
+                                let store_val = val.into_int_value();
+                                let result = self.locals[dest];
+                                let _ = self.builder.build_store(result, store_val);
+                            }
                         }
                         MirStmt::VoidCall { func, args } => {
                             let callee = self.get_callee(func);
@@ -367,6 +365,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 .build_return(Some(&self.i64_type.const_int(0, false)));
         }
     }
+
     /// Gets callee function value, declares if missing.
     fn get_callee(&mut self, func: &str) -> inkwell::values::FunctionValue<'ctx> {
         if let Some(f) = self.fns.get(func) {
@@ -384,6 +383,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             f
         }
     }
+
     /// Generates a BasicValue from a MIR expression.
     fn gen_expr(&self, expr: &MirExpr) -> BasicValueEnum<'ctx> {
         match expr {
@@ -403,14 +403,17 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let array_val = self.context.i8_type().const_array(&values);
                 global.set_initializer(&array_val);
                 let ptr = global.as_pointer_value();
-                self.builder.build_ptr_to_int(ptr, self.i64_type, "str_ptr").into()
+                self.builder.build_ptr_to_int(ptr, self.i64_type, "str_ptr").expect("ptr_to_int failed").into()
             }
-            MirExpr::FString(_) => self.i64_type.const_zero().into(), // Handled via BinaryOp chain
+            MirExpr::FString(ids) => {
+                // Assume first id, as chained in stmts
+                self.gen_expr(&MirExpr::Var(ids[0]))
+            }
             MirExpr::ConstEval(n) => self.i64_type.const_int(*n as u64, true).into(),
             MirExpr::TimingOwned(inner_id) => self.load_local(*inner_id),
-            _ => self.i64_type.const_zero().into(),
         }
     }
+
     /// Loads a local variable from alloca slot.
     fn load_local(&self, id: u32) -> BasicValueEnum<'ctx> {
         let ptr = self.locals[&id];
@@ -418,6 +421,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             .build_load(self.i64_type, ptr, &format!("load_{id}"))
             .expect("load failed")
     }
+
     /// Verifies module, runs MLGO AI passes (vectorize/branch pred), creates JIT engine, maps host functions.
     /// Returns ExecutionEngine or error.
     pub fn finalize_and_jit(
