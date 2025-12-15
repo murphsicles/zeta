@@ -16,7 +16,7 @@ Zeta is a systems programming language inspired by Elements of Programming (EOP)
 - **Runs faster than Rust & Zig**
 - **Compiles faster than Go**
 - **Practicality of Python**
-- **Beats Julia for scienticif computation**
+- **Beats Julia for scientific computation**
 - **Quicker statistics than R**
 - **Magnitudes faster algebra than MATLAB**
 - **Produces smaller binaries than C**
