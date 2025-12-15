@@ -198,13 +198,16 @@ impl MirGen {
                 });
             }
             AstNode::Assign(lhs, rhs) => {
-                let rhs_id = self.materialize(self.gen_expr(rhs, exprs), exprs, out);
+                let rhs_expr = self.gen_expr(rhs, exprs);
+                let rhs_id = self.materialize(rhs_expr, exprs, out);
                 let lhs_id = self.lookup_or_alloc(lhs);
                 out.push(MirStmt::Assign { lhs: lhs_id, rhs: MirExpr::Var(rhs_id) });
             }
             AstNode::BinaryOp { op, left, right } => {
-                let left_id = self.materialize(self.gen_expr(left, exprs), exprs, out);
-                let right_id = self.materialize(self.gen_expr(right, exprs), exprs, out);
+                let left_expr = self.gen_expr(left, exprs);
+                let left_id = self.materialize(left_expr, exprs, out);
+                let right_expr = self.gen_expr(right, exprs);
+                let right_id = self.materialize(right_expr, exprs, out);
                 let dest = self.next_id();
                 let func = if op == "+" { "str_concat".to_string() } else { op.clone() };
                 out.push(MirStmt::Call {
@@ -270,7 +273,8 @@ impl MirGen {
             }
             AstNode::Var(v) => MirExpr::Var(self.lookup_or_alloc(v)),
             AstNode::TimingOwned { inner, .. } => {
-                let inner_id = self.materialize_inner(inner, exprs);
+                let inner_expr = self.gen_expr(inner.as_ref(), exprs);
+                let inner_id = self.materialize_inner(&inner_expr, exprs);
                 MirExpr::TimingOwned(inner_id)
             }
             AstNode::Call { .. } => {
