@@ -189,13 +189,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let call = self.builder.build_call(callee, &arg_vals, "call").expect("build_call failed");
                 // try_as_basic_value() returns ValueKind enum
                 match call.try_as_basic_value() {
-                    ValueKind::BasicValue(basic_val) => {
+                    ValueKind::Basic(basic_val) => {
                         let ptr = self.locals.entry(*dest).or_insert_with(|| {
                             self.builder.build_alloca(self.i64_type, &format!("dest_{}", dest)).expect("alloca failed")
                         });
                         self.builder.build_store(*ptr, basic_val);
                     }
-                    ValueKind::InstructionValue(_) => {
+                    ValueKind::Instruction(_) => {
                         // Void call, no return value
                     }
                 }
@@ -291,8 +291,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let call = self.builder.build_call(concat_fn, &[res.into(), next.into()], "fconcat").expect("build_call failed");
                     // try_as_basic_value() returns ValueKind enum
                     res = match call.try_as_basic_value() {
-                        ValueKind::BasicValue(basic_val) => basic_val,
-                        ValueKind::InstructionValue(_) => panic!("concat should return a value"),
+                        ValueKind::Basic(basic_val) => basic_val,
+                        ValueKind::Instruction(_) => panic!("concat should return a value"),
                     };
                 }
                 res
