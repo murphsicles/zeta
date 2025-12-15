@@ -29,6 +29,14 @@ lazy_static::lazy_static! {
     static ref CACHE: Arc<RwLock<HashMap<MonoKey, MonoValue>>> = Arc::new(RwLock::new(HashMap::new()));
 }
 
+impl MonoKey {
+    /// Mangles key to LLVM name (e.g., foo<i64,str>).
+    pub fn mangle(&self) -> String {
+        let args = self.type_args.join(",");
+        format!("{}_{}", self.func_name, args)
+    }
+}
+
 /// Looks up a specialization by key, returning cloned value if present.
 pub fn lookup_specialization(key: &MonoKey) -> Option<MonoValue> {
     let cache = CACHE.read().unwrap();
@@ -43,5 +51,5 @@ pub fn record_specialization(key: MonoKey, value: MonoValue) {
 
 /// Checks if a type arg is cache-safe (primitives/pointers only).
 pub fn is_cache_safe(ty: &str) -> bool {
-    matches!(ty, "i64" | "f32" | "bool" | "&i64" | "&mut i64")
+    matches!(ty, "i64" | "f32" | "bool" | "&i64" | "&mut i64" | "str" | "&str")
 }
