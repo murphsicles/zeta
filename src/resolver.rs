@@ -159,7 +159,7 @@ impl Resolver {
     /// Registers a concept, impl, or func; declares param borrows.
     pub fn register(&mut self, ast: AstNode) {
         match ast {
-            AstNode::ConceptDef { _name, _methods } => {
+            AstNode::ConceptDef { name: _name, methods: _methods } => {
                 // Register concept sigs (stub: no full trait sigs)
             }
             AstNode::ImplBlock { concept, ty, body } => {
