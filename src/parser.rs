@@ -6,7 +6,7 @@
 //! Added hybrid traits: structural dispatch via method? (e.g., obj.add?(b) for ad-hoc structural lookup)
 //! Added partial specialization: method::<T,U>(args) for type args in calls.
 //! Updated Dec 13, 2025: Added f-string parsing (f"hello {expr}"); + as BinaryOp for str concat sugar.
-//! Updated Dec 15, 2025: Switched to fn(&str) -> IResult for nom 8.0; full precedence; proper f-string interpolation; removed deprecated tuple.
+//! Updated Dec 15, 2025: nom 8.0 compatible with associated types; full precedence; proper f-string interpolation.
 
 use crate::ast::AstNode;
 use nom::branch::alt;
@@ -16,50 +16,50 @@ use nom::combinator::{map, opt};
 use nom::multi::{many0, separated_list1};
 use nom::sequence::{delimited, pair, preceded};
 use nom::IResult;
+use nom::Parser;
 
-fn ws(input: &str) -> IResult<&str, &str> {
-    multispace0(input)
+fn ws<'a, O, E>(inner: impl Parser<&'a str, O, E>) -> impl Parser<&'a str, &'a str, E> {
+    delimited(multispace0, tag(""), multispace0).map(|_| "").parse.with(inner)
 }
 
-fn parse_ident(input: &str) -> IResult<&str, String> {
-    map(pair(alpha1, alphanumeric0), |(f, r)| f.to_string() + r)(input)
+fn parse_ident<'a>() -> impl Parser<&'a str, String> {
+    map(pair(alpha1, alphanumeric0), |(f, r): (&'a str, &'a str)| f.to_string() + r)
 }
 
-fn parse_literal(input: &str) -> IResult<&str, AstNode> {
-    map(nom_i64, AstNode::Lit)(input)
+fn parse_literal<'a>() -> impl Parser<&'a str, AstNode> {
+    map(nom_i64, AstNode::Lit)
 }
 
-fn parse_string_lit(input: &str) -> IResult<&str, AstNode> {
+fn parse_string_lit<'a>() -> impl Parser<&'a str, AstNode> {
     map(
         delimited(tag("\""), take_while1(|c: char| c != '"'), tag("\"")),
-        |s: &str| AstNode::StringLit(s.to_string()),
-    )(input)
+        |s: &'a str| AstNode::StringLit(s.to_string()),
+    )
 }
 
-fn parse_fstring(input: &str) -> IResult<&str, AstNode> {
-    let (input, _) = tag("f\"")(input)?;
-    let (input, parts) = many0(alt((
-        map(take_while1(|c: char| c != '{' && c != '"'), |s: &str| {
-            AstNode::StringLit(s.to_string())
-        }),
-        map(delimited(tag("{"), parse_expr, tag("}")), |expr| expr),
-    )))(input)?;
-    let (input, _) = tag("\"")(input)?;
-    Ok((input, AstNode::FString(parts)))
+fn parse_fstring<'a>() -> impl Parser<&'a str, AstNode> {
+    delimited(
+        tag("f\""),
+        many0(alt((
+            map(take_while1(|c: char| c != '{' && c != '"'), |s: &'a str| AstNode::StringLit(s.to_string())),
+            delimited(tag("{"), parse_expr, tag("}")),
+        ))),
+        tag("\""),
+    ).map(AstNode::FString)
 }
 
-fn parse_variable(input: &str) -> IResult<&str, AstNode> {
-    map(parse_ident, AstNode::Var)(input)
+fn parse_variable<'a>() -> impl Parser<&'a str, AstNode> {
+    map(parse_ident(), AstNode::Var)
 }
 
-fn parse_timing_owned(input: &str) -> IResult<&str, AstNode> {
-    let (input, _) = preceded(ws, tag("TimingOwned"))(input)?;
-    let (input, ty) = delimited(tag("<"), parse_ident, tag(">"))(input)?;
-    let (input, inner) = delimited(tag("("), parse_expr, tag(")"))(input)?;
-    Ok((input, AstNode::TimingOwned { ty, inner: Box::new(inner) }))
+fn parse_timing_owned<'a>() -> impl Parser<&'a str, AstNode> {
+    map(
+        preceded(tag("TimingOwned"), delimited(tag("<"), parse_ident, tag(">"))).and(delimited(tag("("), parse_expr, tag(")"))),
+        |(ty, inner)| AstNode::TimingOwned { ty, inner: Box::new(inner) },
+    )
 }
 
-fn parse_primary(input: &str) -> IResult<&str, AstNode> {
+fn parse_primary<'a>() -> impl Parser<&'a str, AstNode> {
     alt((
         parse_literal,
         parse_string_lit,
@@ -67,213 +67,163 @@ fn parse_primary(input: &str) -> IResult<&str, AstNode> {
         parse_variable,
         delimited(tag("("), parse_expr, tag(")")),
         parse_timing_owned,
-    ))(input)
+    ))
 }
 
-fn parse_structural(input: &str) -> IResult<&str, bool> {
-    map(opt(preceded(ws, tag("?"))), |o| o.is_some())(input)
+fn parse_structural<'a>() -> impl Parser<&'a str, bool> {
+    map(opt(tag("?")), |o| o.is_some())
 }
 
-fn parse_type_args(input: &str) -> IResult<&str, Vec<String>> {
+fn parse_type_args<'a>() -> impl Parser<&'a str, Vec<String>> {
     delimited(
         tag("<"),
-        separated_list1(tag(","), preceded(ws, parse_ident)),
+        separated_list1(tag(","), parse_ident),
         tag(">"),
-    )(input)
+    )
 }
 
-fn parse_postfix(input: &str) -> IResult<&str, AstNode> {
-    let (input, mut base) = parse_primary(input)?;
-    let (input, calls) = many0(preceded(
-        preceded(ws, tag(".")),
-        map(
-            (
-                parse_ident,
-                opt(preceded(ws, parse_type_args)),
-                delimited(tag("("), many0(preceded(ws, parse_expr)), tag(")")),
-                parse_structural,
-            ),
-            |(method, type_args_opt, args, structural)| {
-                (method, type_args_opt.unwrap_or(vec![]), args, structural)
-            },
+fn parse_postfix<'a>() -> impl Parser<&'a str, AstNode> {
+    map(
+        pair(
+            parse_primary,
+            many0(preceded(
+                tag("."),
+                map(
+                    (parse_ident, opt(parse_type_args), delimited(tag("("), many0(parse_expr), tag(")")), parse_structural),
+                    |(method, type_args_opt, args, structural)| {
+                        (method, type_args_opt.unwrap_or(vec![]), args, structural)
+                    },
+                ),
+            )),
         ),
-    ))(input)?;
-    for (method, type_args, args, structural) in calls {
-        base = AstNode::Call {
-            receiver: Some(Box::new(base)),
-            method,
-            args,
-            type_args,
-            structural,
-        };
-    }
-    Ok((input, base))
+        |(mut base, calls)| {
+            for (method, type_args, args, structural) in calls {
+                base = AstNode::Call {
+                    receiver: Some(Box::new(base)),
+                    method,
+                    args,
+                    type_args,
+                    structural,
+                };
+            }
+            base
+        },
+    )
 }
 
-fn parse_add(input: &str) -> IResult<&str, AstNode> {
-    let (input, mut left) = parse_postfix(input)?;
-    let (input, rights) = many0(preceded(preceded(ws, tag("+")), parse_postfix))(input)?;
-    for right in rights {
-        left = AstNode::BinaryOp {
-            op: "+".to_string(),
-            left: Box::new(left),
-            right: Box::new(right),
-        };
-    }
-    Ok((input, left))
+fn parse_add<'a>() -> impl Parser<&'a str, AstNode> {
+    map(
+        pair(
+            parse_postfix,
+            many0(preceded(tag("+"), parse_postfix)),
+        ),
+        |(mut left, rights)| {
+            for right in rights {
+                left = AstNode::BinaryOp {
+                    op: "+".to_string(),
+                    left: Box::new(left),
+                    right: Box::new(right),
+                };
+            }
+            left
+        },
+    )
 }
 
-fn parse_expr(input: &str) -> IResult<&str, AstNode> {
-    parse_add(input)
+fn parse_expr<'a>() -> impl Parser<&'a str, AstNode> {
+    parse_add
 }
 
-fn parse_assign(input: &str) -> IResult<&str, AstNode> {
-    let (input, lhs) = preceded(ws, parse_ident)(input)?;
-    let (input, _) = preceded(ws, tag("="))(input)?;
-    let (input, rhs) = preceded(ws, parse_expr)(input)?;
-    Ok((input, AstNode::Assign(lhs, Box::new(rhs))))
+fn parse_assign<'a>() -> impl Parser<&'a str, AstNode> {
+    map(
+        pair(parse_ident, preceded(tag("="), parse_expr)),
+        |(lhs, rhs)| AstNode::Assign(lhs, Box::new(rhs)),
+    )
 }
 
-fn parse_defer(input: &str) -> IResult<&str, AstNode> {
-    let (input, _) = preceded(ws, tag("defer"))(input)?;
-    let (input, inner) = preceded(ws, parse_expr)(input)?;
-    Ok((input, AstNode::Defer(Box::new(inner))))
+fn parse_defer<'a>() -> impl Parser<&'a str, AstNode> {
+    preceded(tag("defer"), parse_expr).map(|node| AstNode::Defer(Box::new(node)))
 }
 
-fn parse_spawn(input: &str) -> IResult<&str, AstNode> {
-    let (input, _) = preceded(ws, tag("spawn"))(input)?;
-    let (input, func) = preceded(ws, parse_ident)(input)?;
-    let (input, args) = delimited(
-        tag("("),
-        many0(preceded(ws, parse_expr)),
-        tag(")"),
-    )(input)?;
-    Ok((input, AstNode::Spawn { func, args }))
+fn parse_spawn<'a>() -> impl Parser<&'a str, AstNode> {
+    preceded(tag("spawn"), pair(parse_ident, delimited(tag("("), many0(parse_expr), tag(")"))))
+        .map(|(func, args)| AstNode::Spawn { func, args })
 }
 
-fn parse_stmt(input: &str) -> IResult<&str, AstNode> {
+fn parse_stmt<'a>() -> impl Parser<&'a str, AstNode> {
     alt((
         parse_assign,
         parse_defer,
         parse_spawn,
         parse_expr,
-    ))(input)
+    ))
 }
 
-fn parse_func(input: &str) -> IResult<&str, AstNode> {
-    let (input, _) = preceded(ws, tag("fn"))(input)?;
-    let (input, name) = preceded(ws, parse_ident)(input)?;
-    let (input, generics) = opt(preceded(ws, parse_type_args))(input)?;
-    let (input, params) = delimited(
-        tag("("),
-        many0(pair(
-            preceded(ws, parse_ident),
-            preceded(preceded(ws, tag(":")), preceded(ws, parse_ident)),
-        )),
-        tag(")"),
-    )(input)?;
-    let (input, ret) = opt(preceded(preceded(ws, tag("->")), preceded(ws, parse_ident)))(input)?;
-    let (input, body) = delimited(
-        tag("{"),
-        many0(preceded(ws, parse_stmt)),
-        tag("}"),
-    )(input)?;
-    Ok((
-        input,
-        AstNode::FuncDef {
+fn parse_func<'a>() -> impl Parser<&'a str, AstNode> {
+    let parse_name = parse_ident;
+    let parse_generics_opt = opt(parse_type_args);
+    let parse_param_pair = pair(parse_ident, preceded(tag(":"), parse_ident));
+    let parse_params = delimited(tag("("), many0(parse_param_pair), tag(")"));
+    let parse_ret = opt(preceded(tag("->"), parse_ident));
+    let parse_body = delimited(tag("{"), many0(parse_stmt), tag("}"));
+
+    map(
+        preceded(tag("fn"), (parse_name, parse_generics_opt, parse_params, parse_ret, parse_body)),
+        |(name, generics_opt, params, ret_opt, body)| AstNode::FuncDef {
             name,
-            generics: generics.unwrap_or(vec![]),
+            generics: generics_opt.unwrap_or(vec![]),
             params,
-            ret: ret.unwrap_or("i64".to_string()),
+            ret: ret_opt.unwrap_or("i64".to_string()),
             body,
             attrs: vec![],
             ret_expr: None,
         },
-    ))
+    )
 }
 
-fn parse_method_sig(input: &str) -> IResult<&str, AstNode> {
-    let (input, name) = parse_ident(input)?;
-    let (input, generics) = opt(preceded(ws, parse_type_args))(input)?;
-    let (input, params) = delimited(
-        tag("("),
-        many0(preceded(ws, parse_ident)),
-        tag(")"),
-    )(input)?;
-    let (input, ret) = opt(preceded(preceded(ws, tag("->")), preceded(ws, parse_ident)))(input)?;
-    Ok((
-        input,
-        AstNode::Method {
+fn parse_method_sig<'a>() -> impl Parser<&'a str, AstNode> {
+    let parse_name = parse_ident;
+    let parse_generics_opt = opt(parse_type_args);
+    let parse_params = delimited(tag("("), many0(parse_ident), tag(")"));
+    let parse_ret = opt(preceded(tag("->"), parse_ident));
+
+    map(
+        (parse_name, parse_generics_opt, parse_params, parse_ret),
+        |(name, generics_opt, params, ret_opt)| AstNode::Method {
             name,
             params: params.into_iter().map(|p| (p, "i64".to_string())).collect(),
-            ret: ret.unwrap_or("i64".to_string()),
-            generics: generics.unwrap_or(vec![]),
+            ret: ret_opt.unwrap_or("i64".to_string()),
+            generics: generics_opt.unwrap_or(vec![]),
         },
-    ))
+    )
 }
 
-fn parse_concept(input: &str) -> IResult<&str, AstNode> {
-    let (input, _) = preceded(ws, tag("concept"))(input)?;
-    let (input, name) = preceded(ws, parse_ident)(input)?;
-    let (input, methods) = delimited(
-        preceded(ws, tag("{")),
-        many0(preceded(ws, parse_method_sig)),
-        preceded(ws, tag("}")),
-    )(input)?;
-    Ok((input, AstNode::ConceptDef { name, methods }))
+fn parse_concept<'a>() -> impl Parser<&'a str, AstNode> {
+    preceded(tag("concept"), pair(parse_ident, delimited(tag("{"), many0(parse_method_sig), tag("}"))))
+        .map(|(name, methods)| AstNode::ConceptDef { name, methods })
 }
 
-fn parse_impl(input: &str) -> IResult<&str, AstNode> {
-    let (input, _) = preceded(ws, tag("impl"))(input)?;
-    let (input, concept) = preceded(ws, parse_ident)(input)?;
-    let (input, _) = preceded(ws, tag("for"))(input)?;
-    let (input, ty) = preceded(ws, parse_ident)(input)?;
-    let (input, body) = delimited(
-        preceded(ws, tag("{")),
-        many0(preceded(ws, parse_method_sig)),
-        preceded(ws, tag("}")),
-    )(input)?;
-    Ok((input, AstNode::ImplBlock { concept, ty, body }))
+fn parse_impl<'a>() -> impl Parser<&'a str, AstNode> {
+    preceded(tag("impl"), (parse_ident, preceded(tag("for"), parse_ident), delimited(tag("{"), many0(parse_method_sig), tag("}"))))
+        .map(|(concept, ty, body)| AstNode::ImplBlock { concept, ty, body })
 }
 
-fn parse_enum(input: &str) -> IResult<&str, AstNode> {
-    let (input, _) = preceded(ws, tag("enum"))(input)?;
-    let (input, name) = preceded(ws, parse_ident)(input)?;
-    let (input, variants) = delimited(
-        preceded(ws, tag("{")),
-        many0(preceded(ws, parse_ident)),
-        preceded(ws, tag("}")),
-    )(input)?;
-    Ok((input, AstNode::EnumDef { name, variants }))
+fn parse_enum<'a>() -> impl Parser<&'a str, AstNode> {
+    preceded(tag("enum"), pair(parse_ident, delimited(tag("{"), many0(parse_ident), tag("}"))))
+        .map(|(name, variants)| AstNode::EnumDef { name, variants })
 }
 
-fn parse_struct(input: &str) -> IResult<&str, AstNode> {
-    let (input, _) = preceded(ws, tag("struct"))(input)?;
-    let (input, name) = preceded(ws, parse_ident)(input)?;
-    let (input, fields) = delimited(
-        preceded(ws, tag("{")),
-        many0(map(
-            (
-                preceded(ws, parse_ident),
-                preceded(ws, tag(":")),
-                preceded(ws, parse_ident),
-            ),
-            |(n, _, t)| (n, t),
-        )),
-        preceded(ws, tag("}")),
-    )(input)?;
-    Ok((input, AstNode::StructDef { name, fields }))
+fn parse_struct<'a>() -> impl Parser<&'a str, AstNode> {
+    preceded(tag("struct"), pair(parse_ident, delimited(tag("{"), many0(map(pair(parse_ident, preceded(tag(":"), parse_ident)), |(n, t)| (n, t))), tag("}"))))
+        .map(|(name, fields)| AstNode::StructDef { name, fields })
 }
 
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
-    many0(preceded(
-        ws,
-        alt((
-            parse_func,
-            parse_concept,
-            parse_impl,
-            parse_enum,
-            parse_struct,
-        )),
-    ))(input)
+    many0(alt((
+        parse_func,
+        parse_concept,
+        parse_impl,
+        parse_enum,
+        parse_struct,
+    )))(input)
 }
