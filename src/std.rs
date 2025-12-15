@@ -16,7 +16,7 @@ unsafe extern "C" {
 }
 
 /// Allocates heap memory, Zeta's malloc equivalent.
-pub unsafe fn std_malloc(size: usize) -> *mut u8 {
+pub unsafe fn std_free(ptr: *mut u8) {
     if size == 0 {
         std::ptr::null_mut()
     } else {
