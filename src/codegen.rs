@@ -13,6 +13,7 @@ use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use crate::specialization::{MonoKey, MonoValue, lookup_specialization, record_specialization};
 use crate::std::std_free;
+use crate::xai::XAIClient;
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
 use inkwell::attributes::{Attribute, AttributeLoc};
@@ -26,21 +27,6 @@ use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
-
-// Stub XAIClient for MLGO (no external dep).
-#[derive(Debug)]
-pub struct XAIClient;
-
-impl XAIClient {
-    pub fn new() -> Option<Self> {
-        Some(Self)
-    }
-
-    pub fn mlgo_optimize(&self, _stats: &str) -> Result<String, Box<dyn std::error::Error>> {
-        // Dummy passes for audit.
-        Ok(r#"{"passes": ["vectorize", "branch-pred"]}"#.to_string())
-    }
-}
 
 /// Host implementation for datetime_now, returning Unix millis.
 extern "C" fn host_datetime_now() -> i64 {
@@ -333,7 +319,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         for fn_val in self.module.get_functions() {
             fn_val.add_attribute(AttributeLoc::Function, sanitize_attr);
         }
-        let client = XAIClient::new();
+        let client = XAIClient::new().map_err(|e| format!("XAI init error: {}", e))?;
         let mir_stats = format!(
             "Stmts: {}, Locals: {}, SIMD eligible: {}",
             self.module
