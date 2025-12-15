@@ -10,11 +10,21 @@ unsafe extern "C" {
     fn free(ptr: *mut c_void);
 }
 
+#[link(name = "c")]
+unsafe extern "C" {
+    fn malloc(size: usize) -> *mut c_void;
+}
+
+/// Allocates heap memory, Zeta's malloc equivalent.
+pub unsafe fn std_malloc(size: usize) -> *mut u8 {
+    if size == 0 {
+        std::ptr::null_mut()
+    } else {
+        malloc(size) as *mut u8
+    }
+}
+
 /// Frees heap-allocated memory, Zeta's RAII defer equivalent.
-///
-/// # Safety
-/// `ptr` must point to valid, unfreed heap memory (e.g., from malloc).
-/// Undefined behavior if invalid or double-freed.
 pub unsafe fn std_free(ptr: *mut u8) {
     if !ptr.is_null() {
         unsafe { free(ptr as *mut c_void) }
