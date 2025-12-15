@@ -72,8 +72,10 @@ pub struct LLVMCodegen<'ctx> {
     /// i64 type for Zeta ints.
     i64_type: IntType<'ctx>,
     /// SIMD vector type (e.g., <4 x i64> for quad).
+    #[allow(dead_code)]
     vec4_i64_type: VectorType<'ctx>,
     /// Pointer type for heap ops.
+    #[allow(dead_code)]
     ptr_type: PointerType<'ctx>,
     /// Local alloca slots by MIR ID.
     locals: HashMap<u32, PointerValue<'ctx>>,
@@ -181,7 +183,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let ptr = self.locals.entry(*lhs).or_insert_with(|| {
                     self.builder.build_alloca(self.i64_type, &format!("local_{}", lhs)).expect("alloca failed")
                 });
-                self.builder.build_store(*ptr, val);
+                let _ = self.builder.build_store(*ptr, val);
             }
             MirStmt::Call { func, args, dest } => {
                 let callee = self.get_callee(func);
@@ -193,7 +195,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         let ptr = self.locals.entry(*dest).or_insert_with(|| {
                             self.builder.build_alloca(self.i64_type, &format!("dest_{}", dest)).expect("alloca failed")
                         });
-                        self.builder.build_store(*ptr, basic_val);
+                        let _ = self.builder.build_store(*ptr, basic_val);
                     }
                     ValueKind::Instruction(_) => {
                         // Void call, no return value
@@ -207,7 +209,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
             MirStmt::Return { val } => {
                 let v = self.load_local(*val);
-                self.builder.build_return(Some(&v));
+                let _ = self.builder.build_return(Some(&v));
             }
             MirStmt::SemiringFold { op, values, result } => {
                 // Vectorize if eligible
@@ -219,7 +221,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     };
                     let scalar = self.builder.build_extract_element(vec_res, self.i64_type.const_int(0, false), "extract").expect("extract failed").into_int_value();
                     let ptr = self.locals.entry(*result).or_insert_with(|| self.builder.build_alloca(self.i64_type, "fold_res").expect("alloca failed"));
-                    self.builder.build_store(*ptr, scalar);
+                    let _ = self.builder.build_store(*ptr, scalar);
                 } else {
                     // Scalar fold
                     let mut sum = self.load_local(values[0]).into_int_value();
@@ -230,14 +232,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         };
                     }
                     let ptr = self.locals.entry(*result).or_insert_with(|| self.builder.build_alloca(self.i64_type, "fold_res").expect("alloca failed"));
-                    self.builder.build_store(*ptr, sum);
+                    let _ = self.builder.build_store(*ptr, sum);
                 }
             }
             MirStmt::ParamInit { param_id, arg_index } => {
                 if let Some(fn_val) = self.fns.values().next() { // Stub: current fn
                     let arg = fn_val.get_nth_param((*arg_index) as u32).expect("param not found");
                     let ptr = self.locals.entry(*param_id).or_insert_with(|| self.builder.build_alloca(self.i64_type, "param").expect("alloca failed"));
-                    self.builder.build_store(*ptr, arg);
+                    let _ = self.builder.build_store(*ptr, arg);
                 }
             }
             MirStmt::Consume { id: _ } => {
@@ -302,7 +304,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let ptr = self.locals[inner_id];
                 let load = self.builder.build_load(self.i64_type, ptr, "timing_load").expect("load failed");
                 if let Some(inst) = load.as_instruction_value() {
-                    inst.set_metadata(self.tbaa_const_time, 0);
+                    let _ = inst.set_metadata(self.tbaa_const_time, 0);
                 }
                 load
             }
