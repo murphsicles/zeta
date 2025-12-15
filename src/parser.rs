@@ -91,7 +91,7 @@ fn parse_fstring_content(input: &str) -> IResult<&str, Vec<AstNode>> {
                 break;
             }
         } else {
-            let text_end = i.find(|c| c == '{' || c == '"').unwrap_or(i.len());
+            let text_end = i.find(['{', '"']).unwrap_or(i.len());
             if text_end > 0 {
                 let text = &i[..text_end];
                 parts.push(AstNode::StringLit(text.to_string()));
