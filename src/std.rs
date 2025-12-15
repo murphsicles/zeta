@@ -20,7 +20,7 @@ pub unsafe fn std_malloc(size: usize) -> *mut u8 {
     if size == 0 {
         std::ptr::null_mut()
     } else {
-        malloc(size) as *mut u8
+        unsafe { malloc(size) as *mut u8 }
     }
 }
 
