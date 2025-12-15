@@ -153,14 +153,14 @@ fn parse_base_expr<'a>()
 }
 
 /// Parses parens: (expr).
-fn parse_parens(input: &str) -> IResult<&str, AstNode> {
-    delimited(tag("("), parse_full_expr, tag(")"))(input)
+fn parse_parens<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    delimited(tag("("), parse_expr(), tag(")"))
 }
 
 /// Parses expr recursively: base | binary | call.
-fn parse_expr(input: &str) -> IResult<&str, AstNode> {
+fn parse_expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     // Simplified recursive for f-string
-    alt((parse_base_expr, parse_parens))(input)
+    alt((parse_base_expr(), parse_parens()))
 }
 
 /// Parses structural marker: ? after method name.
@@ -181,10 +181,10 @@ fn parse_type_args<'a>()
 
 /// Parses call: recv.method<type_args>(args)?.
 fn parse_call<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    let parse_recv = opt(parse_expr);
+    let parse_recv = opt(parse_expr());
     let parse_method = ws(parse_ident());
     let parse_targs = opt(parse_type_args());
-    let parse_args = delimited(tag("("), separated_list1(tag(","), ws(parse_expr)), tag(")"));
+    let parse_args = delimited(tag("("), separated_list1(tag(","), ws(parse_expr())), tag(")"));
     let parse_struct = parse_structural();
 
     parse_recv
@@ -192,7 +192,7 @@ fn parse_call<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
         .and(parse_targs)
         .and(parse_args)
         .and(parse_struct)
-        .map(|(((((recv, method), targs), args), _))| AstNode::Call {
+        .map(|((((recv, method), targs), args), _)| AstNode::Call {
             receiver: recv.map(Box::new),
             method,
             args,
@@ -203,9 +203,9 @@ fn parse_call<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
 
 /// Parses binary: left + right (sugar for concat if str).
 fn parse_binary<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    let parse_left = parse_expr;
+    let parse_left = parse_expr();
     let parse_op = alt((tag("+"), tag("-"), tag("*")));
-    let parse_right = parse_expr;
+    let parse_right = parse_expr();
 
     parse_left
         .and(ws(parse_op))
@@ -218,15 +218,15 @@ fn parse_binary<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::err
 }
 
 /// Full expr: binary | call | base.
-fn parse_full_expr(input: &str) -> IResult<&str, AstNode> {
-    alt((parse_binary, parse_call, parse_expr))(input)
+fn parse_full_expr<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
+    alt((parse_binary(), parse_call(), parse_expr()))
 }
 
 /// Parses assign: ident = expr.
 fn parse_assign<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     let parse_lhs = ws(parse_ident());
     let parse_eq = ws(tag("="));
-    let parse_rhs = ws(parse_full_expr);
+    let parse_rhs = ws(parse_full_expr());
 
     parse_lhs
         .and(parse_eq)
@@ -236,7 +236,7 @@ fn parse_assign<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::err
 
 /// Parses defer: defer expr.
 fn parse_defer<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
-    preceded(ws(tag("defer")), ws(parse_full_expr))
+    preceded(ws(tag("defer")), ws(parse_full_expr()))
         .map(|expr| AstNode::Defer(Box::new(expr)))
 }
 
@@ -244,7 +244,7 @@ fn parse_defer<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::erro
 fn parse_spawn<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error::Error<&'a str>> {
     ws(tag("spawn"))
         .and(ws(parse_ident()))
-        .and(delimited(tag("("), separated_list1(tag(","), ws(parse_full_expr)), tag(")")))
+        .and(delimited(tag("("), separated_list1(tag(","), ws(parse_full_expr())), tag(")")))
         .map(|((_, func), args)| AstNode::Spawn { func, args })
 }
 
@@ -254,7 +254,7 @@ fn parse_stmt<'a>() -> impl Parser<&'a str, Output = AstNode, Error = nom::error
         parse_assign(),
         parse_defer(),
         parse_spawn(),
-        parse_full_expr,
+        parse_full_expr(),
     ))
 }
 
