@@ -79,19 +79,17 @@ pub unsafe extern "C" fn host_channel_recv(_chan_id: i64) -> i64 {
 }
 
 /// # Safety
-/// No safety concerns as parameter is plain i64 value.
-pub unsafe extern "C" fn host_spawn(_func_id: i64) -> i64 {
-    // Non-blocking async spawn
-    let chan = Channel::new();
-    task::spawn(async move {
-        // Dummy actor loop
-        loop {
-            if let Some(msg) = chan.recv().await {
-                println!("Actor msg: {}", msg);
-            }
-        }
-    });
-    1i64
+/// The `url` pointer must be a valid null-terminated C string.
+pub unsafe extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
+    use std::ffi::CStr;
+    // 1. Corrected 'host' to 'url' to match function parameter
+    // 2. Bound the result of to_str() to 'url_str' so it can be used in the block
+    if let Ok(url_str) = unsafe { CStr::from_ptr(url) }.to_str() {
+        // Real: reqwest stubbed as len
+        url_str.len() as i64
+    } else {
+        -1i64
+    }
 }
 
 /// # Safety
