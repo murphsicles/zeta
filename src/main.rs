@@ -75,7 +75,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Full bootstrap: Compile zetac src with self-host JIT (stub: load src, parse, codegen to obj).
     // For full, would need to write JITed code to file, link with rustc or ld.
     // Here, simple: re-parse zetac src as Zeta code (assume .z extension for src).
-    let zetac_code = fs::read_to_string("src/main.z")?; // Assume renamed
+    let zetac_code = fs::read_to_string("src/main.rs")?; // Fixed: real src
     let (_, zetac_asts) =
         parse_zeta(&zetac_code).map_err(|e| format!("Bootstrap parse: {:?}", e))?;
     let mut boot_resolver = Resolver::new();
