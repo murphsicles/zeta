@@ -240,7 +240,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     self.builder.build_store(*ptr, arg);
                 }
             }
-            MirStmt::Consume { id } => {
+            MirStmt::Consume { id: _ } => {
                 // No-op: semantic
             }
         }
@@ -260,7 +260,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
     }
 
     /// Generates a BasicValue from a MIR expression.
-    fn gen_expr(&self, expr: &MirExpr, _exprs: &HashMap<u32, MirExpr>) -> BasicValueEnum<'ctx> {
+    fn gen_expr(&mut self, expr: &MirExpr, _exprs: &HashMap<u32, MirExpr>) -> BasicValueEnum<'ctx> {
         match expr {
             MirExpr::Var(id) => self.load_local(*id),
             MirExpr::Lit(n) => self.i64_type.const_int(*n as u64, true).into(),
