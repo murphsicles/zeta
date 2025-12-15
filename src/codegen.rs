@@ -23,7 +23,7 @@ use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
 use inkwell::support::LLVMString;
 use inkwell::types::{BasicMetadataTypeEnum, IntType, PointerType, VectorType};
-use inkwell::values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, PointerValue};
+use inkwell::values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, PointerValue, CallSiteValue};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -187,11 +187,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let callee = self.get_callee(func);
                 let arg_vals: Vec<BasicMetadataValueEnum<'ctx>> = args.iter().map(|&id| self.load_local(id).into()).collect();
                 let call = self.builder.build_call(callee, &arg_vals, "call").expect("build_call failed");
-                if let Some(res) = call.try_as_basic_value() {
+                // Handle the return value using left() method to extract BasicValueEnum
+                if let Some(basic_val) = call.try_as_basic_value().left() {
                     let ptr = self.locals.entry(*dest).or_insert_with(|| {
                         self.builder.build_alloca(self.i64_type, &format!("dest_{}", dest)).expect("alloca failed")
                     });
-                    self.builder.build_store(*ptr, res);
+                    self.builder.build_store(*ptr, basic_val);
                 }
             }
             MirStmt::VoidCall { func, args } => {
@@ -283,7 +284,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let next = self.gen_expr(&MirExpr::Var(id), _exprs);
                     let concat_fn = self.get_callee("str_concat"); // Assume intrinsic
                     let call = self.builder.build_call(concat_fn, &[res.into(), next.into()], "fconcat").expect("build_call failed");
-                    res = call.try_as_basic_value().unwrap();
+                    // Use left() to extract BasicValueEnum from Either
+                    res = call.try_as_basic_value().left().expect("concat should return a value");
                 }
                 res
             }
