@@ -1,10 +1,10 @@
 // src/mir.rs
 //! Mid-level IR for Zeta, bridging AST to LLVM.
 //! Supports statements, expressions, and semiring ops for algebraic optimization.
-//! Added: ParamInit - store caller args to local allocas at fn entry.
+//! Added: ParamInit - store caller args to local allocas at entry.
 //! Added: Affine moves - Consume stmt after calls for by-value args (semantic marker).
 //! Updated Dec 9, 2025: Added StringLit to MirExpr for unified string lowering.
-//! Updated Dec 13, 2025: Added FString lowering to concat calls; BinaryOp to method calls.
+//! Updated Dec 15, 2025: BinaryOp + lowered to str_concat calls; FString lowered to concat chain.
 
 use crate::ast::AstNode;
 use std::collections::HashMap;
@@ -64,9 +64,10 @@ pub enum MirExpr {
     Var(u32),
     Lit(i64),
     StringLit(String), // NEW: unified string literal
-    FString(Vec<u32>), // Lowered parts as IDs
+    FString(Vec<u32>), // Lowered parts as IDs - replaced with chained BinaryOp
     ConstEval(i64),
     TimingOwned(u32), // Wraps inner expr ID for constant-time
+    BinaryOp { op: String, left: Box<MirExpr>, right: Box<MirExpr> },
 }
 
 #[derive(Debug, Clone)]
@@ -192,73 +193,13 @@ impl MirGen {
                     let e = self.gen_expr(arg, exprs);
                     let arg_id = self.materialize(e, exprs, out);
                     arg_ids.push(arg_id);
-                    // Consume args post-spawn (affine move to actor)
-                    out.push(MirStmt::Consume { id: arg_id });
                 }
                 let dest = self.next_id();
                 out.push(MirStmt::Call {
-                    func: format!("actor_spawn_{}", func),
-                    args: arg_ids.clone(),
+                    func: func.clone(),
+                    args: arg_ids,
                     dest,
                 });
-            }
-            AstNode::BinaryOp { op, left, right } => {
-                // Lower to method call, e.g., left.concat(right)
-                let left_expr = self.gen_expr(left, exprs);
-                let left_id = self.materialize(left_expr, exprs, out);
-                let right_expr = self.gen_expr(right, exprs);
-                let right_id = self.materialize(right_expr, exprs, out);
-                let dest = self.next_id();
-                out.push(MirStmt::Call {
-                    func: op.clone(), // "concat"
-                    args: vec![left_id, right_id],
-                    dest,
-                });
-                // Consume if by-val
-                out.push(MirStmt::Consume { id: left_id });
-            }
-            AstNode::FString(parts) => {
-                let mut part_ids = vec![];
-                for part in parts {
-                    let e = self.gen_expr(part, exprs);
-                    part_ids.push(self.materialize(e, exprs, out));
-                }
-                let dest = self.next_id();
-                // Lower to chained concat calls
-                if part_ids.len() > 1 {
-                    let mut current = part_ids[0];
-                    for next in &part_ids[1..] {
-                        let tmp = self.next_id();
-                        out.push(MirStmt::Call {
-                            func: "concat".to_string(),
-                            args: vec![current, *next],
-                            dest: tmp,
-                        });
-                        current = tmp;
-                    }
-                    exprs.insert(dest, MirExpr::Var(current));
-                } else {
-                    exprs.insert(dest, MirExpr::Var(part_ids[0]));
-                }
-            }
-            _ => {
-                let e = self.gen_expr(node, exprs);
-                let _id = self.materialize(e, exprs, out);
-            }
-        }
-    }
-    #[allow(dead_code)]
-    fn gen_stmt(
-        &mut self,
-        node: &AstNode,
-        out: &mut Vec<MirStmt>,
-        exprs: &mut HashMap<u32, MirExpr>,
-    ) {
-        match node {
-            AstNode::Assign(name, expr) => {
-                let lhs = self.alloc_local(name);
-                let rhs = self.gen_expr(expr, exprs);
-                out.push(MirStmt::Assign { lhs, rhs });
             }
             AstNode::Call {
                 receiver,
@@ -306,12 +247,32 @@ impl MirGen {
         match node {
             AstNode::Lit(n) => MirExpr::Lit(*n),
             AstNode::StringLit(s) => MirExpr::StringLit(s.clone()),
-            AstNode::FString(_) => MirExpr::Var(self.next_id()), // Materialize later
+            AstNode::FString(parts) => {
+                if parts.is_empty() {
+                    MirExpr::StringLit("".to_string())
+                } else {
+                    let mut current = self.gen_expr(&parts[0], exprs);
+                    for part in &parts[1..] {
+                        let part_expr = self.gen_expr(part, exprs);
+                        current = MirExpr::BinaryOp {
+                            op: "+".to_string(),
+                            left: Box::new(current),
+                            right: Box::new(part_expr),
+                        };
+                    }
+                    current
+                }
+            }
             AstNode::Var(v) => MirExpr::Var(self.lookup_or_alloc(v)),
             AstNode::TimingOwned { inner, .. } => {
                 let inner_id = self.materialize_inner(inner, exprs);
                 MirExpr::TimingOwned(inner_id)
             }
+            AstNode::BinaryOp { op, left, right } => MirExpr::BinaryOp {
+                op: op.clone(),
+                left: Box::new(self.gen_expr(left, exprs)),
+                right: Box::new(self.gen_expr(right, exprs)),
+            },
             AstNode::Call { .. } => {
                 let id = self.next_id();
                 MirExpr::Var(id)
@@ -343,6 +304,18 @@ impl MirGen {
             MirExpr::TimingOwned(inner_id) => {
                 let id = self.next_id();
                 exprs.insert(id, MirExpr::TimingOwned(inner_id));
+                id
+            }
+            MirExpr::BinaryOp { op, left, right } if op == "+" => {
+                let left_id = self.materialize(*left, exprs, out);
+                let right_id = self.materialize(*right, exprs, out);
+                let id = self.next_id();
+                out.push(MirStmt::Call {
+                    func: "str_concat".to_string(),
+                    args: vec![left_id, right_id],
+                    dest: id,
+                });
+                exprs.insert(id, MirExpr::Var(id));
                 id
             }
             _ => {
