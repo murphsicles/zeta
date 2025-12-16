@@ -5,6 +5,7 @@
 //! Added: generics in FuncDef/Method, structural flag in Call for hybrid dispatch.
 //! Updated Dec 9, 2025: Added first-class unified string support with Str type and StringLit node.
 //! Updated Dec 13, 2025: Added FString node for f-strings; BinaryOp for + concat sugar.
+//! Updated Dec 16, 2025: Added TryProp for ? prop, DictLit for dict literals, Subscript for [] access, Return for explicit return; changed Assign to support complex lhs (e.g., subscripts); added single_line flag to FuncDef.
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AstNode {
@@ -34,6 +35,7 @@ pub enum AstNode {
         body: Vec<AstNode>,
         attrs: Vec<String>,
         ret_expr: Option<Box<AstNode>>,
+        single_line: bool, // New: flag for single-line syntax
     },
     /// Enum definition.
     EnumDef { name: String, variants: Vec<String> },
@@ -67,7 +69,7 @@ pub enum AstNode {
     /// Variable reference.
     Var(String),
     /// Assignment.
-    Assign(String, Box<AstNode>),
+    Assign(Box<AstNode>, Box<AstNode>), // Updated: lhs can be Var or Subscript
     /// Binary operation (e.g., + for concat).
     BinaryOp {
         op: String, // "add", "concat", etc.
@@ -78,4 +80,12 @@ pub enum AstNode {
     TimingOwned { ty: String, inner: Box<AstNode> },
     /// Defer statement for RAII cleanup.
     Defer(Box<AstNode>),
+    /// Error propagation: expr?
+    TryProp { expr: Box<AstNode> },
+    /// Dict literal: {key: val, ...}
+    DictLit { entries: Vec<(AstNode, AstNode)> },
+    /// Subscript access: base[index]
+    Subscript { base: Box<AstNode>, index: Box<AstNode> },
+    /// Explicit return statement.
+    Return(Box<AstNode>),
 }
