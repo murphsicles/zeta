@@ -226,13 +226,18 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .build_call(callee, &arg_vals, "call")
                     .expect("build_call failed");
                 // try_as_basic_value() returns ValueKind enum
-                if let Some(basic_val) = call.try_as_basic_value() {
-                    let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                        self.builder
-                            .build_alloca(self.i64_type, &format!("dest_{}", dest))
-                            .expect("alloca failed")
-                    });
-                    let _ = self.builder.build_store(*ptr, basic_val);
+                match call.try_as_basic_value() {
+                    ValueKind::Basic(basic_val) => {
+                        let ptr = self.locals.entry(*dest).or_insert_with(|| {
+                            self.builder
+                                .build_alloca(self.i64_type, &format!("dest_{}", dest))
+                                .expect("alloca failed")
+                        });
+                        let _ = self.builder.build_store(*ptr, basic_val);
+                    }
+                    ValueKind::Instruction(_) => {
+                        // Void call, no return value
+                    }
                 }
             }
             MirStmt::VoidCall { func, args } => {
