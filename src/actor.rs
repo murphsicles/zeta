@@ -9,8 +9,6 @@ use std::collections::VecDeque;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::{Mutex, mpsc};
 use tokio::task;
-use std::collections::HashMap;
-use std::ffi::c_void;
 type Message = i64;
 #[repr(C)]
 #[derive(Clone, Debug)]
@@ -98,7 +96,6 @@ pub unsafe extern "C" fn host_spawn(_func_id: i64) -> i64 {
         0
     })
 }
-
 /// Result inner struct for host functions.
 #[derive(Debug)]
 struct ResultInner {
@@ -124,20 +121,20 @@ pub unsafe extern "C" fn host_result_make_err(data: i64) -> *mut c_void {
 /// # Safety
 /// Pointer must be valid Result ptr.
 pub unsafe extern "C" fn host_result_is_ok(ptr: *const c_void) -> i64 {
-    if ptr.is_null() { 0 } else { (*(ptr as *const ResultInner)).tag as i64 }
+    if ptr.is_null() { 0 } else { unsafe { (*(ptr as *const ResultInner)).tag as i64 } }
 }
 
 /// # Safety
 /// Pointer must be valid Result ptr.
 pub unsafe extern "C" fn host_result_get_data(ptr: *const c_void) -> i64 {
-    if ptr.is_null() { 0 } else { (*(ptr as *const ResultInner)).data }
+    if ptr.is_null() { 0 } else { unsafe { (*(ptr as *const ResultInner)).data } }
 }
 
 /// # Safety
 /// Pointer must be valid from make_ok/err, not freed before.
 pub unsafe extern "C" fn host_result_free(ptr: *mut c_void) {
     if !ptr.is_null() {
-        let _ = Box::from_raw(ptr as *mut ResultInner);
+        unsafe { let _ = Box::from_raw(ptr as *mut ResultInner); }
     }
 }
 
@@ -151,7 +148,7 @@ pub unsafe extern "C" fn host_map_new() -> *mut c_void {
 /// Pointer must be valid Map ptr.
 pub unsafe extern "C" fn host_map_insert(ptr: *mut c_void, key: i64, val: i64) {
     if !ptr.is_null() {
-        (*(ptr as *mut MapInner)).insert(key, val);
+        unsafe { (*(ptr as *mut MapInner)).insert(key, val); }
     }
 }
 
@@ -161,7 +158,7 @@ pub unsafe extern "C" fn host_map_get(ptr: *const c_void, key: i64) -> i64 {
     if ptr.is_null() {
         0
     } else {
-        (*(ptr as *const MapInner)).get(&key).cloned().unwrap_or(0)
+        unsafe { (*(ptr as *const MapInner)).get(&key).cloned().unwrap_or(0) }
     }
 }
 
@@ -169,7 +166,7 @@ pub unsafe extern "C" fn host_map_get(ptr: *const c_void, key: i64) -> i64 {
 /// Pointer must be valid from map_new, not freed before.
 pub unsafe extern "C" fn host_map_free(ptr: *mut c_void) {
     if !ptr.is_null() {
-        let _ = Box::from_raw(ptr as *mut MapInner);
+        unsafe { let _ = Box::from_raw(ptr as *mut MapInner); }
     }
 }
 
