@@ -1,7 +1,7 @@
 // src/plan.rs
 //! Zeta Compiler Development Plan.
 //! Checklist for milestones. Mark as [x] when complete.
-//! Updated Dec 13, 2025: String ergonomics shipped [x] — next phase now in flight.
+//! Updated Dec 16, 2025: Ergonomics barriers addressed [x] — adoption phase planning.
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
@@ -86,16 +86,16 @@ pub mod checklist {
 [ ] Python expressiveness (dict literals map[key]=val, auto-imports)
 [ ] Interactive REPL (JIT eval for quick prototyping)
 [ ] Docs in concepts (/// comments, auto-gen)
-[ ] Barriers Solved: Steep learning curve (implicit affine, no lifetimes) [ ]
-[ ] Barriers Solved: Verbose boilerplate (hybrid concepts with ?) [ ]
-[ ] Barriers Solved: Interop friction (built-in actors + std embeds) [ ]
-[ ] Barriers Solved: Debugging pain (visual MIR dumps, auto-step JIT) [ ]
-[ ] Barriers Solved: Ecosystem lock-in (modular crates, easy FFI) [ ]
-[ ] Wins: Instant JIT REPL (Python-like eval) [ ]
-[ ] Wins: Algebraic ergonomics (auto-SIMD semirings) [ ]
-[ ] Wins: Stable ABI const-time (TimingOwned default) [ ]
-[ ] Wins: Visual profiler (MLGO-integrated graphs) [ ]
-[ ] Wins: Modular crates (one-file packages, auto-link) [ ]
+[x] Barriers Solved: Steep learning curve (implicit affine, no lifetimes) 
+[x] Barriers Solved: Verbose boilerplate (hybrid concepts with ?) 
+[x] Barriers Solved: Interop friction (built-in actors + std embeds) 
+[ ] Barriers Solved: Debugging pain (visual MIR dumps, auto-step JIT) 
+[ ] Barriers Solved: Ecosystem lock-in (modular crates, easy FFI) 
+[ ] Wins: Instant JIT REPL (Python-like eval) 
+[x] Wins: Algebraic ergonomics (auto-SIMD semirings) 
+[x] Wins: Stable ABI const-time (TimingOwned default) 
+[ ] Wins: Visual profiler (MLGO-integrated graphs) 
+[ ] Wins: Modular crates (one-file packages, auto-link) 
     "#;
     /// Adoption (Viral Strategies for 30-Year Dominance)
     pub const ADOPTION: &str = r#"
