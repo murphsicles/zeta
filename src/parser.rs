@@ -12,7 +12,7 @@ use crate::ast::AstNode;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while1};
 use nom::character::complete::{
-    alpha1, alphanumeric0, char as nom_char, i64 as nom_i64, multispace0,
+    alpha1, alphanumeric0, i64 as nom_i64, multispace0,
 };
 use nom::combinator::{map, opt, value};
 use nom::multi::{many0, many1, separated_list1};
@@ -31,7 +31,7 @@ type FnParse = (
 
 /// Whitespace wrapper for parsers.
 fn ws<'a, O>(
-    mut inner: impl Parser<&'a str, Output = O, Error = nom::error::Error<&'a str>>,
+    inner: impl Parser<&'a str, Output = O, Error = nom::error::Error<&'a str>>,
 ) -> impl Parser<&'a str, Output = O, Error = nom::error::Error<&'a str>> {
     move |input| {
         let (input, _) = multispace0(input)?;
@@ -103,8 +103,7 @@ fn parse_fstring_content(input: &str) -> IResult<&str, Vec<AstNode>> {
     if i.starts_with('"') {
         i = &i[1..];
     }
-    Ok((i, parts)
-    )
+    Ok((i, parts))
 }
 
 /// Parses f-string: f"content {expr} more".
@@ -178,7 +177,7 @@ fn parse_binary_op(input: &str) -> IResult<&str, AstNode> {
     let (input, left) = parse_postfix_expr(input)?;
     let (input, pairs) = many0(pair(alt((ws(tag("+")), ws(tag("concat")))), parse_postfix_expr))(input)?;
     let mut expr = left;
-    for (op, right) = pairs {
+    for (op, right) in pairs {
         expr = AstNode::BinaryOp { op: op.to_string(), left: Box::new(expr), right: Box::new(right) };
     }
     Ok((input, expr))
@@ -204,7 +203,6 @@ fn parse_full_expr(input: &str) -> IResult<&str, AstNode> {
     alt((
         parse_free_call,
         parse_binary_op,
-        parse_path_call, // assume current
         parse_timing_owned,
         parse_postfix_expr,
     ))(input)
@@ -262,7 +260,7 @@ fn parse_assign(input: &str) -> IResult<&str, AstNode> {
 
 /// Parses generics: <T,U>.
 fn parse_generics(input: &str) -> IResult<&str, Vec<String>> {
-    parse_type_args(input)
+    delimited(ws(tag("<")), separated_list1(ws(tag(",")), ws(parse_ident)), ws(tag(">")))(input)
 }
 
 /// Parses fn: fn name<gens>(params) -> Ret { body } or = stmt for single-line.
