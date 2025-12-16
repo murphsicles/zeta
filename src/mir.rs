@@ -207,7 +207,7 @@ impl MirGen {
                     });
                 }
             }
-            AstNode::Spawn { func: _func, args } => {
+            AstNode::Spawn { func: _, args } => {
                 let mut arg_ids = vec![];
                 for arg in args.iter() {
                     let e = self.gen_expr(arg, exprs, out);
@@ -225,10 +225,10 @@ impl MirGen {
                         out.push(MirStmt::Assign { lhs: lhs_id, rhs: MirExpr::Var(rhs_id) });
                     }
                     AstNode::Subscript { ref base, ref index } => {
-                        let base_gen = self.gen_expr(base.as_ref(), exprs, out);
-                        let base_id = self.materialize(base_gen, exprs, out);
-                        let index_gen = self.gen_expr(index.as_ref(), exprs, out);
-                        let index_id = self.materialize(index_gen, exprs, out);
+                        let base_expr = self.gen_expr(base.as_ref(), exprs, out);
+                        let base_id = self.materialize(base_expr, exprs, out);
+                        let index_expr = self.gen_expr(index.as_ref(), exprs, out);
+                        let index_id = self.materialize(index_expr, exprs, out);
                         out.push(MirStmt::VoidCall { func: "map_insert".to_string(), args: vec![base_id, index_id, rhs_id] });
                     }
                     _ => {},
@@ -254,7 +254,7 @@ impl MirGen {
             AstNode::FString(parts) => {
                 let mut ids = vec![];
                 for part in parts {
-                    let e = self.gen_expr(part, exprs, out);
+                    let e = self.gen_expr(part.as_ref(), exprs, out);
                     let id = self.materialize_inner(&e, exprs);
                     ids.push(id);
                 }
@@ -267,14 +267,20 @@ impl MirGen {
                 MirExpr::TimingOwned(inner_id)
             }
             AstNode::Call { receiver, method, args, .. } => {
-                let receiver_gen = receiver.as_ref().map(|r| self.gen_expr(r, exprs, out));
-                let receiver_id = receiver_gen.map(|gen| self.materialize(gen, exprs, out));
-                let mut arg_ids = vec![];
-                for a in args.iter() {
-                    let e = self.gen_expr(a, exprs, out);
-                    let id = self.materialize(e, exprs, out);
-                    arg_ids.push(id);
-                }
+                let receiver_id = if let Some(r) = receiver.as_ref() {
+                    let e = self.gen_expr(r, exprs, out);
+                    Some(self.materialize(e, exprs, out))
+                } else {
+                    None
+                };
+                let mut arg_ids = args
+                    .iter()
+                    .map(|a| {
+                        let e = self.gen_expr(a, exprs, out);
+                        self.materialize(e, exprs, out)
+                    })
+                    .collect::<Vec<_>>();
+
                 if let Some(rid) = receiver_id {
                     arg_ids.insert(0, rid);
                 }
@@ -317,19 +323,19 @@ impl MirGen {
                 let dest = self.next_id();
                 out.push(MirStmt::Call { func: "map_new".to_string(), args: vec![], dest });
                 for (k, v) in entries {
-                    let k_gen = self.gen_expr(k, exprs, out);
-                    let k_id = self.materialize(k_gen, exprs, out);
-                    let v_gen = self.gen_expr(v, exprs, out);
-                    let v_id = self.materialize(v_gen, exprs, out);
+                    let k_expr = self.gen_expr(k.as_ref(), exprs, out);
+                    let k_id = self.materialize(k_expr, exprs, out);
+                    let v_expr = self.gen_expr(v.as_ref(), exprs, out);
+                    let v_id = self.materialize(v_expr, exprs, out);
                     out.push(MirStmt::VoidCall { func: "map_insert".to_string(), args: vec![dest, k_id, v_id] });
                 }
                 MirExpr::Var(dest)
             }
             AstNode::Subscript { base, index } => {
-                let base_gen = self.gen_expr(base.as_ref(), exprs, out);
-                let base_id = self.materialize(base_gen, exprs, out);
-                let index_gen = self.gen_expr(index.as_ref(), exprs, out);
-                let index_id = self.materialize(index_gen, exprs, out);
+                let base_expr = self.gen_expr(base.as_ref(), exprs, out);
+                let base_id = self.materialize(base_expr, exprs, out);
+                let index_expr = self.gen_expr(index.as_ref(), exprs, out);
+                let index_id = self.materialize(index_expr, exprs, out);
                 let dest = self.next_id();
                 out.push(MirStmt::Call { func: "map_get".to_string(), args: vec![base_id, index_id], dest });
                 MirExpr::Var(dest)
