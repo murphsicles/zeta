@@ -6,6 +6,7 @@
 //! Added hybrid traits: structural dispatch via method? (e.g., obj.add?(b) for ad-hoc structural lookup)
 //! Added partial specialization: method::<T,U>(args) for type args in calls.
 //! Updated Dec 13, 2025: Added f-string parsing (f"hello {expr}"); + as concat; f-string lowering.
+//! Updated Dec 16, 2025: Added parsing for single-line fns (fn name = expr;), ? prop, dict literals {k:v}, subscripts [index], return stmt; updated assign for complex lhs.
 
 use crate::ast::AstNode;
 use nom::branch::alt;
@@ -102,7 +103,8 @@ fn parse_fstring_content(input: &str) -> IResult<&str, Vec<AstNode>> {
     if i.starts_with('"') {
         i = &i[1..];
     }
-    Ok((i, parts))
+    Ok((i, parts)
+    )
 }
 
 /// Parses f-string: f"content {expr} more".
@@ -125,15 +127,87 @@ fn parse_path(input: &str) -> IResult<&str, Vec<String>> {
     .parse(input)
 }
 
-/// Parses atom: lit | var | str | fstr.
-fn parse_atom(input: &str) -> IResult<&str, AstNode> {
+/// Parses dict literal: {k: v, ...}.
+fn parse_dict_lit(input: &str) -> IResult<&str, AstNode> {
+    map(delimited(ws(tag("{")), separated_list1(ws(tag(",")), pair(ws(parse_full_expr), preceded(ws(tag(":")), ws(parse_full_expr)))), ws(tag("}"))), |entries| AstNode::DictLit { entries }).parse(input)
+}
+
+/// Primary atoms: lit | var | str | fstr | dict | (expr).
+fn parse_primary(input: &str) -> IResult<&str, AstNode> {
     alt((
         parse_literal,
         parse_string_lit,
         parse_fstring,
         parse_variable,
-    ))
-    .parse(input)
+        parse_dict_lit,
+        delimited(ws(tag("(")), ws(parse_full_expr), ws(tag(")"))),
+    )).parse(input)
+}
+
+/// Parses postfix operators: [index] or ? , with chaining.
+fn parse_postfix_expr(input: &str) -> IResult<&str, AstNode> {
+    let (mut input, mut base) = parse_primary(input)?;
+    loop {
+        if let Ok((i, _)) = ws(tag("?"))(input) {
+            base = AstNode::TryProp { expr: Box::new(base) };
+            input = i;
+        } else if let Ok((i, index)) = delimited(ws(tag("[")), ws(parse_full_expr), ws(tag("]")))(input) {
+            base = AstNode::Subscript { base: Box::new(base), index: Box::new(index) };
+            input = i;
+        } else if let Ok((i, method)) = preceded(ws(tag(".")), ws(parse_ident))(input) {
+            let (i, type_args) = opt(ws(parse_generics))(i)?;
+            let (i, structural) = if let Ok((i, _)) = ws(tag("?"))(i) { (i, true) } else { (i, false) };
+            let (i, args) = delimited(ws(tag("(")), separated_list1(ws(tag(",")), ws(parse_full_expr)), ws(tag(")")))(i)?;
+            base = AstNode::Call {
+                receiver: Some(Box::new(base)),
+                method,
+                args,
+                type_args: type_args.unwrap_or_default(),
+                structural,
+            };
+            input = i;
+        } else {
+            break;
+        }
+    }
+    Ok((input, base))
+}
+
+/// Parses binary op: postfix + postfix for concat, etc.
+fn parse_binary_op(input: &str) -> IResult<&str, AstNode> {
+    let (input, left) = parse_postfix_expr(input)?;
+    let (input, pairs) = many0(pair(alt((ws(tag("+")), ws(tag("concat")))), parse_postfix_expr))(input)?;
+    let mut expr = left;
+    for (op, right) = pairs {
+        expr = AstNode::BinaryOp { op: op.to_string(), left: Box::new(expr), right: Box::new(right) };
+    }
+    Ok((input, expr))
+}
+
+/// Parses free function call: name(args).
+fn parse_free_call(input: &str) -> IResult<&str, AstNode> {
+    let (input, method) = ws(parse_ident)(input)?;
+    let (input, type_args) = opt(ws(parse_generics))(input)?;
+    let (input, structural) = if let Ok((input, _)) = ws(tag("?"))(input) { (input, true) } else { (input, false) };
+    let (input, args) = delimited(ws(tag("(")), separated_list1(ws(tag(",")), ws(parse_full_expr)), ws(tag(")")))(input)?;
+    Ok((input, AstNode::Call {
+        receiver: None,
+        method,
+        args,
+        type_args: type_args.unwrap_or_default(),
+        structural,
+    }))
+}
+
+/// Parses full expr: call | binary | postfix | etc.
+fn parse_full_expr(input: &str) -> IResult<&str, AstNode> {
+    alt((
+        parse_free_call,
+        parse_binary_op,
+        parse_path_call, // assume current
+        parse_timing_owned,
+        parse_postfix_expr,
+    ))(input)
 }
 
 /// Parses TimingOwned<ty>(atom).
@@ -141,107 +215,19 @@ fn parse_timing_owned(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("TimingOwned")).parse(input)?;
     let (input, ty) = delimited(tag("<"), parse_ident, tag(">")).parse(input)?;
     let (input, _) = tag("(").parse(input)?;
-    let (input, inner) = parse_atom(input)?;
+    let (input, inner) = parse_full_expr(input)?;
     let (input, _) = tag(")").parse(input)?;
-    Ok((
-        input,
-        AstNode::TimingOwned {
-            ty,
-            inner: Box::new(inner),
-        },
-    ))
+    Ok((input, AstNode::TimingOwned { ty, inner: Box::new(inner) }))
 }
 
-/// Parses base expression: atom | TimingOwned.
-fn parse_base_expr(input: &str) -> IResult<&str, AstNode> {
-    alt((parse_atom, parse_timing_owned)).parse(input)
-}
-
-/// Parses parens: (expr).
-fn parse_parens(input: &str) -> IResult<&str, AstNode> {
-    delimited(tag("("), parse_expr, tag(")")).parse(input)
-}
-
-/// Parses expr recursively: base | parens.
-fn parse_expr(input: &str) -> IResult<&str, AstNode> {
-    alt((parse_base_expr, parse_parens)).parse(input)
-}
-
-/// Parses structural marker: ? after method name.
-fn parse_structural(input: &str) -> IResult<&str, bool> {
-    map(opt(nom_char('?')), |opt_q| opt_q.is_some()).parse(input)
-}
-
-/// Parses type args: <T,U>.
-fn parse_type_args(input: &str) -> IResult<&str, Vec<String>> {
-    delimited(
-        tag("<"),
-        separated_list1(tag(","), ws(parse_ident)),
-        tag(">"),
-    )
-    .parse(input)
-}
-
-/// Parses call: recv.method<type_args>(args)?.
-fn parse_call(input: &str) -> IResult<&str, AstNode> {
-    let (input, recv) = opt(parse_expr).parse(input)?;
-    let (input, method) = ws(parse_ident).parse(input)?;
-    let (input, targs) = opt(parse_type_args).parse(input)?;
-    let (input, args) = delimited(
-        tag("("),
-        separated_list1(tag(","), ws(parse_expr)),
-        tag(")"),
-    )
-    .parse(input)?;
-    let (input, _) = parse_structural(input)?;
-    Ok((
-        input,
-        AstNode::Call {
-            receiver: recv.map(Box::new),
-            method,
-            args,
-            type_args: targs.unwrap_or_default(),
-            structural: false, // From ?
-        },
-    ))
-}
-
-/// Parses binary: left + right (sugar for concat if str).
-fn parse_binary(input: &str) -> IResult<&str, AstNode> {
-    let (input, left) = parse_expr(input)?;
-    let (input, op) = ws(alt((tag("+"), tag("-"), tag("*")))).parse(input)?;
-    let (input, right) = parse_expr(input)?;
-    Ok((
-        input,
-        AstNode::BinaryOp {
-            op: op.to_string(), // + -> "concat" in resolver
-            left: Box::new(left),
-            right: Box::new(right),
-        },
-    ))
-}
-
-/// Full expr: binary | call | base.
-fn parse_full_expr(input: &str) -> IResult<&str, AstNode> {
-    alt((parse_binary, parse_call, parse_expr)).parse(input)
-}
-
-/// Parses assign: ident = expr.
-fn parse_assign(input: &str) -> IResult<&str, AstNode> {
-    let (input, lhs) = ws(parse_ident).parse(input)?;
-    let (input, _) = ws(tag("=")).parse(input)?;
-    let (input, rhs) = ws(parse_full_expr).parse(input)?;
-    Ok((input, AstNode::Assign(lhs, Box::new(rhs))))
-}
-
-/// Parses defer: defer expr.
+/// Parses defer expr.
 fn parse_defer(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("defer")).parse(input)?;
-    let (input, expr) = ws(parse_full_expr).parse(input)?;
-    Ok((input, AstNode::Defer(Box::new(expr))))
+    let (input, inner) = parse_full_expr(input)?;
+    Ok((input, AstNode::Defer(Box::new(inner))))
 }
 
-/// Parses spawn: spawn func(args).
+/// Parses spawn func(args).
 fn parse_spawn(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("spawn")).parse(input)?;
     let (input, func) = ws(parse_ident).parse(input)?;
@@ -254,9 +240,24 @@ fn parse_spawn(input: &str) -> IResult<&str, AstNode> {
     Ok((input, AstNode::Spawn { func, args }))
 }
 
-/// Parses stmt: assign | expr | defer | spawn.
+/// Parses return expr.
+fn parse_return(input: &str) -> IResult<&str, AstNode> {
+    let (input, _) = ws(tag("return")).parse(input)?;
+    let (input, expr) = ws(parse_full_expr)(input)?;
+    Ok((input, AstNode::Return(Box::new(expr))))
+}
+
+/// Parses stmt: assign | defer | spawn | return | expr.
 fn parse_stmt(input: &str) -> IResult<&str, AstNode> {
-    alt((parse_assign, parse_defer, parse_spawn, parse_full_expr)).parse(input)
+    alt((parse_assign, parse_defer, parse_spawn, parse_return, parse_full_expr)).parse(input)
+}
+
+/// Parses assign: lhs = rhs.
+fn parse_assign(input: &str) -> IResult<&str, AstNode> {
+    let (input, lhs) = ws(parse_postfix_expr)(input)?;
+    let (input, _) = ws(tag("="))(input)?;
+    let (input, rhs) = ws(parse_full_expr)(input)?;
+    Ok((input, AstNode::Assign(Box::new(lhs), Box::new(rhs))))
 }
 
 /// Parses generics: <T,U>.
@@ -264,7 +265,7 @@ fn parse_generics(input: &str) -> IResult<&str, Vec<String>> {
     parse_type_args(input)
 }
 
-/// Parses fn: fn name<gens>(params:Type) -> Ret { body }.
+/// Parses fn: fn name<gens>(params) -> Ret { body } or = stmt for single-line.
 fn parse_func(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = value((), ws(tag("fn"))).parse(input)?;
     let (input, name) = ws(parse_ident).parse(input)?;
@@ -276,8 +277,10 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
     )
     .parse(input)?;
     let (input, ret_opt) = opt(preceded(ws(tag("->")), ws(parse_ident))).parse(input)?;
-    let (input, body) =
-        delimited(ws(tag("{")), many0(ws(parse_stmt)), ws(tag("}"))).parse(input)?;
+    let (input, (body, single_line)) = alt((
+        map(delimited(ws(tag("{")), many0(ws(parse_stmt)), ws(tag("}"))), |b| (b, false)),
+        map(preceded(ws(tag("=")), ws(parse_stmt)), |s| (vec![s], true)),
+    ))(input)?;
     let generics = generics_opt.unwrap_or_default();
     let ret = ret_opt.unwrap_or_else(|| "i64".to_string());
     Ok((
@@ -290,12 +293,13 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
             body,
             attrs: vec![],
             ret_expr: None,
+            single_line,
         },
     ))
 }
 
 /// Parses method sig for concept/impl: name(params) -> ret, with optional generics.
-fn parse_method_sig(input: &str) -> IResult<&str, AstNode> {
+pub fn parse_method_sig(input: &str) -> IResult<&str, AstNode> {
     let (input, name) = parse_ident(input)?;
     let (input, generics_opt) = opt(ws(parse_generics)).parse(input)?;
     let (input, params) = delimited(tag("("), many0(parse_ident), tag(")")).parse(input)?;
