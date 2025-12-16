@@ -2,11 +2,15 @@
 //! Actor model runtime for Zeta concurrency.
 //! Channel-based messaging with work-stealing scheduler on thread pool.
 //! Added: Async support - non-blocking spawn/recv using tokio tasks and mpsc channels.
+//! Updated Dec 16, 2025: Added host functions for Result and Map intrinsics (heap-allocated).
+
 use num_cpus;
 use std::collections::VecDeque;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::{Mutex, mpsc};
 use tokio::task;
+use std::collections::HashMap;
+use std::ffi::c_void;
 type Message = i64;
 #[repr(C)]
 #[derive(Clone, Debug)]
@@ -94,6 +98,81 @@ pub unsafe extern "C" fn host_spawn(_func_id: i64) -> i64 {
         0
     })
 }
+
+/// Result inner struct for host functions.
+#[derive(Debug)]
+struct ResultInner {
+    tag: bool, // true for Ok, false for Err
+    data: i64,
+}
+
+/// Map inner type.
+type MapInner = HashMap<i64, i64>;
+
+/// # Safety
+/// Pointer must be valid from make_ok/err.
+pub unsafe extern "C" fn host_result_make_ok(data: i64) -> *mut c_void {
+    Box::into_raw(Box::new(ResultInner { tag: true, data })) as *mut c_void
+}
+
+/// # Safety
+/// Pointer must be valid from make_ok/err.
+pub unsafe extern "C" fn host_result_make_err(data: i64) -> *mut c_void {
+    Box::into_raw(Box::new(ResultInner { tag: false, data })) as *mut c_void
+}
+
+/// # Safety
+/// Pointer must be valid Result ptr.
+pub unsafe extern "C" fn host_result_is_ok(ptr: *const c_void) -> i64 {
+    if ptr.is_null() { 0 } else { (*(ptr as *const ResultInner)).tag as i64 }
+}
+
+/// # Safety
+/// Pointer must be valid Result ptr.
+pub unsafe extern "C" fn host_result_get_data(ptr: *const c_void) -> i64 {
+    if ptr.is_null() { 0 } else { (*(ptr as *const ResultInner)).data }
+}
+
+/// # Safety
+/// Pointer must be valid from make_ok/err, not freed before.
+pub unsafe extern "C" fn host_result_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = Box::from_raw(ptr as *mut ResultInner);
+    }
+}
+
+/// # Safety
+/// No params.
+pub unsafe extern "C" fn host_map_new() -> *mut c_void {
+    Box::into_raw(Box::new(MapInner::new())) as *mut c_void
+}
+
+/// # Safety
+/// Pointer must be valid Map ptr.
+pub unsafe extern "C" fn host_map_insert(ptr: *mut c_void, key: i64, val: i64) {
+    if !ptr.is_null() {
+        (*(ptr as *mut MapInner)).insert(key, val);
+    }
+}
+
+/// # Safety
+/// Pointer must be valid Map ptr.
+pub unsafe extern "C" fn host_map_get(ptr: *const c_void, key: i64) -> i64 {
+    if ptr.is_null() {
+        0
+    } else {
+        (*(ptr as *const MapInner)).get(&key).cloned().unwrap_or(0)
+    }
+}
+
+/// # Safety
+/// Pointer must be valid from map_new, not freed before.
+pub unsafe extern "C" fn host_map_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = Box::from_raw(ptr as *mut MapInner);
+    }
+}
+
 /// Actor representation: channel + async entry function.
 struct Actor {
     chan: Channel,
