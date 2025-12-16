@@ -254,7 +254,7 @@ impl MirGen {
             AstNode::FString(parts) => {
                 let mut ids = vec![];
                 for part in parts {
-                    let e = self.gen_expr(part.as_ref(), exprs, out);
+                    let e = self.gen_expr(part, exprs, out);
                     let id = self.materialize_inner(&e, exprs);
                     ids.push(id);
                 }
@@ -289,11 +289,11 @@ impl MirGen {
                 });
 
                 // Affine: Consume by-value args post-call (assume all Var args moved)
-                for &arg_id in arg_ids
+                for arg_id in arg_ids
                     .iter()
-                    .filter(|&&id| matches!(exprs.get(&id), Some(MirExpr::Var(_))))
+                    .filter(|&id| matches!(exprs.get(id), Some(MirExpr::Var(_))))
                 {
-                    out.push(MirStmt::Consume { id: arg_id });
+                    out.push(MirStmt::Consume { id: *arg_id });
                 }
                 MirExpr::Var(dest)
             }
@@ -319,9 +319,9 @@ impl MirGen {
                 let dest = self.next_id();
                 out.push(MirStmt::Call { func: "map_new".to_string(), args: vec![], dest });
                 for (k, v) in entries {
-                    let k_expr = self.gen_expr(k.as_ref(), exprs, out);
+                    let k_expr = self.gen_expr(k, exprs, out);
                     let k_id = self.materialize(k_expr, exprs, out);
-                    let v_expr = self.gen_expr(v.as_ref(), exprs, out);
+                    let v_expr = self.gen_expr(v, exprs, out);
                     let v_id = self.materialize(v_expr, exprs, out);
                     out.push(MirStmt::VoidCall { func: "map_insert".to_string(), args: vec![dest, k_id, v_id] });
                 }
