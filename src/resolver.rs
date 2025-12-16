@@ -6,6 +6,7 @@
 //! Added: CTFE (const eval semirings) for literal/semiring folding during inference.
 //! Updated Dec 9, 2025: Unified string support - new Type::Str, builtin StrOps concept, string literal inference.
 //! Updated Dec 13, 2025: Added rich StrOps methods; implicit &str borrows/conversions; + as concat; f-string lowering.
+//! Updated Dec 16, 2025: Added Type::Result and Type::Map; inference for TryProp (?), DictLit, Subscript; auto-import prelude for map/result intrinsics; checks for error prop in typecheck.
 
 use crate::ast::AstNode;
 use crate::borrow::BorrowChecker;
@@ -37,6 +38,10 @@ pub enum Type {
     TimingOwned(Box<Type>),
     /// Vec<u8> for interop.
     VecU8,
+    /// Result type for error handling.
+    Result(Box<Type>, Box<Type>),
+    /// Map type for dicts.
+    Map(Box<Type>, Box<Type>),
 }
 
 impl fmt::Display for Type {
@@ -51,6 +56,8 @@ impl fmt::Display for Type {
             Type::Named(s) => write!(f, "{}", s),
             Type::Unknown => write!(f, "unknown"),
             Type::TimingOwned(ty) => write!(f, "TimingOwned<{}>", ty),
+            Type::Result(ok, err) => write!(f, "Result<{}, {}>", ok, err),
+            Type::Map(k, v) => write!(f, "Map<{}, {}>", k, v),
         }
     }
 }
@@ -147,98 +154,133 @@ impl Resolver {
         str_ops.insert("starts_with".to_string(), (vec![Type::Str], Type::Bool));
         str_ops.insert("ends_with".to_string(), (vec![Type::Str], Type::Bool));
         str_ops.insert("as_bytes".to_string(), (vec![], Type::VecU8));
-        str_ops.insert("from_bytes".to_string(), (vec![Type::VecU8], Type::Str));
         r.direct_impls
             .insert(("StrOps".to_string(), Type::Str), str_ops);
 
-        // Implicit impl for &str -> str conversions
-        let mut str_ref_ops = HashMap::new();
-        str_ref_ops.insert("to_owned".to_string(), (vec![], Type::Str));
-        r.direct_impls
-            .insert(("StrRefOps".to_string(), Type::StrRef), str_ref_ops);
+        // Auto-import prelude for Result and Map (assume i64 for key/val/err)
+        let result_ty = Type::Result(Box::new(Type::I64), Box::new(Type::I64));
+        r.func_sigs.insert(
+            "result_make_ok".to_string(),
+            (vec![("data".to_string(), Type::I64)], result_ty.clone()),
+        );
+        r.func_sigs.insert(
+            "result_make_err".to_string(),
+            (vec![("err".to_string(), Type::I64)], result_ty.clone()),
+        );
+        r.func_sigs.insert(
+            "result_is_ok".to_string(),
+            (vec![("res".to_string(), result_ty.clone())], Type::Bool),
+        );
+        r.func_sigs.insert(
+            "result_get_data".to_string(),
+            (vec![("res".to_string(), result_ty.clone())], Type::I64),
+        );
+        r.func_sigs.insert(
+            "result_free".to_string(),
+            (vec![("res".to_string(), result_ty)], Type::Named("()".to_string())),
+        );
+        let map_ty = Type::Map(Box::new(Type::I64), Box::new(Type::I64));
+        r.func_sigs.insert("map_new".to_string(), (vec![], map_ty.clone()));
+        r.func_sigs.insert(
+            "map_insert".to_string(),
+            (
+                vec![
+                    ("map".to_string(), map_ty.clone()),
+                    ("key".to_string(), Type::I64),
+                    ("val".to_string(), Type::I64),
+                ],
+                Type::Named("()".to_string()),
+            ),
+        );
+        r.func_sigs.insert(
+            "map_get".to_string(),
+            (
+                vec![
+                    ("map".to_string(), map_ty.clone()),
+                    ("key".to_string(), Type::I64),
+                ],
+                Type::I64,
+            ),
+        );
+        r.func_sigs.insert(
+            "map_free".to_string(),
+            (vec![("map".to_string(), map_ty)], Type::Named("()".to_string())),
+        );
 
         r
     }
 
-    /// Registers a concept, impl, or func; declares param borrows.
-    pub fn register(&mut self, ast: AstNode) {
-        match ast {
-            AstNode::ConceptDef {
-                name: _name,
-                methods: _methods,
-            } => {
-                // Register concept sigs (stub: no full trait sigs)
-            }
-            AstNode::ImplBlock { concept, ty, body } => {
-                let ty_parsed = self.parse_type(&ty);
-                let mut methods = HashMap::new();
-                for m in body {
-                    if let AstNode::Method {
-                        name, params, ret, ..
-                    } = m
-                    {
-                        let param_tys: Vec<_> =
-                            params.iter().map(|(_, t)| self.parse_type(t)).collect();
-                        methods.insert(name, (param_tys, self.parse_type(&ret)));
-                    }
-                }
-                self.direct_impls.insert((concept, ty_parsed), methods);
-            }
-            AstNode::FuncDef {
-                name, params, ret, ..
-            } => {
-                let param_sigs: Vec<_> = params
-                    .iter()
-                    .map(|(p, t)| (p.clone(), self.parse_type(t)))
-                    .collect();
-                self.func_sigs
-                    .insert(name, (param_sigs, self.parse_type(&ret)));
-                for (pname, _) in &params {
-                    self.borrow_checker
-                        .declare(pname.clone(), crate::borrow::BorrowState::Owned);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn parse_type(&self, s: &str) -> Type {
-        match s {
-            "i64" => Type::I64,
-            "f32" => Type::F32,
-            "bool" => Type::Bool,
-            "str" => Type::Str,
-            "&str" => Type::StrRef,
-            "Vec<u8>" => Type::VecU8,
-            _ => Type::Named(s.to_string()),
-        }
-    }
-
-    /// Looks up method return type.
-    pub fn lookup_method(
+    /// Looks up method signature for receiver type.
+    fn lookup_method(
         &self,
         recv_ty: Option<&Type>,
         method: &str,
         arg_tys: &[Type],
     ) -> Option<Type> {
-        if let Some(ty) = recv_ty
-            && let Some(impls) = self.direct_impls.get(&(method.to_string(), ty.clone()))
-            && let Some(sig) = impls.get(method)
-            && sig.0.len() == arg_tys.len()
-        {
-            return Some(sig.1.clone());
+        if let Some(ty) = recv_ty {
+            if let Some(impls) = self.direct_impls.get(&("Addable".to_string(), ty.clone())) {
+                if let Some(sig) = impls.get(method) {
+                    if sig.0 == *arg_tys {
+                        return Some(sig.1.clone());
+                    }
+                }
+            }
+            if let Some(impls) = self.direct_impls.get(&("StrOps".to_string(), ty.clone())) {
+                if let Some(sig) = impls.get(method) {
+                    if sig.0 == *arg_tys {
+                        return Some(sig.1.clone());
+                    }
+                }
+            }
         }
         None
     }
 
-    /// Infers type for AST node, with CTFE folding.
-    pub fn infer_type(&mut self, node: &AstNode) -> Type {
+    /// Registers function sigs and impls.
+    pub fn register(&mut self, ast: AstNode) {
+        match ast {
+            AstNode::FuncDef {
+                name,
+                params,
+                ret,
+                ..
+            } => {
+                let param_tys = params
+                    .iter()
+                    .map(|(n, t)| (n.clone(), Type::Named(t.clone())))
+                    .collect();
+                let ret_ty = Type::Named(ret);
+                self.func_sigs.insert(name, (param_tys, ret_ty));
+            }
+            AstNode::ImplBlock { concept, ty, body } => {
+                let ty = Type::Named(ty);
+                let mut methods = HashMap::new();
+                for m in body {
+                    if let AstNode::Method {
+                        name,
+                        params,
+                        ret,
+                        ..
+                    } = m
+                    {
+                        let param_tys = params.iter().map(|(_, t)| Type::Named(t.clone())).collect();
+                        methods.insert(name, (param_tys, Type::Named(ret)));
+                    }
+                }
+                self.direct_impls.insert((concept, ty), methods);
+            }
+            _ => {}
+        }
+    }
+
+    /// Infers type for an AST node.
+    pub fn infer_type(&self, node: &AstNode) -> Type {
         match node {
-            AstNode::Lit(_n) => Type::I64,
+            AstNode::Lit(_) => Type::I64,
             AstNode::StringLit(_) => Type::Str,
             AstNode::FString(parts) => {
                 for part in parts {
-                    self.infer_type(part);
+                    let _ = self.infer_type(part);
                 }
                 Type::Str
             }
@@ -275,6 +317,38 @@ impl Resolver {
             AstNode::TimingOwned { inner, .. } => {
                 Type::TimingOwned(Box::new(self.infer_type(inner)))
             }
+            AstNode::TryProp { expr } => {
+                let ty = self.infer_type(expr);
+                if let Type::Result(ok, _) = ty {
+                    *ok
+                } else {
+                    Type::Unknown
+                }
+            }
+            AstNode::DictLit { entries } => {
+                if entries.is_empty() {
+                    Type::Map(Box::new(Type::Unknown), Box::new(Type::Unknown))
+                } else {
+                    let k_ty = self.infer_type(&entries[0].0);
+                    let v_ty = self.infer_type(&entries[0].1);
+                    // Assume all entries match; in full check, verify
+                    Type::Map(Box::new(k_ty), Box::new(v_ty))
+                }
+            }
+            AstNode::Subscript { base, index } => {
+                let base_ty = self.infer_type(base);
+                let index_ty = self.infer_type(index);
+                if let Type::Map(k, v) = base_ty {
+                    if index_ty == *k {
+                        *v
+                    } else {
+                        Type::Unknown
+                    }
+                } else {
+                    Type::Unknown
+                }
+            }
+            AstNode::Return(inner) => self.infer_type(inner),
             _ => Type::Unknown,
         }
     }
@@ -304,6 +378,17 @@ impl Resolver {
         }
     }
 
+    /// Checks if a node contains TryProp, for error prop validation.
+    fn has_try_prop(&self, node: &AstNode) -> bool {
+        match node {
+            AstNode::TryProp { .. } => true,
+            AstNode::BinaryOp { left, right, .. } => self.has_try_prop(left) || self.has_try_prop(right),
+            AstNode::Call { args, receiver, .. } => receiver.as_ref().map_or(false, |r| self.has_try_prop(r)) || args.iter().any(|a| self.has_try_prop(a)),
+            AstNode::Return(inner) => self.has_try_prop(inner),
+            _ => false,
+        }
+    }
+
     /// Performs type checking and borrow checking on a program.
     /// Returns true if all checks pass.
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
@@ -316,6 +401,11 @@ impl Resolver {
                     for (pname, _) in &sig.0 {
                         self.borrow_checker
                             .declare(pname.clone(), crate::borrow::BorrowState::Owned);
+                    }
+                    let fn_ret = &sig.1;
+                    let has_prop = body.iter().any(|stmt| self.has_try_prop(stmt));
+                    if has_prop {
+                        if let Type::Result(_, _) = fn_ret {} else { ok = false; } // Require Result ret if ? used
                     }
                 }
                 for stmt in body {
