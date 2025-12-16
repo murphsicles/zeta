@@ -265,7 +265,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             .builder
                             .build_int_add(vec_vals[0], vec_vals[1], "vecadd")
                             .expect("int_add failed"),
-                        SemiringOp::Mul => todo!(),
+                        SemiringOp::Mul => self
+                            .builder
+                            .build_int_mul(vec_vals[0], vec_vals[1], "vecmul")
+                            .expect("int_mul failed"),
                     };
                     let scalar = self
                         .builder
