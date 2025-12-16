@@ -392,7 +392,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         .builder
                         .build_call(concat_fn, &[res.into(), next.into()], "fconcat")
                         .expect("build_call failed");
-                    res = call.try_as_basic_value().left().unwrap_or(self.i64_type.const_int(0, false).into());
+                    res = call.try_as_basic_value().unwrap_or(self.i64_type.const_int(0, false).into());
                 }
                 res
             }
