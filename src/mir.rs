@@ -289,11 +289,11 @@ impl MirGen {
                 });
 
                 // Affine: Consume by-value args post-call (assume all Var args moved)
-                for arg_id in arg_ids
+                for &arg_id in arg_ids
                     .iter()
-                    .filter(|&id| matches!(exprs.get(id), Some(MirExpr::Var(_))))
+                    .filter(|&&id| matches!(exprs.get(&id), Some(MirExpr::Var(_))))
                 {
-                    out.push(MirStmt::Consume { id: *arg_id });
+                    out.push(MirStmt::Consume { id: arg_id });
                 }
                 MirExpr::Var(dest)
             }
