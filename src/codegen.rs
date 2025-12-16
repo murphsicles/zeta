@@ -312,7 +312,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 if let Some(fn_val) = self.fns.values().next() {
                     // Stub: current fn
                     let arg = fn_val
-                        .get_nth_nth_param((*arg_index) as u32)
+                        .get_nth_param((*arg_index) as u32)
                         .expect("param not found");
                     let ptr = self.locals.entry(*param_id).or_insert_with(|| {
                         self.builder
