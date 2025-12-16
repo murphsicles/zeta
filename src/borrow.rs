@@ -3,6 +3,7 @@
 //! Implements affine borrow checking with speculative states for safe concurrency.
 //! Tracks ownership, borrows, and moves to ensure memory safety without garbage collection.
 //! Updated Dec 13, 2025: Implicit &str borrows from str; no lifetimes.
+//! Updated Dec 16, 2025: Updated for TryProp, DictLit, Subscript (as lvalue), Return; changed check for Assign with complex lhs.
 
 use crate::ast::AstNode;
 use std::collections::HashMap;
@@ -71,12 +72,31 @@ impl BorrowChecker {
                 .borrows
                 .get(v)
                 .is_none_or(|s| matches!(s, BorrowState::Owned | BorrowState::Borrowed)),
-            AstNode::Assign(v, expr) => {
-                if !self.check(expr) {
+            AstNode::Assign(lhs, rhs) => {
+                if !self.check(rhs) {
                     return false;
                 }
-                self.declare(v.clone(), BorrowState::Owned);
-                true
+                match **lhs {
+                    AstNode::Var(ref v) => {
+                        self.declare(v.clone(), BorrowState::Owned);
+                        true
+                    }
+                    AstNode::Subscript { ref base, ref index } => {
+                        if !self.check(base) || !self.check(index) {
+                            return false;
+                        }
+                        if let AstNode::Var(ref name) = **base {
+                            if let Some(&state) = self.borrows.get(name) {
+                                if !matches!(state, BorrowState::Owned | BorrowState::MutBorrowed) {
+                                    return false;
+                                }
+                                self.borrows.insert(name.clone(), BorrowState::MutBorrowed);
+                            }
+                        }
+                        true
+                    }
+                    _ => false,
+                }
             }
             AstNode::BinaryOp { left, right, .. } => self.check(left) && self.check(right),
             AstNode::FString(parts) => parts.iter().all(|p| self.check(p)),
@@ -106,6 +126,10 @@ impl BorrowChecker {
                 }
                 true
             }
+            AstNode::TryProp { expr } => self.check(expr),
+            AstNode::DictLit { entries } => entries.iter().all(|(k, v)| self.check(k) && self.check(v)),
+            AstNode::Subscript { base, index } => self.check(base) && self.check(index),
+            AstNode::Return(inner) => self.check(inner),
             _ => true,
         }
     }
