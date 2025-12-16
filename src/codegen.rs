@@ -8,8 +8,9 @@
 //! Added: Stable ABI - no UB via sanitize checks, thin mono via specialization mangled names.
 //! Updated Dec 9, 2025: StringLit lowered to private global constant arrays (null-terminated).
 //! Updated Dec 13, 2025: FString to concat calls; rich str methods via intrinsics; Vec<u8> interop.
+//! Updated Dec 16, 2025: Added codegen for If (branches); declared result/map intrinsics; lowered ? to cond br, map ops to calls.
 
-use crate::actor::{host_channel_recv, host_channel_send, host_spawn};
+use crate::actor::{host_channel_recv, host_channel_send, host_spawn, host_result_make_ok, host_result_make_err, host_result_is_ok, host_result_get_data, host_result_free, host_map_new, host_map_insert, host_map_get, host_map_free};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use crate::specialization::{
     MonoKey, MonoValue, is_cache_safe, lookup_specialization, record_specialization,
@@ -114,6 +115,24 @@ impl<'ctx> LLVMCodegen<'ctx> {
         module.add_function("http_get", http_type, Some(Linkage::External));
         let tls_type = i64_type.fn_type(&[char_ptr_type.into()], false);
         module.add_function("tls_handshake", tls_type, Some(Linkage::External));
+        // New: result and map intrinsics
+        let result_make_type = ptr_type.fn_type(&[i64_type.into()], false);
+        module.add_function("result_make_ok", result_make_type, Some(Linkage::External));
+        module.add_function("result_make_err", result_make_type, Some(Linkage::External));
+        let result_is_ok_type = i64_type.fn_type(&[ptr_type.into()], false);
+        module.add_function("result_is_ok", result_is_ok_type, Some(Linkage::External));
+        let result_get_data_type = i64_type.fn_type(&[ptr_type.into()], false);
+        module.add_function("result_get_data", result_get_data_type, Some(Linkage::External));
+        let result_free_type = void_type.fn_type(&[ptr_type.into()], false);
+        module.add_function("result_free", result_free_type, Some(Linkage::External));
+        let map_new_type = ptr_type.fn_type(&[], false);
+        module.add_function("map_new", map_new_type, Some(Linkage::External));
+        let map_insert_type = void_type.fn_type(&[ptr_type.into(), i64_type.into(), i64_type.into()], false);
+        module.add_function("map_insert", map_insert_type, Some(Linkage::External));
+        let map_get_type = i64_type.fn_type(&[ptr_type.into(), i64_type.into()], false);
+        module.add_function("map_get", map_get_type, Some(Linkage::External));
+        let map_free_type = void_type.fn_type(&[ptr_type.into()], false);
+        module.add_function("map_free", map_free_type, Some(Linkage::External));
         let tbaa_metadata = context.i64_type().const_int(0, false).into();
         let tbaa_const_time = context.metadata_node(&[tbaa_metadata]);
         Self {
@@ -306,6 +325,24 @@ impl<'ctx> LLVMCodegen<'ctx> {
             MirStmt::Consume { id: _ } => {
                 // No-op: semantic
             }
+            MirStmt::If { cond, then, else_ } => {
+                let cond_val = self.load_local(*cond);
+                let then_bb = self.context.append_basic_block(self.builder.get_insert_block().unwrap().get_parent().unwrap(), "then");
+                let else_bb = self.context.append_basic_block(self.builder.get_insert_block().unwrap().get_parent().unwrap(), "else");
+                let merge_bb = self.context.append_basic_block(self.builder.get_insert_block().unwrap().get_parent().unwrap(), "merge");
+                self.builder.build_conditional_branch(cond_val.into_int_value(), then_bb, else_bb).expect("br failed");
+                self.builder.position_at_end(then_bb);
+                for s in then {
+                    self.gen_stmt(s, exprs);
+                }
+                self.builder.build_unconditional_branch(merge_bb).expect("br failed");
+                self.builder.position_at_end(else_bb);
+                for s in else_ {
+                    self.gen_stmt(s, exprs);
+                }
+                self.builder.build_unconditional_branch(merge_bb).expect("br failed");
+                self.builder.position_at_end(merge_bb);
+            }
         }
     }
 
@@ -347,19 +384,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 if ids.is_empty() {
                     return self.i64_type.const_int(0, false).into();
                 }
-                let mut res = self.gen_expr(&MirExpr::Var(ids[0]), _exprs);
+                let mut res = self.load_local(ids[0]);
                 for &id in &ids[1..] {
-                    let next = self.gen_expr(&MirExpr::Var(id), _exprs);
+                    let next = self.load_local(id);
                     let concat_fn = self.get_callee("str_concat"); // Assume intrinsic
                     let call = self
                         .builder
                         .build_call(concat_fn, &[res.into(), next.into()], "fconcat")
                         .expect("build_call failed");
-                    // try_as_basic_value() returns ValueKind enum
-                    res = match call.try_as_basic_value() {
-                        ValueKind::Basic(basic_val) => basic_val,
-                        ValueKind::Instruction(_) => panic!("concat should return a value"),
-                    };
+                    res = call.try_as_basic_value().left().unwrap_or(self.i64_type.const_int(0, false).into());
                 }
                 res
             }
@@ -453,6 +486,43 @@ impl<'ctx> LLVMCodegen<'ctx> {
         ee.add_global_mapping(
             &self.module.get_function("tls_handshake").unwrap(),
             host_tls_handshake as *const () as usize,
+        );
+        // New: map result and map hosts
+        ee.add_global_mapping(
+            &self.module.get_function("result_make_ok").unwrap(),
+            host_result_make_ok as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("result_make_err").unwrap(),
+            host_result_make_err as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("result_is_ok").unwrap(),
+            host_result_is_ok as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("result_get_data").unwrap(),
+            host_result_get_data as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("result_free").unwrap(),
+            host_result_free as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("map_new").unwrap(),
+            host_map_new as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("map_insert").unwrap(),
+            host_map_insert as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("map_get").unwrap(),
+            host_map_get as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("map_free").unwrap(),
+            host_map_free as *const () as usize,
         );
         Ok(ee)
     }
