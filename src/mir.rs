@@ -267,12 +267,8 @@ impl MirGen {
                 MirExpr::TimingOwned(inner_id)
             }
             AstNode::Call { receiver, method, args, .. } => {
-                let receiver_id = if let Some(r) = receiver.as_ref() {
-                    let e = self.gen_expr(r, exprs, out);
-                    Some(self.materialize(e, exprs, out))
-                } else {
-                    None
-                };
+                let receiver_gen = receiver.as_ref().map(|r| self.gen_expr(r, exprs, out));
+                let receiver_id = receiver_gen.map(|e| self.materialize(e, exprs, out));
                 let mut arg_ids = args
                     .iter()
                     .map(|a| {
@@ -297,7 +293,7 @@ impl MirGen {
                     .iter()
                     .filter(|id| matches!(exprs.get(id), Some(MirExpr::Var(_))))
                 {
-                    out.push(MirStmt::Consume { id: **arg_id });
+                    out.push(MirStmt::Consume { id: *arg_id });
                 }
                 MirExpr::Var(dest)
             }
