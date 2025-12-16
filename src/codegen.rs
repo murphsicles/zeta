@@ -395,7 +395,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         .builder
                         .build_call(concat_fn, &[res.into(), next.into()], "fconcat")
                         .expect("build_call failed");
-                    res = call.try_as_basic_value().unwrap_or(self.i64_type.const_int(0, false).into());
+                    res = if let Some(basic_val) = call.try_as_basic_value() { basic_val } else { self.i64_type.const_int(0, false).into() };
                 }
                 res
             }
@@ -418,7 +418,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
     fn load_local(&self, id: u32) -> BasicValueEnum<'ctx> {
         let ptr = self.locals[&id];
         self.builder
-            .build_load(self.i64_type, ptr, &format!("load_{id}"))
+            .build_load(self.i64_type.into(), ptr, &format!("load_{id}"))
             .expect("load failed")
     }
 
