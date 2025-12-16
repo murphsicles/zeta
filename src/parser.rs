@@ -32,7 +32,7 @@ type FnParse = (
 /// Whitespace wrapper for parsers.
 fn ws<'a, F, O>(inner: F) -> impl Parser<&'a str, O, nom::error::Error<&'a str>>
 where
-    F: Parser<&'a str, O, nom::error::Error<&'a str>>,
+    F: Parser<&'a str, Output = O, Error = nom::error::Error<&'a str>>,
 {
     move |input| {
         let (input, _) = multispace0(input)?;
@@ -194,7 +194,7 @@ fn parse_free_call(input: &str) -> IResult<&str, AstNode> {
         receiver: None,
         method,
         args,
-        type_args: type_args.unwrap_or_default(),
+        type_args: type_args.unwrap_or_default::<Vec<String>>(),
         structural,
     }))
 }
@@ -280,7 +280,7 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
         map(delimited(ws(tag("{")), many0(ws(parse_stmt)), ws(tag("}"))), |b| (b, false)),
         map(preceded(ws(tag("=")), ws(parse_stmt)), |s| (vec![s], true)),
     ))(input)?;
-    let generics = generics_opt.unwrap_or_default();
+    let generics: Vec<String> = generics_opt.unwrap_or_default();
     let ret = ret_opt.unwrap_or_else(|| "i64".to_string());
     Ok((
         input,
@@ -303,6 +303,7 @@ pub fn parse_method_sig(input: &str) -> IResult<&str, AstNode> {
     let (input, generics_opt) = opt(ws(parse_generics)).parse(input)?;
     let (input, params) = delimited(tag("("), many0(parse_ident), tag(")")).parse(input)?;
     let (input, ret_opt) = opt(preceded(ws(tag("->")), ws(parse_ident))).parse(input)?;
+    let generics: Vec<String> = generics_opt.unwrap_or_default();
     Ok((
         input,
         AstNode::Method {
@@ -312,7 +313,7 @@ pub fn parse_method_sig(input: &str) -> IResult<&str, AstNode> {
                 .map(|p| (p.clone(), "i64".to_string()))
                 .collect(),
             ret: ret_opt.unwrap_or_else(|| "i64".to_string()),
-            generics: generics_opt.unwrap_or_default(), // New: generics in methods
+            generics,
         },
     ))
 }
