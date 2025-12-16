@@ -312,7 +312,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 if let Some(fn_val) = self.fns.values().next() {
                     // Stub: current fn
                     let arg = fn_val
-                        .get_nth_param((*arg_index) as u32)
+                        .get_nth_nth_param((*arg_index) as u32)
                         .expect("param not found");
                     let ptr = self.locals.entry(*param_id).or_insert_with(|| {
                         self.builder
@@ -360,7 +360,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
     }
 
     /// Generates a BasicValue from a MIR expression.
-    fn gen_expr(&mut self, expr: &MirExpr, _exprs: &HashMap<u32, MirExpr>) -> BasicValueEnum<'ctx> {
+    fn gen_expr(&mut self, expr: &MirExpr, exprs: &HashMap<u32, MirExpr>) -> BasicValueEnum<'ctx> {
         match expr {
             MirExpr::Var(id) => self.load_local(*id),
             MirExpr::Lit(n) => self.i64_type.const_int(*n as u64, true).into(),
