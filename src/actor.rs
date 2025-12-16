@@ -59,7 +59,7 @@ pub unsafe extern "C" fn host_channel_send(_chan_id: i64, msg: i64) -> i64 {
     if chan.send(msg).is_ok() { 0 } else { -1 }
 }
 /// # Safety
-/// No safety concerns as parameters are plain i64 values.
+/// No safety concerns in parameters are plain i64 values.
 pub unsafe extern "C" fn host_channel_recv(_chan_id: i64) -> i64 {
     // Real async block_on
     tokio::runtime::Runtime::new().unwrap().block_on(async {
@@ -91,7 +91,7 @@ pub unsafe extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i6
     }
 }
 /// # Safety
-/// No safety concerns as parameters are plain i64 values.
+/// No safety concerns in parameters are plain i64 values.
 pub unsafe extern "C" fn host_spawn(_func_id: i64) -> i64 {
     tokio::runtime::Runtime::new().unwrap().block_on(async {
         spawn(|_chan| { /* stub actor func */ }).await;
