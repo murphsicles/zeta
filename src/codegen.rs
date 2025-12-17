@@ -27,7 +27,7 @@ use inkwell::module::{Linkage, Module};
 use inkwell::support::LLVMString;
 use inkwell::types::{BasicMetadataTypeEnum, IntType, PointerType, VectorType};
 use inkwell::values::{
-    BasicMetadataValueEnum, BasicValue, BasicValueEnum, PointerValue, ValueKind,
+    BasicValue, BasicValueEnum, FunctionValue, PointerValue,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -219,92 +219,58 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
             MirStmt::Call { func, args, dest } => {
                 let callee = self.get_callee(func);
-                let arg_vals: Vec<BasicValueEnum<'ctx>> =
+                let arg_vals: Vec<inkwell::values::BasicMetadataValueEnum<'ctx>> =
                     args.iter().map(|&id| self.load_local(id).into()).collect();
                 let call = self
                     .builder
                     .build_call(callee, &arg_vals, "call")
-                    .expect("build_call failed");
+                    .unwrap();
                 if let Some(basic_val) = call.try_as_basic_value() {
                     let ptr = self.locals.entry(*dest).or_insert_with(|| {
                         self.builder
                             .build_alloca(self.i64_type, &format!("dest_{}", dest))
                             .expect("alloca failed")
                     });
-                    let _ = self.builder.build_store(*ptr, basic_val);
+                    let _ = self.builder.build_store(*ptr, basic_val.left().expect("not basic value"));
                 }
             }
             MirStmt::VoidCall { func, args } => {
                 let callee = self.get_callee(func);
-                let arg_vals: Vec<BasicValueEnum<'ctx>> =
+                let arg_vals: Vec<inkwell::values::BasicMetadataValueEnum<'ctx>> =
                     args.iter().map(|&id| self.load_local(id).into()).collect();
                 let _ = self
                     .builder
                     .build_call(callee, &arg_vals, "voidcall")
-                    .expect("build_call failed");
+                    .unwrap();
             }
             MirStmt::Return { val } => {
                 let v = self.load_local(*val);
                 let _ = self.builder.build_return(Some(&v));
             }
             MirStmt::SemiringFold { op, values, result } => {
-                // Vectorize if eligible
-                if values.len() >= 4 {
-                    let vec_vals: Vec<BasicValueEnum<'ctx>> = values
-                        .iter()
-                        .map(|&id| self.load_local(id).into_vector_value())
-                        .collect();
-                    let vec_res = match op {
+                let mut sum = self.load_local(values[0]).into_int_value();
+                for &v in &values[1..] {
+                    sum = match op {
                         SemiringOp::Add => self
                             .builder
-                            .build_int_add(vec_vals[0], vec_vals[1], "vecadd")
+                            .build_int_add(sum, self.load_local(v).into_int_value(), "add")
                             .expect("int_add failed"),
                         SemiringOp::Mul => self
                             .builder
-                            .build_int_mul(vec_vals[0], vec_vals[1], "vecmul")
+                            .build_int_mul(sum, self.load_local(v).into_int_value(), "mul")
                             .expect("int_mul failed"),
                     };
-                    let scalar = self
-                        .builder
-                        .build_extract_element(
-                            vec_res,
-                            self.i64_type.const_int(0, false),
-                            "extract",
-                        )
-                        .expect("extract failed")
-                        .into_int_value();
-                    let ptr = self.locals.entry(*result).or_insert_with(|| {
-                        self.builder
-                            .build_alloca(self.i64_type, "fold_res")
-                            .expect("alloca failed")
-                    });
-                    let _ = self.builder.build_store(*ptr, scalar);
-                } else {
-                    // Scalar fold
-                    let mut sum = self.load_local(values[0]).into_int_value();
-                    for &v in &values[1..] {
-                        sum = match op {
-                            SemiringOp::Add => self
-                                .builder
-                                .build_int_add(sum, self.load_local(v).into_int_value(), "add")
-                                .expect("int_add failed"),
-                            SemiringOp::Mul => self
-                                .builder
-                                .build_int_mul(sum, self.load_local(v).into_int_value(), "mul")
-                                .expect("int_mul failed"),
-                        };
-                    }
-                    let ptr = self.locals.entry(*result).or_insert_with(|| {
-                        self.builder
-                            .build_alloca(self.i64_type, "fold_res")
-                            .expect("alloca failed")
-                    });
-                    let _ = self.builder.build_store(*ptr, sum);
                 }
+                let ptr = self.locals.entry(*result).or_insert_with(|| {
+                    self.builder
+                        .build_alloca(self.i64_type, "fold_res")
+                        .expect("alloca failed")
+                });
+                let _ = self.builder.build_store(*ptr, sum);
             }
             MirStmt::ParamInit { param_id, arg_index } => {
-                let param_ptr = self.locals[param_id];
-                let arg_val = self.builder.get_insert_block().unwrap().get_parent().unwrap().get_param(*arg_index as u32).unwrap();
+                let param_ptr = self.locals[*param_id];
+                let arg_val = self.builder.get_insert_block().unwrap().get_parent().unwrap().get_nth_param(*arg_index as u32).unwrap();
                 let _ = self.builder.build_store(param_ptr, arg_val);
             }
             MirStmt::Consume { id } => {
@@ -331,8 +297,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
     }
 
-    fn get_callee(&self, func: &str) -> inkwell::values::CallableValue<'ctx> {
-        self.module.get_function(func).unwrap().into()
+    fn get_callee(&self, func: &str) -> inkwell::values::FunctionValue<'ctx> {
+        self.module.get_function(func).unwrap()
     }
 
     fn gen_expr(&self, expr: &MirExpr, exprs: &HashMap<u32, MirExpr>) -> BasicValueEnum<'ctx> {
@@ -340,12 +306,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
             MirExpr::Var(id) => self.load_local(*id),
             MirExpr::Lit(n) => self.i64_type.const_int(*n as u64, true).into(),
             MirExpr::StringLit(s) => {
-                let global = self.module.add_global(self.context.i8_type().array_type((s.len() + 1) as u32), Some(AddressSpace::Const), "str_lit");
+                let arr_type = self.context.i8_type().array_type((s.len() + 1) as u32);
+                let global = self.module.add_global(arr_type, None, "str_lit");
+                global.set_constant(true);
                 let bytes: Vec<_> = s.as_bytes().iter().map(|&b| self.context.i8_type().const_int(b as u64, false)).collect();
                 let null_term = self.context.i8_type().const_int(0, false);
                 let mut vals = bytes;
                 vals.push(null_term);
-                global.set_initializer(&self.context.const_array(self.context.i8_type(), &vals));
+                global.set_initializer(&arr_type.const_array(&vals));
                 global.set_linkage(Linkage::Private);
                 global.as_pointer_value().into()
             }
@@ -357,8 +325,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let call = self
                         .builder
                         .build_call(concat_fn, &[res.into(), next.into()], "fconcat")
-                        .expect("build_call failed");
-                    res = if let Some(basic_val) = call.try_as_basic_value() { basic_val } else { self.i64_type.const_int(0, false).into() };
+                        .unwrap();
+                    res = if let Some(basic_val) = call.try_as_basic_value() { basic_val.left().expect("not basic value") } else { self.i64_type.const_int(0, false).into() };
                 }
                 res
             }
