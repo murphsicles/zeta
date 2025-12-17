@@ -85,10 +85,12 @@ impl BorrowChecker {
                         if !self.check(base) || !self.check(index) {
                             return false;
                         }
-                        if let AstNode::Var(ref name) = **base && let Some(&state) = self.borrows.get(name) {
-                            if !matches!(state, BorrowState::Owned | BorrowState::MutBorrowed) {
-                                return false;
-                            }
+                        if let AstNode::Var(ref name) = **base
+                            && let Some(&state) = self.borrows.get(name)
+                            && !matches!(state, BorrowState::Owned | BorrowState::MutBorrowed)
+                        {
+                            return false;
+                        } else if let AstNode::Var(ref name) = **base {
                             self.borrows.insert(name.clone(), BorrowState::MutBorrowed);
                         }
                         true
