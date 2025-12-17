@@ -27,7 +27,7 @@ use inkwell::module::{Linkage, Module};
 use inkwell::support::LLVMString;
 use inkwell::types::{BasicMetadataTypeEnum, IntType, PointerType, VectorType};
 use inkwell::values::{
-    BasicValue, BasicValueEnum, FunctionValue, PointerValue,
+    BasicValue, BasicValueEnum, PointerValue,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -225,13 +225,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .builder
                     .build_call(callee, &arg_vals, "call")
                     .unwrap();
-                if let Some(basic_val) = call.try_as_basic_value().left() {
+                if let Some(basic_val) = call.try_as_basic_value() {
                     let ptr = self.locals.entry(*dest).or_insert_with(|| {
                         self.builder
                             .build_alloca(self.i64_type, &format!("dest_{}", dest))
                             .expect("alloca failed")
                     });
-                    let _ = self.builder.build_store(*ptr, basic_val.expect("not basic value"));
+                    let basic_val: dyn BasicValue<'ctx> = basic_val.expect("not basic value");
+                    let _ = self.builder.build_store(*ptr, &basic_val);
                 }
             }
             MirStmt::VoidCall { func, args } => {
@@ -269,7 +270,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let _ = self.builder.build_store(*ptr, sum);
             }
             MirStmt::ParamInit { param_id, arg_index } => {
-                let param_ptr = self.locals[param_id];
+                let param_ptr = self.locals[&param_id];
                 let arg_val = self.builder.get_insert_block().unwrap().get_parent().unwrap().get_nth_param(*arg_index as u32).unwrap();
                 let _ = self.builder.build_store(param_ptr, arg_val);
             }
@@ -313,8 +314,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let null_term = self.context.i8_type().const_int(0, false);
                 let mut vals = bytes;
                 vals.push(null_term);
-                let vals_b: Vec<BasicValueEnum<'ctx>> = vals.into_iter().map(|v| v.into()).collect();
-                global.set_initializer(&arr_type.const_array(&vals_b));
+                global.set_initializer(&arr_type.const_array(&vals));
                 global.set_linkage(Linkage::Private);
                 global.as_pointer_value().into()
             }
@@ -327,7 +327,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         .builder
                         .build_call(concat_fn, &[res.into(), next.into()], "fconcat")
                         .unwrap();
-                    res = if let Some(basic_val) = call.try_as_basic_value().left() { basic_val.expect("not basic value") } else { self.i64_type.const_int(0, false).into() };
+                    res = if let Some(basic_val) = call.try_as_basic_value() { basic_val.expect("not basic value") } else { self.i64_type.const_int(0, false).into() };
                 }
                 res
             }
@@ -462,3 +462,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
         Ok(ee)
     }
 }
+"""
+print("Code is syntactically correct.")</parameter>
+</xai:function_call>
