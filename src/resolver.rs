@@ -177,10 +177,14 @@ impl Resolver {
         );
         r.func_sigs.insert(
             "result_free".to_string(),
-            (vec![("res".to_string(), result_ty)], Type::Named("()".to_string())),
+            (
+                vec![("res".to_string(), result_ty)],
+                Type::Named("()".to_string()),
+            ),
         );
         let map_ty = Type::Map(Box::new(Type::I64), Box::new(Type::I64));
-        r.func_sigs.insert("map_new".to_string(), (vec![], map_ty.clone()));
+        r.func_sigs
+            .insert("map_new".to_string(), (vec![], map_ty.clone()));
         r.func_sigs.insert(
             "map_insert".to_string(),
             (
@@ -204,7 +208,10 @@ impl Resolver {
         );
         r.func_sigs.insert(
             "map_free".to_string(),
-            (vec![("map".to_string(), map_ty)], Type::Named("()".to_string())),
+            (
+                vec![("map".to_string(), map_ty)],
+                Type::Named("()".to_string()),
+            ),
         );
         r
     }
@@ -235,10 +242,7 @@ impl Resolver {
     pub fn register(&mut self, ast: AstNode) {
         match ast {
             AstNode::FuncDef {
-                name,
-                params,
-                ret,
-                ..
+                name, params, ret, ..
             } => {
                 let param_tys = params
                     .iter()
@@ -252,13 +256,11 @@ impl Resolver {
                 let mut methods = HashMap::new();
                 for m in body {
                     if let AstNode::Method {
-                        name,
-                        params,
-                        ret,
-                        ..
+                        name, params, ret, ..
                     } = m
                     {
-                        let param_tys = params.iter().map(|(_, t)| Type::Named(t.clone())).collect();
+                        let param_tys =
+                            params.iter().map(|(_, t)| Type::Named(t.clone())).collect();
                         methods.insert(name, (param_tys, Type::Named(ret)));
                     }
                 }
@@ -333,11 +335,7 @@ impl Resolver {
                 let base_ty = self.infer_type(base);
                 let index_ty = self.infer_type(index);
                 if let Type::Map(k, v) = base_ty {
-                    if index_ty == *k {
-                        *v
-                    } else {
-                        Type::Unknown
-                    }
+                    if index_ty == *k { *v } else { Type::Unknown }
                 } else {
                     Type::Unknown
                 }
@@ -376,8 +374,13 @@ impl Resolver {
     fn has_try_prop(&self, node: &AstNode) -> bool {
         match node {
             AstNode::TryProp { .. } => true,
-            AstNode::BinaryOp { left, right, .. } => self.has_try_prop(left) || self.has_try_prop(right),
-            AstNode::Call { args, receiver, .. } => receiver.as_ref().is_some_and(|r| self.has_try_prop(r)) || args.iter().any(|a| self.has_try_prop(a)),
+            AstNode::BinaryOp { left, right, .. } => {
+                self.has_try_prop(left) || self.has_try_prop(right)
+            }
+            AstNode::Call { args, receiver, .. } => {
+                receiver.as_ref().is_some_and(|r| self.has_try_prop(r))
+                    || args.iter().any(|a| self.has_try_prop(a))
+            }
             AstNode::Return(inner) => self.has_try_prop(inner),
             _ => false,
         }
@@ -399,7 +402,10 @@ impl Resolver {
                     let fn_ret = &sig.1;
                     let has_prop = body.iter().any(|stmt| self.has_try_prop(stmt));
                     if has_prop {
-                        if let Type::Result(_, _) = fn_ret {} else { ok = false; } // Require Result ret if ? used
+                        if let Type::Result(_, _) = fn_ret {
+                        } else {
+                            ok = false;
+                        } // Require Result ret if ? used
                     }
                 }
                 for stmt in body {
