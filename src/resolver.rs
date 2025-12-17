@@ -206,10 +206,8 @@ impl Resolver {
             "map_free".to_string(),
             (vec![("map".to_string(), map_ty)], Type::Named("()".to_string())),
         );
-
         r
     }
-
     /// Looks up method signature for receiver type.
     fn lookup_method(
         &self,
@@ -218,24 +216,21 @@ impl Resolver {
         arg_tys: &[Type],
     ) -> Option<Type> {
         if let Some(ty) = recv_ty {
-            if let Some(impls) = self.direct_impls.get(&("Addable".to_string(), ty.clone())) {
-                if let Some(sig) = impls.get(method) {
-                    if sig.0 == *arg_tys {
-                        return Some(sig.1.clone());
-                    }
-                }
+            if let Some(impls) = self.direct_impls.get(&("Addable".to_string(), ty.clone()))
+                && let Some(sig) = impls.get(method)
+                && sig.0 == *arg_tys
+            {
+                return Some(sig.1.clone());
             }
-            if let Some(impls) = self.direct_impls.get(&("StrOps".to_string(), ty.clone())) {
-                if let Some(sig) = impls.get(method) {
-                    if sig.0 == *arg_tys {
-                        return Some(sig.1.clone());
-                    }
-                }
+            if let Some(impls) = self.direct_impls.get(&("StrOps".to_string(), ty.clone()))
+                && let Some(sig) = impls.get(method)
+                && sig.0 == *arg_tys
+            {
+                return Some(sig.1.clone());
             }
         }
         None
     }
-
     /// Registers function sigs and impls.
     pub fn register(&mut self, ast: AstNode) {
         match ast {
@@ -272,7 +267,6 @@ impl Resolver {
             _ => {}
         }
     }
-
     /// Infers type for an AST node.
     pub fn infer_type(&self, node: &AstNode) -> Type {
         match node {
@@ -383,7 +377,7 @@ impl Resolver {
         match node {
             AstNode::TryProp { .. } => true,
             AstNode::BinaryOp { left, right, .. } => self.has_try_prop(left) || self.has_try_prop(right),
-            AstNode::Call { args, receiver, .. } => receiver.as_ref().map_or(false, |r| self.has_try_prop(r)) || args.iter().any(|a| self.has_try_prop(a)),
+            AstNode::Call { args, receiver, .. } => receiver.as_ref().is_some_and(|r| self.has_try_prop(r)) || args.iter().any(|a| self.has_try_prop(a)),
             AstNode::Return(inner) => self.has_try_prop(inner),
             _ => false,
         }
