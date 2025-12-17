@@ -11,7 +11,11 @@
 //! Updated Dec 16, 2025: Added codegen for If (branches); declared result/map intrinsics; lowered ? to cond br, map ops to calls.
 
 #[allow(unused_imports)]
-use crate::actor::{host_channel_recv, host_channel_send, host_spawn, host_result_make_ok, host_result_make_err, host_result_is_ok, host_result_get_data, host_result_free, host_map_new, host_map_insert, host_map_get, host_map_free};
+use crate::actor::{
+    host_channel_recv, host_channel_send, host_map_free, host_map_get, host_map_insert,
+    host_map_new, host_result_free, host_result_get_data, host_result_is_ok, host_result_make_err,
+    host_result_make_ok, host_spawn,
+};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use crate::specialization::{
     MonoKey, MonoValue, is_cache_safe, lookup_specialization, record_specialization,
@@ -123,12 +127,17 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let result_is_ok_type = i64_type.fn_type(&[ptr_type.into()], false);
         module.add_function("result_is_ok", result_is_ok_type, Some(Linkage::External));
         let result_get_data_type = i64_type.fn_type(&[ptr_type.into()], false);
-        module.add_function("result_get_data", result_get_data_type, Some(Linkage::External));
+        module.add_function(
+            "result_get_data",
+            result_get_data_type,
+            Some(Linkage::External),
+        );
         let result_free_type = void_type.fn_type(&[ptr_type.into()], false);
         module.add_function("result_free", result_free_type, Some(Linkage::External));
         let map_new_type = ptr_type.fn_type(&[], false);
         module.add_function("map_new", map_new_type, Some(Linkage::External));
-        let map_insert_type = void_type.fn_type(&[ptr_type.into(), i64_type.into(), i64_type.into()], false);
+        let map_insert_type =
+            void_type.fn_type(&[ptr_type.into(), i64_type.into(), i64_type.into()], false);
         module.add_function("map_insert", map_insert_type, Some(Linkage::External));
         let map_get_type = i64_type.fn_type(&[ptr_type.into(), i64_type.into()], false);
         module.add_function("map_get", map_get_type, Some(Linkage::External));
@@ -328,10 +337,33 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
             MirStmt::If { cond, then, else_ } => {
                 let cond_val = self.load_local(*cond).into_int_value();
-                let then_bb = self.context.append_basic_block(self.builder.get_insert_block().unwrap().get_parent().unwrap(), "then");
-                let else_bb = self.context.append_basic_block(self.builder.get_insert_block().unwrap().get_parent().unwrap(), "else");
-                let cont_bb = self.context.append_basic_block(self.builder.get_insert_block().unwrap().get_parent().unwrap(), "cont");
-                let _ = self.builder.build_conditional_branch(cond_val, then_bb, else_bb);
+                let then_bb = self.context.append_basic_block(
+                    self.builder
+                        .get_insert_block()
+                        .unwrap()
+                        .get_parent()
+                        .unwrap(),
+                    "then",
+                );
+                let else_bb = self.context.append_basic_block(
+                    self.builder
+                        .get_insert_block()
+                        .unwrap()
+                        .get_parent()
+                        .unwrap(),
+                    "else",
+                );
+                let cont_bb = self.context.append_basic_block(
+                    self.builder
+                        .get_insert_block()
+                        .unwrap()
+                        .get_parent()
+                        .unwrap(),
+                    "cont",
+                );
+                let _ = self
+                    .builder
+                    .build_conditional_branch(cond_val, then_bb, else_bb);
                 self.builder.position_at_end(then_bb);
                 for stmt in then {
                     self.gen_stmt(stmt, exprs);
