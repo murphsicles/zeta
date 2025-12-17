@@ -9,7 +9,6 @@
 //! Updated Dec 9, 2025: StringLit lowered to private global constant arrays (null-terminated).
 //! Updated Dec 13, 2025: FString to concat calls; rich str methods via intrinsics; Vec<u8> interop.
 //! Updated Dec 16, 2025: Added codegen for If (branches); declared result/map intrinsics; lowered ? to cond br, map ops to calls.
-//! Updated Dec 17, 2025: Added match arm for MirStmt::If; allowed unused imports for host functions.
 
 use crate::actor::{host_channel_recv, host_channel_send, host_spawn, host_result_make_ok, host_result_make_err, host_result_is_ok, host_result_get_data, host_result_free, host_map_new, host_map_insert, host_map_get, host_map_free};
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
@@ -30,7 +29,6 @@ use inkwell::types::{BasicMetadataTypeEnum, IntType, PointerType, VectorType};
 use inkwell::values::{
     BasicMetadataValueEnum, BasicValue, BasicValueEnum, PointerValue, ValueKind,
 };
-use either::Either;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
