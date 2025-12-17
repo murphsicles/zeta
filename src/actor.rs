@@ -92,7 +92,7 @@ pub unsafe extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i6
 /// No safety concerns as parameters are plain i64 values.
 pub unsafe extern "C" fn host_spawn(_func_id: i64) -> i64 {
     tokio::runtime::Runtime::new().unwrap().block_on(async {
-        spawn(|_chan| { }).await;
+        spawn(|_chan| {}).await;
         0
     })
 }
