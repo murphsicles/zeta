@@ -7,7 +7,6 @@
 //! Added partial specialization: method::<T,U>(args) for type args in calls.
 //! Updated Dec 13, 2025: Added f-string parsing (f"hello {expr}"); + as concat; f-string lowering.
 //! Updated Dec 16, 2025: Added parsing for single-line fns (fn name = expr;), ? prop, dict literals {k:v}, subscripts [index], return stmt; updated assign for complex lhs.
-
 use crate::ast::AstNode;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while1};
@@ -18,7 +17,6 @@ use nom::combinator::{map, opt, value};
 use nom::multi::{many0, many1, separated_list1};
 use nom::sequence::{delimited, pair, preceded};
 use nom::{IResult, Parser};
-
 #[allow(dead_code)]
 type FnParse = (
     (),
@@ -28,11 +26,10 @@ type FnParse = (
     Option<String>,
     Vec<AstNode>,
 );
-
 /// Whitespace wrapper for parsers.
-fn ws<'a, F>(inner: F) -> impl Parser<&'a str>
+fn ws<'a, F, O>(inner: F) -> impl Parser<&'a str, Output = O, Error = nom::error::Error<&'a str>>
 where
-    F: Parser<&'a str>,
+    F: Parser<&'a str, Output = O, Error = nom::error::Error<&'a str>>,
 {
     move |input| {
         let (input, _) = multispace0(input)?;
@@ -41,7 +38,6 @@ where
         Ok((input, result))
     }
 }
-
 /// Parses an identifier (alpha + alphanum).
 fn parse_ident(input: &str) -> IResult<&str, String> {
     map(
@@ -50,18 +46,15 @@ fn parse_ident(input: &str) -> IResult<&str, String> {
     )
     .parse(input)
 }
-
 /// Parses keyword.
 #[allow(dead_code)]
 fn parse_keyword(kw: &'static str) -> impl Fn(&str) -> IResult<&str, ()> {
     move |input| value((), ws(tag(kw))).parse(input)
 }
-
 /// Parses an integer literal.
 fn parse_literal(input: &str) -> IResult<&str, AstNode> {
     map(nom_i64, AstNode::Lit).parse(input)
 }
-
 /// Parses string literal (r#"..."# stub as "..." for now).
 fn parse_string_lit(input: &str) -> IResult<&str, AstNode> {
     map(
@@ -70,7 +63,6 @@ fn parse_string_lit(input: &str) -> IResult<&str, AstNode> {
     )
     .parse(input)
 }
-
 /// Parses f-string content: recursive "text {expr} text".
 fn parse_fstring_content(input: &str) -> IResult<&str, Vec<AstNode>> {
     let mut i = input;
@@ -106,17 +98,14 @@ fn parse_fstring_content(input: &str) -> IResult<&str, Vec<AstNode>> {
     }
     Ok((i, parts))
 }
-
 /// Parses f-string: f"content {expr} more".
 fn parse_fstring(input: &str) -> IResult<&str, AstNode> {
     map(parse_fstring_content, AstNode::FString).parse(input)
 }
-
 /// Parses a variable reference.
 fn parse_variable(input: &str) -> IResult<&str, AstNode> {
     map(parse_ident, AstNode::Var).parse(input)
 }
-
 /// Parses path: A::B.
 #[allow(dead_code)]
 fn parse_path(input: &str) -> IResult<&str, Vec<String>> {
@@ -126,12 +115,10 @@ fn parse_path(input: &str) -> IResult<&str, Vec<String>> {
     )
     .parse(input)
 }
-
 /// Parses dict literal: {k: v, ...}.
 fn parse_dict_lit(input: &str) -> IResult<&str, AstNode> {
     map(delimited(ws(tag("{")), separated_list1(ws(tag(",")), pair(ws(parse_full_expr), preceded(ws(tag(":")), ws(parse_full_expr)))), ws(tag("}"))), |entries| AstNode::DictLit { entries }).parse(input)
 }
-
 /// Primary atoms: lit | var | str | fstr | dict | (expr).
 fn parse_primary(input: &str) -> IResult<&str, AstNode> {
     alt((
@@ -143,7 +130,6 @@ fn parse_primary(input: &str) -> IResult<&str, AstNode> {
         delimited(ws(tag("(")), ws(parse_full_expr), ws(tag(")"))),
     )).parse(input)
 }
-
 /// Parses postfix operators: [index] or ? , with chaining.
 fn parse_postfix_expr(input: &str) -> IResult<&str, AstNode> {
     let (mut input, mut base) = parse_primary(input)?;
@@ -172,7 +158,6 @@ fn parse_postfix_expr(input: &str) -> IResult<&str, AstNode> {
     }
     Ok((input, base))
 }
-
 /// Parses binary op: postfix + postfix for concat, etc.
 fn parse_binary_op(input: &str) -> IResult<&str, AstNode> {
     let (input, left) = parse_postfix_expr(input)?;
@@ -183,7 +168,6 @@ fn parse_binary_op(input: &str) -> IResult<&str, AstNode> {
     }
     Ok((input, expr))
 }
-
 /// Parses free function call: name(args).
 fn parse_free_call(input: &str) -> IResult<&str, AstNode> {
     let (input, method) = ws(parse_ident)(input)?;
@@ -198,7 +182,6 @@ fn parse_free_call(input: &str) -> IResult<&str, AstNode> {
         structural,
     }))
 }
-
 /// Parses full expr: call | binary | postfix | etc.
 fn parse_full_expr(input: &str) -> IResult<&str, AstNode> {
     alt((
@@ -208,7 +191,6 @@ fn parse_full_expr(input: &str) -> IResult<&str, AstNode> {
         parse_postfix_expr,
     ))(input)
 }
-
 /// Parses TimingOwned<ty>(atom).
 fn parse_timing_owned(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("TimingOwned")).parse(input)?;
@@ -218,14 +200,12 @@ fn parse_timing_owned(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = tag(")").parse(input)?;
     Ok((input, AstNode::TimingOwned { ty, inner: Box::new(inner) }))
 }
-
 /// Parses defer expr.
 fn parse_defer(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("defer")).parse(input)?;
     let (input, inner) = parse_full_expr(input)?;
     Ok((input, AstNode::Defer(Box::new(inner))))
 }
-
 /// Parses spawn func(args).
 fn parse_spawn(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("spawn")).parse(input)?;
@@ -238,19 +218,16 @@ fn parse_spawn(input: &str) -> IResult<&str, AstNode> {
     .parse(input)?;
     Ok((input, AstNode::Spawn { func, args }))
 }
-
 /// Parses return expr.
 fn parse_return(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("return")).parse(input)?;
     let (input, expr) = ws(parse_full_expr)(input)?;
     Ok((input, AstNode::Return(Box::new(expr))))
 }
-
 /// Parses stmt: assign | defer | spawn | return | expr.
 fn parse_stmt(input: &str) -> IResult<&str, AstNode> {
     alt((parse_assign, parse_defer, parse_spawn, parse_return, parse_full_expr)).parse(input)
 }
-
 /// Parses assign: lhs = rhs.
 fn parse_assign(input: &str) -> IResult<&str, AstNode> {
     let (input, lhs) = ws(parse_postfix_expr)(input)?;
@@ -258,12 +235,10 @@ fn parse_assign(input: &str) -> IResult<&str, AstNode> {
     let (input, rhs) = ws(parse_full_expr)(input)?;
     Ok((input, AstNode::Assign(Box::new(lhs), Box::new(rhs))))
 }
-
 /// Parses generics: <T,U>.
 fn parse_generics(input: &str) -> IResult<&str, Vec<String>> {
     delimited(ws(tag("<")), separated_list1(ws(tag(",")), ws(parse_ident)), ws(tag(">")))(input)
 }
-
 /// Parses fn: fn name<gens>(params) -> Ret { body } or = stmt for single-line.
 fn parse_func(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = value((), ws(tag("fn"))).parse(input)?;
@@ -296,7 +271,6 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
         },
     ))
 }
-
 /// Parses method sig for concept/impl: name(params) -> ret, with optional generics.
 pub fn parse_method_sig(input: &str) -> IResult<&str, AstNode> {
     let (input, name) = parse_ident(input)?;
@@ -316,7 +290,6 @@ pub fn parse_method_sig(input: &str) -> IResult<&str, AstNode> {
         },
     ))
 }
-
 /// Parses concept: concept name { methods }.
 fn parse_concept(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = value((), ws(tag("concept"))).parse(input)?;
@@ -331,7 +304,6 @@ fn parse_concept(input: &str) -> IResult<&str, AstNode> {
         },
     ))
 }
-
 /// Parses impl: impl concept for ty { methods }.
 fn parse_impl(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = value((), ws(tag("impl"))).parse(input)?;
@@ -342,7 +314,6 @@ fn parse_impl(input: &str) -> IResult<&str, AstNode> {
         delimited(ws(tag("{")), many0(ws(parse_method_sig)), ws(tag("}"))).parse(input)?;
     Ok((input, AstNode::ImplBlock { concept, ty, body }))
 }
-
 /// Parses enum: enum name { variants }.
 fn parse_enum(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = value((), ws(tag("enum"))).parse(input)?;
@@ -351,7 +322,6 @@ fn parse_enum(input: &str) -> IResult<&str, AstNode> {
         delimited(ws(tag("{")), many0(ws(parse_ident)), ws(tag("}"))).parse(input)?;
     Ok((input, AstNode::EnumDef { name, variants }))
 }
-
 /// Parses struct: struct name { fields }.
 fn parse_struct(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = value((), ws(tag("struct"))).parse(input)?;
@@ -367,7 +337,6 @@ fn parse_struct(input: &str) -> IResult<&str, AstNode> {
     .parse(input)?;
     Ok((input, AstNode::StructDef { name, fields }))
 }
-
 /// Entry point: Parses multiple top-level items.
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
     many0(ws(alt((
