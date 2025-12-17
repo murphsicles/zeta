@@ -226,13 +226,16 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .builder
                     .build_call(callee, &arg_vals, "call")
                     .unwrap();
-                if let Some(Either::Left(basic_val)) = call.try_as_basic_value() {
-                    let ptr = self.locals.entry(*dest).or_insert_with(|| {
-                        self.builder
-                            .build_alloca(self.i64_type, &format!("dest_{}", dest))
-                            .expect("alloca failed")
-                    });
-                    let _ = self.builder.build_store(*ptr, basic_val);
+                match call.try_as_basic_value() {
+                    Some(Either::Left(basic_val)) => {
+                        let ptr = self.locals.entry(*dest).or_insert_with(|| {
+                            self.builder
+                                .build_alloca(self.i64_type, &format!("dest_{}", dest))
+                                .expect("alloca failed")
+                        });
+                        let _ = self.builder.build_store(*ptr, basic_val);
+                    }
+                    _ => {},
                 }
             }
             MirStmt::VoidCall { func, args } => {
@@ -323,7 +326,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         .builder
                         .build_call(concat_fn, &[res.into(), next.into()], "fconcat")
                         .unwrap();
-                    res = if let Some(Either::Left(basic_val)) = call.try_as_basic_value() { basic_val } else { self.i64_type.const_int(0, false).into() };
+                    match call.try_as_basic_value() {
+                        Some(Either::Left(basic_val)) => res = basic_val,
+                        _ => res = self.i64_type.const_int(0, false).into(),
+                    }
                 }
                 res
             }
