@@ -1,32 +1,26 @@
 // src/ast.rs
-//! Abstract Syntax Tree for Zeta.
-//! Defines nodes for expressions, statements, definitions, and algebraic constructs.
-//! Extended for self-host: enums, structs, strings, path calls.
-//! Added: generics in FuncDef/Method, structural flag in Call for hybrid dispatch.
-//! Updated Dec 9, 2025: Added first-class unified string support with Str type and StringLit node.
-//! Updated Dec 13, 2025: Added FString node for f-strings; BinaryOp for + concat sugar.
-//! Updated Dec 16, 2025: Added TryProp for ? prop, DictLit for dict literals, Subscript for [] access, Return for explicit return; changed Assign to support complex lhs (e.g., subscripts); added single_line flag to FuncDef.
-
+//! Defines the Abstract Syntax Tree (AST) nodes for the Zeta language.
+//! Represents programs, definitions, expressions, statements, and algebraic constructs.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AstNode {
-    /// Full program as list of nodes.
+    /// Full program as a sequence of top-level nodes.
     Program(Vec<AstNode>),
-    /// Trait/concept definition with methods.
+    /// Concept (trait) definition with method signatures.
     ConceptDef { name: String, methods: Vec<AstNode> },
-    /// Impl block for concept on type.
+    /// Implementation block for a concept on a type.
     ImplBlock {
         concept: String,
         ty: String,
         body: Vec<AstNode>,
     },
-    /// Method signature in impl/concept.
+    /// Method signature within a concept or implementation.
     Method {
         name: String,
         params: Vec<(String, String)>,
         ret: String,
         generics: Vec<String>,
     },
-    /// Function definition.
+    /// Function definition with parameters, return type, and body.
     FuncDef {
         name: String,
         generics: Vec<String>,
@@ -35,16 +29,16 @@ pub enum AstNode {
         body: Vec<AstNode>,
         attrs: Vec<String>,
         ret_expr: Option<Box<AstNode>>,
-        single_line: bool, // New: flag for single-line syntax
+        single_line: bool,
     },
-    /// Enum definition.
+    /// Enumeration definition with variants.
     EnumDef { name: String, variants: Vec<String> },
-    /// Struct definition.
+    /// Structure definition with fields.
     StructDef {
         name: String,
         fields: Vec<(String, String)>,
     },
-    /// Method/trait call, with structural flag for hybrid dispatch.
+    /// Method or function call, with optional receiver and structural dispatch flag.
     Call {
         receiver: Option<Box<AstNode>>,
         method: String,
@@ -52,43 +46,43 @@ pub enum AstNode {
         type_args: Vec<String>,
         structural: bool,
     },
-    /// Path call (A::B).
+    /// Path-based call for static or associated functions.
     PathCall {
         path: Vec<String>,
         method: String,
         args: Vec<AstNode>,
     },
-    /// Actor spawn: spawn func(args).
+    /// Actor spawn expression with function and arguments.
     Spawn { func: String, args: Vec<AstNode> },
-    /// Integer literal.
+    /// Integer literal value.
     Lit(i64),
-    /// Unified UTF-8 owned string literal.
+    /// String literal as owned UTF-8 string.
     StringLit(String),
-    /// F-string: f"hello {expr}!".
-    FString(Vec<AstNode>), // Alternating Lit(StringLit) and exprs
-    /// Variable reference.
+    /// Formatted string with interpolated expressions.
+    FString(Vec<AstNode>),
+    /// Variable reference by name.
     Var(String),
-    /// Assignment.
-    Assign(Box<AstNode>, Box<AstNode>), // Updated: lhs can be Var or Subscript
-    /// Binary operation (e.g., + for concat).
+    /// Assignment to a target (variable or subscript).
+    Assign(Box<AstNode>, Box<AstNode>),
+    /// Binary operation between two expressions.
     BinaryOp {
-        op: String, // "add", "concat", etc.
+        op: String,
         left: Box<AstNode>,
         right: Box<AstNode>,
     },
-    /// TimingOwned: Constant-time owned value abstraction.
+    /// Timing-owned value abstraction for constant-time operations.
     TimingOwned { ty: String, inner: Box<AstNode> },
-    /// Defer statement for RAII cleanup.
+    /// Defer statement for cleanup actions.
     Defer(Box<AstNode>),
-    /// Error propagation: expr?
+    /// Error propagation operator on an expression.
     TryProp { expr: Box<AstNode> },
-    /// Dict literal: {key: val, ...}
+    /// Dictionary literal with key-value pairs.
     DictLit { entries: Vec<(AstNode, AstNode)> },
-    /// Subscript access: base[index]
+    /// Subscript access on a base expression.
     Subscript {
         base: Box<AstNode>,
         index: Box<AstNode>,
     },
-    /// Explicit return statement.
+    /// Explicit return statement with value.
     Return(Box<AstNode>),
 }
