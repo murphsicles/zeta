@@ -29,6 +29,7 @@ use inkwell::types::{BasicMetadataTypeEnum, IntType, PointerType, VectorType};
 use inkwell::values::{
     BasicValue, BasicValueEnum, PointerValue,
 };
+use either::Either;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -225,13 +226,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .builder
                     .build_call(callee, &arg_vals, "call")
                     .unwrap();
-                if let Some(basic_val) = call.try_as_basic_value() {
+                if let Some(Either::Left(basic_val)) = call.try_as_basic_value() {
                     let ptr = self.locals.entry(*dest).or_insert_with(|| {
                         self.builder
                             .build_alloca(self.i64_type, &format!("dest_{}", dest))
                             .expect("alloca failed")
                     });
-                    let basic_val: BasicValueEnum<'ctx> = basic_val.expect("not basic value");
                     let _ = self.builder.build_store(*ptr, basic_val);
                 }
             }
@@ -323,7 +323,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         .builder
                         .build_call(concat_fn, &[res.into(), next.into()], "fconcat")
                         .unwrap();
-                    res = if let Some(basic_val) = call.try_as_basic_value() { basic_val.expect("not basic value") } else { self.i64_type.const_int(0, false).into() };
+                    res = if let Some(Either::Left(basic_val)) = call.try_as_basic_value() { basic_val } else { self.i64_type.const_int(0, false).into() };
                 }
                 res
             }
