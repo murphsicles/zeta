@@ -85,7 +85,10 @@ pub enum AstNode {
     /// Dict literal: {key: val, ...}
     DictLit { entries: Vec<(AstNode, AstNode)> },
     /// Subscript access: base[index]
-    Subscript { base: Box<AstNode>, index: Box<AstNode> },
+    Subscript {
+        base: Box<AstNode>,
+        index: Box<AstNode>,
+    },
     /// Explicit return statement.
     Return(Box<AstNode>),
 }
