@@ -29,6 +29,7 @@ use inkwell::types::{BasicMetadataTypeEnum, IntType, PointerType, VectorType};
 use inkwell::values::{
     BasicMetadataValueEnum, BasicValue, BasicValueEnum, PointerValue, ValueKind,
 };
+use either::Either;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
