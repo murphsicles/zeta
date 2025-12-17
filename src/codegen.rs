@@ -314,7 +314,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let null_term = self.context.i8_type().const_int(0, false);
                 let mut vals = bytes;
                 vals.push(null_term);
-                global.set_initializer(&arr_type.const_array(&vals));
+                let vals_b: Vec<BasicValueEnum<'ctx>> = vals.into_iter().map(|v| v.into()).collect();
+                global.set_initializer(&arr_type.const_array(&vals_b));
                 global.set_linkage(Linkage::Private);
                 global.as_pointer_value().into()
             }
@@ -333,7 +334,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
             MirExpr::ConstEval(n) => self.i64_type.const_int(*n as u64, true).into(),
             MirExpr::TimingOwned(inner_id) => {
-                let ptr = self.locals[inner_id];
+                let ptr = self.locals[&inner_id];
                 let load = self
                     .builder
                     .build_load(self.i64_type, ptr, "timing_load")
