@@ -1,15 +1,7 @@
 // src/codegen.rs
-//! LLVM code generation for Zeta MIR.
-//! Supports JIT execution, intrinsics, SIMD, TBAA, actor runtime, and std embeddings.
-//! Ensures stable ABI and TimingOwned constant-time guarantees.
-//! Updated: Handle ParamInit - store fn args to param allocas at entry.
-//! Updated: Handle Consume - no-op (semantic for affine verification).
-//! Added: SIMD - vec ops via MLGO passes; detect SemiringFold for vectorize.
-//! Added: Stable ABI - no UB via sanitize checks, thin mono via specialization mangled names.
-//! Updated Dec 9, 2025: StringLit lowered to private global constant arrays (null-terminated).
-//! Updated Dec 13, 2025: FString to concat calls; rich str methods via intrinsics; Vec<u8> interop.
-//! Updated Dec 16, 2025: Added codegen for If (branches); declared result/map intrinsics; lowered ? to cond br, map ops to calls.
-
+//! Generates LLVM IR from Zeta MIR.
+//! Supports JIT execution, intrinsics, SIMD vectorization, TBAA metadata, actor runtime integration, and standard library embeddings.
+//! Ensures stable ABI and constant-time guarantees for TimingOwned types.
 #[allow(unused_imports)]
 use crate::actor::{
     host_channel_recv, host_channel_send, host_map_free, host_map_get, host_map_insert,
@@ -37,21 +29,18 @@ use inkwell::values::{
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
-
-/// Host implementation for datetime_now, returning Unix millis.
+/// Host function for current Unix timestamp in milliseconds.
 extern "C" fn host_datetime_now() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_millis() as i64
 }
-
-/// Host implementation for free, wrapping libc::free.
+/// Host function for freeing memory.
 extern "C" fn host_free(ptr: *mut std::ffi::c_void) {
     unsafe { std_free(ptr as *mut u8) }
 }
-
-/// Real host HTTP GET: returns response length or -1 error.
+/// Host function for HTTP GET request, returning response length.
 extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
     use std::ffi::CStr;
     if let Ok(url_str) = unsafe { CStr::from_ptr(url) }.to_str() {
@@ -61,8 +50,7 @@ extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
         -1i64
     }
 }
-
-/// Real host TLS handshake: returns 0 success, -1 error.
+/// Host function for TLS handshake.
 extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i64 {
     use std::ffi::CStr;
     if unsafe { CStr::from_ptr(host) }.to_str().is_ok() {
@@ -71,33 +59,31 @@ extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i64 {
         -1i64
     }
 }
-
-/// LLVM codegen context for a module.
+/// Manages LLVM code generation for a module.
 pub struct LLVMCodegen<'ctx> {
     context: &'ctx Context,
-    /// LLVM module being built.
+    /// LLVM module being generated.
     pub module: Module<'ctx>,
-    /// IR builder for instructions.
+    /// Instruction builder.
     builder: Builder<'ctx>,
-    /// i64 type for Zeta ints.
+    /// Integer type for Zeta values.
     i64_type: IntType<'ctx>,
-    /// SIMD vector type (e.g., <4 x i64> for quad).
+    /// SIMD vector type for quad i64.
     #[allow(dead_code)]
     vec4_i64_type: VectorType<'ctx>,
-    /// Pointer type for heap ops.
+    /// Pointer type for allocations.
     #[allow(dead_code)]
     ptr_type: PointerType<'ctx>,
-    /// Local alloca slots by MIR ID.
+    /// Local variable allocations by MIR ID.
     locals: HashMap<u32, PointerValue<'ctx>>,
-    /// TBAA root for constant-time metadata.
+    /// TBAA metadata for constant-time accesses.
     tbaa_const_time: inkwell::values::MetadataValue<'ctx>,
-    /// Generated function map: name -> LLVM fn.
+    /// Map of generated functions by name.
     fns: HashMap<String, inkwell::values::FunctionValue<'ctx>>,
 }
-
 impl<'ctx> LLVMCodegen<'ctx> {
-    /// Creates a new codegen instance for a module named `name`.
-    /// Declares external host functions (datetime_now, free, actor intrinsics, std embeds).
+    /// Creates a new codegen instance for the specified module name.
+    /// Declares external host functions for runtime integration.
     pub fn new(context: &'ctx Context, name: &str) -> Self {
         let module = context.create_module(name);
         let builder = context.create_builder();
@@ -157,8 +143,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             fns: HashMap::new(),
         }
     }
-
-    /// Generates LLVM IR for a list of MIRs (one per FuncDef), creates entry main if needed.
+    /// Generates IR for multiple MIR functions, adding a main entry if absent.
     pub fn gen_mirs(&mut self, mirs: &[Mir]) {
         for mir in mirs {
             if let Some(ref name) = mir.name {
@@ -187,7 +172,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 .build_return(Some(&self.i64_type.const_int(0, false)));
         }
     }
-
+    /// Generates a function declaration from MIR, applying monomorphization.
     fn gen_fn(&mut self, mir: &Mir, name: &str) -> inkwell::values::FunctionValue<'ctx> {
         // Use specialization for mono
         let key = MonoKey {
@@ -215,7 +200,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
         fn_val
     }
-
+    /// Generates IR for a MIR statement.
     fn gen_stmt(&mut self, stmt: &MirStmt, exprs: &HashMap<u32, MirExpr>) {
         match stmt {
             MirStmt::Assign { lhs, rhs } => {
@@ -378,7 +363,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
         }
     }
-    /// Gets callee function value, declares if missing.
+    /// Retrieves or declares a function by name.
     fn get_callee(&mut self, func: &str) -> inkwell::values::FunctionValue<'ctx> {
         if let Some(f) = self.fns.get(func) {
             *f
@@ -390,7 +375,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             f
         }
     }
-    /// Generates a BasicValue from a MIR expression.
+    /// Generates IR for a MIR expression.
     fn gen_expr(&mut self, expr: &MirExpr, _exprs: &HashMap<u32, MirExpr>) -> BasicValueEnum<'ctx> {
         match expr {
             MirExpr::Var(id) => self.load_local(*id),
@@ -445,15 +430,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
         }
     }
-    /// Loads a local variable from alloca slot.
+    /// Loads a value from a local alloca slot.
     fn load_local(&self, id: u32) -> BasicValueEnum<'ctx> {
         let ptr = self.locals[&id];
         self.builder
             .build_load(self.i64_type, ptr, &format!("load_{id}"))
             .expect("load failed")
     }
-    /// Verifies module, runs MLGO AI passes (vectorize/branch pred), creates JIT engine, maps host functions.
-    /// Returns ExecutionEngine or error.
+    /// Verifies the module, applies AI-recommended optimizations, and creates a JIT engine.
+    /// Maps host functions to implementations.
     pub fn finalize_and_jit(
         &mut self,
     ) -> Result<ExecutionEngine<'ctx>, Box<dyn std::error::Error>> {
