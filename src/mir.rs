@@ -1,103 +1,113 @@
 // src/mir.rs
-//! Mid-level IR for Zeta, bridging AST to LLVM.
-//! Supports statements, expressions, and semiring ops for algebraic optimization.
-//! Added: ParamInit - store caller args to local allocas at fn entry.
-//! Added: Affine moves - Consume stmt after calls for by-value args (semantic marker).
-//! Updated Dec 9, 2025: Added StringLit to MirExpr for unified string lowering.
-//! Updated Dec 13, 2025: Added FString lowering to concat calls; BinaryOp to method calls.
-//! Updated Dec 16, 2025: Added If stmt for control flow (used in ? lowering); lowering for TryProp (with branch for error prop), DictLit (map_new + inserts), Subscript (map_get), Return; updated gen_mir for implicit wrap if error-prop fn.
-
+//! Mid-level Intermediate Representation (MIR) for Zeta.
+//! Bridges the Abstract Syntax Tree (AST) to LLVM code generation.
+//! Defines statements for control flow, assignments, and calls.
+//! Includes expressions for literals, variables, and operations.
 use crate::ast::AstNode;
 use std::collections::HashMap;
-
+/// Operations for semiring-based algebraic optimizations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SemiringOp {
-    /// Addition (idempotent or not, per type).
+    /// Addition operation.
     Add,
-    /// Multiplication.
+    /// Multiplication operation.
     Mul,
 }
-
+/// Represents a MIR function or block.
 #[derive(Debug, Clone)]
 pub struct Mir {
+    /// Sequence of MIR statements.
     pub stmts: Vec<MirStmt>,
+    /// Mapping from local names to IDs.
     pub locals: HashMap<String, u32>,
+    /// Mapping from expression IDs to expressions.
     pub exprs: HashMap<u32, MirExpr>,
-    pub name: Option<String>, // Fn name for codegen
+    /// Optional function name.
+    pub name: Option<String>,
 }
-
+/// MIR statement variants.
 #[derive(Debug, Clone)]
 pub enum MirStmt {
+    /// Assigns an expression to a local.
     Assign {
         lhs: u32,
         rhs: MirExpr,
     },
+    /// Function call with return value.
     Call {
         func: String,
         args: Vec<u32>,
         dest: u32,
     },
+    /// Void function call.
     VoidCall {
         func: String,
         args: Vec<u32>,
     },
+    /// Return statement with value.
     Return {
         val: u32,
     },
+    /// Folds values using a semiring operation.
     SemiringFold {
         op: SemiringOp,
         values: Vec<u32>,
         result: u32,
     },
+    /// Initializes a parameter from an argument.
     ParamInit {
-        // Initialize param local from arg index
         param_id: u32,
         arg_index: usize,
     },
+    /// Marks a local as consumed for affine types.
     Consume {
-        // New: Mark local as consumed post-move (affine semantic)
         id: u32,
     },
+    /// Conditional branch statement.
     If {
         cond: u32,
         then: Vec<MirStmt>,
         else_: Vec<MirStmt>,
     },
 }
-
+/// MIR expression variants.
 #[derive(Debug, Clone)]
 pub enum MirExpr {
+    /// Reference to a local variable by ID.
     Var(u32),
+    /// Integer literal.
     Lit(i64),
-    StringLit(String), // NEW: unified string literal
-    FString(Vec<u32>), // Lowered parts as IDs
+    /// String literal.
+    StringLit(String),
+    /// Formatted string parts.
+    FString(Vec<u32>),
+    /// Constant-evaluated value.
     ConstEval(i64),
-    TimingOwned(u32), // Wraps inner expr ID for constant-time
+    /// Timing-owned wrapper for constant-time access.
+    TimingOwned(u32),
 }
-
+/// Internal info for deferred calls.
 #[derive(Debug, Clone)]
 struct DeferInfo {
     func: String,
     args: Vec<u32>,
 }
-
+/// Generator for MIR from AST nodes.
 pub struct MirGen {
     next_id: u32,
     locals: HashMap<String, u32>,
     defers: Vec<DeferInfo>,
-    // Track param indices for init
-    param_indices: Vec<(String, usize)>, // (name, arg position)
+    param_indices: Vec<(String, usize)>,
     #[allow(dead_code)]
     exprs: HashMap<u32, MirExpr>,
 }
-
 impl Default for MirGen {
     fn default() -> Self {
         Self::new()
     }
 }
-
 impl MirGen {
+    /// Creates a new MIR generator.
     pub fn new() -> Self {
         Self {
             next_id: 0,
@@ -107,7 +117,7 @@ impl MirGen {
             exprs: HashMap::new(),
         }
     }
-
+    /// Generates MIR for an AST node, typically a function definition.
     pub fn gen_mir(&mut self, ast: &AstNode) -> Mir {
         let mut stmts = vec![];
         let mut exprs = HashMap::new();
@@ -116,7 +126,6 @@ impl MirGen {
         } else {
             None
         };
-
         if let AstNode::FuncDef {
             params, body, ret, ..
         } = ast
@@ -127,7 +136,6 @@ impl MirGen {
                 self.alloc_local(pname);
                 self.param_indices.push((pname.clone(), i));
             }
-
             // Add ParamInit stmts at entry
             for (pname, arg_idx) in &self.param_indices {
                 if let Some(param_id) = self.locals.get(pname) {
@@ -137,11 +145,9 @@ impl MirGen {
                     });
                 }
             }
-
             for stmt in body {
                 self.gen_stmt_full(stmt, &mut stmts, &mut exprs);
             }
-
             // Insert defers before return in reverse order
             for info in self.defers.iter().rev() {
                 stmts.push(MirStmt::VoidCall {
@@ -149,7 +155,6 @@ impl MirGen {
                     args: info.args.clone(),
                 });
             }
-
             // Assume last stmt is return if Assign
             if let Some(last) = body.last()
                 && let AstNode::Assign(_, expr) = last
@@ -185,7 +190,7 @@ impl MirGen {
             name,
         }
     }
-
+    /// Generates MIR statements for an AST node.
     fn gen_stmt_full(
         &mut self,
         node: &AstNode,
@@ -265,7 +270,7 @@ impl MirGen {
             }
         }
     }
-
+    /// Generates a MIR expression from an AST node.
     fn gen_expr(
         &mut self,
         node: &AstNode,
@@ -305,18 +310,15 @@ impl MirGen {
                         self.materialize(e, exprs, out)
                     })
                     .collect::<Vec<_>>();
-
                 if let Some(rid) = receiver_id {
                     arg_ids.insert(0, rid);
                 }
-
                 let dest = self.next_id();
                 out.push(MirStmt::Call {
                     func: method.clone(),
                     args: arg_ids.clone(),
                     dest,
                 });
-
                 // Affine: Consume by-value args post-call (assume all Var args moved)
                 for &arg_id in arg_ids
                     .iter()
@@ -395,7 +397,7 @@ impl MirGen {
             _ => MirExpr::Lit(0),
         }
     }
-
+    /// Materializes an expression to an ID without statements.
     fn materialize_inner(&mut self, expr: &MirExpr, exprs: &mut HashMap<u32, MirExpr>) -> u32 {
         match expr {
             MirExpr::Var(id) => *id,
@@ -406,7 +408,7 @@ impl MirGen {
             }
         }
     }
-
+    /// Materializes an expression to an ID, adding statements if needed.
     fn materialize(
         &mut self,
         expr: MirExpr,
@@ -431,13 +433,13 @@ impl MirGen {
             }
         }
     }
-
+    /// Allocates a new local ID for a name.
     fn alloc_local(&mut self, name: &str) -> u32 {
         let id = self.next_id();
         self.locals.insert(name.to_string(), id);
         id
     }
-
+    /// Looks up or allocates a local ID for a name.
     fn lookup_or_alloc(&mut self, name: &str) -> u32 {
         let key = name.to_string();
         if !self.locals.contains_key(&key) {
@@ -448,16 +450,15 @@ impl MirGen {
             *self.locals.get(&key).unwrap()
         }
     }
-
+    /// Generates the next unique ID.
     fn next_id(&mut self) -> u32 {
         let id = self.next_id;
         self.next_id += 1;
         id
     }
 }
-
 impl Mir {
-    /// Apply CTFE pass to fold constants.
+    /// Optimizes MIR by constant-folding semiring operations.
     pub fn optimize_ctfe(&mut self) {
         let mut i = 0;
         while i < self.stmts.len() {
