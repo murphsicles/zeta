@@ -29,10 +29,7 @@ pub struct Mir {
 #[derive(Debug, Clone)]
 pub enum MirStmt {
     /// Assigns an expression to a local.
-    Assign {
-        lhs: u32,
-        rhs: MirExpr,
-    },
+    Assign { lhs: u32, rhs: MirExpr },
     /// Function call with return value.
     Call {
         func: String,
@@ -40,14 +37,9 @@ pub enum MirStmt {
         dest: u32,
     },
     /// Void function call.
-    VoidCall {
-        func: String,
-        args: Vec<u32>,
-    },
+    VoidCall { func: String, args: Vec<u32> },
     /// Return statement with value.
-    Return {
-        val: u32,
-    },
+    Return { val: u32 },
     /// Folds values using a semiring operation.
     SemiringFold {
         op: SemiringOp,
@@ -55,14 +47,9 @@ pub enum MirStmt {
         result: u32,
     },
     /// Initializes a parameter from an argument.
-    ParamInit {
-        param_id: u32,
-        arg_index: usize,
-    },
+    ParamInit { param_id: u32, arg_index: usize },
     /// Marks a local as consumed for affine types.
-    Consume {
-        id: u32,
-    },
+    Consume { id: u32 },
     /// Conditional branch statement.
     If {
         cond: u32,
