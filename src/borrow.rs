@@ -1,54 +1,48 @@
 // src/borrow.rs
-//! Borrow checker module for Zeta.
-//! Implements affine borrow checking with speculative states for safe concurrency.
-//! Tracks ownership, borrows, and moves to ensure memory safety without garbage collection.
-//! Updated Dec 13, 2025: Implicit &str borrows from str; no lifetimes.
-//! Updated Dec 16, 2025: Updated for TryProp, DictLit, Subscript (as lvalue), Return; changed check for Assign with complex lhs.
-
+//! Borrow checker for Zeta language.
+//! Enforces affine type rules with speculative states for concurrency safety.
+//! Tracks ownership, borrows, and moves to prevent memory errors.
 use crate::ast::AstNode;
 use std::collections::HashMap;
-
+/// Represents the borrow state of a variable.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BorrowState {
-    /// Variable is fully owned and movable.
+    /// Fully owned and movable.
     Owned,
-    /// Immutable borrow in scope; no moves allowed.
+    /// Immutable borrow active; moves disallowed.
     Borrowed,
-    /// Mutable borrow in scope; exclusive access.
+    /// Mutable borrow active; exclusive access.
     MutBorrowed,
-    /// Variable consumed; no further access.
+    /// Consumed; no further access allowed.
     Consumed,
 }
-
+/// Represents speculative execution state for variables.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SpeculativeState {
-    /// No speculation; state is committed.
+    /// Committed state; no speculation.
     Safe,
-    /// Under speculative execution; rollback possible.
+    /// Under speculation; may rollback.
     Speculative,
-    /// Speculation failed; invalidate path.
+    /// Speculation failed; path invalid.
     Poisoned,
 }
-
+/// Manages borrow checking with state tracking.
 #[derive(Debug, Clone)]
 pub struct BorrowChecker {
-    /// Maps variable names to their current borrow state.
+    /// Variable to borrow state mapping.
     borrows: HashMap<String, BorrowState>,
-    /// Tracks affine moves: true if moved once.
+    /// Variable to affine move flag mapping.
     affine_moves: HashMap<String, bool>,
-    /// Speculative states for each variable.
+    /// Variable to speculative state mapping.
     speculative: HashMap<String, SpeculativeState>,
 }
-
 impl Default for BorrowChecker {
-    /// Creates a new borrow checker with empty maps.
     fn default() -> Self {
         Self::new()
     }
 }
-
 impl BorrowChecker {
-    /// Initializes an empty borrow checker.
+    /// Creates a new empty borrow checker.
     pub fn new() -> Self {
         Self {
             borrows: HashMap::new(),
@@ -56,16 +50,14 @@ impl BorrowChecker {
             speculative: HashMap::new(),
         }
     }
-
-    /// Declares a new variable with initial owned state.
+    /// Declares a variable with initial state.
     pub fn declare(&mut self, var: String, state: BorrowState) {
         self.borrows.insert(var.clone(), state);
         self.affine_moves.insert(var.clone(), false);
         self.speculative.insert(var, SpeculativeState::Safe);
     }
-
-    /// Checks borrow rules for an AST node, updating states as needed.
-    /// Returns true if valid, false if violation detected.
+    /// Validates borrow rules for an AST node and updates states.
+    /// Returns true if valid, false on violation.
     pub fn check(&mut self, node: &AstNode) -> bool {
         match node {
             AstNode::Var(v) => self
