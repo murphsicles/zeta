@@ -307,15 +307,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
             MirExpr::Var(id) => self.load_local(*id),
             MirExpr::Lit(n) => self.i64_type.const_int(*n as u64, true).into(),
             MirExpr::StringLit(s) => {
-                let arr_type = self.context.i8_type().array_type((s.len() + 1) as u32);
-                let global = self.module.add_global(arr_type, None, "str_lit");
+                let const_str = self.context.const_string(s.as_bytes(), true);
+                let global = self.module.add_global(const_str.get_type(), None, "str_lit");
                 global.set_constant(true);
-                let bytes: Vec<_> = s.as_bytes().iter().map(|&b| self.context.i8_type().const_int(b as u64, false)).collect();
-                let null_term = self.context.i8_type().const_int(0, false);
-                let mut vals = bytes;
-                vals.push(null_term);
-                let vals_b: Vec<BasicValueEnum<'ctx>> = vals.into_iter().map(|v| v.into()).collect();
-                global.set_initializer(&arr_type.const_array(&vals_b));
+                global.set_initializer(&const_str);
                 global.set_linkage(Linkage::Private);
                 global.as_pointer_value().into()
             }
@@ -334,7 +329,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
             MirExpr::ConstEval(n) => self.i64_type.const_int(*n as u64, true).into(),
             MirExpr::TimingOwned(inner_id) => {
-                let ptr = self.locals[&inner_id];
+                let ptr = self.locals[inner_id];
                 let load = self
                     .builder
                     .build_load(self.i64_type, ptr, "timing_load")
