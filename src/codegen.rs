@@ -231,8 +231,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             .build_alloca(self.i64_type, &format!("dest_{}", dest))
                             .expect("alloca failed")
                     });
-                    let basic_val: dyn BasicValue<'ctx> = basic_val.expect("not basic value");
-                    let _ = self.builder.build_store(*ptr, &basic_val);
+                    let basic_val: BasicValueEnum<'ctx> = basic_val.expect("not basic value");
+                    let _ = self.builder.build_store(*ptr, basic_val);
                 }
             }
             MirStmt::VoidCall { func, args } => {
@@ -270,7 +270,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let _ = self.builder.build_store(*ptr, sum);
             }
             MirStmt::ParamInit { param_id, arg_index } => {
-                let param_ptr = self.locals[&param_id];
+                let param_ptr = self.locals[&*param_id];
                 let arg_val = self.builder.get_insert_block().unwrap().get_parent().unwrap().get_nth_param(*arg_index as u32).unwrap();
                 let _ = self.builder.build_store(param_ptr, arg_val);
             }
@@ -462,6 +462,3 @@ impl<'ctx> LLVMCodegen<'ctx> {
         Ok(ee)
     }
 }
-"""
-print("Code is syntactically correct.")</parameter>
-</xai:function_call>
