@@ -1,13 +1,8 @@
 // src/resolver.rs
 //! Type resolver and semantic analyzer for Zeta.
 //! Handles type inference, trait resolution, borrow checking, MIR lowering, and optimizations.
-//! Integrates algebraic structures from EOP for semiring-based codegen.
-//! Added: Stable ABI checks (no UB, const-time TimingOwned validation).
-//! Added: CTFE (const eval semirings) for literal/semiring folding during inference.
-//! Updated Dec 9, 2025: Unified string support - new Type::Str, builtin StrOps concept, string literal inference.
-//! Updated Dec 13, 2025: Added rich StrOps methods; implicit &str borrows/conversions; + as concat; f-string lowering.
-//! Updated Dec 16, 2025: Added Type::Result and Type::Map; inference for TryProp (?), DictLit, Subscript; auto-import prelude for map/result intrinsics; checks for error prop in typecheck.
-
+//! Integrates algebraic structures for semiring-based codegen.
+//! Ensures stable ABI and constant-time guarantees.
 use crate::ast::AstNode;
 use crate::borrow::BorrowChecker;
 use crate::mir::{Mir, MirGen, MirStmt, SemiringOp};
@@ -17,7 +12,7 @@ use crate::specialization::{
 };
 use std::collections::HashMap;
 use std::fmt;
-
+/// Represents types in the Zeta language.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
     /// 64-bit signed integer.
@@ -29,12 +24,12 @@ pub enum Type {
     /// Unified owned UTF-8 string type.
     Str,
     /// Borrowed string slice.
-    StrRef, // &str
+    StrRef,
     /// Named type (e.g., user-defined or trait-bound).
     Named(String),
     /// Unknown/inferred type.
     Unknown,
-    /// TimingOwned wrapper for constant-time.
+    /// Timing-owned wrapper for constant-time.
     TimingOwned(Box<Type>),
     /// Vec<u8> for interop.
     VecU8,
@@ -43,7 +38,6 @@ pub enum Type {
     /// Map type for dicts.
     Map(Box<Type>, Box<Type>),
 }
-
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -61,21 +55,18 @@ impl fmt::Display for Type {
         }
     }
 }
-
 type MethodSig = (Vec<Type>, Type);
 type ImplMethods = HashMap<String, MethodSig>;
-type FuncSig = (Vec<(String, Type)>, Type); // params -> ret
+type FuncSig = (Vec<(String, Type)>, Type);
 type FuncMap = HashMap<String, FuncSig>;
-
-/// Enum for ABI violations.
+/// ABI violation errors.
 #[derive(Debug, Clone)]
 pub enum AbiError {
     RawPointerInPublic,
     NonConstTimeTimingOwned,
     UnsafeCast,
 }
-
-/// Enum for constant values (for CTFE).
+/// Constant values for compile-time evaluation.
 #[derive(Debug, Clone)]
 pub enum ConstValue {
     Int(i64),
@@ -83,9 +74,8 @@ pub enum ConstValue {
     Bool(bool),
     Str(String),
 }
-
 impl ConstValue {
-    /// Folds semiring op on consts.
+    /// Applies semiring operation to two constants.
     pub fn fold_semiring(&self, op: SemiringOp, other: &Self) -> Option<Self> {
         match (self, other, op) {
             (ConstValue::Int(a), ConstValue::Int(b), SemiringOp::Add) => {
@@ -98,29 +88,25 @@ impl ConstValue {
         }
     }
 }
-
-/// Main resolver struct, orchestrating type checking and lowering.
+/// Coordinates type resolution, semantic checks, and MIR lowering.
 #[derive(Clone)]
 pub struct Resolver {
-    /// Direct impls for traits on types.
+    /// Trait implementations for types.
     direct_impls: HashMap<(String, Type), ImplMethods>,
-    /// Environment for type inference (var -> type).
+    /// Variable to type mappings.
     type_env: HashMap<String, Type>,
     /// Function signatures.
     func_sigs: FuncMap,
     /// Integrated borrow checker.
     borrow_checker: BorrowChecker,
 }
-
 impl Default for Resolver {
-    /// Default resolver with builtin Addable for i64.
     fn default() -> Self {
         Self::new()
     }
 }
-
 impl Resolver {
-    /// Creates a new resolver with builtin fast-path for i64 Addable and StrOps.
+    /// Initializes with built-in types and implementations.
     pub fn new() -> Self {
         let mut r = Self {
             direct_impls: HashMap::new(),
@@ -128,13 +114,11 @@ impl Resolver {
             func_sigs: HashMap::new(),
             borrow_checker: BorrowChecker::new(),
         };
-
         // Fast-path: i64 implements Addable
         let mut addable = HashMap::new();
         addable.insert("add".to_string(), (vec![Type::I64], Type::I64));
         r.direct_impls
             .insert(("Addable".to_string(), Type::I64), addable);
-
         // Builtin StrOps for unified strings - expanded
         let mut str_ops = HashMap::new();
         str_ops.insert("len".to_string(), (vec![], Type::I64));
@@ -156,7 +140,6 @@ impl Resolver {
         str_ops.insert("as_bytes".to_string(), (vec![], Type::VecU8));
         r.direct_impls
             .insert(("StrOps".to_string(), Type::Str), str_ops);
-
         // Auto-import prelude for Result and Map (assume i64 for key/val/err)
         let result_ty = Type::Result(Box::new(Type::I64), Box::new(Type::I64));
         r.func_sigs.insert(
@@ -215,7 +198,7 @@ impl Resolver {
         );
         r
     }
-    /// Looks up method signature for receiver type.
+    /// Looks up method signature for receiver type and arguments.
     fn lookup_method(
         &self,
         recv_ty: Option<&Type>,
@@ -238,7 +221,7 @@ impl Resolver {
         }
         None
     }
-    /// Registers function sigs and impls.
+    /// Registers function signatures and implementations.
     pub fn register(&mut self, ast: AstNode) {
         match ast {
             AstNode::FuncDef {
@@ -344,8 +327,7 @@ impl Resolver {
             _ => Type::Unknown,
         }
     }
-
-    /// Performs ABI checks: no raw pointers in public, TimingOwned only on const-time primitives.
+    /// Checks ABI compliance for a node.
     fn check_abi(&mut self, node: &AstNode) -> Result<(), AbiError> {
         match node {
             AstNode::TimingOwned { inner, .. } => {
@@ -359,8 +341,7 @@ impl Resolver {
             _ => Ok(()),
         }
     }
-
-    /// Handles implicit borrows: &str from str when needed.
+    /// Applies implicit borrowing for compatible types.
     #[allow(dead_code)]
     fn implicit_borrow(&mut self, ty: &Type) -> Type {
         if *ty == Type::Str {
@@ -369,8 +350,7 @@ impl Resolver {
             ty.clone()
         }
     }
-
-    /// Checks if a node contains TryProp, for error prop validation.
+    /// Detects error propagation (?) in a node.
     fn has_try_prop(&self, node: &AstNode) -> bool {
         match node {
             AstNode::TryProp { .. } => true,
@@ -385,9 +365,8 @@ impl Resolver {
             _ => false,
         }
     }
-
-    /// Performs type checking and borrow checking on a program.
-    /// Returns true if all checks pass.
+    /// Typechecks and borrow-checks the program.
+    /// Returns true if valid.
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
         let mut ok = true;
         for ast in asts {
@@ -422,17 +401,15 @@ impl Resolver {
         }
         ok
     }
-
-    /// Lowers an AST node to MIR for codegen.
+    /// Lowers AST to MIR.
     pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
         let mut mir_gen = MirGen::new();
         let mut mir = mir_gen.gen_mir(ast);
         self.fold_semiring_chains(&mut mir);
         mir
     }
-
-    /// Optimizes MIR by folding consecutive semiring operations (e.g., add chains).
-    /// Returns true if any folds occurred.
+    /// Folds chains of semiring operations in MIR.
+    /// Returns true if modified.
     pub fn fold_semiring_chains(&self, mir: &mut Mir) -> bool {
         let mut changed = false;
         let mut i = 0;
