@@ -81,7 +81,10 @@ impl BorrowChecker {
                         self.declare(v.clone(), BorrowState::Owned);
                         true
                     }
-                    AstNode::Subscript { ref base, ref index } => {
+                    AstNode::Subscript {
+                        ref base,
+                        ref index,
+                    } => {
                         if !self.check(base) || !self.check(index) {
                             return false;
                         }
@@ -127,7 +130,9 @@ impl BorrowChecker {
                 true
             }
             AstNode::TryProp { expr } => self.check(expr),
-            AstNode::DictLit { entries } => entries.iter().all(|(k, v)| self.check(k) && self.check(v)),
+            AstNode::DictLit { entries } => {
+                entries.iter().all(|(k, v)| self.check(k) && self.check(v))
+            }
             AstNode::Subscript { base, index } => self.check(base) && self.check(index),
             AstNode::Return(inner) => self.check(inner),
             _ => true,
