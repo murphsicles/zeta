@@ -4,6 +4,7 @@
 //! Defines statements for control flow, assignments, and calls.
 //! Includes expressions for literals, variables, and operations.
 use crate::ast::AstNode;
+use crate::resolver::{Resolver, Type};
 use std::collections::HashMap;
 /// Operations for semiring-based algebraic optimizations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -35,6 +36,7 @@ pub enum MirStmt {
         func: String,
         args: Vec<u32>,
         dest: u32,
+        type_args: Vec<String>,
     },
     /// Void function call.
     VoidCall { func: String, args: Vec<u32> },
@@ -80,28 +82,25 @@ struct DeferInfo {
     args: Vec<u32>,
 }
 /// Generator for MIR from AST nodes.
-pub struct MirGen {
+pub struct MirGen<'a> {
     next_id: u32,
     locals: HashMap<String, u32>,
     defers: Vec<DeferInfo>,
     param_indices: Vec<(String, usize)>,
     #[allow(dead_code)]
     exprs: HashMap<u32, MirExpr>,
+    resolver: &'a Resolver,
 }
-impl Default for MirGen {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-impl MirGen {
+impl<'a> MirGen<'a> {
     /// Creates a new MIR generator.
-    pub fn new() -> Self {
+    pub fn new(resolver: &'a Resolver) -> Self {
         Self {
             next_id: 0,
             locals: HashMap::new(),
             defers: vec![],
             param_indices: vec![],
             exprs: HashMap::new(),
+            resolver,
         }
     }
     /// Generates MIR for an AST node, typically a function definition.
@@ -162,6 +161,7 @@ impl MirGen {
                             func: "result_make_ok".to_string(),
                             args: vec![last_id],
                             dest: wrap_id,
+                            type_args: vec![],
                         });
                         stmts.push(MirStmt::Return { val: wrap_id });
                     } else {
@@ -233,12 +233,23 @@ impl MirGen {
                         ref base,
                         ref index,
                     } => {
+                        let base_ty = self.resolver.infer_type(base.as_ref());
+                        let (k_ty_str, _) = if let Type::Named { params, .. } = &base_ty {
+                            if params.len() == 2 {
+                                (params[0].to_string(), params[1].to_string())
+                            } else {
+                                ("i64".to_string(), "i64".to_string())
+                            }
+                        } else {
+                            ("i64".to_string(), "i64".to_string())
+                        };
+                        let insert_fn = format!("map_insert_{}", k_ty_str);
                         let base_expr = self.gen_expr(base.as_ref(), exprs, out);
                         let base_id = self.materialize(base_expr, exprs, out);
                         let index_expr = self.gen_expr(index.as_ref(), exprs, out);
                         let index_id = self.materialize(index_expr, exprs, out);
                         out.push(MirStmt::VoidCall {
-                            func: "map_insert".to_string(),
+                            func: insert_fn,
                             args: vec![base_id, index_id, rhs_id],
                         });
                     }
@@ -286,6 +297,7 @@ impl MirGen {
                 receiver,
                 method,
                 args,
+                type_args,
                 ..
             } => {
                 let receiver_gen = receiver.as_ref().map(|r| self.gen_expr(r, exprs, out));
@@ -305,6 +317,7 @@ impl MirGen {
                     func: method.clone(),
                     args: arg_ids.clone(),
                     dest,
+                    type_args: type_args.clone(),
                 });
                 // Affine: Consume by-value args post-call (assume all Var args moved)
                 for &arg_id in arg_ids
@@ -323,6 +336,7 @@ impl MirGen {
                     func: "result_is_ok".to_string(),
                     args: vec![inner_id],
                     dest: cond_dest,
+                    type_args: vec![],
                 });
                 let data_id = self.next_id();
                 let ok_dest = self.next_id();
@@ -331,6 +345,7 @@ impl MirGen {
                         func: "result_get_data".to_string(),
                         args: vec![inner_id],
                         dest: data_id,
+                        type_args: vec![],
                     },
                     MirStmt::VoidCall {
                         func: "result_free".to_string(),
@@ -350,11 +365,24 @@ impl MirGen {
                 MirExpr::Var(ok_dest)
             }
             AstNode::DictLit { entries } => {
+                let dict_ty = self.resolver.infer_type(node);
+                let (k_ty_str, v_ty_str) = if let Type::Named { params, .. } = &dict_ty {
+                    if params.len() == 2 {
+                        (params[0].to_string(), params[1].to_string())
+                    } else {
+                        ("i64".to_string(), "i64".to_string())
+                    }
+                } else {
+                    ("i64".to_string(), "i64".to_string())
+                };
+                let new_fn = format!("map_new_{}_{}", k_ty_str, v_ty_str);
+                let insert_fn = format!("map_insert_{}_{}", k_ty_str, v_ty_str);
                 let dest = self.next_id();
                 out.push(MirStmt::Call {
-                    func: "map_new".to_string(),
+                    func: new_fn,
                     args: vec![],
                     dest,
+                    type_args: vec![],
                 });
                 for (k, v) in entries {
                     let k_expr = self.gen_expr(k, exprs, out);
@@ -362,22 +390,34 @@ impl MirGen {
                     let v_expr = self.gen_expr(v, exprs, out);
                     let v_id = self.materialize(v_expr, exprs, out);
                     out.push(MirStmt::VoidCall {
-                        func: "map_insert".to_string(),
+                        func: insert_fn.clone(),
                         args: vec![dest, k_id, v_id],
                     });
                 }
                 MirExpr::Var(dest)
             }
             AstNode::Subscript { base, index } => {
+                let base_ty = self.resolver.infer_type(node);
+                let (k_ty_str, _) = if let Type::Named { params, .. } = &base_ty {
+                    if params.len() == 2 {
+                        (params[0].to_string(), params[1].to_string())
+                    } else {
+                        ("i64".to_string(), "i64".to_string())
+                    }
+                } else {
+                    ("i64".to_string(), "i64".to_string())
+                };
+                let get_fn = format!("map_get_{}", k_ty_str);
                 let base_expr = self.gen_expr(base.as_ref(), exprs, out);
                 let base_id = self.materialize(base_expr, exprs, out);
                 let index_expr = self.gen_expr(index.as_ref(), exprs, out);
                 let index_id = self.materialize(index_expr, exprs, out);
                 let dest = self.next_id();
                 out.push(MirStmt::Call {
-                    func: "map_get".to_string(),
+                    func: get_fn,
                     args: vec![base_id, index_id],
                     dest,
+                    type_args: vec![],
                 });
                 MirExpr::Var(dest)
             }
@@ -449,7 +489,7 @@ impl Mir {
     pub fn optimize_ctfe(&mut self) {
         let mut i = 0;
         while i < self.stmts.len() {
-            if let MirStmt::Call { func, args, dest } = &mut self.stmts[i] {
+            if let MirStmt::Call { func, args, dest, .. } = &mut self.stmts[i] {
                 // If call to semiring op with all const args, fold
                 if func == "add" || func == "mul" {
                     let op = if func == "add" {
