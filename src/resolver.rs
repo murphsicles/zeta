@@ -436,7 +436,8 @@ impl Resolver {
                 }
                 for stmt in body {
                     let ty = self.infer_type(stmt);
-                    if !self.borrow_checker.check(stmt, self) {
+                    let resolver_ref: &Resolver = self;
+                    if !self.borrow_checker.check(stmt, resolver_ref) {
                         ok = false;
                     }
                     if self.check_abi(stmt).is_err() {
