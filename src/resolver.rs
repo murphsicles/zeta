@@ -99,6 +99,8 @@ pub struct Resolver {
     func_sigs: FuncMap,
     /// Integrated borrow checker.
     borrow_checker: BorrowChecker,
+    /// Map from (type, method) to (concept, sig) for resolution.
+    trait_methods: HashMap<(Type, String), (String, MethodSig)>,
 }
 impl Default for Resolver {
     fn default() -> Self {
@@ -113,12 +115,14 @@ impl Resolver {
             type_env: HashMap::new(),
             func_sigs: HashMap::new(),
             borrow_checker: BorrowChecker::new(),
+            trait_methods: HashMap::new(),
         };
         // Fast-path: i64 implements Addable
         let mut addable = HashMap::new();
         addable.insert("add".to_string(), (vec![Type::I64], Type::I64));
         r.direct_impls
             .insert(("Addable".to_string(), Type::I64), addable);
+        r.trait_methods.insert((Type::I64, "add".to_string()), ("Addable".to_string(), (vec![Type::I64], Type::I64)));
         // Builtin StrOps for unified strings - expanded
         let mut str_ops = HashMap::new();
         str_ops.insert("len".to_string(), (vec![], Type::I64));
@@ -140,138 +144,72 @@ impl Resolver {
         str_ops.insert("as_bytes".to_string(), (vec![], Type::VecU8));
         r.direct_impls
             .insert(("StrOps".to_string(), Type::Str), str_ops);
-        // Auto-import prelude for Result and Map (assume i64 for key/val/err)
-        let result_ty = Type::Result(Box::new(Type::I64), Box::new(Type::I64));
-        r.func_sigs.insert(
-            "result_make_ok".to_string(),
-            (vec![("data".to_string(), Type::I64)], result_ty.clone()),
-        );
-        r.func_sigs.insert(
-            "result_make_err".to_string(),
-            (vec![("err".to_string(), Type::I64)], result_ty.clone()),
-        );
-        r.func_sigs.insert(
-            "result_is_ok".to_string(),
-            (vec![("res".to_string(), result_ty.clone())], Type::Bool),
-        );
-        r.func_sigs.insert(
-            "result_get_data".to_string(),
-            (vec![("res".to_string(), result_ty.clone())], Type::I64),
-        );
-        r.func_sigs.insert(
-            "result_free".to_string(),
-            (
-                vec![("res".to_string(), result_ty)],
-                Type::Named("()".to_string()),
-            ),
-        );
-        let map_ty = Type::Map(Box::new(Type::I64), Box::new(Type::I64));
-        r.func_sigs
-            .insert("map_new".to_string(), (vec![], map_ty.clone()));
-        r.func_sigs.insert(
-            "map_insert".to_string(),
-            (
-                vec![
-                    ("map".to_string(), map_ty.clone()),
-                    ("key".to_string(), Type::I64),
-                    ("val".to_string(), Type::I64),
-                ],
-                Type::Named("()".to_string()),
-            ),
-        );
-        r.func_sigs.insert(
-            "map_get".to_string(),
-            (
-                vec![
-                    ("map".to_string(), map_ty.clone()),
-                    ("key".to_string(), Type::I64),
-                ],
-                Type::I64,
-            ),
-        );
-        r.func_sigs.insert(
-            "map_free".to_string(),
-            (
-                vec![("map".to_string(), map_ty)],
-                Type::Named("()".to_string()),
-            ),
-        );
+        // Insert into trait_methods
+        r.trait_methods.insert((Type::Str, "len".to_string()), ("StrOps".to_string(), (vec![], Type::I64)));
+        r.trait_methods.insert((Type::Str, "concat".to_string()), ("StrOps".to_string(), (vec![Type::Str], Type::Str)));
+        r.trait_methods.insert((Type::Str, "contains".to_string()), ("StrOps".to_string(), (vec![Type::Str], Type::Bool)));
+        r.trait_methods.insert((Type::Str, "trim".to_string()), ("StrOps".to_string(), (vec![], Type::Str)));
+        r.trait_methods.insert((Type::Str, "split".to_string()), ("StrOps".to_string(), (vec![Type::Str], Type::Named("Vec<str>".to_string()))));
+        r.trait_methods.insert((Type::Str, "to_lowercase".to_string()), ("StrOps".to_string(), (vec![], Type::Str)));
+        r.trait_methods.insert((Type::Str, "replace".to_string()), ("StrOps".to_string(), (vec![Type::Str, Type::Str], Type::Str)));
+        r.trait_methods.insert((Type::Str, "starts_with".to_string()), ("StrOps".to_string(), (vec![Type::Str], Type::Bool)));
+        r.trait_methods.insert((Type::Str, "ends_with".to_string()), ("StrOps".to_string(), (vec![Type::Str], Type::Bool)));
+        r.trait_methods.insert((Type::Str, "as_bytes".to_string()), ("StrOps".to_string(), (vec![], Type::VecU8)));
         r
     }
-    /// Looks up method signature for receiver type and arguments.
-    fn lookup_method(
-        &self,
-        recv_ty: Option<&Type>,
-        method: &str,
-        arg_tys: &[Type],
-    ) -> Option<Type> {
-        if let Some(ty) = recv_ty {
-            if let Some(impls) = self.direct_impls.get(&("Addable".to_string(), ty.clone()))
-                && let Some(sig) = impls.get(method)
-                && sig.0 == *arg_tys
-            {
-                return Some(sig.1.clone());
-            }
-            if let Some(impls) = self.direct_impls.get(&("StrOps".to_string(), ty.clone()))
-                && let Some(sig) = impls.get(method)
-                && sig.0 == *arg_tys
-            {
-                return Some(sig.1.clone());
-            }
-        }
-        None
-    }
-    /// Registers function signatures and implementations.
+    /// Registers definitions for resolution.
     pub fn register(&mut self, ast: AstNode) {
         match ast {
-            AstNode::FuncDef {
-                name, params, ret, ..
-            } => {
-                let param_tys = params
-                    .iter()
-                    .map(|(n, t)| (n.clone(), Type::Named(t.clone())))
-                    .collect();
-                let ret_ty = Type::Named(ret);
-                self.func_sigs.insert(name, (param_tys, ret_ty));
+            AstNode::ConceptDef { methods, .. } => {
+                // Concepts don't need registration beyond methods; sigs checked in impls
+                for _m in methods {
+                    // Potential: store concept methods for validation
+                }
             }
             AstNode::ImplBlock { concept, ty, body } => {
                 let ty = Type::Named(ty);
                 let mut methods = HashMap::new();
                 for m in body {
-                    if let AstNode::Method {
-                        name, params, ret, ..
-                    } = m
-                    {
-                        let param_tys =
-                            params.iter().map(|(_, t)| Type::Named(t.clone())).collect();
-                        methods.insert(name, (param_tys, Type::Named(ret)));
+                    if let AstNode::Method { name, params, ret, .. } = m {
+                        let ptypes: Vec<Type> = params.iter().map(|(_, t)| Type::Named(t.clone())).collect();
+                        let ret_ty = Type::Named(ret);
+                        methods.insert(name.clone(), (ptypes.clone(), ret_ty.clone()));
+                        self.trait_methods.insert((ty.clone(), name), (concept.clone(), (ptypes, ret_ty)));
                     }
                 }
                 self.direct_impls.insert((concept, ty), methods);
             }
+            AstNode::FuncDef { name, params, ret, .. } => {
+                let ptypes: Vec<(String, Type)> = params.iter().map(|(n, t)| (n.clone(), Type::Named(t.clone()))).collect();
+                self.func_sigs.insert(name, (ptypes, Type::Named(ret)));
+            }
+            AstNode::EnumDef { name, .. } => {
+                self.type_env.insert(name, Type::Named("enum".to_string())); // Stub
+            }
+            AstNode::StructDef { name, .. } => {
+                self.type_env.insert(name, Type::Named("struct".to_string())); // Stub
+            }
             _ => {}
         }
     }
-    /// Infers type for an AST node.
-    pub fn infer_type(&self, node: &AstNode) -> Type {
+    /// Infers the type of an AST node.
+    pub fn infer_type(&mut self, node: &AstNode) -> Type {
         match node {
             AstNode::Lit(_) => Type::I64,
             AstNode::StringLit(_) => Type::Str,
-            AstNode::FString(parts) => {
-                for part in parts {
-                    let _ = self.infer_type(part);
-                }
-                Type::Str
-            }
-            AstNode::Var(v) => self.type_env.get(v).cloned().unwrap_or(Type::Unknown),
+            AstNode::FString(_) => Type::Str,
+            AstNode::Var(name) => self.type_env.get(name).cloned().unwrap_or(Type::Unknown),
             AstNode::BinaryOp { op, left, right } => {
                 let lty = self.infer_type(left);
                 let rty = self.infer_type(right);
-                if op == "concat"
-                    && (lty == Type::Str || lty == Type::StrRef)
-                    && (rty == Type::Str || rty == Type::StrRef)
-                {
-                    Type::Str
+                if op == "+" || op == "-" || op == "*" || op == "/" {
+                    if lty == Type::I64 && rty == Type::I64 {
+                        Type::I64
+                    } else {
+                        Type::Unknown
+                    }
+                } else if op == "==" || op == "!=" || op == "<" || op == ">" || op == "<=" || op == ">=" {
+                    Type::Bool
                 } else {
                     Type::Unknown
                 }
@@ -280,30 +218,31 @@ impl Resolver {
                 receiver,
                 method,
                 args,
-                structural,
                 ..
             } => {
-                let recv_ty = receiver.as_ref().map(|r| self.infer_type(r));
-                let arg_tys: Vec<Type> = args.iter().map(|a| self.infer_type(a)).collect();
-                if *structural {
-                    // Structural: allow ad-hoc for string-like
-                    Type::Str // Assume for str
+                if let Some(rec) = receiver {
+                    let rec_ty = self.infer_type(rec);
+                    if let Some((_, sig)) = self.trait_methods.get(&(rec_ty.clone(), method.clone())) {
+                        sig.1.clone()
+                    } else {
+                        Type::Unknown
+                    }
                 } else {
-                    self.lookup_method(recv_ty.as_ref(), method, &arg_tys)
-                        .unwrap_or(Type::Unknown)
+                    // Static func call
+                    if let Some(sig) = self.func_sigs.get(method) {
+                        sig.1.clone()
+                    } else {
+                        Type::Unknown
+                    }
                 }
             }
+            AstNode::Spawn { .. } => Type::I64, // Actor ID
             AstNode::TimingOwned { inner, .. } => {
-                Type::TimingOwned(Box::new(self.infer_type(inner)))
+                let inner_ty = self.infer_type(inner);
+                Type::TimingOwned(Box::new(inner_ty))
             }
-            AstNode::TryProp { expr } => {
-                let ty = self.infer_type(expr);
-                if let Type::Result(ok, _) = ty {
-                    *ok
-                } else {
-                    Type::Unknown
-                }
-            }
+            AstNode::Defer(_) => Type::Unknown,
+            AstNode::TryProp { expr } => self.infer_type(expr),
             AstNode::DictLit { entries } => {
                 if entries.is_empty() {
                     Type::Map(Box::new(Type::Unknown), Box::new(Type::Unknown))
