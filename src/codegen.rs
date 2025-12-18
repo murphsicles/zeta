@@ -174,10 +174,16 @@ impl<'ctx> LLVMCodegen<'ctx> {
     }
     /// Generates a function declaration from MIR, applying monomorphization.
     fn gen_fn(&mut self, mir: &Mir, name: &str) -> inkwell::values::FunctionValue<'ctx> {
-        // Use specialization for mono
+        // Extract type args from MIR (stub: assume from locals or external; for now, use mir.name or placeholder)
+        let type_args = if let Some(mir_name) = &mir.name {
+            // Placeholder logic: extract from name if mangled, or query resolver; stub as empty
+            vec![] // TODO: Implement proper extraction, e.g., from ast generics via resolver
+        } else {
+            vec![]
+        };
         let key = MonoKey {
             func_name: name.to_string(),
-            type_args: vec![], // Stub: from generics
+            type_args,
         };
         let mangled = if let Some(val) = lookup_specialization(&key) {
             val.llvm_func_name
