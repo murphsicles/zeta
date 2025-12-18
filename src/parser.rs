@@ -9,7 +9,7 @@ use nom::bytes::complete::{tag, take_while1};
 use nom::character::complete::{alpha1, alphanumeric0, i64 as nom_i64, multispace0};
 use nom::combinator::{map, opt, value};
 use nom::multi::{many0, many1, separated_list1};
-use nom::sequence::{delimited, pair, preceded};
+use nom::sequence::{delimited, pair, preceded, terminated};
 use nom::{IResult, Parser};
 #[allow(dead_code)]
 type FnParse = (
@@ -135,7 +135,7 @@ fn parse_paren_expr(input: &str) -> IResult<&str, AstNode> {
 }
 /// Parses primary expressions: literals, variables, strings, f-strings, dictionaries, or parenthesized expressions.
 fn parse_primary(input: &str) -> IResult<&str, AstNode> {
-    alt((alt((parse_literal, parse_string_lit, parse_fstring)), alt((parse_variable, parse_dict_lit, parse_paren_expr))))(input)
+    alt((parse_literal, parse_string_lit, parse_fstring, parse_variable, parse_dict_lit, parse_paren_expr))(input)
 }
 /// Parses subscript: base[index].
 fn parse_subscript(input: &str) -> IResult<&str, AstNode> {
@@ -151,7 +151,7 @@ fn parse_subscript(input: &str) -> IResult<&str, AstNode> {
 }
 /// Parses a postfix expression: primary, call, or subscript.
 fn parse_postfix(input: &str) -> IResult<&str, AstNode> {
-    let (mut input, mut base) = delimited(multispace0, alt((parse_subscript, parse_primary)), multispace0)(input)?;
+    let (mut input, mut base) = delimited(multispace0, alt((parse_subscript, parse_primary)), multispace0).parse(input)?;
     loop {
         if let Ok((new_input, (args, type_args))) = delimited(
             ws(tag("(")),
@@ -250,7 +250,7 @@ fn parse_return(input: &str) -> IResult<&str, AstNode> {
 }
 /// Parses an assignment: lhs = rhs;.
 fn parse_assign(input: &str) -> IResult<&str, AstNode> {
-    let (input, lhs) = delimited(multispace0, alt((parse_variable, parse_subscript)), multispace0)(input)?;
+    let (input, lhs) = delimited(multispace0, alt((parse_variable, parse_subscript)), multispace0).parse(input)?;
     let (input, _) = ws(tag("=")).parse(input)?;
     let (input, rhs) = ws(parse_full_expr).parse(input)?;
     let (input, _) = ws(tag(";")).parse(input)?;
