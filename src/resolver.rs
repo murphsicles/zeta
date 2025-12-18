@@ -271,7 +271,7 @@ impl Resolver {
         }
     }
     /// Infers the type of an AST node.
-    pub fn infer_type(&mut self, node: &AstNode) -> Type {
+    pub fn infer_type(&self, node: &AstNode) -> Type {
         match node {
             AstNode::Lit(_) => Type::primitive("i64"),
             AstNode::StringLit(_) => Type::primitive("str"),
@@ -444,8 +444,8 @@ impl Resolver {
                     }
                     // Insert local types to env after check
                     if let AstNode::Assign(lhs, _) = stmt {
-                        if let AstNode::Var(v) = **lhs {
-                            self.type_env.insert(v, ty);
+                        if let AstNode::Var(ref v) = **lhs {
+                            self.type_env.insert(v.clone(), ty);
                         }
                     }
                 }
