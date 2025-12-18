@@ -3,6 +3,7 @@
 //! Enforces affine type rules with speculative states for concurrency safety.
 //! Tracks ownership, borrows, and moves to prevent memory errors.
 use crate::ast::AstNode;
+use crate::resolver::{Resolver, Type};
 use std::collections::HashMap;
 /// Represents the borrow state of a variable.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -35,6 +36,8 @@ pub struct BorrowChecker {
     affine_moves: HashMap<String, bool>,
     /// Variable to speculative state mapping.
     speculative: HashMap<String, SpeculativeState>,
+    /// Variable to type mapping.
+    types: HashMap<String, Type>,
 }
 impl Default for BorrowChecker {
     fn default() -> Self {
@@ -48,36 +51,39 @@ impl BorrowChecker {
             borrows: HashMap::new(),
             affine_moves: HashMap::new(),
             speculative: HashMap::new(),
+            types: HashMap::new(),
         }
     }
-    /// Declares a variable with initial state.
-    pub fn declare(&mut self, var: String, state: BorrowState) {
+    /// Declares a variable with initial state and type.
+    pub fn declare(&mut self, var: String, state: BorrowState, ty: Type) {
         self.borrows.insert(var.clone(), state);
         self.affine_moves.insert(var.clone(), false);
-        self.speculative.insert(var, SpeculativeState::Safe);
+        self.speculative.insert(var.clone(), SpeculativeState::Safe);
+        self.types.insert(var, ty);
     }
     /// Validates borrow rules for an AST node and updates states.
     /// Returns true if valid, false on violation.
-    pub fn check(&mut self, node: &AstNode) -> bool {
+    pub fn check(&mut self, node: &AstNode, resolver: &Resolver) -> bool {
         match node {
             AstNode::Var(v) => self
                 .borrows
                 .get(v)
                 .is_none_or(|s| matches!(s, BorrowState::Owned | BorrowState::Borrowed)),
             AstNode::Assign(lhs, rhs) => {
-                if !self.check(rhs) {
+                if !self.check(rhs, resolver) {
                     return false;
                 }
                 match **lhs {
                     AstNode::Var(ref v) => {
-                        self.declare(v.clone(), BorrowState::Owned);
+                        let ty = resolver.infer_type(rhs);
+                        self.declare(v.clone(), BorrowState::Owned, ty);
                         true
                     }
                     AstNode::Subscript {
                         ref base,
                         ref index,
                     } => {
-                        if !self.check(base) || !self.check(index) {
+                        if !self.check(base, resolver) || !self.check(index, resolver) {
                             return false;
                         }
                         if let AstNode::Var(ref name) = **base
@@ -93,40 +99,40 @@ impl BorrowChecker {
                     _ => false,
                 }
             }
-            AstNode::BinaryOp { left, right, .. } => self.check(left) && self.check(right),
-            AstNode::FString(parts) => parts.iter().all(|p| self.check(p)),
-            AstNode::TimingOwned { inner, .. } => self.check(inner),
-            AstNode::Defer(inner) => self.check(inner),
+            AstNode::BinaryOp { left, right, .. } => self.check(left, resolver) && self.check(right, resolver),
+            AstNode::FString(parts) => parts.iter().all(|p| self.check(p, resolver)),
+            AstNode::TimingOwned { inner, .. } => self.check(inner, resolver),
+            AstNode::Defer(inner) => self.check(inner, resolver),
             AstNode::Call { receiver, args, .. } => {
                 if let Some(r) = receiver.as_ref()
-                    && !self.check(r)
+                    && !self.check(r, resolver)
                 {
                     return false;
                 }
                 for arg in args {
-                    if !self.check(arg) {
+                    if !self.check(arg, resolver) {
                         return false;
                     }
-                    // Implicit borrow for str args
+                    // Type-based affine move
                     if let AstNode::Var(name) = arg
-                        && let Some(state) = self.borrows.get(name)
+                        && let Some(ty) = self.types.get(name)
                     {
-                        if *state == BorrowState::Owned && name.ends_with("_str") { // Stub for str
-                            // Allow implicit borrow without consume
-                        } else if !*self.affine_moves.get(name).unwrap_or(&false) {
-                            *self.affine_moves.entry(name.clone()).or_insert(false) = true;
-                            self.borrows.insert(name.clone(), BorrowState::Consumed);
+                        if !resolver.is_copy(ty) {
+                            if !*self.affine_moves.get(name).unwrap_or(&false) {
+                                *self.affine_moves.entry(name.clone()).or_insert(false) = true;
+                                self.borrows.insert(name.clone(), BorrowState::Consumed);
+                            }
                         }
                     }
                 }
                 true
             }
-            AstNode::TryProp { expr } => self.check(expr),
+            AstNode::TryProp { expr } => self.check(expr, resolver),
             AstNode::DictLit { entries } => {
-                entries.iter().all(|(k, v)| self.check(k) && self.check(v))
+                entries.iter().all(|(k, v)| self.check(k, resolver) && self.check(v, resolver))
             }
-            AstNode::Subscript { base, index } => self.check(base) && self.check(index),
-            AstNode::Return(inner) => self.check(inner),
+            AstNode::Subscript { base, index } => self.check(base, resolver) && self.check(index, resolver),
+            AstNode::Return(inner) => self.check(inner, resolver),
             _ => true,
         }
     }
