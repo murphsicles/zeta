@@ -1,7 +1,7 @@
 // src/plan.rs
 //! Zeta Compiler Development Plan.
 //! Checklist for milestones. Mark as [x] when complete.
-//! Updated Dec 18, 2025: Completed tasks cleared; new stubs added for future work.
+//! Updated Dec 18, 2025: Actor runtime stubs addressed [x]; improved generics and error prop handling.
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
@@ -24,7 +24,6 @@ pub mod checklist {
     /// Codegen (LLVM)
     pub const CODEGEN: &str = r#"
 [ ] Extract actual generics for monomorphization type args
-[ ] Context-aware current function tracking for param init
 [ ] Implement mul in SemiringOp vectorized/scalar folds
 [ ] Define actual "str_concat" intrinsic or logic
 [ ] Execute LLVM passes from MLGO recommendations
@@ -37,10 +36,10 @@ pub mod checklist {
     "#;
     /// Concurrency/Std
     pub const ACTORS_STD: &str = r#"
-[ ] Global channel map in host send/recv by chan_id
-[ ] Real reqwest integration for HTTP host functions
-[ ] TLS library (e.g., rustls) for handshake host
-[ ] Map spawn to actual actor entries by func_id
+[x] Global channel map in host send/recv by chan_id
+[x] Real reqwest integration for HTTP host functions
+[x] TLS library (e.g., rustls) for handshake host
+[x] Map spawn to actual actor entries by func_id
 [ ] Error handling if scheduler not initialized
     "#;
     /// Bootstrap/Self-host
