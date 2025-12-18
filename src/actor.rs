@@ -14,6 +14,7 @@ use tokio::sync::{Mutex, mpsc};
 use tokio::task;
 type Message = i64;
 /// Global counter for unique channel IDs.
+#[allow(dead_code)]
 static CHANNEL_ID_COUNTER: AtomicI64 = AtomicI64::new(0);
 /// Global map of channel IDs to channels.
 static CHANNEL_MAP: OnceLock<Arc<Mutex<HashMap<i64, Channel>>>> = OnceLock::new();
@@ -56,10 +57,12 @@ impl Channel {
     }
 }
 /// Initializes the global channel map.
+#[allow(dead_code)]
 fn init_channel_map() {
     let _ = CHANNEL_MAP.set(Arc::new(Mutex::new(HashMap::new())));
 }
 /// Registers a channel and returns its ID.
+#[allow(dead_code)]
 fn register_channel(chan: Channel) -> i64 {
     init_channel_map();
     let id = CHANNEL_ID_COUNTER.fetch_add(1, Ordering::SeqCst);
@@ -142,6 +145,7 @@ pub unsafe extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i6
 /// Global map of function IDs to actor entry functions.
 static FUNC_MAP: OnceLock<Arc<Mutex<HashMap<i64, Box<dyn FnOnce(Channel) + Send + 'static>>>>> = OnceLock::new();
 /// Registers an actor entry function and returns its ID.
+#[allow(dead_code)]
 fn register_func(f: impl FnOnce(Channel) + Send + 'static) -> i64 {
     let _ = FUNC_MAP.set(Arc::new(Mutex::new(HashMap::new())));
     let id = CHANNEL_ID_COUNTER.fetch_add(1, Ordering::SeqCst); // Reuse counter for simplicity
