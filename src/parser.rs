@@ -135,7 +135,7 @@ fn parse_paren_expr(input: &str) -> IResult<&str, AstNode> {
 }
 /// Parses primary expressions: literals, variables, strings, f-strings, dictionaries, or parenthesized expressions.
 fn parse_primary(input: &str) -> IResult<&str, AstNode> {
-    alt((parse_literal, parse_string_lit, parse_fstring, parse_variable, parse_dict_lit, parse_paren_expr))(input)
+    alt((alt((parse_literal, parse_string_lit)), alt((parse_fstring, parse_variable)), alt((parse_dict_lit, parse_paren_expr))))(input)
 }
 /// Parses subscript: base[index].
 fn parse_subscript(input: &str) -> IResult<&str, AstNode> {
