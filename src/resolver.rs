@@ -223,6 +223,53 @@ impl Resolver {
             _ => {}
         }
     }
+    /// Collects used specializations from calls.
+    pub fn collect_used_specializations(&self, asts: &[AstNode]) -> HashMap<String, Vec<Vec<String>>> {
+        let mut used = HashMap::new();
+        for ast in asts {
+            if let AstNode::FuncDef { body, .. } = ast {
+                for stmt in body {
+                    self.collect_from_node(stmt, &mut used);
+                }
+            }
+        }
+        used
+    }
+    /// Helper to collect from node recursively.
+    fn collect_from_node(&self, node: &AstNode, used: &mut HashMap<String, Vec<Vec<String>>>) {
+        match node {
+            AstNode::Call { method, type_args, .. } if !type_args.is_empty() => {
+                used.entry(method.clone())
+                    .or_insert(vec![])
+                    .push(type_args.clone());
+            }
+            AstNode::BinaryOp { left, right, .. } => {
+                self.collect_from_node(left, used);
+                self.collect_from_node(right, used);
+            }
+            AstNode::FString(parts) => {
+                for p in parts {
+                    self.collect_from_node(p, used);
+                }
+            }
+            AstNode::TimingOwned { inner, .. } => self.collect_from_node(inner, used),
+            AstNode::Defer(inner) => self.collect_from_node(inner, used),
+            AstNode::TryProp { expr, .. } => self.collect_from_node(expr, used),
+            AstNode::DictLit { entries } => {
+                for (k, v) in entries {
+                    self.collect_from_node(k, used);
+                    self.collect_from_node(v, used);
+                }
+            }
+            AstNode::Subscript { base, index, .. } => {
+                self.collect_from_node(base, used);
+                self.collect_from_node(index, used);
+            }
+            AstNode::Return(inner) => self.collect_from_node(inner, used),
+            AstNode::Assign(_, rhs) => self.collect_from_node(rhs, used),
+            _ => {}
+        }
+    }
     /// Infers the type of an AST node.
     pub fn infer_type(&mut self, node: &AstNode) -> Type {
         match node {
@@ -423,6 +470,7 @@ impl Resolver {
                 func: f1,
                 args: a1,
                 dest: d1,
+                ..
             } = &mir.stmts[i]
             {
                 if f1.as_str() != "add" {
@@ -433,6 +481,7 @@ impl Resolver {
                     func: f2,
                     args: a2,
                     dest: d2,
+                    ..
                 } = &mir.stmts[i + 1]
                     && f2.as_str() == "add"
                     && a2[0] == *d1
