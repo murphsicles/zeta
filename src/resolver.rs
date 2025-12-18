@@ -154,6 +154,18 @@ impl Resolver {
         r.trait_methods.insert((str_ty, "as_bytes".to_string()), ("StrOps".to_string(), (vec![], Type::Named { name: "Vec".to_string(), params: vec![Type::primitive("u8")] })));
         r
     }
+    /// Determines if a type is Copy.
+    pub fn is_copy(&self, ty: &Type) -> bool {
+        if let Type::Named { name, params } = ty {
+            if params.is_empty() {
+                matches!(name.as_str(), "i64" | "f32" | "bool")
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
     /// Parses a type string to a Type.
     pub fn parse_type_str(&self, s: &str) -> Type {
         let trimmed = s.trim();
@@ -238,7 +250,7 @@ impl Resolver {
             AstNode::Call {
                 receiver,
                 method,
-                args,
+                args: _,
                 ..
             } => {
                 if let Some(rec) = receiver {
@@ -305,6 +317,7 @@ impl Resolver {
                 }
             }
             AstNode::Return(inner) => self.infer_type(inner),
+            AstNode::Assign(_, rhs) => self.infer_type(rhs),
             _ => Type::Unknown,
         }
     }
@@ -357,9 +370,9 @@ impl Resolver {
             if let AstNode::FuncDef { name, body, .. } = ast {
                 self.borrow_checker = BorrowChecker::new();
                 if let Some(sig) = self.func_sigs.get(name) {
-                    for (pname, _) in &sig.0 {
+                    for (pname, pty) in &sig.0 {
                         self.borrow_checker
-                            .declare(pname.clone(), crate::borrow::BorrowState::Owned);
+                            .declare(pname.clone(), crate::borrow::BorrowState::Owned, pty.clone());
                     }
                     let fn_ret = &sig.1;
                     let has_prop = body.iter().any(|stmt| self.has_try_prop(stmt));
@@ -376,12 +389,17 @@ impl Resolver {
                 }
                 for stmt in body {
                     let ty = self.infer_type(stmt);
-                    self.type_env.insert("temp".to_string(), ty); // Temp for checks
-                    if !self.borrow_checker.check(stmt) {
+                    if !self.borrow_checker.check(stmt, self) {
                         ok = false;
                     }
                     if self.check_abi(stmt).is_err() {
                         ok = false;
+                    }
+                    // Insert local types to env after check
+                    if let AstNode::Assign(lhs, _) = stmt {
+                        if let AstNode::Var(v) = **lhs {
+                            self.type_env.insert(v, ty);
+                        }
                     }
                 }
             }
