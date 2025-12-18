@@ -17,7 +17,7 @@ pub mod checklist {
     "#;
     /// MIR (Mid-level IR)
     pub const MIR: &str = r#"
-[ ] Generic Result handling in error propagation
+[x] Generic Result handling in error propagation
 [ ] Type-based determination for affine moves in calls
 [ ] Generic support for DictLit/Subscript keys/values
     "#;
