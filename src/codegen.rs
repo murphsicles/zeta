@@ -24,7 +24,7 @@ use inkwell::module::{Linkage, Module};
 use inkwell::support::LLVMString;
 use inkwell::types::{BasicMetadataTypeEnum, IntType, PointerType, VectorType};
 use inkwell::values::{
-    BasicMetadataValueEnum, BasicValue, BasicValueEnum, PointerValue, FunctionValue, CallSiteValue,
+    BasicMetadataValueEnum, BasicValue, BasicValueEnum, PointerValue, FunctionValue, ValueKind,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -193,7 +193,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .map(|&id| self.load_local(id).into())
                     .collect();
                 let call = self.builder.build_call(callee_fn, &arg_vals, "call").unwrap();
-                if let Some(basic_val) = call.try_as_basic_value().right() {
+                if let ValueKind::Basic(basic_val) = call.try_as_basic_value() {
                     let alloca = self.builder.build_alloca(self.i64_type, &format!("call_{dest}")).unwrap();
                     self.builder.build_store(alloca, basic_val).unwrap();
                     self.locals.insert(*dest, alloca);
@@ -287,7 +287,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         .builder
                         .build_call(concat_fn, &[res.into(), next.into()], "fconcat")
                         .unwrap();
-                    res = call.try_as_basic_value().right().expect("basic");
+                    res = if let ValueKind::Basic(basic_val) = call.try_as_basic_value() { basic_val } else { panic!("expected basic") };
                 }
                 res
             }
