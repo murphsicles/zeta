@@ -129,6 +129,10 @@ fn parse_dict_lit(input: &str) -> IResult<&str, AstNode> {
     )
     .parse(input)
 }
+/// Parses parenthesized expression.
+fn parse_paren_expr(input: &str) -> IResult<&str, AstNode> {
+    delimited(ws(tag("(")), ws(parse_full_expr), ws(tag(")"))).parse(input)
+}
 /// Parses primary expressions: literals, variables, strings, f-strings, dictionaries, or parenthesized expressions.
 fn parse_primary(input: &str) -> IResult<&str, AstNode> {
     alt((
@@ -137,7 +141,7 @@ fn parse_primary(input: &str) -> IResult<&str, AstNode> {
         parse_fstring,
         parse_variable,
         parse_dict_lit,
-        delimited(ws(tag("(")), ws(parse_full_expr), ws(tag(")"))),
+        parse_paren_expr,
     ))(input)
 }
 /// Parses subscript: base[index].
@@ -274,13 +278,17 @@ fn parse_full_expr(input: &str) -> IResult<&str, AstNode> {
         parse_binary,
     ))(input)
 }
+/// Parses expression statement: expr;.
+fn parse_expr_stmt(input: &str) -> IResult<&str, AstNode> {
+    map(preceded(ws(parse_full_expr), ws(tag(";"))), |e| e).parse(input)
+}
 /// Parses a statement: defer, return, assign, or expr;.
 fn parse_stmt(input: &str) -> IResult<&str, AstNode> {
     alt((
         parse_defer,
         parse_return,
         parse_assign,
-        map(preceded(ws(parse_full_expr), ws(tag(";"))), |e| e),
+        parse_expr_stmt,
     ))(input)
 }
 /// Parses generics: <Type, Type>.
