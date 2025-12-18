@@ -113,12 +113,10 @@ pub unsafe extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
     if let Ok(url_str) = unsafe { CStr::from_ptr(url) }.to_str() {
         let client = Client::new();
         match client.get(url_str).send() {
-            Ok(resp) if resp.status().is_success() => {
-                match resp.text() {
-                    Ok(body) => body.len() as i64,
-                    Err(_) => -1,
-                }
-            }
+            Ok(resp) if resp.status().is_success() => match resp.text() {
+                Ok(body) => body.len() as i64,
+                Err(_) => -1,
+            },
             _ => -1,
         }
     } else {
