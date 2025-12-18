@@ -129,7 +129,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let map_free_type = void_type.fn_type(&[ptr_type.into()], false);
         module.add_function("map_free", map_free_type, Some(Linkage::External));
         // TBAA metadata stub
-        let tbaa_const_time = context.md_string("const_time");
+        let tbaa_const_time = context.metadata_string("const_time");
         Self {
             context,
             module,
@@ -193,7 +193,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .map(|&id| self.load_local(id).into())
                     .collect();
                 let call = self.builder.build_call(callee_fn, &arg_vals, "call").unwrap();
-                if let Some(basic_val) = call.try_as_basic_value().left() {
+                if let Some(basic_val) = call.try_as_basic_value() {
                     let alloca = self.builder.build_alloca(self.i64_type, &format!("call_{dest}")).unwrap();
                     self.builder.build_store(alloca, basic_val).unwrap();
                     self.locals.insert(*dest, alloca);
@@ -216,8 +216,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 for &v in &values[1..] {
                     let right = self.load_local(v);
                     acc = match op {
-                        SemiringOp::Add => self.builder.build_int_add(acc.into_int_value(), right.into_int_value(), "fold_add").into(),
-                        SemiringOp::Mul => self.builder.build_int_mul(acc.into_int_value(), right.into_int_value(), "fold_mul").into(),
+                        SemiringOp::Add => self.builder.build_int_add(acc.into_int_value(), right.into_int_value(), "fold_add").unwrap().into(),
+                        SemiringOp::Mul => self.builder.build_int_mul(acc.into_int_value(), right.into_int_value(), "fold_mul").unwrap().into(),
                     };
                 }
                 let alloca = self.builder.build_alloca(self.i64_type, &format!("fold_{result}")).unwrap();
@@ -287,7 +287,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         .builder
                         .build_call(concat_fn, &[res.into(), next.into()], "fconcat")
                         .unwrap();
-                    res = call.try_as_basic_value().left().unwrap();
+                    res = call.try_as_basic_value().expect("basic");
                 }
                 res
             }
