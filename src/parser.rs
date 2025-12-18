@@ -151,7 +151,7 @@ fn parse_subscript(input: &str) -> IResult<&str, AstNode> {
 }
 /// Parses a postfix expression: primary, call, or subscript.
 fn parse_postfix(input: &str) -> IResult<&str, AstNode> {
-    let (mut input, mut base) = ws(alt((parse_subscript, parse_primary)))(input)?;
+    let (mut input, mut base) = delimited(multispace0, alt((parse_subscript, parse_primary)), multispace0)(input)?;
     loop {
         if let Ok((new_input, (args, type_args))) = delimited(
             ws(tag("(")),
@@ -250,7 +250,7 @@ fn parse_return(input: &str) -> IResult<&str, AstNode> {
 }
 /// Parses an assignment: lhs = rhs;.
 fn parse_assign(input: &str) -> IResult<&str, AstNode> {
-    let (input, lhs) = ws(alt((parse_variable, parse_subscript)))(input)?;
+    let (input, lhs) = delimited(multispace0, alt((parse_variable, parse_subscript)), multispace0)(input)?;
     let (input, _) = ws(tag("=")).parse(input)?;
     let (input, rhs) = ws(parse_full_expr).parse(input)?;
     let (input, _) = ws(tag(";")).parse(input)?;
@@ -268,7 +268,7 @@ fn parse_full_expr(input: &str) -> IResult<&str, AstNode> {
 }
 /// Parses expression statement: expr;.
 fn parse_expr_stmt(input: &str) -> IResult<&str, AstNode> {
-    map(preceded(ws(parse_full_expr), ws(tag(";"))), |e| e).parse(input)
+    map(terminated(ws(parse_full_expr), ws(tag(";"))), |e| e).parse(input)
 }
 /// Parses a statement: defer, return, assign, or expr;.
 fn parse_stmt(input: &str) -> IResult<&str, AstNode> {
