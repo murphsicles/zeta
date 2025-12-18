@@ -23,7 +23,7 @@ pub mod checklist {
     "#;
     /// Codegen (LLVM)
     pub const CODEGEN: &str = r#"
-[ ] Extract actual generics for monomorphization type args
+[x] Extract actual generics for monomorphization type args
 [ ] Implement mul in SemiringOp vectorized/scalar folds
 [ ] Define actual "str_concat" intrinsic or logic
 [ ] Execute LLVM passes from MLGO recommendations
