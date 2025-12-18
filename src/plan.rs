@@ -5,7 +5,7 @@
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
-[ ] Enums (enum Name { Variant, Variant(params) } - full variants with params)
+[x] Enums (enum Name { Variant, Variant(params) } - full variants with params)
     "#;
     /// Semantic Analysis
     pub const RESOLVER: &str = r#"
