@@ -142,8 +142,10 @@ pub unsafe extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i6
         -1i64
     }
 }
+/// Type alias for actor entry functions.
+type ActorEntry = Box<dyn FnOnce(Channel) + Send + 'static>;
 /// Global map of function IDs to actor entry functions.
-static FUNC_MAP: OnceLock<Arc<Mutex<HashMap<i64, Box<dyn FnOnce(Channel) + Send + 'static>>>>> = OnceLock::new();
+static FUNC_MAP: OnceLock<Arc<Mutex<HashMap<i64, ActorEntry>>>> = OnceLock::new();
 /// Registers an actor entry function and returns its ID.
 #[allow(dead_code)]
 fn register_func(f: impl FnOnce(Channel) + Send + 'static) -> i64 {
