@@ -19,7 +19,7 @@ pub mod checklist {
     pub const MIR: &str = r#"
 [x] Generic Result handling in error propagation
 [x] Type-based determination for affine moves in calls
-[ ] Generic support for DictLit/Subscript keys/values
+[x] Generic support for DictLit/Subscript keys/values
     "#;
     /// Codegen (LLVM)
     pub const CODEGEN: &str = r#"
