@@ -29,7 +29,10 @@ pub struct Mir {
 #[derive(Debug, Clone)]
 pub enum MirStmt {
     /// Assigns an expression to a local.
-    Assign { lhs: u32, rhs: MirExpr },
+    Assign {
+        lhs: u32,
+        rhs: MirExpr,
+    },
     /// Function call with return value.
     Call {
         func: String,
@@ -37,9 +40,14 @@ pub enum MirStmt {
         dest: u32,
     },
     /// Void function call.
-    VoidCall { func: String, args: Vec<u32> },
+    VoidCall {
+        func: String,
+        args: Vec<u32>,
+    },
     /// Return statement with value.
-    Return { val: u32 },
+    Return {
+        val: u32,
+    },
     /// Folds values using a semiring operation.
     SemiringFold {
         op: SemiringOp,
@@ -47,9 +55,14 @@ pub enum MirStmt {
         result: u32,
     },
     /// Initializes a parameter from an argument.
-    ParamInit { param_id: u32, arg_index: usize },
+    ParamInit {
+        param_id: u32,
+        arg_index: usize,
+    },
     /// Marks a local as consumed for affine types.
-    Consume { id: u32 },
+    Consume {
+        id: u32,
+    },
     /// Conditional branch statement.
     If {
         cond: u32,
@@ -155,7 +168,7 @@ impl MirGen {
                     let last_expr = self.gen_expr(last, &mut exprs, &mut stmts);
                     let last_id = self.materialize(last_expr, &mut exprs, &mut stmts);
                     // If fn ret is Result, wrap in make_ok
-                    let is_error_prop = ret == "Result<i64,i64>"; // Stub: assume based on ret string
+                    let is_error_prop = ret.starts_with("Result<"); // Improved: check if ret starts with "Result<" for generic
                     if is_error_prop {
                         let wrap_id = self.next_id();
                         stmts.push(MirStmt::Call {
