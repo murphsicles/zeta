@@ -311,7 +311,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 arg_index,
             } => {
                 // Get current function: assume last added or from context; stub uses first fn
-                let current_fn = self.builder.get_insert_block().and_then(|bb| bb.get_parent());
+                let current_fn = self
+                    .builder
+                    .get_insert_block()
+                    .and_then(|bb| bb.get_parent());
                 if let Some(fn_val) = current_fn {
                     let arg = fn_val
                         .get_nth_param((*arg_index) as u32)
