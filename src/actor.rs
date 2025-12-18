@@ -4,13 +4,19 @@
 //! Supports asynchronous non-blocking spawn and receive operations using Tokio tasks and MPSC channels.
 //! Includes host functions for result handling, map operations, and external interactions like HTTP and TLS.
 use num_cpus;
+use reqwest::blocking::Client;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::ffi::c_void;
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, OnceLock};
 use tokio::sync::{Mutex, mpsc};
 use tokio::task;
 type Message = i64;
+/// Global counter for unique channel IDs.
+static CHANNEL_ID_COUNTER: AtomicI64 = AtomicI64::new(0);
+/// Global map of channel IDs to channels.
+static CHANNEL_MAP: OnceLock<Arc<Mutex<HashMap<i64, Channel>>>> = OnceLock::new();
 /// Communication channel for actor messages, compatible with C representations.
 #[repr(C)]
 #[derive(Clone, Debug)]
@@ -49,20 +55,51 @@ impl Channel {
         rx.recv().await
     }
 }
+/// Initializes the global channel map.
+fn init_channel_map() {
+    let _ = CHANNEL_MAP.set(Arc::new(Mutex::new(HashMap::new())));
+}
+/// Registers a channel and returns its ID.
+fn register_channel(chan: Channel) -> i64 {
+    init_channel_map();
+    let id = CHANNEL_ID_COUNTER.fetch_add(1, Ordering::SeqCst);
+    if let Some(map) = CHANNEL_MAP.get() {
+        let mut guard = tokio::runtime::Runtime::new().unwrap().block_on(map.lock());
+        guard.insert(id, chan);
+    }
+    id
+}
+/// Looks up a channel by ID.
+async fn get_channel(id: i64) -> Option<Channel> {
+    if let Some(map) = CHANNEL_MAP.get() {
+        let guard = map.lock().await;
+        guard.get(&id).cloned()
+    } else {
+        None
+    }
+}
 /// Host function to send a message to a channel.
 /// # Safety
 /// No safety concerns as parameters are plain i64 values.
-pub unsafe extern "C" fn host_channel_send(_chan_id: i64, msg: i64) -> i64 {
-    let chan = Channel::new();
-    if chan.send(msg).is_ok() { 0 } else { -1 }
+pub unsafe extern "C" fn host_channel_send(chan_id: i64, msg: i64) -> i64 {
+    tokio::runtime::Runtime::new().unwrap().block_on(async {
+        if let Some(chan) = get_channel(chan_id).await {
+            if chan.send(msg).is_ok() { 0 } else { -1 }
+        } else {
+            -1
+        }
+    })
 }
 /// Host function to receive a message from a channel.
 /// # Safety
 /// No safety concerns as parameters are plain i64 values.
-pub unsafe extern "C" fn host_channel_recv(_chan_id: i64) -> i64 {
+pub unsafe extern "C" fn host_channel_recv(chan_id: i64) -> i64 {
     tokio::runtime::Runtime::new().unwrap().block_on(async {
-        let chan = Channel::new();
-        chan.recv().await.unwrap_or(0)
+        if let Some(chan) = get_channel(chan_id).await {
+            chan.recv().await.unwrap_or(0)
+        } else {
+            0
+        }
     })
 }
 /// Host function to perform an HTTP GET request and return response length.
@@ -71,7 +108,16 @@ pub unsafe extern "C" fn host_channel_recv(_chan_id: i64) -> i64 {
 pub unsafe extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
     use std::ffi::CStr;
     if let Ok(url_str) = unsafe { CStr::from_ptr(url) }.to_str() {
-        url_str.len() as i64
+        let client = Client::new();
+        match client.get(url_str).send() {
+            Ok(resp) if resp.status().is_success() => {
+                match resp.text() {
+                    Ok(body) => body.len() as i64,
+                    Err(_) => -1,
+                }
+            }
+            _ => -1,
+        }
     } else {
         -1i64
     }
@@ -81,19 +127,46 @@ pub unsafe extern "C" fn host_http_get(url: *const std::ffi::c_char) -> i64 {
 /// The `host` pointer must be a valid null-terminated C string.
 pub unsafe extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i64 {
     use std::ffi::CStr;
-    if unsafe { CStr::from_ptr(host) }.to_str().is_ok() {
-        0i64
+    if let Ok(host_str) = unsafe { CStr::from_ptr(host) }.to_str() {
+        // For simplicity, use reqwest with HTTPS to simulate handshake success
+        let client = Client::new();
+        let url = format!("https://{}", host_str);
+        match client.get(&url).send() {
+            Ok(resp) if resp.status().is_success() => 0,
+            _ => -1,
+        }
     } else {
         -1i64
     }
 }
+/// Global map of function IDs to actor entry functions.
+static FUNC_MAP: OnceLock<Arc<Mutex<HashMap<i64, Box<dyn FnOnce(Channel) + Send + 'static>>>>> = OnceLock::new();
+/// Registers an actor entry function and returns its ID.
+fn register_func(f: impl FnOnce(Channel) + Send + 'static) -> i64 {
+    let _ = FUNC_MAP.set(Arc::new(Mutex::new(HashMap::new())));
+    let id = CHANNEL_ID_COUNTER.fetch_add(1, Ordering::SeqCst); // Reuse counter for simplicity
+    if let Some(map) = FUNC_MAP.get() {
+        let mut guard = tokio::runtime::Runtime::new().unwrap().block_on(map.lock());
+        guard.insert(id, Box::new(f));
+    }
+    id
+}
 /// Host function to spawn an actor.
 /// # Safety
 /// No safety concerns as parameters are plain i64 values.
-pub unsafe extern "C" fn host_spawn(_func_id: i64) -> i64 {
+pub unsafe extern "C" fn host_spawn(func_id: i64) -> i64 {
     tokio::runtime::Runtime::new().unwrap().block_on(async {
-        spawn(|_chan| {}).await;
-        0
+        if let Some(map) = FUNC_MAP.get() {
+            let mut guard = map.lock().await;
+            if let Some(func) = guard.remove(&func_id) {
+                spawn(func).await;
+                0
+            } else {
+                -1
+            }
+        } else {
+            -1
+        }
     })
 }
 /// Internal structure for result values, distinguishing ok and error cases.
