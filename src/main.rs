@@ -60,10 +60,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let result = main.call();
         println!("Zeta self-hosted result: {}", result); // Should print 43
     }
-    // Full bootstrap: Compile zetac src with self-host JIT (stub: load src, parse, codegen to obj).
-    // For full, would need to write JITed code to file, link with rustc or ld.
-    // Here, simple: re-parse zetac src as Zeta code (assume .z extension for src).
-    let zetac_code = fs::read_to_string("src/main.rs")?; // Fixed: real src
+    // Full bootstrap: Compile zetac src with self-host JIT.
+    // Note: Currently a stub; Zeta sources are in Rust, not yet fully self-hosted in Zeta syntax.
+    // For demonstration, parse a hypothetical "zetac.z" representing Zeta compiler in Zeta.
+    // In practice, this requires rewriting Zeta in Zeta for true bootstrap.
+    // Stub: Assume "examples/zetac.z" exists with valid Zeta code for compiler.
+    let zetac_code = fs::read_to_string("examples/zetac.z")?; // Placeholder for Zeta sources
     let (_, zetac_asts) =
         parse_zeta(&zetac_code).map_err(|e| format!("Bootstrap parse: {:?}", e))?;
     let mut boot_resolver = Resolver::new();

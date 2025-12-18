@@ -155,7 +155,7 @@ impl MirGen {
                     let last_expr = self.gen_expr(last, &mut exprs, &mut stmts);
                     let last_id = self.materialize(last_expr, &mut exprs, &mut stmts);
                     // If fn ret is Result, wrap in make_ok
-                    let is_error_prop = ret == "Result<i64,i64>"; // Stub: assume based on ret string
+                    let is_error_prop = ret.starts_with("Result<"); // Improved: check if ret starts with "Result<" for generic
                     if is_error_prop {
                         let wrap_id = self.next_id();
                         stmts.push(MirStmt::Call {
