@@ -408,7 +408,7 @@ impl Resolver {
     }
     /// Lowers AST to MIR.
     pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
-        let mut mir_gen = MirGen::new();
+        let mut mir_gen = MirGen::new(self);
         let mut mir = mir_gen.gen_mir(ast);
         self.fold_semiring_chains(&mut mir);
         mir
