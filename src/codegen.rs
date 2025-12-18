@@ -24,7 +24,7 @@ use inkwell::module::{Linkage, Module};
 use inkwell::support::LLVMString;
 use inkwell::types::{BasicMetadataTypeEnum, IntType, PointerType, VectorType};
 use inkwell::values::{
-    BasicMetadataValueEnum, BasicValue, BasicValueEnum, PointerValue, ValueKind,
+    BasicMetadataValueEnum, BasicValue, BasicValueEnum, PointerValue, FunctionValue, CallSiteValue,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -129,7 +129,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let map_free_type = void_type.fn_type(&[ptr_type.into()], false);
         module.add_function("map_free", map_free_type, Some(Linkage::External));
         // TBAA metadata stub
-        let tbaa_const_time = context.create_metadata_value("const_time".to_string());
+        let tbaa_const_time = context.md_string("const_time");
         Self {
             context,
             module,
@@ -166,8 +166,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
         match stmt {
             MirStmt::Assign { lhs, rhs } => {
                 let val = self.gen_expr(rhs, exprs);
-                let alloca = self.builder.build_alloca(self.i64_type, &format!("local_{lhs}"));
-                self.builder.build_store(alloca, val);
+                let alloca = self.builder.build_alloca(self.i64_type, &format!("local_{lhs}")).unwrap();
+                self.builder.build_store(alloca, val).unwrap();
                 self.locals.insert(*lhs, alloca);
             }
             MirStmt::Call { func, args, dest, type_args } => {
@@ -192,10 +192,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .iter()
                     .map(|&id| self.load_local(id).into())
                     .collect();
-                let call = self.builder.build_call(callee_fn, &arg_vals, "call");
-                if let Ok(basic_val) = call.try_as_basic_value().left() {
-                    let alloca = self.builder.build_alloca(self.i64_type, &format!("call_{dest}"));
-                    self.builder.build_store(alloca, basic_val);
+                let call = self.builder.build_call(callee_fn, &arg_vals, "call").unwrap();
+                if let Some(basic_val) = call.try_as_basic_value().left() {
+                    let alloca = self.builder.build_alloca(self.i64_type, &format!("call_{dest}")).unwrap();
+                    self.builder.build_store(alloca, basic_val).unwrap();
                     self.locals.insert(*dest, alloca);
                 }
             }
@@ -205,23 +205,23 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .iter()
                     .map(|&id| self.load_local(id).into())
                     .collect();
-                self.builder.build_call(callee, &arg_vals, "void_call");
+                self.builder.build_call(callee, &arg_vals, "void_call").unwrap();
             }
             MirStmt::Return { val } => {
                 let ret_val = self.load_local(*val);
-                self.builder.build_return(Some(&ret_val));
+                self.builder.build_return(Some(&ret_val)).unwrap();
             }
             MirStmt::SemiringFold { op, values, result } => {
                 let mut acc = self.load_local(values[0]);
                 for &v in &values[1..] {
                     let right = self.load_local(v);
                     acc = match op {
-                        SemiringOp::Add => self.builder.build_int_add(acc.as_int_value(), right.as_int_value(), "fold_add"),
-                        SemiringOp::Mul => self.builder.build_int_mul(acc.as_int_value(), right.as_int_value(), "fold_mul"),
-                    }.into();
+                        SemiringOp::Add => self.builder.build_int_add(acc.into_int_value(), right.into_int_value(), "fold_add").into(),
+                        SemiringOp::Mul => self.builder.build_int_mul(acc.into_int_value(), right.into_int_value(), "fold_mul").into(),
+                    };
                 }
-                let alloca = self.builder.build_alloca(self.i64_type, &format!("fold_{result}"));
-                self.builder.build_store(alloca, acc);
+                let alloca = self.builder.build_alloca(self.i64_type, &format!("fold_{result}")).unwrap();
+                self.builder.build_store(alloca, acc).unwrap();
                 self.locals.insert(*result, alloca);
             }
             MirStmt::ParamInit { param_id, arg_index: _ } => {
@@ -235,20 +235,20 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let then_bb = self.context.append_basic_block(self.builder.get_insert_block().unwrap().get_parent().unwrap(), "then");
                 let else_bb = self.context.append_basic_block(self.builder.get_insert_block().unwrap().get_parent().unwrap(), "else");
                 let merge_bb = self.context.append_basic_block(self.builder.get_insert_block().unwrap().get_parent().unwrap(), "merge");
-                self.builder.build_conditional_branch(cond_val.as_int_value(), then_bb, else_bb);
+                self.builder.build_conditional_branch(cond_val.into_int_value(), then_bb, else_bb).unwrap();
                 self.builder.position_at_end(then_bb);
                 for stmt in then {
                     self.gen_stmt(stmt, exprs);
                 }
                 if self.builder.get_insert_block().unwrap().get_terminator().is_none() {
-                    self.builder.build_unconditional_branch(merge_bb);
+                    self.builder.build_unconditional_branch(merge_bb).unwrap();
                 }
                 self.builder.position_at_end(else_bb);
                 for stmt in else_ {
                     self.gen_stmt(stmt, exprs);
                 }
                 if self.builder.get_insert_block().unwrap().get_terminator().is_none() {
-                    self.builder.build_unconditional_branch(merge_bb);
+                    self.builder.build_unconditional_branch(merge_bb).unwrap();
                 }
                 self.builder.position_at_end(merge_bb);
             }
@@ -286,12 +286,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let call = self
                         .builder
                         .build_call(concat_fn, &[res.into(), next.into()], "fconcat")
-                        .expect("build_call failed");
-                    // try_as_basic_value() returns ValueKind enum
-                    res = match call.try_as_basic_value() {
-                        ValueKind::Basic(basic_val) => basic_val,
-                        ValueKind::Instruction(_) => panic!("concat should return a value"),
-                    };
+                        .unwrap();
+                    res = call.try_as_basic_value().left().unwrap();
                 }
                 res
             }
@@ -301,9 +297,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let load = self
                     .builder
                     .build_load(self.i64_type, ptr, "timing_load")
-                    .expect("load failed");
+                    .unwrap();
                 if let Some(inst) = load.as_instruction_value() {
-                    let _ = inst.set_metadata(self.tbaa_const_time, 0);
+                    inst.set_metadata(self.tbaa_const_time, 0).unwrap();
                 }
                 load
             }
@@ -314,15 +310,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let ptr = self.locals[&id];
         self.builder
             .build_load(self.i64_type, ptr, &format!("load_{id}"))
-            .expect("load failed")
+            .unwrap()
     }
     /// Gets or declares a callee function by name.
-    fn get_callee(&self, name: &str) -> inkwell::values::CallableValue<'ctx> {
+    fn get_callee(&self, name: &str) -> FunctionValue<'ctx> {
         if let Some(fn_val) = self.module.get_function(name) {
-            fn_val.into()
+            fn_val
         } else {
             let fn_type = self.i64_type.fn_type(&[BasicMetadataTypeEnum::IntType(self.i64_type); 2], false); // Stub
-            self.module.add_function(name, fn_type, None).into()
+            self.module.add_function(name, fn_type, None)
         }
     }
     /// Verifies the module, applies AI-recommended optimizations, and creates a JIT engine.
