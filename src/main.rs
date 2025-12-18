@@ -1,25 +1,19 @@
 // src/main.rs
-//! Entry point for Zeta self-hosting.
-//! Loads example, parses, resolves, codegens, JIT-executes, prints result.
-//! Updated: Full bootstrap - eval simple expr, compile zetac src via self-host JIT.
-
+//! Entry point for the Zeta compiler.
+//! Demonstrates self-hosting by parsing, resolving, generating code, JIT-executing example code, and bootstrapping.
 use inkwell::context::Context;
 use std::fs;
 use zetac::ast::AstNode;
 use zetac::{LLVMCodegen, Resolver, actor, parse_zeta};
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize async actor runtime.
     actor::init_runtime();
-
     // Load self-host example (assume contains main { let x = 42; x.add(1); } -> 43)
     let code = fs::read_to_string("examples/selfhost.z")?;
     let (_, asts) = parse_zeta(&code).map_err(|e| format!("Parse error: {:?}", e))?;
-
     // Print parsed nodes count for test.
     println!("Parsed {} nodes from selfhost.z", asts.len());
-
     // Register impls and typecheck.
     let mut resolver = Resolver::new();
     for ast in &asts {
@@ -27,7 +21,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let type_ok = resolver.typecheck(&asts);
     println!("Typecheck: {}", if type_ok { "OK" } else { "Failed" });
-
     // Lower all FuncDefs to MIR.
     let mirs: Vec<_> = asts
         .iter()
@@ -39,17 +32,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         })
         .collect();
-
     // Setup LLVM.
     let context = Context::create();
     let mut codegen = LLVMCodegen::new(&context, "selfhost");
     codegen.gen_mirs(&mirs);
     let ee = codegen.finalize_and_jit()?;
-
     // Map std_free to host.
     let free_fn = zetac::std::std_free as *const () as usize;
     ee.add_global_mapping(&codegen.module.get_function("free").unwrap(), free_fn);
-
     // Map async actor intrinsics.
     ee.add_global_mapping(
         &codegen.module.get_function("channel_send").unwrap(),
@@ -63,7 +53,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         &codegen.module.get_function("spawn").unwrap(),
         actor::host_spawn as *const () as usize,
     );
-
     // JIT execute main, print result (expect 43 from 42+1).
     type MainFn = unsafe extern "C" fn() -> i64;
     unsafe {
@@ -71,11 +60,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let result = main.call();
         println!("Zeta self-hosted result: {}", result); // Should print 43
     }
-
     // Full bootstrap: Compile zetac src with self-host JIT (stub: load src, parse, codegen to obj).
     // For full, would need to write JITed code to file, link with rustc or ld.
     // Here, simple: re-parse zetac src as Zeta code (assume .z extension for src).
-    let zetac_code = fs::read_to_string("src/main.z")?; // Assume renamed
+    let zetac_code = fs::read_to_string("src/main.rs")?; // Fixed: real src
     let (_, zetac_asts) =
         parse_zeta(&zetac_code).map_err(|e| format!("Bootstrap parse: {:?}", e))?;
     let mut boot_resolver = Resolver::new();
@@ -105,6 +93,5 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let boot_result = boot_main.call();
         println!("Zeta bootstrap result: {}", boot_result);
     }
-
     Ok(())
 }

@@ -1,71 +1,88 @@
 // src/ast.rs
-//! Abstract Syntax Tree for Zeta.
-//! Defines nodes for expressions, statements, definitions, and algebraic constructs.
-//! Extended for self-host: enums, structs, strings, path calls.
-//! Added: generics in FuncDef/Method, structural flag in Call for hybrid dispatch.
-
+//! Defines the Abstract Syntax Tree (AST) nodes for the Zeta language.
+//! Represents programs, definitions, expressions, statements, and algebraic constructs.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AstNode {
-    /// Full program as list of nodes.
+    /// Full program as a sequence of top-level nodes.
     Program(Vec<AstNode>),
-    /// Trait/concept definition with methods.
+    /// Concept (trait) definition with method signatures.
     ConceptDef { name: String, methods: Vec<AstNode> },
-    /// Impl block for concept on type.
+    /// Implementation block for a concept on a type.
     ImplBlock {
         concept: String,
         ty: String,
         body: Vec<AstNode>,
     },
-    /// Method signature in impl/concept.
+    /// Method signature within a concept or implementation.
     Method {
         name: String,
         params: Vec<(String, String)>,
         ret: String,
-        generics: Vec<String>, // New: generics support
+        generics: Vec<String>,
     },
-    /// Function definition.
+    /// Function definition with parameters, return type, and body.
     FuncDef {
         name: String,
-        generics: Vec<String>, // Updated: now parsed
+        generics: Vec<String>,
         params: Vec<(String, String)>,
         ret: String,
         body: Vec<AstNode>,
         attrs: Vec<String>,
         ret_expr: Option<Box<AstNode>>,
+        single_line: bool,
     },
-    /// Enum definition.
+    /// Enumeration definition with variants.
     EnumDef { name: String, variants: Vec<String> },
-    /// Struct definition.
+    /// Structure definition with fields.
     StructDef {
         name: String,
         fields: Vec<(String, String)>,
     },
-    /// Method/trait call, with structural flag for hybrid dispatch.
+    /// Method or function call, with optional receiver and structural dispatch flag.
     Call {
         receiver: Option<Box<AstNode>>,
         method: String,
         args: Vec<AstNode>,
         type_args: Vec<String>,
-        structural: bool, // New: true for structural dispatch (e.g., method?)
+        structural: bool,
     },
-    /// Path call (A::B).
+    /// Path-based call for static or associated functions.
     PathCall {
         path: Vec<String>,
         method: String,
         args: Vec<AstNode>,
     },
-    /// Actor spawn: spawn func(args).
+    /// Actor spawn expression with function and arguments.
     Spawn { func: String, args: Vec<AstNode> },
-    /// Integer literal.
+    /// Integer literal value.
     Lit(i64),
-    /// String literal.
+    /// String literal as owned UTF-8 string.
     StringLit(String),
-    /// Variable reference.
+    /// Formatted string with interpolated expressions.
+    FString(Vec<AstNode>),
+    /// Variable reference by name.
     Var(String),
-    /// Assignment.
-    Assign(String, Box<AstNode>),
-    /// TimingOwned: Constant-time owned value abstraction.
+    /// Assignment to a target (variable or subscript).
+    Assign(Box<AstNode>, Box<AstNode>),
+    /// Binary operation between two expressions.
+    BinaryOp {
+        op: String,
+        left: Box<AstNode>,
+        right: Box<AstNode>,
+    },
+    /// Timing-owned value abstraction for constant-time operations.
     TimingOwned { ty: String, inner: Box<AstNode> },
-    /// Defer statement for RAII cleanup.
+    /// Defer statement for cleanup actions.
     Defer(Box<AstNode>),
+    /// Error propagation operator on an expression.
+    TryProp { expr: Box<AstNode> },
+    /// Dictionary literal with key-value pairs.
+    DictLit { entries: Vec<(AstNode, AstNode)> },
+    /// Subscript access on a base expression.
+    Subscript {
+        base: Box<AstNode>,
+        index: Box<AstNode>,
+    },
+    /// Explicit return statement with value.
+    Return(Box<AstNode>),
 }

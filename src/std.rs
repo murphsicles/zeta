@@ -1,22 +1,31 @@
 // src/std.rs
 //! Standard library embeddings for Zeta.
-//! Provides low-level C interop for memory management and system calls.
-
+//! Wraps memory allocation and deallocation with safety checks.
 use std::ffi::c_void;
-
-// Links to the C standard library's free function.
-#[link(name = "c")]
+use std::ptr;
 unsafe extern "C" {
+    fn malloc(size: usize) -> *mut c_void;
     fn free(ptr: *mut c_void);
 }
-
-/// Frees heap-allocated memory, Zeta's RAII defer equivalent.
+/// Allocates memory via libc malloc.
 ///
 /// # Safety
-/// `ptr` must point to valid, unfreed heap memory (e.g., from malloc).
-/// Undefined behavior if invalid or double-freed.
+/// Caller must ensure valid size, free returned pointer with std_free, and avoid use after free.
+pub unsafe fn std_malloc(size: usize) -> *mut u8 {
+    if size == 0 {
+        ptr::null_mut()
+    } else {
+        // Cast the returned c_void pointer to a u8 pointer
+        unsafe { malloc(size) as *mut u8 }
+    }
+}
+/// Frees memory allocated by std_malloc.
+///
+/// # Safety
+/// Caller must ensure pointer from std_malloc or null, no use after free, and no double free.
 pub unsafe fn std_free(ptr: *mut u8) {
     if !ptr.is_null() {
+        // Cast the u8 pointer to a c_void pointer for free()
         unsafe { free(ptr as *mut c_void) }
     }
 }

@@ -1,6 +1,6 @@
 // src/lib.rs
-//! Zeta compiler library.
-//! Exports core components for parsing, resolving, codegen, and runtime.
+//! Zeta compiler library crate.
+//! Exports modules and utilities for parsing, type resolution, code generation, and runtime execution.
 pub mod actor;
 pub mod ast;
 pub mod borrow;
@@ -18,7 +18,7 @@ use inkwell::context::Context;
 pub use mir::Mir;
 pub use parser::parse_zeta;
 pub use resolver::Resolver;
-/// Compiles and JIT-executes Zeta code to i64 result.
+/// Compiles Zeta source code to LLVM IR, JIT-executes it, and returns the result from main.
 pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
     // Init runtime.
     init_runtime();

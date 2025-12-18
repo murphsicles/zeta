@@ -1,11 +1,13 @@
 #[cfg(test)]
 mod tests {
+    //! Unit tests for Zeta compiler.
+    //! Verifies parsing, type checking, code generation, resolution, and runtime features.
     use crate::ast::AstNode;
     use crate::mir::MirGen;
     use crate::resolver::MonoKey;
     use crate::{Resolver, compile_and_run_zeta, parse_zeta};
     use std::time::Instant;
-
+    /// Tests parsing of Addable concept definition.
     #[test]
     fn test_parse_addable() {
         let input = r#"
@@ -20,7 +22,7 @@ concept Addable<Rhs=Self> {
             assert_eq!(params, vec!["Rhs"]);
         }
     }
-
+    /// Tests type checking of trait implementation.
     #[test]
     fn test_typecheck_impl() {
         let input = r#"
@@ -34,7 +36,7 @@ impl Send for i32 {}
         }
         assert!(res.typecheck(&asts));
     }
-
+    /// Tests code generation and runtime execution.
     #[test]
     fn test_codegen_run() {
         let input = r#"
@@ -43,7 +45,7 @@ fn simple() -> i32 { 42 }
         let res = compile_and_run_zeta(input).unwrap();
         assert_eq!(res, 0);
     }
-
+    /// Tests type inference for phantom types.
     #[test]
     fn test_ergonomics_infer() {
         let input = r#"
@@ -56,7 +58,7 @@ fn test_phantom<T>() -> T { TimingOwned<i32> 0 }
         }
         assert!(res.typecheck(&asts));
     }
-
+    /// Tests derivation of Copy trait.
     #[test]
     fn test_derive_copy() {
         let input = r#"#[derive(Copy)] struct Foo(i32);"#;
@@ -67,7 +69,7 @@ fn test_phantom<T>() -> T { TimingOwned<i32> 0 }
         }
         assert!(res.resolve_impl("Copy", "Foo").is_some());
     }
-
+    /// Tests MIR generation from AST.
     #[test]
     fn test_mir_gen() {
         let input = r#"
@@ -85,7 +87,7 @@ fn test() -> i32 {
         let mir = res.get_cached_mir(&ast_hash).unwrap();
         assert!(!mir.stmts.is_empty());
     }
-
+    /// Tests parallel resolution of traits.
     #[test]
     fn test_parallel_resolve() {
         let input = r#"
@@ -101,7 +103,7 @@ impl B for i32 {}
         }
         assert!(res.typecheck(&asts));
     }
-
+    /// Tests compile-time evaluation of semiring operations.
     #[test]
     fn test_ctfe_semiring() {
         let input = r#"
@@ -122,7 +124,7 @@ fn semiring_test() -> i32 {
         assert!(mir.ctfe_consts.contains_key(&2));
         assert_eq!(*mir.ctfe_consts.get(&2).unwrap(), 5);
     }
-
+    /// Tests thin monomorphization of templates.
     #[test]
     fn test_thin_templates() {
         let input = r#"
@@ -139,7 +141,7 @@ fn generic_add<T>(a: T, b: T) -> T { a.add(b) }
         let mir = res.get_mono_mir(&key).unwrap();
         assert!(!mir.stmts.is_empty());
     }
-
+    /// Tests cache safety for types.
     #[test]
     fn test_cachesafe() {
         let input = r#"
@@ -157,7 +159,7 @@ impl CacheSafe for SafeChannel {}
         }
         assert!(res.typecheck(&asts)); // Validates CacheSafe
     }
-
+    /// Tests affine type borrow checking failure.
     #[test]
     fn test_affine_borrow() {
         let input = r#"
@@ -174,7 +176,7 @@ fn affine_test() -> i32 {
         }
         assert!(!res.typecheck(&asts)); // Affine violation
     }
-
+    /// Tests successful affine type usage.
     #[test]
     fn test_affine_ok() {
         let input = r#"
@@ -192,7 +194,7 @@ fn affine_ok() -> i32 {
         }
         assert!(res.typecheck(&asts)); // Affine ok
     }
-
+    /// Tests detection of speculative execution leak.
     #[test]
     fn test_speculative_leak() {
         let input = r#"
@@ -210,7 +212,7 @@ fn spec_leak() -> i32 {
         }
         assert!(!res.typecheck(&asts)); // Speculative leak
     }
-
+    /// Tests safe speculative execution with timing-owned.
     #[test]
     fn test_speculative_safe() {
         let input = r#"
@@ -228,7 +230,7 @@ fn spec_safe() -> i32 {
         }
         assert!(res.typecheck(&asts)); // Spec safe with TimingOwned
     }
-
+    /// Tests structural derivation of Copy trait.
     #[test]
     fn test_structural_copy() {
         let input = r#"
@@ -245,7 +247,7 @@ fn use_copy(p: Point) { p } // Should infer structural Copy
         assert!(res.typecheck(&asts)); // Structural match
         assert!(res.resolve_impl("Copy", "Point").is_some()); // Hybrid resolution
     }
-
+    /// Tests nominal equality trait implementation.
     #[test]
     fn test_nominal_eq() {
         let input = r#"
@@ -260,7 +262,7 @@ fn eq_test(a: i32, b: i32) { a.eq(b) }
         }
         assert!(res.typecheck(&asts)); // Nominal impl
     }
-
+    /// Tests automatic derivation of Copy and Eq traits.
     #[test]
     fn test_auto_derive_copy_eq() {
         let input = r#"
@@ -277,7 +279,7 @@ fn use_pair(p: Pair) { p }
         assert!(res.resolve_impl("Copy", "Pair").is_some());
         assert!(res.resolve_impl("Eq", "Pair").is_some()); // Auto-derived
     }
-
+    /// Tests algebraic fusion optimization.
     #[test]
     fn test_algebraic_fusion() {
         let input = r#"
@@ -299,8 +301,7 @@ fn fusion_test() -> i32 {
         // Stub: Check for Fusion stmt
         assert!(mir.stmts.iter().any(|s| matches!(s, MirStmt::Fusion { .. })));
     }
-
-    // EOP Algos: Semiring matrix multiply
+    /// Tests semiring matrix multiplication using EOP.
     #[test]
     fn test_eop_semiring_matrix() {
         let input = r#"
@@ -343,8 +344,7 @@ fn eop_test() -> i32 {
         let res_val = compile_and_run_zeta(input).unwrap();
         assert_eq!(res_val, 19); // EOP semiring test
     }
-
-    // Actor e2e: Counter increment
+    /// Tests actor counter with end-to-end spawn and increment.
     #[test]
     fn test_actor_counter() {
         let input = r#"
@@ -373,8 +373,7 @@ fn actor_test() -> i32 {
         let res_val = compile_and_run_zeta(input).unwrap();
         assert_eq!(res_val, 42); // Actor spawn/inc
     }
-
-    // Stable ABI FFI test
+    /// Tests stable ABI for FFI functions.
     #[test]
     fn test_stable_abi() {
         let input = r#"
@@ -388,8 +387,7 @@ fn ffi_add(a: i32, b: i32) -> i32 { a + b } // No generics
         }
         assert!(res.typecheck(&asts)); // Stable ABI check
     }
-
-    // Perf benchmark stub: Semiring vs baseline
+    /// Benchmarks semiring addition performance.
     #[bench]
     fn bench_semiring_add(b: &mut criterion::Criterion) {
         let input = r#"
@@ -408,8 +406,7 @@ fn bench_add() -> i32 {
         // Stub: Compare to Rust/Zig/Go (manual)
         b.bench_function("zeta_semiring", |b| b.iter(|| compile_and_run_zeta(input)));
     }
-
-    // EOP assoc fold fusion
+    /// Tests associative fold fusion optimization.
     #[test]
     fn test_assoc_fold_fusion() {
         let input = r#"
