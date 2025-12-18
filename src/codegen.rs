@@ -225,10 +225,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.builder.build_store(alloca, acc).unwrap();
                 self.locals.insert(*result, alloca);
             }
-            MirStmt::ParamInit { param_id, arg_index: _ } => {
+            MirStmt::ParamInit { param_id: _, arg_index: _ } => {
                 // Stub: params from args in JIT
             }
-            MirStmt::Consume { id } => {
+            MirStmt::Consume { id: _ } => {
                 // Stub: no-op in codegen
             }
             MirStmt::If { cond, then, else_ } => {
