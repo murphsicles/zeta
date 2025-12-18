@@ -15,43 +15,29 @@ use std::fmt;
 /// Represents types in the Zeta language.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
-    /// 64-bit signed integer.
-    I64,
-    /// 32-bit float.
-    F32,
-    /// Boolean.
-    Bool,
-    /// Unified owned UTF-8 string type.
-    Str,
-    /// Borrowed string slice.
-    StrRef,
-    /// Named type (e.g., user-defined or trait-bound).
-    Named(String),
+    /// Named type (e.g., primitives, user-defined, or parameterized like Result<T,E>).
+    Named { name: String, params: Vec<Type> },
     /// Unknown/inferred type.
     Unknown,
     /// Timing-owned wrapper for constant-time.
     TimingOwned(Box<Type>),
-    /// Vec<u8> for interop.
-    VecU8,
-    /// Result type for error handling.
-    Result(Box<Type>, Box<Type>),
-    /// Map type for dicts.
-    Map(Box<Type>, Box<Type>),
 }
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Type::I64 => write!(f, "i64"),
-            Type::F32 => write!(f, "f32"),
-            Type::Bool => write!(f, "bool"),
-            Type::Str => write!(f, "str"),
-            Type::StrRef => write!(f, "&str"),
-            Type::VecU8 => write!(f, "Vec<u8>"),
-            Type::Named(s) => write!(f, "{}", s),
+            Type::Named { name, params } if params.is_empty() => write!(f, "{}", name),
+            Type::Named { name, params } => {
+                write!(f, "{}<", name)?;
+                for (i, p) in params.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", p)?;
+                }
+                write!(f, ">")
+            }
             Type::Unknown => write!(f, "unknown"),
             Type::TimingOwned(ty) => write!(f, "TimingOwned<{}>", ty),
-            Type::Result(ok, err) => write!(f, "Result<{}, {}>", ok, err),
-            Type::Map(k, v) => write!(f, "Map<{}, {}>", k, v),
         }
     }
 }
@@ -117,45 +103,81 @@ impl Resolver {
             borrow_checker: BorrowChecker::new(),
             trait_methods: HashMap::new(),
         };
+        let i64_ty = r.primitive("i64");
+        let f32_ty = r.primitive("f32");
+        let bool_ty = r.primitive("bool");
+        let str_ty = r.primitive("str");
+        let str_ref_ty = r.primitive("&str");
+        let vec_u8_ty = r.primitive("Vec<u8>");
         // Fast-path: i64 implements Addable
         let mut addable = HashMap::new();
-        addable.insert("add".to_string(), (vec![Type::I64], Type::I64));
+        addable.insert("add".to_string(), (vec![i64_ty.clone()], i64_ty.clone()));
         r.direct_impls
-            .insert(("Addable".to_string(), Type::I64), addable);
-        r.trait_methods.insert((Type::I64, "add".to_string()), ("Addable".to_string(), (vec![Type::I64], Type::I64)));
+            .insert(("Addable".to_string(), i64_ty.clone()), addable);
+        r.trait_methods.insert((i64_ty.clone(), "add".to_string()), ("Addable".to_string(), (vec![i64_ty.clone()], i64_ty.clone())));
         // Builtin StrOps for unified strings - expanded
         let mut str_ops = HashMap::new();
-        str_ops.insert("len".to_string(), (vec![], Type::I64));
-        str_ops.insert("concat".to_string(), (vec![Type::Str], Type::Str));
-        str_ops.insert("contains".to_string(), (vec![Type::Str], Type::Bool));
-        str_ops.insert("trim".to_string(), (vec![], Type::Str));
-        str_ops.insert(
-            "split".to_string(),
-            (vec![Type::Str], Type::Named("Vec<str>".to_string())),
-        );
+        str_ops.insert("len".to_string(), (vec![], i64_ty.clone()));
+        str_ops.insert("concat".to_string(), (vec![str_ty.clone()], str_ty.clone()));
+        str_ops.insert("contains".to_string(), (vec![str_ty.clone()], bool_ty.clone()));
+        str_ops.insert("trim".to_string(), (vec![], str_ty.clone()));
+        let vec_str_ty = Type::Named { name: "Vec".to_string(), params: vec![str_ty.clone()] };
+        str_ops.insert("split".to_string(), (vec![str_ty.clone()], vec_str_ty));
         // Rich methods
-        str_ops.insert("to_lowercase".to_string(), (vec![], Type::Str));
+        str_ops.insert("to_lowercase".to_string(), (vec![], str_ty.clone()));
         str_ops.insert(
             "replace".to_string(),
-            (vec![Type::Str, Type::Str], Type::Str),
+            (vec![str_ty.clone(), str_ty.clone()], str_ty.clone()),
         );
-        str_ops.insert("starts_with".to_string(), (vec![Type::Str], Type::Bool));
-        str_ops.insert("ends_with".to_string(), (vec![Type::Str], Type::Bool));
-        str_ops.insert("as_bytes".to_string(), (vec![], Type::VecU8));
+        str_ops.insert("starts_with".to_string(), (vec![str_ty.clone()], bool_ty.clone()));
+        str_ops.insert("ends_with".to_string(), (vec![str_ty.clone()], bool_ty.clone()));
+        str_ops.insert("as_bytes".to_string(), (vec![], vec_u8_ty));
         r.direct_impls
-            .insert(("StrOps".to_string(), Type::Str), str_ops);
+            .insert(("StrOps".to_string(), str_ty.clone()), str_ops);
         // Insert into trait_methods
-        r.trait_methods.insert((Type::Str, "len".to_string()), ("StrOps".to_string(), (vec![], Type::I64)));
-        r.trait_methods.insert((Type::Str, "concat".to_string()), ("StrOps".to_string(), (vec![Type::Str], Type::Str)));
-        r.trait_methods.insert((Type::Str, "contains".to_string()), ("StrOps".to_string(), (vec![Type::Str], Type::Bool)));
-        r.trait_methods.insert((Type::Str, "trim".to_string()), ("StrOps".to_string(), (vec![], Type::Str)));
-        r.trait_methods.insert((Type::Str, "split".to_string()), ("StrOps".to_string(), (vec![Type::Str], Type::Named("Vec<str>".to_string()))));
-        r.trait_methods.insert((Type::Str, "to_lowercase".to_string()), ("StrOps".to_string(), (vec![], Type::Str)));
-        r.trait_methods.insert((Type::Str, "replace".to_string()), ("StrOps".to_string(), (vec![Type::Str, Type::Str], Type::Str)));
-        r.trait_methods.insert((Type::Str, "starts_with".to_string()), ("StrOps".to_string(), (vec![Type::Str], Type::Bool)));
-        r.trait_methods.insert((Type::Str, "ends_with".to_string()), ("StrOps".to_string(), (vec![Type::Str], Type::Bool)));
-        r.trait_methods.insert((Type::Str, "as_bytes".to_string()), ("StrOps".to_string(), (vec![], Type::VecU8)));
+        r.trait_methods.insert((str_ty.clone(), "len".to_string()), ("StrOps".to_string(), (vec![], i64_ty.clone())));
+        r.trait_methods.insert((str_ty.clone(), "concat".to_string()), ("StrOps".to_string(), (vec![str_ty.clone()], str_ty.clone())));
+        r.trait_methods.insert((str_ty.clone(), "contains".to_string()), ("StrOps".to_string(), (vec![str_ty.clone()], bool_ty.clone())));
+        r.trait_methods.insert((str_ty.clone(), "trim".to_string()), ("StrOps".to_string(), (vec![], str_ty.clone())));
+        r.trait_methods.insert((str_ty.clone(), "split".to_string()), ("StrOps".to_string(), (vec![str_ty.clone()], Type::Named { name: "Vec".to_string(), params: vec![str_ty.clone()] })));
+        r.trait_methods.insert((str_ty.clone(), "to_lowercase".to_string()), ("StrOps".to_string(), (vec![], str_ty.clone())));
+        r.trait_methods.insert((str_ty.clone(), "replace".to_string()), ("StrOps".to_string(), (vec![str_ty.clone(), str_ty.clone()], str_ty.clone())));
+        r.trait_methods.insert((str_ty.clone(), "starts_with".to_string()), ("StrOps".to_string(), (vec![str_ty.clone()], bool_ty.clone())));
+        r.trait_methods.insert((str_ty.clone(), "ends_with".to_string()), ("StrOps".to_string(), (vec![str_ty.clone()], bool_ty.clone())));
+        r.trait_methods.insert((str_ty, "as_bytes".to_string()), ("StrOps".to_string(), (vec![], Type::Named { name: "Vec<u8>".to_string(), params: vec![] })));
         r
+    }
+    /// Helper to create primitive types.
+    fn primitive(&self, name: &str) -> Type {
+        Type::Named {
+            name: name.to_string(),
+            params: vec![],
+        }
+    }
+    /// Parses a type string to a Type.
+    pub fn parse_type_str(&self, s: &str) -> Type {
+        let trimmed = s.trim();
+        if !trimmed.contains('<') {
+            return Type::Named {
+                name: trimmed.to_string(),
+                params: vec![],
+            };
+        }
+        if let Some(open) = trimmed.find('<') {
+            let name = trimmed[0..open].trim().to_string();
+            let inner = &trimmed[open + 1..trimmed.len() - 1];
+            let param_strs: Vec<String> = inner
+                .split(',')
+                .map(|p| p.trim().to_string())
+                .collect();
+            let params: Vec<Type> = param_strs
+                .iter()
+                .map(|ps| self.parse_type_str(ps))
+                .collect();
+            Type::Named { name, params }
+        } else {
+            Type::Unknown
+        }
     }
     /// Registers definitions for resolution.
     pub fn register(&mut self, ast: AstNode) {
@@ -167,12 +189,12 @@ impl Resolver {
                 }
             }
             AstNode::ImplBlock { concept, ty, body } => {
-                let ty = Type::Named(ty);
+                let ty = self.parse_type_str(&ty);
                 let mut methods = HashMap::new();
                 for m in body {
                     if let AstNode::Method { name, params, ret, .. } = m {
-                        let ptypes: Vec<Type> = params.iter().map(|(_, t)| Type::Named(t.clone())).collect();
-                        let ret_ty = Type::Named(ret);
+                        let ptypes: Vec<Type> = params.iter().map(|(_, t)| self.parse_type_str(t)).collect();
+                        let ret_ty = self.parse_type_str(&ret);
                         methods.insert(name.clone(), (ptypes.clone(), ret_ty.clone()));
                         self.trait_methods.insert((ty.clone(), name), (concept.clone(), (ptypes, ret_ty)));
                     }
@@ -180,14 +202,14 @@ impl Resolver {
                 self.direct_impls.insert((concept, ty), methods);
             }
             AstNode::FuncDef { name, params, ret, .. } => {
-                let ptypes: Vec<(String, Type)> = params.iter().map(|(n, t)| (n.clone(), Type::Named(t.clone()))).collect();
-                self.func_sigs.insert(name, (ptypes, Type::Named(ret)));
+                let ptypes: Vec<(String, Type)> = params.iter().map(|(n, t)| (n.clone(), self.parse_type_str(t))).collect();
+                self.func_sigs.insert(name, (ptypes, self.parse_type_str(&ret)));
             }
             AstNode::EnumDef { name, .. } => {
-                self.type_env.insert(name, Type::Named("enum".to_string())); // Stub
+                self.type_env.insert(name, Type::Named { name: "enum".to_string(), params: vec![] }); // Stub
             }
             AstNode::StructDef { name, .. } => {
-                self.type_env.insert(name, Type::Named("struct".to_string())); // Stub
+                self.type_env.insert(name, Type::Named { name: "struct".to_string(), params: vec![] }); // Stub
             }
             _ => {}
         }
@@ -195,21 +217,23 @@ impl Resolver {
     /// Infers the type of an AST node.
     pub fn infer_type(&mut self, node: &AstNode) -> Type {
         match node {
-            AstNode::Lit(_) => Type::I64,
-            AstNode::StringLit(_) => Type::Str,
-            AstNode::FString(_) => Type::Str,
+            AstNode::Lit(_) => self.primitive("i64"),
+            AstNode::StringLit(_) => self.primitive("str"),
+            AstNode::FString(_) => self.primitive("str"),
             AstNode::Var(name) => self.type_env.get(name).cloned().unwrap_or(Type::Unknown),
             AstNode::BinaryOp { op, left, right } => {
                 let lty = self.infer_type(left);
                 let rty = self.infer_type(right);
+                let i64_ty = self.primitive("i64");
+                let bool_ty = self.primitive("bool");
                 if op == "+" || op == "-" || op == "*" || op == "/" {
-                    if lty == Type::I64 && rty == Type::I64 {
-                        Type::I64
+                    if lty == i64_ty && rty == i64_ty {
+                        i64_ty
                     } else {
                         Type::Unknown
                     }
                 } else if op == "==" || op == "!=" || op == "<" || op == ">" || op == "<=" || op == ">=" {
-                    Type::Bool
+                    bool_ty
                 } else {
                     Type::Unknown
                 }
@@ -236,28 +260,49 @@ impl Resolver {
                     }
                 }
             }
-            AstNode::Spawn { .. } => Type::I64, // Actor ID
+            AstNode::Spawn { .. } => self.primitive("i64"), // Actor ID
             AstNode::TimingOwned { inner, .. } => {
                 let inner_ty = self.infer_type(inner);
                 Type::TimingOwned(Box::new(inner_ty))
             }
             AstNode::Defer(_) => Type::Unknown,
-            AstNode::TryProp { expr } => self.infer_type(expr),
+            AstNode::TryProp { expr } => {
+                let expr_ty = self.infer_type(expr);
+                if let Type::Named { name, params } = &expr_ty {
+                    if name == "Result" && params.len() == 2 {
+                        params[0].clone()
+                    } else {
+                        Type::Unknown
+                    }
+                } else {
+                    Type::Unknown
+                }
+            }
             AstNode::DictLit { entries } => {
                 if entries.is_empty() {
-                    Type::Map(Box::new(Type::Unknown), Box::new(Type::Unknown))
+                    Type::Named {
+                        name: "Map".to_string(),
+                        params: vec![Type::Unknown, Type::Unknown],
+                    }
                 } else {
                     let k_ty = self.infer_type(&entries[0].0);
                     let v_ty = self.infer_type(&entries[0].1);
                     // Assume all entries match; in full check, verify
-                    Type::Map(Box::new(k_ty), Box::new(v_ty))
+                    Type::Named {
+                        name: "Map".to_string(),
+                        params: vec![k_ty, v_ty],
+                    }
                 }
             }
             AstNode::Subscript { base, index } => {
                 let base_ty = self.infer_type(base);
                 let index_ty = self.infer_type(index);
-                if let Type::Map(k, v) = base_ty {
-                    if index_ty == *k { *v } else { Type::Unknown }
+                if let Type::Named { name, params } = base_ty {
+                    if name == "Map" && params.len() == 2 && index_ty == params[0] {
+                        params[1].clone()
+                    } else {
+                        Type::Unknown
+                    }
                 } else {
                     Type::Unknown
                 }
@@ -271,8 +316,12 @@ impl Resolver {
         match node {
             AstNode::TimingOwned { inner, .. } => {
                 let inner_ty = self.infer_type(inner);
-                match &inner_ty {
-                    Type::I64 | Type::F32 | Type::Bool | Type::Str => Ok(()),
+                let i64_ty = self.primitive("i64");
+                let f32_ty = self.primitive("f32");
+                let bool_ty = self.primitive("bool");
+                let str_ty = self.primitive("str");
+                match inner_ty {
+                    ty if ty == i64_ty || ty == f32_ty || ty == bool_ty || ty == str_ty => Ok(()),
                     _ => Err(AbiError::NonConstTimeTimingOwned),
                 }
             }
@@ -283,8 +332,10 @@ impl Resolver {
     /// Applies implicit borrowing for compatible types.
     #[allow(dead_code)]
     fn implicit_borrow(&mut self, ty: &Type) -> Type {
-        if *ty == Type::Str {
-            Type::StrRef // Implicit &str borrow
+        let str_ty = self.primitive("str");
+        let str_ref_ty = self.primitive("&str");
+        if *ty == str_ty {
+            str_ref_ty // Implicit &str borrow
         } else {
             ty.clone()
         }
@@ -320,7 +371,11 @@ impl Resolver {
                     let fn_ret = &sig.1;
                     let has_prop = body.iter().any(|stmt| self.has_try_prop(stmt));
                     if has_prop {
-                        if let Type::Result(_, _) = fn_ret {
+                        if let Type::Named { name, params } = fn_ret {
+                            if name == "Result" && params.len() == 2 {
+                            } else {
+                                ok = false;
+                            }
                         } else {
                             ok = false;
                         } // Require Result ret if ? used
