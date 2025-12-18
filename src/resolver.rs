@@ -41,6 +41,15 @@ impl fmt::Display for Type {
         }
     }
 }
+impl Type {
+    /// Creates a primitive type.
+    pub fn primitive(name: &str) -> Self {
+        Self::Named {
+            name: name.to_string(),
+            params: vec![],
+        }
+    }
+}
 type MethodSig = (Vec<Type>, Type);
 type ImplMethods = HashMap<String, MethodSig>;
 type FuncSig = (Vec<(String, Type)>, Type);
@@ -103,12 +112,10 @@ impl Resolver {
             borrow_checker: BorrowChecker::new(),
             trait_methods: HashMap::new(),
         };
-        let i64_ty = r.primitive("i64");
-        let f32_ty = r.primitive("f32");
-        let bool_ty = r.primitive("bool");
-        let str_ty = r.primitive("str");
-        let str_ref_ty = r.primitive("&str");
-        let vec_u8_ty = r.primitive("Vec<u8>");
+        let i64_ty = Type::primitive("i64");
+        let bool_ty = Type::primitive("bool");
+        let str_ty = Type::primitive("str");
+        let vec_u8_ty = Type::Named { name: "Vec".to_string(), params: vec![Type::primitive("u8")] };
         // Fast-path: i64 implements Addable
         let mut addable = HashMap::new();
         addable.insert("add".to_string(), (vec![i64_ty.clone()], i64_ty.clone()));
@@ -144,24 +151,14 @@ impl Resolver {
         r.trait_methods.insert((str_ty.clone(), "replace".to_string()), ("StrOps".to_string(), (vec![str_ty.clone(), str_ty.clone()], str_ty.clone())));
         r.trait_methods.insert((str_ty.clone(), "starts_with".to_string()), ("StrOps".to_string(), (vec![str_ty.clone()], bool_ty.clone())));
         r.trait_methods.insert((str_ty.clone(), "ends_with".to_string()), ("StrOps".to_string(), (vec![str_ty.clone()], bool_ty.clone())));
-        r.trait_methods.insert((str_ty, "as_bytes".to_string()), ("StrOps".to_string(), (vec![], Type::Named { name: "Vec<u8>".to_string(), params: vec![] })));
+        r.trait_methods.insert((str_ty, "as_bytes".to_string()), ("StrOps".to_string(), (vec![], Type::Named { name: "Vec".to_string(), params: vec![Type::primitive("u8")] })));
         r
-    }
-    /// Helper to create primitive types.
-    fn primitive(&self, name: &str) -> Type {
-        Type::Named {
-            name: name.to_string(),
-            params: vec![],
-        }
     }
     /// Parses a type string to a Type.
     pub fn parse_type_str(&self, s: &str) -> Type {
         let trimmed = s.trim();
         if !trimmed.contains('<') {
-            return Type::Named {
-                name: trimmed.to_string(),
-                params: vec![],
-            };
+            return Type::primitive(trimmed);
         }
         if let Some(open) = trimmed.find('<') {
             let name = trimmed[0..open].trim().to_string();
@@ -217,15 +214,15 @@ impl Resolver {
     /// Infers the type of an AST node.
     pub fn infer_type(&mut self, node: &AstNode) -> Type {
         match node {
-            AstNode::Lit(_) => self.primitive("i64"),
-            AstNode::StringLit(_) => self.primitive("str"),
-            AstNode::FString(_) => self.primitive("str"),
+            AstNode::Lit(_) => Type::primitive("i64"),
+            AstNode::StringLit(_) => Type::primitive("str"),
+            AstNode::FString(_) => Type::primitive("str"),
             AstNode::Var(name) => self.type_env.get(name).cloned().unwrap_or(Type::Unknown),
             AstNode::BinaryOp { op, left, right } => {
                 let lty = self.infer_type(left);
                 let rty = self.infer_type(right);
-                let i64_ty = self.primitive("i64");
-                let bool_ty = self.primitive("bool");
+                let i64_ty = Type::primitive("i64");
+                let bool_ty = Type::primitive("bool");
                 if op == "+" || op == "-" || op == "*" || op == "/" {
                     if lty == i64_ty && rty == i64_ty {
                         i64_ty
@@ -260,7 +257,7 @@ impl Resolver {
                     }
                 }
             }
-            AstNode::Spawn { .. } => self.primitive("i64"), // Actor ID
+            AstNode::Spawn { .. } => Type::primitive("i64"), // Actor ID
             AstNode::TimingOwned { inner, .. } => {
                 let inner_ty = self.infer_type(inner);
                 Type::TimingOwned(Box::new(inner_ty))
@@ -316,12 +313,8 @@ impl Resolver {
         match node {
             AstNode::TimingOwned { inner, .. } => {
                 let inner_ty = self.infer_type(inner);
-                let i64_ty = self.primitive("i64");
-                let f32_ty = self.primitive("f32");
-                let bool_ty = self.primitive("bool");
-                let str_ty = self.primitive("str");
                 match inner_ty {
-                    ty if ty == i64_ty || ty == f32_ty || ty == bool_ty || ty == str_ty => Ok(()),
+                    ty if ty == Type::primitive("i64") || ty == Type::primitive("f32") || ty == Type::primitive("bool") || ty == Type::primitive("str") => Ok(()),
                     _ => Err(AbiError::NonConstTimeTimingOwned),
                 }
             }
@@ -332,8 +325,8 @@ impl Resolver {
     /// Applies implicit borrowing for compatible types.
     #[allow(dead_code)]
     fn implicit_borrow(&mut self, ty: &Type) -> Type {
-        let str_ty = self.primitive("str");
-        let str_ref_ty = self.primitive("&str");
+        let str_ty = Type::primitive("str");
+        let str_ref_ty = Type::primitive("&str");
         if *ty == str_ty {
             str_ref_ty // Implicit &str borrow
         } else {
