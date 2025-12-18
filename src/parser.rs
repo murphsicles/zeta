@@ -136,12 +136,8 @@ fn parse_paren_expr(input: &str) -> IResult<&str, AstNode> {
 /// Parses primary expressions: literals, variables, strings, f-strings, dictionaries, or parenthesized expressions.
 fn parse_primary(input: &str) -> IResult<&str, AstNode> {
     alt((
-        parse_literal,
-        parse_string_lit,
-        parse_fstring,
-        parse_variable,
-        parse_dict_lit,
-        parse_paren_expr,
+        alt((parse_literal, parse_string_lit, parse_fstring)),
+        alt((parse_variable, parse_dict_lit, parse_paren_expr)),
     ))(input)
 }
 /// Parses subscript: base[index].
@@ -272,10 +268,8 @@ fn parse_try_prop(input: &str) -> IResult<&str, AstNode> {
 /// Parses a full expression: spawn, timing_owned, binary, try_prop, etc.
 fn parse_full_expr(input: &str) -> IResult<&str, AstNode> {
     alt((
-        parse_spawn,
-        parse_timing_owned,
-        parse_try_prop,
-        parse_binary,
+        alt((parse_spawn, parse_timing_owned)),
+        alt((parse_try_prop, parse_binary)),
     ))(input)
 }
 /// Parses expression statement: expr;.
@@ -285,10 +279,8 @@ fn parse_expr_stmt(input: &str) -> IResult<&str, AstNode> {
 /// Parses a statement: defer, return, assign, or expr;.
 fn parse_stmt(input: &str) -> IResult<&str, AstNode> {
     alt((
-        parse_defer,
-        parse_return,
-        parse_assign,
-        parse_expr_stmt,
+        alt((parse_defer, parse_return)),
+        alt((parse_assign, parse_expr_stmt)),
     ))(input)
 }
 /// Parses generics: <Type, Type>.
@@ -417,10 +409,8 @@ fn parse_struct(input: &str) -> IResult<&str, AstNode> {
 /// Parses a Zeta program: sequence of top-level items.
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
     many0(ws(alt((
-        parse_func,
-        parse_concept,
-        parse_impl,
-        parse_enum,
+        alt((parse_func, parse_concept)),
+        alt((parse_impl, parse_enum)),
         parse_struct,
     ))))(input)
 }
