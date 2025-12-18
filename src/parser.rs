@@ -138,8 +138,7 @@ fn parse_primary(input: &str) -> IResult<&str, AstNode> {
         parse_variable,
         parse_dict_lit,
         delimited(ws(tag("(")), ws(parse_full_expr), ws(tag(")"))),
-    ))
-    .parse(input)
+    ))(input)
 }
 /// Parses subscript: base[index].
 fn parse_subscript(input: &str) -> IResult<&str, AstNode> {
@@ -155,7 +154,7 @@ fn parse_subscript(input: &str) -> IResult<&str, AstNode> {
 }
 /// Parses a postfix expression: primary, call, or subscript.
 fn parse_postfix(input: &str) -> IResult<&str, AstNode> {
-    let (input, mut base) = ws(alt((parse_subscript, parse_primary))).parse(input)?;
+    let (mut input, mut base) = ws(alt((parse_subscript, parse_primary)))(input)?;
     loop {
         if let Ok((new_input, (args, type_args))) = delimited(
             ws(tag("(")),
@@ -201,7 +200,7 @@ fn parse_bin_op(input: &str) -> IResult<&str, String> {
 }
 /// Parses a binary expression: postfix op postfix.
 fn parse_binary(input: &str) -> IResult<&str, AstNode> {
-    let (input, mut left) = ws(parse_postfix).parse(input)?;
+    let (mut input, mut left) = ws(parse_postfix).parse(input)?;
     while let Ok((new_input, op)) = ws(parse_bin_op).parse(input) {
         let (newer_input, right) = ws(parse_postfix).parse(new_input)?;
         left = AstNode::BinaryOp {
@@ -254,7 +253,7 @@ fn parse_return(input: &str) -> IResult<&str, AstNode> {
 }
 /// Parses an assignment: lhs = rhs;.
 fn parse_assign(input: &str) -> IResult<&str, AstNode> {
-    let (input, lhs) = ws(alt((parse_variable, parse_subscript))).parse(input)?;
+    let (input, lhs) = ws(alt((parse_variable, parse_subscript)))(input)?;
     let (input, _) = ws(tag("=")).parse(input)?;
     let (input, rhs) = ws(parse_full_expr).parse(input)?;
     let (input, _) = ws(tag(";")).parse(input)?;
@@ -273,8 +272,7 @@ fn parse_full_expr(input: &str) -> IResult<&str, AstNode> {
         parse_timing_owned,
         parse_try_prop,
         parse_binary,
-    ))
-    .parse(input)
+    ))(input)
 }
 /// Parses a statement: defer, return, assign, or expr;.
 fn parse_stmt(input: &str) -> IResult<&str, AstNode> {
@@ -283,8 +281,7 @@ fn parse_stmt(input: &str) -> IResult<&str, AstNode> {
         parse_return,
         parse_assign,
         map(preceded(ws(parse_full_expr), ws(tag(";"))), |e| e),
-    ))
-    .parse(input)
+    ))(input)
 }
 /// Parses generics: <Type, Type>.
 fn parse_generics(input: &str) -> IResult<&str, Vec<String>> {
@@ -417,6 +414,5 @@ pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
         parse_impl,
         parse_enum,
         parse_struct,
-    ))))
-    .parse(input)
+    ))))(input)
 }
