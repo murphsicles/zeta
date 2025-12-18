@@ -436,11 +436,13 @@ impl Resolver {
                 }
                 for stmt in body {
                     let ty = self.infer_type(stmt);
+                    // Create a temporary clone or extract needed data before the mutable borrow
                     let can_proceed = {
-                    let resolver_ref = &*self;
-                    self.borrow_checker.check(stmt, resolver_ref)
-                };
-                if !can_proceed {
+                        // Clone self to avoid the borrow conflict
+                        let resolver_clone = self.clone();
+                        self.borrow_checker.check(stmt, &resolver_clone)
+                    };
+                    if !can_proceed {
                         ok = false;
                     }
                     if self.check_abi(stmt).is_err() {
