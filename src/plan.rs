@@ -10,7 +10,7 @@ pub mod checklist {
     /// Semantic Analysis
     pub const RESOLVER: &str = r#"
 [x] Full trait resolution beyond Addable/StrOps
-[ ] Parametric handling for Result and Map generics
+[x] Parametric handling for Result and Map generics
 [ ] Complete type inference for advanced nodes
 [ ] Expanded ABI checks for more cases
 [ ] Implicit borrowing for types beyond Str/StrRef
