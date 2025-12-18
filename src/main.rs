@@ -21,21 +21,54 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let type_ok = resolver.typecheck(&asts);
     println!("Typecheck: {}", if type_ok { "OK" } else { "Failed" });
+    // Collect used specializations
+    let used_specs = resolver.collect_used_specializations(&asts);
     // Lower all FuncDefs to MIR.
-    let mirs: Vec<_> = asts
+    let mut mir_map: HashMap<String, Mir> = asts
         .iter()
         .filter_map(|ast| {
-            if let AstNode::FuncDef { .. } = ast {
-                Some(resolver.lower_to_mir(ast))
+            if let AstNode::FuncDef { name, .. } = ast {
+                Some((name.clone(), resolver.lower_to_mir(ast)))
             } else {
                 None
             }
         })
         .collect();
+    // Monomorphize: for each generic fn used, duplicate MIR with mangled names
+    let mut mono_mirs = vec![];
+    for (fn_name, specs) in used_specs {
+        if let Some(base_mir) = mir_map.get(&fn_name) {
+            if specs.is_empty() {
+                mono_mirs.push(base_mir.clone());
+            } else {
+                for spec in specs {
+                    let key = MonoKey {
+                        func_name: fn_name.clone(),
+                        type_args: spec.clone(),
+                    };
+                    let mangled = key.mangle();
+                    let mut mono_mir = base_mir.clone();
+                    mono_mir.name = Some(mangled.clone());
+                    mono_mirs.push(mono_mir);
+                    // Record specialization if not present
+                    if lookup_specialization(&key).is_none() {
+                        let cache_safe = spec.iter().all(|t| is_cache_safe(t));
+                        record_specialization(key, MonoValue { llvm_func_name: mangled, cache_safe });
+                    }
+                }
+            }
+        }
+    }
+    // Add non-generic mirs not in used_specs
+    for (fn_name, mir) in mir_map {
+        if !used_specs.contains_key(&fn_name) {
+            mono_mirs.push(mir);
+        }
+    }
     // Setup LLVM.
     let context = Context::create();
     let mut codegen = LLVMCodegen::new(&context, "selfhost");
-    codegen.gen_mirs(&mirs);
+    codegen.gen_mirs(&mono_mirs);
     let ee = codegen.finalize_and_jit()?;
     // Map std_free to host.
     let free_fn = zetac::std::std_free as *const () as usize;
@@ -73,19 +106,48 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         boot_resolver.register(ast.clone());
     }
     boot_resolver.typecheck(&zetac_asts);
-    let boot_mirs: Vec<_> = zetac_asts
+    let boot_used_specs = boot_resolver.collect_used_specializations(&zetac_asts);
+    let mut boot_mir_map: HashMap<String, Mir> = zetac_asts
         .iter()
         .filter_map(|ast| {
-            if let AstNode::FuncDef { .. } = ast {
-                Some(boot_resolver.lower_to_mir(ast))
+            if let AstNode::FuncDef { name, .. } = ast {
+                Some((name.clone(), boot_resolver.lower_to_mir(ast)))
             } else {
                 None
             }
         })
         .collect();
+    let mut boot_mono_mirs = vec![];
+    for (fn_name, specs) in boot_used_specs {
+        if let Some(base_mir) = boot_mir_map.get(&fn_name) {
+            if specs.is_empty() {
+                boot_mono_mirs.push(base_mir.clone());
+            } else {
+                for spec in specs {
+                    let key = MonoKey {
+                        func_name: fn_name.clone(),
+                        type_args: spec.clone(),
+                    };
+                    let mangled = key.mangle();
+                    let mut mono_mir = base_mir.clone();
+                    mono_mir.name = Some(mangled.clone());
+                    boot_mono_mirs.push(mono_mir);
+                    if lookup_specialization(&key).is_none() {
+                        let cache_safe = spec.iter().all(|t| is_cache_safe(t));
+                        record_specialization(key, MonoValue { llvm_func_name: mangled, cache_safe });
+                    }
+                }
+            }
+        }
+    }
+    for (fn_name, mir) in boot_mir_map {
+        if !boot_used_specs.contains_key(&fn_name) {
+            boot_mono_mirs.push(mir);
+        }
+    }
     let boot_context = Context::create();
     let mut boot_codegen = LLVMCodegen::new(&boot_context, "bootstrap");
-    boot_codegen.gen_mirs(&boot_mirs);
+    boot_codegen.gen_mirs(&boot_mono_mirs);
     let boot_ee = boot_codegen.finalize_and_jit()?;
     // Execute bootstrap main (zetac's main).
     unsafe {
