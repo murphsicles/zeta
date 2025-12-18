@@ -174,8 +174,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
     }
     /// Generates a function declaration from MIR, applying monomorphization.
     fn gen_fn(&mut self, mir: &Mir, name: &str) -> inkwell::values::FunctionValue<'ctx> {
-        // Extract type args from MIR (stub: assume from locals or external; for now, use mir.name or placeholder)
-        let type_args = if let Some(mir_name) = &mir.name {
+        // Extract type args from MIR (stub: assume from locals or external; for now, use empty)
+        let type_args = if let Some(_mir_name) = &mir.name {
             // Placeholder logic: extract from name if mangled, or query resolver; stub as empty
             vec![] // TODO: Implement proper extraction, e.g., from ast generics via resolver
         } else {
@@ -310,8 +310,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 param_id,
                 arg_index,
             } => {
-                if let Some(fn_val) = self.fns.values().next() {
-                    // Stub: current fn
+                // Get current function: assume last added or from context; stub uses first fn
+                let current_fn = self.builder.get_insert_block().and_then(|bb| bb.get_parent());
+                if let Some(fn_val) = current_fn {
                     let arg = fn_val
                         .get_nth_param((*arg_index) as u32)
                         .expect("param not found");
