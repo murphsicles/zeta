@@ -141,111 +141,95 @@ fn parse_primary(input: &str) -> IResult<&str, AstNode> {
     ))
     .parse(input)
 }
-/// Parses postfix expressions: primaries with optional subscripts, try propagations, or method calls.
-fn parse_postfix_expr(input: &str) -> IResult<&str, AstNode> {
-    let (mut input, mut base) = parse_primary(input)?;
+/// Parses subscript: base[index].
+fn parse_subscript(input: &str) -> IResult<&str, AstNode> {
+    let (input, base) = ws(parse_primary).parse(input)?;
+    let (input, index) = delimited(ws(tag("[")), ws(parse_full_expr), ws(tag("]"))).parse(input)?;
+    Ok((
+        input,
+        AstNode::Subscript {
+            base: Box::new(base),
+            index: Box::new(index),
+        },
+    ))
+}
+/// Parses a postfix expression: primary, call, or subscript.
+fn parse_postfix(input: &str) -> IResult<&str, AstNode> {
+    let (input, mut base) = ws(alt((parse_subscript, parse_primary))).parse(input)?;
     loop {
-        if let Ok((i, _)) = ws(tag("?")).parse(input) {
-            base = AstNode::TryProp {
-                expr: Box::new(base),
-            };
-            input = i;
-        } else if let Ok((i, index)) =
-            delimited(ws(tag("[")), ws(parse_full_expr), ws(tag("]"))).parse(input)
-        {
-            base = AstNode::Subscript {
-                base: Box::new(base),
-                index: Box::new(index),
-            };
-            input = i;
-        } else if let Ok((i, method)) = preceded(ws(tag(".")), ws(parse_ident)).parse(input) {
-            let (i, type_args) = opt(ws(parse_generics)).parse(i)?;
-            let (i, structural) = if let Ok((i, _)) = ws(tag("?")).parse(i) {
-                (i, true)
-            } else {
-                (i, false)
-            };
-            let (i, args) = delimited(
-                ws(tag("(")),
+        if let Ok((new_input, (args, type_args))) = delimited(
+            ws(tag("(")),
+            pair(
                 separated_list1(ws(tag(",")), ws(parse_full_expr)),
-                ws(tag(")")),
-            )
-            .parse(i)?;
+                opt(preceded(ws(tag("<")), separated_list1(ws(tag(",")), ws(parse_ident)))),
+            ),
+            ws(tag(")")),
+        )
+        .parse(input)
+        {
+            let type_args = type_args.unwrap_or_default();
             base = AstNode::Call {
                 receiver: Some(Box::new(base)),
-                method,
+                method: "call".to_string(), // Placeholder; actual method in resolver
                 args,
-                type_args: type_args.unwrap_or_default(),
-                structural,
+                type_args,
+                structural: false,
             };
-            input = i;
+            input = new_input;
         } else {
             break;
         }
     }
     Ok((input, base))
 }
-/// Parses binary operations: postfix expressions connected by operators like +.
-fn parse_binary_op(input: &str) -> IResult<&str, AstNode> {
-    let (input, left) = parse_postfix_expr(input)?;
-    let (input, pairs) = many0(pair(
-        alt((ws(tag("+")), ws(tag("concat")))),
-        parse_postfix_expr,
+/// Parses a binary operator.
+fn parse_bin_op(input: &str) -> IResult<&str, String> {
+    alt((
+        tag("+"),
+        tag("-"),
+        tag("*"),
+        tag("/"),
+        tag("=="),
+        tag("!="),
+        tag("<"),
+        tag(">"),
+        tag("<="),
+        tag(">="),
     ))
-    .parse(input)?;
-    let mut expr = left;
-    for (op, right) in pairs {
-        expr = AstNode::BinaryOp {
-            op: op.to_string(),
-            left: Box::new(expr),
+    .map(|s: &str| s.to_string())
+    .parse(input)
+}
+/// Parses a binary expression: postfix op postfix.
+fn parse_binary(input: &str) -> IResult<&str, AstNode> {
+    let (input, mut left) = ws(parse_postfix).parse(input)?;
+    while let Ok((new_input, op)) = ws(parse_bin_op).parse(input) {
+        let (newer_input, right) = ws(parse_postfix).parse(new_input)?;
+        left = AstNode::BinaryOp {
+            op,
+            left: Box::new(left),
             right: Box::new(right),
         };
+        input = newer_input;
     }
-    Ok((input, expr))
+    Ok((input, left))
 }
-/// Parses a free function call: name(args).
-fn parse_free_call(input: &str) -> IResult<&str, AstNode> {
-    let (input, method) = ws(parse_ident).parse(input)?;
-    let (input, type_args) = opt(ws(parse_generics)).parse(input)?;
-    let (input, structural) = if let Ok((input, _)) = ws(tag("?")).parse(input) {
-        (input, true)
-    } else {
-        (input, false)
-    };
+/// Parses a spawn expression: spawn func(args).
+fn parse_spawn(input: &str) -> IResult<&str, AstNode> {
+    let (input, _) = value((), ws(tag("spawn"))).parse(input)?;
+    let (input, func) = ws(parse_ident).parse(input)?;
     let (input, args) = delimited(
         ws(tag("(")),
         separated_list1(ws(tag(",")), ws(parse_full_expr)),
         ws(tag(")")),
     )
     .parse(input)?;
-    Ok((
-        input,
-        AstNode::Call {
-            receiver: None,
-            method,
-            args,
-            type_args: type_args.unwrap_or_default(),
-            structural,
-        },
-    ))
+    Ok((input, AstNode::Spawn { func, args }))
 }
-/// Parses a full expression: calls, binary ops, postfix, or timing-owned.
-fn parse_full_expr(input: &str) -> IResult<&str, AstNode> {
-    alt((
-        parse_free_call,
-        parse_binary_op,
-        parse_timing_owned,
-        parse_postfix_expr,
-    ))
-    .parse(input)
-}
-/// Parses a timing-owned expression: TimingOwned<Type>(expr).
+/// Parses a timing-owned expression: TimingOwned<Ty>(inner).
 fn parse_timing_owned(input: &str) -> IResult<&str, AstNode> {
-    let (input, _) = ws(tag("TimingOwned")).parse(input)?;
-    let (input, ty) = delimited(tag("<"), parse_ident, tag(">")).parse(input)?;
-    let (input, _) = tag("(").parse(input)?;
-    let (input, inner) = parse_full_expr(input)?;
-    let (input, _) = tag(")").parse(input)?;
+    let (input, _) = value((), ws(tag("TimingOwned"))).parse(input)?;
+    let (input, ty) = delimited(ws(tag("<")), ws(parse_ident), ws(tag(">"))).parse(input)?;
+    let (input, inner) = delimited(ws(tag("(")), ws(parse_full_expr), ws(tag(")"))).parse(input)?;
     Ok((
         input,
         AstNode::TimingOwned {
@@ -254,47 +238,53 @@ fn parse_timing_owned(input: &str) -> IResult<&str, AstNode> {
         },
     ))
 }
-/// Parses a defer statement.
+/// Parses a defer statement: defer expr;.
 fn parse_defer(input: &str) -> IResult<&str, AstNode> {
-    let (input, _) = ws(tag("defer")).parse(input)?;
-    let (input, inner) = parse_full_expr(input)?;
-    Ok((input, AstNode::Defer(Box::new(inner))))
-}
-/// Parses a spawn expression: spawn func(args).
-fn parse_spawn(input: &str) -> IResult<&str, AstNode> {
-    let (input, _) = ws(tag("spawn")).parse(input)?;
-    let (input, func) = ws(parse_ident).parse(input)?;
-    let (input, args) = delimited(
-        tag("("),
-        separated_list1(tag(","), ws(parse_full_expr)),
-        tag(")"),
-    )
-    .parse(input)?;
-    Ok((input, AstNode::Spawn { func, args }))
-}
-/// Parses a return statement.
-fn parse_return(input: &str) -> IResult<&str, AstNode> {
-    let (input, _) = ws(tag("return")).parse(input)?;
+    let (input, _) = value((), ws(tag("defer"))).parse(input)?;
     let (input, expr) = ws(parse_full_expr).parse(input)?;
+    let (input, _) = ws(tag(";")).parse(input)?;
+    Ok((input, AstNode::Defer(Box::new(expr))))
+}
+/// Parses a return statement: return expr;.
+fn parse_return(input: &str) -> IResult<&str, AstNode> {
+    let (input, _) = value((), ws(tag("return"))).parse(input)?;
+    let (input, expr) = ws(parse_full_expr).parse(input)?;
+    let (input, _) = ws(tag(";")).parse(input)?;
     Ok((input, AstNode::Return(Box::new(expr))))
 }
-/// Parses a statement: assignment, defer, spawn, return, or expression.
-fn parse_stmt(input: &str) -> IResult<&str, AstNode> {
+/// Parses an assignment: lhs = rhs;.
+fn parse_assign(input: &str) -> IResult<&str, AstNode> {
+    let (input, lhs) = ws(alt((parse_variable, parse_subscript))).parse(input)?;
+    let (input, _) = ws(tag("=")).parse(input)?;
+    let (input, rhs) = ws(parse_full_expr).parse(input)?;
+    let (input, _) = ws(tag(";")).parse(input)?;
+    Ok((input, AstNode::Assign(Box::new(lhs), Box::new(rhs))))
+}
+/// Parses try propagation: expr?.
+fn parse_try_prop(input: &str) -> IResult<&str, AstNode> {
+    let (input, expr) = ws(parse_binary).parse(input)?;
+    let (input, _) = ws(tag("?")).parse(input)?;
+    Ok((input, AstNode::TryProp { expr: Box::new(expr) }))
+}
+/// Parses a full expression: spawn, timing_owned, binary, try_prop, etc.
+fn parse_full_expr(input: &str) -> IResult<&str, AstNode> {
     alt((
-        parse_assign,
-        parse_defer,
         parse_spawn,
-        parse_return,
-        parse_full_expr,
+        parse_timing_owned,
+        parse_try_prop,
+        parse_binary,
     ))
     .parse(input)
 }
-/// Parses an assignment: lhs = rhs.
-fn parse_assign(input: &str) -> IResult<&str, AstNode> {
-    let (input, lhs) = ws(parse_postfix_expr).parse(input)?;
-    let (input, _) = ws(tag("=")).parse(input)?;
-    let (input, rhs) = ws(parse_full_expr).parse(input)?;
-    Ok((input, AstNode::Assign(Box::new(lhs), Box::new(rhs))))
+/// Parses a statement: defer, return, assign, or expr;.
+fn parse_stmt(input: &str) -> IResult<&str, AstNode> {
+    alt((
+        parse_defer,
+        parse_return,
+        parse_assign,
+        map(preceded(ws(parse_full_expr), ws(tag(";"))), |e| e),
+    ))
+    .parse(input)
 }
 /// Parses generics: <Type, Type>.
 fn parse_generics(input: &str) -> IResult<&str, Vec<String>> {
@@ -384,12 +374,24 @@ fn parse_impl(input: &str) -> IResult<&str, AstNode> {
         delimited(ws(tag("{")), many0(ws(parse_method_sig)), ws(tag("}"))).parse(input)?;
     Ok((input, AstNode::ImplBlock { concept, ty, body }))
 }
+/// Parses a variant: Variant or Variant(Type, Type).
+fn parse_variant(input: &str) -> IResult<&str, (String, Vec<String>)> {
+    let (input, name) = ws(parse_ident).parse(input)?;
+    let (input, params_opt) = opt(delimited(
+        ws(tag("(")),
+        separated_list1(ws(tag(",")), ws(parse_ident)),
+        ws(tag(")")),
+    ))
+    .parse(input)?;
+    let params = params_opt.unwrap_or_default();
+    Ok((input, (name, params)))
+}
 /// Parses an enum definition: enum Name { Variant, ... }.
 fn parse_enum(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = value((), ws(tag("enum"))).parse(input)?;
     let (input, name) = ws(parse_ident).parse(input)?;
     let (input, variants) =
-        delimited(ws(tag("{")), many0(ws(parse_ident)), ws(tag("}"))).parse(input)?;
+        delimited(ws(tag("{")), separated_list1(ws(tag(",")), ws(parse_variant)), ws(tag("}"))).parse(input)?;
     Ok((input, AstNode::EnumDef { name, variants }))
 }
 /// Parses a struct definition: struct Name { field: Type, ... }.
