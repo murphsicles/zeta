@@ -115,20 +115,35 @@ impl Resolver {
         let i64_ty = Type::primitive("i64");
         let bool_ty = Type::primitive("bool");
         let str_ty = Type::primitive("str");
-        let vec_u8_ty = Type::Named { name: "Vec".to_string(), params: vec![Type::primitive("u8")] };
+        let vec_u8_ty = Type::Named {
+            name: "Vec".to_string(),
+            params: vec![Type::primitive("u8")],
+        };
         // Fast-path: i64 implements Addable
         let mut addable = HashMap::new();
         addable.insert("add".to_string(), (vec![i64_ty.clone()], i64_ty.clone()));
         r.direct_impls
             .insert(("Addable".to_string(), i64_ty.clone()), addable);
-        r.trait_methods.insert((i64_ty.clone(), "add".to_string()), ("Addable".to_string(), (vec![i64_ty.clone()], i64_ty.clone())));
+        r.trait_methods.insert(
+            (i64_ty.clone(), "add".to_string()),
+            (
+                "Addable".to_string(),
+                (vec![i64_ty.clone()], i64_ty.clone()),
+            ),
+        );
         // Builtin StrOps for unified strings - expanded
         let mut str_ops = HashMap::new();
         str_ops.insert("len".to_string(), (vec![], i64_ty.clone()));
         str_ops.insert("concat".to_string(), (vec![str_ty.clone()], str_ty.clone()));
-        str_ops.insert("contains".to_string(), (vec![str_ty.clone()], bool_ty.clone()));
+        str_ops.insert(
+            "contains".to_string(),
+            (vec![str_ty.clone()], bool_ty.clone()),
+        );
         str_ops.insert("trim".to_string(), (vec![], str_ty.clone()));
-        let vec_str_ty = Type::Named { name: "Vec".to_string(), params: vec![str_ty.clone()] };
+        let vec_str_ty = Type::Named {
+            name: "Vec".to_string(),
+            params: vec![str_ty.clone()],
+        };
         str_ops.insert("split".to_string(), (vec![str_ty.clone()], vec_str_ty));
         // Rich methods
         str_ops.insert("to_lowercase".to_string(), (vec![], str_ty.clone()));
@@ -136,22 +151,88 @@ impl Resolver {
             "replace".to_string(),
             (vec![str_ty.clone(), str_ty.clone()], str_ty.clone()),
         );
-        str_ops.insert("starts_with".to_string(), (vec![str_ty.clone()], bool_ty.clone()));
-        str_ops.insert("ends_with".to_string(), (vec![str_ty.clone()], bool_ty.clone()));
+        str_ops.insert(
+            "starts_with".to_string(),
+            (vec![str_ty.clone()], bool_ty.clone()),
+        );
+        str_ops.insert(
+            "ends_with".to_string(),
+            (vec![str_ty.clone()], bool_ty.clone()),
+        );
         str_ops.insert("as_bytes".to_string(), (vec![], vec_u8_ty));
         r.direct_impls
             .insert(("StrOps".to_string(), str_ty.clone()), str_ops);
         // Insert into trait_methods
-        r.trait_methods.insert((str_ty.clone(), "len".to_string()), ("StrOps".to_string(), (vec![], i64_ty.clone())));
-        r.trait_methods.insert((str_ty.clone(), "concat".to_string()), ("StrOps".to_string(), (vec![str_ty.clone()], str_ty.clone())));
-        r.trait_methods.insert((str_ty.clone(), "contains".to_string()), ("StrOps".to_string(), (vec![str_ty.clone()], bool_ty.clone())));
-        r.trait_methods.insert((str_ty.clone(), "trim".to_string()), ("StrOps".to_string(), (vec![], str_ty.clone())));
-        r.trait_methods.insert((str_ty.clone(), "split".to_string()), ("StrOps".to_string(), (vec![str_ty.clone()], Type::Named { name: "Vec".to_string(), params: vec![str_ty.clone()] })));
-        r.trait_methods.insert((str_ty.clone(), "to_lowercase".to_string()), ("StrOps".to_string(), (vec![], str_ty.clone())));
-        r.trait_methods.insert((str_ty.clone(), "replace".to_string()), ("StrOps".to_string(), (vec![str_ty.clone(), str_ty.clone()], str_ty.clone())));
-        r.trait_methods.insert((str_ty.clone(), "starts_with".to_string()), ("StrOps".to_string(), (vec![str_ty.clone()], bool_ty.clone())));
-        r.trait_methods.insert((str_ty.clone(), "ends_with".to_string()), ("StrOps".to_string(), (vec![str_ty.clone()], bool_ty.clone())));
-        r.trait_methods.insert((str_ty, "as_bytes".to_string()), ("StrOps".to_string(), (vec![], Type::Named { name: "Vec".to_string(), params: vec![Type::primitive("u8")] })));
+        r.trait_methods.insert(
+            (str_ty.clone(), "len".to_string()),
+            ("StrOps".to_string(), (vec![], i64_ty.clone())),
+        );
+        r.trait_methods.insert(
+            (str_ty.clone(), "concat".to_string()),
+            ("StrOps".to_string(), (vec![str_ty.clone()], str_ty.clone())),
+        );
+        r.trait_methods.insert(
+            (str_ty.clone(), "contains".to_string()),
+            (
+                "StrOps".to_string(),
+                (vec![str_ty.clone()], bool_ty.clone()),
+            ),
+        );
+        r.trait_methods.insert(
+            (str_ty.clone(), "trim".to_string()),
+            ("StrOps".to_string(), (vec![], str_ty.clone())),
+        );
+        r.trait_methods.insert(
+            (str_ty.clone(), "split".to_string()),
+            (
+                "StrOps".to_string(),
+                (
+                    vec![str_ty.clone()],
+                    Type::Named {
+                        name: "Vec".to_string(),
+                        params: vec![str_ty.clone()],
+                    },
+                ),
+            ),
+        );
+        r.trait_methods.insert(
+            (str_ty.clone(), "to_lowercase".to_string()),
+            ("StrOps".to_string(), (vec![], str_ty.clone())),
+        );
+        r.trait_methods.insert(
+            (str_ty.clone(), "replace".to_string()),
+            (
+                "StrOps".to_string(),
+                (vec![str_ty.clone(), str_ty.clone()], str_ty.clone()),
+            ),
+        );
+        r.trait_methods.insert(
+            (str_ty.clone(), "starts_with".to_string()),
+            (
+                "StrOps".to_string(),
+                (vec![str_ty.clone()], bool_ty.clone()),
+            ),
+        );
+        r.trait_methods.insert(
+            (str_ty.clone(), "ends_with".to_string()),
+            (
+                "StrOps".to_string(),
+                (vec![str_ty.clone()], bool_ty.clone()),
+            ),
+        );
+        r.trait_methods.insert(
+            (str_ty, "as_bytes".to_string()),
+            (
+                "StrOps".to_string(),
+                (
+                    vec![],
+                    Type::Named {
+                        name: "Vec".to_string(),
+                        params: vec![Type::primitive("u8")],
+                    },
+                ),
+            ),
+        );
         r
     }
     /// Determines if a type is Copy.
@@ -175,10 +256,7 @@ impl Resolver {
         if let Some(open) = trimmed.find('<') {
             let name = trimmed[0..open].trim().to_string();
             let inner = &trimmed[open + 1..trimmed.len() - 1];
-            let param_strs: Vec<String> = inner
-                .split(',')
-                .map(|p| p.trim().to_string())
-                .collect();
+            let param_strs: Vec<String> = inner.split(',').map(|p| p.trim().to_string()).collect();
             let params: Vec<Type> = param_strs
                 .iter()
                 .map(|ps| self.parse_type_str(ps))
@@ -201,30 +279,56 @@ impl Resolver {
                 let ty = self.parse_type_str(&ty);
                 let mut methods = HashMap::new();
                 for m in body {
-                    if let AstNode::Method { name, params, ret, .. } = m {
-                        let ptypes: Vec<Type> = params.iter().map(|(_, t)| self.parse_type_str(t)).collect();
+                    if let AstNode::Method {
+                        name, params, ret, ..
+                    } = m
+                    {
+                        let ptypes: Vec<Type> =
+                            params.iter().map(|(_, t)| self.parse_type_str(t)).collect();
                         let ret_ty = self.parse_type_str(&ret);
                         methods.insert(name.clone(), (ptypes.clone(), ret_ty.clone()));
-                        self.trait_methods.insert((ty.clone(), name), (concept.clone(), (ptypes, ret_ty)));
+                        self.trait_methods
+                            .insert((ty.clone(), name), (concept.clone(), (ptypes, ret_ty)));
                     }
                 }
                 self.direct_impls.insert((concept, ty), methods);
             }
-            AstNode::FuncDef { name, params, ret, .. } => {
-                let ptypes: Vec<(String, Type)> = params.iter().map(|(n, t)| (n.clone(), self.parse_type_str(t))).collect();
-                self.func_sigs.insert(name, (ptypes, self.parse_type_str(&ret)));
+            AstNode::FuncDef {
+                name, params, ret, ..
+            } => {
+                let ptypes: Vec<(String, Type)> = params
+                    .iter()
+                    .map(|(n, t)| (n.clone(), self.parse_type_str(t)))
+                    .collect();
+                self.func_sigs
+                    .insert(name, (ptypes, self.parse_type_str(&ret)));
             }
             AstNode::EnumDef { name, .. } => {
-                self.type_env.insert(name, Type::Named { name: "enum".to_string(), params: vec![] }); // Stub
+                self.type_env.insert(
+                    name,
+                    Type::Named {
+                        name: "enum".to_string(),
+                        params: vec![],
+                    },
+                ); // Stub
             }
             AstNode::StructDef { name, .. } => {
-                self.type_env.insert(name, Type::Named { name: "struct".to_string(), params: vec![] }); // Stub
+                self.type_env.insert(
+                    name,
+                    Type::Named {
+                        name: "struct".to_string(),
+                        params: vec![],
+                    },
+                ); // Stub
             }
             _ => {}
         }
     }
     /// Collects used specializations from calls.
-    pub fn collect_used_specializations(&self, asts: &[AstNode]) -> HashMap<String, Vec<Vec<String>>> {
+    pub fn collect_used_specializations(
+        &self,
+        asts: &[AstNode],
+    ) -> HashMap<String, Vec<Vec<String>>> {
         let mut used = HashMap::new();
         for ast in asts {
             if let AstNode::FuncDef { body, .. } = ast {
@@ -238,7 +342,9 @@ impl Resolver {
     /// Helper to collect from node recursively.
     fn collect_from_node(&self, node: &AstNode, used: &mut HashMap<String, Vec<Vec<String>>>) {
         match node {
-            AstNode::Call { method, type_args, .. } if !type_args.is_empty() => {
+            AstNode::Call {
+                method, type_args, ..
+            } if !type_args.is_empty() => {
                 used.entry(method.clone())
                     .or_insert(vec![])
                     .push(type_args.clone());
@@ -288,7 +394,13 @@ impl Resolver {
                     } else {
                         Type::Unknown
                     }
-                } else if op == "==" || op == "!=" || op == "<" || op == ">" || op == "<=" || op == ">=" {
+                } else if op == "=="
+                    || op == "!="
+                    || op == "<"
+                    || op == ">"
+                    || op == "<="
+                    || op == ">="
+                {
                     bool_ty
                 } else {
                     Type::Unknown
@@ -302,7 +414,9 @@ impl Resolver {
             } => {
                 if let Some(rec) = receiver {
                     let rec_ty = self.infer_type(rec);
-                    if let Some((_, sig)) = self.trait_methods.get(&(rec_ty.clone(), method.clone())) {
+                    if let Some((_, sig)) =
+                        self.trait_methods.get(&(rec_ty.clone(), method.clone()))
+                    {
                         sig.1.clone()
                     } else {
                         Type::Unknown
@@ -374,7 +488,13 @@ impl Resolver {
             AstNode::TimingOwned { inner, .. } => {
                 let inner_ty = self.infer_type(inner);
                 match inner_ty {
-                    ty if ty == Type::primitive("i64") || ty == Type::primitive("f32") || ty == Type::primitive("bool") || ty == Type::primitive("str") => Ok(()),
+                    ty if ty == Type::primitive("i64")
+                        || ty == Type::primitive("f32")
+                        || ty == Type::primitive("bool")
+                        || ty == Type::primitive("str") =>
+                    {
+                        Ok(())
+                    }
                     _ => Err(AbiError::NonConstTimeTimingOwned),
                 }
             }
@@ -418,8 +538,11 @@ impl Resolver {
                 self.borrow_checker = BorrowChecker::new();
                 if let Some(sig) = self.func_sigs.get(name) {
                     for (pname, pty) in &sig.0 {
-                        self.borrow_checker
-                            .declare(pname.clone(), crate::borrow::BorrowState::Owned, pty.clone());
+                        self.borrow_checker.declare(
+                            pname.clone(),
+                            crate::borrow::BorrowState::Owned,
+                            pty.clone(),
+                        );
                     }
                     let fn_ret = &sig.1;
                     let has_prop = body.iter().any(|stmt| self.has_try_prop(stmt));
