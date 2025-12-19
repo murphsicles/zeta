@@ -449,10 +449,10 @@ impl Resolver {
                         ok = false;
                     }
                     // Insert local types to env after check
-                    if let AstNode::Assign(lhs, _) = stmt {
-                        if let AstNode::Var(ref v) = **lhs {
-                            self.type_env.insert(v.clone(), ty);
-                        }
+                    if let AstNode::Assign(lhs, _) = stmt
+                        && let AstNode::Var(ref v) = **lhs
+                    {
+                        self.type_env.insert(v.clone(), ty);
                     }
                 }
             }
