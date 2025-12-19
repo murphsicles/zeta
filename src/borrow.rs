@@ -116,13 +116,11 @@ impl BorrowChecker {
                     // Type-based affine move
                     if let AstNode::Var(name) = arg
                         && let Some(ty) = self.types.get(name)
+                        && !resolver.is_copy(ty)
+                        && !*self.affine_moves.get(name).unwrap_or(&false)
                     {
-                        if !resolver.is_copy(ty) {
-                            if !*self.affine_moves.get(name).unwrap_or(&false) {
-                                *self.affine_moves.entry(name.clone()).or_insert(false) = true;
-                                self.borrows.insert(name.clone(), BorrowState::Consumed);
-                            }
-                        }
+                        *self.affine_moves.entry(name.clone()).or_insert(false) = true;
+                        self.borrows.insert(name.clone(), BorrowState::Consumed);
                     }
                 }
                 true
