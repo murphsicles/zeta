@@ -99,7 +99,9 @@ impl BorrowChecker {
                     _ => false,
                 }
             }
-            AstNode::BinaryOp { left, right, .. } => self.check(left, resolver) && self.check(right, resolver),
+            AstNode::BinaryOp { left, right, .. } => {
+                self.check(left, resolver) && self.check(right, resolver)
+            }
             AstNode::FString(parts) => parts.iter().all(|p| self.check(p, resolver)),
             AstNode::TimingOwned { inner, .. } => self.check(inner, resolver),
             AstNode::Defer(inner) => self.check(inner, resolver),
@@ -126,10 +128,12 @@ impl BorrowChecker {
                 true
             }
             AstNode::TryProp { expr } => self.check(expr, resolver),
-            AstNode::DictLit { entries } => {
-                entries.iter().all(|(k, v)| self.check(k, resolver) && self.check(v, resolver))
+            AstNode::DictLit { entries } => entries
+                .iter()
+                .all(|(k, v)| self.check(k, resolver) && self.check(v, resolver)),
+            AstNode::Subscript { base, index } => {
+                self.check(base, resolver) && self.check(index, resolver)
             }
-            AstNode::Subscript { base, index } => self.check(base, resolver) && self.check(index, resolver),
             AstNode::Return(inner) => self.check(inner, resolver),
             _ => true,
         }
