@@ -135,7 +135,15 @@ fn parse_paren_expr(input: &str) -> IResult<&str, AstNode> {
 }
 /// Parses primary expressions: literals, variables, strings, f-strings, dictionaries, or parenthesized expressions.
 fn parse_primary(input: &str) -> IResult<&str, AstNode> {
-    alt((parse_literal, parse_string_lit, parse_fstring, parse_variable, parse_dict_lit, parse_paren_expr)).parse(input)
+    alt((
+        parse_literal,
+        parse_string_lit,
+        parse_fstring,
+        parse_variable,
+        parse_dict_lit,
+        parse_paren_expr,
+    ))
+    .parse(input)
 }
 /// Parses subscript: base[index].
 fn parse_subscript(input: &str) -> IResult<&str, AstNode> {
@@ -151,12 +159,20 @@ fn parse_subscript(input: &str) -> IResult<&str, AstNode> {
 }
 /// Parses a postfix expression: primary, call, or subscript.
 fn parse_postfix(input: &str) -> IResult<&str, AstNode> {
-    let (mut input, mut base) = delimited(multispace0, alt((parse_subscript, parse_primary)), multispace0).parse(input)?;
+    let (mut input, mut base) = delimited(
+        multispace0,
+        alt((parse_subscript, parse_primary)),
+        multispace0,
+    )
+    .parse(input)?;
     while let Ok((new_input, (args, type_args))) = delimited(
         ws(tag("(")),
         pair(
             separated_list1(ws(tag(",")), ws(parse_full_expr)),
-            opt(preceded(ws(tag("<")), separated_list1(ws(tag(",")), ws(parse_ident)))),
+            opt(preceded(
+                ws(tag("<")),
+                separated_list1(ws(tag(",")), ws(parse_ident)),
+            )),
         ),
         ws(tag(")")),
     )
@@ -246,7 +262,12 @@ fn parse_return(input: &str) -> IResult<&str, AstNode> {
 }
 /// Parses an assignment: lhs = rhs;.
 fn parse_assign(input: &str) -> IResult<&str, AstNode> {
-    let (input, lhs) = delimited(multispace0, alt((parse_variable, parse_subscript)), multispace0).parse(input)?;
+    let (input, lhs) = delimited(
+        multispace0,
+        alt((parse_variable, parse_subscript)),
+        multispace0,
+    )
+    .parse(input)?;
     let (input, _) = ws(tag("=")).parse(input)?;
     let (input, rhs) = ws(parse_full_expr).parse(input)?;
     let (input, _) = ws(tag(";")).parse(input)?;
@@ -256,11 +277,22 @@ fn parse_assign(input: &str) -> IResult<&str, AstNode> {
 fn parse_try_prop(input: &str) -> IResult<&str, AstNode> {
     let (input, expr) = ws(parse_binary).parse(input)?;
     let (input, _) = ws(tag("?")).parse(input)?;
-    Ok((input, AstNode::TryProp { expr: Box::new(expr) }))
+    Ok((
+        input,
+        AstNode::TryProp {
+            expr: Box::new(expr),
+        },
+    ))
 }
 /// Parses a full expression: spawn, timing_owned, binary, try_prop, etc.
 fn parse_full_expr(input: &str) -> IResult<&str, AstNode> {
-    alt((parse_spawn, parse_timing_owned, parse_try_prop, parse_binary)).parse(input)
+    alt((
+        parse_spawn,
+        parse_timing_owned,
+        parse_try_prop,
+        parse_binary,
+    ))
+    .parse(input)
 }
 /// Parses expression statement: expr;.
 fn parse_expr_stmt(input: &str) -> IResult<&str, AstNode> {
@@ -374,8 +406,12 @@ fn parse_variant(input: &str) -> IResult<&str, (String, Vec<String>)> {
 fn parse_enum(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = value((), ws(tag("enum"))).parse(input)?;
     let (input, name) = ws(parse_ident).parse(input)?;
-    let (input, variants) =
-        delimited(ws(tag("{")), separated_list1(ws(tag(",")), ws(parse_variant)), ws(tag("}"))).parse(input)?;
+    let (input, variants) = delimited(
+        ws(tag("{")),
+        separated_list1(ws(tag(",")), ws(parse_variant)),
+        ws(tag("}")),
+    )
+    .parse(input)?;
     Ok((input, AstNode::EnumDef { name, variants }))
 }
 /// Parses a struct definition: struct Name { field: Type, ... }.
@@ -395,5 +431,12 @@ fn parse_struct(input: &str) -> IResult<&str, AstNode> {
 }
 /// Parses a Zeta program: sequence of top-level items.
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
-    many0(ws(alt((parse_func, parse_concept, parse_impl, parse_enum, parse_struct)))).parse(input)
+    many0(ws(alt((
+        parse_func,
+        parse_concept,
+        parse_impl,
+        parse_enum,
+        parse_struct,
+    ))))
+    .parse(input)
 }
