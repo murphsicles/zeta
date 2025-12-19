@@ -5,6 +5,9 @@ use inkwell::context::Context;
 use std::fs;
 use zetac::ast::AstNode;
 use zetac::{LLVMCodegen, Resolver, actor, parse_zeta};
+use std::collections::HashMap;
+use zetac::mir::Mir;
+use zetac::specialization::{MonoKey, MonoValue, lookup_specialization, is_cache_safe, record_specialization};
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize async actor runtime.
@@ -35,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .collect();
     // Monomorphize: for each generic fn used, duplicate MIR with mangled names
-    let mut mono_mirs = vec![];
+    let mut mono_mirs: Vec<Mir> = vec![];
     for (fn_name, specs) in used_specs {
         if let Some(base_mir) = mir_map.get(&fn_name) {
             if specs.is_empty() {
@@ -117,7 +120,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         })
         .collect();
-    let mut boot_mono_mirs = vec![];
+    let mut boot_mono_mirs: Vec<Mir> = vec![];
     for (fn_name, specs) in boot_used_specs {
         if let Some(base_mir) = boot_mir_map.get(&fn_name) {
             if specs.is_empty() {
