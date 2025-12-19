@@ -2,12 +2,14 @@
 //! Entry point for the Zeta compiler.
 //! Demonstrates self-hosting by parsing, resolving, generating code, JIT-executing example code, and bootstrapping.
 use inkwell::context::Context;
+use std::collections::HashMap;
 use std::fs;
 use zetac::ast::AstNode;
-use zetac::{LLVMCodegen, Resolver, actor, parse_zeta};
-use std::collections::HashMap;
 use zetac::mir::Mir;
-use zetac::specialization::{MonoKey, MonoValue, lookup_specialization, is_cache_safe, record_specialization};
+use zetac::specialization::{
+    MonoKey, MonoValue, is_cache_safe, lookup_specialization, record_specialization,
+};
+use zetac::{LLVMCodegen, Resolver, actor, parse_zeta};
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize async actor runtime.
@@ -56,7 +58,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     // Record specialization if not present
                     if lookup_specialization(&key).is_none() {
                         let cache_safe = spec.iter().all(|t| is_cache_safe(t));
-                        record_specialization(key, MonoValue { llvm_func_name: mangled, cache_safe });
+                        record_specialization(
+                            key,
+                            MonoValue {
+                                llvm_func_name: mangled,
+                                cache_safe,
+                            },
+                        );
                     }
                 }
             }
@@ -137,7 +145,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     boot_mono_mirs.push(mono_mir);
                     if lookup_specialization(&key).is_none() {
                         let cache_safe = spec.iter().all(|t| is_cache_safe(t));
-                        record_specialization(key, MonoValue { llvm_func_name: mangled, cache_safe });
+                        record_specialization(
+                            key,
+                            MonoValue {
+                                llvm_func_name: mangled,
+                                cache_safe,
+                            },
+                        );
                     }
                 }
             }
