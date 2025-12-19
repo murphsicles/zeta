@@ -199,7 +199,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         self.builder.build_store(alloca, basic_val).unwrap();
                         self.locals.insert(*dest, alloca);
                     }
-                    inkwell::values::ValueKind::InstructionValue(_) => {
+                    inkwell::values::ValueKind::Instruction(_) => {
                         // Instruction with no return value, skip storing
                     }
                 }
@@ -294,7 +294,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         .unwrap();
                     res = match call.try_as_basic_value() {
                         inkwell::values::ValueKind::Value(basic_val) => basic_val,
-                        inkwell::values::ValueKind::InstructionValue(_) => panic!("expected basic value from str_concat"),
+                        inkwell::values::ValueKind::Instruction(_) => panic!("expected basic value from str_concat"),
                     };
                 }
                 res
