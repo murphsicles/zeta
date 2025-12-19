@@ -194,7 +194,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .collect();
                 let call = self.builder.build_call(callee_fn, &arg_vals, "call").unwrap();
                 match call.try_as_basic_value() {
-                    inkwell::values::ValueKind::Value(basic_val) => {
+                    inkwell::values::ValueKind::Basic(basic_val) => {
                         let alloca = self.builder.build_alloca(self.i64_type, &format!("call_{dest}")).unwrap();
                         self.builder.build_store(alloca, basic_val).unwrap();
                         self.locals.insert(*dest, alloca);
@@ -293,7 +293,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         .build_call(concat_fn, &[res.into(), next.into()], "fconcat")
                         .unwrap();
                     res = match call.try_as_basic_value() {
-                        inkwell::values::ValueKind::Value(basic_val) => basic_val,
+                        inkwell::values::ValueKind::Basic(basic_val) => basic_val,
                         inkwell::values::ValueKind::Instruction(_) => panic!("expected basic value from str_concat"),
                     };
                 }
