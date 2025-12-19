@@ -489,7 +489,10 @@ impl Mir {
     pub fn optimize_ctfe(&mut self) {
         let mut i = 0;
         while i < self.stmts.len() {
-            if let MirStmt::Call { func, args, dest, .. } = &mut self.stmts[i] {
+            if let MirStmt::Call {
+                func, args, dest, ..
+            } = &mut self.stmts[i]
+            {
                 // If call to semiring op with all const args, fold
                 if func == "add" || func == "mul" {
                     let op = if func == "add" {
