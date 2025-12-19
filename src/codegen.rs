@@ -14,7 +14,6 @@ use crate::specialization::{
 };
 use crate::std::std_free;
 use crate::xai::XAIClient;
-use either::Either;
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
 use inkwell::attributes::{Attribute, AttributeLoc};
@@ -194,10 +193,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .map(|&id| self.load_local(id).into())
                     .collect();
                 let call = self.builder.build_call(callee_fn, &arg_vals, "call").unwrap();
-                if let Ok(basic_val) = call.try_as_basic_value().as_basic_value_enum() {
-                    let alloca = self.builder.build_alloca(self.i64_type, &format!("call_{dest}")).unwrap();
-                    self.builder.build_store(alloca, basic_val).unwrap();
-                    self.locals.insert(*dest, alloca);
+                match call.try_as_basic_value() {
+                    inkwell::values::ValueKind::BasicValue(basic_val) => {
+                        let alloca = self.builder.build_alloca(self.i64_type, &format!("call_{dest}")).unwrap();
+                        self.builder.build_store(alloca, basic_val).unwrap();
+                        self.locals.insert(*dest, alloca);
+                    }
+                    inkwell::values::ValueKind::Instruction(_) => {
+                        // Instruction with no return value, skip storing
+                    }
                 }
             }
             MirStmt::VoidCall { func, args } => {
@@ -288,9 +292,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         .builder
                         .build_call(concat_fn, &[res.into(), next.into()], "fconcat")
                         .unwrap();
-                    res = call.try_as_basic_value()
-                        .as_basic_value_enum()
-                        .expect("expected basic value from str_concat");
+                    res = match call.try_as_basic_value() {
+                        inkwell::values::ValueKind::BasicValue(basic_val) => basic_val,
+                        inkwell::values::ValueKind::Instruction(_) => panic!("expected basic value from str_concat"),
+                    };
                 }
                 res
             }
