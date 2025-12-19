@@ -27,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Collect used specializations
     let used_specs = resolver.collect_used_specializations(&asts);
     // Lower all FuncDefs to MIR.
-    let mut mir_map: HashMap<String, Mir> = asts
+    let mir_map: HashMap<String, Mir> = asts
         .iter()
         .filter_map(|ast| {
             if let AstNode::FuncDef { name, .. } = ast {
@@ -39,8 +39,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect();
     // Monomorphize: for each generic fn used, duplicate MIR with mangled names
     let mut mono_mirs: Vec<Mir> = vec![];
-    for (fn_name, specs) in used_specs {
-        if let Some(base_mir) = mir_map.get(&fn_name) {
+    for (fn_name, specs) in &used_specs {
+        if let Some(base_mir) = mir_map.get(fn_name) {
             if specs.is_empty() {
                 mono_mirs.push(base_mir.clone());
             } else {
@@ -110,7 +110,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     boot_resolver.typecheck(&zetac_asts);
     let boot_used_specs = boot_resolver.collect_used_specializations(&zetac_asts);
-    let mut boot_mir_map: HashMap<String, Mir> = zetac_asts
+    let boot_mir_map: HashMap<String, Mir> = zetac_asts
         .iter()
         .filter_map(|ast| {
             if let AstNode::FuncDef { name, .. } = ast {
@@ -121,8 +121,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .collect();
     let mut boot_mono_mirs: Vec<Mir> = vec![];
-    for (fn_name, specs) in boot_used_specs {
-        if let Some(base_mir) = boot_mir_map.get(&fn_name) {
+    for (fn_name, specs) in &boot_used_specs {
+        if let Some(base_mir) = boot_mir_map.get(fn_name) {
             if specs.is_empty() {
                 boot_mono_mirs.push(base_mir.clone());
             } else {
