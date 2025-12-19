@@ -152,29 +152,25 @@ fn parse_subscript(input: &str) -> IResult<&str, AstNode> {
 /// Parses a postfix expression: primary, call, or subscript.
 fn parse_postfix(input: &str) -> IResult<&str, AstNode> {
     let (mut input, mut base) = delimited(multispace0, alt((parse_subscript, parse_primary)), multispace0).parse(input)?;
-    loop {
-        if let Ok((new_input, (args, type_args))) = delimited(
-            ws(tag("(")),
-            pair(
-                separated_list1(ws(tag(",")), ws(parse_full_expr)),
-                opt(preceded(ws(tag("<")), separated_list1(ws(tag(",")), ws(parse_ident)))),
-            ),
-            ws(tag(")")),
-        )
-        .parse(input)
-        {
-            let type_args = type_args.unwrap_or_default();
-            base = AstNode::Call {
-                receiver: Some(Box::new(base)),
-                method: "call".to_string(), // Placeholder; actual method in resolver
-                args,
-                type_args,
-                structural: false,
-            };
-            input = new_input;
-        } else {
-            break;
-        }
+    while let Ok((new_input, (args, type_args))) = delimited(
+        ws(tag("(")),
+        pair(
+            separated_list1(ws(tag(",")), ws(parse_full_expr)),
+            opt(preceded(ws(tag("<")), separated_list1(ws(tag(",")), ws(parse_ident)))),
+        ),
+        ws(tag(")")),
+    )
+    .parse(input)
+    {
+        let type_args = type_args.unwrap_or_default();
+        base = AstNode::Call {
+            receiver: Some(Box::new(base)),
+            method: "call".to_string(), // Placeholder; actual method in resolver
+            args,
+            type_args,
+            structural: false,
+        };
+        input = new_input;
     }
     Ok((input, base))
 }
