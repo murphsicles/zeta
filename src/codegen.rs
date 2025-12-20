@@ -60,6 +60,16 @@ extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i64 {
         -1i64
     }
 }
+/// Host function for string concatenation.
+extern "C" fn host_str_concat(a: *const u8, a_len: usize, b: *const u8, b_len: usize) -> *mut u8 {
+    let mut result = Vec::with_capacity(a_len + b_len + 1);
+    result.extend_from_slice(unsafe { std::slice::from_raw_parts(a, a_len) });
+    result.extend_from_slice(unsafe { std::slice::from_raw_parts(b, b_len) });
+    result.push(0);
+    let ptr = result.as_mut_ptr();
+    std::mem::forget(result);
+    ptr
+}
 /// Manages LLVM code generation for a module.
 pub struct LLVMCodegen<'ctx> {
     context: &'ctx Context,
@@ -128,6 +138,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
         module.add_function("map_get", map_get_type, Some(Linkage::External));
         let map_free_type = void_type.fn_type(&[ptr_type.into()], false);
         module.add_function("map_free", map_free_type, Some(Linkage::External));
+        // Declare str_concat
+        let str_concat_type = ptr_type.fn_type(&[ptr_type.into(), i64_type.into(), ptr_type.into(), i64_type.into()], false);
+        module.add_function("str_concat", str_concat_type, Some(Linkage::External));
         // TBAA metadata stub
         let tbaa_const_time = context.metadata_string("const_time");
         Self {
@@ -436,6 +449,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
         ee.add_global_mapping(
             &self.module.get_function("tls_handshake").unwrap(),
             host_tls_handshake as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("str_concat").unwrap(),
+            host_str_concat as *const () as usize,
         );
         Ok(ee)
     }
