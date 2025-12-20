@@ -491,26 +491,28 @@ impl Resolver {
                 ..
             } = &mir.stmts[i]
             {
-                if f1.as_str() != "add" {
-                    i += 1;
-                    continue;
-                }
-                if let MirStmt::Call {
-                    func: f2,
-                    args: a2,
-                    dest: d2,
-                    ..
-                } = &mir.stmts[i + 1]
-                    && f2.as_str() == "add"
-                    && a2[0] == *d1
-                {
-                    mir.stmts[i] = MirStmt::SemiringFold {
-                        op: SemiringOp::Add,
-                        values: vec![a1[0], a1[1], a2[1]],
-                        result: *d2,
-                    };
-                    mir.stmts.remove(i + 1);
-                    changed = true;
+                let op_str = f1.as_str();
+                let op = if op_str == "add" { Some(SemiringOp::Add) } else if op_str == "mul" { Some(SemiringOp::Mul) } else { None };
+                if let Some(op) = op {
+                    if let MirStmt::Call {
+                        func: f2,
+                        args: a2,
+                        dest: d2,
+                        ..
+                    } = &mir.stmts[i + 1]
+                        && f2.as_str() == op_str
+                        && a2[0] == *d1
+                    {
+                        mir.stmts[i] = MirStmt::SemiringFold {
+                            op,
+                            values: vec![a1[0], a1[1], a2[1]],
+                            result: *d2,
+                        };
+                        mir.stmts.remove(i + 1);
+                        changed = true;
+                    } else {
+                        i += 1;
+                    }
                 } else {
                     i += 1;
                 }
