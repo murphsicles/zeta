@@ -209,7 +209,7 @@ impl<'a> MirGen<'a> {
                     });
                 }
             }
-            AstNode::Spawn { func, args } => {
+            AstNode::Spawn { func: _, args } => {
                 let mut arg_ids = vec![];
                 for arg in args.iter() {
                     let e = self.gen_expr(arg, exprs, out);
@@ -217,7 +217,7 @@ impl<'a> MirGen<'a> {
                     arg_ids.push(arg_id);
                 }
                 out.push(MirStmt::VoidCall {
-                    func: format!("spawn_{}", func),
+                    func: "spawn".to_string(),
                     args: arg_ids,
                 });
             }
