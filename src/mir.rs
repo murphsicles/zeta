@@ -25,6 +25,8 @@ pub struct Mir {
     pub exprs: HashMap<u32, MirExpr>,
     /// Optional function name.
     pub name: Option<String>,
+    /// Parameter indices as (name, arg_index).
+    pub param_indices: Vec<(String, usize)>,
 }
 /// MIR statement variants.
 #[derive(Debug, Clone)]
@@ -175,6 +177,7 @@ impl<'a> MirGen<'a> {
             locals: self.locals.clone(),
             exprs,
             name,
+            param_indices: self.param_indices.clone(),
         }
     }
     /// Generates MIR statements for an AST node.
@@ -206,7 +209,7 @@ impl<'a> MirGen<'a> {
                     });
                 }
             }
-            AstNode::Spawn { func: _, args } => {
+            AstNode::Spawn { func, args } => {
                 let mut arg_ids = vec![];
                 for arg in args.iter() {
                     let e = self.gen_expr(arg, exprs, out);
@@ -214,7 +217,7 @@ impl<'a> MirGen<'a> {
                     arg_ids.push(arg_id);
                 }
                 out.push(MirStmt::VoidCall {
-                    func: "spawn".to_string(),
+                    func: format!("spawn_{}", func),
                     args: arg_ids,
                 });
             }
@@ -296,7 +299,8 @@ impl<'a> MirGen<'a> {
             AstNode::Call {
                 receiver,
                 method,
-                args: _,
+                args,
+                type_args,
                 ..
             } => {
                 let receiver_gen = receiver.as_ref().map(|r| self.gen_expr(r, exprs, out));
@@ -375,7 +379,7 @@ impl<'a> MirGen<'a> {
                     ("i64".to_string(), "i64".to_string())
                 };
                 let new_fn = format!("map_new_{}_{}", k_ty_str, v_ty_str);
-                let insert_fn = format!("map_insert_{}_{}", k_ty_str, v_ty_str);
+                let insert_fn = format!("map_insert_{}", k_ty_str);
                 let dest = self.next_id();
                 out.push(MirStmt::Call {
                     func: new_fn,
@@ -396,7 +400,7 @@ impl<'a> MirGen<'a> {
                 MirExpr::Var(dest)
             }
             AstNode::Subscript { base, index } => {
-                let base_ty = self.resolver.infer_type(node);
+                let base_ty = self.resolver.infer_type(base.as_ref());
                 let (k_ty_str, _) = if let Type::Named { params, .. } = &base_ty {
                     if params.len() == 2 {
                         (params[0].to_string(), params[1].to_string())
