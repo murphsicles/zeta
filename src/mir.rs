@@ -296,8 +296,7 @@ impl<'a> MirGen<'a> {
             AstNode::Call {
                 receiver,
                 method,
-                args,
-                type_args,
+                args: _,
                 ..
             } => {
                 let receiver_gen = receiver.as_ref().map(|r| self.gen_expr(r, exprs, out));
