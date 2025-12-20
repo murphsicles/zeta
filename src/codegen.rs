@@ -157,11 +157,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let entry = self.context.append_basic_block(fn_val, "entry");
         self.builder.position_at_end(entry);
         self.locals.clear();
-        for (i, (_, arg_idx)) in mir.param_indices.iter().enumerate() {
+        for (i, (_, arg_index)) in mir.param_indices.iter().enumerate() {
             let param_val = fn_val.get_nth_param(i as u32).unwrap();
-            let alloca = self.builder.build_alloca(self.i64_type, &format!("param_{arg_idx}")).unwrap();
+            let alloca = self.builder.build_alloca(self.i64_type, &format!("param_{arg_index}")).unwrap();
             self.builder.build_store(alloca, param_val).unwrap();
-            self.locals.insert(*arg_idx as u32, alloca);
+            self.locals.insert(*arg_index as u32, alloca);
         }
         for stmt in &mir.stmts {
             self.gen_stmt(stmt, &mir.exprs);
