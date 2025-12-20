@@ -1,7 +1,7 @@
 // src/plan.rs
 //! Zeta Compiler Development Plan.
 //! Checklist for milestones. Mark as [x] when complete.
-//! Updated Dec 21, 2025: Implemented full const eval in CTFE [x]; handled mul chains in semiring folding [x]; added error handling for uninitialized scheduler [x].
+//! Updated Dec 21, 2025: Implemented full const eval in CTFE [x]; handled mul chains in semiring folding [x]; added error handling for uninitialized scheduler [x]; real MIR analysis for stats [x].
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
@@ -27,7 +27,7 @@ pub mod checklist {
 [x] Implement mul in SemiringOp vectorized/scalar folds
 [x] Define actual "str_concat" intrinsic or logic
 [x] Execute LLVM passes from MLGO recommendations
-[ ] Real MIR analysis for stats (beyond print length)
+[x] Real MIR analysis for stats (beyond print length)
     "#;
     /// Optimizations
     pub const OPTS: &str = r#"
