@@ -1,7 +1,7 @@
 // src/plan.rs
 //! Zeta Compiler Development Plan.
 //! Checklist for milestones. Mark as [x] when complete.
-//! Updated Dec 20, 2025: Fleshed out mul in SemiringOp folds [x]; executed MLGO passes in codegen [x]; added enum/struct in Type/resolver [x]; defined str_concat intrinsic [x].
+//! Updated Dec 21, 2025: Implemented full const eval in CTFE [x]; handled mul chains in semiring folding [x]; added error handling for uninitialized scheduler [x].
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
@@ -31,8 +31,8 @@ pub mod checklist {
     "#;
     /// Optimizations
     pub const OPTS: &str = r#"
-[ ] Full const eval beyond simple add/mul in CTFE
-[ ] Handle mul chains in semiring folding
+[x] Full const eval beyond simple add/mul in CTFE
+[x] Handle mul chains in semiring folding
     "#;
     /// Concurrency/Std
     pub const ACTORS_STD: &str = r#"
@@ -40,7 +40,7 @@ pub mod checklist {
 [x] Real reqwest integration for HTTP host functions
 [x] TLS library (e.g., rustls) for handshake host
 [x] Map spawn to actual actor entries by func_id
-[ ] Error handling if scheduler not initialized
+[x] Error handling if scheduler not initialized
     "#;
     /// Bootstrap/Self-host
     pub const BOOTSTRAP: &str = r#"
