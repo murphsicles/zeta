@@ -1,7 +1,7 @@
 // src/plan.rs
 //! Zeta Compiler Development Plan.
 //! Checklist for milestones. Mark as [x] when complete.
-//! Updated Dec 18, 2025: Actor runtime stubs addressed [x]; improved generics and error prop handling.
+//! Updated Dec 20, 2025: Fleshed out mul in SemiringOp folds [x]; executed MLGO passes in codegen [x]; added enum/struct in Type/resolver [x].
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
@@ -24,9 +24,9 @@ pub mod checklist {
     /// Codegen (LLVM)
     pub const CODEGEN: &str = r#"
 [x] Extract actual generics for monomorphization type args
-[ ] Implement mul in SemiringOp vectorized/scalar folds
+[x] Implement mul in SemiringOp vectorized/scalar folds
 [ ] Define actual "str_concat" intrinsic or logic
-[ ] Execute LLVM passes from MLGO recommendations
+[x] Execute LLVM passes from MLGO recommendations
 [ ] Real MIR analysis for stats (beyond print length)
     "#;
     /// Optimizations
@@ -49,7 +49,7 @@ pub mod checklist {
     /// Ergonomics (Ease of Use for Adoption)
     pub const ERGONOMICS: &str = r#"
 [ ] Go-like simplicity (no-brace single-line fns, manual errors with ? prop)
-[ ] Python expressiveness (dict literals map[key]=val, auto-imports)
+[ ] Python expressiveness (dictionary literals map[key]=val, auto-imports)
 [ ] Interactive REPL (JIT eval for quick prototyping)
 [ ] Docs in concepts (/// comments, auto-gen)
 [ ] Barriers Solved: Debugging pain (visual MIR dumps, auto-step JIT)
