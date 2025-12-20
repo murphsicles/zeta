@@ -9,7 +9,6 @@ use crate::actor::{
     host_result_make_ok, host_spawn,
 };
 use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
-use crate::resolver::Type;
 use crate::specialization::{
     MonoKey, MonoValue, is_cache_safe, lookup_specialization, record_specialization,
 };
@@ -22,10 +21,11 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::{Linkage, Module};
+use inkwell::passes::PassManager;
 use inkwell::support::LLVMString;
 use inkwell::types::{BasicMetadataTypeEnum, IntType, PointerType, VectorType};
 use inkwell::values::{
-    BasicMetadataValueEnum, BasicValue, BasicValueEnum, PointerValue, FunctionValue,
+    BasicMetadataValueEnum, BasicValue, BasicValueEnum, PointerValue, FunctionValue, VectorValue,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -70,7 +70,6 @@ pub struct LLVMCodegen<'ctx> {
     /// Integer type for Zeta values.
     i64_type: IntType<'ctx>,
     /// SIMD vector type for quad i64.
-    #[allow(dead_code)]
     vec4_i64_type: VectorType<'ctx>,
     /// Pointer type for allocations.
     #[allow(dead_code)]
@@ -229,23 +228,48 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.builder.build_return(Some(&ret_val)).unwrap();
             }
             MirStmt::SemiringFold { op, values, result } => {
-                let mut acc = self.load_local(values[0]);
-                for &v in &values[1..] {
-                    let right = self.load_local(v);
-                    acc = match op {
-                        SemiringOp::Add => self.builder.build_int_add(acc.into_int_value(), right.into_int_value(), "fold_add").unwrap().into(),
-                        SemiringOp::Mul => self.builder.build_int_mul(acc.into_int_value(), right.into_int_value(), "fold_mul").unwrap().into(),
-                    };
+                if values.len() >= 4 && values.len() % 4 == 0 {
+                    // Vectorized fold
+                    let mut vec_acc = self.vec4_i64_type.const_zero();
+                    for chunk in values.chunks(4) {
+                        let vec_vals: Vec<_> = chunk.iter().map(|&id| self.load_local(id).into_int_value()).collect();
+                        let vec_right = self.builder.build_vector_insert(self.vec4_i64_type.const_zero(), vec_vals[0], 0, "").unwrap();
+                        let vec_right = self.builder.build_vector_insert(vec_right, vec_vals[1], 1, "").unwrap();
+                        let vec_right = self.builder.build_vector_insert(vec_right, vec_vals[2], 2, "").unwrap();
+                        let vec_right = self.builder.build_vector_insert(vec_right, vec_vals[3], 3, "").unwrap();
+                        vec_acc = match op {
+                            SemiringOp::Add => self.builder.build_int_add(vec_acc, vec_right, "vec_fold_add").unwrap(),
+                            SemiringOp::Mul => self.builder.build_int_mul(vec_acc, vec_right, "vec_fold_mul").unwrap(),
+                        };
+                    }
+                    // Reduce vec to scalar
+                    let mut acc = self.builder.build_extract_element(vec_acc, 0u32, "reduce0").unwrap().into_int_value();
+                    acc = self.builder.build_int_add(acc, self.builder.build_extract_element(vec_acc, 1u32, "reduce1").unwrap().into_int_value(), "").unwrap();
+                    acc = self.builder.build_int_add(acc, self.builder.build_extract_element(vec_acc, 2u32, "reduce2").unwrap().into_int_value(), "").unwrap();
+                    acc = self.builder.build_int_add(acc, self.builder.build_extract_element(vec_acc, 3u32, "reduce3").unwrap().into_int_value(), "").unwrap();
+                    let alloca = self.builder.build_alloca(self.i64_type, &format!("vec_fold_{result}")).unwrap();
+                    self.builder.build_store(alloca, acc).unwrap();
+                    self.locals.insert(*result, alloca);
+                } else {
+                    // Scalar fold
+                    let mut acc = self.load_local(values[0]);
+                    for &v in &values[1..] {
+                        let right = self.load_local(v);
+                        acc = match op {
+                            SemiringOp::Add => self.builder.build_int_add(acc.into_int_value(), right.into_int_value(), "fold_add").unwrap().into(),
+                            SemiringOp::Mul => self.builder.build_int_mul(acc.into_int_value(), right.into_int_value(), "fold_mul").unwrap().into(),
+                        };
+                    }
+                    let alloca = self.builder.build_alloca(self.i64_type, &format!("fold_{result}")).unwrap();
+                    self.builder.build_store(alloca, acc).unwrap();
+                    self.locals.insert(*result, alloca);
                 }
-                let alloca = self.builder.build_alloca(self.i64_type, &format!("fold_{result}")).unwrap();
-                self.builder.build_store(alloca, acc).unwrap();
-                self.locals.insert(*result, alloca);
             }
-            MirStmt::ParamInit { param_id, arg_index } => {
+            MirStmt::ParamInit { param_id: _, arg_index: _ } => {
                 // Fleshed out: Now handled in gen_fn entry block
                 // No-op here as params are initialized at function entry
             }
-            MirStmt::Consume { id } => {
+            MirStmt::Consume { id: _ } => {
                 // Stub: no-op in codegen
             }
             MirStmt::If { cond, then, else_ } => {
@@ -369,15 +393,25 @@ impl<'ctx> LLVMCodegen<'ctx> {
             && let Ok(json) = serde_json::from_str::<Value>(&rec)
             && let Some(passes) = json["passes"].as_array()
         {
+            let fpm = self.module.create_function_pass_manager();
             for p in passes {
                 if let Some(ps) = p.as_str() {
-                    if ps == "vectorize" {
-                        eprintln!("Running MLGO vectorize pass for SIMD");
-                    } else {
-                        eprintln!("Running AI-recommended pass: {}", ps);
+                    match ps {
+                        "vectorize" => {
+                            eprintln!("Running MLGO vectorize pass for SIMD");
+                            fpm.add_loop_vectorize_pass();
+                        }
+                        // Add more passes as needed, e.g.,
+                        "inline" => fpm.add_function_inlining_pass(),
+                        _ => eprintln!("Unknown pass: {}, skipping", ps),
                     }
                 }
             }
+            fpm.initialize();
+            for fn_val in self.fns.values() {
+                fpm.run_on(fn_val);
+            }
+            fpm.finalize();
         }
         let ee = self
             .module
