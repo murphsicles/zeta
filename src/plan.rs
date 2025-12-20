@@ -1,7 +1,7 @@
 // src/plan.rs
 //! Zeta Compiler Development Plan.
 //! Checklist for milestones. Mark as [x] when complete.
-//! Updated Dec 20, 2025: Fleshed out mul in SemiringOp folds [x]; executed MLGO passes in codegen [x]; added enum/struct in Type/resolver [x].
+//! Updated Dec 20, 2025: Fleshed out mul in SemiringOp folds [x]; executed MLGO passes in codegen [x]; added enum/struct in Type/resolver [x]; defined str_concat intrinsic [x].
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
@@ -12,7 +12,7 @@ pub mod checklist {
 [x] Full trait resolution beyond Addable/StrOps
 [x] Parametric handling for Result and Map generics
 [ ] Complete type inference for advanced nodes
-[ ] Expanded ABI checks for more cases
+[ ] Expanded ABI checks for advanced cases
 [ ] Implicit borrowing for types beyond Str/StrRef
     "#;
     /// MIR (Mid-level IR)
@@ -25,7 +25,7 @@ pub mod checklist {
     pub const CODEGEN: &str = r#"
 [x] Extract actual generics for monomorphization type args
 [x] Implement mul in SemiringOp vectorized/scalar folds
-[ ] Define actual "str_concat" intrinsic or logic
+[x] Define actual "str_concat" intrinsic or logic
 [x] Execute LLVM passes from MLGO recommendations
 [ ] Real MIR analysis for stats (beyond print length)
     "#;
