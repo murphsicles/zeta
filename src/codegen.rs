@@ -243,20 +243,20 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     for chunk in values.chunks(4) {
                         let vec_vals: Vec<_> = chunk.iter().map(|&id| self.load_local(id).into_int_value()).collect();
                         let mut vec_right = self.vec4_i64_type.const_zero();
-                        vec_right = self.builder.build_insert_element(vec_right, vec_vals[0], self.i64_type.const_int(0, false), "").unwrap();
-                        vec_right = self.builder.build_insert_element(vec_right, vec_vals[1], self.i64_type.const_int(1, false), "").unwrap();
-                        vec_right = self.builder.build_insert_element(vec_right, vec_vals[2], self.i64_type.const_int(2, false), "").unwrap();
-                        vec_right = self.builder.build_insert_element(vec_right, vec_vals[3], self.i64_type.const_int(3, false), "").unwrap();
+                        vec_right = self.builder.build_insert_element(vec_right, vec_vals[0], 0u64, "").unwrap();
+                        vec_right = self.builder.build_insert_element(vec_right, vec_vals[1], 1u64, "").unwrap();
+                        vec_right = self.builder.build_insert_element(vec_right, vec_vals[2], 2u64, "").unwrap();
+                        vec_right = self.builder.build_insert_element(vec_right, vec_vals[3], 3u64, "").unwrap();
                         vec_acc = match op {
                             SemiringOp::Add => self.builder.build_int_add(vec_acc, vec_right, "vec_fold_add").unwrap(),
                             SemiringOp::Mul => self.builder.build_int_mul(vec_acc, vec_right, "vec_fold_mul").unwrap(),
                         };
                     }
                     // Reduce vec to scalar
-                    let mut acc = self.builder.build_extract_element(vec_acc, self.i64_type.const_int(0, false), "reduce0").unwrap().into_int_value();
-                    acc = self.builder.build_int_add(acc, self.builder.build_extract_element(vec_acc, self.i64_type.const_int(1, false), "reduce1").unwrap().into_int_value(), "").unwrap();
-                    acc = self.builder.build_int_add(acc, self.builder.build_extract_element(vec_acc, self.i64_type.const_int(2, false), "reduce2").unwrap().into_int_value(), "").unwrap();
-                    acc = self.builder.build_int_add(acc, self.builder.build_extract_element(vec_acc, self.i64_type.const_int(3, false), "reduce3").unwrap().into_int_value(), "").unwrap();
+                    let mut acc = self.builder.build_extract_element(vec_acc, 0u64, "reduce0").unwrap().into_int_value();
+                    acc = self.builder.build_int_add(acc, self.builder.build_extract_element(vec_acc, 1u64, "reduce1").unwrap().into_int_value(), "").unwrap();
+                    acc = self.builder.build_int_add(acc, self.builder.build_extract_element(vec_acc, 2u64, "reduce2").unwrap().into_int_value(), "").unwrap();
+                    acc = self.builder.build_int_add(acc, self.builder.build_extract_element(vec_acc, 3u64, "reduce3").unwrap().into_int_value(), "").unwrap();
                     let alloca = self.builder.build_alloca(self.i64_type, &format!("vec_fold_{result}")).unwrap();
                     self.builder.build_store(alloca, acc).unwrap();
                     self.locals.insert(*result, alloca);
