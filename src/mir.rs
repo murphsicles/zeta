@@ -256,9 +256,7 @@ impl<'a> MirGen<'a> {
                 out.push(MirStmt::Return { val: val_id });
             }
             AstNode::Defer(inner) => {
-                if let AstNode::Call {
-                    method, args, ..
-                } = inner.as_ref() {
+                if let AstNode::Call { method, args, .. } = inner.as_ref() {
                     let arg_ids = args
                         .iter()
                         .map(|a| {
@@ -289,7 +287,9 @@ impl<'a> MirGen<'a> {
                     dest: self.next_id(),
                     type_args: vec![],
                 }];
-                else_.push(MirStmt::Return { val: self.locals[&"err".to_string()] }); // Assume err local
+                else_.push(MirStmt::Return {
+                    val: self.locals[&"err".to_string()],
+                }); // Assume err local
                 out.push(MirStmt::If {
                     cond: is_ok_dest,
                     then,
@@ -368,7 +368,13 @@ impl<'a> MirGen<'a> {
                 let inner_id = self.materialize(inner_expr, exprs, out);
                 MirExpr::TimingOwned(inner_id)
             }
-            AstNode::Call { receiver, method, args, type_args, .. } => {
+            AstNode::Call {
+                receiver,
+                method,
+                args,
+                type_args,
+                ..
+            } => {
                 let mut arg_ids = vec![];
                 if let Some(rec) = receiver.as_ref() {
                     let rec_expr = self.gen_expr(rec, exprs, out);
