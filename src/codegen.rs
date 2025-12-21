@@ -224,10 +224,23 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     }
                 }
             }
+            MirStmt::VoidCall { func, args } => {
+                let callee = func.clone();
+                let callee_fn = self.get_callee(&callee);
+                let arg_vals: Vec<BasicMetadataValueEnum> = args
+                    .iter()
+                    .map(|&id| self.load_local(id).into())
+                    .collect();
+                self.builder.build_call(callee_fn, &arg_vals, "void_call").unwrap();
+            }
+            MirStmt::Return { val } => {
+                let ret_val = self.load_local(*val);
+                self.builder.build_return(Some(&ret_val)).unwrap();
+            }
             MirStmt::SemiringFold { op, values, result } => {
                 if values.len() >= 4 {
                     let mut vec_acc = self.vec4_i64_type.const_zero();
-                    for i in (0..values.len() / 4) {
+                    for i in 0..values.len() / 4 {
                         let vec_vals: Vec<_> = (0..4).map(|j| self.load_local(values[i * 4 + j])).collect();
                         let mut vec_right = self.vec4_i64_type.const_zero();
                         vec_right = self.builder.build_insert_element(vec_right, vec_vals[0], self.i64_type.const_int(0u64, false), "").unwrap();
