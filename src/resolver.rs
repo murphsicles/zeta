@@ -245,7 +245,7 @@ impl Resolver {
             ),
         );
         r.trait_methods.insert(
-            (str_ty, "as_bytes".to_string()),
+            (str_ty.clone(), "as_bytes".to_string()),
             (
                 "StrOps".to_string(),
                 (vec![], slice_u8_ty),
@@ -291,17 +291,17 @@ impl Resolver {
             AstNode::ConceptDef { name, methods, doc } => {
                 self.concept_docs.insert(name.clone(), doc);
                 for m in methods {
-                    if let AstNode::Method { name: mname, params, ret, doc, .. } = m {
+                    if let AstNode::Method { name: _mname, params: _params, ret: _ret, doc: _doc, .. } = m {
                         // Potential: store method docs
                     }
                 }
             }
-            AstNode::ImplBlock { concept, ty, body, doc } => {
+            AstNode::ImplBlock { concept, ty, body, doc: _doc } => {
                 let ty = self.parse_type_str(&ty);
                 let mut methods = HashMap::new();
                 for m in body {
                     if let AstNode::Method {
-                        name, params, ret, doc, ..
+                        name, params, ret, doc: _doc, ..
                     } = m
                     {
                         let ptypes: Vec<Type> =
@@ -315,7 +315,7 @@ impl Resolver {
                 self.direct_impls.insert((concept, ty), methods);
             }
             AstNode::FuncDef {
-                name, params, ret, doc, ..
+                name, params, ret, doc: _doc, ..
             } => {
                 let ptypes: Vec<(String, Type)> = params
                     .iter()
@@ -324,7 +324,7 @@ impl Resolver {
                 self.func_sigs
                     .insert(name, (ptypes, self.parse_type_str(&ret)));
             }
-            AstNode::EnumDef { name, variants, doc } => {
+            AstNode::EnumDef { name, variants, doc: _doc } => {
                 let variant_types: Vec<(String, Vec<Type>)> = variants
                     .iter()
                     .map(|(vname, vparams)| {
@@ -342,7 +342,7 @@ impl Resolver {
                     },
                 );
             }
-            AstNode::StructDef { name, fields, doc } => {
+            AstNode::StructDef { name, fields, doc: _doc } => {
                 let field_types: Vec<(String, Type)> = fields
                     .iter()
                     .map(|(fname, fty)| (fname.clone(), self.parse_type_str(fty)))
@@ -732,7 +732,7 @@ impl Resolver {
     pub fn fold_semiring_chains(&self, mir: &mut Mir) -> bool {
         let mut changed = false;
         let mut i = 0;
-        while i + 1 < self.stmts.len() {
+        while i + 1 < mir.stmts.len() {
             if let MirStmt::Call {
                 func: f1,
                 args: a1,
