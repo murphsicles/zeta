@@ -267,14 +267,14 @@ impl Resolver {
     /// Parses a type string to a Type.
     pub fn parse_type_str(&self, s: &str) -> Type {
         let trimmed = s.trim();
-        if trimmed.starts_with("&mut ") {
-            Type::MutRef(Box::new(self.parse_type_str(&trimmed[5..])))
-        } else if trimmed.starts_with("&") {
-            Type::Ref(Box::new(self.parse_type_str(&trimmed[1..])))
+        if let Some(stripped) = trimmed.strip_prefix("&mut ") {
+            Type::MutRef(Box::new(self.parse_type_str(stripped)))
+        } else if let Some(stripped) = trimmed.strip_prefix("&") {
+            Type::Ref(Box::new(self.parse_type_str(stripped)))
         } else if trimmed.starts_with("[") && trimmed.ends_with("]") {
             Type::Slice(Box::new(self.parse_type_str(&trimmed[1..trimmed.len() - 1])))
-        } else if trimmed.starts_with("*") {
-            Type::RawPtr(Box::new(self.parse_type_str(&trimmed[1..])))
+        } else if let Some(stripped) = trimmed.strip_prefix("*") {
+            Type::RawPtr(Box::new(self.parse_type_str(stripped)))
         } else if let Some(open) = trimmed.find('<') {
             let name = trimmed[0..open].trim().to_string();
             let rest = &trimmed[open + 1..trimmed.len() - 1];
