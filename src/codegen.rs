@@ -275,7 +275,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     self.locals.insert(*result, alloca);
                 }
             }
-            MirStmt::ParamInit { param_id, arg_index } => {
+            MirStmt::ParamInit { param_id: _, arg_index: _ } => {
                 // Fleshed out: Now handled in gen_fn entry block
                 // No-op here as params are initialized at function entry
             }
