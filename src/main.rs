@@ -184,11 +184,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 fn repl() -> Result<(), Box<dyn std::error::Error>> {
     let stdin = io::stdin();
+    let mut stdin_lock = stdin.lock();
     loop {
         print!("> ");
         io::stdout().flush()?;
         let mut line = String::new();
-        stdin.read_line(&mut line)?;
+        stdin_lock.read_line(&mut line)?;
         let line = line.trim();
         if line.is_empty() {
             continue;
