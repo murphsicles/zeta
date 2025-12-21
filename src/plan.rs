@@ -1,7 +1,7 @@
 // src/plan.rs
 //! Zeta Compiler Development Plan.
 //! Checklist for milestones. Mark as [x] when complete.
-//! Updated Dec 21, 2025: Implemented full const eval in CTFE [x]; handled mul chains in semiring folding [x]; added error handling for uninitialized scheduler [x]; real MIR analysis for stats [x]; Completed type inference for advanced nodes [x]; Expanded ABI checks for advanced cases [x]; Expanded implicit borrowing for types beyond Str/StrRef [x].
+//! Updated Dec 21, 2025: Implemented full const eval in CTFE [x]; handled mul chains in semiring folding [x]; added error handling for uninitialized scheduler [x]; real MIR analysis for stats [x]; Completed type inference for advanced nodes [x]; Expanded ABI checks for advanced cases [x]; Expanded implicit borrowing for types beyond Str/StrRef [x]; Go-like simplicity (no-brace single-line fns, manual errors with ? prop) [x]; Python expressiveness (dictionary literals map[key]=val, auto-imports) [x]; Interactive REPL (JIT eval for quick prototyping) [x]; Docs in concepts (/// comments, auto-gen) [x].
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
