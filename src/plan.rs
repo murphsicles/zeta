@@ -48,10 +48,10 @@ pub mod checklist {
     "#;
     /// Ergonomics (Ease of Use for Adoption)
     pub const ERGONOMICS: &str = r#"
-[ ] Go-like simplicity (no-brace single-line fns, manual errors with ? prop)
-[ ] Python expressiveness (dictionary literals map[key]=val, auto-imports)
-[ ] Interactive REPL (JIT eval for quick prototyping)
-[ ] Docs in concepts (/// comments, auto-gen)
+[x] Go-like simplicity (no-brace single-line fns, manual errors with ? prop)
+[x] Python expressiveness (dictionary literals map[key]=val, auto-imports)
+[x] Interactive REPL (JIT eval for quick prototyping)
+[x] Docs in concepts (/// comments, auto-gen)
 [ ] Barriers Solved: Debugging pain (visual MIR dumps, auto-step JIT)
 [ ] Barriers Solved: Ecosystem lock-in (modular crates, easy FFI)
 [ ] Wins: Visual profiler (MLGO-integrated graphs)
