@@ -288,20 +288,20 @@ impl Resolver {
     /// Registers definitions for resolution.
     pub fn register(&mut self, ast: AstNode) {
         match ast {
-            AstNode::ConceptDef { name, methods, doc } => {
+            AstNode::ConceptDef { name, methods, doc } {
                 self.concept_docs.insert(name.clone(), doc);
                 for m in methods {
-                    if let AstNode::Method { name: _mname, params: _params, ret: _ret, doc: _doc, .. } = m {
+                    if let AstNode::Method { name: _, params: _, ret: _, doc: _, .. } = m {
                         // Potential: store method docs
                     }
                 }
             }
-            AstNode::ImplBlock { concept, ty, body, doc: _doc } => {
+            AstNode::ImplBlock { concept, ty, body, doc: _ } => {
                 let ty = self.parse_type_str(&ty);
                 let mut methods = HashMap::new();
                 for m in body {
                     if let AstNode::Method {
-                        name, params, ret, doc: _doc, ..
+                        name, params, ret, doc: _, ..
                     } = m
                     {
                         let ptypes: Vec<Type> =
@@ -315,7 +315,7 @@ impl Resolver {
                 self.direct_impls.insert((concept, ty), methods);
             }
             AstNode::FuncDef {
-                name, params, ret, doc: _doc, ..
+                name, params, ret, doc: _, ..
             } => {
                 let ptypes: Vec<(String, Type)> = params
                     .iter()
@@ -324,7 +324,7 @@ impl Resolver {
                 self.func_sigs
                     .insert(name, (ptypes, self.parse_type_str(&ret)));
             }
-            AstNode::EnumDef { name, variants, doc: _doc } => {
+            AstNode::EnumDef { name, variants, doc: _ } => {
                 let variant_types: Vec<(String, Vec<Type>)> = variants
                     .iter()
                     .map(|(vname, vparams)| {
@@ -342,7 +342,7 @@ impl Resolver {
                     },
                 );
             }
-            AstNode::StructDef { name, fields, doc: _doc } => {
+            AstNode::StructDef { name, fields, doc: _ } => {
                 let field_types: Vec<(String, Type)> = fields
                     .iter()
                     .map(|(fname, fty)| (fname.clone(), self.parse_type_str(fty)))
@@ -523,7 +523,7 @@ impl Resolver {
     }
     /// Resolves a method on a type, returning (concept, sig).
     pub fn resolve_method(&self, ty: &Type, method: &str, _args: &Vec<Type>) -> (String, MethodSig) {
-        if let Some((concept, sig)) = self.trait_methods.get(&(ty.clone(), method.to_string())) {
+        if let Some((concept, sig) ) = self.trait_methods.get(&(ty.clone(), method.to_string())) {
             (concept.clone(), sig.clone())
         } else {
             (String::new(), (vec![], Type::Unknown))
