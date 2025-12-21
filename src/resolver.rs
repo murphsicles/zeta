@@ -246,20 +246,27 @@ impl Resolver {
         );
         r.trait_methods.insert(
             (str_ty.clone(), "as_bytes".to_string()),
-            (
-                "StrOps".to_string(),
-                (vec![], slice_u8_ty),
-            ),
+            ("StrOps".to_string(), (vec![], slice_u8_ty)),
         );
         // Auto-import standard functions like print
-        let void_ty = Type::Named { name: "()".to_string(), params: vec![] };
-        r.func_sigs.insert("print".to_string(), (vec![("s".to_string(), str_ty.clone())], void_ty));
+        let void_ty = Type::Named {
+            name: "()".to_string(),
+            params: vec![],
+        };
+        r.func_sigs.insert(
+            "print".to_string(),
+            (vec![("s".to_string(), str_ty.clone())], void_ty),
+        );
         r
     }
     /// Determines if a type is Copy.
     pub fn is_copy(&self, ty: &Type) -> bool {
         match ty {
-            Type::Named { name, params } if params.is_empty() && matches!(name.as_str(), "i64" | "f32" | "bool" | "str") => true,
+            Type::Named { name, params }
+                if params.is_empty() && matches!(name.as_str(), "i64" | "f32" | "bool" | "str") =>
+            {
+                true
+            }
             Type::Ref(_) | Type::MutRef(_) | Type::Slice(_) => true,
             _ => false,
         }
@@ -272,14 +279,19 @@ impl Resolver {
         } else if let Some(stripped) = trimmed.strip_prefix("&") {
             Type::Ref(Box::new(self.parse_type_str(stripped)))
         } else if trimmed.starts_with("[") && trimmed.ends_with("]") {
-            Type::Slice(Box::new(self.parse_type_str(&trimmed[1..trimmed.len() - 1])))
+            Type::Slice(Box::new(
+                self.parse_type_str(&trimmed[1..trimmed.len() - 1]),
+            ))
         } else if let Some(stripped) = trimmed.strip_prefix("*") {
             Type::RawPtr(Box::new(self.parse_type_str(stripped)))
         } else if let Some(open) = trimmed.find('<') {
             let name = trimmed[0..open].trim().to_string();
             let rest = &trimmed[open + 1..trimmed.len() - 1];
             let param_strs: Vec<&str> = rest.split(',').collect();
-            let params: Vec<Type> = param_strs.iter().map(|ps| self.parse_type_str(ps.trim())).collect();
+            let params: Vec<Type> = param_strs
+                .iter()
+                .map(|ps| self.parse_type_str(ps.trim()))
+                .collect();
             Type::Named { name, params }
         } else {
             Type::primitive(trimmed)
@@ -291,17 +303,33 @@ impl Resolver {
             AstNode::ConceptDef { name, methods, doc } => {
                 self.concept_docs.insert(name.clone(), doc);
                 for m in methods {
-                    if let AstNode::Method { name: _, params: _, ret: _, doc: _, .. } = m {
+                    if let AstNode::Method {
+                        name: _,
+                        params: _,
+                        ret: _,
+                        doc: _,
+                        ..
+                    } = m
+                    {
                         // Potential: store method docs
                     }
                 }
             }
-            AstNode::ImplBlock { concept, ty, body, doc: _ } => {
+            AstNode::ImplBlock {
+                concept,
+                ty,
+                body,
+                doc: _,
+            } => {
                 let ty = self.parse_type_str(&ty);
                 let mut methods = HashMap::new();
                 for m in body {
                     if let AstNode::Method {
-                        name, params, ret, doc: _, ..
+                        name,
+                        params,
+                        ret,
+                        doc: _,
+                        ..
                     } = m
                     {
                         let ptypes: Vec<Type> =
@@ -315,7 +343,11 @@ impl Resolver {
                 self.direct_impls.insert((concept, ty), methods);
             }
             AstNode::FuncDef {
-                name, params, ret, doc: _, ..
+                name,
+                params,
+                ret,
+                doc: _,
+                ..
             } => {
                 let ptypes: Vec<(String, Type)> = params
                     .iter()
@@ -324,7 +356,11 @@ impl Resolver {
                 self.func_sigs
                     .insert(name, (ptypes, self.parse_type_str(&ret)));
             }
-            AstNode::EnumDef { name, variants, doc: _ } => {
+            AstNode::EnumDef {
+                name,
+                variants,
+                doc: _,
+            } => {
                 let variant_types: Vec<(String, Vec<Type>)> = variants
                     .iter()
                     .map(|(vname, vparams)| {
@@ -342,7 +378,11 @@ impl Resolver {
                     },
                 );
             }
-            AstNode::StructDef { name, fields, doc: _ } => {
+            AstNode::StructDef {
+                name,
+                fields,
+                doc: _,
+            } => {
                 let field_types: Vec<(String, Type)> = fields
                     .iter()
                     .map(|(fname, fty)| (fname.clone(), self.parse_type_str(fty)))
@@ -522,8 +562,13 @@ impl Resolver {
         }
     }
     /// Resolves a method on a type, returning (concept, sig).
-    pub fn resolve_method(&self, ty: &Type, method: &str, _args: &Vec<Type>) -> (String, MethodSig) {
-        if let Some((concept, sig) ) = self.trait_methods.get(&(ty.clone(), method.to_string())) {
+    pub fn resolve_method(
+        &self,
+        ty: &Type,
+        method: &str,
+        _args: &Vec<Type>,
+    ) -> (String, MethodSig) {
+        if let Some((concept, sig)) = self.trait_methods.get(&(ty.clone(), method.to_string())) {
             (concept.clone(), sig.clone())
         } else {
             (String::new(), (vec![], Type::Unknown))
@@ -534,7 +579,11 @@ impl Resolver {
         match node {
             AstNode::TimingOwned { inner, .. } => {
                 let inner_ty = self.infer_type(inner);
-                if inner_ty == Type::primitive("i64") || inner_ty == Type::primitive("f32") || inner_ty == Type::primitive("bool") || inner_ty == Type::primitive("str") {
+                if inner_ty == Type::primitive("i64")
+                    || inner_ty == Type::primitive("f32")
+                    || inner_ty == Type::primitive("bool")
+                    || inner_ty == Type::primitive("str")
+                {
                     self.check_abi(inner)
                 } else {
                     Err(AbiError::NonConstTimeTimingOwned)
@@ -585,8 +634,12 @@ impl Resolver {
     /// Applies implicit borrowing for compatible types.
     fn implicit_borrow(&self, ty: &Type) -> Type {
         match ty {
-            Type::Named { name, params } if name == "str" && params.is_empty() => Type::Ref(Box::new(ty.clone())),
-            Type::Named { name, params } if name == "Vec" && params.len() == 1 => Type::Ref(Box::new(Type::Slice(Box::new(params[0].clone())))),
+            Type::Named { name, params } if name == "str" && params.is_empty() => {
+                Type::Ref(Box::new(ty.clone()))
+            }
+            Type::Named { name, params } if name == "Vec" && params.len() == 1 => {
+                Type::Ref(Box::new(Type::Slice(Box::new(params[0].clone()))))
+            }
             _ => ty.clone(),
         }
     }
@@ -656,8 +709,18 @@ impl Resolver {
                         ok = false;
                     }
                     // Expanded type checking with implicit borrows
-                    if let AstNode::Call { receiver, method, args, type_args: _, .. } = stmt {
-                        let recv_ty = receiver.as_ref().map(|r| self.infer_type(r)).unwrap_or(Type::Unknown);
+                    if let AstNode::Call {
+                        receiver,
+                        method,
+                        args,
+                        type_args: _,
+                        ..
+                    } = stmt
+                    {
+                        let recv_ty = receiver
+                            .as_ref()
+                            .map(|r| self.infer_type(r))
+                            .unwrap_or(Type::Unknown);
                         let arg_tys: Vec<Type> = args.iter().map(|a| self.infer_type(a)).collect();
                         let (_, (param_tys, _)) = self.resolve_method(&recv_ty, method, &arg_tys);
                         for (i, arg_ty) in arg_tys.iter().enumerate() {
@@ -673,8 +736,10 @@ impl Resolver {
                         }
                     } else if let AstNode::Spawn { func, args } = stmt {
                         if let Some((p_tys, _)) = self.func_sigs.get(func) {
-                            let param_tys = p_tys.iter().map(|(_, t)| t.clone()).collect::<Vec<_>>();
-                            let arg_tys = args.iter().map(|a| self.infer_type(a)).collect::<Vec<_>>();
+                            let param_tys =
+                                p_tys.iter().map(|(_, t)| t.clone()).collect::<Vec<_>>();
+                            let arg_tys =
+                                args.iter().map(|a| self.infer_type(a)).collect::<Vec<_>>();
                             for (i, arg_ty) in arg_tys.iter().enumerate() {
                                 if i >= param_tys.len() {
                                     ok = false;
@@ -692,8 +757,10 @@ impl Resolver {
                     } else if let AstNode::PathCall { path, method, args } = stmt {
                         let fn_name = path.join("::") + "::" + method;
                         if let Some((p_tys, _)) = self.func_sigs.get(&fn_name) {
-                            let param_tys = p_tys.iter().map(|(_, t)| t.clone()).collect::<Vec<_>>();
-                            let arg_tys = args.iter().map(|a| self.infer_type(a)).collect::<Vec<_>>();
+                            let param_tys =
+                                p_tys.iter().map(|(_, t)| t.clone()).collect::<Vec<_>>();
+                            let arg_tys =
+                                args.iter().map(|a| self.infer_type(a)).collect::<Vec<_>>();
                             for (i, arg_ty) in arg_tys.iter().enumerate() {
                                 if i >= param_tys.len() {
                                     ok = false;
