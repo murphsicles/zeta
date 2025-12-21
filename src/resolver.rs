@@ -120,6 +120,8 @@ pub struct Resolver {
     borrow_checker: BorrowChecker,
     /// Map from (type, method) to (concept, sig) for resolution.
     trait_methods: HashMap<(Type, String), (String, MethodSig)>,
+    /// Doc strings for concepts.
+    concept_docs: HashMap<String, String>,
 }
 impl Default for Resolver {
     fn default() -> Self {
@@ -135,6 +137,7 @@ impl Resolver {
             func_sigs: HashMap::new(),
             borrow_checker: BorrowChecker::new(),
             trait_methods: HashMap::new(),
+            concept_docs: HashMap::new(),
         };
         let i64_ty = Type::primitive("i64");
         let bool_ty = Type::primitive("bool");
@@ -248,6 +251,9 @@ impl Resolver {
                 (vec![], slice_u8_ty),
             ),
         );
+        // Auto-import standard functions like print
+        let void_ty = Type::Named { name: "()".to_string(), params: vec![] };
+        r.func_sigs.insert("print".to_string(), (vec![("s".to_string(), str_ty.clone())], void_ty));
         r
     }
     /// Determines if a type is Copy.
@@ -282,18 +288,20 @@ impl Resolver {
     /// Registers definitions for resolution.
     pub fn register(&mut self, ast: AstNode) {
         match ast {
-            AstNode::ConceptDef { methods, .. } => {
-                // Concepts don't need registration beyond methods; sigs checked in impls
-                for _m in methods {
-                    // Potential: store concept methods for validation
+            AstNode::ConceptDef { name, methods, doc } => {
+                self.concept_docs.insert(name.clone(), doc);
+                for m in methods {
+                    if let AstNode::Method { name: mname, params, ret, doc, .. } = m {
+                        // Potential: store method docs
+                    }
                 }
             }
-            AstNode::ImplBlock { concept, ty, body } => {
+            AstNode::ImplBlock { concept, ty, body, doc } => {
                 let ty = self.parse_type_str(&ty);
                 let mut methods = HashMap::new();
                 for m in body {
                     if let AstNode::Method {
-                        name, params, ret, ..
+                        name, params, ret, doc, ..
                     } = m
                     {
                         let ptypes: Vec<Type> =
@@ -307,7 +315,7 @@ impl Resolver {
                 self.direct_impls.insert((concept, ty), methods);
             }
             AstNode::FuncDef {
-                name, params, ret, ..
+                name, params, ret, doc, ..
             } => {
                 let ptypes: Vec<(String, Type)> = params
                     .iter()
@@ -316,7 +324,7 @@ impl Resolver {
                 self.func_sigs
                     .insert(name, (ptypes, self.parse_type_str(&ret)));
             }
-            AstNode::EnumDef { name, variants } => {
+            AstNode::EnumDef { name, variants, doc } => {
                 let variant_types: Vec<(String, Vec<Type>)> = variants
                     .iter()
                     .map(|(vname, vparams)| {
@@ -334,7 +342,7 @@ impl Resolver {
                     },
                 );
             }
-            AstNode::StructDef { name, fields } => {
+            AstNode::StructDef { name, fields, doc } => {
                 let field_types: Vec<(String, Type)> = fields
                     .iter()
                     .map(|(fname, fty)| (fname.clone(), self.parse_type_str(fty)))
@@ -724,7 +732,7 @@ impl Resolver {
     pub fn fold_semiring_chains(&self, mir: &mut Mir) -> bool {
         let mut changed = false;
         let mut i = 0;
-        while i + 1 < mir.stmts.len() {
+        while i + 1 < self.stmts.len() {
             if let MirStmt::Call {
                 func: f1,
                 args: a1,
@@ -768,5 +776,15 @@ impl Resolver {
             }
         }
         changed
+    }
+    /// Generates documentation for concepts.
+    pub fn generate_docs(&self) {
+        for (concept, _) in self.direct_impls.keys() {
+            if let Some(doc) = self.concept_docs.get(concept) {
+                println!("Concept: {}\n{}", concept, doc);
+            } else {
+                println!("Concept: {}\nNo documentation available.", concept);
+            }
+        }
     }
 }
