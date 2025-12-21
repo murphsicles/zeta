@@ -6,12 +6,13 @@ pub enum AstNode {
     /// Full program as a sequence of top-level nodes.
     Program(Vec<AstNode>),
     /// Concept (trait) definition with method signatures.
-    ConceptDef { name: String, methods: Vec<AstNode> },
+    ConceptDef { name: String, methods: Vec<AstNode>, doc: String },
     /// Implementation block for a concept on a type.
     ImplBlock {
         concept: String,
         ty: String,
         body: Vec<AstNode>,
+        doc: String,
     },
     /// Method signature within a concept or implementation.
     Method {
@@ -19,6 +20,7 @@ pub enum AstNode {
         params: Vec<(String, String)>,
         ret: String,
         generics: Vec<String>,
+        doc: String,
     },
     /// Function definition with parameters, return type, and body.
     FuncDef {
@@ -30,16 +32,19 @@ pub enum AstNode {
         attrs: Vec<String>,
         ret_expr: Option<Box<AstNode>>,
         single_line: bool,
+        doc: String,
     },
     /// Enumeration definition with variants.
     EnumDef {
         name: String,
         variants: Vec<(String, Vec<String>)>,
+        doc: String,
     },
     /// Structure definition with fields.
     StructDef {
         name: String,
         fields: Vec<(String, String)>,
+        doc: String,
     },
     /// Method or function call, with optional receiver and structural dispatch flag.
     Call {
