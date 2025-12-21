@@ -1,7 +1,7 @@
 // src/plan.rs
 //! Zeta Compiler Development Plan.
 //! Checklist for milestones. Mark as [x] when complete.
-//! Updated Dec 21, 2025: Implemented full const eval in CTFE [x]; handled mul chains in semiring folding [x]; added error handling for uninitialized scheduler [x]; real MIR analysis for stats [x].
+//! Updated Dec 21, 2025: Implemented full const eval in CTFE [x]; handled mul chains in semiring folding [x]; added error handling for uninitialized scheduler [x]; real MIR analysis for stats [x]; Completed type inference for advanced nodes [x]; Expanded ABI checks for advanced cases [x]; Expanded implicit borrowing for types beyond Str/StrRef [x].
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
@@ -11,9 +11,9 @@ pub mod checklist {
     pub const RESOLVER: &str = r#"
 [x] Full trait resolution beyond Addable/StrOps
 [x] Parametric handling for Result and Map generics
-[ ] Complete type inference for advanced nodes
-[ ] Expanded ABI checks for advanced cases
-[ ] Implicit borrowing for types beyond Str/StrRef
+[x] Complete type inference for advanced nodes
+[x] Expanded ABI checks for advanced cases
+[x] Implicit borrowing for types beyond Str/StrRef
     "#;
     /// MIR (Mid-level IR)
     pub const MIR: &str = r#"
