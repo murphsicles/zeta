@@ -149,7 +149,7 @@ impl<'a> MirGen<'a> {
                 });
             }
             if let Some(ret_expr) = ret_expr {
-                let ret_val = self.gen_expr(&*ret_expr, &mut exprs, &mut stmts);
+                let ret_val = self.gen_expr(&ret_expr, &mut exprs, &mut stmts);
                 let ret_id = self.materialize(ret_val, &mut exprs, &mut stmts);
                 stmts.push(MirStmt::Return { val: ret_id });
             } else if let Some(last) = body.last() {
