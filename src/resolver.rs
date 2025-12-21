@@ -438,7 +438,7 @@ impl Resolver {
                 args,
                 ..
             } => {
-                let arg_tys = args.iter().map(|a| self.infer_type(a)).collect();
+                let arg_tys: Vec<Type> = args.iter().map(|a| self.infer_type(a)).collect();
                 if let Some(rec) = receiver {
                     let rec_ty = self.infer_type(rec);
                     let (_, (_, ret)) = self.resolve_method(&rec_ty, method, &arg_tys);
@@ -526,7 +526,7 @@ impl Resolver {
         match node {
             AstNode::TimingOwned { inner, .. } => {
                 let inner_ty = self.infer_type(inner);
-                if matches!(inner_ty, Type::primitive("i64") | Type::primitive("f32") | Type::primitive("bool") | Type::primitive("str")) {
+                if inner_ty == Type::primitive("i64") || inner_ty == Type::primitive("f32") || inner_ty == Type::primitive("bool") || inner_ty == Type::primitive("str") {
                     self.check_abi(inner)
                 } else {
                     Err(AbiError::NonConstTimeTimingOwned)
@@ -648,7 +648,7 @@ impl Resolver {
                         ok = false;
                     }
                     // Expanded type checking with implicit borrows
-                    if let AstNode::Call { receiver, method, args, type_args, .. } = stmt {
+                    if let AstNode::Call { receiver, method, args, type_args: _, .. } = stmt {
                         let recv_ty = receiver.as_ref().map(|r| self.infer_type(r)).unwrap_or(Type::Unknown);
                         let arg_tys = args.iter().map(|a| self.infer_type(a)).collect::<Vec<_>>();
                         let (_, (param_tys, _)) = self.resolve_method(&recv_ty, method, &arg_tys);
