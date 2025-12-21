@@ -462,7 +462,7 @@ impl Resolver {
             }
             AstNode::PathCall { path, method, args } => {
                 let fn_name = path.join("::") + "::" + method;
-                let arg_tys = args.iter().map(|a| self.infer_type(a)).collect();
+                let arg_tys: Vec<Type> = args.iter().map(|a| self.infer_type(a)).collect();
                 if let Some(sig) = self.func_sigs.get(&fn_name) {
                     sig.1.clone()
                 } else {
