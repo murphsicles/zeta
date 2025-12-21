@@ -451,6 +451,7 @@ impl<'a> MirGen<'a> {
         }
     }
     /// Materializes an expression to an ID without statements.
+    #[allow(dead_code)]
     fn materialize_inner(&mut self, expr: &MirExpr, exprs: &mut HashMap<u32, MirExpr>) -> u32 {
         match expr {
             MirExpr::Var(id) => *id,
