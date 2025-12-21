@@ -6,7 +6,11 @@ pub enum AstNode {
     /// Full program as a sequence of top-level nodes.
     Program(Vec<AstNode>),
     /// Concept (trait) definition with method signatures.
-    ConceptDef { name: String, methods: Vec<AstNode>, doc: String },
+    ConceptDef {
+        name: String,
+        methods: Vec<AstNode>,
+        doc: String,
+    },
     /// Implementation block for a concept on a type.
     ImplBlock {
         concept: String,
