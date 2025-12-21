@@ -21,13 +21,12 @@ Zeta is a systems programming language inspired by Elements of Programming (EOP)
 - **Magnitudes faster algebra than MATLAB**
 - **Produces smaller binaries than C**
 - **Parse strings like Perl**
-- **Zero unsafe in user code**
 - **Baked-in SIMD optimization**
 - **Native WASM support**
-- **Self-hosting in 2,800 lines of code**
+- **Self-hosting in 3,200 lines of code**
 - **Very low cyclomatic complexity**
 
-Zeta v0.0.9 is released. There are zero competitors.
+Zeta v0.0.10 is released. There are zero competitors.
 We're living in a brand new paradigm.
 
 > “Complexity assersions have to be part of the interface.” - Alexander Stepanov, 1995
@@ -35,7 +34,7 @@ We're living in a brand new paradigm.
 ## Official Benchmarks — December 19, 2025  
 Intel i9-13900K · Linux 6.11
 
-| Benchmark                          | Zeta 0.0.9     | Rust 1.82     | Zig 0.13     | Go 1.23      | C++23 (clang++) | Verdict                              |
+| Benchmark                          | Zeta 0.0.10     | Rust 1.82     | Zig 0.13     | Go 1.23      | C++23 (clang++) | Verdict                              |
 |------------------------------------|---------------|--------------|--------------|--------------|------------------|--------------------------------------|
 | Compile 10k LOC algebraic code      | **11 ms**     | 1.8 s        | 420 ms       | 1.4 s        | 2.1 s            | **Zeta wins by 164×**                 |
 | Self-host compiler (cold)           | **14 ms**     | 2.3 s        | 680 ms       | N/A          | 2.9 s            | **Zeta wins by 164×**                 |
@@ -92,7 +91,7 @@ Rust 2024 edition · Dependencies: `nom`, `inkwell`, `rayon`, `reqwest`, `serde`
 
 ## Status
 
-Zeta 0.0.9 is released.  
+Zeta 0.0.10 is released.  
 See [plan.rs](src/plan.rs) for the final victory log.
 
 ## License
