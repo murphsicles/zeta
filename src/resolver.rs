@@ -31,6 +31,14 @@ pub enum Type {
         name: String,
         fields: Vec<(String, Type)>,
     },
+    /// Immutable reference.
+    Ref(Box<Type>),
+    /// Mutable reference.
+    MutRef(Box<Type>),
+    /// Slice type.
+    Slice(Box<Type>),
+    /// Raw pointer type.
+    RawPtr(Box<Type>),
 }
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -50,6 +58,10 @@ impl fmt::Display for Type {
             Type::TimingOwned(ty) => write!(f, "TimingOwned<{}>", ty),
             Type::Enum { name, .. } => write!(f, "enum {}", name),
             Type::Struct { name, .. } => write!(f, "struct {}", name),
+            Type::Ref(ty) => write!(f, "&{}", ty),
+            Type::MutRef(ty) => write!(f, "&mut {}", ty),
+            Type::Slice(ty) => write!(f, "[{}]", ty),
+            Type::RawPtr(ty) => write!(f, "*{}", ty),
         }
     }
 }
@@ -127,10 +139,7 @@ impl Resolver {
         let i64_ty = Type::primitive("i64");
         let bool_ty = Type::primitive("bool");
         let str_ty = Type::primitive("str");
-        let vec_u8_ty = Type::Named {
-            name: "Vec".to_string(),
-            params: vec![Type::primitive("u8")],
-        };
+        let slice_u8_ty = Type::Slice(Box::new(Type::primitive("u8")));
         // Fast-path: i64 implements Addable
         let mut addable = HashMap::new();
         addable.insert("add".to_string(), (vec![i64_ty.clone()], i64_ty.clone()));
@@ -171,7 +180,7 @@ impl Resolver {
             "ends_with".to_string(),
             (vec![str_ty.clone()], bool_ty.clone()),
         );
-        str_ops.insert("as_bytes".to_string(), (vec![], vec_u8_ty));
+        str_ops.insert("as_bytes".to_string(), (vec![], slice_u8_ty.clone()));
         r.direct_impls
             .insert(("StrOps".to_string(), str_ty.clone()), str_ops);
         // Insert into trait_methods
@@ -236,46 +245,38 @@ impl Resolver {
             (str_ty, "as_bytes".to_string()),
             (
                 "StrOps".to_string(),
-                (
-                    vec![],
-                    Type::Named {
-                        name: "Vec".to_string(),
-                        params: vec![Type::primitive("u8")],
-                    },
-                ),
+                (vec![], slice_u8_ty),
             ),
         );
         r
     }
     /// Determines if a type is Copy.
     pub fn is_copy(&self, ty: &Type) -> bool {
-        if let Type::Named { name, params } = ty {
-            if params.is_empty() {
-                matches!(name.as_str(), "i64" | "f32" | "bool")
-            } else {
-                false
-            }
-        } else {
-            false
+        match ty {
+            Type::Named { name, params } if params.is_empty() && matches!(name.as_str(), "i64" | "f32" | "bool" | "str") => true,
+            Type::Ref(_) | Type::MutRef(_) | Type::Slice(_) => true,
+            _ => false,
         }
     }
     /// Parses a type string to a Type.
     pub fn parse_type_str(&self, s: &str) -> Type {
         let trimmed = s.trim();
-        if !trimmed.contains('<') {
-            return Type::primitive(trimmed);
-        }
-        if let Some(open) = trimmed.find('<') {
+        if trimmed.starts_with("&mut ") {
+            Type::MutRef(Box::new(self.parse_type_str(&trimmed[5..])))
+        } else if trimmed.starts_with("&") {
+            Type::Ref(Box::new(self.parse_type_str(&trimmed[1..])))
+        } else if trimmed.starts_with("[") && trimmed.ends_with("]") {
+            Type::Slice(Box::new(self.parse_type_str(&trimmed[1..trimmed.len() - 1])))
+        } else if trimmed.starts_with("*") {
+            Type::RawPtr(Box::new(self.parse_type_str(&trimmed[1..])))
+        } else if let Some(open) = trimmed.find('<') {
             let name = trimmed[0..open].trim().to_string();
-            let inner = &trimmed[open + 1..trimmed.len() - 1];
-            let param_strs: Vec<String> = inner.split(',').map(|p| p.trim().to_string()).collect();
-            let params: Vec<Type> = param_strs
-                .iter()
-                .map(|ps| self.parse_type_str(ps))
-                .collect();
+            let rest = &trimmed[open + 1..trimmed.len() - 1];
+            let param_strs: Vec<&str> = rest.split(',').collect();
+            let params: Vec<Type> = param_strs.iter().map(|ps| self.parse_type_str(ps.trim())).collect();
             Type::Named { name, params }
         } else {
-            Type::Unknown
+            Type::primitive(trimmed)
         }
     }
     /// Registers definitions for resolution.
@@ -434,18 +435,14 @@ impl Resolver {
             AstNode::Call {
                 receiver,
                 method,
-                args: _,
+                args,
                 ..
             } => {
+                let arg_tys = args.iter().map(|a| self.infer_type(a)).collect();
                 if let Some(rec) = receiver {
                     let rec_ty = self.infer_type(rec);
-                    if let Some((_, sig)) =
-                        self.trait_methods.get(&(rec_ty.clone(), method.clone()))
-                    {
-                        sig.1.clone()
-                    } else {
-                        Type::Unknown
-                    }
+                    let (_, (_, ret)) = self.resolve_method(&rec_ty, method, &arg_tys);
+                    ret
                 } else {
                     // Static func call
                     if let Some(sig) = self.func_sigs.get(method) {
@@ -453,6 +450,15 @@ impl Resolver {
                     } else {
                         Type::Unknown
                     }
+                }
+            }
+            AstNode::PathCall { path, method, args } => {
+                let fn_name = path.join("::") + "::" + method;
+                let arg_tys = args.iter().map(|a| self.infer_type(a)).collect();
+                if let Some(sig) = self.func_sigs.get(&fn_name) {
+                    sig.1.clone()
+                } else {
+                    Type::Unknown
                 }
             }
             AstNode::Spawn { .. } => Type::primitive("i64"), // Actor ID
@@ -507,35 +513,73 @@ impl Resolver {
             _ => Type::Unknown,
         }
     }
+    /// Resolves a method on a type, returning (concept, sig).
+    pub fn resolve_method(&self, ty: &Type, method: &str, _args: &Vec<Type>) -> (String, MethodSig) {
+        if let Some((concept, sig)) = self.trait_methods.get(&(ty.clone(), method.to_string())) {
+            (concept.clone(), sig.clone())
+        } else {
+            (String::new(), (vec![], Type::Unknown))
+        }
+    }
     /// Checks ABI compliance for a node.
-    fn check_abi(&mut self, node: &AstNode) -> Result<(), AbiError> {
+    pub fn check_abi(&self, node: &AstNode) -> Result<(), AbiError> {
         match node {
             AstNode::TimingOwned { inner, .. } => {
                 let inner_ty = self.infer_type(inner);
-                match inner_ty {
-                    ty if ty == Type::primitive("i64")
-                        || ty == Type::primitive("f32")
-                        || ty == Type::primitive("bool")
-                        || ty == Type::primitive("str") =>
-                    {
-                        Ok(())
-                    }
-                    _ => Err(AbiError::NonConstTimeTimingOwned),
+                if matches!(inner_ty, Type::primitive("i64") | Type::primitive("f32") | Type::primitive("bool") | Type::primitive("str")) {
+                    self.check_abi(inner)
+                } else {
+                    Err(AbiError::NonConstTimeTimingOwned)
                 }
             }
             AstNode::Call { method, .. } if method == "as_ptr" => Err(AbiError::RawPointerInPublic),
+            AstNode::Call { method, .. } if method == "unsafe_cast" => Err(AbiError::UnsafeCast),
+            AstNode::Call { receiver, args, .. } => {
+                if let Some(r) = receiver.as_ref() {
+                    self.check_abi(r)?;
+                }
+                for a in args {
+                    self.check_abi(a)?;
+                }
+                Ok(())
+            }
+            AstNode::BinaryOp { left, right, .. } => {
+                self.check_abi(left)?;
+                self.check_abi(right)
+            }
+            AstNode::FString(parts) => {
+                for p in parts {
+                    self.check_abi(p)?;
+                }
+                Ok(())
+            }
+            AstNode::Defer(inner) => self.check_abi(inner),
+            AstNode::TryProp { expr, .. } => self.check_abi(expr),
+            AstNode::DictLit { entries } => {
+                for (k, v) in entries {
+                    self.check_abi(k)?;
+                    self.check_abi(v)?;
+                }
+                Ok(())
+            }
+            AstNode::Subscript { base, index, .. } => {
+                self.check_abi(base)?;
+                self.check_abi(index)
+            }
+            AstNode::Return(inner) => self.check_abi(inner),
+            AstNode::Assign(lhs, rhs) => {
+                self.check_abi(lhs)?;
+                self.check_abi(rhs)
+            }
             _ => Ok(()),
         }
     }
     /// Applies implicit borrowing for compatible types.
-    #[allow(dead_code)]
-    fn implicit_borrow(&mut self, ty: &Type) -> Type {
-        let str_ty = Type::primitive("str");
-        let str_ref_ty = Type::primitive("&str");
-        if *ty == str_ty {
-            str_ref_ty // Implicit &str borrow
-        } else {
-            ty.clone()
+    fn implicit_borrow(&self, ty: &Type) -> Type {
+        match ty {
+            Type::Named { name, params } if name == "str" && params.is_empty() => Type::Ref(Box::new(ty.clone())),
+            Type::Named { name, params } if name == "Vec" && params.len() == 1 => Type::Ref(Box::new(Type::Slice(Box::new(params[0].clone())))),
+            _ => ty.clone(),
         }
     }
     /// Detects error propagation (?) in a node.
@@ -581,6 +625,13 @@ impl Resolver {
                             ok = false;
                         } // Require Result ret if ? used
                     }
+                    // Expanded ABI: check fn sig for raw ptrs
+                    if matches!(fn_ret, Type::RawPtr(_)) {
+                        ok = false;
+                    }
+                    if sig.0.iter().any(|(_, t)| matches!(t, Type::RawPtr(_))) {
+                        ok = false;
+                    }
                 }
                 for stmt in body {
                     let ty = self.infer_type(stmt);
@@ -595,6 +646,60 @@ impl Resolver {
                     }
                     if self.check_abi(stmt).is_err() {
                         ok = false;
+                    }
+                    // Expanded type checking with implicit borrows
+                    if let AstNode::Call { receiver, method, args, type_args, .. } = stmt {
+                        let recv_ty = receiver.as_ref().map(|r| self.infer_type(r)).unwrap_or(Type::Unknown);
+                        let arg_tys = args.iter().map(|a| self.infer_type(a)).collect::<Vec<_>>();
+                        let (_, (param_tys, _)) = self.resolve_method(&recv_ty, method, &arg_tys);
+                        for (i, arg_ty) in arg_tys.iter().enumerate() {
+                            if i >= param_tys.len() {
+                                ok = false;
+                                continue;
+                            }
+                            let param_ty = &param_tys[i];
+                            let adjusted = self.implicit_borrow(arg_ty);
+                            if adjusted != *param_ty {
+                                ok = false;
+                            }
+                        }
+                    } else if let AstNode::Spawn { func, args } = stmt {
+                        if let Some((p_tys, _)) = self.func_sigs.get(func) {
+                            let param_tys = p_tys.iter().map(|(_, t)| t.clone()).collect::<Vec<_>>();
+                            let arg_tys = args.iter().map(|a| self.infer_type(a)).collect::<Vec<_>>();
+                            for (i, arg_ty) in arg_tys.iter().enumerate() {
+                                if i >= param_tys.len() {
+                                    ok = false;
+                                    continue;
+                                }
+                                let param_ty = &param_tys[i];
+                                let adjusted = self.implicit_borrow(arg_ty);
+                                if adjusted != *param_ty {
+                                    ok = false;
+                                }
+                            }
+                        } else {
+                            ok = false;
+                        }
+                    } else if let AstNode::PathCall { path, method, args } = stmt {
+                        let fn_name = path.join("::") + "::" + method;
+                        if let Some((p_tys, _)) = self.func_sigs.get(&fn_name) {
+                            let param_tys = p_tys.iter().map(|(_, t)| t.clone()).collect::<Vec<_>>();
+                            let arg_tys = args.iter().map(|a| self.infer_type(a)).collect::<Vec<_>>();
+                            for (i, arg_ty) in arg_tys.iter().enumerate() {
+                                if i >= param_tys.len() {
+                                    ok = false;
+                                    continue;
+                                }
+                                let param_ty = &param_tys[i];
+                                let adjusted = self.implicit_borrow(arg_ty);
+                                if adjusted != *param_ty {
+                                    ok = false;
+                                }
+                            }
+                        } else {
+                            ok = false;
+                        }
                     }
                     // Insert local types to env after check
                     if let AstNode::Assign(lhs, _) = stmt
