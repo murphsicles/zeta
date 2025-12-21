@@ -344,6 +344,7 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
             attrs: vec![],
             ret_expr: None,
             single_line,
+            doc: "".to_string(),
         },
     ))
 }
@@ -363,6 +364,7 @@ pub fn parse_method_sig(input: &str) -> IResult<&str, AstNode> {
                 .collect(),
             ret: ret_opt.unwrap_or_else(|| "i64".to_string()),
             generics: generics_opt.unwrap_or_default(),
+            doc: "".to_string(),
         },
     ))
 }
@@ -377,6 +379,7 @@ fn parse_concept(input: &str) -> IResult<&str, AstNode> {
         AstNode::ConceptDef {
             name,
             methods: body,
+            doc: "".to_string(),
         },
     ))
 }
@@ -388,7 +391,7 @@ fn parse_impl(input: &str) -> IResult<&str, AstNode> {
     let (input, ty) = ws(parse_ident).parse(input)?;
     let (input, body) =
         delimited(ws(tag("{")), many0(ws(parse_method_sig)), ws(tag("}"))).parse(input)?;
-    Ok((input, AstNode::ImplBlock { concept, ty, body }))
+    Ok((input, AstNode::ImplBlock { concept, ty, body, doc: "".to_string() }))
 }
 /// Parses a variant: Variant or Variant(Type, Type).
 fn parse_variant(input: &str) -> IResult<&str, (String, Vec<String>)> {
@@ -412,7 +415,7 @@ fn parse_enum(input: &str) -> IResult<&str, AstNode> {
         ws(tag("}")),
     )
     .parse(input)?;
-    Ok((input, AstNode::EnumDef { name, variants }))
+    Ok((input, AstNode::EnumDef { name, variants, doc: "".to_string() }))
 }
 /// Parses a struct definition: struct Name { field: Type, ... }.
 fn parse_struct(input: &str) -> IResult<&str, AstNode> {
@@ -427,7 +430,7 @@ fn parse_struct(input: &str) -> IResult<&str, AstNode> {
         ws(tag("}")),
     )
     .parse(input)?;
-    Ok((input, AstNode::StructDef { name, fields }))
+    Ok((input, AstNode::StructDef { name, fields, doc: "".to_string() }))
 }
 /// Parses a Zeta program: sequence of top-level items.
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
