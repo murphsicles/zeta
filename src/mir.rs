@@ -68,7 +68,7 @@ pub enum MirExpr {
     Var(u32),
     /// Integer literal.
     Lit(i64),
-    /// String literal
+    /// String literal.
     StringLit(String),
     /// Formatted string parts.
     FString(Vec<u32>),
@@ -195,13 +195,13 @@ impl<'a> MirGen<'a> {
             AstNode::Assign(lhs, rhs) => {
                 let rhs_expr = self.gen_expr(rhs.as_ref(), exprs, out);
                 let rhs_id = self.materialize(rhs_expr, exprs, out);
-                if let AstNode::Var(ref name) = &**lhs {
+                if let AstNode::Var(name) = &**lhs {
                     let lhs_id = self.lookup_or_alloc(name);
                     out.push(MirStmt::Assign {
                         lhs: lhs_id,
                         rhs: MirExpr::Var(rhs_id),
                     });
-                } else if let AstNode::Subscript { ref base, ref index } = &**lhs {
+                } else if let AstNode::Subscript { base, index } = &**lhs {
                     let base_ty = self.resolver.infer_type(base.as_ref());
                     let (k_ty_str, _) = if let Type::Named { params, .. } = &base_ty {
                         if params.len() == 2 {
