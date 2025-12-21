@@ -125,7 +125,7 @@ impl<'a> MirGen<'a> {
         {
             // Alloc param locals and track for init
             self.param_indices.clear();
-            for (i, (pname, _)) = params.iter().enumerate() {
+            for (i, (pname, _)) in params.iter().enumerate() {
                 self.alloc_local(pname);
                 self.param_indices.push((pname.clone(), i));
             }
