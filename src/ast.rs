@@ -32,7 +32,10 @@ pub enum AstNode {
         single_line: bool,
     },
     /// Enumeration definition with variants.
-    EnumDef { name: String, variants: Vec<String> },
+    EnumDef {
+        name: String,
+        variants: Vec<(String, Vec<String>)>,
+    },
     /// Structure definition with fields.
     StructDef {
         name: String,

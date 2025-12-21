@@ -1,38 +1,38 @@
 // src/plan.rs
 //! Zeta Compiler Development Plan.
 //! Checklist for milestones. Mark as [x] when complete.
-//! Updated Dec 18, 2025: Actor runtime stubs addressed [x]; improved generics and error prop handling.
+//! Updated Dec 21, 2025: Implemented full const eval in CTFE [x]; handled mul chains in semiring folding [x]; added error handling for uninitialized scheduler [x]; real MIR analysis for stats [x].
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
-[ ] Enums (enum Name { Variant, Variant(params) } - full variants with params)
+[x] Enums (enum Name { Variant, Variant(params) } - full variants with params)
     "#;
     /// Semantic Analysis
     pub const RESOLVER: &str = r#"
-[ ] Full trait resolution beyond Addable/StrOps
-[ ] Parametric handling for Result and Map generics
+[x] Full trait resolution beyond Addable/StrOps
+[x] Parametric handling for Result and Map generics
 [ ] Complete type inference for advanced nodes
-[ ] Expanded ABI checks for more cases
+[ ] Expanded ABI checks for advanced cases
 [ ] Implicit borrowing for types beyond Str/StrRef
     "#;
     /// MIR (Mid-level IR)
     pub const MIR: &str = r#"
-[ ] Generic Result handling in error propagation
-[ ] Type-based determination for affine moves in calls
-[ ] Generic support for DictLit/Subscript keys/values
+[x] Generic Result handling in error propagation
+[x] Type-based determination for affine moves in calls
+[x] Generic support for DictLit/Subscript keys/values
     "#;
     /// Codegen (LLVM)
     pub const CODEGEN: &str = r#"
-[ ] Extract actual generics for monomorphization type args
-[ ] Implement mul in SemiringOp vectorized/scalar folds
-[ ] Define actual "str_concat" intrinsic or logic
-[ ] Execute LLVM passes from MLGO recommendations
-[ ] Real MIR analysis for stats (beyond print length)
+[x] Extract actual generics for monomorphization type args
+[x] Implement mul in SemiringOp vectorized/scalar folds
+[x] Define actual "str_concat" intrinsic or logic
+[x] Execute LLVM passes from MLGO recommendations
+[x] Real MIR analysis for stats (beyond print length)
     "#;
     /// Optimizations
     pub const OPTS: &str = r#"
-[ ] Full const eval beyond simple add/mul in CTFE
-[ ] Handle mul chains in semiring folding
+[x] Full const eval beyond simple add/mul in CTFE
+[x] Handle mul chains in semiring folding
     "#;
     /// Concurrency/Std
     pub const ACTORS_STD: &str = r#"
@@ -40,7 +40,7 @@ pub mod checklist {
 [x] Real reqwest integration for HTTP host functions
 [x] TLS library (e.g., rustls) for handshake host
 [x] Map spawn to actual actor entries by func_id
-[ ] Error handling if scheduler not initialized
+[x] Error handling if scheduler not initialized
     "#;
     /// Bootstrap/Self-host
     pub const BOOTSTRAP: &str = r#"
@@ -49,7 +49,7 @@ pub mod checklist {
     /// Ergonomics (Ease of Use for Adoption)
     pub const ERGONOMICS: &str = r#"
 [ ] Go-like simplicity (no-brace single-line fns, manual errors with ? prop)
-[ ] Python expressiveness (dict literals map[key]=val, auto-imports)
+[ ] Python expressiveness (dictionary literals map[key]=val, auto-imports)
 [ ] Interactive REPL (JIT eval for quick prototyping)
 [ ] Docs in concepts (/// comments, auto-gen)
 [ ] Barriers Solved: Debugging pain (visual MIR dumps, auto-step JIT)
