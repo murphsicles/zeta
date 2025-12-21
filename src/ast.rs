@@ -93,4 +93,10 @@ pub enum AstNode {
     },
     /// Explicit return statement with value.
     Return(Box<AstNode>),
+    /// Conditional statement.
+    If {
+        cond: Box<AstNode>,
+        then: Vec<AstNode>,
+        else_: Vec<AstNode>,
+    },
 }
