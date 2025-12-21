@@ -114,13 +114,18 @@ impl<'a> MirGen<'a> {
         } else {
             None
         };
+        let ret_expr = if let AstNode::FuncDef { ret_expr, .. } = ast {
+            ret_expr.clone()
+        } else {
+            None
+        };
         if let AstNode::FuncDef {
             params, body, ret, ..
         } = ast
         {
             // Alloc param locals and track for init
             self.param_indices.clear();
-            for (i, (pname, _)) in params.iter().enumerate() {
+            for (i, (pname, _)) = params.iter().enumerate() {
                 self.alloc_local(pname);
                 self.param_indices.push((pname.clone(), i));
             }
@@ -143,20 +148,19 @@ impl<'a> MirGen<'a> {
                     args: info.args.clone(),
                 });
             }
-            // Assume last stmt is return if Assign
-            if let Some(last) = body.last()
-                && let AstNode::Assign(_, expr) = last
-            {
-                let ret_val = self.gen_expr(expr, &mut exprs, &mut stmts);
+            if let Some(ret_expr) = ret_expr {
+                let ret_val = self.gen_expr(&*ret_expr, &mut exprs, &mut stmts);
                 let ret_id = self.materialize(ret_val, &mut exprs, &mut stmts);
                 stmts.push(MirStmt::Return { val: ret_id });
-            } else if !body.is_empty() && !matches!(body.last(), Some(AstNode::Return(_))) {
-                // General implicit return for last expr
-                if let Some(last) = body.last() {
+            } else if let Some(last) = body.last() {
+                if let AstNode::Assign(_, expr) = last {
+                    let ret_val = self.gen_expr(expr, &mut exprs, &mut stmts);
+                    let ret_id = self.materialize(ret_val, &mut exprs, &mut stmts);
+                    stmts.push(MirStmt::Return { val: ret_id });
+                } else if !matches!(last, AstNode::Return(_)) {
                     let last_expr = self.gen_expr(last, &mut exprs, &mut stmts);
                     let last_id = self.materialize(last_expr, &mut exprs, &mut stmts);
-                    // If fn ret is Result, wrap in make_ok
-                    let is_error_prop = ret.starts_with("Result<"); // Improved: check if ret starts with "Result<" for generic
+                    let is_error_prop = ret.starts_with("Result<");
                     if is_error_prop {
                         let wrap_id = self.next_id();
                         stmts.push(MirStmt::Call {
@@ -180,121 +184,44 @@ impl<'a> MirGen<'a> {
             param_indices: self.param_indices.clone(),
         }
     }
-    /// Generates MIR statements for an AST node.
+    /// Generates a statement and adds to output.
     fn gen_stmt_full(
         &mut self,
-        node: &AstNode,
+        stmt: &AstNode,
         out: &mut Vec<MirStmt>,
         exprs: &mut HashMap<u32, MirExpr>,
     ) {
-        match node {
-            AstNode::Defer(boxed) => {
-                if let AstNode::Call {
-                    receiver: None,
-                    ref method,
-                    ref args,
-                    ..
-                } = **boxed
-                {
-                    let mut arg_ids = vec![];
-                    for arg in args.iter() {
-                        if let AstNode::Var(ref v) = *arg {
-                            let id = self.lookup_or_alloc(v);
-                            arg_ids.push(id);
-                        }
-                    }
-                    self.defers.push(DeferInfo {
-                        func: method.clone(),
-                        args: arg_ids,
-                    });
-                }
-            }
-            AstNode::Spawn { func: _, args } => {
-                let mut arg_ids = vec![];
-                for arg in args.iter() {
-                    let e = self.gen_expr(arg, exprs, out);
-                    let arg_id = self.materialize(e, exprs, out);
-                    arg_ids.push(arg_id);
-                }
-                out.push(MirStmt::VoidCall {
-                    func: "spawn".to_string(),
-                    args: arg_ids,
-                });
-            }
+        match stmt {
             AstNode::Assign(lhs, rhs) => {
                 let rhs_expr = self.gen_expr(rhs.as_ref(), exprs, out);
                 let rhs_id = self.materialize(rhs_expr, exprs, out);
-                match **lhs {
-                    AstNode::Var(ref v) => {
-                        let lhs_id = self.lookup_or_alloc(v);
-                        out.push(MirStmt::Assign {
-                            lhs: lhs_id,
-                            rhs: MirExpr::Var(rhs_id),
-                        });
-                    }
-                    AstNode::Subscript {
-                        ref base,
-                        ref index,
-                    } => {
-                        let base_ty = self.resolver.infer_type(base.as_ref());
-                        let (k_ty_str, _) = if let Type::Named { params, .. } = &base_ty {
-                            if params.len() == 2 {
-                                (params[0].to_string(), params[1].to_string())
-                            } else {
-                                ("i64".to_string(), "i64".to_string())
-                            }
+                if let AstNode::Var(name) = **lhs {
+                    let lhs_id = self.lookup_or_alloc(&name);
+                    out.push(MirStmt::Assign {
+                        lhs: lhs_id,
+                        rhs: MirExpr::Var(rhs_id),
+                    });
+                } else if let AstNode::Subscript { base, index } = **lhs {
+                    let base_ty = self.resolver.infer_type(base.as_ref());
+                    let (k_ty_str, _) = if let Type::Named { params, .. } = &base_ty {
+                        if params.len() == 2 {
+                            (params[0].to_string(), params[1].to_string())
                         } else {
                             ("i64".to_string(), "i64".to_string())
-                        };
-                        let insert_fn = format!("map_insert_{}", k_ty_str);
-                        let base_expr = self.gen_expr(base.as_ref(), exprs, out);
-                        let base_id = self.materialize(base_expr, exprs, out);
-                        let index_expr = self.gen_expr(index.as_ref(), exprs, out);
-                        let index_id = self.materialize(index_expr, exprs, out);
-                        out.push(MirStmt::VoidCall {
-                            func: insert_fn,
-                            args: vec![base_id, index_id, rhs_id],
-                        });
-                    }
-                    _ => {}
+                        }
+                    } else {
+                        ("i64".to_string(), "i64".to_string())
+                    };
+                    let insert_fn = format!("map_insert_{}", k_ty_str);
+                    let base_expr = self.gen_expr(base.as_ref(), exprs, out);
+                    let base_id = self.materialize(base_expr, exprs, out);
+                    let index_expr = self.gen_expr(index.as_ref(), exprs, out);
+                    let index_id = self.materialize(index_expr, exprs, out);
+                    out.push(MirStmt::VoidCall {
+                        func: insert_fn,
+                        args: vec![base_id, index_id, rhs_id],
+                    });
                 }
-            }
-            AstNode::Return(inner) => {
-                let ret_expr = self.gen_expr(inner.as_ref(), exprs, out);
-                let ret_id = self.materialize(ret_expr, exprs, out);
-                out.push(MirStmt::Return { val: ret_id });
-            }
-            _ => {
-                // For expr stmts, materialize but void
-                let e = self.gen_expr(node, exprs, out);
-                let _ = self.materialize(e, exprs, out);
-            }
-        }
-    }
-    /// Generates a MIR expression from an AST node.
-    fn gen_expr(
-        &mut self,
-        node: &AstNode,
-        exprs: &mut HashMap<u32, MirExpr>,
-        out: &mut Vec<MirStmt>,
-    ) -> MirExpr {
-        match node {
-            AstNode::Lit(n) => MirExpr::Lit(*n),
-            AstNode::StringLit(s) => MirExpr::StringLit(s.clone()),
-            AstNode::FString(parts) => {
-                let mut ids = vec![];
-                for part in parts {
-                    let e = self.gen_expr(part, exprs, out);
-                    let id = self.materialize_inner(&e, exprs);
-                    ids.push(id);
-                }
-                MirExpr::FString(ids)
-            }
-            AstNode::Var(v) => MirExpr::Var(self.lookup_or_alloc(v)),
-            AstNode::TimingOwned { inner, .. } => {
-                let inner_expr = self.gen_expr(inner.as_ref(), exprs, out);
-                let inner_id = self.materialize_inner(&inner_expr, exprs);
-                MirExpr::TimingOwned(inner_id)
             }
             AstNode::Call {
                 receiver,
@@ -303,72 +230,168 @@ impl<'a> MirGen<'a> {
                 type_args,
                 ..
             } => {
-                let receiver_gen = receiver.as_ref().map(|r| self.gen_expr(r, exprs, out));
-                let receiver_id = receiver_gen.map(|e| self.materialize(e, exprs, out));
-                let mut arg_ids = args
-                    .iter()
-                    .map(|a| {
-                        let e = self.gen_expr(a, exprs, out);
-                        self.materialize(e, exprs, out)
-                    })
-                    .collect::<Vec<_>>();
-                if let Some(rid) = receiver_id {
-                    arg_ids.insert(0, rid);
+                let mut arg_ids = vec![];
+                if let Some(rec) = receiver.as_ref() {
+                    let rec_expr = self.gen_expr(rec, exprs, out);
+                    let rec_id = self.materialize(rec_expr, exprs, out);
+                    arg_ids.push(rec_id);
                 }
+                for arg in args {
+                    let arg_expr = self.gen_expr(arg, exprs, out);
+                    let arg_id = self.materialize(arg_expr, exprs, out);
+                    arg_ids.push(arg_id);
+                }
+                let func = method.clone();
                 let dest = self.next_id();
                 out.push(MirStmt::Call {
-                    func: method.clone(),
-                    args: arg_ids.clone(),
+                    func,
+                    args: arg_ids,
                     dest,
                     type_args: type_args.clone(),
                 });
-                // Affine: Consume by-value args post-call (assume all Var args moved)
-                for &arg_id in arg_ids
-                    .iter()
-                    .filter(|&&id| matches!(exprs.get(&id), Some(MirExpr::Var(_))))
-                {
-                    out.push(MirStmt::Consume { id: arg_id });
+            }
+            AstNode::Return(inner) => {
+                let val_expr = self.gen_expr(inner.as_ref(), exprs, out);
+                let val_id = self.materialize(val_expr, exprs, out);
+                out.push(MirStmt::Return { val: val_id });
+            }
+            AstNode::Defer(inner) => {
+                if let AstNode::Call {
+                    method, args, ..
+                } = inner.as_ref() {
+                    let arg_ids = args
+                        .iter()
+                        .map(|a| {
+                            let a_expr = self.gen_expr(a, exprs, out);
+                            self.materialize(a_expr, exprs, out)
+                        })
+                        .collect();
+                    self.defers.push(DeferInfo {
+                        func: method.clone(),
+                        args: arg_ids,
+                    });
                 }
-                MirExpr::Var(dest)
             }
             AstNode::TryProp { expr } => {
-                let inner_expr = self.gen_expr(expr.as_ref(), exprs, out);
-                let inner_id = self.materialize(inner_expr, exprs, out);
-                let cond_dest = self.next_id();
+                let expr_id = self.gen_expr(expr.as_ref(), exprs, out);
+                let id = self.materialize(expr_id, exprs, out);
+                let is_ok_dest = self.next_id();
                 out.push(MirStmt::Call {
                     func: "result_is_ok".to_string(),
-                    args: vec![inner_id],
-                    dest: cond_dest,
+                    args: vec![id],
+                    dest: is_ok_dest,
                     type_args: vec![],
                 });
-                let data_id = self.next_id();
-                let ok_dest = self.next_id();
-                let then = vec![
-                    MirStmt::Call {
-                        func: "result_get_data".to_string(),
-                        args: vec![inner_id],
-                        dest: data_id,
-                        type_args: vec![],
-                    },
-                    MirStmt::VoidCall {
-                        func: "result_free".to_string(),
-                        args: vec![inner_id],
-                    },
-                    MirStmt::Assign {
-                        lhs: ok_dest,
-                        rhs: MirExpr::Var(data_id),
-                    },
-                ];
-                let else_ = vec![MirStmt::Return { val: inner_id }];
+                let then = vec![];
+                let mut else_ = vec![MirStmt::Call {
+                    func: "result_get_data".to_string(),
+                    args: vec![id],
+                    dest: self.next_id(),
+                    type_args: vec![],
+                }];
+                else_.push(MirStmt::Return { val: self.locals[&"err".to_string()] }); // Assume err local
                 out.push(MirStmt::If {
-                    cond: cond_dest,
+                    cond: is_ok_dest,
                     then,
                     else_,
                 });
-                MirExpr::Var(ok_dest)
+                let data_dest = self.next_id();
+                out.push(MirStmt::Call {
+                    func: "result_get_data".to_string(),
+                    args: vec![id],
+                    dest: data_dest,
+                    type_args: vec![],
+                });
+            }
+            AstNode::If { cond, then, else_ } => {
+                let cond_expr = self.gen_expr(cond.as_ref(), exprs, out);
+                let cond_id = self.materialize(cond_expr, exprs, out);
+                let mut then_stmts = vec![];
+                for s in then {
+                    self.gen_stmt_full(s, &mut then_stmts, exprs);
+                }
+                let mut else_stmts = vec![];
+                for s in else_ {
+                    self.gen_stmt_full(s, &mut else_stmts, exprs);
+                }
+                out.push(MirStmt::If {
+                    cond: cond_id,
+                    then: then_stmts,
+                    else_: else_stmts,
+                });
+            }
+            _ => {}
+        }
+    }
+    /// Generates MIR for an expression.
+    fn gen_expr(
+        &mut self,
+        expr: &AstNode,
+        exprs: &mut HashMap<u32, MirExpr>,
+        out: &mut Vec<MirStmt>,
+    ) -> MirExpr {
+        match expr {
+            AstNode::Var(name) => MirExpr::Var(self.lookup_or_alloc(name)),
+            AstNode::Lit(n) => MirExpr::Lit(*n),
+            AstNode::StringLit(s) => MirExpr::StringLit(s.clone()),
+            AstNode::FString(parts) => {
+                let part_ids = parts
+                    .iter()
+                    .map(|p| {
+                        let p_expr = self.gen_expr(p, exprs, out);
+                        self.materialize(p_expr, exprs, out)
+                    })
+                    .collect();
+                MirExpr::FString(part_ids)
+            }
+            AstNode::BinaryOp { op, left, right } => {
+                let l_expr = self.gen_expr(left.as_ref(), exprs, out);
+                let l_id = self.materialize(l_expr, exprs, out);
+                let r_expr = self.gen_expr(right.as_ref(), exprs, out);
+                let r_id = self.materialize(r_expr, exprs, out);
+                let func = match op.as_str() {
+                    "+" => "add".to_string(),
+                    "*" => "mul".to_string(),
+                    _ => "unknown".to_string(),
+                };
+                let dest = self.next_id();
+                out.push(MirStmt::Call {
+                    func,
+                    args: vec![l_id, r_id],
+                    dest,
+                    type_args: vec![],
+                });
+                MirExpr::Var(dest)
+            }
+            AstNode::TimingOwned { inner, .. } => {
+                let inner_expr = self.gen_expr(inner.as_ref(), exprs, out);
+                let inner_id = self.materialize(inner_expr, exprs, out);
+                MirExpr::TimingOwned(inner_id)
+            }
+            AstNode::Call { receiver, method, args, type_args, .. } => {
+                let mut arg_ids = vec![];
+                if let Some(rec) = receiver.as_ref() {
+                    let rec_expr = self.gen_expr(rec, exprs, out);
+                    let rec_id = self.materialize(rec_expr, exprs, out);
+                    arg_ids.push(rec_id);
+                }
+                for arg in args {
+                    let arg_expr = self.gen_expr(arg, exprs, out);
+                    let arg_id = self.materialize(arg_expr, exprs, out);
+                    arg_ids.push(arg_id);
+                }
+                let func = method.clone();
+                let dest = self.next_id();
+                out.push(MirStmt::Call {
+                    func,
+                    args: arg_ids,
+                    dest,
+                    type_args: type_args.clone(),
+                });
+                MirExpr::Var(dest)
             }
             AstNode::DictLit { entries } => {
-                let dict_ty = self.resolver.infer_type(node);
+                let dict_ty = self.resolver.infer_type(expr);
                 let (k_ty_str, v_ty_str) = if let Type::Named { params, .. } = &dict_ty {
                     if params.len() == 2 {
                         (params[0].to_string(), params[1].to_string())
