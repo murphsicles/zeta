@@ -288,7 +288,7 @@ impl Resolver {
     /// Registers definitions for resolution.
     pub fn register(&mut self, ast: AstNode) {
         match ast {
-            AstNode::ConceptDef { name, methods, doc } {
+            AstNode::ConceptDef { name, methods, doc } => {
                 self.concept_docs.insert(name.clone(), doc);
                 for m in methods {
                     if let AstNode::Method { name: _, params: _, ret: _, doc: _, .. } = m {
@@ -658,7 +658,7 @@ impl Resolver {
                     // Expanded type checking with implicit borrows
                     if let AstNode::Call { receiver, method, args, type_args: _, .. } = stmt {
                         let recv_ty = receiver.as_ref().map(|r| self.infer_type(r)).unwrap_or(Type::Unknown);
-                        let arg_tys = args.iter().map(|a| self.infer_type(a)).collect::<Vec<_>>();
+                        let arg_tys: Vec<Type> = args.iter().map(|a| self.infer_type(a)).collect();
                         let (_, (param_tys, _)) = self.resolve_method(&recv_ty, method, &arg_tys);
                         for (i, arg_ty) in arg_tys.iter().enumerate() {
                             if i >= param_tys.len() {
