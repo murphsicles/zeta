@@ -7,7 +7,7 @@ use super::resolver::Resolver;
 
 impl Resolver {
     pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
-        let mut mir_gen = crate::middle::mir::gen::MirGen::new();
+        let mut mir_gen = crate::middle::mir::r#gen::MirGen::new();
         mir_gen.lower_to_mir(ast)
     }
 
