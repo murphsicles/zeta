@@ -1,6 +1,6 @@
 // src/runtime/actor/scheduler.rs
 use num_cpus;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use tokio::task;
 use super::channel::Channel;
