@@ -1,7 +1,6 @@
 // src/middle/mir/gen.rs
-//! MIR generation utilities for Zeta.
 use crate::frontend::ast::AstNode;
-use crate::middle::mir::mir::{Mir, MirStmt, MirExpr, SemiringOp};
+use crate::middle::mir::mir::{Mir, MirStmt, MirExpr};
 use std::collections::HashMap;
 
 pub struct MirGen {
@@ -65,7 +64,7 @@ impl MirGen {
     fn lower_expr(&mut self, expr: &AstNode) -> u32 {
         let id = self.next_id();
         let mir_expr = match expr {
-            AstNode::Var(name) => MirExpr::Var(id), 
+            AstNode::Var(_name) => MirExpr::Var(id), 
             AstNode::Lit(n) => MirExpr::Lit(*n),
             AstNode::StringLit(s) => MirExpr::StringLit(s.clone()),
             AstNode::FString(parts) => {
