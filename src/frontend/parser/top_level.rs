@@ -4,22 +4,12 @@ use crate::frontend::ast::AstNode;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::combinator::{map, opt};
-use nom::multi::{many0, many1, separated_list1};
+use nom::multi::{many0, separated_list1};
 use nom::sequence::{delimited, pair, preceded};
 use nom::{IResult};
 
 use super::parser::{parse_ident, parse_keyword, ws};
-use super::expr::parse_full_expr;
 use super::stmt::parse_stmt;
-
-type FnParse = (
-    (),
-    String,
-    Vec<String>,
-    Vec<(String, String)>,
-    Option<String>,
-    Vec<AstNode>,
-);
 
 fn parse_generics(input: &str) -> IResult<&str, Vec<String>> {
     delimited(tag("<"), separated_list1(tag(","), parse_ident), tag(">"))(input)
@@ -43,7 +33,7 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
         map(preceded(ws(tag("=")), ws(parse_stmt)), |s| (vec![s], true)),
     ))
     .parse(input)?;
-    let generics = generics_opt.unwrap_or_default();
+    let generics: Vec<String> = generics_opt.unwrap_or_default();
     let ret = ret_opt.unwrap_or_else(|| "i64".to_string());
     Ok((
         input,
@@ -66,7 +56,7 @@ fn parse_method_sig(input: &str) -> IResult<&str, AstNode> {
     let (input, generics_opt) = opt(ws(parse_generics)).parse(input)?;
     let (input, params) = delimited(tag("("), separated_list1(tag(","), parse_param), tag(")")).parse(input)?;
     let (input, ret_opt) = opt(preceded(ws(tag("->")), ws(parse_ident))).parse(input)?;
-    let generics = generics_opt.unwrap_or_default();
+    let generics: Vec<String> = generics_opt.unwrap_or_default();
     let ret = ret_opt.unwrap_or_else(|| "i64".to_string());
     Ok((
         input,
@@ -121,7 +111,7 @@ fn parse_variant(input: &str) -> IResult<&str, (String, Vec<String>)> {
         ws(tag(")")),
     ))
     .parse(input)?;
-    let params = params_opt.unwrap_or_default();
+    let params: Vec<String> = params_opt.unwrap_or_default();
     Ok((input, (name, params)))
 }
 
