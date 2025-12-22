@@ -2,11 +2,12 @@
 use crate::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use crate::middle::specialization::{MonoKey, MonoValue, is_cache_safe, lookup_specialization, record_specialization};
 use inkwell::types::BasicMetadataTypeEnum;
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, IntValue, Either};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, IntValue};
 use inkwell::module::Linkage;
 use inkwell::values::{FunctionValue, VectorValue};
 use std::collections::HashMap;
 use inkwell::values::BasicValue;
+use inkwell::Either;
 use super::codegen::LLVMCodegen;
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -145,7 +146,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
     }
 
-    fn gen_expr(&self, expr: &MirExpr, _exprs: &HashMap<u32, MirExpr>) -> BasicValueEnum<'ctx> {
+    fn gen_expr(&self, expr: &MirExpr, exprs: &HashMap<u32, MirExpr>) -> BasicValueEnum<'ctx> {
         match expr {
             MirExpr::Var(id) => self.load_local(*id),
             MirExpr::Lit(n) => self.i64_type.const_int(*n as u64, true).into(),
@@ -164,9 +165,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 if ids.is_empty() {
                     return self.i64_type.const_int(0, false).into();
                 }
-                let mut res = self.gen_expr(&exprs[&ids[0]], _exprs);
+                let mut res = self.gen_expr(&exprs[&ids[0]], exprs);
                 for &id in &ids[1..] {
-                    let next = self.gen_expr(&exprs[&id], _exprs);
+                    let next = self.gen_expr(&exprs[&id], exprs);
                     let concat_fn = self.get_callee("str_concat");
                     let call = self.builder.build_call(concat_fn, &[res.into(), next.into()], "fconcat").unwrap();
                     if let Either::Left(basic_val) = call.try_as_basic_value() {
