@@ -6,6 +6,7 @@ use nom::combinator::opt;
 use nom::multi::many0;
 use nom::sequence::{delimited, preceded};
 use nom::{IResult};
+use nom::Parser;
 
 use super::parser::ws;
 use super::expr::parse_full_expr;
