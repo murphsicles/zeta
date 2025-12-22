@@ -79,7 +79,7 @@ fn parse_dict_lit(input: &str) -> IResult<&str, AstNode> {
             ),
             ws(tag("}")),
         ),
-        |entries| AstNode::DictLit { entries },
+        |entries: Vec<(AstNode, AstNode)| AstNode::DictLit { entries },
     )
     .parse(input)
 }
@@ -93,7 +93,7 @@ fn parse_call(input: &str) -> IResult<&str, AstNode> {
     let (input, method) = ws(parse_ident).parse(input)?;
     let (input, type_args_opt) = opt(ws(delimited(tag("<"), separated_list1(tag(","), parse_ident), tag(">")))).parse(input)?;
     let (input, args) = delimited(ws(tag("(")), many0(ws(parse_full_expr)), ws(tag(")"))).parse(input)?;
-    let type_args = type_args_opt.unwrap_or_default();
+    let type_args: Vec<String> = type_args_opt.unwrap_or_default();
     Ok((input, AstNode::Call {
         receiver: receiver_opt.map(Box::new),
         method,
@@ -173,6 +173,6 @@ fn parse_primary_expr(input: &str) -> IResult<&str, AstNode> {
     ))(input)
 }
 
-fn parse_full_expr(input: &str) -> IResult<&str, AstNode> {
+pub fn parse_full_expr(input: &str) -> IResult<&str, AstNode> {
     parse_primary_expr(input)
 }
