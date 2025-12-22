@@ -6,7 +6,7 @@ use tokio::sync::{Mutex, mpsc};
 type Message = i64;
 /// Global counter for unique channel IDs.
 #[allow(dead_code)]
-static CHANNEL_ID_COUNTER: AtomicI64 = AtomicI64::new(0);
+pub static CHANNEL_ID_COUNTER: AtomicI64 = AtomicI64::new(0);
 /// Global map of channel IDs to channels.
 static CHANNEL_MAP: OnceLock<Arc<Mutex<HashMap<i64, Channel>>>> = OnceLock::new();
 /// Communication channel for actor messages, compatible with C representations.
