@@ -2,7 +2,7 @@
 use num_cpus;
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, OnceLock};
-use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::atomic::{Ordering};
 use tokio::sync::Mutex;
 use tokio::task::{self, JoinHandle};
 use super::channel::Channel;
@@ -116,4 +116,5 @@ where
     F: FnOnce(Channel) + Send + 'static,
 {
     Scheduler::spawn(f).await;
+}
 }
