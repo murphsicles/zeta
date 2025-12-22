@@ -30,7 +30,7 @@ impl Resolver {
     }
 
     pub fn monomorphize(&self, _key: MonoKey, ast: &AstNode) -> AstNode {
-        if let AstNode::FuncDef { generics, .. } = ast {
+        if let AstNode::FuncDef { generics: _, .. } = ast {
             let mut mono_ast = ast.clone();
             if let AstNode::FuncDef { generics: ref mut g, .. } = mono_ast {
                 *g = vec![];
