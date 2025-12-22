@@ -1,10 +1,10 @@
 // src/middle/resolver/resolver.rs
 //! Core resolver structure and basic registration for Zeta concepts and implementations.
 //! Integrates borrow checker for affine types.
-use crate::ast::AstNode;
-use crate::borrow::BorrowChecker;
-use crate::mir::Mir;
-use crate::specialization::MonoKey;
+use crate::frontend::ast::AstNode;
+use crate::frontend::borrow::BorrowChecker;
+use crate::middle::mir::mir::Mir;
+use crate::middle::specialization::MonoKey;
 use std::collections::HashMap;
 
 pub type Type = String;
