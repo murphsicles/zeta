@@ -7,6 +7,7 @@ use nom::combinator::{map, opt};
 use nom::multi::{separated_list1};
 use nom::sequence::{delimited, pair, preceded};
 use nom::{IResult};
+use nom::Parser;
 
 use super::parser::{parse_ident, parse_path, parse_generics, ws};
 
