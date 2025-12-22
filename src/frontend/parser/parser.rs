@@ -2,10 +2,15 @@
 //! Utility parsers for Zeta.
 use nom::bytes::complete::tag;
 use nom::character::complete::{alpha1, alphanumeric0, multispace0};
-use nom::combinator::{map, opt, value};
+use nom::combinator::value;
 use nom::multi::many1;
 use nom::sequence::preceded;
 use nom::{IResult, Parser};
+
+#[allow(unused_imports)]
+use nom::branch::alt;
+#[allow(unused_imports)]
+use nom::combinator::{map, opt};
 
 pub fn ws<'a, F, O>(mut inner: F) -> impl Parser<&'a str, O, nom::error::Error<&'a str>>
 where
