@@ -1,10 +1,8 @@
 // src/runtime/actor/scheduler.rs
 use num_cpus;
-use std::collections::{HashMap, VecDeque};
-use std::sync::{Arc, OnceLock};
-use std::sync::atomic::{Ordering};
-use tokio::sync::Mutex;
-use tokio::task::{self, JoinHandle};
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex};
+use tokio::task;
 use super::channel::Channel;
 /// Type alias for actor entry functions.
 type ActorEntry = Box<dyn FnOnce(Channel) + Send + 'static>;
@@ -49,7 +47,7 @@ static SCHEDULER: OnceLock<Arc<Scheduler>> = OnceLock::new();
 /// Manages scheduling of actors across threads with work-stealing.
 struct Scheduler {
     actors: Mutex<VecDeque<Actor>>,
-    _tasks: Mutex<Vec<JoinHandle<()>>>,
+    _tasks: Mutex<Vec<task::JoinHandle<()>>>,
 }
 impl Scheduler {
     /// Creates a new scheduler with worker tasks based on CPU count.
@@ -116,5 +114,4 @@ where
     F: FnOnce(Channel) + Send + 'static,
 {
     Scheduler::spawn(f).await;
-}
 }
