@@ -1,7 +1,7 @@
 // src/middle/mir/gen.rs
 //! MIR generation utilities for Zeta.
-use crate::ast::AstNode;
-use crate::mir::{Mir, MirStmt, MirExpr, SemiringOp};
+use crate::frontend::ast::AstNode;
+use crate::middle::mir::mir::{Mir, MirStmt, MirExpr, SemiringOp};
 use std::collections::HashMap;
 
 pub struct MirGen {
@@ -53,13 +53,11 @@ impl MirGen {
                 let dest = self.next_id();
                 self.stmts.push(MirStmt::Call { func: op.clone(), args: vec![left_id, right_id], dest, type_args: vec![] });
             }
-            // Add cases for other nodes, recursively for bodies
             AstNode::FuncDef { body, .. } => {
                 for stmt in body {
                     self.lower_ast(stmt);
                 }
             }
-            // etc.
             _ => {},
         }
     }
@@ -67,16 +65,15 @@ impl MirGen {
     fn lower_expr(&mut self, expr: &AstNode) -> u32 {
         let id = self.next_id();
         let mir_expr = match expr {
-            AstNode::Var(name) => MirExpr::Var(id), // Would map name to ID
+            AstNode::Var(name) => MirExpr::Var(id), 
             AstNode::Lit(n) => MirExpr::Lit(*n),
             AstNode::StringLit(s) => MirExpr::StringLit(s.clone()),
             AstNode::FString(parts) => {
-                let ids = parts.iter().map(|p| self.lower_ast(p); self.next_id() - 1).collect();
+                let ids = parts.iter().map(|p| { self.lower_ast(p); self.next_id() - 1 }).collect();
                 MirExpr::FString(ids)
             }
             AstNode::TimingOwned { inner, .. } => MirExpr::TimingOwned(self.lower_expr(inner)),
-            // etc.
-            _ => MirExpr::Lit(0), // Stub for others
+            _ => MirExpr::Lit(0), 
         };
         self.exprs.insert(id, mir_expr);
         id
