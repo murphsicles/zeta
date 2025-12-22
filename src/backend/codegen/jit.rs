@@ -9,6 +9,7 @@ use inkwell::execution_engine::ExecutionEngine;
 use inkwell::passes::PassManager;
 use inkwell::support::LLVMString;
 use inkwell::values::FunctionValue;
+use inkwell::module::Module;
 use serde_json::Value;
 use super::codegen::LLVMCodegen;
 
@@ -35,7 +36,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             && let Ok(json) = serde_json::from_str::<Value>(&rec)
             && let Some(passes) = json["passes"].as_array()
         {
-            let fpm: PassManager<FunctionValue<'ctx>> = PassManager::create(());
+            let fpm: PassManager<Module<'ctx>> = PassManager::create(());
             for p in passes {
                 if let Some(ps) = p.as_str() {
                     if ps == "vectorize" {
