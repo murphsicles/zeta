@@ -12,7 +12,7 @@ static FUNC_MAP: OnceLock<Arc<Mutex<HashMap<i64, ActorEntry>>>> = OnceLock::new(
 #[allow(dead_code)]
 fn register_func(f: impl FnOnce(Channel) + Send + 'static) -> i64 {
     let _ = FUNC_MAP.set(Arc::new(Mutex::new(HashMap::new())));
-    let id = CHANNEL_ID_COUNTER.fetch_add(1, Ordering::SeqCst); // Reuse counter for simplicity
+    let id = super::channel::CHANNEL_ID_COUNTER.fetch_add(1, Ordering::SeqCst); // Reuse counter for simplicity
     if let Some(map) = FUNC_MAP.get() {
         let mut guard = tokio::runtime::Runtime::new().unwrap().block_on(map.lock());
         guard.insert(id, Box::new(f));
