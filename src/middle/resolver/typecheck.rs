@@ -4,7 +4,7 @@ use super::resolver::{Resolver, Type};
 
 impl Resolver {
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
-        let resolver = self as &Resolver;
+        let resolver: &Resolver = self;
         for ast in asts {
             if !self.borrow_checker.check(ast, resolver) {
                 return false;
