@@ -13,7 +13,7 @@ use nom::combinator::{map, opt};
 
 pub fn ws<'a, F, O>(inner: F) -> impl Parser<&'a str, O, nom::error::Error<&'a str>>
 where
-    F: Parser<&'a str, O, nom::error::Error<&'a str>>,
+    F: Parser<&'a str, Output = O, Error = nom::error::Error<&'a str>>,
 {
     move |input| {
         let (input, _) = multispace0.parse(input)?;
