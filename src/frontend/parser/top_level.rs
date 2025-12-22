@@ -7,12 +7,8 @@ use nom::multi::{many0, separated_list1};
 use nom::sequence::{delimited, pair, preceded};
 use nom::{IResult};
 
-use super::parser::{parse_ident, parse_keyword, ws};
+use super::parser::{parse_ident, parse_keyword, parse_generics, ws};
 use super::stmt::parse_stmt;
-
-fn parse_generics(input: &str) -> IResult<&str, Vec<String>> {
-    delimited(tag("<"), separated_list1(tag(","), parse_ident), tag(">"))(input)
-}
 
 fn parse_param(input: &str) -> IResult<&str, (String, String)> {
     let (input, name) = parse_ident(input)?;
