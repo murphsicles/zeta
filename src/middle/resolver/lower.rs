@@ -9,8 +9,8 @@ use super::resolver::Resolver;
 
 impl Resolver {
     pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
-        let mut gen = crate::middle::mir::r#gen::MirGen::new();
-        gen.lower_to_mir(ast)
+        let mut mir_gen = crate::middle::mir::r#gen::MirGen::new();
+        mir_gen.lower_to_mir(ast)
     }
 
     pub fn collect_used_specializations(&self, asts: &[AstNode]) -> HashMap<String, Vec<Vec<String>>> {
