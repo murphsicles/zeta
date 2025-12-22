@@ -4,7 +4,7 @@ mod tests {
     //! Unit tests for Zeta compiler.
     //! Verifies parsing, type checking, code generation, resolution, and runtime features.
     use crate::frontend::ast::AstNode;
-    use crate::middle::mir::gen::MirGen;
+    use crate::middle::mir::r#gen::MirGen;
     use crate::middle::resolver::resolver::MonoKey;
     use crate::{middle::resolver::resolver::Resolver, compile_and_run_zeta, frontend::parser::top_level::parse_zeta};
     use std::time::Instant;
@@ -297,4 +297,5 @@ fn assoc_fold() -> i32 {
         let res_val = compile_and_run_zeta(input).unwrap();
         assert_eq!(res_val, 10); // 0+1+2+3+4
     }
+}
 }
