@@ -9,13 +9,15 @@ use zetac::frontend::ast::AstNode;
 use zetac::middle::specialization::{
     MonoKey, MonoValue, is_cache_safe, lookup_specialization, record_specialization,
 };
-use zetac::{middle::mir::Mir, middle::resolver::resolver::Resolver, backend::codegen::codegen::LLVMCodegen, runtime::actor, frontend::parser::top_level::parse_zeta};
-use tokio::main;
-
-#[main]
+use zetac::middle::mir::mir::Mir;
+use zetac::middle::resolver::resolver::Resolver;
+use zetac::backend::codegen::codegen::LLVMCodegen;
+use zetac::runtime::actor::scheduler;
+use zetac::frontend::parser::top_level::parse_zeta;
+#[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize async actor runtime.
-    actor::init_runtime();
+    scheduler::init_runtime();
     let args: Vec<String> = std::env::args().collect();
     if args.len() > 1 && args[1] == "--repl" {
         repl()?;
@@ -94,15 +96,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Map async actor intrinsics.
     ee.add_global_mapping(
         &codegen.module.get_function("channel_send").unwrap(),
-        actor::host_channel_send as *const () as usize,
+        actor::channel::host_channel_send as *const () as usize,
     );
     ee.add_global_mapping(
         &codegen.module.get_function("channel_recv").unwrap(),
-        actor::host_channel_recv as *const () as usize,
+        actor::channel::host_channel_recv as *const () as usize,
     );
     ee.add_global_mapping(
         &codegen.module.get_function("spawn").unwrap(),
-        actor::host_spawn as *const () as usize,
+        actor::scheduler::host_spawn as *const () as usize,
     );
     // JIT execute main, print result (expect 43 from 42+1).
     type MainFn = unsafe extern "C" fn() -> i64;
@@ -229,15 +231,15 @@ fn repl() -> Result<(), Box<dyn std::error::Error>> {
         ee.add_global_mapping(&codegen.module.get_function("free").unwrap(), free_fn);
         ee.add_global_mapping(
             &codegen.module.get_function("channel_send").unwrap(),
-            actor::host_channel_send as *const () as usize,
+            actor::channel::host_channel_send as *const () as usize,
         );
         ee.add_global_mapping(
             &codegen.module.get_function("channel_recv").unwrap(),
-            actor::host_channel_recv as *const () as usize,
+            actor::channel::host_channel_recv as *const () as usize,
         );
         ee.add_global_mapping(
             &codegen.module.get_function("spawn").unwrap(),
-            actor::host_spawn as *const () as usize,
+            actor::scheduler::host_spawn as *const () as usize,
         );
         type ReplFn = unsafe extern "C" fn() -> i64;
         unsafe {
