@@ -8,7 +8,7 @@ use nom::multi::{many0, separated_list1};
 use nom::sequence::{delimited, pair, preceded};
 use nom::{IResult};
 
-use super::parser::{parse_ident, parse_path, ws};
+use super::parser::{parse_ident, parse_path, parse_generics, ws};
 
 fn parse_literal(input: &str) -> IResult<&str, AstNode> {
     map(i64, AstNode::Lit)(input)
@@ -75,7 +75,7 @@ fn parse_dict_lit(input: &str) -> IResult<&str, AstNode> {
             ),
             tag("}"),
         ),
-        |entries: Vec<(AstNode, AstNode)| AstNode::DictLit { entries },
+        |entries: Vec<(AstNode, AstNode)>| AstNode::DictLit { entries },
     )(input)
 }
 
