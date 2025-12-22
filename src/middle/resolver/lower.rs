@@ -1,15 +1,13 @@
 // src/middle/resolver/lower.rs
-//! Lowering AST to MIR and monomorphization for Zeta.
 use crate::frontend::ast::AstNode;
 use crate::middle::mir::mir::Mir;
 use crate::middle::specialization::MonoKey;
 use std::collections::HashMap;
-use std::fmt::Debug;
 use super::resolver::Resolver;
 
 impl Resolver {
     pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
-        let mut mir_gen = crate::middle::mir::r#gen::MirGen::new();
+        let mut mir_gen = crate::middle::mir::gen::MirGen::new();
         mir_gen.lower_to_mir(ast)
     }
 
@@ -31,7 +29,7 @@ impl Resolver {
         used
     }
 
-    pub fn monomorphize(&self, key: MonoKey, ast: &AstNode) -> AstNode {
+    pub fn monomorphize(&self, _key: MonoKey, ast: &AstNode) -> AstNode {
         if let AstNode::FuncDef { generics, .. } = ast {
             let mut mono_ast = ast.clone();
             if let AstNode::FuncDef { generics: ref mut g, .. } = mono_ast {
