@@ -2,7 +2,7 @@
 use nom::bytes::complete::tag;
 use nom::character::complete::{alpha1, alphanumeric0, multispace0};
 use nom::combinator::value;
-use nom::multi::many1;
+use nom::multi::{many1, separated_list1};
 use nom::sequence::{pair, preceded};
 use nom::{IResult, Parser};
 
@@ -34,4 +34,8 @@ pub fn parse_path(input: &str) -> IResult<&str, Vec<String>> {
         |ids: Vec<String>| ids,
     )
     (input)
+}
+
+pub fn parse_generics(input: &str) -> IResult<&str, Vec<String>> {
+    delimited(tag("<"), separated_list1(tag(","), parse_ident), tag(">"))(input)
 }
