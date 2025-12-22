@@ -5,13 +5,14 @@ use inkwell::context::Context;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, BufRead, Write};
-use zetac::ast::AstNode;
-use zetac::mir::Mir;
-use zetac::specialization::{
+use zetac::frontend::ast::AstNode;
+use zetac::middle::specialization::{
     MonoKey, MonoValue, is_cache_safe, lookup_specialization, record_specialization,
 };
-use zetac::{LLVMCodegen, Resolver, actor, parse_zeta};
-#[tokio::main]
+use zetac::{middle::mir::Mir, middle::resolver::resolver::Resolver, backend::codegen::codegen::LLVMCodegen, runtime::actor, frontend::parser::top_level::parse_zeta};
+use tokio::main;
+
+#[main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize async actor runtime.
     actor::init_runtime();
@@ -88,7 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     codegen.gen_mirs(&mono_mirs);
     let ee = codegen.finalize_and_jit()?;
     // Map std_free to host.
-    let free_fn = zetac::std::std_free as *const () as usize;
+    let free_fn = zetac::runtime::std::std_free as *const () as usize;
     ee.add_global_mapping(&codegen.module.get_function("free").unwrap(), free_fn);
     // Map async actor intrinsics.
     ee.add_global_mapping(
@@ -182,6 +183,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     Ok(())
 }
+
 fn repl() -> Result<(), Box<dyn std::error::Error>> {
     let stdin = io::stdin();
     let mut stdin_lock = stdin.lock();
@@ -223,7 +225,7 @@ fn repl() -> Result<(), Box<dyn std::error::Error>> {
         codegen.gen_mirs(&mir_map.values().cloned().collect::<Vec<_>>());
         let ee = codegen.finalize_and_jit()?;
         // Map host functions as in main
-        let free_fn = zetac::std::std_free as *const () as usize;
+        let free_fn = zetac::runtime::std::std_free as *const () as usize;
         ee.add_global_mapping(&codegen.module.get_function("free").unwrap(), free_fn);
         ee.add_global_mapping(
             &codegen.module.get_function("channel_send").unwrap(),

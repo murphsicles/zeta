@@ -1,11 +1,12 @@
+// src/tests.rs
 #[cfg(test)]
 mod tests {
     //! Unit tests for Zeta compiler.
     //! Verifies parsing, type checking, code generation, resolution, and runtime features.
-    use crate::ast::AstNode;
-    use crate::mir::MirGen;
-    use crate::resolver::MonoKey;
-    use crate::{Resolver, compile_and_run_zeta, parse_zeta};
+    use crate::frontend::ast::AstNode;
+    use crate::middle::mir::gen::MirGen;
+    use crate::middle::resolver::resolver::MonoKey;
+    use crate::{middle::resolver::resolver::Resolver, compile_and_run_zeta, frontend::parser::top_level::parse_zeta};
     use std::time::Instant;
     /// Tests parsing of Addable concept definition.
     #[test]
@@ -147,135 +148,7 @@ fn generic_add<T>(a: T, b: T) -> T { a.add(b) }
         let input = r#"
 concept CacheSafe {}
 impl CacheSafe for i32 {}
-actor SafeChannel {
-    async fn send(&self, msg: i32) -> i32;
-}
-impl CacheSafe for SafeChannel {}
-"#;
-        let (_, asts) = parse_zeta(input).unwrap();
-        let mut res = Resolver::new();
-        for ast in &asts {
-            res.register(ast.clone());
-        }
-        assert!(res.typecheck(&asts)); // Validates CacheSafe
-    }
-    /// Tests affine type borrow checking failure.
-    #[test]
-    fn test_affine_borrow() {
-        let input = r#"
-fn affine_test() -> i32 {
-    let x = 42;
-    let y = x; // Move: affine consume
-    y // Use post-move: should fail
-}
-"#;
-        let (_, asts) = parse_zeta(input).unwrap();
-        let mut res = Resolver::new();
-        for ast in &asts {
-            res.register(ast.clone());
-        }
-        assert!(!res.typecheck(&asts)); // Affine violation
-    }
-    /// Tests successful affine type usage.
-    #[test]
-    fn test_affine_ok() {
-        let input = r#"
-fn affine_ok() -> i32 {
-    let x = 42;
-    let y = x; // Move
-    // No use of x after
-    y
-}
-"#;
-        let (_, asts) = parse_zeta(input).unwrap();
-        let mut res = Resolver::new();
-        for ast in &asts {
-            res.register(ast.clone());
-        }
-        assert!(res.typecheck(&asts)); // Affine ok
-    }
-    /// Tests detection of speculative execution leak.
-    #[test]
-    fn test_speculative_leak() {
-        let input = r#"
-fn spec_leak() -> i32 {
-    let secret = 42;
-    if secret > 0 { // Spec branch
-        secret // Leak: spec access
-    } else { 0 }
-}
-"#;
-        let (_, asts) = parse_zeta(input).unwrap();
-        let mut res = Resolver::new();
-        for ast in &asts {
-            res.register(ast.clone());
-        }
-        assert!(!res.typecheck(&asts)); // Speculative leak
-    }
-    /// Tests safe speculative execution with timing-owned.
-    #[test]
-    fn test_speculative_safe() {
-        let input = r#"
-fn spec_safe() -> i32 {
-    let secret = TimingOwned<i32> 42; // Erase spec
-    if secret > 0 { // Spec branch
-        1
-    } else { 0 }
-}
-"#;
-        let (_, asts) = parse_zeta(input).unwrap();
-        let mut res = Resolver::new();
-        for ast in &asts {
-            res.register(ast.clone());
-        }
-        assert!(res.typecheck(&asts)); // Spec safe with TimingOwned
-    }
-    /// Tests structural derivation of Copy trait.
-    #[test]
-    fn test_structural_copy() {
-        let input = r#"
-struct Point { x: i32, y: i32 }
-concept Copy {}
-// No explicit impl
-fn use_copy(p: Point) { p } // Should infer structural Copy
-"#;
-        let (_, asts) = parse_zeta(input).unwrap();
-        let mut res = Resolver::new();
-        for ast in &asts {
-            res.register(ast.clone());
-        }
-        assert!(res.typecheck(&asts)); // Structural match
-        assert!(res.resolve_impl("Copy", "Point").is_some()); // Hybrid resolution
-    }
-    /// Tests nominal equality trait implementation.
-    #[test]
-    fn test_nominal_eq() {
-        let input = r#"
-concept Eq {}
-impl Eq for i32 {} // Nominal
-fn eq_test(a: i32, b: i32) { a.eq(b) }
-"#;
-        let (_, asts) = parse_zeta(input).unwrap();
-        let mut res = Resolver::new();
-        for ast in &asts {
-            res.register(ast.clone());
-        }
-        assert!(res.typecheck(&asts)); // Nominal impl
-    }
-    /// Tests automatic derivation of Copy and Eq traits.
-    #[test]
-    fn test_auto_derive_copy_eq() {
-        let input = r#"
-struct Pair { a: i32, b: i32 }
-#[derive(Copy)] // Triggers auto Eq if fields Eq
-fn use_pair(p: Pair) { p }
-"#;
-        let (_, asts) = parse_zeta(input).unwrap();
-        let mut res = Resolver::new();
-        for ast in &asts {
-            res.register(ast.clone());
-        }
-        assert!(res.typecheck(&asts));
+actor SafeChannel ...(truncated 3792 characters)...check(&asts));
         assert!(res.resolve_impl("Copy", "Pair").is_some());
         assert!(res.resolve_impl("Eq", "Pair").is_some()); // Auto-derived
     }
