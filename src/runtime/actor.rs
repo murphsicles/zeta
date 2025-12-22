@@ -132,7 +132,59 @@ pub unsafe extern "C" fn host_tls_handshake(host: *const std::ffi::c_char) -> i6
         // For simplicity, use reqwest with HTTPS to simulate handshake success
         let client = Client::new();
         let url = format!("https://{}", host_str);
-        match clie...(truncated 1874 characters)...: i64) -> *mut c_void {
+        match client.get(&url).send() {
+            Ok(resp) if resp.status().is_success() => 0,
+            _ => -1,
+        }
+    } else {
+        -1i64
+    }
+}
+/// Type alias for actor entry functions.
+type ActorEntry = Box<dyn FnOnce(Channel) + Send + 'static>;
+/// Global map of function IDs to actor entry functions.
+static FUNC_MAP: OnceLock<Arc<Mutex<HashMap<i64, ActorEntry>>>> = OnceLock::new();
+/// Registers an actor entry function and returns its ID.
+#[allow(dead_code)]
+fn register_func(f: impl FnOnce(Channel) + Send + 'static) -> i64 {
+    let _ = FUNC_MAP.set(Arc::new(Mutex::new(HashMap::new())));
+    let id = CHANNEL_ID_COUNTER.fetch_add(1, Ordering::SeqCst); // Reuse counter for simplicity
+    if let Some(map) = FUNC_MAP.get() {
+        let mut guard = tokio::runtime::Runtime::new().unwrap().block_on(map.lock());
+        guard.insert(id, Box::new(f));
+    }
+    id
+}
+/// Host function to spawn an actor.
+/// # Safety
+/// No safety concerns as parameters are plain i64 values.
+pub unsafe extern "C" fn host_spawn(func_id: i64) -> i64 {
+    tokio::runtime::Runtime::new().unwrap().block_on(async {
+        if let Some(map) = FUNC_MAP.get() {
+            let mut guard = map.lock().await;
+            if let Some(func) = guard.remove(&func_id) {
+                spawn(func).await;
+                0
+            } else {
+                -1
+            }
+        } else {
+            -1
+        }
+    })
+}
+/// Internal structure for result values, distinguishing ok and error cases.
+#[derive(Debug)]
+struct ResultInner {
+    tag: bool, // true for Ok, false for Err
+    data: i64,
+}
+/// Internal type for map operations using hash maps.
+type MapInner = HashMap<i64, i64>;
+/// Host function to create an ok result.
+/// # Safety
+/// Pointer must be valid from make_ok/err.
+pub unsafe extern "C" fn host_result_make_ok(data: i64) -> *mut c_void {
     Box::into_raw(Box::new(ResultInner { tag: true, data })) as *mut c_void
 }
 /// Host function to create an error result.
