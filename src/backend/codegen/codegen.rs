@@ -1,25 +1,24 @@
 // src/backend/codegen/codegen.rs
-//! Manages LLVM code generation for a module.
 use inkwell::AddressSpace;
 use inkwell::module::{Linkage, Module};
 use inkwell::attributes::Attribute;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::types::{IntType, PointerType, VectorType};
-use inkwell::values::{FunctionValue, PointerValue, MetadataValue};
+use inkwell::values::{FunctionValue, MetadataValue};
 use std::collections::HashMap;
 
 pub struct LLVMCodegen<'ctx> {
     pub context: &'ctx Context,
     pub module: Module<'ctx>,
     pub builder: Builder<'ctx>,
-    i64_type: IntType<'ctx>,
-    vec4_i64_type: VectorType<'ctx>,
+    pub i64_type: IntType<'ctx>,
+    pub vec4_i64_type: VectorType<'ctx>,
     #[allow(dead_code)]
-    ptr_type: PointerType<'ctx>,
-    locals: HashMap<u32, PointerValue<'ctx>>,
-    tbaa_const_time: MetadataValue<'ctx>,
-    fns: HashMap<String, FunctionValue<'ctx>>,
+    pub ptr_type: PointerType<'ctx>,
+    pub locals: HashMap<u32, PointerValue<'ctx>>,
+    pub tbaa_const_time: MetadataValue<'ctx>,
+    pub fns: HashMap<String, FunctionValue<'ctx>>,
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
