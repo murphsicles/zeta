@@ -3,8 +3,8 @@ use std::ffi::c_void;
 use std::ptr;
 
 unsafe extern "C" {
-    fn malloc(size: usize) -> *mut c_void;
-    fn free(ptr: *mut c_void);
+    pub fn malloc(size: usize) -> *mut c_void;
+    pub fn free(ptr: *mut c_void);
 }
 /// Allocates memory via libc malloc.
 ///
