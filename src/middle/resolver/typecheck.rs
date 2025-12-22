@@ -1,7 +1,7 @@
 // src/middle/resolver/typecheck.rs
 //! Type checking and inference for Zeta AST nodes.
-use crate::ast::AstNode;
-use super::resolver::Resolver;
+use crate::frontend::ast::AstNode;
+use super::resolver::{Resolver, Type};
 
 impl Resolver {
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
