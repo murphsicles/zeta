@@ -1,19 +1,18 @@
 // src/frontend/parser/expr.rs
 //! Parsers for Zeta expressions.
-//! Includes literals, variables, calls, binary operations, and other expression nodes.
-use crate::ast::AstNode;
+use crate::frontend::ast::AstNode;
 use nom::branch::alt;
-use nom::bytes::complete::{tag, take_while1};
-use nom::character::complete::nom_i64;
+use nom::bytes::complete::tag;
+use nom::character::complete::i64;
 use nom::combinator::{map, opt};
 use nom::multi::{many0, separated_list1};
-use nom::sequence::{delimited, pair, preceded, terminated};
+use nom::sequence::{delimited, pair, preceded};
 use nom::{IResult};
 
 use super::parser::{parse_ident, parse_path, ws};
 
 fn parse_literal(input: &str) -> IResult<&str, AstNode> {
-    map(nom_i64, AstNode::Lit).parse(input)
+    map(i64, AstNode::Lit).parse(input)
 }
 
 fn parse_string_lit(input: &str) -> IResult<&str, AstNode> {
@@ -175,5 +174,5 @@ fn parse_primary_expr(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_full_expr(input: &str) -> IResult<&str, AstNode> {
-    parse_primary_expr(input)  // Can chain for precedence if needed
+    parse_primary_expr(input)
 }
