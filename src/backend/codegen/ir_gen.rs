@@ -4,10 +4,9 @@ use crate::middle::specialization::{MonoKey, MonoValue, is_cache_safe, lookup_sp
 use inkwell::types::BasicMetadataTypeEnum;
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, IntValue};
 use inkwell::module::Linkage;
-use inkwell::values::{FunctionValue, VectorValue};
+use inkwell::values::{FunctionValue, VectorValue, PointerValue};
 use std::collections::HashMap;
 use inkwell::values::BasicValue;
-use inkwell::Either;
 use super::codegen::LLVMCodegen;
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -65,7 +64,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let callee_fn = self.get_callee(&callee);
                 let args_vals: Vec<BasicMetadataValueEnum> = args.iter().map(|&id| self.load_local(id).into()).collect();
                 let call = self.builder.build_call(callee_fn, &args_vals, "call").unwrap();
-                if let Either::Left(basic_val) = call.try_as_basic_value() {
+                if let Some(basic_val) = call.try_as_basic_value().left() {
                     let alloca = self.builder.build_alloca(self.i64_type, &format!("call_{dest}")).unwrap();
                     self.builder.build_store(alloca, basic_val).unwrap();
                     self.locals.insert(*dest, alloca);
@@ -165,12 +164,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 if ids.is_empty() {
                     return self.i64_type.const_int(0, false).into();
                 }
-                let mut res = self.gen_expr(&exprs[&ids[0]], exprs);
+                let mut res = self.gen_expr(exprs.get(&ids[0]).unwrap(), exprs);
                 for &id in &ids[1..] {
-                    let next = self.gen_expr(&exprs[&id], exprs);
+                    let next = self.gen_expr(exprs.get(&id).unwrap(), exprs);
                     let concat_fn = self.get_callee("str_concat");
                     let call = self.builder.build_call(concat_fn, &[res.into(), next.into()], "fconcat").unwrap();
-                    if let Either::Left(basic_val) = call.try_as_basic_value() {
+                    if let Some(basic_val) = call.try_as_basic_value().left() {
                         res = basic_val;
                     }
                 }
