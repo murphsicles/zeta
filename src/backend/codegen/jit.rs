@@ -1,7 +1,8 @@
 // src/backend/codegen/jit.rs
 use crate::runtime::xai::XAIClient;
 use crate::runtime::host::{host_datetime_now, host_free, host_http_get, host_tls_handshake, host_str_concat};
-use crate::runtime::actor::{host_channel_send, host_channel_recv, host_spawn};
+use crate::runtime::actor::channel::{host_channel_recv, host_channel_send};
+use crate::runtime::actor::scheduler::host_spawn;
 use inkwell::OptimizationLevel;
 use inkwell::attributes::{Attribute, AttributeLoc};
 use inkwell::execution_engine::ExecutionEngine;
