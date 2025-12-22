@@ -1,7 +1,6 @@
 // src/backend/codegen/codegen.rs
 use inkwell::AddressSpace;
 use inkwell::module::{Linkage, Module};
-use inkwell::attributes::Attribute;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::types::{IntType, PointerType, VectorType};
