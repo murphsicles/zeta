@@ -33,7 +33,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             && let Ok(json) = serde_json::from_str::<Value>(&rec)
             && let Some(passes) = json["passes"].as_array()
         {
-            let fpm: PassManager<FunctionValue<'ctx>> = PassManager::create();
+            let fpm: PassManager<FunctionValue<'ctx>> = PassManager::create(());
             for p in passes {
                 if let Some(ps) = p.as_str() {
                     if ps == "vectorize" {
