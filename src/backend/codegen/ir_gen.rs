@@ -1,8 +1,10 @@
 // src/backend/codegen/ir_gen.rs
-use crate::mir::{Mir, MirExpr, MirStmt, SemiringOp};
-use crate::specialization::{MonoKey, MonoValue, is_cache_safe, lookup_specialization, record_specialization};
+use crate::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
+use crate::middle::specialization::{MonoKey, MonoValue, is_cache_safe, lookup_specialization, record_specialization};
+use inkwell::types::BasicMetadataTypeEnum;
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum};
 use std::collections::HashMap;
+use super::codegen::LLVMCodegen;
 
 impl<'ctx> LLVMCodegen<'ctx> {
     pub fn gen_mirs(&mut self, mirs: &[Mir]) {
