@@ -11,13 +11,7 @@ pub use middle::mir::mir::Mir;
 pub use middle::resolver::resolver::Resolver;
 pub use backend::codegen::codegen::LLVMCodegen;
 pub use runtime::actor::scheduler::{init_runtime, spawn};
-use crate::frontend::ast::AstNode;
-use crate::runtime::actor::scheduler::init_runtime;
-use crate::frontend::parser::top_level::parse_zeta;
-use crate::middle::resolver::resolver::Resolver;
-use crate::backend::codegen::codegen::LLVMCodegen;
 use inkwell::context::Context;
-
 /// Compiles Zeta source code to LLVM IR, JIT-executes it, and returns the result from main.
 pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
     // Init runtime.
