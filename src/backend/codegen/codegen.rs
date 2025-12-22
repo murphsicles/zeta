@@ -5,7 +5,7 @@ use inkwell::attributes::Attribute;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::types::{IntType, PointerType, VectorType};
-use inkwell::values::{FunctionValue, MetadataValue};
+use inkwell::values::{FunctionValue, PointerValue, MetadataValue};
 use std::collections::HashMap;
 
 pub struct LLVMCodegen<'ctx> {
