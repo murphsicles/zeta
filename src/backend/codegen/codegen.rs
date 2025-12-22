@@ -1,11 +1,11 @@
 // src/backend/codegen/codegen.rs
 //! Manages LLVM code generation for a module.
 use inkwell::AddressSpace;
-use inkwell::attributes::AttributeLoc;
+use inkwell::module::{Linkage, Module};
+use inkwell::attributes::Attribute;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
-use inkwell::module::{Linkage, Module};
-use inkwell::types::{BasicMetadataTypeEnum, IntType, PointerType, VectorType};
+use inkwell::types::{IntType, PointerType, VectorType};
 use inkwell::values::{FunctionValue, PointerValue, MetadataValue};
 use std::collections::HashMap;
 
@@ -62,7 +62,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
         module.add_function("map_get", map_get_type, Some(Linkage::External));
         let map_free_type = void_type.fn_type(&[ptr_type.into()], false);
         module.add_function("map_free", map_free_type, Some(Linkage::External));
-        let str_concat_type = ptr_type.fn_type(&[ptr_type.into(), i64_type.into(), ptr_type.into(), i64_type.into()], false);
+        let str_concat_type = ptr_type.fn_type(
+            &[
+                ptr_type.into(),
+                i64_type.into(),
+                ptr_type.into(),
+                i64_type.into(),
+            ],
+            false,
+        );
         module.add_function("str_concat", str_concat_type, Some(Linkage::External));
         let tbaa_const_time = context.metadata_string("const_time");
         Self {
