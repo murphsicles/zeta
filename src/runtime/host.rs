@@ -2,18 +2,17 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::ffi::c_char;
 use std::ffi::CStr;
-use crate::std::std_free;
 
 extern "C" fn host_datetime_now() -> i64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as i64
-}
-
-extern "C" fn host_free(ptr: *mut std::ffi::c_void) {
-    unsafe { std_free(ptr as *mut u8) }
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64
 }
 
 extern "C" fn host_http_get(url: *const c_char) -> i64 {
     if let Ok(url_str) = unsafe { CStr::from_ptr(url) }.to_str() {
+        // Dummy impl: assume success.
         url_str.len() as i64
     } else {
         -1i64
