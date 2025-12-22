@@ -2,9 +2,9 @@
 use std::ffi::c_void;
 use std::ptr;
 
-pub unsafe extern "C" {
-    pub fn malloc(size: usize) -> *mut c_void;
-    pub fn free(ptr: *mut c_void);
+unsafe extern "C" {
+    fn malloc(size: usize) -> *mut c_void;
+    fn free(ptr: *mut c_void);
 }
 /// Allocates memory via libc malloc.
 ///
@@ -15,7 +15,7 @@ pub unsafe fn std_malloc(size: usize) -> *mut u8 {
         ptr::null_mut()
     } else {
         // Cast the returned c_void pointer to a u8 pointer
-        malloc(size) as *mut u8
+        unsafe { malloc(size) as *mut u8 }
     }
 }
 /// Frees memory allocated by std_malloc.
@@ -25,6 +25,6 @@ Caller must ensure pointer from std_malloc or null, no use after free, and no do
 pub unsafe fn std_free(ptr: *mut u8) {
     if !ptr.is_null() {
         // Cast the u8 pointer to a c_void pointer for free()
-        free(ptr as *mut c_void)
+        unsafe { free(ptr as *mut c_void) }
     }
 }
