@@ -8,6 +8,7 @@ use inkwell::attributes::{Attribute, AttributeLoc};
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::passes::PassManager;
 use inkwell::support::LLVMString;
+use inkwell::values::FunctionValue;
 use serde_json::Value;
 use super::codegen::LLVMCodegen;
 
