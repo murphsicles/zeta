@@ -2,6 +2,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::ffi::c_char;
 use std::ffi::CStr;
+use std::os::raw::c_void;
 use crate::runtime::std::free;
 
 pub unsafe extern "C" fn host_datetime_now() -> i64 {
