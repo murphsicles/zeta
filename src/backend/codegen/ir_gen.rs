@@ -4,7 +4,7 @@ use crate::middle::specialization::{MonoKey, MonoValue, is_cache_safe, lookup_sp
 use inkwell::types::BasicMetadataTypeEnum;
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, IntValue};
 use inkwell::module::Linkage;
-use inkwell::values::{FunctionValue, VectorValue, PointerValue};
+use inkwell::values::{FunctionValue, VectorValue};
 use std::collections::HashMap;
 use inkwell::values::BasicValue;
 use super::codegen::LLVMCodegen;
@@ -53,8 +53,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         val.llvm_func_name
                     } else {
                         let mangled = key.mangle();
-                        if is_cache_safe(&key) {
-                            record_specialization(key.clone(), MonoValue { llvm_func_name: mangled.clone() });
+                        if is_cache_safe(&key.func_name) {
+                            record_specialization(key.clone(), MonoValue { llvm_func_name: mangled.clone(), cache_safe: true });
                         }
                         mangled
                     }
@@ -164,9 +164,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 if ids.is_empty() {
                     return self.i64_type.const_int(0, false).into();
                 }
-                let mut res = self.gen_expr(exprs.get(&ids[0]).unwrap(), exprs);
+                let mut res = self.gen_expr(&exprs[&ids[0]], exprs);
                 for &id in &ids[1..] {
-                    let next = self.gen_expr(exprs.get(&id).unwrap(), exprs);
+                    let next = self.gen_expr(&exprs[&id], exprs);
                     let concat_fn = self.get_callee("str_concat");
                     let call = self.builder.build_call(concat_fn, &[res.into(), next.into()], "fconcat").unwrap();
                     if let Some(basic_val) = call.try_as_basic_value().left() {
