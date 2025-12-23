@@ -4,10 +4,9 @@ use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while1};
 use nom::character::complete::i64;
 use nom::combinator::{map, opt};
-use nom::multi::{separated_list1};
+use nom::multi::separated_list1;
 use nom::sequence::{delimited, pair, preceded};
 use nom::{IResult};
-use nom::Parser;
 
 use super::parser::{parse_ident, parse_path, parse_generics, ws};
 
@@ -52,9 +51,6 @@ fn parse_fstring_content(input: &str) -> IResult<&str, Vec<AstNode>> {
             i = &i[text_end..];
         }
     }
-    if i.starts_with('"') {
-        i = &i[1..];
-    }
     Ok((i, parts))
 }
 
@@ -67,42 +63,39 @@ fn parse_variable(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_dict_lit(input: &str) -> IResult<&str, AstNode> {
-    map(
-        delimited(
-            tag("{"),
-            separated_list1(
-                tag(","),
-                pair(preceded(tag(":"), parse_full_expr), preceded(tag(":"), parse_full_expr)),
-            ),
-            tag("}"),
-        ),
-        |entries: Vec<(AstNode, AstNode)>| AstNode::DictLit { entries },
-    ).parse(input)
+    let (input, entries) = delimited(
+        ws(tag("{")),
+        separated_list1(ws(tag(",")), pair(ws(parse_full_expr), preceded(ws(tag(":")), ws(parse_full_expr)))),
+        ws(tag("}")),
+    ).parse(input)?;
+    Ok((input, AstNode::DictLit { entries }))
 }
 
 fn parse_paren_expr(input: &str) -> IResult<&str, AstNode> {
-    delimited(tag("("), parse_full_expr, tag(")")).parse(input)
+    delimited(ws(tag("(")), ws(parse_full_expr), ws(tag(")"))).parse(input)
 }
 
 fn parse_call(input: &str) -> IResult<&str, AstNode> {
-    let (input, receiver_opt) = opt(preceded(tag("."), parse_full_expr)).parse(input)?;
-    let (input, method) = ws(parse_ident).parse(input)?;
+    let (input, receiver_opt) = opt(ws(parse_primary_expr)).parse(input)?;
+    let (input, method) = preceded(ws(tag(".")), ws(parse_ident)).parse(input)?;
     let (input, type_args_opt) = opt(ws(parse_generics)).parse(input)?;
     let (input, args) = delimited(ws(tag("(")), separated_list1(ws(tag(",")), ws(parse_full_expr)), ws(tag(")"))).parse(input)?;
-    let type_args: Vec<String> = type_args_opt.unwrap_or_default();
-    Ok((input, AstNode::Call {
-        receiver: receiver_opt.map(Box::new),
-        method,
-        args,
-        type_args,
-        structural: false,
-    }))
+    let type_args = type_args_opt.unwrap_or_default();
+    Ok((
+        input,
+        AstNode::Call {
+            receiver: receiver_opt.map(Box::new),
+            method,
+            args,
+            type_args,
+            structural: false,
+        },
+    ))
 }
 
 fn parse_path_call(input: &str) -> IResult<&str, AstNode> {
     let (input, path) = ws(parse_path).parse(input)?;
-    let (input, _) = tag("::")(input)?;
-    let (input, method) = ws(parse_ident).parse(input)?;
+    let (input, method) = preceded(ws(tag("::")), ws(parse_ident)).parse(input)?;
     let (input, args) = delimited(ws(tag("(")), separated_list1(ws(tag(",")), ws(parse_full_expr)), ws(tag(")"))).parse(input)?;
     Ok((input, AstNode::PathCall { path, method, args }))
 }
