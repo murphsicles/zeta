@@ -132,7 +132,7 @@ fn parse_struct(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = parse_keyword("struct").parse(input)?;
     let (input, name) = ws(parse_ident).parse(input)?;
     let (input, fields) = delimited(
-        ws(tag::<&str, &str, nom::error::Error<&str>>("{")),
+        ws(tag("{")),
         many0(map(
             pair(ws(parse_ident), preceded(ws(tag(":")), ws(parse_ident))),
             |(n, t)| (n, t),
