@@ -47,115 +47,85 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.locals.insert(*lhs, alloca);
             }
             MirStmt::Call { func, args, dest, type_args } => {
-                let callee = if !type_args.is_empty() {
-                    let key = MonoKey { func_name: func.clone(), type_args: type_args.clone() };
-                    if let Some(val) = lookup_specialization(&key) {
-                        val.llvm_func_name
-                    } else {
-                        let mangled = key.mangle();
-                        if is_cache_safe(&key.func_name) {
-                            record_specialization(key.clone(), MonoValue { llvm_func_name: mangled.clone(), cache_safe: true });
-                        }
-                        mangled
-                    }
-                } else {
-                    func.clone()
-                };
-                let callee_fn = self.get_callee(&callee);
-                let args_vals: Vec<BasicMetadataValueEnum> = args.iter().map(|&id| self.load_local(id).into()).collect();
-                let call = self.builder.build_call(callee_fn, &args_vals, "call").unwrap();
-                if let Some(basic_val) = call.try_as_basic_value().left() {
-                    let alloca = self.builder.build_alloca(self.i64_type, &format!("call_{dest}")).unwrap();
+                let callee = self.get_callee(func);
+                let arg_vals: Vec<BasicMetadataValueEnum> = args.iter().map(|&id| self.load_local(id).into()).collect();
+                let call = self.builder.build_call(callee, &arg_vals, &format!("call_{dest}")).unwrap();
+                if let Some(basic_val) = call.try_as_basic_value() {
+                    let alloca = self.builder.build_alloca(self.i64_type, &format!("call_dest_{dest}")).unwrap();
                     self.builder.build_store(alloca, basic_val).unwrap();
                     self.locals.insert(*dest, alloca);
                 }
             }
             MirStmt::VoidCall { func, args } => {
-                let callee_fn = self.get_callee(func);
-                let args_vals: Vec<BasicMetadataValueEnum> = args.iter().map(|&id| self.load_local(id).into()).collect();
-                self.builder.build_call(callee_fn, &args_vals, "").unwrap();
+                let callee = self.get_callee(func);
+                let arg_vals: Vec<BasicMetadataValueEnum> = args.iter().map(|&id| self.load_local(id).into()).collect();
+                self.builder.build_call(callee, &arg_vals, "").unwrap();
             }
             MirStmt::Return { val } => {
                 let ret_val = self.load_local(*val);
                 self.builder.build_return(Some(&ret_val)).unwrap();
             }
-            MirStmt::SemiringFold { op: SemiringOp::Add, values, result } => {
-                let mut vec_acc: VectorValue<'ctx> = self.vec4_i64_type.const_zero();
-                let chunk_size = 4;
-                for chunk in values.chunks(chunk_size) {
-                    let mut vec_vals: Vec<IntValue<'ctx>> = chunk.iter().map(|&id| self.load_local(id).into_int_value()).collect();
-                    if vec_vals.len() < chunk_size {
-                        vec_vals.resize(chunk_size, self.i64_type.const_zero());
-                    }
-                    let mut vec_right: VectorValue<'ctx> = self.vec4_i64_type.const_zero();
-                    vec_right = self.builder.build_insert_element(vec_right, vec_vals[0], self.i64_type.const_int(0, false), "").unwrap();
-                    vec_right = self.builder.build_insert_element(vec_right, vec_vals[1], self.i64_type.const_int(1, false), "").unwrap();
-                    vec_right = self.builder.build_insert_element(vec_right, vec_vals[2], self.i64_type.const_int(2, false), "").unwrap();
-                    vec_right = self.builder.build_insert_element(vec_right, vec_vals[3], self.i64_type.const_int(3, false), "").unwrap();
-                    vec_acc = self.builder.build_int_add(vec_acc, vec_right, "vec_add").unwrap();
+            MirStmt::SemiringFold { op, values, result } => {
+                let vec_vals: Vec<VectorValue> = values.chunks(4).map(|chunk| {
+                    let elems: Vec<IntValue> = chunk.iter().map(|&id| self.load_local(id).into_int_value()).collect();
+                    self.vec4_i64_type.const_vector(&elems)
+                }).collect();
+                let mut acc = self.vec4_i64_type.const_zero();
+                for &v in &vec_vals {
+                    acc = match op {
+                        SemiringOp::Add => self.builder.build_int_add(acc, v, "vec_add").unwrap().into_vector_value(),
+                        SemiringOp::Mul => self.builder.build_int_mul(acc, v, "vec_mul").unwrap().into_vector_value(),
+                    };
                 }
-                let mut acc = self.builder.build_extract_element(vec_acc, self.i64_type.const_int(0, false), "reduce0").unwrap().into_int_value();
-                acc = self.builder.build_int_add(acc, self.builder.build_extract_element(vec_acc, self.i64_type.const_int(1, false), "reduce1").unwrap().into_int_value(), "").unwrap();
-                acc = self.builder.build_int_add(acc, self.builder.build_extract_element(vec_acc, self.i64_type.const_int(2, false), "reduce2").unwrap().into_int_value(), "").unwrap();
-                acc = self.builder.build_int_add(acc, self.builder.build_extract_element(vec_acc, self.i64_type.const_int(3, false), "reduce3").unwrap().into_int_value(), "").unwrap();
-                let alloca = self.builder.build_alloca(self.i64_type, &format!("vec_fold_{result}")).unwrap();
-                self.builder.build_store(alloca, acc).unwrap();
-                self.locals.insert(*result, alloca);
-            }
-            MirStmt::SemiringFold { op: SemiringOp::Mul, values, result } => {
-                let mut acc = self.i64_type.const_int(1, false);
-                for &val_id in values {
-                    let val = self.load_local(val_id).into_int_value();
-                    acc = self.builder.build_int_mul(acc, val, "mul").unwrap();
-                }
+                let scalar = self.builder.build_reduce_add(acc, "reduce_add").unwrap();
                 let alloca = self.builder.build_alloca(self.i64_type, &format!("fold_{result}")).unwrap();
-                self.builder.build_store(alloca, acc).unwrap();
+                self.builder.build_store(alloca, scalar).unwrap();
                 self.locals.insert(*result, alloca);
             }
             MirStmt::ParamInit { param_id, arg_index } => {
-                let param_val = self.builder.build_alloca(self.i64_type, &format!("init_param_{param_id}")).unwrap();
-                let arg_val = self.i64_type.const_int(*arg_index as u64, false);
-                self.builder.build_store(param_val, arg_val).unwrap();
-                self.locals.insert(*param_id, param_val);
+                let param = self.locals[param_id];
+                let arg = self.locals[arg_index];
+                let load = self.builder.build_load(self.i64_type, arg, "param_load").unwrap();
+                self.builder.build_store(param, load).unwrap();
             }
             MirStmt::Consume { id } => {
-                let ptr = self.locals.remove(id);
-                if let Some(p) = ptr {
-                    self.builder.build_free(p).unwrap();
-                }
+                let ptr = self.locals[id];
+                let load = self.builder.build_load(self.i64_type, ptr, "consume_load").unwrap();
+                let free_fn = self.module.get_function("free").unwrap();
+                self.builder.build_call(free_fn, &[load.into()], "consume_free").unwrap();
             }
             MirStmt::If { cond, then, else_ } => {
-                let cond_val = self.gen_expr(&exprs[cond], exprs).into_int_value();
+                let cond_val = self.load_local(*cond).into_int_value();
                 let then_bb = self.context.append_basic_block(self.builder.get_insert_block().unwrap().get_parent().unwrap(), "then");
                 let else_bb = self.context.append_basic_block(self.builder.get_insert_block().unwrap().get_parent().unwrap(), "else");
-                let merge_bb = self.context.append_basic_block(self.builder.get_insert_block().unwrap().get_parent().unwrap(), "merge");
+                let merge_bb = self.context.append_basic_block(self.builder.get_insert_block().unwrap().get_parent().unwrap(), "ifcont");
                 self.builder.build_conditional_branch(cond_val, then_bb, else_bb).unwrap();
                 self.builder.position_at_end(then_bb);
                 for stmt in then {
                     self.gen_stmt(stmt, exprs);
                 }
-                self.builder.build_unconditional_branch(merge_bb).unwrap();
+                if !then_bb.is_terminated() {
+                    self.builder.build_unconditional_branch(merge_bb).unwrap();
+                }
                 self.builder.position_at_end(else_bb);
                 for stmt in else_ {
                     self.gen_stmt(stmt, exprs);
                 }
-                self.builder.build_unconditional_branch(merge_bb).unwrap();
+                if !else_bb.is_terminated() {
+                    self.builder.build_unconditional_branch(merge_bb).unwrap();
+                }
                 self.builder.position_at_end(merge_bb);
             }
         }
     }
 
-    fn gen_expr(&self, expr: &MirExpr, exprs: &HashMap<u32, MirExpr>) -> BasicValueEnum<'ctx> {
+    fn gen_expr(&mut self, expr: &MirExpr, exprs: &HashMap<u32, MirExpr>) -> BasicValueEnum<'ctx> {
         match expr {
             MirExpr::Var(id) => self.load_local(*id),
             MirExpr::Lit(n) => self.i64_type.const_int(*n as u64, true).into(),
             MirExpr::StringLit(s) => {
-                let mut bytes = s.as_bytes().to_vec();
-                bytes.push(0);
-                let array_ty = self.context.i8_type().array_type(bytes.len() as u32);
-                let global = self.module.add_global(array_ty, None, ".str");
-                global.set_linkage(Linkage::Private);
-                global.set_constant(true);
+                let global = self.module.add_global(self.context.i8_type().array_type(s.len() as u32 + 1), None, "str_lit");
+                let bytes = s.as_bytes().to_vec();
                 let values: Vec<_> = bytes.iter().map(|&b| self.context.i8_type().const_int(b as u64, false)).collect();
                 global.set_initializer(&self.context.i8_type().const_array(&values));
                 global.as_pointer_value().into()
@@ -169,7 +139,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let next = self.gen_expr(&exprs[&id], exprs);
                     let concat_fn = self.get_callee("str_concat");
                     let call = self.builder.build_call(concat_fn, &[res.into(), next.into()], "fconcat").unwrap();
-                    if let Some(basic_val) = call.try_as_basic_value().left() {
+                    if let Some(basic_val) = call.try_as_basic_value() {
                         res = basic_val;
                     }
                 }
