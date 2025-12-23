@@ -1,8 +1,10 @@
 // src/runtime/actor/scheduler.rs
 use num_cpus;
 use std::collections::{HashMap, VecDeque};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, OnceLock};
+use std::sync::atomic::Ordering;
 use tokio::task;
+use tokio::sync::Mutex;
 use super::channel::Channel;
 /// Type alias for actor entry functions.
 type ActorEntry = Box<dyn FnOnce(Channel) + Send + 'static>;
@@ -50,8 +52,8 @@ struct Scheduler {
     _tasks: Mutex<Vec<task::JoinHandle<()>>>,
 }
 impl Scheduler {
-    /// Creates a new scheduler with worker tasks based on CPU count.
-    async fn new(thread_count: usize) -> Arc<Self> {
+    /// Creates a new scheduler with worker threads.
+    pub async fn new(thread_count: usize) -> Arc<Self> {
         let sched = Arc::new(Self {
             actors: Mutex::new(VecDeque::new()),
             _tasks: Mutex::new(vec![]),
@@ -68,7 +70,7 @@ impl Scheduler {
     async fn worker_loop(self: Arc<Self>) {
         loop {
             let actor_opt = {
-                let mut actors = self.actors.lock().await;
+                let actors = self.actors.lock().await;
                 actors.pop_front()
             };
             if let Some(actor) = actor_opt {
