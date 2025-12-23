@@ -4,9 +4,9 @@ use super::resolver::{Resolver, Type};
 
 impl Resolver {
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
-        let borrow_checker = &mut self.borrow_checker;
+        let mut borrow_checker = &mut self.borrow_checker;
         for ast in asts {
-            if !borrow_checker.check(ast, self) {
+            if !borrow_checker.check(ast, &*self) {
                 return false;
             }
         }
