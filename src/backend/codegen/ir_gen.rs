@@ -1,9 +1,7 @@
 // src/backend/codegen/ir_gen.rs
 use crate::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
-use crate::middle::specialization::{MonoKey, MonoValue, is_cache_safe, lookup_specialization, record_specialization};
 use inkwell::types::BasicMetadataTypeEnum;
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, IntValue};
-use inkwell::module::Linkage;
 use inkwell::values::{FunctionValue, VectorValue};
 use std::collections::HashMap;
 use inkwell::values::BasicValue;
@@ -66,20 +64,16 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.builder.build_return(Some(&ret_val)).unwrap();
             }
             MirStmt::SemiringFold { op, values, result } => {
-                let vec_vals: Vec<VectorValue> = values.chunks(4).map(|chunk| {
-                    let elems: Vec<IntValue> = chunk.iter().map(|&id| self.load_local(id).into_int_value()).collect();
-                    self.vec4_i64_type.const_vector(&elems)
-                }).collect();
-                let mut acc = self.vec4_i64_type.const_zero();
-                for &v in &vec_vals {
+                let mut acc = self.i64_type.const_zero();
+                for &id in values {
+                    let v = self.load_local(id).into_int_value();
                     acc = match op {
-                        SemiringOp::Add => self.builder.build_int_add(acc, v, "vec_add").unwrap().into_vector_value(),
-                        SemiringOp::Mul => self.builder.build_int_mul(acc, v, "vec_mul").unwrap().into_vector_value(),
+                        SemiringOp::Add => self.builder.build_int_add(acc, v, "add").unwrap(),
+                        SemiringOp::Mul => self.builder.build_int_mul(acc, v, "mul").unwrap(),
                     };
                 }
-                let scalar = self.builder.build_reduce_add(acc, "reduce_add").unwrap();
                 let alloca = self.builder.build_alloca(self.i64_type, &format!("fold_{result}")).unwrap();
-                self.builder.build_store(alloca, scalar).unwrap();
+                self.builder.build_store(alloca, acc).unwrap();
                 self.locals.insert(*result, alloca);
             }
             MirStmt::ParamInit { param_id, arg_index } => {
@@ -104,14 +98,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 for stmt in then {
                     self.gen_stmt(stmt, exprs);
                 }
-                if !then_bb.is_terminated() {
+                if then_bb.get_terminator().is_none() {
                     self.builder.build_unconditional_branch(merge_bb).unwrap();
                 }
                 self.builder.position_at_end(else_bb);
                 for stmt in else_ {
                     self.gen_stmt(stmt, exprs);
                 }
-                if !else_bb.is_terminated() {
+                if else_bb.get_terminator().is_none() {
                     self.builder.build_unconditional_branch(merge_bb).unwrap();
                 }
                 self.builder.position_at_end(merge_bb);
