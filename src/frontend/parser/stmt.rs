@@ -5,10 +5,11 @@ use nom::bytes::complete::tag;
 use nom::combinator::opt;
 use nom::multi::many0;
 use nom::sequence::{delimited, preceded};
-use nom::{IResult, Parser};
+use nom::{IResult};
 
 use super::parser::ws;
 use super::expr::parse_full_expr;
+use nom::Parser as _;
 
 pub fn parse_assign(input: &str) -> IResult<&str, AstNode> {
     let (input, lhs) = ws(parse_full_expr).parse(input)?;
