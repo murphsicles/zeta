@@ -8,7 +8,6 @@ use nom::sequence::{delimited, pair, preceded};
 use nom::{IResult};
 
 use super::parser::{parse_ident, parse_keyword, parse_generics, ws};
-
 use super::stmt::parse_stmt;
 
 fn parse_param(input: &str) -> IResult<&str, (String, String)> {
@@ -133,7 +132,7 @@ fn parse_struct(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = parse_keyword("struct").parse(input)?;
     let (input, name) = ws(parse_ident).parse(input)?;
     let (input, fields) = delimited(
-        ws(tag("{")),
+        ws(tag::<&str, &str, nom::error::Error<&str>>("{")),
         many0(map(
             pair(ws(parse_ident), preceded(ws(tag(":")), ws(parse_ident))),
             |(n, t)| (n, t),
