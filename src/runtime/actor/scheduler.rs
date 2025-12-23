@@ -70,7 +70,7 @@ impl Scheduler {
     async fn worker_loop(self: Arc<Self>) {
         loop {
             let actor_opt = {
-                let actors = self.actors.lock().await;
+                let mut actors = self.actors.lock().await;
                 actors.pop_front()
             };
             if let Some(actor) = actor_opt {
