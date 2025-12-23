@@ -1,8 +1,8 @@
 // src/backend/codegen/ir_gen.rs
 use crate::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use inkwell::types::BasicMetadataTypeEnum;
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, IntValue};
-use inkwell::values::{FunctionValue, VectorValue};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum};
+use inkwell::values::{FunctionValue};
 use std::collections::HashMap;
 use inkwell::values::BasicValue;
 use super::codegen::LLVMCodegen;
@@ -48,7 +48,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let callee = self.get_callee(func);
                 let arg_vals: Vec<BasicMetadataValueEnum> = args.iter().map(|&id| self.load_local(id).into()).collect();
                 let call = self.builder.build_call(callee, &arg_vals, &format!("call_{dest}")).unwrap();
-                if let Some(basic_val) = call.try_as_basic_value() {
+                if let Some(basic_val) = call.try_as_basic_value().left() {
                     let alloca = self.builder.build_alloca(self.i64_type, &format!("call_dest_{dest}")).unwrap();
                     self.builder.build_store(alloca, basic_val).unwrap();
                     self.locals.insert(*dest, alloca);
@@ -133,7 +133,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let next = self.gen_expr(&exprs[&id], exprs);
                     let concat_fn = self.get_callee("str_concat");
                     let call = self.builder.build_call(concat_fn, &[res.into(), next.into()], "fconcat").unwrap();
-                    if let Some(basic_val) = call.try_as_basic_value() {
+                    if let Some(basic_val) = call.try_as_basic_value().left() {
                         res = basic_val;
                     }
                 }
