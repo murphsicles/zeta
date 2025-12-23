@@ -8,8 +8,8 @@ use nom::sequence::{delimited, pair, preceded};
 use nom::{IResult};
 
 use super::parser::{parse_ident, parse_keyword, parse_generics, ws};
+
 use super::stmt::parse_stmt;
-use nom::Parser as _;
 
 fn parse_param(input: &str) -> IResult<&str, (String, String)> {
     let (input, name) = parse_ident(input)?;
