@@ -10,6 +10,7 @@ unsafe extern "C" {
 ///
 /* # Safety
 Caller must ensure valid size, free returned pointer with std_free, and avoid use after free. */
+#[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe fn std_malloc(size: usize) -> *mut u8 {
     if size == 0 {
         ptr::null_mut()
@@ -22,6 +23,7 @@ pub unsafe fn std_malloc(size: usize) -> *mut u8 {
 ///
 /* # Safety
 Caller must ensure pointer from std_malloc or null, no use after free, and no double free. */
+#[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe fn std_free(ptr: *mut u8) {
     if !ptr.is_null() {
         // Cast the u8 pointer to a c_void pointer for free()
