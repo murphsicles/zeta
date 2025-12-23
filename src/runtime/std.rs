@@ -2,7 +2,7 @@
 use std::ffi::c_void;
 use std::ptr;
 
-unsafe extern "C" {
+extern "C" {
     pub fn malloc(size: usize) -> *mut c_void;
     pub fn free(ptr: *mut c_void);
 }
