@@ -9,7 +9,6 @@ use nom::{IResult};
 
 use super::parser::ws;
 use super::expr::parse_full_expr;
-use nom::Parser as _;
 
 pub fn parse_assign(input: &str) -> IResult<&str, AstNode> {
     let (input, lhs) = ws(parse_full_expr).parse(input)?;
