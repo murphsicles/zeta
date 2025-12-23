@@ -5,7 +5,7 @@ use nom::bytes::complete::tag;
 use nom::combinator::{map, opt};
 use nom::multi::{many0, separated_list1};
 use nom::sequence::{delimited, pair, preceded};
-use nom::{IResult};
+use nom::{IResult, Parser};
 
 use super::parser::{parse_ident, parse_keyword, parse_generics, ws};
 use super::stmt::parse_stmt;
