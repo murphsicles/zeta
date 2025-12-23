@@ -11,7 +11,10 @@ use nom::branch::alt;
 #[allow(unused_imports)]
 use nom::combinator::{map, opt};
 
-pub fn ws<'a, P: Parser<&'a str>>(inner: P) -> impl Parser<&'a str> {
+pub fn ws<'a, P, O, E>(inner: P) -> impl Parser<&'a str, O, E>
+where
+    P: Parser<&'a str, O, E>,
+{
     delimited(multispace0, inner, multispace0)
 }
 
@@ -19,7 +22,7 @@ pub fn parse_ident(input: &str) -> IResult<&str, String> {
     map(pair(alpha1, alphanumeric0), |(first, rest): (&str, &str)| first.to_string() + rest).parse(input)
 }
 
-pub fn parse_keyword(kw: &'static str) -> impl Parser<&str, Output = (), Error = nom::error::Error<&str>> {
+pub fn parse_keyword(kw: &'static str) -> impl Parser<&str, (), nom::error::Error<&str>> {
     value((), ws(tag::<&str, &str, nom::error::Error<&str>>(kw)))
 }
 
