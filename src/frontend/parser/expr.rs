@@ -9,7 +9,6 @@ use nom::sequence::{delimited, pair, preceded};
 use nom::{IResult};
 
 use super::parser::{parse_ident, parse_path, parse_generics, ws};
-use nom::Parser as _;
 
 fn parse_literal(input: &str) -> IResult<&str, AstNode> {
     map(i64, AstNode::Lit).parse(input)
@@ -81,7 +80,7 @@ fn parse_call(input: &str) -> IResult<&str, AstNode> {
     let (input, method) = preceded(ws(tag(".")), ws(parse_ident)).parse(input)?;
     let (input, type_args_opt) = opt(ws(parse_generics)).parse(input)?;
     let (input, args) = delimited(ws(tag("(")), separated_list1(ws(tag(",")), ws(parse_full_expr)), ws(tag(")"))).parse(input)?;
-    let type_args = type_args_opt.unwrap_or_default();
+    let type_args: Vec<String> = type_args_opt.unwrap_or_default();
     Ok((
         input,
         AstNode::Call {
