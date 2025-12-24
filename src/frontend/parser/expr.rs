@@ -5,7 +5,7 @@ use nom::bytes::complete::{tag, take_while1};
 use nom::character::complete::i64 as nom_i64;
 use nom::combinator::opt;
 use nom::multi::separated_list1;
-use nom::sequence::{delimited, pair, preceded};
+use nom::sequence::delimited;
 use nom::{IResult, Parser};
 
 use super::parser::{parse_ident, parse_path, parse_generics, ws};
@@ -77,7 +77,7 @@ fn parse_dict_lit(input: &str) -> IResult<&str, AstNode> {
             let (i, val) = ws(parse_full_expr)(i)?;
             Ok((i, (key, val)))
         },
-    )(input)?;
+    ).parse(input)?;
     let (input, _) = ws(tag("}"))(input)?;
     Ok((input, AstNode::DictLit { entries }))
 }
@@ -91,11 +91,11 @@ fn parse_call(input: &str) -> IResult<&str, AstNode> {
         let (i, recv) = ws(parse_primary_expr)(i)?;
         let (i, _) = ws(tag("."))(i)?;
         Ok((i, recv))
-    })(input)?;
+    }).parse(input)?;
     let (input, method) = ws(parse_ident)(input)?;
     let (input, type_args_opt) = opt(ws(parse_generics))(input)?;
-    let (input, args) = delimited(ws(tag("(")), separated_list1(ws(tag(",")), ws(parse_full_expr)), ws(tag(")")))(input)?;
-    let type_args = type_args_opt.unwrap_or_default();
+    let (input, args) = delimited(ws(tag("(")), separated_list1(ws(tag(",")), ws(parse_full_expr)), ws(tag(")"))).parse(input)?;
+    let type_args: Vec<String> = type_args_opt.unwrap_or_default();
     Ok((
         input,
         AstNode::Call {
@@ -112,7 +112,7 @@ fn parse_path_call(input: &str) -> IResult<&str, AstNode> {
     let (input, path) = ws(parse_path)(input)?;
     let (input, _) = ws(tag("::"))(input)?;
     let (input, method) = ws(parse_ident)(input)?;
-    let (input, args) = delimited(ws(tag("(")), separated_list1(ws(tag(",")), ws(parse_full_expr)), ws(tag(")")))(input)?;
+    let (input, args) = delimited(ws(tag("(")), separated_list1(ws(tag(",")), ws(parse_full_expr)), ws(tag(")"))).parse(input)?;
     Ok((
         input,
         AstNode::PathCall {
@@ -126,7 +126,7 @@ fn parse_path_call(input: &str) -> IResult<&str, AstNode> {
 fn parse_spawn(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("spawn"))(input)?;
     let (input, func) = ws(parse_ident)(input)?;
-    let (input, args) = delimited(ws(tag("(")), separated_list1(ws(tag(",")), ws(parse_full_expr)), ws(tag(")")))(input)?;
+    let (input, args) = delimited(ws(tag("(")), separated_list1(ws(tag(",")), ws(parse_full_expr)), ws(tag(")"))).parse(input)?;
     Ok((
         input,
         AstNode::Spawn { func, args },
@@ -135,7 +135,7 @@ fn parse_spawn(input: &str) -> IResult<&str, AstNode> {
 
 fn parse_binary_op(input: &str) -> IResult<&str, AstNode> {
     let (input, left) = ws(parse_primary_expr)(input)?;
-    let (input, op) = ws(alt((tag("+"), tag("-"), tag("*"), tag("/"))))(input)?;
+    let (input, op) = ws(alt((tag("+"), tag("-"), tag("*"), tag("/")))).parse(input)?;
     let (input, right) = ws(parse_primary_expr)(input)?;
     Ok((input, AstNode::BinaryOp {
         op: op.to_string(),
