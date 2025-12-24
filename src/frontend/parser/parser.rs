@@ -11,7 +11,7 @@ use nom::branch::alt;
 #[allow(unused_imports)]
 use nom::combinator::{map, opt};
 
-pub fn ws<'a, F, O>(inner: F) -> impl FnMut(&'a str) -> IResult<&'a str, O>
+pub fn ws<'a, F, O>(mut inner: F) -> impl FnMut(&'a str) -> IResult<&'a str, O>
 where
     F: FnMut(&'a str) -> IResult<&'a str, O>,
 {
