@@ -139,11 +139,13 @@ fn parse_struct(input: &str) -> IResult<&str, AstNode> {
     ))
 }
 
+fn parse_top_level_item(input: &str) -> IResult<&str, AstNode> {
+    let (input, _) = multispace0(input)?;
+    let (input, node) = alt((parse_func, parse_concept, parse_impl, parse_enum, parse_struct))(input)?;
+    let (input, _) = multispace0(input)?;
+    Ok((input, node))
+}
+
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
-    many0(|i| {
-        let (i, _) = multispace0(i)?;
-        let (i, node) = alt((parse_func, parse_concept, parse_impl, parse_enum, parse_struct))(i)?;
-        let (i, _) = multispace0(i)?;
-        Ok((i, node))
-    })(input)
+    many0(parse_top_level_item)(input)
 }
