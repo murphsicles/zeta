@@ -6,7 +6,7 @@ use nom::character::complete::multispace0;
 use nom::combinator::{map, opt};
 use nom::multi::{many0, separated_list1};
 use nom::sequence::{delimited, pair, preceded};
-use nom::IResult;
+use nom::{IResult, Parser};
 
 use super::parser::{parse_ident, parse_keyword, parse_generics, ws};
 use super::stmt::parse_stmt;
@@ -127,7 +127,7 @@ fn parse_struct(input: &str) -> IResult<&str, AstNode> {
         let (i, _) = ws(tag(":"))(i)?;
         let (i, ty) = ws(parse_ident)(i)?;
         Ok((i, (name, ty)))
-    })(input)?;
+    }).parse(input)?;
     let (input, _) = ws(tag("}"))(input)?;
     Ok((
         input,
@@ -141,11 +141,11 @@ fn parse_struct(input: &str) -> IResult<&str, AstNode> {
 
 fn parse_top_level_item(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = multispace0(input)?;
-    let (input, node) = alt((parse_func, parse_concept, parse_impl, parse_enum, parse_struct))(input)?;
+    let (input, node) = alt((parse_func, parse_concept, parse_impl, parse_enum, parse_struct)).parse(input)?;
     let (input, _) = multispace0(input)?;
     Ok((input, node))
 }
 
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
-    many0(parse_top_level_item)(input)
+    many0(parse_top_level_item).parse(input)
 }
