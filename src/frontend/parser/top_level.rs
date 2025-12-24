@@ -145,10 +145,12 @@ fn parse_struct(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = parse_keyword("struct")(input)?;
     let (input, name) = ws(parse_ident)(input)?;
     let (input, _) = ws(tag("{"))(input)?;
-    let (input, fields) = many0(map(
-        pair(ws(parse_ident), preceded(ws(tag(":")), ws(parse_ident))),
-        |(n, t)| (n, t),
-    ))(input)?;
+    let (input, fields) = many0(|i| {
+        let (i, name) = ws(parse_ident)(i)?;
+        let (i, _) = ws(tag(":"))(i)?;
+        let (i, ty) = ws(parse_ident)(i)?;
+        Ok((i, (name, ty)))
+    })(input)?;
     let (input, _) = ws(tag("}"))(input)?;
     Ok((
         input,
