@@ -30,7 +30,7 @@ pub fn parse_if(input: &str) -> IResult<&str, AstNode> {
         ws(tag("{")),
         many0(ws(parse_stmt)),
         ws(tag("}"))
-    )(input)?;
+    ).parse(input)?;
     let (input, else_opt) = opt(preceded(
         ws(tag("else")),
         delimited(
@@ -38,7 +38,7 @@ pub fn parse_if(input: &str) -> IResult<&str, AstNode> {
             many0(ws(parse_stmt)),
             ws(tag("}"))
         )
-    ))(input)?;
+    )).parse(input)?;
     let else_: Vec<AstNode> = else_opt.unwrap_or_default();
     Ok((input, AstNode::If { cond: Box::new(cond), then, else_ }))
 }
@@ -49,5 +49,5 @@ pub fn parse_stmt(input: &str) -> IResult<&str, AstNode> {
         parse_return,
         parse_if,
         parse_full_expr
-    ))(input)
+    )).parse(input)
 }
