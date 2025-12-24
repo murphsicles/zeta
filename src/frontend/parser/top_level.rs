@@ -10,14 +10,14 @@ use nom::{IResult};
 use super::parser::{parse_ident, parse_keyword, parse_generics, ws};
 use super::stmt::parse_stmt;
 
-fn parse_param(input: &str) -> IResult<&str, (String, String), nom::error::Error<&str>> {
+fn parse_param(input: &str) -> IResult<&str, (String, String)> {
     let (input, name) = parse_ident(input)?;
     let (input, _) = ws(tag(":"))(input)?;
     let (input, ty) = parse_ident(input)?;
     Ok((input, (name, ty)))
 }
 
-fn parse_func(input: &str) -> IResult<&str, AstNode, nom::error::Error<&str>> {
+fn parse_func(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = parse_keyword("fn")(input)?;
     let (input, name) = ws(parse_ident)(input)?;
     let (input, generics_opt) = opt(ws(parse_generics))(input)?;
@@ -46,7 +46,7 @@ fn parse_func(input: &str) -> IResult<&str, AstNode, nom::error::Error<&str>> {
     ))
 }
 
-fn parse_method_sig(input: &str) -> IResult<&str, AstNode, nom::error::Error<&str>> {
+fn parse_method_sig(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("fn"))(input)?;
     let (input, name) = ws(parse_ident)(input)?;
     let (input, generics_opt) = opt(ws(parse_generics))(input)?;
@@ -66,7 +66,7 @@ fn parse_method_sig(input: &str) -> IResult<&str, AstNode, nom::error::Error<&st
     ))
 }
 
-fn parse_concept(input: &str) -> IResult<&str, AstNode, nom::error::Error<&str>> {
+fn parse_concept(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = parse_keyword("concept")(input)?;
     let (input, name) = ws(parse_ident)(input)?;
     let (input, methods) = delimited(ws(tag("{")), many0(ws(parse_method_sig)), ws(tag("}")))(input)?;
@@ -80,7 +80,7 @@ fn parse_concept(input: &str) -> IResult<&str, AstNode, nom::error::Error<&str>>
     ))
 }
 
-fn parse_impl(input: &str) -> IResult<&str, AstNode, nom::error::Error<&str>> {
+fn parse_impl(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = parse_keyword("impl")(input)?;
     let (input, concept) = ws(parse_ident)(input)?;
     let (input, _) = ws(tag("for"))(input)?;
@@ -97,7 +97,7 @@ fn parse_impl(input: &str) -> IResult<&str, AstNode, nom::error::Error<&str>> {
     ))
 }
 
-fn parse_variant(input: &str) -> IResult<&str, (String, Vec<String>), nom::error::Error<&str>> {
+fn parse_variant(input: &str) -> IResult<&str, (String, Vec<String>)> {
     let (input, name) = ws(parse_ident)(input)?;
     let (input, params_opt) = opt(delimited(
         ws(tag("(")),
@@ -109,7 +109,7 @@ fn parse_variant(input: &str) -> IResult<&str, (String, Vec<String>), nom::error
     Ok((input, (name, params)))
 }
 
-fn parse_enum(input: &str) -> IResult<&str, AstNode, nom::error::Error<&str>> {
+fn parse_enum(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = parse_keyword("enum")(input)?;
     let (input, name) = ws(parse_ident)(input)?;
     let (input, variants) = delimited(
@@ -128,7 +128,7 @@ fn parse_enum(input: &str) -> IResult<&str, AstNode, nom::error::Error<&str>> {
     ))
 }
 
-fn parse_struct(input: &str) -> IResult<&str, AstNode, nom::error::Error<&str>> {
+fn parse_struct(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = parse_keyword("struct")(input)?;
     let (input, name) = ws(parse_ident)(input)?;
     let (input, fields) = delimited(
@@ -150,7 +150,7 @@ fn parse_struct(input: &str) -> IResult<&str, AstNode, nom::error::Error<&str>> 
     ))
 }
 
-pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>, nom::error::Error<&str>> {
+pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
     many0(ws(alt((
         parse_func,
         parse_concept,
