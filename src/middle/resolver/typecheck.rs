@@ -4,11 +4,13 @@ use super::resolver::{Resolver, Type};
 
 impl Resolver {
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
-        let mut borrow_checker = std::mem::take(&mut self.borrow_checker);
-        let resolver = &*self;
-        let res = asts.iter().all(|ast| borrow_checker.check(ast, resolver));
-        self.borrow_checker = borrow_checker;
-        res
+        let borrow_checker = &self.borrow_checker;
+        for ast in asts {
+            if !borrow_checker.check(ast, &*self) {
+                return false;
+            }
+        }
+        true
     }
 
     pub fn infer_type(&self, node: &AstNode) -> Type {
