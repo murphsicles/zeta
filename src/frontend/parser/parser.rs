@@ -2,26 +2,23 @@
 use nom::bytes::complete::tag;
 use nom::character::complete::{alpha1, alphanumeric0, multispace0};
 use nom::combinator::{opt, value};
-use nom::multi::{many1, separated_list1};
-use nom::sequence::{delimited, pair, preceded};
+use nom::multi::{many0, separated_list1};
+use nom::sequence::delimited;
 use nom::{IResult, Parser};
+use nom::error::ParseError;
 
 /// Wraps a parser with whitespace handling (both leading and trailing)
-pub fn ws<'a, F, O>(mut inner: F) -> impl FnMut(&'a str) -> IResult<&'a str, O>
+pub fn ws<'a, P, O, E>(inner: P) -> impl Parser<&'a str, O, E>
 where
-    F: FnMut(&'a str) -> IResult<&'a str, O>,
+    P: Parser<&'a str, O, E>,
+    E: ParseError<&'a str>,
 {
-    move |input| {
-        let (input, _) = multispace0(input)?;
-        let (input, result) = inner(input)?;
-        let (input, _) = multispace0(input)?;
-        Ok((input, result))
-    }
+    delimited(multispace0, inner, multispace0)
 }
 
 /// Parses an identifier (alphabetic start, followed by alphanumeric)
 pub fn parse_ident(input: &str) -> IResult<&str, String> {
-    let (input, (first, rest)) = pair(alpha1, alphanumeric0).parse(input)?;
+    let (input, (first, rest)) = nom::sequence::pair(alpha1, alphanumeric0).parse(input)?;
     Ok((input, format!("{}{}", first, rest)))
 }
 
@@ -32,7 +29,7 @@ pub fn parse_keyword(kw: &'static str) -> impl Fn(&str) -> IResult<&str, ()> {
 
 /// Parses a path like `foo::bar::baz` or just `foo`
 pub fn parse_path(input: &str) -> IResult<&str, Vec<String>> {
-    many1(preceded(opt(tag("::")), parse_ident)).parse(input)
+    many0(preceded(opt(tag("::")), parse_ident)).parse(input)
 }
 
 /// Parses generic type arguments like `<T, U>`
