@@ -6,14 +6,9 @@ impl Resolver {
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
         let mut borrow_checker = std::mem::take(&mut self.borrow_checker);
         let resolver = &*self;
-        for ast in asts {
-            if !borrow_checker.check(ast, resolver) {
-                self.borrow_checker = borrow_checker;
-                return false;
-            }
-        }
+        let res = asts.iter().all(|ast| borrow_checker.check(ast, resolver));
         self.borrow_checker = borrow_checker;
-        true
+        res
     }
 
     pub fn infer_type(&self, node: &AstNode) -> Type {
