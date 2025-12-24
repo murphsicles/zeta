@@ -144,14 +144,12 @@ fn parse_enum(input: &str) -> IResult<&str, AstNode> {
 fn parse_struct(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = parse_keyword("struct")(input)?;
     let (input, name) = ws(parse_ident)(input)?;
-    let (input, fields) = delimited(
-        ws(tag("{")),
-        many0(map(
-            pair(ws(parse_ident), preceded(ws(tag(":")), ws(parse_ident))),
-            |(n, t)| (n, t),
-        )),
-        ws(tag("}"))
-    )(input)?;
+    let (input, _) = ws(tag("{"))(input)?;
+    let (input, fields) = many0(map(
+        pair(ws(parse_ident), preceded(ws(tag(":")), ws(parse_ident))),
+        |(n, t)| (n, t),
+    ))(input)?;
+    let (input, _) = ws(tag("}"))(input)?;
     Ok((
         input,
         AstNode::StructDef {
@@ -163,11 +161,13 @@ fn parse_struct(input: &str) -> IResult<&str, AstNode> {
 }
 
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
-    many0(ws(alt((
-        parse_func,
-        parse_concept,
-        parse_impl,
-        parse_enum,
-        parse_struct,
-    ))))(input)
+    many0(|i| {
+        ws(alt((
+            parse_func,
+            parse_concept,
+            parse_impl,
+            parse_enum,
+            parse_struct,
+        )))(i)
+    })(input)
 }
