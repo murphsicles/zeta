@@ -1,5 +1,4 @@
 // src/frontend/parser/parser.rs
-use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{alpha1, alphanumeric0, multispace0};
 use nom::combinator::{map, opt, value};
@@ -22,15 +21,13 @@ where
 
 /// Parses an identifier (alphabetic start, followed by alphanumeric)
 pub fn parse_ident(input: &str) -> IResult<&str, String> {
-    map(
-        pair(alpha1, alphanumeric0),
-        |(first, rest): (&str, &str)| format!("{}{}", first, rest)
-    )(input)
+    let (input, (first, rest)) = pair(alpha1, alphanumeric0)(input)?;
+    Ok((input, format!("{}{}", first, rest)))
 }
 
 /// Parses a keyword and consumes surrounding whitespace
-pub fn parse_keyword(kw: &'static str) -> impl FnMut(&str) -> IResult<&str, ()> {
-    value((), ws(tag(kw)))
+pub fn parse_keyword(kw: &'static str) -> impl Fn(&str) -> IResult<&str, ()> {
+    move |input| value((), ws(tag(kw)))(input)
 }
 
 /// Parses a path like `foo::bar::baz` or just `foo`
