@@ -2,10 +2,10 @@
 use crate::frontend::ast::AstNode;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
+use nom::character::complete::multispace0;
 use nom::combinator::{map, opt};
 use nom::multi::{many0, separated_list1};
 use nom::sequence::{delimited, pair, preceded};
-use nom::character::complete::multispace0;
 use nom::IResult;
 
 use super::parser::{parse_ident, parse_keyword, parse_generics, ws};
@@ -21,16 +21,12 @@ fn parse_param(input: &str) -> IResult<&str, (String, String)> {
 fn parse_func(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = parse_keyword("fn")(input)?;
     let (input, name) = ws(parse_ident)(input)?;
-    let (input, generics_opt) = opt(ws(parse_generics))(input)?;
-    let (input, params) = delimited(
-        ws(tag("(")),
-        separated_list1(ws(tag(",")), ws(parse_param)),
-        ws(tag(")"))
-    )(input)?;
-    let (input, ret_opt) = opt(preceded(ws(tag("->")), ws(parse_ident)))(input)?;
+    let (input, generics_opt) = opt(|i| ws(parse_generics)(i))(input)?;
+    let (input, params) = delimited(ws(tag("(")), separated_list1(ws(tag(",")), ws(parse_param)), ws(tag(")")))(input)?;
+    let (input, ret_opt) = opt(|i| preceded(ws(tag("->")), ws(parse_ident))(i))(input)?;
     let (input, (body, single_line)) = alt((
-        map(delimited(ws(tag("{")), many0(ws(parse_stmt)), ws(tag("}"))), |b| (b, false)),
-        map(preceded(ws(tag("=")), ws(parse_stmt)), |s| (vec![s], true)),
+        map(|i| delimited(ws(tag("{")), many0(ws(parse_stmt)), ws(tag("}")))(i), |b| (b, false)),
+        map(|i| preceded(ws(tag("=")), ws(parse_stmt))(i), |s| (vec![s], true)),
     ))(input)?;
     let generics: Vec<String> = generics_opt.unwrap_or_default();
     let ret: String = ret_opt.unwrap_or_else(|| "i64".to_string());
@@ -53,13 +49,9 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
 fn parse_method_sig(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("fn"))(input)?;
     let (input, name) = ws(parse_ident)(input)?;
-    let (input, generics_opt) = opt(ws(parse_generics))(input)?;
-    let (input, params) = delimited(
-        ws(tag("(")),
-        separated_list1(ws(tag(",")), ws(parse_param)),
-        ws(tag(")"))
-    )(input)?;
-    let (input, ret_opt) = opt(preceded(ws(tag("->")), ws(parse_ident)))(input)?;
+    let (input, generics_opt) = opt(|i| ws(parse_generics)(i))(input)?;
+    let (input, params) = delimited(ws(tag("(")), separated_list1(ws(tag(",")), ws(parse_param)), ws(tag(")")))(input)?;
+    let (input, ret_opt) = opt(|i| preceded(ws(tag("->")), ws(parse_ident))(i))(input)?;
     let generics: Vec<String> = generics_opt.unwrap_or_default();
     let ret: String = ret_opt.unwrap_or_else(|| "i64".to_string());
     Ok((
@@ -77,11 +69,7 @@ fn parse_method_sig(input: &str) -> IResult<&str, AstNode> {
 fn parse_concept(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = parse_keyword("concept")(input)?;
     let (input, name) = ws(parse_ident)(input)?;
-    let (input, methods) = delimited(
-        ws(tag("{")),
-        many0(ws(parse_method_sig)),
-        ws(tag("}"))
-    )(input)?;
+    let (input, methods) = delimited(ws(tag("{")), many0(ws(parse_method_sig)), ws(tag("}")))(input)?;
     Ok((
         input,
         AstNode::ConceptDef {
@@ -97,11 +85,7 @@ fn parse_impl(input: &str) -> IResult<&str, AstNode> {
     let (input, concept) = ws(parse_ident)(input)?;
     let (input, _) = ws(tag("for"))(input)?;
     let (input, ty) = ws(parse_ident)(input)?;
-    let (input, body) = delimited(
-        ws(tag("{")),
-        many0(ws(parse_method_sig)),
-        ws(tag("}"))
-    )(input)?;
+    let (input, body) = delimited(ws(tag("{")), many0(ws(parse_method_sig)), ws(tag("}")))(input)?;
     Ok((
         input,
         AstNode::ImplBlock {
@@ -115,11 +99,7 @@ fn parse_impl(input: &str) -> IResult<&str, AstNode> {
 
 fn parse_variant(input: &str) -> IResult<&str, (String, Vec<String>)> {
     let (input, name) = ws(parse_ident)(input)?;
-    let (input, params_opt) = opt(delimited(
-        ws(tag("(")),
-        separated_list1(ws(tag(",")), ws(parse_ident)),
-        ws(tag(")"))
-    ))(input)?;
+    let (input, params_opt) = opt(|i| delimited(ws(tag("(")), separated_list1(ws(tag(",")), ws(parse_ident)), ws(tag(")")))(i))(input)?;
     let params: Vec<String> = params_opt.unwrap_or_default();
     Ok((input, (name, params)))
 }
@@ -127,11 +107,7 @@ fn parse_variant(input: &str) -> IResult<&str, (String, Vec<String>)> {
 fn parse_enum(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = parse_keyword("enum")(input)?;
     let (input, name) = ws(parse_ident)(input)?;
-    let (input, variants) = delimited(
-        ws(tag("{")),
-        separated_list1(ws(tag(",")), ws(parse_variant)),
-        ws(tag("}"))
-    )(input)?;
+    let (input, variants) = delimited(ws(tag("{")), separated_list1(ws(tag(",")), ws(parse_variant)), ws(tag("}")))(input)?;
     Ok((
         input,
         AstNode::EnumDef {
@@ -166,14 +142,8 @@ fn parse_struct(input: &str) -> IResult<&str, AstNode> {
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
     many0(|i| {
         let (i, _) = multispace0(i)?;
-        let result = alt((
-            parse_func,
-            parse_concept,
-            parse_impl,
-            parse_enum,
-            parse_struct,
-        ))(i)?;
-        let (i, _) = multispace0(result.0)?;
-        Ok((i, result.1))
+        let (i, node) = alt((parse_func, parse_concept, parse_impl, parse_enum, parse_struct))(i)?;
+        let (i, _) = multispace0(i)?;
+        Ok((i, node))
     })(input)
 }
