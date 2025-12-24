@@ -1,16 +1,13 @@
 // src/frontend/parser/parser.rs
+use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{alpha1, alphanumeric0, multispace0};
-use nom::combinator::value;
+use nom::combinator::{map, opt, value};
 use nom::multi::{many1, separated_list1};
-use nom::sequence::{pair, preceded, delimited};
-use nom::{IResult};
+use nom::sequence::{delimited, pair, preceded};
+use nom::IResult;
 
-#[allow(unused_imports)]
-use nom::branch::alt;
-#[allow(unused_imports)]
-use nom::combinator::{map, opt};
-
+/// Wraps a parser with whitespace handling (both leading and trailing)
 pub fn ws<'a, F, O>(mut inner: F) -> impl FnMut(&'a str) -> IResult<&'a str, O>
 where
     F: FnMut(&'a str) -> IResult<&'a str, O>,
@@ -23,18 +20,29 @@ where
     }
 }
 
+/// Parses an identifier (alphabetic start, followed by alphanumeric)
 pub fn parse_ident(input: &str) -> IResult<&str, String> {
-    map(pair(alpha1, alphanumeric0), |(first, rest): (&str, &str)| first.to_string() + rest)(input)
+    map(
+        pair(alpha1, alphanumeric0),
+        |(first, rest): (&str, &str)| format!("{}{}", first, rest)
+    )(input)
 }
 
+/// Parses a keyword and consumes surrounding whitespace
 pub fn parse_keyword(kw: &'static str) -> impl FnMut(&str) -> IResult<&str, ()> {
     value((), ws(tag(kw)))
 }
 
+/// Parses a path like `foo::bar::baz` or just `foo`
 pub fn parse_path(input: &str) -> IResult<&str, Vec<String>> {
     many1(preceded(opt(tag("::")), parse_ident))(input)
 }
 
+/// Parses generic type arguments like `<T, U>`
 pub fn parse_generics(input: &str) -> IResult<&str, Vec<String>> {
-    delimited(tag("<"), separated_list1(tag(","), parse_ident), tag(">"))(input)
+    delimited(
+        tag("<"),
+        separated_list1(tag(","), ws(parse_ident)),
+        tag(">")
+    )(input)
 }
