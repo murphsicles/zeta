@@ -5,6 +5,7 @@ use nom::bytes::complete::tag;
 use nom::combinator::{map, opt};
 use nom::multi::{many0, separated_list1};
 use nom::sequence::{delimited, pair, preceded};
+use nom::character::complete::multispace0;
 use nom::IResult;
 
 use super::parser::{parse_ident, parse_keyword, parse_generics, ws};
@@ -164,12 +165,15 @@ fn parse_struct(input: &str) -> IResult<&str, AstNode> {
 
 pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
     many0(|i| {
-        ws(alt((
+        let (i, _) = multispace0(i)?;
+        let result = alt((
             parse_func,
             parse_concept,
             parse_impl,
             parse_enum,
             parse_struct,
-        )))(i)
+        ))(i)?;
+        let (i, _) = multispace0(result.0)?;
+        Ok((i, result.1))
     })(input)
 }
