@@ -64,8 +64,11 @@ fn parse_variable(input: &str) -> IResult<&str, AstNode> {
 fn parse_dict_lit(input: &str) -> IResult<&str, AstNode> {
     let (input, entries) = delimited(
         ws(tag("{")),
-        separated_list1(ws(tag(",")), pair(ws(parse_full_expr), preceded(ws(tag(":")), ws(parse_full_expr)))),
-        ws(tag("}")),
+        separated_list1(
+            ws(tag(",")),
+            pair(ws(parse_full_expr), preceded(ws(tag(":")), ws(parse_full_expr)))
+        ),
+        ws(tag("}"))
     )(input)?;
     Ok((input, AstNode::DictLit { entries }))
 }
@@ -78,7 +81,11 @@ fn parse_call(input: &str) -> IResult<&str, AstNode> {
     let (input, receiver_opt) = opt(ws(parse_primary_expr))(input)?;
     let (input, method) = preceded(ws(tag(".")), ws(parse_ident))(input)?;
     let (input, type_args_opt) = opt(ws(parse_generics))(input)?;
-    let (input, args) = delimited(ws(tag("(")), separated_list1(ws(tag(",")), ws(parse_full_expr)), ws(tag(")")))(input)?;
+    let (input, args) = delimited(
+        ws(tag("(")),
+        separated_list1(ws(tag(",")), ws(parse_full_expr)),
+        ws(tag(")"))
+    )(input)?;
     let type_args: Vec<String> = type_args_opt.unwrap_or_default();
     Ok((
         input,
@@ -95,14 +102,22 @@ fn parse_call(input: &str) -> IResult<&str, AstNode> {
 fn parse_path_call(input: &str) -> IResult<&str, AstNode> {
     let (input, path) = ws(parse_path)(input)?;
     let (input, method) = preceded(ws(tag("::")), ws(parse_ident))(input)?;
-    let (input, args) = delimited(ws(tag("(")), separated_list1(ws(tag(",")), ws(parse_full_expr)), ws(tag(")")))(input)?;
+    let (input, args) = delimited(
+        ws(tag("(")),
+        separated_list1(ws(tag(",")), ws(parse_full_expr)),
+        ws(tag(")"))
+    )(input)?;
     Ok((input, AstNode::PathCall { path, method, args }))
 }
 
 fn parse_spawn(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("spawn"))(input)?;
     let (input, func) = ws(parse_ident)(input)?;
-    let (input, args) = delimited(ws(tag("(")), separated_list1(ws(tag(",")), ws(parse_full_expr)), ws(tag(")")))(input)?;
+    let (input, args) = delimited(
+        ws(tag("(")),
+        separated_list1(ws(tag(",")), ws(parse_full_expr)),
+        ws(tag(")"))
+    )(input)?;
     Ok((input, AstNode::Spawn { func, args }))
 }
 
@@ -138,7 +153,11 @@ fn parse_try_prop(input: &str) -> IResult<&str, AstNode> {
 
 fn parse_subscript(input: &str) -> IResult<&str, AstNode> {
     let (input, base) = ws(parse_primary_expr)(input)?;
-    let (input, index) = delimited(ws(tag("[")), ws(parse_full_expr), ws(tag("]")))(input)?;
+    let (input, index) = delimited(
+        ws(tag("[")),
+        ws(parse_full_expr),
+        ws(tag("]"))
+    )(input)?;
     Ok((input, AstNode::Subscript { base: Box::new(base), index: Box::new(index) }))
 }
 
