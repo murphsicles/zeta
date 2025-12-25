@@ -1,4 +1,5 @@
 // src/backend/codegen/ir_gen.rs
+use inkwell::values::call_site_value::ValueKind;
 use crate::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use inkwell::types::BasicMetadataTypeEnum;
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum};
