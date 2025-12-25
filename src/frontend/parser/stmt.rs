@@ -40,7 +40,7 @@ pub fn parse_if(input: &str) -> IResult<&str, AstNode> {
             ws(tag("}"))
         )
     )).parse(input)?;
-    let else_: Vec<AstNode> = else_opt.unwrap_or_default();
+    let else_ = else_opt.unwrap_or_default();
     Ok((input, AstNode::If { cond: Box::new(cond), then, else_ }))
 }
 
