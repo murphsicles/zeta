@@ -88,15 +88,15 @@ fn parse_paren_expr(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_call(input: &str) -> IResult<&str, AstNode> {
-    let (input, receiver_opt): (&str, Option<AstNode>) = opt(|i| {
+    let (input, receiver_opt) = opt(|i| {
         let (i, recv) = ws(parse_primary_expr).parse(i)?;
         let (i, _) = ws(tag(".")).parse(i)?;
         Ok((i, recv))
     }).parse(input)?;
     let (input, method) = ws(parse_ident).parse(input)?;
-    let (input, type_args_opt): (&str, Option<Vec<String>>) = opt(ws(parse_generics)).parse(input)?;
+    let (input, type_args_opt) = opt(ws(parse_generics)).parse(input)?;
     let (input, args) = delimited(ws(tag("(")), separated_list1(ws(tag(",")), ws(parse_full_expr)), ws(tag(")"))).parse(input)?;
-    let type_args: Vec<String> = type_args_opt.unwrap_or_default();
+    let type_args = type_args_opt.unwrap_or_default();
     Ok((
         input,
         AstNode::Call {
@@ -136,7 +136,7 @@ fn parse_spawn(input: &str) -> IResult<&str, AstNode> {
 
 fn parse_binary_op(input: &str) -> IResult<&str, AstNode> {
     let (input, left) = ws(parse_primary_expr).parse(input)?;
-    let (input, op): (&str, &str) = ws(alt((tag("+"), tag("-"), tag("*"), tag("/")))).parse(input)?;
+    let (input, op) = ws(alt((tag("+"), tag("-"), tag("*"), tag("/")))).parse(input)?;
     let (input, right) = ws(parse_primary_expr).parse(input)?;
     Ok((input, AstNode::BinaryOp {
         op: op.to_string(),
