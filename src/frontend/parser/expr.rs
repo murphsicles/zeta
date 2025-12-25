@@ -5,8 +5,9 @@ use nom::bytes::complete::{tag, take_while1};
 use nom::character::complete::i64 as nom_i64;
 use nom::combinator::opt;
 use nom::multi::separated_list1;
+use nom::Parser;
 use nom::sequence::delimited;
-use nom::{IResult, Parser};
+use nom::IResult;
 
 use super::parser::{parse_ident, parse_path, parse_generics, ws};
 
