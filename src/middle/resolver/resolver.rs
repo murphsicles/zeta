@@ -1,11 +1,11 @@
 // src/middle/resolver/resolver.rs
 //! Core resolver structure and basic registration for Zeta concepts and implementations.
 //! Integrates borrow checker for affine types.
-use std::cell::RefCell;
 use crate::frontend::ast::AstNode;
 use crate::frontend::borrow::BorrowChecker;
 use crate::middle::mir::mir::Mir;
 use crate::middle::specialization::MonoKey;
+use std::cell::RefCell;
 use std::collections::HashMap;
 
 pub type Type = String;
@@ -28,13 +28,18 @@ impl Resolver {
     }
 
     pub fn register(&mut self, ast: AstNode) {
-        if let AstNode::ImplBlock { concept, ty, body, .. } = ast {
+        if let AstNode::ImplBlock {
+            concept, ty, body, ..
+        } = ast
+        {
             self.impls.insert((concept, ty), body);
         }
     }
 
     pub fn resolve_impl(&self, concept: &str, ty: &str) -> Option<Vec<AstNode>> {
-        self.impls.get(&(concept.to_string(), ty.to_string())).cloned()
+        self.impls
+            .get(&(concept.to_string(), ty.to_string()))
+            .cloned()
     }
 }
 
