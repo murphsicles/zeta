@@ -1,11 +1,11 @@
 // src/frontend/parser/expr.rs
+use nom::Parser;
 use crate::frontend::ast::AstNode;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while1};
 use nom::character::complete::i64 as nom_i64;
 use nom::combinator::opt;
 use nom::multi::separated_list1;
-use nom::Parser;
 use nom::sequence::delimited;
 use nom::IResult;
 
@@ -69,7 +69,7 @@ fn parse_variable(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_dict_lit(input: &str) -> IResult<&str, AstNode> {
-    let (input, _) = ws(tag("{")) .parse(input)?;
+    let (input, _) = ws(tag("{"))(input)?;
     let (input, entries) = separated_list1(
         ws(tag(",")),
         |i| {
@@ -79,7 +79,7 @@ fn parse_dict_lit(input: &str) -> IResult<&str, AstNode> {
             Ok((i, (key, val)))
         },
     ).parse(input)?;
-    let (input, _) = ws(tag("}")) .parse(input)?;
+    let (input, _) = ws(tag("}"))(input)?;
     Ok((input, AstNode::DictLit { entries }))
 }
 
