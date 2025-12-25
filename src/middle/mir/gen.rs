@@ -1,6 +1,6 @@
 // src/middle/mir/gen.rs
-use crate::middle::mir::mir::{Mir, MirExpr, MirStmt};
 use crate::frontend::ast::AstNode;
+use crate::middle::mir::mir::{Mir, MirExpr, MirStmt};
 use std::collections::HashMap;
 
 pub struct MirGen {
@@ -23,9 +23,17 @@ impl MirGen {
     pub fn lower_to_mir(&mut self, ast: &AstNode) -> Mir {
         self.lower_ast(ast);
         Mir {
-            name: if let AstNode::FuncDef { name, .. } = ast { Some(name.clone()) } else { None },
+            name: if let AstNode::FuncDef { name, .. } = ast {
+                Some(name.clone())
+            } else {
+                None
+            },
             param_indices: if let AstNode::FuncDef { params, .. } = ast {
-                params.iter().enumerate().map(|(i, (n, _))| (n.clone(), i as u32)).collect()
+                params
+                    .iter()
+                    .enumerate()
+                    .map(|(i, (n, _))| (n.clone(), i as u32))
+                    .collect()
             } else {
                 vec![]
             },
@@ -40,7 +48,10 @@ impl MirGen {
             AstNode::Assign(lhs, rhs) => {
                 let rhs_id = self.lower_expr(rhs);
                 let lhs_id = self.lower_expr(lhs);
-                self.stmts.push(MirStmt::Assign { lhs: lhs_id, rhs: rhs_id });
+                self.stmts.push(MirStmt::Assign {
+                    lhs: lhs_id,
+                    rhs: rhs_id,
+                });
             }
             AstNode::Return(inner) => {
                 let val = self.lower_expr(inner);
@@ -50,29 +61,40 @@ impl MirGen {
                 let left_id = self.lower_expr(left);
                 let right_id = self.lower_expr(right);
                 let dest = self.next_id();
-                self.stmts.push(MirStmt::Call { func: op.clone(), args: vec![left_id, right_id], dest, type_args: vec![] });
+                self.stmts.push(MirStmt::Call {
+                    func: op.clone(),
+                    args: vec![left_id, right_id],
+                    dest,
+                    type_args: vec![],
+                });
             }
             AstNode::FuncDef { body, .. } => {
                 for stmt in body {
                     self.lower_ast(stmt);
                 }
             }
-            _ => {},
+            _ => {}
         }
     }
 
     fn lower_expr(&mut self, expr: &AstNode) -> u32 {
         let id = self.next_id();
         let mir_expr = match expr {
-            AstNode::Var(_name) => MirExpr::Var(id), 
+            AstNode::Var(_name) => MirExpr::Var(id),
             AstNode::Lit(n) => MirExpr::Lit(*n),
             AstNode::StringLit(s) => MirExpr::StringLit(s.clone()),
             AstNode::FString(parts) => {
-                let ids = parts.iter().map(|p| { self.lower_ast(p); self.next_id() - 1 }).collect();
+                let ids = parts
+                    .iter()
+                    .map(|p| {
+                        self.lower_ast(p);
+                        self.next_id() - 1
+                    })
+                    .collect();
                 MirExpr::FString(ids)
             }
             AstNode::TimingOwned { inner, .. } => MirExpr::TimingOwned(self.lower_expr(inner)),
-            _ => MirExpr::Lit(0), 
+            _ => MirExpr::Lit(0),
         };
         self.exprs.insert(id, mir_expr);
         id
