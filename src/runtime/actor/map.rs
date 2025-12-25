@@ -7,7 +7,9 @@ struct MapInner {
 }
 impl MapInner {
     fn new() -> Self {
-        Self { inner: HashMap::new() }
+        Self {
+            inner: HashMap::new(),
+        }
     }
     fn insert(&mut self, key: i64, val: i64) {
         self.inner.insert(key, val);
