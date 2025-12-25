@@ -8,6 +8,7 @@ pub enum AstNode {
     /// Concept (trait) definition with method signatures.
     ConceptDef {
         name: String,
+        generics: Vec<String>,
         methods: Vec<AstNode>,
         doc: String,
     },
