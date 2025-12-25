@@ -12,14 +12,40 @@ pub struct Mir {
 
 #[derive(Debug, Clone)]
 pub enum MirStmt {
-    Assign { lhs: u32, rhs: u32 },
-    Call { func: String, args: Vec<u32>, dest: u32, type_args: Vec<String> },
-    VoidCall { func: String, args: Vec<u32> },
-    Return { val: u32 },
-    SemiringFold { op: SemiringOp, values: Vec<u32>, result: u32 },
-    ParamInit { param_id: u32, arg_index: u32 },
-    Consume { id: u32 },
-    If { cond: u32, then: Vec<MirStmt>, else_: Vec<MirStmt> },
+    Assign {
+        lhs: u32,
+        rhs: u32,
+    },
+    Call {
+        func: String,
+        args: Vec<u32>,
+        dest: u32,
+        type_args: Vec<String>,
+    },
+    VoidCall {
+        func: String,
+        args: Vec<u32>,
+    },
+    Return {
+        val: u32,
+    },
+    SemiringFold {
+        op: SemiringOp,
+        values: Vec<u32>,
+        result: u32,
+    },
+    ParamInit {
+        param_id: u32,
+        arg_index: u32,
+    },
+    Consume {
+        id: u32,
+    },
+    If {
+        cond: u32,
+        then: Vec<MirStmt>,
+        else_: Vec<MirStmt>,
+    },
 }
 
 #[derive(Debug, Clone)]
