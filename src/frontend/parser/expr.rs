@@ -69,7 +69,7 @@ fn parse_variable(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_dict_lit(input: &str) -> IResult<&str, AstNode> {
-    let (input, _) = ws(tag("{"))(input)?;
+    let (input, _) = ws(tag("{")) .parse(input)?;
     let (input, entries) = separated_list1(
         ws(tag(",")),
         |i| {
@@ -79,7 +79,7 @@ fn parse_dict_lit(input: &str) -> IResult<&str, AstNode> {
             Ok((i, (key, val)))
         },
     ).parse(input)?;
-    let (input, _) = ws(tag("}"))(input)?;
+    let (input, _) = ws(tag("}")) .parse(input)?;
     Ok((input, AstNode::DictLit { entries }))
 }
 
