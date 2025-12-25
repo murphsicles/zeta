@@ -161,7 +161,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
     fn call_site_to_basic_value(call: CallSiteValue<'ctx>) -> Option<BasicValueEnum<'ctx>> {
         use inkwell::values::ValueKind;
         match call.try_as_basic_value() {
-            ValueKind::InstructionValue(inst) => inst.as_instruction().map(|i| i.as_basic_value_enum()),
+            ValueKind::Instruction(inst) => inst.as_instruction().map(|i| i.as_basic_value_enum()),
             ValueKind::IntValue(v) => Some(v.into()),
             ValueKind::FloatValue(v) => Some(v.into()),
             ValueKind::PointerValue(v) => Some(v.into()),
