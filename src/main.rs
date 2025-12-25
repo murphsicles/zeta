@@ -5,16 +5,16 @@ use inkwell::context::Context;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, BufRead, Write};
+use zetac::backend::codegen::codegen::LLVMCodegen;
 use zetac::frontend::ast::AstNode;
+use zetac::frontend::parser::top_level::parse_zeta;
+use zetac::middle::mir::mir::Mir;
+use zetac::middle::resolver::resolver::Resolver;
 use zetac::middle::specialization::{
     MonoKey, MonoValue, is_cache_safe, lookup_specialization, record_specialization,
 };
-use zetac::middle::mir::mir::Mir;
-use zetac::middle::resolver::resolver::Resolver;
-use zetac::backend::codegen::codegen::LLVMCodegen;
-use zetac::runtime::actor::scheduler;
 use zetac::runtime::actor::channel;
-use zetac::frontend::parser::top_level::parse_zeta;
+use zetac::runtime::actor::scheduler;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize async actor runtime.
