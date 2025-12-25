@@ -1,5 +1,4 @@
 // src/backend/codegen/ir_gen.rs
-use inkwell::values::ValueKind;
 use crate::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use inkwell::types::BasicMetadataTypeEnum;
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum};
@@ -49,13 +48,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let callee = self.get_callee(func);
                 let arg_vals: Vec<BasicMetadataValueEnum> = args.iter().map(|&id| self.gen_expr(&exprs[&id], exprs).into()).collect();
                 let call = self.builder.build_call(callee, &arg_vals, &format!("call_{dest}")).unwrap();
-                match call.try_as_basic_value() {
-                    ValueKind::Basic(basic_val) => {
-                        let alloca = self.builder.build_alloca(self.i64_type, &format!("dest_{dest}")).unwrap();
-                        self.builder.build_store(alloca, basic_val).unwrap();
-                        self.locals.insert(*dest, alloca);
-                    }
-                    ValueKind::Instruction(_) => {},
+                if let Some(basic_val) = call.try_as_basic_value().left() {
+                    let alloca = self.builder.build_alloca(self.i64_type, &format!("dest_{dest}")).unwrap();
+                    self.builder.build_store(alloca, basic_val).unwrap();
+                    self.locals.insert(*dest, alloca);
                 }
             }
             MirStmt::VoidCall { func, args } => {
@@ -137,9 +133,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let next = self.gen_expr(&exprs[&id], exprs);
                     let concat_fn = self.get_callee("str_concat");
                     let call = self.builder.build_call(concat_fn, &[res.into(), next.into()], "fconcat").unwrap();
-                    match call.try_as_basic_value() {
-                        ValueKind::Basic(basic_val) => res = basic_val,
-                        ValueKind::Instruction(_) => {},
+                    if let Some(basic_val) = call.try_as_basic_value().left() {
+                        res = basic_val;
                     }
                 }
                 res
