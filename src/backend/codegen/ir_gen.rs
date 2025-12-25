@@ -6,6 +6,7 @@ use inkwell::values::{FunctionValue};
 use std::collections::HashMap;
 use inkwell::values::BasicValue;
 use super::codegen::LLVMCodegen;
+use either::Either;
 
 impl<'ctx> LLVMCodegen<'ctx> {
     pub fn gen_mirs(&mut self, mirs: &[Mir]) {
@@ -159,16 +160,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
     }
 
     fn call_site_to_basic_value(call: CallSiteValue<'ctx>) -> Option<BasicValueEnum<'ctx>> {
-        use inkwell::values::ValueKind;
         match call.try_as_basic_value() {
-            ValueKind::Instruction(inst) => inst.as_instruction().map(|i| i.as_basic_value_enum()),
-            ValueKind::IntValue(v) => Some(v.into()),
-            ValueKind::FloatValue(v) => Some(v.into()),
-            ValueKind::PointerValue(v) => Some(v.into()),
-            ValueKind::StructValue(v) => Some(v.into()),
-            ValueKind::ArrayValue(v) => Some(v.into()),
-            ValueKind::VectorValue(v) => Some(v.into()),
-            _ => None,
+            Either::Left(_) => None,
+            Either::Right(v) => Some(v),
         }
     }
 
