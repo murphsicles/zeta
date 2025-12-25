@@ -1,7 +1,7 @@
 // src/backend/codegen/ir_gen.rs
 use crate::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use inkwell::types::BasicMetadataTypeEnum;
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, ValueKind};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, CallSiteValue};
 use inkwell::values::{FunctionValue};
 use std::collections::HashMap;
 use inkwell::values::BasicValue;
@@ -44,7 +44,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.builder.build_store(alloca, val).unwrap();
                 self.locals.insert(*lhs, alloca);
             }
-            MirStmt::Call { func, args, dest, type_args } => {
+            MirStmt::Call { func, args, dest, type_args: _type_args } => {
                 let callee = self.get_callee(func);
                 let arg_vals: Vec<BasicMetadataValueEnum> = args.iter().map(|&id| self.gen_expr(&exprs[&id], exprs).into()).collect();
                 let call = self.builder.build_call(callee, &arg_vals, &format!("call_{dest}")).unwrap();
@@ -80,7 +80,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.builder.build_store(alloca, acc).unwrap();
                 self.locals.insert(*result, alloca);
             }
-            MirStmt::ParamInit { param_id, arg_index } => {
+            MirStmt::ParamInit { param_id, arg_index: _arg_index } => {
                 let param_val = self.builder.build_alloca(self.i64_type, &format!("param_init_{param_id}")).unwrap();
                 self.locals.insert(*param_id, param_val);
             }
