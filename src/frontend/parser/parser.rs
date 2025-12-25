@@ -1,12 +1,12 @@
 // src/frontend/parser/parser.rs
+use nom::IResult;
+use nom::Parser;
 use nom::bytes::complete::tag;
 use nom::character::complete::{alpha1, alphanumeric0, multispace0};
 use nom::combinator::{opt, value};
-use nom::multi::{many0, separated_list1};
-use nom::Parser;
-use nom::sequence::{delimited, preceded};
-use nom::IResult;
 use nom::error::ParseError;
+use nom::multi::{many0, separated_list1};
+use nom::sequence::{delimited, preceded};
 
 pub fn ws<'a, P>(inner: P) -> impl Parser<&'a str, Output = P::Output, Error = P::Error>
 where
@@ -30,5 +30,10 @@ pub fn parse_path(input: &str) -> IResult<&str, Vec<String>> {
 }
 
 pub fn parse_generics(input: &str) -> IResult<&str, Vec<String>> {
-    delimited(tag("<"), separated_list1(tag(","), ws(parse_ident)), tag(">")).parse(input)
+    delimited(
+        tag("<"),
+        separated_list1(tag(","), ws(parse_ident)),
+        tag(">"),
+    )
+    .parse(input)
 }
