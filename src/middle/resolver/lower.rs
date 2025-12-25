@@ -14,10 +14,8 @@ impl Resolver {
     pub fn collect_used_specializations(&self, asts: &[AstNode]) -> HashMap<String, Vec<Vec<String>>> {
         let mut used = HashMap::new();
         for ast in asts {
-            if let AstNode::Call { method, type_args, .. } = ast {
-                if !type_args.is_empty() {
-                    used.entry(method.clone()).or_insert(vec![]).push(type_args.clone());
-                }
+            if let AstNode::Call { method, type_args, .. } = ast && !type_args.is_empty() {
+                used.entry(method.clone()).or_insert(vec![]).push(type_args.clone());
             }
             if let AstNode::FuncDef { body, .. } = ast {
                 let body_used = self.collect_used_specializations(body);
