@@ -1,11 +1,11 @@
 // src/frontend/parser/top_level.rs
+use nom::Parser;
 use crate::frontend::ast::AstNode;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::multispace0;
 use nom::combinator::{map, opt};
 use nom::multi::{many0, separated_list1};
-use nom::Parser;
 use nom::sequence::{delimited, preceded};
 use nom::IResult;
 
@@ -126,14 +126,14 @@ fn parse_enum(input: &str) -> IResult<&str, AstNode> {
 fn parse_struct(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = parse_keyword("struct")(input)?;
     let (input, name) = ws(parse_ident).parse(input)?;
-    let (input, _) = ws(tag("{"))(input)?;
+    let (input, _) = ws(tag("{")) .parse(input)?;
     let (input, fields) = many0(|i| {
         let (i, name) = ws(parse_ident).parse(i)?;
         let (i, _) = ws(tag(":")).parse(i)?;
         let (i, ty) = ws(parse_ident).parse(i)?;
         Ok((i, (name, ty)))
     }).parse(input)?;
-    let (input, _) = ws(tag("}"))(input)?;
+    let (input, _) = ws(tag("}")) .parse(input)?;
     Ok((
         input,
         AstNode::StructDef {
