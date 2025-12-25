@@ -3,8 +3,9 @@ use nom::bytes::complete::tag;
 use nom::character::complete::{alpha1, alphanumeric0, multispace0};
 use nom::combinator::{opt, value};
 use nom::multi::{many0, separated_list1};
+use nom::Parser;
 use nom::sequence::{delimited, preceded};
-use nom::{IResult, Parser};
+use nom::IResult;
 use nom::error::ParseError;
 
 pub fn ws<'a, P>(inner: P) -> impl Parser<&'a str, Output = P::Output, Error = P::Error>
