@@ -1,6 +1,6 @@
 // src/middle/mir/gen.rs
+use crate::middle::mir::mir::{Mir, MirExpr, MirStmt};
 use crate::frontend::ast::AstNode;
-use crate::middle::mir::mir::{Mir, MirStmt, MirExpr};
 use std::collections::HashMap;
 
 pub struct MirGen {
@@ -82,5 +82,11 @@ impl MirGen {
         let id = self.next_id;
         self.next_id += 1;
         id
+    }
+}
+
+impl Default for MirGen {
+    fn default() -> Self {
+        Self::new()
     }
 }
