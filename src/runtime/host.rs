@@ -1,9 +1,9 @@
 // src/runtime/host.rs
-use std::time::{SystemTime, UNIX_EPOCH};
-use std::ffi::c_char;
-use std::ffi::CStr;
-use std::os::raw::c_void;
 use crate::runtime::std::free;
+use std::ffi::CStr;
+use std::ffi::c_char;
+use std::os::raw::c_void;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Returns the current datetime as milliseconds since UNIX epoch.
 ///
@@ -59,7 +59,12 @@ pub unsafe extern "C" fn host_tls_handshake(host: *const c_char) -> i64 {
 /// # Safety
 /// Pointers a and b must be valid for reads of a_len and b_len bytes. Caller must free returned pointer.
 #[allow(unsafe_op_in_unsafe_fn)]
-pub unsafe extern "C" fn host_str_concat(a: *const u8, a_len: usize, b: *const u8, b_len: usize) -> *mut u8 {
+pub unsafe extern "C" fn host_str_concat(
+    a: *const u8,
+    a_len: usize,
+    b: *const u8,
+    b_len: usize,
+) -> *mut u8 {
     let mut result = Vec::with_capacity(a_len + b_len + 1);
     result.extend_from_slice(unsafe { std::slice::from_raw_parts(a, a_len) });
     result.extend_from_slice(unsafe { std::slice::from_raw_parts(b, b_len) });
