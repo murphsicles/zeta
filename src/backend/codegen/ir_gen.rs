@@ -1,7 +1,7 @@
 // src/backend/codegen/ir_gen.rs
 use crate::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use inkwell::types::BasicMetadataTypeEnum;
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, ValueKind};
 use inkwell::values::{FunctionValue};
 use std::collections::HashMap;
 use inkwell::values::BasicValue;
@@ -49,12 +49,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let arg_vals: Vec<BasicMetadataValueEnum> = args.iter().map(|&id| self.gen_expr(&exprs[&id], exprs).into()).collect();
                 let call = self.builder.build_call(callee, &arg_vals, &format!("call_{dest}")).unwrap();
                 match call.try_as_basic_value() {
-                    Some(basic_val) => {
+                    ValueKind::Basic(basic_val) => {
                         let alloca = self.builder.build_alloca(self.i64_type, &format!("dest_{dest}")).unwrap();
                         self.builder.build_store(alloca, basic_val).unwrap();
                         self.locals.insert(*dest, alloca);
                     }
-                    None => {},
+                    ValueKind::Instruction(_) => {},
                 }
             }
             MirStmt::VoidCall { func, args } => {
@@ -68,7 +68,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
             MirStmt::SemiringFold { op, values, result } => {
                 let zero = self.i64_type.const_zero();
-                let mut acc = zero.into();
+                let mut acc: BasicValueEnum<'ctx> = zero.into();
                 for &val_id in values {
                     let val = self.gen_expr(&exprs[&val_id], exprs);
                     acc = match op {
@@ -137,8 +137,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let concat_fn = self.get_callee("str_concat");
                     let call = self.builder.build_call(concat_fn, &[res.into(), next.into()], "fconcat").unwrap();
                     match call.try_as_basic_value() {
-                        Some(basic_val) => res = basic_val,
-                        None => {},
+                        ValueKind::Basic(basic_val) => res = basic_val,
+                        ValueKind::Instruction(_) => {},
                     }
                 }
                 res
