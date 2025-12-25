@@ -1,5 +1,5 @@
 // src/backend/codegen/ir_gen.rs
-use inkwell::values::call_site_value::ValueKind;
+use inkwell::values::ValueKind;
 use crate::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use inkwell::types::BasicMetadataTypeEnum;
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum};
@@ -49,7 +49,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let callee = self.get_callee(func);
                 let arg_vals: Vec<BasicMetadataValueEnum> = args.iter().map(|&id| self.gen_expr(&exprs[&id], exprs).into()).collect();
                 let call = self.builder.build_call(callee, &arg_vals, &format!("call_{dest}")).unwrap();
-                if let Some(basic_val) = call.try_as_basic_value().left() {
+                if let Some(basic_val) = call.try_as_basic_value().basic() {
                     let alloca = self.builder.build_alloca(self.i64_type, &format!("dest_{dest}")).unwrap();
                     self.builder.build_store(alloca, basic_val).unwrap();
                     self.locals.insert(*dest, alloca);
