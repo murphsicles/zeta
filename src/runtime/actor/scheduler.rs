@@ -1,11 +1,11 @@
 // src/runtime/actor/scheduler.rs
+use super::channel::Channel;
 use num_cpus;
 use std::collections::{HashMap, VecDeque};
-use std::sync::{Arc, OnceLock};
 use std::sync::atomic::Ordering;
-use tokio::task;
+use std::sync::{Arc, OnceLock};
 use tokio::sync::Mutex;
-use super::channel::Channel;
+use tokio::task;
 /// Type alias for actor entry functions.
 type ActorEntry = Box<dyn FnOnce(Channel) + Send + 'static>;
 /// Global map of function IDs to actor entry functions.
