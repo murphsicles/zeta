@@ -56,6 +56,7 @@ fn parse_concept(input: &str) -> IResult<&str, AstNode> {
         input,
         AstNode::ConceptDef {
             name,
+            generics,
             methods,
             doc: "".to_string(),
         },
