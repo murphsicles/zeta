@@ -4,6 +4,7 @@ use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::combinator::opt;
 use nom::multi::many0;
+use nom::Parser;
 use nom::sequence::{delimited, preceded};
 use nom::IResult;
 
