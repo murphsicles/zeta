@@ -7,6 +7,7 @@ use nom::combinator::opt;
 use nom::multi::separated_list1;
 use nom::sequence::delimited;
 use nom::{IResult, Parser};
+
 use super::parser::{parse_ident, parse_path, parse_generics, ws};
 
 fn parse_literal(input: &str) -> IResult<&str, AstNode> {
@@ -94,7 +95,7 @@ fn parse_call(input: &str) -> IResult<&str, AstNode> {
     let (input, method) = ws(parse_ident).parse(input)?;
     let (input, type_args_opt) = opt(ws(parse_generics)).parse(input)?;
     let (input, args) = delimited(ws(tag("(")), separated_list1(ws(tag(",")), ws(parse_full_expr)), ws(tag(")"))).parse(input)?;
-    let type_args: Vec<String> = type_args_opt.unwrap_or_default();
+    let type_args = type_args_opt.unwrap_or_default();
     Ok((
         input,
         AstNode::Call {
