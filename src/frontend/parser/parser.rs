@@ -7,10 +7,10 @@ use nom::sequence::{delimited, preceded};
 use nom::{IResult, Parser};
 use nom::error::ParseError;
 
-pub fn ws<'a, P, O, E>(inner: P) -> impl Parser<&'a str, Output = O, Error = E>
+pub fn ws<'a, P>(inner: P) -> impl Parser<&'a str, Output = P::Output, Error = P::Error>
 where
-    P: Parser<&'a str, Output = O, Error = E>,
-    E: ParseError<&'a str>,
+    P: Parser<&'a str>,
+    P::Error: ParseError<&'a str>,
 {
     delimited(multispace0, inner, multispace0)
 }
