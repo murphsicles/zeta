@@ -8,7 +8,7 @@ use nom::Parser;
 use nom::sequence::{delimited, preceded};
 use nom::IResult;
 
-use super::parser::ws;
+use super::{ws};
 use super::expr::parse_full_expr;
 
 pub fn parse_assign(input: &str) -> IResult<&str, AstNode> {
@@ -40,7 +40,7 @@ pub fn parse_if(input: &str) -> IResult<&str, AstNode> {
             ws(tag("}"))
         )
     )).parse(input)?;
-    let else_ = else_opt.unwrap_or_default();
+    let else_: Vec<AstNode> = else_opt.unwrap_or_default();
     Ok((input, AstNode::If { cond: Box::new(cond), then, else_ }))
 }
 
