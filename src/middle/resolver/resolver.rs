@@ -37,3 +37,9 @@ impl Resolver {
         self.impls.get(&(concept.to_string(), ty.to_string())).cloned()
     }
 }
+
+impl Default for Resolver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
