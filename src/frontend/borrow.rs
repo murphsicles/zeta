@@ -68,7 +68,7 @@ impl BorrowChecker {
             AstNode::Var(v) => self
                 .borrows
                 .get(v)
-                .map_or(false, |s| matches!(s, BorrowState::Owned | BorrowState::Borrowed)),
+                .is_some_and(|s| matches!(s, BorrowState::Owned | BorrowState::Borrowed)),
             AstNode::Assign(lhs, rhs) => {
                 if !self.check(rhs, resolver) {
                     return false;
