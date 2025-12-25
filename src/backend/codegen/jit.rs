@@ -1,8 +1,11 @@
 // src/backend/codegen/jit.rs
-use crate::runtime::xai::XAIClient;
-use crate::runtime::host::{host_datetime_now, host_free, host_http_get, host_tls_handshake, host_str_concat};
+use super::codegen::LLVMCodegen;
 use crate::runtime::actor::channel::{host_channel_recv, host_channel_send};
 use crate::runtime::actor::scheduler::host_spawn;
+use crate::runtime::host::{
+    host_datetime_now, host_free, host_http_get, host_str_concat, host_tls_handshake,
+};
+use crate::runtime::xai::XAIClient;
 use inkwell::OptimizationLevel;
 use inkwell::attributes::{Attribute, AttributeLoc};
 use inkwell::execution_engine::ExecutionEngine;
@@ -10,7 +13,6 @@ use inkwell::passes::PassManager;
 use inkwell::support::LLVMString;
 use inkwell::values::FunctionValue;
 use serde_json::Value;
-use super::codegen::LLVMCodegen;
 
 impl<'ctx> LLVMCodegen<'ctx> {
     pub fn finalize_and_jit(
