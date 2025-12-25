@@ -24,7 +24,7 @@ pub unsafe extern "C" fn host_result_is_ok(ptr: *const c_void) -> i64 {
     if ptr.is_null() {
         0
     } else {
-        (*(ptr as *const ResultInner)).tag as i64
+        unsafe { (*(ptr as *const ResultInner)).tag as i64 }
     }
 }
 /// Host function to retrieve data from a result.
@@ -34,7 +34,7 @@ pub unsafe extern "C" fn host_result_get_data(ptr: *const c_void) -> i64 {
     if ptr.is_null() {
         0
     } else {
-        (*(ptr as *const ResultInner)).data
+        unsafe { (*(ptr as *const ResultInner)).data }
     }
 }
 /// Host function to free a result pointer.
@@ -42,6 +42,8 @@ pub unsafe extern "C" fn host_result_get_data(ptr: *const c_void) -> i64 {
 /// Pointer must be valid from make_ok/err, not freed before.
 pub unsafe extern "C" fn host_result_free(ptr: *mut c_void) {
     if !ptr.is_null() {
-        let _ = Box::from_raw(ptr as *mut ResultInner);
+        unsafe {
+            let _ = Box::from_raw(ptr as *mut ResultInner);
+        }
     }
 }
