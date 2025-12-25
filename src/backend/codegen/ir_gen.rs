@@ -1,7 +1,8 @@
 // src/backend/codegen/ir_gen.rs
+use inkwell::values::ValueKind;
 use crate::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use inkwell::types::BasicMetadataTypeEnum;
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, ValueKind};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum};
 use inkwell::values::{FunctionValue};
 use std::collections::HashMap;
 use inkwell::values::BasicValue;
