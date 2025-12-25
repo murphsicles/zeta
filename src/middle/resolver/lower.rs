@@ -1,9 +1,9 @@
 // src/middle/resolver/lower.rs
+use super::resolver::Resolver;
 use crate::frontend::ast::AstNode;
 use crate::middle::mir::mir::Mir;
 use crate::middle::specialization::MonoKey;
 use std::collections::HashMap;
-use super::resolver::Resolver;
 
 impl Resolver {
     pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
@@ -11,11 +11,20 @@ impl Resolver {
         mir_gen.lower_to_mir(ast)
     }
 
-    pub fn collect_used_specializations(&self, asts: &[AstNode]) -> HashMap<String, Vec<Vec<String>>> {
+    pub fn collect_used_specializations(
+        &self,
+        asts: &[AstNode],
+    ) -> HashMap<String, Vec<Vec<String>>> {
         let mut used = HashMap::new();
         for ast in asts {
-            if let AstNode::Call { method, type_args, .. } = ast && !type_args.is_empty() {
-                used.entry(method.clone()).or_insert(vec![]).push(type_args.clone());
+            if let AstNode::Call {
+                method, type_args, ..
+            } = ast
+                && !type_args.is_empty()
+            {
+                used.entry(method.clone())
+                    .or_insert(vec![])
+                    .push(type_args.clone());
             }
             if let AstNode::FuncDef { body, .. } = ast {
                 let body_used = self.collect_used_specializations(body);
@@ -30,7 +39,11 @@ impl Resolver {
     pub fn monomorphize(&self, _key: MonoKey, ast: &AstNode) -> AstNode {
         if let AstNode::FuncDef { generics: _, .. } = ast {
             let mut mono_ast = ast.clone();
-            if let AstNode::FuncDef { generics: ref mut g, .. } = mono_ast {
+            if let AstNode::FuncDef {
+                generics: ref mut g,
+                ..
+            } = mono_ast
+            {
                 *g = vec![];
             }
             mono_ast
