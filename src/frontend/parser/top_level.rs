@@ -9,7 +9,7 @@ use nom::multi::{many0, separated_list1};
 use nom::sequence::{delimited, preceded};
 use nom::IResult;
 
-use super::{parse_ident, parse_keyword, parse_generics, ws};
+use super::parser::{parse_ident, parse_keyword, parse_generics, ws};
 use super::stmt::parse_stmt;
 
 fn parse_param(input: &str) -> IResult<&str, (String, String)> {
@@ -29,8 +29,8 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
         map(delimited(ws(tag("{")), many0(ws(parse_stmt)), ws(tag("}"))), |b| (b, false)),
         map(preceded(ws(tag("=")), ws(parse_stmt)), |s| (vec![s], true)),
     )).parse(input)?;
-    let generics: Vec<String> = generics_opt.unwrap_or_default();
-    let ret: String = ret_opt.unwrap_or_else(|| "i64".to_string());
+    let generics = generics_opt.unwrap_or_default();
+    let ret = ret_opt.unwrap_or_else(|| "i64".to_string());
     Ok((
         input,
         AstNode::FuncDef {
@@ -52,7 +52,7 @@ fn parse_concept(input: &str) -> IResult<&str, AstNode> {
     let (input, name) = ws(parse_ident).parse(input)?;
     let (input, generics_opt) = opt(ws(parse_generics)).parse(input)?;
     let (input, methods) = delimited(ws(tag("{")), many0(ws(parse_method_sig)), ws(tag("}"))).parse(input)?;
-    let generics: Vec<String> = generics_opt.unwrap_or_default();
+    let generics = generics_opt.unwrap_or_default();
     Ok((
         input,
         AstNode::ConceptDef {
@@ -71,8 +71,8 @@ fn parse_method_sig(input: &str) -> IResult<&str, AstNode> {
     let (input, params) = delimited(ws(tag("(")), separated_list1(ws(tag(",")), ws(parse_param)), ws(tag(")"))).parse(input)?;
     let (input, ret_opt) = opt(preceded(ws(tag("->")), ws(parse_ident))).parse(input)?;
     let (input, _) = ws(tag(";")).parse(input)?;
-    let generics: Vec<String> = generics_opt.unwrap_or_default();
-    let ret: String = ret_opt.unwrap_or_else(|| "i64".to_string());
+    let generics = generics_opt.unwrap_or_default();
+    let ret = ret_opt.unwrap_or_else(|| "i64".to_string());
     Ok((
         input,
         AstNode::Method {
@@ -105,7 +105,7 @@ fn parse_impl(input: &str) -> IResult<&str, AstNode> {
 fn parse_variant(input: &str) -> IResult<&str, (String, Vec<String>)> {
     let (input, name) = ws(parse_ident).parse(input)?;
     let (input, params_opt) = opt(delimited(ws(tag("(")), separated_list1(ws(tag(",")), ws(parse_ident)), ws(tag(")")))).parse(input)?;
-    let params: Vec<String> = params_opt.unwrap_or_default();
+    let params = params_opt.unwrap_or_default();
     Ok((input, (name, params)))
 }
 
