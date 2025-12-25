@@ -1,7 +1,7 @@
 // src/backend/codegen/ir_gen.rs
 use crate::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use inkwell::types::BasicMetadataTypeEnum;
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, CallSiteValue};
 use inkwell::values::{FunctionValue};
 use std::collections::HashMap;
 use inkwell::values::BasicValue;
@@ -48,9 +48,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let callee = self.get_callee(func);
                 let arg_vals: Vec<BasicMetadataValueEnum> = args.iter().map(|&id| self.gen_expr(&exprs[&id], exprs).into()).collect();
                 let call = self.builder.build_call(callee, &arg_vals, &format!("call_{dest}")).unwrap();
-                if let Ok(basic_val) = call.try_as_basic_value().left() {
+                let basic_val = Self::call_site_to_basic_value(call);
+                if let Some(val) = basic_val {
                     let alloca = self.builder.build_alloca(self.i64_type, &format!("dest_{dest}")).unwrap();
-                    self.builder.build_store(alloca, basic_val).unwrap();
+                    self.builder.build_store(alloca, val).unwrap();
                     self.locals.insert(*dest, alloca);
                 }
             }
@@ -133,8 +134,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let next = self.gen_expr(&exprs[&id], exprs);
                     let concat_fn = self.get_callee("str_concat");
                     let call = self.builder.build_call(concat_fn, &[res.into(), next.into()], "fconcat").unwrap();
-                    if let Ok(basic_val) = call.try_as_basic_value().left() {
-                        res = basic_val;
+                    if let Some(val) = Self::call_site_to_basic_value(call) {
+                        res = val;
                     }
                 }
                 res
@@ -155,6 +156,20 @@ impl<'ctx> LLVMCodegen<'ctx> {
     fn load_local(&self, id: u32) -> BasicValueEnum<'ctx> {
         let ptr = self.locals[&id];
         self.builder.build_load(self.i64_type, ptr, &format!("load_{id}")).unwrap()
+    }
+
+    fn call_site_to_basic_value(call: CallSiteValue<'ctx>) -> Option<BasicValueEnum<'ctx>> {
+        use inkwell::values::ValueKind;
+        match call.try_as_basic_value() {
+            ValueKind::InstructionValue(inst) => inst.as_instruction().map(|i| i.as_basic_value_enum()),
+            ValueKind::IntValue(v) => Some(v.into()),
+            ValueKind::FloatValue(v) => Some(v.into()),
+            ValueKind::PointerValue(v) => Some(v.into()),
+            ValueKind::StructValue(v) => Some(v.into()),
+            ValueKind::ArrayValue(v) => Some(v.into()),
+            ValueKind::VectorValue(v) => Some(v.into()),
+            _ => None,
+        }
     }
 
     fn get_callee(&self, name: &str) -> FunctionValue<'ctx> {
