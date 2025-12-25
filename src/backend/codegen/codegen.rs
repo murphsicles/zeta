@@ -1,10 +1,10 @@
 // src/backend/codegen/codegen.rs
 use inkwell::AddressSpace;
-use inkwell::module::{Linkage, Module};
 use inkwell::builder::Builder;
 use inkwell::context::Context;
+use inkwell::module::{Linkage, Module};
 use inkwell::types::{IntType, PointerType, VectorType};
-use inkwell::values::{FunctionValue, PointerValue, MetadataValue};
+use inkwell::values::{FunctionValue, MetadataValue, PointerValue};
 use std::collections::HashMap;
 
 pub struct LLVMCodegen<'ctx> {
@@ -49,12 +49,17 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let result_is_ok_type = i64_type.fn_type(&[ptr_type.into()], false);
         module.add_function("result_is_ok", result_is_ok_type, Some(Linkage::External));
         let result_get_data_type = i64_type.fn_type(&[ptr_type.into()], false);
-        module.add_function("result_get_data", result_get_data_type, Some(Linkage::External));
+        module.add_function(
+            "result_get_data",
+            result_get_data_type,
+            Some(Linkage::External),
+        );
         let result_free_type = void_type.fn_type(&[ptr_type.into()], false);
         module.add_function("result_free", result_free_type, Some(Linkage::External));
         let map_new_type = ptr_type.fn_type(&[], false);
         module.add_function("map_new", map_new_type, Some(Linkage::External));
-        let map_insert_type = void_type.fn_type(&[ptr_type.into(), i64_type.into(), i64_type.into()], false);
+        let map_insert_type =
+            void_type.fn_type(&[ptr_type.into(), i64_type.into(), i64_type.into()], false);
         module.add_function("map_insert", map_insert_type, Some(Linkage::External));
         let map_get_type = i64_type.fn_type(&[ptr_type.into(), i64_type.into()], false);
         module.add_function("map_get", map_get_type, Some(Linkage::External));
