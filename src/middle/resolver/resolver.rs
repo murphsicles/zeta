@@ -1,6 +1,7 @@
 // src/middle/resolver/resolver.rs
 //! Core resolver structure and basic registration for Zeta concepts and implementations.
 //! Integrates borrow checker for affine types.
+use std::cell::RefCell;
 use crate::frontend::ast::AstNode;
 use crate::frontend::borrow::BorrowChecker;
 use crate::middle::mir::mir::Mir;
@@ -13,7 +14,7 @@ pub struct Resolver {
     pub impls: HashMap<(String, String), Vec<AstNode>>,
     pub cached_mirs: HashMap<String, Mir>,
     pub mono_mirs: HashMap<MonoKey, Mir>,
-    pub borrow_checker: BorrowChecker,
+    pub borrow_checker: RefCell<BorrowChecker>,
 }
 
 impl Resolver {
@@ -22,7 +23,7 @@ impl Resolver {
             impls: HashMap::new(),
             cached_mirs: HashMap::new(),
             mono_mirs: HashMap::new(),
-            borrow_checker: BorrowChecker::new(),
+            borrow_checker: RefCell::new(BorrowChecker::new()),
         }
     }
 
