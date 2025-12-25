@@ -13,6 +13,7 @@ use zetac::middle::mir::mir::Mir;
 use zetac::middle::resolver::resolver::Resolver;
 use zetac::backend::codegen::codegen::LLVMCodegen;
 use zetac::runtime::actor::scheduler;
+use zetac::runtime::actor::channel;
 use zetac::frontend::parser::top_level::parse_zeta;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -96,15 +97,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Map async actor intrinsics.
     ee.add_global_mapping(
         &codegen.module.get_function("channel_send").unwrap(),
-        actor::channel::host_channel_send as *const () as usize,
+        channel::host_channel_send as *const () as usize,
     );
     ee.add_global_mapping(
         &codegen.module.get_function("channel_recv").unwrap(),
-        actor::channel::host_channel_recv as *const () as usize,
+        channel::host_channel_recv as *const () as usize,
     );
     ee.add_global_mapping(
         &codegen.module.get_function("spawn").unwrap(),
-        actor::scheduler::host_spawn as *const () as usize,
+        scheduler::host_spawn as *const () as usize,
     );
     // JIT execute main, print result (expect 43 from 42+1).
     type MainFn = unsafe extern "C" fn() -> i64;
@@ -185,7 +186,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     Ok(())
 }
-
 fn repl() -> Result<(), Box<dyn std::error::Error>> {
     let stdin = io::stdin();
     let mut stdin_lock = stdin.lock();
@@ -231,15 +231,15 @@ fn repl() -> Result<(), Box<dyn std::error::Error>> {
         ee.add_global_mapping(&codegen.module.get_function("free").unwrap(), free_fn);
         ee.add_global_mapping(
             &codegen.module.get_function("channel_send").unwrap(),
-            actor::channel::host_channel_send as *const () as usize,
+            channel::host_channel_send as *const () as usize,
         );
         ee.add_global_mapping(
             &codegen.module.get_function("channel_recv").unwrap(),
-            actor::channel::host_channel_recv as *const () as usize,
+            channel::host_channel_recv as *const () as usize,
         );
         ee.add_global_mapping(
             &codegen.module.get_function("spawn").unwrap(),
-            actor::scheduler::host_spawn as *const () as usize,
+            scheduler::host_spawn as *const () as usize,
         );
         type ReplFn = unsafe extern "C" fn() -> i64;
         unsafe {
