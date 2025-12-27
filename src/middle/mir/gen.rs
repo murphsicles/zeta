@@ -96,18 +96,22 @@ impl MirGen {
             }
             AstNode::If { cond, then, else_ } => {
                 let cond_id = self.lower_expr(cond);
+                let mut then_stmts = vec![];
+                for s in then {
+                    let mut r#gen = MirGen::new();
+                    r#gen.lower_ast(s);
+                    then_stmts.extend(r#gen.stmts);
+                }
+                let mut else_stmts = vec![];
+                for s in else_ {
+                    let mut r#gen = MirGen::new();
+                    r#gen.lower_ast(s);
+                    else_stmts.extend(r#gen.stmts);
+                }
                 self.stmts.push(MirStmt::If {
                     cond: cond_id,
-                    then: then.iter().map(|s| {
-                        let mut gen = MirGen::new();
-                        gen.lower_ast(s);
-                        gen.stmts
-                    }).flatten().collect(),
-                    else_: else_.iter().map(|s| {
-                        let mut gen = MirGen::new();
-                        gen.lower_ast(s);
-                        gen.stmts
-                    }).flatten().collect(),
+                    then: then_stmts,
+                    else_: else_stmts,
                 });
             }
             _ => {}
