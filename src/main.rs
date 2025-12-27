@@ -4,16 +4,26 @@
 use inkwell::context::Context;
 use std::collections::HashMap;
 use std::fs;
-use zetac::ast::AstNode;
-use zetac::mir::Mir;
-use zetac::specialization::{
+use std::io::{self, BufRead, Write};
+use zetac::backend::codegen::codegen::LLVMCodegen;
+use zetac::frontend::ast::AstNode;
+use zetac::frontend::parser::top_level::parse_zeta;
+use zetac::middle::mir::mir::Mir;
+use zetac::middle::resolver::resolver::Resolver;
+use zetac::middle::specialization::{
     MonoKey, MonoValue, is_cache_safe, lookup_specialization, record_specialization,
 };
-use zetac::{LLVMCodegen, Resolver, actor, parse_zeta};
+use zetac::runtime::actor::channel;
+use zetac::runtime::actor::scheduler;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize async actor runtime.
-    actor::init_runtime();
+    scheduler::init_runtime();
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() > 1 && args[1] == "--repl" {
+        repl()?;
+        return Ok(());
+    }
     // Load self-host example (assume contains main { let x = 42; x.add(1); } -> 43)
     let code = fs::read_to_string("examples/selfhost.z")?;
     let (_, asts) = parse_zeta(&code).map_err(|e| format!("Parse error: {:?}", e))?;
@@ -82,20 +92,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     codegen.gen_mirs(&mono_mirs);
     let ee = codegen.finalize_and_jit()?;
     // Map std_free to host.
-    let free_fn = zetac::std::std_free as *const () as usize;
+    let free_fn = zetac::runtime::std::std_free as *const () as usize;
     ee.add_global_mapping(&codegen.module.get_function("free").unwrap(), free_fn);
     // Map async actor intrinsics.
     ee.add_global_mapping(
         &codegen.module.get_function("channel_send").unwrap(),
-        actor::host_channel_send as *const () as usize,
+        channel::host_channel_send as *const () as usize,
     );
     ee.add_global_mapping(
         &codegen.module.get_function("channel_recv").unwrap(),
-        actor::host_channel_recv as *const () as usize,
+        channel::host_channel_recv as *const () as usize,
     );
     ee.add_global_mapping(
         &codegen.module.get_function("spawn").unwrap(),
-        actor::host_spawn as *const () as usize,
+        scheduler::host_spawn as *const () as usize,
     );
     // JIT execute main, print result (expect 43 from 42+1).
     type MainFn = unsafe extern "C" fn() -> i64;
@@ -175,4 +185,70 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Zeta bootstrap result: {}", boot_result);
     }
     Ok(())
+}
+fn repl() -> Result<(), Box<dyn std::error::Error>> {
+    let stdin = io::stdin();
+    let mut stdin_lock = stdin.lock();
+    loop {
+        print!("> ");
+        io::stdout().flush()?;
+        let mut line = String::new();
+        stdin_lock.read_line(&mut line)?;
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let code = format!("fn main() -> i64 {{ {} }}", line);
+        let (_, asts) = parse_zeta(&code).map_err(|e| format!("Parse error: {:?}", e))?;
+        if asts.is_empty() {
+            continue;
+        }
+        let mut resolver = Resolver::new();
+        for ast in &asts {
+            resolver.register(ast.clone());
+        }
+        let type_ok = resolver.typecheck(&asts);
+        if !type_ok {
+            println!("Typecheck failed");
+            continue;
+        }
+        let mir_map: HashMap<String, Mir> = asts
+            .iter()
+            .filter_map(|ast| {
+                if let AstNode::FuncDef { name, .. } = ast {
+                    Some((name.clone(), resolver.lower_to_mir(ast)))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let context = Context::create();
+        let mut codegen = LLVMCodegen::new(&context, "repl");
+        codegen.gen_mirs(&mir_map.values().cloned().collect::<Vec<_>>());
+        let ee = codegen.finalize_and_jit()?;
+        // Map host functions as in main
+        let free_fn = zetac::runtime::std::std_free as *const () as usize;
+        ee.add_global_mapping(&codegen.module.get_function("free").unwrap(), free_fn);
+        ee.add_global_mapping(
+            &codegen.module.get_function("channel_send").unwrap(),
+            channel::host_channel_send as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &codegen.module.get_function("channel_recv").unwrap(),
+            channel::host_channel_recv as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &codegen.module.get_function("spawn").unwrap(),
+            scheduler::host_spawn as *const () as usize,
+        );
+        type ReplFn = unsafe extern "C" fn() -> i64;
+        unsafe {
+            if let Ok(f) = ee.get_function::<ReplFn>("main") {
+                let res = f.call();
+                println!("{}", res);
+            } else {
+                println!("No main function");
+            }
+        }
+    }
 }

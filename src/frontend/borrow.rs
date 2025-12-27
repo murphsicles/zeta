@@ -1,9 +1,9 @@
-// src/borrow.rs
+// src/frontend/borrow.rs
 //! Borrow checker for Zeta language.
 //! Enforces affine type rules with speculative states for concurrency safety.
 //! Tracks ownership, borrows, and moves to prevent memory errors.
-use crate::ast::AstNode;
-use crate::resolver::{Resolver, Type};
+use crate::frontend::ast::AstNode;
+use crate::middle::resolver::resolver::{Resolver, Type};
 use std::collections::HashMap;
 /// Represents the borrow state of a variable.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -68,7 +68,7 @@ impl BorrowChecker {
             AstNode::Var(v) => self
                 .borrows
                 .get(v)
-                .is_none_or(|s| matches!(s, BorrowState::Owned | BorrowState::Borrowed)),
+                .is_some_and(|s| matches!(s, BorrowState::Owned | BorrowState::Borrowed)),
             AstNode::Assign(lhs, rhs) => {
                 if !self.check(rhs, resolver) {
                     return false;
@@ -115,8 +115,7 @@ impl BorrowChecker {
                     if !self.check(arg, resolver) {
                         return false;
                     }
-                    // Type-based affine move
-                    if let AstNode::Var(name) = arg
+                    if let AstNode::Var(ref name) = *arg
                         && let Some(ty) = self.types.get(name)
                         && !resolver.is_copy(ty)
                         && !*self.affine_moves.get(name).unwrap_or(&false)

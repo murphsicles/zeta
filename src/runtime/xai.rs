@@ -1,4 +1,4 @@
-// src/xai.rs
+// src/runtime/xai.rs
 //! Client for xAI API integration.
 //! Supports blocking requests to Grok-beta for chat completions.
 //! Requires XAI_API_KEY environment variable.

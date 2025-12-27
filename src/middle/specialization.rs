@@ -1,4 +1,4 @@
-// src/specialization.rs
+// src/middle/specialization.rs
 //! Manages specialization cache for monomorphization.
 //! Handles LLVM function name mangling and cache safety for generics.
 //! Uses thread-safe global cache with RwLock.
