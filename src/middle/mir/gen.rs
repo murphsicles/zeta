@@ -72,7 +72,7 @@ impl MirGen {
             }
             AstNode::Defer(inner) => {
                 // Lower the deferred block
-                let start_id = self.next_id;
+                let _start_id = self.next_id;
                 self.lower_ast(inner);
                 let cleanup_id = self.next_id - 1; // Last expr from inner as cleanup marker
                 self.defers.push(cleanup_id);
@@ -86,7 +86,7 @@ impl MirGen {
                     self.lower_ast(stmt);
                 }
                 // Emit defer cleanups in reverse order (RAII LIFO)
-                for defer in local_defers.iter().rev() {
+                for _defer in local_defers.iter().rev() {
                     let cleanup_id = self.defers.pop().unwrap_or(0);
                     self.stmts.push(MirStmt::VoidCall {
                         func: "__defer_cleanup".to_string(),
