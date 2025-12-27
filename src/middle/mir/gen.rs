@@ -8,6 +8,7 @@ pub struct MirGen {
     stmts: Vec<MirStmt>,
     exprs: HashMap<u32, MirExpr>,
     ctfe_consts: HashMap<u32, i64>,
+    defers: Vec<u32>, // Track defer cleanup ids for RAII
 }
 
 impl MirGen {
@@ -17,6 +18,7 @@ impl MirGen {
             stmts: vec![],
             exprs: HashMap::new(),
             ctfe_consts: HashMap::new(),
+            defers: vec![],
         }
     }
 
@@ -68,10 +70,45 @@ impl MirGen {
                     type_args: vec![],
                 });
             }
+            AstNode::Defer(inner) => {
+                // Lower the deferred block
+                let start_id = self.next_id;
+                self.lower_ast(inner);
+                let cleanup_id = self.next_id - 1; // Last expr from inner as cleanup marker
+                self.defers.push(cleanup_id);
+            }
             AstNode::FuncDef { body, .. } => {
+                let mut local_defers = vec![];
                 for stmt in body {
+                    if let AstNode::Defer(_) = stmt {
+                        local_defers.push(stmt.clone());
+                    }
                     self.lower_ast(stmt);
                 }
+                // Emit defer cleanups in reverse order (RAII LIFO)
+                for defer in local_defers.iter().rev() {
+                    let cleanup_id = self.defers.pop().unwrap_or(0);
+                    self.stmts.push(MirStmt::VoidCall {
+                        func: "__defer_cleanup".to_string(),
+                        args: vec![cleanup_id],
+                    });
+                }
+            }
+            AstNode::If { cond, then, else_ } => {
+                let cond_id = self.lower_expr(cond);
+                self.stmts.push(MirStmt::If {
+                    cond: cond_id,
+                    then: then.iter().map(|s| {
+                        let mut gen = MirGen::new();
+                        gen.lower_ast(s);
+                        gen.stmts
+                    }).flatten().collect(),
+                    else_: else_.iter().map(|s| {
+                        let mut gen = MirGen::new();
+                        gen.lower_ast(s);
+                        gen.stmts
+                    }).flatten().collect(),
+                });
             }
             _ => {}
         }
@@ -86,10 +123,7 @@ impl MirGen {
             AstNode::FString(parts) => {
                 let ids = parts
                     .iter()
-                    .map(|p| {
-                        self.lower_ast(p);
-                        self.next_id() - 1
-                    })
+                    .map(|p| self.lower_expr(p))
                     .collect();
                 MirExpr::FString(ids)
             }
