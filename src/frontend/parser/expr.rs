@@ -5,9 +5,9 @@ use nom::Parser;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while1};
 use nom::character::complete::i64 as nom_i64;
-use nom::combinator::{map, opt, recognize};
-use nom::multi::{many0, separated_list1};
-use nom::sequence::{delimited, pair, preceded, terminated};
+use nom::combinator::opt;
+use nom::multi::separated_list1;
+use nom::sequence::delimited;
 use super::parser::{parse_generics, parse_ident, parse_path, ws};
 
 fn parse_literal(input: &str) -> IResult<&str, AstNode> {
@@ -58,7 +58,7 @@ fn parse_fstring_content(input: &str) -> IResult<&str, Vec<AstNode>> {
         if remaining.starts_with('{') {
             if let Some(end) = remaining[1..].find('}') {
                 let inner = &remaining[1..=end];
-                let (format_spec, expr_str) = if let Some(colon_pos) = inner.find(':') {
+                let (_format_spec, expr_str) = if let Some(colon_pos) = inner.find(':') {
                     (&inner[colon_pos + 1..], &inner[..colon_pos])
                 } else {
                     ("", inner)
@@ -69,7 +69,6 @@ fn parse_fstring_content(input: &str) -> IResult<&str, Vec<AstNode>> {
                     continue;
                 }
                 let (_, expr) = parse_full_expr(expr_str)?;
-                // Format spec ignored for now (v0.1.1 basic support; extend later)
                 parts.push(expr);
                 remaining = &remaining[end + 2..];
             } else {
