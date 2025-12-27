@@ -1,12 +1,12 @@
 //! Zeta Compiler Development Plan.
 //! Checklist for milestones. Mark as [x] when complete.
-//! Updated December 27, 2025: Modular refactor complete, JIT REPL + basic actors working.
-//! Focus shifting to actor robustness, real std embeds, true self-hosting, and advanced opts.
+//! Updated December 27, 2025: v0.1.0 released. Preparing v0.1.1 with core ergonomics.
+//! Focus: Full f-string interpolation + Defer lowering.
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
-[ ] Full f-string interpolation (nested exprs, formatting specs)
-[ ] Defer statement lowering + RAII void calls in MIR/codegen
+[x] Full f-string interpolation (nested exprs, formatting specs)
+[x] Defer statement lowering + RAII void calls in MIR/codegen
     "#;
 
     /// Semantic Analysis
