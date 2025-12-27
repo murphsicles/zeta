@@ -125,10 +125,7 @@ impl MirGen {
             AstNode::Lit(n) => MirExpr::Lit(*n),
             AstNode::StringLit(s) => MirExpr::StringLit(s.clone()),
             AstNode::FString(parts) => {
-                let ids = parts
-                    .iter()
-                    .map(|p| self.lower_expr(p))
-                    .collect();
+                let ids = parts.iter().map(|p| self.lower_expr(p)).collect();
                 MirExpr::FString(ids)
             }
             AstNode::TimingOwned { inner, .. } => MirExpr::TimingOwned(self.lower_expr(inner)),
