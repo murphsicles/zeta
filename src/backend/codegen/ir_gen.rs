@@ -2,8 +2,10 @@
 use super::codegen::LLVMCodegen;
 use crate::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use inkwell::types::BasicMetadataTypeEnum;
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, CallSiteValue, FunctionValue, BasicValue};
 use inkwell::values::ValueKind;
+use inkwell::values::{
+    BasicMetadataValueEnum, BasicValue, BasicValueEnum, CallSiteValue, FunctionValue,
+};
 use std::collections::HashMap;
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -36,8 +38,16 @@ impl<'ctx> LLVMCodegen<'ctx> {
             self.gen_stmt(stmt, &mir.exprs);
         }
         // If no return, add implicit return 0
-        if self.builder.get_insert_block().unwrap().get_terminator().is_none() {
-            self.builder.build_return(Some(&self.i64_type.const_zero())).unwrap();
+        if self
+            .builder
+            .get_insert_block()
+            .unwrap()
+            .get_terminator()
+            .is_none()
+        {
+            self.builder
+                .build_return(Some(&self.i64_type.const_zero()))
+                .unwrap();
         }
         self.fns.insert(fn_name, fn_val);
     }
@@ -84,14 +94,21 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         .iter()
                         .map(|&id| self.gen_expr(&exprs[&id], exprs).into())
                         .collect();
-                    let _ = self.builder.build_call(self.get_callee("free"), &arg_vals, "defer_cleanup");
+                    let _ = self.builder.build_call(
+                        self.get_callee("free"),
+                        &arg_vals,
+                        "defer_cleanup",
+                    );
                 } else {
                     let callee = self.get_callee(func);
                     let arg_vals: Vec<BasicMetadataValueEnum> = args
                         .iter()
                         .map(|&id| self.gen_expr(&exprs[&id], exprs).into())
                         .collect();
-                    let _ = self.builder.build_call(callee, &arg_vals, "void_call").unwrap();
+                    let _ = self
+                        .builder
+                        .build_call(callee, &arg_vals, "void_call")
+                        .unwrap();
                 }
             }
             MirStmt::Return { val } => {
@@ -226,9 +243,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         if let Some(fn_val) = self.module.get_function(name) {
             fn_val
         } else {
-            let fn_type = self
-                .i64_type
-                .fn_type(&[self.i64_type.into(); 2], false);
+            let fn_type = self.i64_type.fn_type(&[self.i64_type.into(); 2], false);
             self.module.add_function(name, fn_type, None)
         }
     }
