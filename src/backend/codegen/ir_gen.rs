@@ -3,7 +3,6 @@ use super::codegen::LLVMCodegen;
 use crate::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use inkwell::types::BasicMetadataTypeEnum;
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, CallSiteValue, FunctionValue};
-use inkwell::values::BasicValue;
 use inkwell::values::ValueKind;
 use std::collections::HashMap;
 
@@ -220,7 +219,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
         match call.try_as_basic_value() {
             ValueKind::Basic(v) => Some(v),
             ValueKind::Instruction(_) => None,
-            _ => None,
         }
     }
 
