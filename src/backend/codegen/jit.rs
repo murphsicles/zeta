@@ -7,7 +7,7 @@ use crate::runtime::host::{
 };
 use crate::runtime::xai::XAIClient;
 use inkwell::execution_engine::ExecutionEngine;
-use inkwell::passes::PassManager;
+use inkwell::passes::{PassManager, PassManagerBuilder};
 use inkwell::targets::{InitializationConfig, Target, TargetMachine};
 use inkwell::OptimizationLevel;
 use serde_json::Value;
@@ -68,38 +68,29 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let json: Value = serde_json::from_str(&rec).unwrap_or(Value::Null);
         let passes = json["passes"].as_array().cloned().unwrap_or_default();
 
-        // Function-level pass manager
+        // Use PassManagerBuilder for recommended passes
+        let pass_builder = PassManagerBuilder::create();
+        pass_builder.set_optimization_level(OptimizationLevel::Aggressive);
+
         let fpm = PassManager::create(());
 
-        for pass in passes {
+        for pass in &passes {
             if let Some(name) = pass.as_str() {
-                match name {
-                    "instcombine" => fpm.add_instruction_combining_pass(),
-                    "reassociate" => fpm.add_reassociate_pass(),
-                    "gvn" => fpm.add_gvn_pass(),
-                    "cfg-simplification" => fpm.add_cfg_simplification_pass(),
-                    "slp-vectorize" => fpm.add_slp_vectorize_pass(),
-                    "vectorize" => {
-                        fpm.add_loop_vectorize_pass();
-                        fpm.add_slp_vectorize_pass();
-                    }
-                    "loop-unroll" => fpm.add_loop_unroll_pass(),
-                    "licm" => fpm.add_licm_pass(),
-                    _ => {}
-                }
                 eprintln!("Running MLGO-recommended pass: {}", name);
             }
         }
 
+        pass_builder.populate_function_pass_manager(&fpm);
+
         fpm.initialize();
+
         for func in self.module.get_functions() {
             fpm.run_on(&func);
         }
 
-        // Extra module-level vectorization
+        // Module-level vectorization passes
         let mpm = PassManager::create(&self.module);
-        mpm.add_slp_vectorize_pass();
-        mpm.add_loop_vectorize_pass();
+        pass_builder.populate_module_pass_manager(&mpm);
         mpm.run_on(&self.module);
 
         let ee = self.module.create_jit_execution_engine(OptimizationLevel::Aggressive)?;
