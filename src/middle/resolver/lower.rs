@@ -23,12 +23,11 @@ impl Resolver {
                 type_args,
                 ..
             } = node
+                && !type_args.is_empty()
             {
-                if !type_args.is_empty() {
-                    used.entry(method.clone())
-                        .or_insert_with(Vec::new)
-                        .push(type_args.clone());
-                }
+                used.entry(method.clone())
+                    .or_default()
+                    .push(type_args.clone());
             }
 
             match node {
