@@ -8,6 +8,7 @@ pub struct MirGen {
     stmts: Vec<MirStmt>,
     exprs: HashMap<u32, MirExpr>,
     ctfe_consts: HashMap<u32, i64>,
+    #[allow(dead_code)]
     defers: Vec<u32>,
     defer_stmts: Vec<MirStmt>,
 }
