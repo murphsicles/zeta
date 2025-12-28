@@ -1,18 +1,15 @@
 // src/middle/resolver/typecheck.rs
 use super::resolver::{Resolver, Type};
 use crate::frontend::ast::AstNode;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 impl Resolver {
-    /// Performs full type checking including CTFE where possible.
-    /// Returns true if the program typechecks successfully.
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
         let mut ok = true;
         for ast in asts {
             if !self.borrow_checker.borrow_mut().check(ast, self) {
                 ok = false;
             }
-            // Additional semantic checks (trait resolution, associated types, etc.)
             if !self.check_node(ast) {
                 ok = false;
             }
@@ -22,55 +19,65 @@ impl Resolver {
 
     fn check_node(&self, node: &AstNode) -> bool {
         match node {
-            AstNode::Call { method, type_args, .. } if !type_args.is_empty() => {
-                // Basic arity check – real impl would verify trait bounds and associated types
+            AstNode::Call { method, type_args, receiver, args, .. } => {
+                // Arity check for generics
+                if !type_args.is_empty() {
+                    // In a full impl we would look up the signature via resolve_impl
+                    // For now, assume valid if type_args provided
+                }
+                // Argument count check would go here
                 true
             }
-            AstNode::BinaryOp { op, .. } => {
-                // Ensure operator is defined via concept lookup (placeholder)
-                true
+            AstNode::BinaryOp { op, left, right, .. } => {
+                let lty = self.infer_type(left);
+                let rty = self.infer_type(right);
+                lty == rty
             }
             _ => true,
         }
     }
 
-    /// Infers type with full CTFE support for constant expressions.
     pub fn infer_type(&self, node: &AstNode) -> Type {
-        // First try CTFE evaluation
-        if let Some(val) = self.ctfe_eval(node) {
-            return "i64".to_string(); // All CTFE results are i64 for now
+        if let Some(_) = self.ctfe_eval(node) {
+            return "i64".to_string();
         }
 
         match node {
             AstNode::Lit(_) => "i64".to_string(),
             AstNode::StringLit(_) => "str".to_string(),
             AstNode::FString(parts) => {
-                if parts.iter().all(|p| {
-                    let ty = self.infer_type(p);
-                    ty == "str" || ty == "i64"
-                }) {
-                    "str".to_string()
-                } else {
-                    "unknown".to_string()
+                for part in parts {
+                    let ty = self.infer_type(part);
+                    if ty != "str" && ty != "i64" {
+                        return "unknown".to_string();
+                    }
                 }
+                "str".to_string()
             }
-            AstNode::Var(_) => "i64".to_string(), // Simplified lookup
+            AstNode::Var(name) => {
+                // Simplified environment lookup - in real resolver we track scopes
+                "i64".to_string()
+            }
             AstNode::BinaryOp { left, right, .. } => {
                 let lty = self.infer_type(left);
-                let rty = self.infer_type(right);
-                if lty == rty {
-                    lty
-                } else {
-                    "i64".to_string()
-                }
+                self.infer_type(right);
+                lty
             }
             AstNode::TimingOwned { ty, .. } => ty.clone(),
             AstNode::Call { .. } => "i64".to_string(),
+            AstNode::DictLit { entries } => {
+                if entries.is_empty() {
+                    "Map_i64_i64".to_string()
+                } else {
+                    let key_ty = self.infer_type(&entries[0].0);
+                    let val_ty = self.infer_type(&entries[0].1);
+                    format!("Map_{}_{}", key_ty, val_ty)
+                }
+            }
             _ => "unknown".to_string(),
         }
     }
 
-    /// Full constant-time fold evaluation (CTFE) for compile-time constants.
     pub fn ctfe_eval(&self, node: &AstNode) -> Option<i64> {
         match node {
             AstNode::Lit(n) => Some(*n),
@@ -81,8 +88,24 @@ impl Resolver {
                     "+" => Some(l + r),
                     "-" => Some(l - r),
                     "*" => Some(l * r),
-                    "/" => if r != 0 { Some(l / r) } else { None },
+                    "/" => {
+                        if r == 0 {
+                            None
+                        } else {
+                            Some(l / r)
+                        }
+                    }
                     _ => None,
+                }
+            }
+            AstNode::Call { method, args, .. } => {
+                // Very limited CTFE for built-in const functions
+                if method == "const_add" && args.len() == 2 {
+                    let a = self.ctfe_eval(&args[0])?;
+                    let b = self.ctfe_eval(&args[1])?;
+                    Some(a + b)
+                } else {
+                    None
                 }
             }
             _ => None,
