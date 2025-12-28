@@ -1,6 +1,6 @@
 //! Zeta Compiler Development Plan.
 //! Checklist for milestones. Mark as [x] when complete.
-//! Updated December 28, 2025: v0.1.3 released with full MIR extensions for semiring fusion, defer RAII, ? propagation, and DictLit/Subscript lowering.
+//! Updated December 28, 2025: v0.1.4 released with full Codegen enhancements – pure str_concat, MLGO-driven passes, accurate MIR stats, and SIMD vectorization.
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
@@ -23,10 +23,10 @@ pub mod checklist {
     "#;
     /// Codegen (LLVM)
     pub const CODEGEN: &str = r#"
-[ ] Real str_concat implementation (no external host dependency)
-[ ] Execute actual MLGO-recommended passes via Inkwell PassManager
-[ ] Accurate MIR statistics for AI optimization prompts
-[ ] SIMD vectorization of SemiringFold (mul chains + loop vectorize)
+[x] Real str_concat implementation (no external host dependency)
+[x] Execute actual MLGO-recommended passes via Inkwell PassManager
+[x] Accurate MIR statistics for AI optimization prompts
+[x] SIMD vectorization of SemiringFold (mul chains + loop vectorize)
     "#;
     /// Optimizations
     pub const OPTS: &str = r#"
