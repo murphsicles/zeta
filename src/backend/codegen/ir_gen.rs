@@ -229,7 +229,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
     }
 
     fn call_site_to_basic_value(call: CallSiteValue<'ctx>) -> Option<BasicValueEnum<'ctx>> {
-        call.try_as_basic_value().left()
+        call.try_as_basic_value()
     }
 
     fn get_callee(&self, name: &str) -> FunctionValue<'ctx> {
