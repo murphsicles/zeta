@@ -75,7 +75,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let map_free_type = void_type.fn_type(&[ptr_type.into()], false);
         module.add_function("map_free", map_free_type, Some(Linkage::External));
 
-        // Pure LLVM str_concat implementation
+        // Pure LLVM str_concat implementation (no host dependency)
         let str_concat_type = ptr_type.fn_type(
             &[
                 ptr_type.into(),  // a
@@ -105,8 +105,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
             &[malloc_size.into()],
             "malloc_call",
         ).unwrap();
-        let dest_ptr = malloc_call.try_as_basic_value().left()
-            .expect("malloc should return pointer")
+
+        let dest_ptr = malloc_call.try_as_basic_value()
+            .left()
+            .expect("malloc should return a pointer")
             .into_pointer_value();
 
         let _memcpy_a = builder.build_memcpy(dest_ptr, 1, a_ptr, 1, a_len).unwrap();
