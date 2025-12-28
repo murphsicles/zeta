@@ -106,8 +106,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
             "malloc_call",
         ).unwrap();
 
-        let dest_ptr = malloc_call.try_as_basic_value()
-            .as_basic_value_enum()
+        let dest_ptr = malloc_call
+            .try_as_basic_value()
+            .left()
+            .expect("malloc should return a pointer")
             .into_pointer_value();
 
         let _memcpy_a = builder.build_memcpy(dest_ptr, 1, a_ptr, 1, a_len).unwrap();
