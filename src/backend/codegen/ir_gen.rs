@@ -4,7 +4,6 @@ use crate::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use inkwell::values::{
     BasicMetadataValueEnum, BasicValue, BasicValueEnum, CallSiteValue, FunctionValue,
 };
-use inkwell::values::ValueKind;
 use std::collections::HashMap;
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -201,7 +200,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         self.module.get_function("str_concat").unwrap(),
                         &[
                             res.into(),
-                            self.i64_type.const_int(u64::MAX, false).into(), // dummy, not used in pure impl
+                            self.i64_type.const_int(u64::MAX, false).into(),
                             next.into(),
                             self.i64_type.const_int(u64::MAX, false).into(),
                         ],
@@ -230,10 +229,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
     }
 
     fn call_site_to_basic_value(call: CallSiteValue<'ctx>) -> Option<BasicValueEnum<'ctx>> {
-        match call.try_as_basic_value() {
-            Either::Left(v) => Some(v),
-            Either::Right(_) => None,
-        }
+        call.try_as_basic_value().left()
     }
 
     fn get_callee(&self, name: &str) -> FunctionValue<'ctx> {
