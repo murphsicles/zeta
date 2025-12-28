@@ -90,13 +90,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
         let ee = self.module.create_jit_execution_engine(OptimizationLevel::Aggressive)?;
 
-        ee.add_global_mapping(&self.module.get_function("datetime_now").unwrap(), host_datetime_now as usize);
-        ee.add_global_mapping(&self.module.get_function("free").unwrap(), host_free as usize);
-        ee.add_global_mapping(&self.module.get_function("channel_send").unwrap(), host_channel_send as usize);
-        ee.add_global_mapping(&self.module.get_function("channel_recv").unwrap(), host_channel_recv as usize);
-        ee.add_global_mapping(&self.module.get_function("spawn").unwrap(), host_spawn as usize);
-        ee.add_global_mapping(&self.module.get_function("http_get").unwrap(), host_http_get as usize);
-        ee.add_global_mapping(&self.module.get_function("tls_handshake").unwrap(), host_tls_handshake as usize);
+        ee.add_global_mapping(&self.module.get_function("datetime_now").unwrap(), host_datetime_now as *const () as usize);
+        ee.add_global_mapping(&self.module.get_function("free").unwrap(), host_free as *const () as usize);
+        ee.add_global_mapping(&self.module.get_function("channel_send").unwrap(), host_channel_send as *const () as usize);
+        ee.add_global_mapping(&self.module.get_function("channel_recv").unwrap(), host_channel_recv as *const () as usize);
+        ee.add_global_mapping(&self.module.get_function("spawn").unwrap(), host_spawn as *const () as usize);
+        ee.add_global_mapping(&self.module.get_function("http_get").unwrap(), host_http_get as *const () as usize);
+        ee.add_global_mapping(&self.module.get_function("tls_handshake").unwrap(), host_tls_handshake as *const () as usize);
 
         Ok(ee)
     }
