@@ -3,11 +3,11 @@ use super::codegen::LLVMCodegen;
 use crate::runtime::actor::channel::{host_channel_recv, host_channel_send};
 use crate::runtime::actor::scheduler::host_spawn;
 use crate::runtime::host::{
-    host_datetime_now, host_free, host_http_get, host_str_concat, host_tls_handshake,
+    host_datetime_now, host_free, host_http_get, host_tls_handshake,
 };
 use crate::runtime::xai::XAIClient;
 use inkwell::execution_engine::ExecutionEngine;
-use inkwell::optimization::PassManager;
+use inkwell::passes::PassManager;
 use inkwell::targets::{InitializationConfig, Target, TargetMachine};
 use inkwell::OptimizationLevel;
 use serde_json::Value;
@@ -40,11 +40,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let mut simd_eligible = 0;
         for func in self.module.get_functions() {
             for bb in func.get_basic_blocks() {
+                stmt_count += bb.get_instructions().count() as u32;
                 for inst in bb.get_instructions() {
-                    stmt_count += 1;
-                    if inst.get_opcode() == inkwell::values::InstructionOpcode::Add
-                        || inst.get_opcode() == inkwell::values::InstructionOpcode::Mul
-                    {
+                    if matches!(
+                        inst.get_opcode(),
+                        inkwell::values::InstructionOpcode::Add
+                            | inkwell::values::InstructionOpcode::Mul
+                    ) {
                         simd_eligible += 1;
                     }
                 }
@@ -54,7 +56,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
         let mir_stats = format!(
             "Functions: {}, Instructions: {}, Locals: {}, SIMD-eligible ops: {}",
-            self.module.get_function_count(),
+            self.module.get_functions().count(),
             stmt_count,
             local_count,
             simd_eligible
@@ -65,7 +67,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let rec = client.mlgo_optimize(&mir_stats)?;
         let json: Value = serde_json::from_str(&rec).unwrap_or(Value::Null);
         let passes = json["passes"].as_array().cloned().unwrap_or_default();
-        let params = json["params"].as_object().cloned().unwrap_or_default();
 
         // Function-level pass manager
         let fpm = PassManager::create(());
@@ -88,12 +89,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
                 eprintln!("Running MLGO-recommended pass: {}", name);
             }
-        }
-
-        // Apply parameters (example: vectorize threshold)
-        if let Some(thresh) = params.get("vec-threshold").and_then(|v| v.as_i64()) {
-            // Inkwell doesn't expose threshold directly, but we run the passes anyway
-            eprintln!("Applying MLGO param vec-threshold = {}", thresh);
         }
 
         fpm.initialize();
