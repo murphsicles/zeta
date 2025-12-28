@@ -1,61 +1,59 @@
-// plan.rs
 //! Zeta Compiler Development Plan.
 //! Checklist for milestones. Mark as [x] when complete.
-//! Updated Dec 21, 2025: Implemented full const eval in CTFE [x]; handled mul chains in semiring folding [x]; added error handling for uninitialized scheduler [x]; real MIR analysis for stats [x]; Completed type inference for advanced nodes [x]; Expanded ABI checks for advanced cases [x]; Expanded implicit borrowing for types beyond Str/StrRef [x]; Go-like simplicity (no-brace single-line fns, manual errors with ? prop) [x]; Python expressiveness (dictionary literals map[key]=val, auto-imports) [x]; Interactive REPL (JIT eval for quick prototyping) [x]; Docs in concepts (/// comments, auto-gen) [x].
+//! Updated December 28, 2025: v0.1.3 released with full MIR extensions for semiring fusion, defer RAII, ? propagation, and DictLit/Subscript lowering.
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
-[x] Enums (enum Name { Variant, Variant(params) } - full variants with params)
+[x] Full f-string interpolation (nested exprs, formatting specs)
+[x] Defer statement lowering + RAII void calls in MIR/codegen
     "#;
     /// Semantic Analysis
     pub const RESOLVER: &str = r#"
-[x] Full trait resolution beyond Addable/StrOps
-[x] Parametric handling for Result and Map generics
-[x] Complete type inference for advanced nodes
-[x] Expanded ABI checks for advanced cases
-[x] Implicit borrowing for types beyond Str/StrRef
+[x] Advanced trait resolution with associated types and specialization
+[x] Parametric generics for Result/Map with proper monomorphization
+[x] Full CTFE constant evaluation in type inference
+[x] Expanded stable ABI checks for generic functions
     "#;
     /// MIR (Mid-level IR)
     pub const MIR: &str = r#"
-[x] Generic Result handling in error propagation
-[x] Type-based determination for affine moves in calls
-[x] Generic support for DictLit/Subscript keys/values
+[x] Algebraic fusion of semiring chains (add/mul reassociation + vectorization hints)
+[x] Proper lowering of Defer (collect VoidCalls at function exit)
+[x] Generic Result handling + ? propagation lowering
+[x] Full DictLit/Subscript lowering with proper key/value types
     "#;
     /// Codegen (LLVM)
     pub const CODEGEN: &str = r#"
-[x] Extract actual generics for monomorphization type args
-[x] Implement mul in SemiringOp vectorized/scalar folds
-[x] Define actual "str_concat" intrinsic or logic
-[x] Execute LLVM passes from MLGO recommendations
-[x] Real MIR analysis for stats (beyond print length)
+[ ] Real str_concat implementation (no external host dependency)
+[ ] Execute actual MLGO-recommended passes via Inkwell PassManager
+[ ] Accurate MIR statistics for AI optimization prompts
+[ ] SIMD vectorization of SemiringFold (mul chains + loop vectorize)
     "#;
     /// Optimizations
     pub const OPTS: &str = r#"
-[x] Full const eval beyond simple add/mul in CTFE
-[x] Handle mul chains in semiring folding
+[ ] Full compile-time evaluation beyond basic literals
+[ ] Advanced semiring folding with mul chain fusion
+[ ] Global specialization cache persistence across compilations
     "#;
     /// Concurrency/Std
     pub const ACTORS_STD: &str = r#"
-[x] Global channel map in host send/recv by chan_id
-[x] Real reqwest integration for HTTP host functions
-[x] TLS library (e.g., rustls) for handshake host
-[x] Map spawn to actual actor entries by func_id
-[x] Error handling if scheduler not initialized
+[ ] Robust global channel map + proper registration/lookup
+[ ] Real reqwest integration for std::http_get / std::tls_get (rustls)
+[ ] Efficient single Tokio runtime (no per-host Runtime::new)
+[ ] Proper actor entry registration and spawn mapping by func_id
+[ ] Scheduler initialization error handling + panic safety
     "#;
     /// Bootstrap/Self-host
     pub const BOOTSTRAP: &str = r#"
-[ ] True self-hosting bootstrap beyond parsing Rust sources
+[ ] True self-hosting bootstrap (Zeta compiler written in Zeta, compiles itself to native binary)
+[ ] Expand selfhost.z to full parser/AST/resolver/codegen in Zeta syntax
     "#;
     /// Ergonomics (Ease of Use for Adoption)
     pub const ERGONOMICS: &str = r#"
-[x] Go-like simplicity (no-brace single-line fns, manual errors with ? prop)
-[x] Python expressiveness (dictionary literals map[key]=val, auto-imports)
-[x] Interactive REPL (JIT eval for quick prototyping)
-[x] Docs in concepts (/// comments, auto-gen)
-[ ] Barriers Solved: Debugging pain (visual MIR dumps, auto-step JIT)
-[ ] Barriers Solved: Ecosystem lock-in (modular crates, easy FFI)
-[ ] Wins: Visual profiler (MLGO-integrated graphs)
-[ ] Wins: Modular crates (one-file packages, auto-link)
+[ ] Rich string methods (to_lowercase, replace, starts_with, etc.)
+[ ] + operator sugar specialized for string concatenation
+[ ] Implicit &str ↔ owned str conversions without lifetimes
+[ ] Visual MIR dumps for debugging
+[ ] Auto-step JIT debugger integration
     "#;
     /// Adoption (Viral Strategies for 30-Year Dominance)
     pub const ADOPTION: &str = r#"

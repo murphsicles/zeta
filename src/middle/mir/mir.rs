@@ -46,6 +46,24 @@ pub enum MirStmt {
         then: Vec<MirStmt>,
         else_: Vec<MirStmt>,
     },
+    TryProp {
+        expr_id: u32,
+        ok_dest: u32,
+        err_dest: u32,
+    },
+    DictInsert {
+        map_id: u32,
+        key_id: u32,
+        val_id: u32,
+    },
+    DictGet {
+        map_id: u32,
+        key_id: u32,
+        dest: u32,
+    },
+    MapNew {
+        dest: u32,
+    },
 }
 
 #[derive(Debug, Clone)]

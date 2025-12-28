@@ -1,4 +1,5 @@
 // src/frontend/parser/expr.rs
+use super::parser::{parse_generics, parse_ident, parse_path, ws};
 use crate::frontend::ast::AstNode;
 use nom::IResult;
 use nom::Parser;
@@ -8,8 +9,6 @@ use nom::character::complete::i64 as nom_i64;
 use nom::combinator::opt;
 use nom::multi::separated_list1;
 use nom::sequence::delimited;
-
-use super::parser::{parse_generics, parse_ident, parse_path, ws};
 
 fn parse_literal(input: &str) -> IResult<&str, AstNode> {
     let (input, val) = nom_i64(input)?;
@@ -24,38 +23,70 @@ fn parse_string_lit(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_fstring_content(input: &str) -> IResult<&str, Vec<AstNode>> {
-    let mut i = input;
     let mut parts = vec![];
-    if !i.starts_with("f\"") {
+    let mut remaining = input;
+
+    if !remaining.starts_with("f\"") {
         return Err(nom::Err::Error(nom::error::Error::new(
-            i,
+            input,
             nom::error::ErrorKind::Tag,
         )));
     }
-    i = &i[2..];
-    while !i.is_empty() && !i.starts_with('"') {
-        if i.starts_with('{') {
-            if let Some(closing) = i.find('}') {
-                let expr_str = &i[1..closing];
+    remaining = &remaining[2..];
+
+    loop {
+        if remaining.is_empty() || remaining.starts_with('"') {
+            break;
+        }
+
+        // Handle escaped braces
+        if remaining.starts_with("{{") || remaining.starts_with("}}") {
+            let escaped = &remaining[..2];
+            parts.push(AstNode::StringLit(
+                if escaped == "{{" { "{" } else { "}" }.to_string(),
+            ));
+            remaining = &remaining[2..];
+            continue;
+        }
+
+        // Static text part
+        let static_end = remaining.find(['{', '"']).unwrap_or(remaining.len());
+        if static_end > 0 {
+            let text = &remaining[..static_end];
+            if !text.trim().is_empty() {
+                parts.push(AstNode::StringLit(text.to_string()));
+            }
+            remaining = &remaining[static_end..];
+        }
+
+        // Interpolated expression {expr:format_spec}
+        if remaining.starts_with('{') {
+            if let Some(end) = remaining[1..].find('}') {
+                let inner = &remaining[1..=end];
+                let (_format_spec, expr_str) = if let Some(colon_pos) = inner.find(':') {
+                    (&inner[colon_pos + 1..], &inner[..colon_pos])
+                } else {
+                    ("", inner)
+                };
+                let expr_str = expr_str.trim();
+                if expr_str.is_empty() {
+                    remaining = &remaining[end + 2..];
+                    continue;
+                }
                 let (_, expr) = parse_full_expr(expr_str)?;
                 parts.push(expr);
-                i = &i[closing + 1..];
+                remaining = &remaining[end + 2..];
             } else {
                 break;
             }
-        } else {
-            let text_end = i.find(['{', '"']).unwrap_or(i.len());
-            if text_end > 0 {
-                let text = &i[..text_end];
-                parts.push(AstNode::StringLit(text.to_string()));
-            }
-            i = &i[text_end..];
         }
     }
-    if i.starts_with('"') {
-        i = &i[1..];
+
+    if remaining.starts_with('"') {
+        remaining = &remaining[1..];
     }
-    Ok((i, parts))
+
+    Ok((remaining, parts))
 }
 
 fn parse_fstring(input: &str) -> IResult<&str, AstNode> {

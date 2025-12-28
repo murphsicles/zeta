@@ -16,40 +16,109 @@ impl Resolver {
         asts: &[AstNode],
     ) -> HashMap<String, Vec<Vec<String>>> {
         let mut used = HashMap::new();
-        for ast in asts {
+
+        fn walk(node: &AstNode, used: &mut HashMap<String, Vec<Vec<String>>>) {
             if let AstNode::Call {
                 method, type_args, ..
-            } = ast
+            } = node
                 && !type_args.is_empty()
             {
                 used.entry(method.clone())
-                    .or_insert(vec![])
+                    .or_default()
                     .push(type_args.clone());
             }
-            if let AstNode::FuncDef { body, .. } = ast {
-                let body_used = self.collect_used_specializations(body);
-                for (fn_name, specs) in body_used {
-                    used.entry(fn_name).or_insert(vec![]).extend(specs);
+
+            match node {
+                AstNode::FuncDef { body, .. } => {
+                    for stmt in body {
+                        walk(stmt, used);
+                    }
                 }
+                AstNode::If {
+                    then: then_body,
+                    else_: else_body,
+                    ..
+                } => {
+                    for stmt in then_body {
+                        walk(stmt, used);
+                    }
+                    for stmt in else_body {
+                        walk(stmt, used);
+                    }
+                }
+                _ => {}
             }
         }
+
+        for ast in asts {
+            walk(ast, &mut used);
+        }
+
         used
     }
 
-    pub fn monomorphize(&self, _key: MonoKey, ast: &AstNode) -> AstNode {
-        if let AstNode::FuncDef { generics: _, .. } = ast {
-            let mut mono_ast = ast.clone();
-            if let AstNode::FuncDef {
-                generics: ref mut g,
-                ..
-            } = mono_ast
-            {
-                *g = vec![];
+    pub fn monomorphize(&self, key: MonoKey, ast: &AstNode) -> AstNode {
+        let mut mono = ast.clone();
+
+        let subst: HashMap<String, String> = key
+            .type_args
+            .iter()
+            .cloned()
+            .zip(key.type_args.iter().cloned())
+            .collect();
+
+        fn substitute(node: &mut AstNode, subst: &HashMap<String, String>) {
+            match node {
+                AstNode::FuncDef {
+                    generics,
+                    params,
+                    ret,
+                    body,
+                    ..
+                } => {
+                    generics.clear();
+                    for (_, ty) in params.iter_mut() {
+                        if let Some(repl) = subst.get(ty) {
+                            *ty = repl.clone();
+                        }
+                    }
+                    if let Some(repl) = subst.get(ret) {
+                        *ret = repl.clone();
+                    }
+                    for stmt in body {
+                        substitute(stmt, subst);
+                    }
+                }
+                AstNode::Call { type_args, .. } => {
+                    type_args.clear();
+                }
+                AstNode::TimingOwned { ty, inner } => {
+                    if let Some(repl) = subst.get(ty) {
+                        *ty = repl.clone();
+                    }
+                    substitute(inner, subst);
+                }
+                AstNode::BinaryOp { left, right, .. } => {
+                    substitute(left, subst);
+                    substitute(right, subst);
+                }
+                AstNode::If {
+                    cond, then, else_, ..
+                } => {
+                    substitute(cond, subst);
+                    for s in then {
+                        substitute(s, subst);
+                    }
+                    for s in else_ {
+                        substitute(s, subst);
+                    }
+                }
+                _ => {}
             }
-            mono_ast
-        } else {
-            ast.clone()
         }
+
+        substitute(&mut mono, &subst);
+        mono
     }
 
     pub fn get_cached_mir(&self, ast_hash: &str) -> Option<Mir> {
