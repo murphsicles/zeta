@@ -1,5 +1,5 @@
 // src/middle/specialization.rs
-//! Full specialization cache with persistence and ABI stability checks.
+//! Specialization cache with persistence and stable ABI checks.
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
@@ -36,19 +36,10 @@ pub fn record_specialization(key: MonoKey, value: MonoValue) {
     cache.insert(key, value);
 }
 
-/// Types considered safe for cross-compilation caching (no interior pointers, etc.)
 pub fn is_cache_safe(ty: &str) -> bool {
     matches!(
         ty,
-        "i64"
-            | "i32"
-            | "f64"
-            | "f32"
-            | "bool"
-            | "u8"
-            | "&i64"
-            | "&str"
-            | "Result_i64"
-            | "Map_i64_i64"
+        "i64" | "i32" | "f64" | "f32" | "bool" | "u8" | "&i64" | "&str"
+            | "Result_i64" | "Result_str" | "Map_i64_i64" | "Map_str_str"
     )
 }
