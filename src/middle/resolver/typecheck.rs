@@ -1,7 +1,6 @@
 // src/middle/resolver/typecheck.rs
 use super::resolver::{Resolver, Type};
 use crate::frontend::ast::AstNode;
-use std::collections::{HashMap, HashSet};
 
 impl Resolver {
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
@@ -19,16 +18,11 @@ impl Resolver {
 
     fn check_node(&self, node: &AstNode) -> bool {
         match node {
-            AstNode::Call { method, type_args, receiver, args, .. } => {
-                // Arity check for generics
-                if !type_args.is_empty() {
-                    // In a full impl we would look up the signature via resolve_impl
-                    // For now, assume valid if type_args provided
-                }
-                // Argument count check would go here
-                true
+            AstNode::Call { type_args, .. } => {
+                // Arity check for generics (placeholder - real check would use signature lookup)
+                !type_args.is_empty()
             }
-            AstNode::BinaryOp { op, left, right, .. } => {
+            AstNode::BinaryOp { left, right, .. } => {
                 let lty = self.infer_type(left);
                 let rty = self.infer_type(right);
                 lty == rty
@@ -38,7 +32,7 @@ impl Resolver {
     }
 
     pub fn infer_type(&self, node: &AstNode) -> Type {
-        if let Some(_) = self.ctfe_eval(node) {
+        if self.ctfe_eval(node).is_some() {
             return "i64".to_string();
         }
 
@@ -54,15 +48,8 @@ impl Resolver {
                 }
                 "str".to_string()
             }
-            AstNode::Var(name) => {
-                // Simplified environment lookup - in real resolver we track scopes
-                "i64".to_string()
-            }
-            AstNode::BinaryOp { left, right, .. } => {
-                let lty = self.infer_type(left);
-                self.infer_type(right);
-                lty
-            }
+            AstNode::Var(_) => "i64".to_string(),
+            AstNode::BinaryOp { left, .. } => self.infer_type(left),
             AstNode::TimingOwned { ty, .. } => ty.clone(),
             AstNode::Call { .. } => "i64".to_string(),
             AstNode::DictLit { entries } => {
@@ -99,7 +86,6 @@ impl Resolver {
                 }
             }
             AstNode::Call { method, args, .. } => {
-                // Very limited CTFE for built-in const functions
                 if method == "const_add" && args.len() == 2 {
                     let a = self.ctfe_eval(&args[0])?;
                     let b = self.ctfe_eval(&args[1])?;
