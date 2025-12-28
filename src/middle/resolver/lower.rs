@@ -3,7 +3,7 @@ use super::resolver::Resolver;
 use crate::frontend::ast::AstNode;
 use crate::middle::mir::mir::Mir;
 use crate::middle::specialization::MonoKey;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 impl Resolver {
     pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
@@ -11,7 +11,6 @@ impl Resolver {
         mir_gen.lower_to_mir(ast)
     }
 
-    /// Collects all used generic specializations in the program.
     pub fn collect_used_specializations(
         &self,
         asts: &[AstNode],
@@ -32,11 +31,14 @@ impl Resolver {
                 }
             }
 
-            // Recurse into bodies
-            if let AstNode::FuncDef { body, .. } = node {
-                for stmt in body {
-                    walk(stmt, used);
+            match node {
+                AstNode::FuncDef { body, .. } |
+                AstNode::If { then: body, else_: body } => {
+                    for stmt in body {
+                        walk(stmt, used);
+                    }
                 }
+                _ => {}
             }
         }
 
@@ -47,44 +49,65 @@ impl Resolver {
         used
     }
 
-    /// Full monomorphization with type substitution.
     pub fn monomorphize(&self, key: MonoKey, ast: &AstNode) -> AstNode {
         let mut mono = ast.clone();
 
-        if let AstNode::FuncDef {
-            generics,
-            params,
-            ret,
-            body,
-            ..
-        } = &mut mono
-        {
-            if generics.len() != key.type_args.len() {
-                return mono; // arity mismatch – should be reported earlier
-            }
+        let subst: HashMap<String, String> = key
+            .type_args
+            .iter()
+            .cloned()
+            .zip(key.type_args.iter().cloned())
+            .collect();
 
-            let subst: HashMap<String, String> = generics
-                .iter()
-                .cloned()
-                .zip(key.type_args.iter().cloned())
-                .collect();
-
-            // Substitute parameter and return types
-            for (_, ty) in params.iter_mut() {
-                if let Some(repl) = subst.get(ty) {
-                    *ty = repl.clone();
+        fn substitute(node: &mut AstNode, subst: &HashMap<String, String>) {
+            match node {
+                AstNode::FuncDef {
+                    generics,
+                    params,
+                    ret,
+                    body,
+                    ..
+                } => {
+                    generics.clear();
+                    for (_, ty) in params.iter_mut() {
+                        if let Some(repl) = subst.get(ty) {
+                            *ty = repl.clone();
+                        }
+                    }
+                    if let Some(repl) = subst.get(ret) {
+                        *ret = repl.clone();
+                    }
+                    for stmt in body {
+                        substitute(stmt, subst);
+                    }
                 }
+                AstNode::Call { type_args, .. } => {
+                    type_args.clear();
+                }
+                AstNode::TimingOwned { ty, inner } => {
+                    if let Some(repl) = subst.get(ty) {
+                        *ty = repl.clone();
+                    }
+                    substitute(inner, subst);
+                }
+                AstNode::BinaryOp { left, right, .. } => {
+                    substitute(left, subst);
+                    substitute(right, subst);
+                }
+                AstNode::If { cond, then, else_ } => {
+                    substitute(cond, subst);
+                    for s in then {
+                        substitute(s, subst);
+                    }
+                    for s in else_ {
+                        substitute(s, subst);
+                    }
+                }
+                _ => {}
             }
-            if let Some(repl) = subst.get(ret) {
-                *ret = repl.clone();
-            }
-
-            // Clear generics
-            generics.clear();
-
-            // TODO: deep substitution in body for associated types and nested generics
         }
 
+        substitute(&mut mono, &subst);
         mono
     }
 
