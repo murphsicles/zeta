@@ -29,10 +29,7 @@ impl Resolver {
 
     pub fn register(&mut self, ast: AstNode) {
         if let AstNode::ImplBlock {
-            concept,
-            ty,
-            body,
-            ..
+            concept, ty, body, ..
         } = ast
         {
             self.impls.insert((concept, ty), body);
