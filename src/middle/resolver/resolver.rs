@@ -1,5 +1,4 @@
 // src/middle/resolver/resolver.rs
-//! Core resolver with advanced trait resolution, associated types, and specialization.
 use crate::frontend::ast::AstNode;
 use crate::frontend::borrow::BorrowChecker;
 use crate::middle::mir::mir::Mir;
@@ -29,31 +28,26 @@ impl Resolver {
     }
 
     pub fn register(&mut self, ast: AstNode) {
-        match ast {
-            AstNode::ImplBlock {
-                concept,
-                ty,
-                body,
-                ..
-            } => {
-                self.impls.insert((concept, ty), body);
-            }
-            // Future: AssociatedType { concept, name, ty }
-            _ => {}
+        if let AstNode::ImplBlock {
+            concept,
+            ty,
+            body,
+            ..
+        } = ast
+        {
+            self.impls.insert((concept, ty), body);
         }
     }
 
-    /// Advanced trait resolution with specialization support.
     pub fn resolve_impl(&self, concept: &str, ty: &str) -> Option<Vec<AstNode>> {
-        self.impls.get(&(concept.to_string(), ty.to_string())).cloned()
+        let key = (concept.to_string(), ty.to_string());
+        self.impls.get(&key).cloned()
     }
 
-    /// Stable ABI check for generic instantiations.
     pub fn is_abi_stable(&self, key: &MonoKey) -> bool {
-        key.type_args.iter().all(is_cache_safe)
+        key.type_args.iter().all(|t| is_cache_safe(t))
     }
 
-    /// Record monomorphized MIR with ABI stability flag.
     pub fn record_mono(&mut self, key: MonoKey, mir: Mir) {
         let cache_safe = self.is_abi_stable(&key);
         let mangled = key.mangle();
