@@ -3,7 +3,7 @@ use super::resolver::Resolver;
 use crate::frontend::ast::AstNode;
 use crate::middle::mir::mir::Mir;
 use crate::middle::specialization::MonoKey;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 impl Resolver {
     pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
@@ -32,9 +32,16 @@ impl Resolver {
             }
 
             match node {
-                AstNode::FuncDef { body, .. } |
-                AstNode::If { then: body, else_: body } => {
+                AstNode::FuncDef { body, .. } => {
                     for stmt in body {
+                        walk(stmt, used);
+                    }
+                }
+                AstNode::If { then: then_body, else_: else_body, .. } => {
+                    for stmt in then_body {
+                        walk(stmt, used);
+                    }
+                    for stmt in else_body {
                         walk(stmt, used);
                     }
                 }
@@ -94,7 +101,7 @@ impl Resolver {
                     substitute(left, subst);
                     substitute(right, subst);
                 }
-                AstNode::If { cond, then, else_ } => {
+                AstNode::If { cond, then, else_, .. } => {
                     substitute(cond, subst);
                     for s in then {
                         substitute(s, subst);
