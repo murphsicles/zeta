@@ -22,8 +22,11 @@ impl MirGen {
         }
     }
 
+    /// Lowers an AST node to MIR and returns the completed Mir structure.
+    /// This is the primary entry point used by the resolver.
     pub fn lower_to_mir(&mut self, ast: &AstNode) -> Mir {
         self.lower_ast(ast);
+
         Mir {
             name: if let AstNode::FuncDef { name, .. } = ast {
                 Some(name.clone())
@@ -39,6 +42,18 @@ impl MirGen {
             } else {
                 vec![]
             },
+            stmts: std::mem::take(&mut self.stmts),
+            exprs: std::mem::take(&mut self.exprs),
+            ctfe_consts: std::mem::take(&mut self.ctfe_consts),
+        }
+    }
+
+    /// Finalizes the current MirGen state into a Mir value.
+    /// Used when the resolver needs a completed Mir after partial lowering.
+    pub fn finalize_mir(mut self) -> Mir {
+        Mir {
+            name: None,
+            param_indices: vec![],
             stmts: std::mem::take(&mut self.stmts),
             exprs: std::mem::take(&mut self.exprs),
             ctfe_consts: std::mem::take(&mut self.ctfe_consts),
