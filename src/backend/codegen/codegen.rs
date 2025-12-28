@@ -58,7 +58,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
         module.add_function("result_is_ok", result_is_ok_type, Some(Linkage::External));
 
         let result_get_data_type = i64_type.fn_type(&[ptr_type.into()], false);
-        module.add_function("result_get_data", result_get_data_type, Some(Linkage::External));
+        module.add_function(
+            "result_get_data",
+            result_get_data_type,
+            Some(Linkage::External),
+        );
 
         let result_free_type = void_type.fn_type(&[ptr_type.into()], false);
         module.add_function("result_free", result_free_type, Some(Linkage::External));
@@ -66,7 +70,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let map_new_type = ptr_type.fn_type(&[], false);
         module.add_function("map_new", map_new_type, Some(Linkage::External));
 
-        let map_insert_type = void_type.fn_type(&[ptr_type.into(), i64_type.into(), i64_type.into()], false);
+        let map_insert_type =
+            void_type.fn_type(&[ptr_type.into(), i64_type.into(), i64_type.into()], false);
         module.add_function("map_insert", map_insert_type, Some(Linkage::External));
 
         let map_get_type = i64_type.fn_type(&[ptr_type.into(), i64_type.into()], false);
@@ -78,10 +83,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
         // Pure LLVM str_concat implementation (no host dependency)
         let str_concat_type = ptr_type.fn_type(
             &[
-                ptr_type.into(),  // a
-                i64_type.into(),  // a_len
-                ptr_type.into(),  // b
-                i64_type.into(),  // b_len
+                ptr_type.into(), // a
+                i64_type.into(), // a_len
+                ptr_type.into(), // b
+                i64_type.into(), // b_len
             ],
             false,
         );
@@ -89,22 +94,29 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let entry = context.append_basic_block(str_concat_fn, "entry");
         builder.position_at_end(entry);
 
-        let a_ptr = str_concat_fn.get_first_param().unwrap().into_pointer_value();
+        let a_ptr = str_concat_fn
+            .get_first_param()
+            .unwrap()
+            .into_pointer_value();
         let a_len = str_concat_fn.get_nth_param(1).unwrap().into_int_value();
         let b_ptr = str_concat_fn.get_nth_param(2).unwrap().into_pointer_value();
         let b_len = str_concat_fn.get_nth_param(3).unwrap().into_int_value();
 
         let total_len = builder.build_int_add(a_len, b_len, "total_len").unwrap();
-        let malloc_size = builder.build_int_add(total_len, i64_type.const_int(1, false), "malloc_size").unwrap();
+        let malloc_size = builder
+            .build_int_add(total_len, i64_type.const_int(1, false), "malloc_size")
+            .unwrap();
 
-        let malloc_call = builder.build_call(
-            module.get_function("malloc").unwrap_or_else(|| {
-                let malloc_ty = ptr_type.fn_type(&[i64_type.into()], false);
-                module.add_function("malloc", malloc_ty, Some(Linkage::External))
-            }),
-            &[malloc_size.into()],
-            "malloc_call",
-        ).unwrap();
+        let malloc_call = builder
+            .build_call(
+                module.get_function("malloc").unwrap_or_else(|| {
+                    let malloc_ty = ptr_type.fn_type(&[i64_type.into()], false);
+                    module.add_function("malloc", malloc_ty, Some(Linkage::External))
+                }),
+                &[malloc_size.into()],
+                "malloc_call",
+            )
+            .unwrap();
 
         let dest_ptr = malloc_call
             .try_as_basic_value()
@@ -112,11 +124,23 @@ impl<'ctx> LLVMCodegen<'ctx> {
             .into_pointer_value();
 
         let _memcpy_a = builder.build_memcpy(dest_ptr, 1, a_ptr, 1, a_len).unwrap();
-        let dest_after_a = unsafe { builder.build_gep(i64_type, dest_ptr, &[a_len], "dest_after_a").unwrap() };
-        let _memcpy_b = builder.build_memcpy(dest_after_a, 1, b_ptr, 1, b_len).unwrap();
+        let dest_after_a = unsafe {
+            builder
+                .build_gep(i64_type, dest_ptr, &[a_len], "dest_after_a")
+                .unwrap()
+        };
+        let _memcpy_b = builder
+            .build_memcpy(dest_after_a, 1, b_ptr, 1, b_len)
+            .unwrap();
 
-        let null_term = unsafe { builder.build_gep(i64_type, dest_ptr, &[total_len], "null_pos").unwrap() };
-        builder.build_store(null_term, context.i8_type().const_zero()).unwrap();
+        let null_term = unsafe {
+            builder
+                .build_gep(i64_type, dest_ptr, &[total_len], "null_pos")
+                .unwrap()
+        };
+        builder
+            .build_store(null_term, context.i8_type().const_zero())
+            .unwrap();
 
         builder.build_return(Some(&dest_ptr)).unwrap();
 
