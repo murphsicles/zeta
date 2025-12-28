@@ -19,9 +19,7 @@ impl Resolver {
 
         fn walk(node: &AstNode, used: &mut HashMap<String, Vec<Vec<String>>>) {
             if let AstNode::Call {
-                method,
-                type_args,
-                ..
+                method, type_args, ..
             } = node
                 && !type_args.is_empty()
             {
@@ -36,7 +34,11 @@ impl Resolver {
                         walk(stmt, used);
                     }
                 }
-                AstNode::If { then: then_body, else_: else_body, .. } => {
+                AstNode::If {
+                    then: then_body,
+                    else_: else_body,
+                    ..
+                } => {
                     for stmt in then_body {
                         walk(stmt, used);
                     }
@@ -100,7 +102,9 @@ impl Resolver {
                     substitute(left, subst);
                     substitute(right, subst);
                 }
-                AstNode::If { cond, then, else_, .. } => {
+                AstNode::If {
+                    cond, then, else_, ..
+                } => {
                     substitute(cond, subst);
                     for s in then {
                         substitute(s, subst);
