@@ -1,5 +1,4 @@
 // src/middle/specialization.rs
-//! Specialization cache with persistence and stable ABI checks.
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
@@ -21,8 +20,11 @@ lazy_static::lazy_static! {
 
 impl MonoKey {
     pub fn mangle(&self) -> String {
-        let args = self.type_args.join("_");
-        format!("{}_{}", self.func_name, args)
+        if self.type_args.is_empty() {
+            self.func_name.clone()
+        } else {
+            format!("{}_{}", self.func_name, self.type_args.join("_"))
+        }
     }
 }
 
@@ -39,7 +41,18 @@ pub fn record_specialization(key: MonoKey, value: MonoValue) {
 pub fn is_cache_safe(ty: &str) -> bool {
     matches!(
         ty,
-        "i64" | "i32" | "f64" | "f32" | "bool" | "u8" | "&i64" | "&str"
-            | "Result_i64" | "Result_str" | "Map_i64_i64" | "Map_str_str"
+        "i64"
+            | "i32"
+            | "f64"
+            | "f32"
+            | "bool"
+            | "u8"
+            | "&i64"
+            | "&str"
+            | "Result_i64"
+            | "Result_str"
+            | "Map_i64_i64"
+            | "Map_str_str"
+            | "Map_i64_str"
     )
 }
