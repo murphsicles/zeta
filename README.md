@@ -23,7 +23,7 @@ Zeta is a systems programming language inspired by Elements of Programming (EOP)
 - **Parse strings like Perl**
 - **Baked-in SIMD optimization**
 - **Native WASM support**
-- **Self-hosting in 3,200 lines of code**
+- **Self-hosting in 2,700 lines of code**
 - **Very low cyclomatic complexity**
 
 Zeta v0.1.3 is released. There are zero competitors.
