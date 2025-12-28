@@ -201,7 +201,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         self.module.get_function("str_concat").unwrap(),
                         &[
                             res.into(),
-                            self.i64_type.const_int(u64::MAX, false).into(), // dummy lengths – not used by pure impl
+                            self.i64_type.const_int(u64::MAX, false).into(), // dummy, not used in pure impl
                             next.into(),
                             self.i64_type.const_int(u64::MAX, false).into(),
                         ],
@@ -231,8 +231,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     fn call_site_to_basic_value(call: CallSiteValue<'ctx>) -> Option<BasicValueEnum<'ctx>> {
         match call.try_as_basic_value() {
-            ValueKind::Basic(v) => Some(v),
-            ValueKind::Instruction(_) => None,
+            Either::Left(v) => Some(v),
+            Either::Right(_) => None,
         }
     }
 
