@@ -1,14 +1,15 @@
 // src/middle/mir/gen.rs
 use crate::frontend::ast::AstNode;
-use crate::middle::mir::mir::{Mir, MirExpr, MirStmt};
-use std::collections::HashMap;
+use crate::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
+use std::collections::{HashMap, VecDeque};
 
 pub struct MirGen {
     next_id: u32,
     stmts: Vec<MirStmt>,
     exprs: HashMap<u32, MirExpr>,
     ctfe_consts: HashMap<u32, i64>,
-    defers: Vec<u32>, // Track defer cleanup ids for RAII
+    defers: Vec<u32>,
+    defer_stmts: Vec<MirStmt>,
 }
 
 impl MirGen {
@@ -19,11 +20,10 @@ impl MirGen {
             exprs: HashMap::new(),
             ctfe_consts: HashMap::new(),
             defers: vec![],
+            defer_stmts: vec![],
         }
     }
 
-    /// Lowers an AST node to MIR and returns the completed Mir structure.
-    /// This is the primary entry point used by the resolver.
     pub fn lower_to_mir(&mut self, ast: &AstNode) -> Mir {
         self.lower_ast(ast);
 
@@ -48,8 +48,6 @@ impl MirGen {
         }
     }
 
-    /// Finalizes the current MirGen state into a Mir value.
-    /// Used when the resolver needs a completed Mir after partial lowering.
     pub fn finalize_mir(mut self) -> Mir {
         Mir {
             name: None,
@@ -78,35 +76,83 @@ impl MirGen {
                 let left_id = self.lower_expr(left);
                 let right_id = self.lower_expr(right);
                 let dest = self.next_id();
-                self.stmts.push(MirStmt::Call {
-                    func: op.clone(),
-                    args: vec![left_id, right_id],
+
+                let op_kind = if op == "+" {
+                    SemiringOp::Add
+                } else if op == "*" {
+                    SemiringOp::Mul
+                } else {
+                    self.stmts.push(MirStmt::Call {
+                        func: op.clone(),
+                        args: vec![left_id, right_id],
+                        dest,
+                        type_args: vec![],
+                    });
+                    return;
+                };
+
+                self.stmts.push(MirStmt::SemiringFold {
+                    op: op_kind,
+                    values: vec![left_id, right_id],
+                    result: dest,
+                });
+            }
+            AstNode::TryProp { expr } => {
+                let expr_id = self.lower_expr(expr);
+                let ok_dest = self.next_id();
+                let err_dest = self.next_id();
+                self.stmts.push(MirStmt::TryProp {
+                    expr_id,
+                    ok_dest,
+                    err_dest,
+                });
+            }
+            AstNode::DictLit { entries } => {
+                let map_id = self.next_id();
+                self.stmts.push(MirStmt::MapNew { dest: map_id });
+
+                for (key, val) in entries {
+                    let key_id = self.lower_expr(key);
+                    let val_id = self.lower_expr(val);
+                    self.stmts.push(MirStmt::DictInsert {
+                        map_id,
+                        key_id,
+                        val_id,
+                    });
+                }
+
+                self.exprs.insert(map_id, MirExpr::Var(map_id));
+            }
+            AstNode::Subscript { base, index } => {
+                let base_id = self.lower_expr(base);
+                let index_id = self.lower_expr(index);
+                let dest = self.next_id();
+                self.stmts.push(MirStmt::DictGet {
+                    map_id: base_id,
+                    key_id: index_id,
                     dest,
-                    type_args: vec![],
                 });
             }
             AstNode::Defer(inner) => {
-                // Lower the deferred block
-                let _start_id = self.next_id;
-                self.lower_ast(inner);
-                let cleanup_id = self.next_id - 1; // Last expr from inner as cleanup marker
-                self.defers.push(cleanup_id);
+                let mut subgen = MirGen::new();
+                subgen.lower_ast(inner);
+                let cleanup_stmts = subgen.finalize_mir().stmts;
+                self.defer_stmts.extend(cleanup_stmts);
             }
             AstNode::FuncDef { body, .. } => {
-                let mut local_defers = vec![];
+                let mut collected_defers = VecDeque::new();
                 for stmt in body {
                     if let AstNode::Defer(_) = stmt {
-                        local_defers.push(stmt.clone());
+                        collected_defers.push_front(stmt.clone());
                     }
                     self.lower_ast(stmt);
                 }
-                // Emit defer cleanups in reverse order (RAII LIFO)
-                for _defer in local_defers.iter().rev() {
-                    let cleanup_id = self.defers.pop().unwrap_or(0);
-                    self.stmts.push(MirStmt::VoidCall {
-                        func: "__defer_cleanup".to_string(),
-                        args: vec![cleanup_id],
-                    });
+
+                for defer_ast in collected_defers {
+                    let mut subgen = MirGen::new();
+                    subgen.lower_ast(&defer_ast);
+                    let cleanup = subgen.finalize_mir().stmts;
+                    self.stmts.extend(cleanup);
                 }
             }
             AstNode::If { cond, then, else_ } => {
@@ -144,6 +190,8 @@ impl MirGen {
                 MirExpr::FString(ids)
             }
             AstNode::TimingOwned { inner, .. } => MirExpr::TimingOwned(self.lower_expr(inner)),
+            AstNode::DictLit { .. } => MirExpr::Var(id),
+            AstNode::Subscript { .. } => MirExpr::Var(id),
             _ => MirExpr::Lit(0),
         };
         self.exprs.insert(id, mir_expr);
