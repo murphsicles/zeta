@@ -2,14 +2,12 @@
 use super::codegen::LLVMCodegen;
 use crate::runtime::actor::channel::{host_channel_recv, host_channel_send};
 use crate::runtime::actor::scheduler::host_spawn;
-use crate::runtime::host::{
-    host_datetime_now, host_free, host_http_get, host_tls_handshake,
-};
+use crate::runtime::host::{host_datetime_now, host_free, host_http_get, host_tls_handshake};
 use crate::runtime::xai::XAIClient;
+use inkwell::OptimizationLevel;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::passes::PassManager;
 use inkwell::targets::{InitializationConfig, Target, TargetMachine};
-use inkwell::OptimizationLevel;
 use serde_json::Value;
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -22,17 +20,20 @@ impl<'ctx> LLVMCodegen<'ctx> {
         Target::initialize_native(&InitializationConfig::default())?;
         let target_triple = TargetMachine::get_default_triple();
         let target = Target::from_triple(&target_triple)?;
-        let target_machine = target.create_target_machine(
-            &target_triple,
-            &TargetMachine::get_host_cpu_name().to_string(),
-            &TargetMachine::get_host_cpu_features().to_string(),
-            OptimizationLevel::Aggressive,
-            inkwell::targets::RelocMode::Default,
-            inkwell::targets::CodeModel::Default,
-        ).ok_or("Failed to create target machine")?;
+        let target_machine = target
+            .create_target_machine(
+                &target_triple,
+                &TargetMachine::get_host_cpu_name().to_string(),
+                &TargetMachine::get_host_cpu_features().to_string(),
+                OptimizationLevel::Aggressive,
+                inkwell::targets::RelocMode::Default,
+                inkwell::targets::CodeModel::Default,
+            )
+            .ok_or("Failed to create target machine")?;
 
         self.module.set_triple(&target_triple);
-        self.module.set_data_layout(&target_machine.get_target_data().get_data_layout());
+        self.module
+            .set_data_layout(&target_machine.get_target_data().get_data_layout());
 
         // Accurate MIR statistics for AI prompt
         let mut stmt_count = 0;
@@ -88,15 +89,38 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
         mpm.run_on(&self.module);
 
-        let ee = self.module.create_jit_execution_engine(OptimizationLevel::Aggressive)?;
+        let ee = self
+            .module
+            .create_jit_execution_engine(OptimizationLevel::Aggressive)?;
 
-        ee.add_global_mapping(&self.module.get_function("datetime_now").unwrap(), host_datetime_now as *const () as usize);
-        ee.add_global_mapping(&self.module.get_function("free").unwrap(), host_free as *const () as usize);
-        ee.add_global_mapping(&self.module.get_function("channel_send").unwrap(), host_channel_send as *const () as usize);
-        ee.add_global_mapping(&self.module.get_function("channel_recv").unwrap(), host_channel_recv as *const () as usize);
-        ee.add_global_mapping(&self.module.get_function("spawn").unwrap(), host_spawn as *const () as usize);
-        ee.add_global_mapping(&self.module.get_function("http_get").unwrap(), host_http_get as *const () as usize);
-        ee.add_global_mapping(&self.module.get_function("tls_handshake").unwrap(), host_tls_handshake as *const () as usize);
+        ee.add_global_mapping(
+            &self.module.get_function("datetime_now").unwrap(),
+            host_datetime_now as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("free").unwrap(),
+            host_free as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("channel_send").unwrap(),
+            host_channel_send as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("channel_recv").unwrap(),
+            host_channel_recv as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("spawn").unwrap(),
+            host_spawn as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("http_get").unwrap(),
+            host_http_get as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("tls_handshake").unwrap(),
+            host_tls_handshake as *const () as usize,
+        );
 
         Ok(ee)
     }
