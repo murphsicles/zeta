@@ -230,8 +230,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     fn call_site_to_basic_value(call: CallSiteValue<'ctx>) -> Option<BasicValueEnum<'ctx>> {
         match call.try_as_basic_value() {
-            Some(basic) => Some(basic),
-            None => None,
+            inkwell::values::ValueKind::Basic(basic) => Some(basic),
+            _ => None,
         }
     }
 
