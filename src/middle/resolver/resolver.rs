@@ -2,7 +2,7 @@
 use crate::frontend::ast::AstNode;
 use crate::frontend::borrow::BorrowChecker;
 use crate::middle::mir::mir::Mir;
-use crate::middle::specialization::{MonoKey, MonoValue, is_cache_safe, lookup_specialization, record_specialization};
+use crate::middle::specialization::{MonoKey, MonoValue, is_cache_safe, record_specialization};
 use std::cell::RefCell;
 use std::collections::HashMap;
 
