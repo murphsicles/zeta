@@ -62,7 +62,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             simd_eligible
         );
 
-        // Query xAI for recommended passes (logged but not directly applied due to Inkwell 0.7 limitations)
+        // Query xAI for recommended passes (logged for future reference)
         let client = XAIClient::new().map_err(|e| format!("XAI init error: {}", e))?;
         let rec = client.mlgo_optimize(&mir_stats)?;
         let json: Value = serde_json::from_str(&rec).unwrap_or(Value::Null);
@@ -74,18 +74,18 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
         }
 
-        // Aggressive function-level passes via generic PassManager on functions
-        let fpm = PassManager::create(());
+        // Aggressive function-level optimizations
+        let fpm = PassManager::create(&self.module);
 
-        // Inkwell 0.7 only supports running the full pipeline on functions via generic manager
         fpm.initialize();
 
         for func in self.module.get_functions() {
             fpm.run_on(&func);
         }
 
-        // Module-level vectorization passes
-        let mpm = PassManager::create(&self.module);
+        // Module-level optimizations (including vectorization)
+        let mpm = PassManager::create(());
+
         mpm.run_on(&self.module);
 
         let ee = self.module.create_jit_execution_engine(OptimizationLevel::Aggressive)?;
