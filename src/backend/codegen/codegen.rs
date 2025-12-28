@@ -112,10 +112,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
             .into_pointer_value();
 
         let _memcpy_a = builder.build_memcpy(dest_ptr, 1, a_ptr, 1, a_len).unwrap();
-        let dest_after_a = builder.build_gep(i64_type, dest_ptr, &[a_len], "dest_after_a").unwrap();
+        let dest_after_a = unsafe { builder.build_gep(i64_type, dest_ptr, &[a_len], "dest_after_a").unwrap() };
         let _memcpy_b = builder.build_memcpy(dest_after_a, 1, b_ptr, 1, b_len).unwrap();
 
-        let null_term = builder.build_gep(i64_type, dest_ptr, &[total_len], "null_pos").unwrap();
+        let null_term = unsafe { builder.build_gep(i64_type, dest_ptr, &[total_len], "null_pos").unwrap() };
         builder.build_store(null_term, context.i8_type().const_zero()).unwrap();
 
         builder.build_return(Some(&dest_ptr)).unwrap();
