@@ -25,6 +25,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let entry = self.context.append_basic_block(fn_val, "entry");
         self.builder.position_at_end(entry);
         self.locals.clear();
+
         for (i, (_, arg_index)) in mir.param_indices.iter().enumerate() {
             let param_val = fn_val.get_nth_param(i as u32).unwrap();
             let alloca = self
@@ -34,10 +35,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
             self.builder.build_store(alloca, param_val).unwrap();
             self.locals.insert(*arg_index, alloca);
         }
+
         for stmt in &mir.stmts {
             self.gen_stmt(stmt, &mir.exprs);
         }
-        // If no return, add implicit return 0
+
         if self
             .builder
             .get_insert_block()
@@ -49,6 +51,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 .build_return(Some(&self.i64_type.const_zero()))
                 .unwrap();
         }
+
         self.fns.insert(fn_name, fn_val);
     }
 
@@ -88,28 +91,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
             }
             MirStmt::VoidCall { func, args } => {
-                if func == "__defer_cleanup" {
-                    // Execute cleanup (typically free or similar)
-                    let arg_vals: Vec<BasicMetadataValueEnum> = args
-                        .iter()
-                        .map(|&id| self.gen_expr(&exprs[&id], exprs).into())
-                        .collect();
-                    let _ = self.builder.build_call(
-                        self.get_callee("free"),
-                        &arg_vals,
-                        "defer_cleanup",
-                    );
-                } else {
-                    let callee = self.get_callee(func);
-                    let arg_vals: Vec<BasicMetadataValueEnum> = args
-                        .iter()
-                        .map(|&id| self.gen_expr(&exprs[&id], exprs).into())
-                        .collect();
-                    let _ = self
-                        .builder
-                        .build_call(callee, &arg_vals, "void_call")
-                        .unwrap();
-                }
+                let callee = self.get_callee(func);
+                let arg_vals: Vec<BasicMetadataValueEnum> = args
+                    .iter()
+                    .map(|&id| self.gen_expr(&exprs[&id], exprs).into())
+                    .collect();
+                let _ = self
+                    .builder
+                    .build_call(callee, &arg_vals, "void_call")
+                    .unwrap();
             }
             MirStmt::Return { val } => {
                 let ret_val = self.gen_expr(&exprs[val], exprs);
@@ -123,12 +113,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     acc = match op {
                         SemiringOp::Add => self
                             .builder
-                            .build_int_add(acc.into_int_value(), val.into_int_value(), "add")
+                            .build_int_add(acc.into_int_value(), val.into_int_value(), "fold_add")
                             .unwrap()
                             .into(),
                         SemiringOp::Mul => self
                             .builder
-                            .build_int_mul(acc.into_int_value(), val.into_int_value(), "mul")
+                            .build_int_mul(acc.into_int_value(), val.into_int_value(), "fold_mul")
                             .unwrap()
                             .into(),
                     };
@@ -139,6 +129,103 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .unwrap();
                 self.builder.build_store(alloca, acc).unwrap();
                 self.locals.insert(*result, alloca);
+            }
+            MirStmt::TryProp { expr_id, ok_dest, err_dest } => {
+                let expr_val = self.gen_expr(&exprs[expr_id], exprs);
+                let is_ok = self
+                    .builder
+                    .build_call(
+                        self.get_callee("result_is_ok"),
+                        &[expr_val.into()],
+                        "is_ok",
+                    )
+                    .unwrap();
+                let is_ok_val = Self::call_site_to_basic_value(is_ok).unwrap().into_int_value();
+
+                let parent_fn = self
+                    .builder
+                    .get_insert_block()
+                    .unwrap()
+                    .get_parent()
+                    .unwrap();
+                let ok_bb = self.context.append_basic_block(parent_fn, "prop_ok");
+                let err_bb = self.context.append_basic_block(parent_fn, "prop_err");
+                let cont_bb = self.context.append_basic_block(parent_fn, "prop_cont");
+
+                self.builder
+                    .build_conditional_branch(is_ok_val, ok_bb, err_bb)
+                    .unwrap();
+
+                self.builder.position_at_end(ok_bb);
+                let data = self
+                    .builder
+                    .build_call(
+                        self.get_callee("result_get_data"),
+                        &[expr_val.into()],
+                        "get_data",
+                    )
+                    .unwrap();
+                let data_val = Self::call_site_to_basic_value(data).unwrap();
+                let ok_alloca = self
+                    .builder
+                    .build_alloca(self.i64_type, &format!("ok_{ok_dest}"))
+                    .unwrap();
+                self.builder.build_store(ok_alloca, data_val).unwrap();
+                self.locals.insert(*ok_dest, ok_alloca);
+                self.builder.build_unconditional_branch(cont_bb).unwrap();
+
+                self.builder.position_at_end(err_bb);
+                let err_alloca = self
+                    .builder
+                    .build_alloca(self.i64_type, &format!("err_{err_dest}"))
+                    .unwrap();
+                self.builder.build_store(err_alloca, expr_val).unwrap();
+                self.locals.insert(*err_dest, err_alloca);
+                self.builder.build_unconditional_branch(cont_bb).unwrap();
+
+                self.builder.position_at_end(cont_bb);
+            }
+            MirStmt::MapNew { dest } => {
+                let call = self
+                    .builder
+                    .build_call(self.get_callee("map_new"), &[], "map_new")
+                    .unwrap();
+                let ptr = Self::call_site_to_basic_value(call).unwrap();
+                let alloca = self
+                    .builder
+                    .build_alloca(self.ptr_type, &format!("map_{dest}"))
+                    .unwrap();
+                self.builder.build_store(alloca, ptr).unwrap();
+                self.locals.insert(*dest, alloca);
+            }
+            MirStmt::DictInsert { map_id, key_id, val_id } => {
+                let map_ptr = self.load_local(*map_id);
+                let key_val = self.gen_expr(&exprs[key_id], exprs);
+                let val_val = self.gen_expr(&exprs[val_id], exprs);
+                let _ = self.builder.build_call(
+                    self.get_callee("map_insert"),
+                    &[map_ptr.into(), key_val.into(), val_val.into()],
+                    "dict_insert",
+                );
+            }
+            MirStmt::DictGet { map_id, key_id, dest } => {
+                let map_ptr = self.load_local(*map_id);
+                let key_val = self.gen_expr(&exprs[key_id], exprs);
+                let call = self
+                    .builder
+                    .build_call(
+                        self.get_callee("map_get"),
+                        &[map_ptr.into(), key_val.into()],
+                        "dict_get",
+                    )
+                    .unwrap();
+                let val = Self::call_site_to_basic_value(call).unwrap();
+                let alloca = self
+                    .builder
+                    .build_alloca(self.i64_type, &format!("get_{dest}"))
+                    .unwrap();
+                self.builder.build_store(alloca, val).unwrap();
+                self.locals.insert(*dest, alloca);
             }
             MirStmt::If { cond, then, else_ } => {
                 let cond_val = self.gen_expr(&exprs[cond], exprs).into_int_value();
@@ -151,19 +238,23 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let then_bb = self.context.append_basic_block(parent_fn, "then");
                 let else_bb = self.context.append_basic_block(parent_fn, "else");
                 let merge_bb = self.context.append_basic_block(parent_fn, "merge");
+
                 self.builder
                     .build_conditional_branch(cond_val, then_bb, else_bb)
                     .unwrap();
+
                 self.builder.position_at_end(then_bb);
-                for stmt in then {
-                    self.gen_stmt(stmt, exprs);
+                for s in then {
+                    self.gen_stmt(s, exprs);
                 }
                 self.builder.build_unconditional_branch(merge_bb).unwrap();
+
                 self.builder.position_at_end(else_bb);
-                for stmt in else_ {
-                    self.gen_stmt(stmt, exprs);
+                for s in else_ {
+                    self.gen_stmt(s, exprs);
                 }
                 self.builder.build_unconditional_branch(merge_bb).unwrap();
+
                 self.builder.position_at_end(merge_bb);
             }
             _ => {}
