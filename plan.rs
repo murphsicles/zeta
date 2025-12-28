@@ -1,7 +1,7 @@
 //! Zeta Compiler Development Plan.
 //! Checklist for milestones. Mark as [x] when complete.
-//! Updated December 27, 2025: v0.1.0 released. Preparing v0.1.1 with core ergonomics.
-//! Focus: Full f-string interpolation + Defer lowering.
+//! Updated December 28, 2025: v0.1.1 released with full f-string and defer lowering.
+//! v0.1.2 in progress – completing Semantic Analysis features.
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
@@ -11,10 +11,10 @@ pub mod checklist {
 
     /// Semantic Analysis
     pub const RESOLVER: &str = r#"
-[ ] Advanced trait resolution with associated types and specialization
-[ ] Parametric generics for Result/Map with proper monomorphization
-[ ] Full CTFE constant evaluation in type inference
-[ ] Expanded stable ABI checks for generic functions
+[x] Advanced trait resolution with associated types and specialization
+[x] Parametric generics for Result/Map with proper monomorphization
+[x] Full CTFE constant evaluation in type inference
+[x] Expanded stable ABI checks for generic functions
     "#;
 
     /// MIR (Mid-level IR)
