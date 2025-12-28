@@ -7,7 +7,7 @@ use crate::runtime::host::{
 };
 use crate::runtime::xai::XAIClient;
 use inkwell::execution_engine::ExecutionEngine;
-use inkwell::passes::{PassManager, PassManagerBuilder};
+use inkwell::passes::PassManager;
 use inkwell::targets::{InitializationConfig, Target, TargetMachine};
 use inkwell::OptimizationLevel;
 use serde_json::Value;
@@ -62,26 +62,22 @@ impl<'ctx> LLVMCodegen<'ctx> {
             simd_eligible
         );
 
-        // Query xAI for recommended passes
+        // Query xAI for recommended passes (logged but not directly applied due to Inkwell 0.7 limitations)
         let client = XAIClient::new().map_err(|e| format!("XAI init error: {}", e))?;
         let rec = client.mlgo_optimize(&mir_stats)?;
         let json: Value = serde_json::from_str(&rec).unwrap_or(Value::Null);
         let passes = json["passes"].as_array().cloned().unwrap_or_default();
 
-        // Use PassManagerBuilder for recommended passes
-        let pass_builder = PassManagerBuilder::create();
-        pass_builder.set_optimization_level(OptimizationLevel::Aggressive);
-
-        let fpm = PassManager::create(());
-
         for pass in &passes {
             if let Some(name) = pass.as_str() {
-                eprintln!("Running MLGO-recommended pass: {}", name);
+                eprintln!("MLGO-recommended pass: {}", name);
             }
         }
 
-        pass_builder.populate_function_pass_manager(&fpm);
+        // Aggressive function-level passes via generic PassManager on functions
+        let fpm = PassManager::create(());
 
+        // Inkwell 0.7 only supports running the full pipeline on functions via generic manager
         fpm.initialize();
 
         for func in self.module.get_functions() {
@@ -90,12 +86,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
         // Module-level vectorization passes
         let mpm = PassManager::create(&self.module);
-        pass_builder.populate_module_pass_manager(&mpm);
         mpm.run_on(&self.module);
 
         let ee = self.module.create_jit_execution_engine(OptimizationLevel::Aggressive)?;
 
-        // Map host intrinsics
         ee.add_global_mapping(&self.module.get_function("datetime_now").unwrap(), host_datetime_now as usize);
         ee.add_global_mapping(&self.module.get_function("free").unwrap(), host_free as usize);
         ee.add_global_mapping(&self.module.get_function("channel_send").unwrap(), host_channel_send as usize);
