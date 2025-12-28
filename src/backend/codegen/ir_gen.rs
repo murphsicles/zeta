@@ -1,11 +1,10 @@
 // src/backend/codegen/ir_gen.rs
 use super::codegen::LLVMCodegen;
 use crate::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
-use inkwell::types::BasicMetadataTypeEnum;
-use inkwell::values::ValueKind;
 use inkwell::values::{
     BasicMetadataValueEnum, BasicValue, BasicValueEnum, CallSiteValue, FunctionValue,
 };
+use inkwell::values::ValueKind;
 use std::collections::HashMap;
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -17,7 +16,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     fn gen_fn(&mut self, mir: &Mir) {
         let fn_name = mir.name.as_ref().cloned().unwrap_or("anon".to_string());
-        let param_types: Vec<BasicMetadataTypeEnum> = (0..mir.param_indices.len())
+        let param_types: Vec<_> = (0..mir.param_indices.len())
             .map(|_| self.i64_type.into())
             .collect();
         let fn_type = self.i64_type.fn_type(&param_types, false);
@@ -72,18 +71,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.builder.build_return(Some(&ret_val)).unwrap();
             }
             MirStmt::SemiringFold { op, values, result } => {
-                let mut acc = self.i64_type.const_zero().into();
+                let mut acc: BasicValueEnum<'ctx> = self.i64_type.const_zero().into();
                 for &val_id in values {
                     let val = self.gen_expr(&exprs[&val_id], exprs);
                     acc = match op {
                         SemiringOp::Add => self.builder.build_int_add(acc.into_int_value(), val.into_int_value(), "fold_add").unwrap().into(),
-                        SemiringOp::Mul => {
-                            // Use vectorizable mul when possible
-                            let vec_val = self.builder.build_bitcast(val, self.vec4_i64_type, "to_vec").unwrap();
-                            let vec_acc = self.builder.build_bitcast(acc, self.vec4_i64_type, "acc_vec").unwrap();
-                            let mul_vec = self.builder.build_int_mul(vec_acc.into_vector_value(), vec_val.into_vector_value(), "mul_vec").unwrap();
-                            self.builder.build_bitcast(mul_vec, self.i64_type, "from_vec").unwrap().into()
-                        }
+                        SemiringOp::Mul => self.builder.build_int_mul(acc.into_int_value(), val.into_int_value(), "fold_mul").unwrap().into(),
                     };
                 }
                 let alloca = self.builder.build_alloca(self.i64_type, &format!("fold_{result}")).unwrap();
@@ -204,13 +197,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let mut res = self.gen_expr(&exprs[&ids[0]], exprs);
                 for &id in &ids[1..] {
                     let next = self.gen_expr(&exprs[&id], exprs);
-                    let a_ptr = res.into_pointer_value();
-                    let a_len = self.i64_type.const_int(res.into_pointer_value().get_type().get_element_type().into_array_type().len() as u64 - 1, false);
-                    let b_ptr = next.into_pointer_value();
-                    let b_len = self.i64_type.const_int(next.into_pointer_value().get_type().get_element_type().into_array_type().len() as u64 - 1, false);
                     let call = self.builder.build_call(
                         self.module.get_function("str_concat").unwrap(),
-                        &[a_ptr.into(), a_len.into(), b_ptr.into(), b_len.into()],
+                        &[
+                            res.into(),
+                            self.i64_type.const_int(u64::MAX, false).into(), // dummy lengths – not used by pure impl
+                            next.into(),
+                            self.i64_type.const_int(u64::MAX, false).into(),
+                        ],
                         "fconcat",
                     ).unwrap();
                     res = Self::call_site_to_basic_value(call).unwrap();
