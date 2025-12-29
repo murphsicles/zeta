@@ -6,7 +6,9 @@ impl Resolver {
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
         let mut ok = true;
         for ast in asts {
-            if !self.borrow_checker.borrow_mut().check(ast, self) {
+            // Separate borrow_checker check from other checks to avoid overlapping borrows
+            let borrow_ok = self.borrow_checker.borrow_mut().check(ast, self);
+            if !borrow_ok {
                 ok = false;
             }
             if !self.check_node(ast) {
