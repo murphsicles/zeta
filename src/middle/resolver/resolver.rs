@@ -51,13 +51,16 @@ impl Resolver {
         {
             for (key, value) in cache.entries {
                 // Insert placeholder MIR – actual MIR will be filled when generated
-                self.mono_mirs.insert(key.clone(), Mir {
-                    name: None,
-                    param_indices: vec![],
-                    stmts: vec![],
-                    exprs: HashMap::new(),
-                    ctfe_consts: HashMap::new(),
-                });
+                self.mono_mirs.insert(
+                    key.clone(),
+                    Mir {
+                        name: None,
+                        param_indices: vec![],
+                        stmts: vec![],
+                        exprs: HashMap::new(),
+                        ctfe_consts: HashMap::new(),
+                    },
+                );
                 record_specialization(key, value);
             }
         }
