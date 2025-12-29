@@ -10,6 +10,18 @@ pub struct Mir {
     pub ctfe_consts: HashMap<u32, i64>,
 }
 
+impl Default for Mir {
+    fn default() -> Self {
+        Self {
+            name: None,
+            param_indices: vec![],
+            stmts: vec![],
+            exprs: HashMap::new(),
+            ctfe_consts: HashMap::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum MirStmt {
     Assign {
