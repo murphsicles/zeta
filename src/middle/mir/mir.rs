@@ -1,25 +1,13 @@
 // src/middle/mir/mir.rs
 use std::collections::HashMap;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Mir {
     pub name: Option<String>,
     pub param_indices: Vec<(String, u32)>,
     pub stmts: Vec<MirStmt>,
     pub exprs: HashMap<u32, MirExpr>,
     pub ctfe_consts: HashMap<u32, i64>,
-}
-
-impl Default for Mir {
-    fn default() -> Self {
-        Self {
-            name: None,
-            param_indices: vec![],
-            stmts: vec![],
-            exprs: HashMap::new(),
-            ctfe_consts: HashMap::new(),
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
