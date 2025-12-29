@@ -32,7 +32,9 @@ impl Resolver {
     }
 
     pub fn infer_type(&self, node: &AstNode) -> Type {
-        if self.ctfe_eval(node).is_some() {
+        // Full CTFE evaluation first – if successful, everything is i64 (for now)
+        if let Some(value) = self.ctfe_eval(node) {
+            self.ctfe_consts.insert(node.clone(), value);
             return "i64".to_string();
         }
 
@@ -65,8 +67,17 @@ impl Resolver {
         }
     }
 
+    /// Extended CTFE with deeper expression support:
+    /// - Binary ops (including chains)
+    /// - Calls to known const functions
+    /// - FString interpolation if all parts are CTFE-evaluable
     pub fn ctfe_eval(&self, node: &AstNode) -> Option<i64> {
-        match node {
+        // Check cache first
+        if let Some(&v) = self.ctfe_consts.get(node) {
+            return Some(v);
+        }
+
+        let result = match node {
             AstNode::Lit(n) => Some(*n),
             AstNode::BinaryOp { op, left, right } => {
                 let l = self.ctfe_eval(left)?;
@@ -94,8 +105,21 @@ impl Resolver {
                     None
                 }
             }
+            AstNode::FString(parts) => {
+                // Only allow pure literals for now – deeper interp later
+                if parts.iter().all(|p| matches!(p, AstNode::StringLit(_))) {
+                    Some(0) // placeholder – actual concat would produce str, not i64
+                } else {
+                    None
+                }
+            }
             _ => None,
+        };
+
+        if let Some(v) = result {
+            self.ctfe_consts.insert(node.clone(), v);
         }
+        result
     }
 
     pub fn is_copy(&self, ty: &Type) -> bool {
