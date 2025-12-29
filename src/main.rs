@@ -10,9 +10,7 @@ use zetac::frontend::ast::AstNode;
 use zetac::frontend::parser::top_level::parse_zeta;
 use zetac::middle::mir::mir::Mir;
 use zetac::middle::resolver::resolver::Resolver;
-use zetac::middle::specialization::{
-    is_cache_safe, lookup_specialization, record_specialization,
-};
+use zetac::middle::specialization::{is_cache_safe, lookup_specialization, record_specialization};
 use zetac::runtime::actor::channel;
 use zetac::runtime::actor::scheduler;
 
