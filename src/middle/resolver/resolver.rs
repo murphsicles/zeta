@@ -46,19 +46,19 @@ impl Resolver {
     /// Load persistent specialization cache from disk if exists
     fn load_specialization_cache(&mut self) {
         let path = PathBuf::from(SPECIALIZATION_CACHE_FILE);
-        if let Ok(data) = fs::read_to_string(&path) {
-            if let Ok(cache) = serde_json::from_str::<CacheFile>(&data) {
-                for (key, value) in cache.entries {
-                    // Insert placeholder MIR – actual MIR will be filled when generated
-                    self.mono_mirs.insert(key.clone(), Mir {
-                        name: None,
-                        param_indices: vec![],
-                        stmts: vec![],
-                        exprs: HashMap::new(),
-                        ctfe_consts: HashMap::new(),
-                    });
-                    record_specialization(key, value);
-                }
+        if let Ok(data) = fs::read_to_string(&path)
+            && let Ok(cache) = serde_json::from_str::<CacheFile>(&data)
+        {
+            for (key, value) in cache.entries {
+                // Insert placeholder MIR – actual MIR will be filled when generated
+                self.mono_mirs.insert(key.clone(), Mir {
+                    name: None,
+                    param_indices: vec![],
+                    stmts: vec![],
+                    exprs: HashMap::new(),
+                    ctfe_consts: HashMap::new(),
+                });
+                record_specialization(key, value);
             }
         }
     }
