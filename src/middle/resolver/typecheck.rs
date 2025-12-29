@@ -9,7 +9,7 @@ impl Resolver {
         // First pass: borrow checking only
         for ast in asts {
             let borrow_ok = {
-                let mut checker = self.borrow_checker.borrow_mut();
+                let mut checker = borrow_checker_cell.borrow_mut();
                 checker.check(ast, self)
             };
             if !borrow_ok {
