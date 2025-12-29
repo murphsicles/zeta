@@ -6,7 +6,7 @@ impl Resolver {
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
         let mut ok = true;
 
-        // First pass: borrow checking only
+        // First pass: borrow checking only – no other mutable access to self
         {
             let mut checker = self.borrow_checker.borrow_mut();
             for ast in asts {
@@ -14,9 +14,9 @@ impl Resolver {
                     ok = false;
                 }
             }
-        }
+        } // checker dropped here – mutable borrow of borrow_checker ends
 
-        // Second pass: other semantic checks (infer_type, ctfe_eval, etc.)
+        // Second pass: other semantic checks that may mutate self (CTFE cache, etc.)
         for ast in asts {
             if !self.check_node(ast) {
                 ok = false;
