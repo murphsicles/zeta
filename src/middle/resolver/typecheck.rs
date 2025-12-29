@@ -1,6 +1,7 @@
 // src/middle/resolver/typecheck.rs
 use super::resolver::{Resolver, Type};
 use crate::frontend::ast::AstNode;
+use std::collections::HashMap;
 
 impl Resolver {
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
@@ -31,10 +32,9 @@ impl Resolver {
         }
     }
 
-    pub fn infer_type(&self, node: &AstNode) -> Type {
+    pub fn infer_type(&mut self, node: &AstNode) -> Type {
         // Full CTFE evaluation first – if successful, everything is i64 (for now)
         if let Some(value) = self.ctfe_eval(node) {
-            self.ctfe_consts.insert(node.clone(), value);
             return "i64".to_string();
         }
 
@@ -71,7 +71,7 @@ impl Resolver {
     /// - Binary ops (including chains)
     /// - Calls to known const functions
     /// - FString interpolation if all parts are CTFE-evaluable
-    pub fn ctfe_eval(&self, node: &AstNode) -> Option<i64> {
+    pub fn ctfe_eval(&mut self, node: &AstNode) -> Option<i64> {
         // Check cache first
         if let Some(&v) = self.ctfe_consts.get(node) {
             return Some(v);
