@@ -8,7 +8,7 @@ impl Resolver {
 
         // First pass: borrow checking only – no other mutable access to self
         {
-            let checker = &mut *self.borrow_checker.borrow_mut();
+            let mut checker = self.borrow_checker.borrow_mut();
             for ast in asts {
                 if !checker.check(ast, self) {
                     ok = false;
