@@ -49,7 +49,14 @@ impl Resolver {
         if let Ok(data) = fs::read_to_string(&path) {
             if let Ok(cache) = serde_json::from_str::<CacheFile>(&data) {
                 for (key, value) in cache.entries {
-                    self.mono_mirs.insert(key.clone(), Mir::default()); // placeholder – real MIR filled later
+                    // Insert placeholder MIR – actual MIR will be filled when generated
+                    self.mono_mirs.insert(key.clone(), Mir {
+                        name: None,
+                        param_indices: vec![],
+                        stmts: vec![],
+                        exprs: HashMap::new(),
+                        ctfe_consts: HashMap::new(),
+                    });
                     record_specialization(key, value);
                 }
             }
@@ -58,10 +65,8 @@ impl Resolver {
 
     /// Save current specialization cache to disk
     pub fn persist_specialization_cache(&self) {
-        use std::sync::{RwLockReadGuard, RwLockWriteGuard};
         let cache_guard = crate::middle::specialization::CACHE.read().unwrap();
         let entries: HashMap<MonoKey, MonoValue> = cache_guard.clone();
-        drop(cache_guard);
 
         let cache_file = CacheFile { entries };
         if let Ok(json) = serde_json::to_string_pretty(&cache_file) {
