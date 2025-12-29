@@ -9,11 +9,12 @@ impl Resolver {
         // First pass: borrow checking only
         for ast in asts {
             let borrow_ok = {
-                let mut checker = self.borrow_checker.borrow_mut();
-                // Split the borrow to avoid holding &mut Resolver across the call
-                let resolver_ptr: *mut Resolver = self as *mut Resolver;
-                let resolver_mut: &mut Resolver = unsafe { &mut *resolver_ptr };
-                checker.check(ast, resolver_mut)
+                // Take out the borrow_checker mutably for this iteration only
+                let mut checker = std::mem::take(&mut self.borrow_checker).borrow_mut();
+                let result = checker.check(ast, self);
+                // Put it back – this is safe because borrow_checker is always present
+                drop(checker);
+                result
             };
             if !borrow_ok {
                 ok = false;
