@@ -6,18 +6,18 @@ impl Resolver {
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
         let mut ok = true;
 
-        // First pass: perform all borrow checking (requires &mut self for both borrow_checker and Resolver)
-        let mut borrow_results = Vec::with_capacity(asts.len());
-        for ast in asts {
-            let borrow_ok = self.borrow_checker.borrow_mut().check(ast, self);
-            borrow_results.push(borrow_ok);
+        // First pass: borrow checking only
+        {
+            let mut checker = self.borrow_checker.borrow_mut();
+            for ast in asts {
+                if !checker.check(ast, self) {
+                    ok = false;
+                }
+            }
         }
 
-        // Second pass: perform other node checks (requires &mut self for infer_type/ctfe)
-        for (ast, &borrow_ok) in asts.iter().zip(&borrow_results) {
-            if !borrow_ok {
-                ok = false;
-            }
+        // Second pass: other semantic checks (infer_type, ctfe_eval, etc.)
+        for ast in asts {
             if !self.check_node(ast) {
                 ok = false;
             }
