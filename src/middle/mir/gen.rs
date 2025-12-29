@@ -78,6 +78,27 @@ impl MirGen {
                 let right_id = self.lower_expr(right);
                 let dest = self.next_id();
 
+                // Advanced semiring folding: detect mul chains and fuse into single fold
+                if op == "*" {
+                    // Look backwards for existing mul chain
+                    if let Some(MirStmt::SemiringFold {
+                        op: SemiringOp::Mul,
+                        values,
+                        result: chain_dest,
+                    }) = self.stmts.last_mut()
+                    {
+                        if *chain_dest == left_id {
+                            values.push(right_id);
+                            self.exprs.insert(dest, MirExpr::Var(dest));
+                            self.stmts.push(MirStmt::Assign {
+                                lhs: dest,
+                                rhs: left_id,
+                            });
+                            return;
+                        }
+                    }
+                }
+
                 let op_kind = if op == "+" {
                     SemiringOp::Add
                 } else if op == "*" {
@@ -111,7 +132,6 @@ impl MirGen {
             AstNode::DictLit { entries } => {
                 let map_id = self.next_id();
                 self.stmts.push(MirStmt::MapNew { dest: map_id });
-
                 for (key, val) in entries {
                     let key_id = self.lower_expr(key);
                     let val_id = self.lower_expr(val);
@@ -121,7 +141,6 @@ impl MirGen {
                         val_id,
                     });
                 }
-
                 self.exprs.insert(map_id, MirExpr::Var(map_id));
             }
             AstNode::Subscript { base, index } => {
@@ -148,7 +167,6 @@ impl MirGen {
                     }
                     self.lower_ast(stmt);
                 }
-
                 for defer_ast in collected_defers {
                     let mut subgen = MirGen::new();
                     subgen.lower_ast(&defer_ast);
