@@ -1,7 +1,6 @@
 // src/middle/resolver/typecheck.rs
 use super::resolver::{Resolver, Type};
 use crate::frontend::ast::AstNode;
-use std::cell::RefCell;
 
 impl Resolver {
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
