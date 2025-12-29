@@ -73,7 +73,7 @@ $ time zeta compile src/main.z -o zeta2
 
 ```bash
 # Install (one binary)
-curl -L https://zeta-lang.org/install | sh
+curl -L https://z-lang.org/install | sh
 
 # Compile & run
 zeta run examples/add.z          # JIT
