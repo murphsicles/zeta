@@ -1,21 +1,22 @@
 // src/middle/specialization.rs
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use serde::{Serialize, Deserialize};
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct MonoKey {
     pub func_name: String,
     pub type_args: Vec<String>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MonoValue {
     pub llvm_func_name: String,
     pub cache_safe: bool,
 }
 
 lazy_static::lazy_static! {
-    static ref CACHE: Arc<RwLock<HashMap<MonoKey, MonoValue>>> = Arc::new(RwLock::new(HashMap::new()));
+    pub static ref CACHE: Arc<RwLock<HashMap<MonoKey, MonoValue>>> = Arc::new(RwLock::new(HashMap::new()));
 }
 
 impl MonoKey {
