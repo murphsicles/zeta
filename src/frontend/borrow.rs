@@ -63,7 +63,7 @@ impl BorrowChecker {
     }
     /// Validates borrow rules for an AST node and updates states.
     /// Returns true if valid, false on violation.
-    pub fn check(&mut self, node: &AstNode, resolver: &Resolver) -> bool {
+    pub fn check(&mut self, node: &AstNode, resolver: &mut Resolver) -> bool {
         match node {
             AstNode::Var(v) => self
                 .borrows
