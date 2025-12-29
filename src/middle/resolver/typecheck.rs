@@ -10,7 +10,7 @@ impl Resolver {
         for ast in asts {
             let borrow_ok = {
                 let mut checker = self.borrow_checker.borrow_mut();
-                checker.check(ast, self)
+                checker.check(ast, &*self)
             };
             if !borrow_ok {
                 ok = false;
