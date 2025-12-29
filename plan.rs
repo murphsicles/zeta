@@ -1,6 +1,7 @@
+// plan.rs
 //! Zeta Compiler Development Plan.
 //! Checklist for milestones. Mark as [x] when complete.
-//! Updated December 28, 2025: v0.1.4 released with full Codegen enhancements – pure str_concat, MLGO-driven passes, accurate MIR stats, and SIMD vectorization.
+//! Updated December 29, 2025: v0.1.5 optimizations complete – full CTFE beyond literals, advanced semiring mul-chain fusion, and persistent specialization cache across compilations.
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
@@ -30,9 +31,9 @@ pub mod checklist {
     "#;
     /// Optimizations
     pub const OPTS: &str = r#"
-[ ] Full compile-time evaluation beyond basic literals
-[ ] Advanced semiring folding with mul chain fusion
-[ ] Global specialization cache persistence across compilations
+[x] Full compile-time evaluation beyond basic literals
+[x] Advanced semiring folding with mul chain fusion
+[x] Global specialization cache persistence across compilations
     "#;
     /// Concurrency/Std
     pub const ACTORS_STD: &str = r#"
