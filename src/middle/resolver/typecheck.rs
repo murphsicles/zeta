@@ -8,15 +8,10 @@ impl Resolver {
 
         // First pass: borrow checking only
         for ast in asts {
-            // Extract the RefCell temporarily to break the self-borrow conflict
-            let borrow_checker_cell = std::mem::take(&mut self.borrow_checker);
             let borrow_ok = {
-                let mut checker = borrow_checker_cell.borrow_mut();
+                let mut checker = self.borrow_checker.borrow_mut();
                 checker.check(ast, self)
             };
-            // Put the RefCell back – safe because we know it was there
-            self.borrow_checker = borrow_checker_cell;
-
             if !borrow_ok {
                 ok = false;
             }
