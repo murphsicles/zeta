@@ -1,6 +1,7 @@
 // src/middle/resolver/typecheck.rs
 use super::resolver::{Resolver, Type};
 use crate::frontend::ast::AstNode;
+use std::cell::RefCell;
 
 impl Resolver {
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
@@ -8,14 +9,15 @@ impl Resolver {
 
         // First pass: borrow checking only
         for ast in asts {
+            // Extract the RefCell temporarily to break the self-borrow conflict
+            let borrow_checker_cell = std::mem::take(&mut self.borrow_checker);
             let borrow_ok = {
-                // Take out the borrow_checker mutably for this iteration only
-                let mut checker = std::mem::take(&mut self.borrow_checker).borrow_mut();
-                let result = checker.check(ast, self);
-                // Put it back – this is safe because borrow_checker is always present
-                drop(checker);
-                result
+                let mut checker = borrow_checker_cell.borrow_mut();
+                checker.check(ast, self)
             };
+            // Put the RefCell back – safe because we know it was there
+            self.borrow_checker = borrow_checker_cell;
+
             if !borrow_ok {
                 ok = false;
             }
