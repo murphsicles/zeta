@@ -80,22 +80,20 @@ impl MirGen {
 
                 // Advanced semiring folding: detect mul chains and fuse into single fold
                 if op == "*" {
-                    // Look backwards for existing mul chain
                     if let Some(MirStmt::SemiringFold {
                         op: SemiringOp::Mul,
                         values,
                         result: chain_dest,
                     }) = self.stmts.last_mut()
+                        && *chain_dest == left_id
                     {
-                        if *chain_dest == left_id {
-                            values.push(right_id);
-                            self.exprs.insert(dest, MirExpr::Var(dest));
-                            self.stmts.push(MirStmt::Assign {
-                                lhs: dest,
-                                rhs: left_id,
-                            });
-                            return;
-                        }
+                        values.push(right_id);
+                        self.exprs.insert(dest, MirExpr::Var(dest));
+                        self.stmts.push(MirStmt::Assign {
+                            lhs: dest,
+                            rhs: left_id,
+                        });
+                        return;
                     }
                 }
 
