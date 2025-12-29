@@ -1,7 +1,6 @@
 // src/middle/resolver/typecheck.rs
 use super::resolver::{Resolver, Type};
 use crate::frontend::ast::AstNode;
-use std::collections::HashMap;
 
 impl Resolver {
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
@@ -17,7 +16,7 @@ impl Resolver {
         ok
     }
 
-    fn check_node(&self, node: &AstNode) -> bool {
+    fn check_node(&mut self, node: &AstNode) -> bool {
         match node {
             AstNode::Call { type_args, .. } => {
                 // Arity check for generics (placeholder - real check would use signature lookup)
@@ -34,7 +33,7 @@ impl Resolver {
 
     pub fn infer_type(&mut self, node: &AstNode) -> Type {
         // Full CTFE evaluation first – if successful, everything is i64 (for now)
-        if let Some(value) = self.ctfe_eval(node) {
+        if self.ctfe_eval(node).is_some() {
             return "i64".to_string();
         }
 
