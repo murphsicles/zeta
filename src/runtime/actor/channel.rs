@@ -46,6 +46,7 @@ impl Channel {
         Self { id }
     }
 
+    #[allow(dead_code)]
     async fn get_inner(&self) -> Option<Arc<ChannelInner>> {
         let map = CHANNEL_MAP.get()?;
         let guard = map.lock().await;
