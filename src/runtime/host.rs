@@ -48,15 +48,15 @@ pub unsafe extern "C" fn host_http_get(url: *const c_char) -> i64 {
         .build()
         .unwrap_or_else(|_| Client::new());
 
-    match client.get(url_str).send() {
-        Ok(resp) => {
-            if resp.status().is_success() {
-                resp.content_length().map(|l| l as i64).unwrap_or(-2)
-            } else {
-                -3
-            }
-        }
-        Err(_) => -4,
+    let resp = match client.get(url_str).send() {
+        Ok(r) => r,
+        Err(_) => return -4,
+    };
+
+    if resp.status().is_success() {
+        resp.content_length().map(|l| l as i64).unwrap_or(-2)
+    } else {
+        -3
     }
 }
 
