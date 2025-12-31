@@ -44,7 +44,8 @@ pub unsafe extern "C" fn host_http_get(url: *const c_char) -> i64 {
 
     let client = Client::builder()
         .use_rustls_tls()
-        .dangerous_disable_hostname_verification(true)
+        .danger_accept_invalid_hostnames(true)
+        .danger_accept_invalid_certs(true) // for testing/demo; remove in production
         .build()
         .unwrap_or_else(|_| Client::new());
 
