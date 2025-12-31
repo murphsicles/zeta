@@ -2,7 +2,7 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, OnceLock};
-use tokio::sync::{Mutex, mpsc};
+use tokio::sync::{mpsc, Mutex};
 
 type Message = i64;
 
@@ -21,7 +21,7 @@ pub struct Channel {
 
 #[derive(Debug)]
 struct ChannelInner {
-    queue: mpsc::Sender<Message>,
+    tx: mpsc::Sender<Message>,
     rx: mpsc::Receiver<Message>,
 }
 
@@ -32,7 +32,7 @@ impl Channel {
         let id = CHANNEL_ID_COUNTER.fetch_add(1, Ordering::SeqCst);
 
         let map = CHANNEL_MAP.get_or_init(|| Arc::new(Mutex::new(HashMap::new())));
-        let inner = Arc::new(ChannelInner { queue: tx, rx });
+        let inner = Arc::new(ChannelInner { tx, rx });
 
         let rt = tokio::runtime::Handle::current();
         rt.block_on(async {
@@ -62,7 +62,7 @@ pub unsafe extern "C" fn host_channel_send(chan_id: i64, msg: i64) -> i64 {
         };
         let guard = map.lock().await;
         if let Some(inner) = guard.get(&chan_id) {
-            if inner.queue.try_send(msg).is_ok() {
+            if inner.tx.try_send(msg).is_ok() {
                 0
             } else {
                 -1
@@ -85,11 +85,9 @@ pub unsafe extern "C" fn host_channel_recv(chan_id: i64) -> i64 {
         };
         let guard = map.lock().await;
         if let Some(inner) = guard.get(&chan_id) {
-            // Try non-blocking first
             match inner.rx.try_recv() {
                 Ok(m) => m,
                 Err(mpsc::error::TryRecvError::Empty) => {
-                    // Fall back to blocking recv if empty
                     inner.rx.recv().await.unwrap_or(0)
                 }
                 Err(_) => 0,
