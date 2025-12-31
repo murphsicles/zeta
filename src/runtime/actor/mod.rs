@@ -9,4 +9,4 @@ pub use result::{
     host_result_free, host_result_get_data, host_result_is_ok, host_result_make_err,
     host_result_make_ok,
 };
-pub use scheduler::{host_spawn, init_runtime, spawn};
+pub use scheduler::{host_spawn, init_runtime, register_func, spawn};
