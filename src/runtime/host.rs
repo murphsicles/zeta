@@ -4,7 +4,6 @@ use std::ffi::{c_char, CStr};
 use std::os::raw::c_void;
 use std::time::{SystemTime, UNIX_EPOCH};
 use reqwest::blocking::Client;
-use rustls::ClientConfig;
 
 /// Returns the current datetime as milliseconds since UNIX epoch.
 ///
@@ -43,7 +42,12 @@ pub unsafe extern "C" fn host_http_get(url: *const c_char) -> i64 {
         Err(_) => return -1,
     };
 
-    let client = Client::new();
+    let client = Client::builder()
+        .use_rustls_tls()
+        .dangerously_ignore_certificate_errors() // for demo/testing; remove in production
+        .build()
+        .unwrap_or_else(|_| Client::new());
+
     match client.get(url_str).send() {
         Ok(resp) => {
             if resp.status().is_success() {
@@ -62,43 +66,18 @@ pub unsafe extern "C" fn host_http_get(url: *const c_char) -> i64 {
 /// The host must be a valid null-terminated C string.
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn host_tls_handshake(host: *const c_char) -> i64 {
+    // Real TLS is handled by reqwest + rustls; this remains a dummy for compatibility
     if host.is_null() {
         return -1;
     }
 
-    let host_str = match CStr::from_ptr(host).to_str() {
+    let _host_str = match CStr::from_ptr(host).to_str() {
         Ok(s) => s,
         Err(_) => return -1,
     };
 
-    // Minimal rustls setup to force linking and verify it works
-    let mut config = ClientConfig::builder()
-        .with_safe_defaults()
-        .with_root_certificates(rustls::RootCertStore::empty())
-        .with_no_client_auth();
-
-    // We don't actually connect, just return success if config builds
-    if config.dangerous().set_certificate_verifier(std::sync::Arc::new(NoCertificateVerification)) {
-        0
-    } else {
-        0 // always success for dummy
-    }
-}
-
-struct NoCertificateVerification;
-
-impl rustls::client::ServerCertVerifier for NoCertificateVerification {
-    fn verify_server_cert(
-        &self,
-        _end_entity: &rustls::Certificate,
-        _intermediates: &[rustls::Certificate],
-        _server_name: &rustls::ServerName,
-        _scts: &mut dyn Iterator<Item = &[u8]>,
-        _ocsp_response: &[u8],
-        _now: std::time::SystemTime,
-    ) -> Result<rustls::client::ServerCertVerified, rustls::Error> {
-        Ok(rustls::client::ServerCertVerified::assertion())
-    }
+    // Success – actual TLS happens in reqwest
+    0
 }
 
 /// Concatenates two strings and returns null-terminated pointer.
