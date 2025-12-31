@@ -1,9 +1,9 @@
 // src/runtime/host.rs
 use crate::runtime::std::std_free;
-use std::ffi::{c_char, CStr};
+use reqwest::blocking::Client;
+use std::ffi::{CStr, c_char};
 use std::os::raw::c_void;
 use std::time::{SystemTime, UNIX_EPOCH};
-use reqwest::blocking::Client;
 
 /// Returns the current datetime as milliseconds since UNIX epoch.
 ///
