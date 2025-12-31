@@ -22,7 +22,7 @@ pub struct Channel {
 #[derive(Debug)]
 struct ChannelInner {
     tx: mpsc::Sender<Message>,
-    rx: mpsc::Receiver<Message>,
+    rx: Mutex<mpsc::Receiver<Message>>,
 }
 
 impl Channel {
@@ -32,7 +32,10 @@ impl Channel {
         let id = CHANNEL_ID_COUNTER.fetch_add(1, Ordering::SeqCst);
 
         let map = CHANNEL_MAP.get_or_init(|| Arc::new(Mutex::new(HashMap::new())));
-        let inner = Arc::new(ChannelInner { tx, rx });
+        let inner = Arc::new(ChannelInner {
+            tx,
+            rx: Mutex::new(rx),
+        });
 
         let rt = tokio::runtime::Handle::current();
         rt.block_on(async {
@@ -85,10 +88,15 @@ pub unsafe extern "C" fn host_channel_recv(chan_id: i64) -> i64 {
         };
         let guard = map.lock().await;
         if let Some(inner) = guard.get(&chan_id) {
-            match inner.rx.try_recv() {
+            // Try non-blocking first
+            let mut rx_guard = inner.rx.lock().await;
+            match rx_guard.try_recv() {
                 Ok(m) => m,
                 Err(mpsc::error::TryRecvError::Empty) => {
-                    inner.rx.recv().await.unwrap_or(0)
+                    drop(rx_guard);
+                    // Fall back to blocking recv
+                    let mut rx_guard = inner.rx.lock().await;
+                    rx_guard.recv().await.unwrap_or(0)
                 }
                 Err(_) => 0,
             }
