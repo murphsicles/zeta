@@ -1,5 +1,5 @@
 // src/runtime/actor/scheduler.rs
-use super::channel::{register_channel, Channel};
+use super::channel::Channel;
 use num_cpus;
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::Ordering;
@@ -124,7 +124,7 @@ impl Scheduler {
                 .expect("Failed to create Tokio runtime")
         });
 
-        let sched = rt.block_on(Self::new(num_cpus::get().max(1)))?;
+        let sched = rt.block_on(Self::new(num_cpus::get().max(1)));
         let _ = SCHEDULER.set(sched);
         Ok(())
     }
