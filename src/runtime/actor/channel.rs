@@ -9,8 +9,8 @@ type Message = i64;
 /// Global counter for unique channel IDs.
 pub static CHANNEL_ID_COUNTER: AtomicI64 = AtomicI64::new(0);
 
-/// Global map of channel IDs to channels.
-static CHANNEL_MAP: OnceLock<Arc<Mutex<HashMap<i64, Channel>>>> = OnceLock::new();
+/// Global map of channel IDs to channel inners.
+static CHANNEL_MAP: OnceLock<Arc<Mutex<HashMap<i64, Arc<ChannelInner>>>>> = OnceLock::new();
 
 /// Communication channel for actor messages, compatible with C representations.
 #[repr(C)]
@@ -32,13 +32,13 @@ impl Channel {
         let id = CHANNEL_ID_COUNTER.fetch_add(1, Ordering::SeqCst);
 
         let map = CHANNEL_MAP.get_or_init(|| Arc::new(Mutex::new(HashMap::new())));
-        let inner = Arc::new(ChannelInner {
-            queue: tx,
-            rx,
-        });
+        let inner = Arc::new(ChannelInner { queue: tx, rx });
 
-        let mut guard = tokio::runtime::Handle::current().block_on(map.lock());
-        guard.insert(id, inner);
+        let rt = tokio::runtime::Handle::current();
+        rt.block_on(async {
+            let mut guard = map.lock().await;
+            guard.insert(id, inner);
+        });
 
         Self { id }
     }
@@ -47,19 +47,6 @@ impl Channel {
         let map = CHANNEL_MAP.get()?;
         let guard = map.lock().await;
         guard.get(&self.id).cloned()
-    }
-
-    /// Attempts a non-blocking send of a message to the channel.
-    pub fn send(&self, msg: Message) -> Result<(), mpsc::error::TrySendError<Message>> {
-        let rt = tokio::runtime::Handle::current();
-        let inner = rt.block_on(self.get_inner()).ok_or(mpsc::error::TrySendError::Closed(msg))?;
-        inner.queue.try_send(msg)
-    }
-
-    /// Asynchronously receives a message from the channel.
-    pub async fn recv(&self) -> Option<Message> {
-        let inner = self.get_inner().await?;
-        inner.rx.recv().await
     }
 }
 
@@ -98,7 +85,15 @@ pub unsafe extern "C" fn host_channel_recv(chan_id: i64) -> i64 {
         };
         let guard = map.lock().await;
         if let Some(inner) = guard.get(&chan_id) {
-            inner.rx.recv().await.unwrap_or(0)
+            if let Ok(Some(m)) = inner.rx.try_recv() {
+                m
+            } else {
+                // Block for a message if none available (mirrors old behaviour)
+                tokio::task::block_in_place(|| {
+                    tokio::runtime::Handle::current().block_on(inner.rx.recv())
+                })
+                .unwrap_or(0)
+            }
         } else {
             0
         }
