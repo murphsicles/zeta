@@ -1,5 +1,5 @@
 // src/runtime/host.rs
-use crate::runtime::std::{std_malloc, std_free};
+use crate::runtime::std::std_free;
 use std::ffi::{c_char, CStr};
 use std::os::raw::c_void;
 use std::time::{SystemTime, UNIX_EPOCH};
