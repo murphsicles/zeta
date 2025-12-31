@@ -9,8 +9,11 @@ type Message = i64;
 /// Global counter for unique channel IDs.
 pub static CHANNEL_ID_COUNTER: AtomicI64 = AtomicI64::new(0);
 
+type ChannelMap = Arc<Mutex<HashMap<i64, Arc<ChannelInner>>>>;
+
 /// Global map of channel IDs to channel inners.
-static CHANNEL_MAP: OnceLock<Arc<Mutex<HashMap<i64, Arc<ChannelInner>>>>> = OnceLock::new();
+#[allow(clippy::type_complexity)]
+static CHANNEL_MAP: OnceLock<ChannelMap> = OnceLock::new();
 
 /// Communication channel for actor messages, compatible with C representations.
 #[repr(C)]
@@ -51,6 +54,13 @@ impl Channel {
         let map = CHANNEL_MAP.get()?;
         let guard = map.lock().await;
         guard.get(&self.id).cloned()
+    }
+}
+
+#[allow(clippy::new_without_default)]
+impl Default for Channel {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
