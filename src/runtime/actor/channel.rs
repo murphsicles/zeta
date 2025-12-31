@@ -85,14 +85,14 @@ pub unsafe extern "C" fn host_channel_recv(chan_id: i64) -> i64 {
         };
         let guard = map.lock().await;
         if let Some(inner) = guard.get(&chan_id) {
-            if let Ok(Some(m)) = inner.rx.try_recv() {
-                m
-            } else {
-                // Block for a message if none available (mirrors old behaviour)
-                tokio::task::block_in_place(|| {
-                    tokio::runtime::Handle::current().block_on(inner.rx.recv())
-                })
-                .unwrap_or(0)
+            // Try non-blocking first
+            match inner.rx.try_recv() {
+                Ok(m) => m,
+                Err(mpsc::error::TryRecvError::Empty) => {
+                    // Fall back to blocking recv if empty
+                    inner.rx.recv().await.unwrap_or(0)
+                }
+                Err(_) => 0,
             }
         } else {
             0
