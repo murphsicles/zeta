@@ -4,7 +4,7 @@
 # Package name.
 name = "zetac"
 # Current version.
-version = "0.1.5"
+version = "0.1.6"
 # Rust edition.
 edition = "2024"
 # Minimum Rust version.
@@ -42,8 +42,10 @@ num_cpus = "1.17.0"
 num-traits = "0.2.19"
 # Parallel computing.
 rayon = "1.11.0"
-# HTTP client.
-reqwest = { version = "0.12.28", features = ["blocking", "json"] }
+# HTTP client with rustls TLS (no native-tls)
+reqwest = { version = "0.12.28", features = ["blocking", "json", "rustls-tls"], default-features = false }
+# TLS library for reqwest
+rustls = "0.23.20"
 # Serialization framework.
 serde = { version = "1.0.228", features = ["derive"] }
 # JSON handling.
@@ -54,6 +56,7 @@ tokio = { version = "1.40.0", features = ["full"] }
 chalk-ir = "0.104.0"
 chalk-solve = "0.104.0"
 chalk-recursive = "0.104.0"
+
 # Benchmarking framework.
 criterion = { version = "0.8.1", features = ["html_reports"] }
 
