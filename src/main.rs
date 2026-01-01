@@ -260,7 +260,7 @@ fn repl(dump_mir: bool) -> Result<(), Box<dyn std::error::Error>> {
             .collect();
 
         if dump_mir {
-            if let Some(main_mir) = mir_map.get("main") {
+            && let Some(main_mir) = mir_map.get("main") {
                 println!("=== REPL MIR for main ===");
                 println!("{main_mir:#?}");
             }
