@@ -106,10 +106,14 @@ impl BorrowChecker {
             AstNode::TimingOwned { inner, .. } => self.check(inner, resolver),
             AstNode::Defer(inner) => self.check(inner, resolver),
             AstNode::Call { receiver, args, .. } => {
-                if let Some(r) = receiver.as_ref()
-                    && !self.check(r, resolver)
-                {
-                    return false;
+                if let Some(r) = receiver.as_ref() {
+                    && !self.check(r, resolver) {
+                        return false;
+                    }
+                    // Immutable borrow for receiver (method call &self)
+                    if let AstNode::Var(ref name) = **r {
+                        self.borrows.insert(name.clone(), BorrowState::Borrowed);
+                    }
                 }
                 for arg in args {
                     if !self.check(arg, resolver) {
@@ -134,6 +138,7 @@ impl BorrowChecker {
                 self.check(base, resolver) && self.check(index, resolver)
             }
             AstNode::Return(inner) => self.check(inner, resolver),
+            AstNode::ExprStmt(expr) => self.check(expr, resolver),
             _ => true,
         }
     }
