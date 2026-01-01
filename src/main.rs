@@ -20,8 +20,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     scheduler::init_runtime();
 
     let args: Vec<String> = std::env::args().collect();
+    let dump_mir = args.iter().any(|a| a == "--dump-mir");
+
     if args.len() > 1 && args[1] == "--repl" {
-        repl()?;
+        repl(dump_mir)?;
         return Ok(());
     }
 
@@ -69,7 +71,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         type_args: spec.clone(),
                     };
                     let mangled = key.mangle();
-
                     // Check persistent + in-memory cache first
                     if lookup_specialization(&key).is_none() {
                         let cache_safe = spec.iter().all(|t| is_cache_safe(t));
@@ -81,7 +82,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             },
                         );
                     }
-
                     let mut mono_mir = base_mir.clone();
                     mono_mir.name = Some(mangled);
                     mono_mirs.push(mono_mir);
@@ -89,11 +89,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-
     // Add non-generic mirs not in used_specs
     for (fn_name, mir) in &mir_map {
         if !used_specs.contains_key(fn_name) {
             mono_mirs.push(mir.clone());
+        }
+    }
+
+    if dump_mir {
+        for mir in &mono_mirs {
+            if let Some(name) = &mir.name {
+                println!("=== MIR for {name} ===");
+                println!("{mir:#?}");
+            }
         }
     }
 
@@ -106,7 +114,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Map std_free to host.
     let free_fn = zetac::runtime::std::std_free as *const () as usize;
     ee.add_global_mapping(&codegen.module.get_function("free").unwrap(), free_fn);
-
     // Map async actor intrinsics.
     ee.add_global_mapping(
         &codegen.module.get_function("channel_send").unwrap(),
@@ -133,13 +140,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let zetac_code = fs::read_to_string("examples/zetac.z")?; // Placeholder
     let (_, zetac_asts) =
         parse_zeta(&zetac_code).map_err(|e| format!("Bootstrap parse: {:?}", e))?;
-
     let mut boot_resolver = Resolver::new();
     for ast in &zetac_asts {
         boot_resolver.register(ast.clone());
     }
     boot_resolver.typecheck(&zetac_asts);
-
     let boot_used_specs = boot_resolver.collect_used_specializations(&zetac_asts);
     let boot_mir_map: HashMap<String, Mir> = zetac_asts
         .iter()
@@ -153,6 +158,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect();
 
     let mut boot_mono_mirs: Vec<Mir> = vec![];
+
     for (fn_name, specs) in &boot_used_specs {
         if let Some(base_mir) = boot_mir_map.get(fn_name) {
             if specs.is_empty() {
@@ -164,7 +170,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         type_args: spec.clone(),
                     };
                     let mangled = key.mangle();
-
                     if lookup_specialization(&key).is_none() {
                         let cache_safe = spec.iter().all(|t| is_cache_safe(t));
                         record_specialization(
@@ -175,7 +180,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             },
                         );
                     }
-
                     let mut mono_mir = base_mir.clone();
                     mono_mir.name = Some(mangled);
                     boot_mono_mirs.push(mono_mir);
@@ -189,11 +193,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    if dump_mir {
+        for mir in &boot_mono_mirs {
+            if let Some(name) = &mir.name {
+                println!("=== Bootstrap MIR for {name} ===");
+                println!("{mir:#?}");
+            }
+        }
+    }
+
     let boot_context = Context::create();
     let mut boot_codegen = LLVMCodegen::new(&boot_context, "bootstrap");
     boot_codegen.gen_mirs(&boot_mono_mirs);
     let boot_ee = boot_codegen.finalize_and_jit()?;
-
     unsafe {
         let boot_main = boot_ee
             .get_function::<MainFn>("main")
@@ -201,14 +213,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let boot_result = boot_main.call();
         println!("Zeta bootstrap result: {}", boot_result);
     }
-
     Ok(())
 }
 
-fn repl() -> Result<(), Box<dyn std::error::Error>> {
+fn repl(dump_mir: bool) -> Result<(), Box<dyn std::error::Error>> {
     let stdin = io::stdin();
     let mut stdin_lock = stdin.lock();
-
     loop {
         print!("> ");
         io::stdout().flush()?;
@@ -248,6 +258,13 @@ fn repl() -> Result<(), Box<dyn std::error::Error>> {
                 }
             })
             .collect();
+
+        if dump_mir {
+            if let Some(main_mir) = mir_map.get("main") {
+                println!("=== REPL MIR for main ===");
+                println!("{main_mir:#?}");
+            }
+        }
 
         let context = Context::create();
         let mut codegen = LLVMCodegen::new(&context, "repl");
