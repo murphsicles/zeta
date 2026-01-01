@@ -8,6 +8,7 @@ pub struct Mir {
     pub stmts: Vec<MirStmt>,
     pub exprs: HashMap<u32, MirExpr>,
     pub ctfe_consts: HashMap<u32, i64>,
+    pub type_map: HashMap<u32, String>,
 }
 
 #[derive(Debug, Clone)]
