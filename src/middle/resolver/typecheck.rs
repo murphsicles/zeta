@@ -5,7 +5,6 @@ use crate::frontend::ast::AstNode;
 impl Resolver {
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
         let mut ok = true;
-
         // First pass: borrow checking only
         for ast in asts {
             // Extract the RefCell temporarily to break the self-borrow conflict
@@ -16,19 +15,16 @@ impl Resolver {
             };
             // Put the RefCell back – safe because we know it was there
             self.borrow_checker = borrow_checker_cell;
-
             if !borrow_ok {
                 ok = false;
             }
         }
-
         // Second pass: other semantic checks that may mutate self (CTFE cache, etc.)
         for ast in asts {
             if !self.check_node(ast) {
                 ok = false;
             }
         }
-
         ok
     }
 
@@ -52,7 +48,6 @@ impl Resolver {
         if self.ctfe_eval(node).is_some() {
             return "i64".to_string();
         }
-
         match node {
             AstNode::Lit(_) => "i64".to_string(),
             AstNode::StringLit(_) => "str".to_string(),
@@ -91,7 +86,6 @@ impl Resolver {
         if let Some(&v) = self.ctfe_consts.get(node) {
             return Some(v);
         }
-
         let result = match node {
             AstNode::Lit(n) => Some(*n),
             AstNode::BinaryOp { op, left, right } => {
@@ -130,7 +124,6 @@ impl Resolver {
             }
             _ => None,
         };
-
         if let Some(v) = result {
             self.ctfe_consts.insert(node.clone(), v);
         }
@@ -138,6 +131,6 @@ impl Resolver {
     }
 
     pub fn is_copy(&self, ty: &Type) -> bool {
-        matches!(ty.as_str(), "i32" | "i64" | "f32" | "bool")
+        matches!(ty.as_str(), "i32" | "i64" | "f32" | "bool" | "str")
     }
 }
