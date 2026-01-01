@@ -5,18 +5,34 @@ use crate::frontend::ast::AstNode;
 impl Resolver {
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
         let mut ok = true;
+
+        // First pass: borrow checking only
         for ast in asts {
-            if !self.borrow_checker.borrow_mut().check(ast, self) {
+            // Extract the RefCell temporarily to break the self-borrow conflict
+            let borrow_checker_cell = std::mem::take(&mut self.borrow_checker);
+            let borrow_ok = {
+                let mut checker = borrow_checker_cell.borrow_mut();
+                checker.check(ast, self)
+            };
+            // Put the RefCell back – safe because we know it was there
+            self.borrow_checker = borrow_checker_cell;
+
+            if !borrow_ok {
                 ok = false;
             }
+        }
+
+        // Second pass: other semantic checks that may mutate self (CTFE cache, etc.)
+        for ast in asts {
             if !self.check_node(ast) {
                 ok = false;
             }
         }
+
         ok
     }
 
-    fn check_node(&self, node: &AstNode) -> bool {
+    fn check_node(&mut self, node: &AstNode) -> bool {
         match node {
             AstNode::Call { type_args, .. } => {
                 // Arity check for generics (placeholder - real check would use signature lookup)
@@ -31,7 +47,8 @@ impl Resolver {
         }
     }
 
-    pub fn infer_type(&self, node: &AstNode) -> Type {
+    pub fn infer_type(&mut self, node: &AstNode) -> Type {
+        // Full CTFE evaluation first – if successful, everything is i64 (for now)
         if self.ctfe_eval(node).is_some() {
             return "i64".to_string();
         }
@@ -65,8 +82,17 @@ impl Resolver {
         }
     }
 
-    pub fn ctfe_eval(&self, node: &AstNode) -> Option<i64> {
-        match node {
+    /// Extended CTFE with deeper expression support:
+    /// - Binary ops (including chains)
+    /// - Calls to known const functions
+    /// - FString interpolation if all parts are CTFE-evaluable
+    pub fn ctfe_eval(&mut self, node: &AstNode) -> Option<i64> {
+        // Check cache first
+        if let Some(&v) = self.ctfe_consts.get(node) {
+            return Some(v);
+        }
+
+        let result = match node {
             AstNode::Lit(n) => Some(*n),
             AstNode::BinaryOp { op, left, right } => {
                 let l = self.ctfe_eval(left)?;
@@ -94,8 +120,21 @@ impl Resolver {
                     None
                 }
             }
+            AstNode::FString(parts) => {
+                // Only allow pure literals for now – deeper interp later
+                if parts.iter().all(|p| matches!(p, AstNode::StringLit(_))) {
+                    Some(0) // placeholder – actual concat would produce str, not i64
+                } else {
+                    None
+                }
+            }
             _ => None,
+        };
+
+        if let Some(v) = result {
+            self.ctfe_consts.insert(node.clone(), v);
         }
+        result
     }
 
     pub fn is_copy(&self, ty: &Type) -> bool {

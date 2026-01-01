@@ -1,7 +1,7 @@
 // src/middle/mir/mir.rs
 use std::collections::HashMap;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Mir {
     pub name: Option<String>,
     pub param_indices: Vec<(String, u32)>,

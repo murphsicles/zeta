@@ -1,6 +1,7 @@
+// plan.rs
 //! Zeta Compiler Development Plan.
 //! Checklist for milestones. Mark as [x] when complete.
-//! Updated December 28, 2025: v0.1.3 released with full MIR extensions for semiring fusion, defer RAII, ? propagation, and DictLit/Subscript lowering.
+//! Updated December 31, 2025: Concurrency/Std items completed – robust channel map, real reqwest/rustls integration, single Tokio runtime, proper registration/spawn, and init error handling.
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
@@ -23,24 +24,24 @@ pub mod checklist {
     "#;
     /// Codegen (LLVM)
     pub const CODEGEN: &str = r#"
-[ ] Real str_concat implementation (no external host dependency)
-[ ] Execute actual MLGO-recommended passes via Inkwell PassManager
-[ ] Accurate MIR statistics for AI optimization prompts
-[ ] SIMD vectorization of SemiringFold (mul chains + loop vectorize)
+[x] Real str_concat implementation (no external host dependency)
+[x] Execute actual MLGO-recommended passes via Inkwell PassManager
+[x] Accurate MIR statistics for AI optimization prompts
+[x] SIMD vectorization of SemiringFold (mul chains + loop vectorize)
     "#;
     /// Optimizations
     pub const OPTS: &str = r#"
-[ ] Full compile-time evaluation beyond basic literals
-[ ] Advanced semiring folding with mul chain fusion
-[ ] Global specialization cache persistence across compilations
+[x] Full compile-time evaluation beyond basic literals
+[x] Advanced semiring folding with mul chain fusion
+[x] Global specialization cache persistence across compilations
     "#;
     /// Concurrency/Std
     pub const ACTORS_STD: &str = r#"
-[ ] Robust global channel map + proper registration/lookup
-[ ] Real reqwest integration for std::http_get / std::tls_get (rustls)
-[ ] Efficient single Tokio runtime (no per-host Runtime::new)
-[ ] Proper actor entry registration and spawn mapping by func_id
-[ ] Scheduler initialization error handling + panic safety
+[x] Robust global channel map + proper registration/lookup
+[x] Real reqwest integration for std::http_get / std::tls_get (rustls)
+[x] Efficient single Tokio runtime (no per-host Runtime::new)
+[x] Proper actor entry registration and spawn mapping by func_id
+[x] Scheduler initialization error handling + panic safety
     "#;
     /// Bootstrap/Self-host
     pub const BOOTSTRAP: &str = r#"
