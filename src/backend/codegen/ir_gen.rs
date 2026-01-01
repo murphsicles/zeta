@@ -20,6 +20,25 @@ impl<'ctx> LLVMCodegen<'ctx> {
             .collect();
         let fn_type = self.i64_type.fn_type(&param_types, false);
         let fn_val = self.module.add_function(&fn_name, fn_type, None);
+
+        // Debug info: create subprogram for function
+        let di_file = self.di_builder.create_file("zeta_source.z", ".");
+        let di_sub_type = self.di_builder.create_subroutine_type(di_file, None);
+        let di_subprogram = self.di_builder.create_function(
+            self.di_builder.get_compile_unit().as_debug_info_scope(),
+            &fn_name,
+            Some(&fn_name),
+            di_file,
+            1,
+            di_sub_type,
+            false,
+            true,
+            1,
+            inkwell::debug_info::DIFlags::empty(),
+            false,
+        );
+        fn_val.set_subprogram(di_subprogram);
+
         let entry = self.context.append_basic_block(fn_val, "entry");
         self.builder.position_at_end(entry);
         self.locals.clear();
@@ -140,7 +159,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let is_ok_val = Self::call_site_to_basic_value(is_ok)
                     .unwrap()
                     .into_int_value();
-
                 let parent_fn = self
                     .builder
                     .get_insert_block()
@@ -150,11 +168,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let ok_bb = self.context.append_basic_block(parent_fn, "prop_ok");
                 let err_bb = self.context.append_basic_block(parent_fn, "prop_err");
                 let cont_bb = self.context.append_basic_block(parent_fn, "prop_cont");
-
                 self.builder
                     .build_conditional_branch(is_ok_val, ok_bb, err_bb)
                     .unwrap();
-
                 self.builder.position_at_end(ok_bb);
                 let data = self
                     .builder
@@ -172,7 +188,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.builder.build_store(ok_alloca, data_val).unwrap();
                 self.locals.insert(*ok_dest, ok_alloca);
                 self.builder.build_unconditional_branch(cont_bb).unwrap();
-
                 self.builder.position_at_end(err_bb);
                 let err_alloca = self
                     .builder
@@ -181,7 +196,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.builder.build_store(err_alloca, expr_val).unwrap();
                 self.locals.insert(*err_dest, err_alloca);
                 self.builder.build_unconditional_branch(cont_bb).unwrap();
-
                 self.builder.position_at_end(cont_bb);
             }
             MirStmt::MapNew { dest } => {
@@ -190,11 +204,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .build_call(self.get_callee("map_new"), &[], "map_new")
                     .unwrap();
                 let ptr = Self::call_site_to_basic_value(call).unwrap();
+                let ptr_i64 = self.builder.build_ptr_to_int(ptr.into_pointer_value(), self.i64_type, "map_ptr_i64").unwrap();
                 let alloca = self
                     .builder
-                    .build_alloca(self.ptr_type, &format!("map_{dest}"))
+                    .build_alloca(self.i64_type, &format!("map_{dest}"))
                     .unwrap();
-                self.builder.build_store(alloca, ptr).unwrap();
+                self.builder.build_store(alloca, ptr_i64).unwrap();
                 self.locals.insert(*dest, alloca);
             }
             MirStmt::DictInsert {
@@ -202,7 +217,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 key_id,
                 val_id,
             } => {
-                let map_ptr = self.load_local(*map_id);
+                let map_i64 = self.load_local(*map_id);
+                let map_ptr = self.builder.build_int_to_ptr(map_i64.into_int_value(), self.ptr_type, "map_ptr").unwrap();
                 let key_val = self.gen_expr(&exprs[key_id], exprs);
                 let val_val = self.gen_expr(&exprs[val_id], exprs);
                 let _ = self.builder.build_call(
@@ -216,7 +232,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 key_id,
                 dest,
             } => {
-                let map_ptr = self.load_local(*map_id);
+                let map_i64 = self.load_local(*map_id);
+                let map_ptr = self.builder.build_int_to_ptr(map_i64.into_int_value(), self.ptr_type, "map_ptr").unwrap();
                 let key_val = self.gen_expr(&exprs[key_id], exprs);
                 let call = self
                     .builder
@@ -245,23 +262,19 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let then_bb = self.context.append_basic_block(parent_fn, "then");
                 let else_bb = self.context.append_basic_block(parent_fn, "else");
                 let merge_bb = self.context.append_basic_block(parent_fn, "merge");
-
                 self.builder
                     .build_conditional_branch(cond_val, then_bb, else_bb)
                     .unwrap();
-
                 self.builder.position_at_end(then_bb);
                 for s in then {
                     self.gen_stmt(s, exprs);
                 }
                 self.builder.build_unconditional_branch(merge_bb).unwrap();
-
                 self.builder.position_at_end(else_bb);
                 for s in else_ {
                     self.gen_stmt(s, exprs);
                 }
                 self.builder.build_unconditional_branch(merge_bb).unwrap();
-
                 self.builder.position_at_end(merge_bb);
             }
             _ => {}
@@ -287,7 +300,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .map(|&b| self.context.i8_type().const_int(b as u64, false))
                     .collect();
                 global.set_initializer(&self.context.i8_type().const_array(&values));
-                global.as_pointer_value().into()
+                let gptr = global.as_pointer_value();
+                self.builder.build_ptr_to_int(gptr, self.i64_type, "str_ptr_i64").unwrap().into()
             }
             MirExpr::FString(ids) => {
                 if ids.is_empty() {
@@ -299,13 +313,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let call = self
                         .builder
                         .build_call(
-                            self.module.get_function("str_concat").unwrap(),
-                            &[
-                                res.into(),
-                                self.i64_type.const_int(u64::MAX, false).into(),
-                                next.into(),
-                                self.i64_type.const_int(u64::MAX, false).into(),
-                            ],
+                            self.module.get_function("host_str_concat").unwrap(),
+                            &[res.into(), next.into()],
                             "fconcat",
                         )
                         .unwrap();
