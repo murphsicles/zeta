@@ -138,7 +138,7 @@ impl BorrowChecker {
                 self.check(base, resolver) && self.check(index, resolver)
             }
             AstNode::Return(inner) => self.check(inner, resolver),
-            AstNode::ExprStmt(expr) => self.check(expr, resolver),
+            AstNode::ExprStmt { expr } => self.check(expr, resolver),
             _ => true,
         }
     }
