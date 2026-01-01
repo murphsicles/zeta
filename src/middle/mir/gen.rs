@@ -288,7 +288,7 @@ impl MirGen {
                     type_args: type_args.clone(),
                 });
 
-                let ret_ty = if receiver_ty.as_ref().map_or(false, |rty| rty == "str") {
+                let ret_ty = if receiver_ty.is_some_and(|rty| rty == "str") {
                     match method.as_str() {
                         "starts_with" | "ends_with" | "contains" => "i64".to_string(),
                         "len" => "i64".to_string(),
