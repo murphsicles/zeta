@@ -16,9 +16,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
     ) -> Result<ExecutionEngine<'ctx>, Box<dyn std::error::Error>> {
         self.module.verify().map_err(|e| e.to_string())?;
 
-        // Finalize debug info
-        self.finalize_and_jit();
-
         // Initialize native target for proper vectorization
         Target::initialize_native(&InitializationConfig::default())?;
         let target_triple = TargetMachine::get_default_triple();
