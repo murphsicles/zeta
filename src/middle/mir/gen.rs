@@ -204,7 +204,7 @@ impl MirGen {
                     else_: else_stmts,
                 });
             }
-            AstNode::ExprStmt(expr) => {
+            AstNode::ExprStmt { expr } => {
                 // Expression statement – evaluate for side-effects, discard result
                 let _ = self.lower_expr(expr);
             }
@@ -216,7 +216,7 @@ impl MirGen {
         let id = self.next_id();
 
         match expr {
-            AstNode::Var(name) => {
+            AstNode::Var(_name) => {
                 self.exprs.insert(id, MirExpr::Var(id));
                 self.type_map.insert(id, "i64".to_string()); // Conservative default
             }
@@ -248,20 +248,20 @@ impl MirGen {
             }
             AstNode::Call { receiver, method, args, type_args, structural: _ } => {
                 let mut arg_ids = Vec::new();
-                let mut receiver_ty = None;
-
-                if let Some(recv) = receiver {
+                let receiver_ty = if let Some(recv) = receiver {
                     let recv_id = self.lower_expr(recv);
                     arg_ids.push(recv_id);
-                    receiver_ty = Some(self.type_map[&recv_id].clone());
-                }
+                    Some(self.type_map[&recv_id].clone())
+                } else {
+                    None
+                };
 
                 for arg in args {
                     let arg_id = self.lower_expr(arg);
                     arg_ids.push(arg_id);
                 }
 
-                let func = if let Some(rty) = receiver_ty {
+                let func = if let Some(ref rty) = receiver_ty {
                     if rty == "str" {
                         match method.as_str() {
                             "to_lowercase" => "host_str_to_lowercase".to_string(),
@@ -288,9 +288,10 @@ impl MirGen {
                     type_args: type_args.clone(),
                 });
 
-                let ret_ty = if receiver_ty.as_deref() == Some("str") {
+                let ret_ty = if receiver_ty.as_ref().map_or(false, |rty| rty == "str") {
                     match method.as_str() {
-                        "starts_with" | "ends_with" | "contains" | "len" => "i64".to_string(),
+                        "starts_with" | "ends_with" | "contains" => "i64".to_string(),
+                        "len" => "i64".to_string(),
                         _ => "str".to_string(),
                     }
                 } else {
@@ -314,7 +315,7 @@ impl MirGen {
                 self.type_map.insert(id, "i64".to_string());
                 self.exprs.insert(id, MirExpr::Var(id));
             }
-            AstNode::Spawn { func, args } => {
+            AstNode::Spawn { func: _, args } => {
                 let mut arg_ids = Vec::new();
                 for arg in args {
                     arg_ids.push(self.lower_expr(arg));
