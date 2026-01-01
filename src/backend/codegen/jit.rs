@@ -16,6 +16,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
     ) -> Result<ExecutionEngine<'ctx>, Box<dyn std::error::Error>> {
         self.module.verify().map_err(|e| e.to_string())?;
 
+        // Finalize debug info
+        self.finalize_di();
+
         // Initialize native target for proper vectorization
         Target::initialize_native(&InitializationConfig::default())?;
         let target_triple = TargetMachine::get_default_triple();
@@ -35,7 +38,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.module
             .set_data_layout(&target_machine.get_target_data().get_data_layout());
 
-        // Accurate MIR statistics for AI prompt
+        // Accurate MIR statistics for AI optimization prompts
         let mut stmt_count = 0;
         let mut local_count = 0;
         let mut simd_eligible = 0;
@@ -100,6 +103,42 @@ impl<'ctx> LLVMCodegen<'ctx> {
         ee.add_global_mapping(
             &self.module.get_function("free").unwrap(),
             host_free as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("host_str_concat").unwrap(),
+            crate::runtime::host::host_str_concat as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("host_str_to_lowercase").unwrap(),
+            crate::runtime::host::host_str_to_lowercase as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("host_str_to_uppercase").unwrap(),
+            crate::runtime::host::host_str_to_uppercase as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("host_str_len").unwrap(),
+            crate::runtime::host::host_str_len as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("host_str_starts_with").unwrap(),
+            crate::runtime::host::host_str_starts_with as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("host_str_ends_with").unwrap(),
+            crate::runtime::host::host_str_ends_with as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("host_str_contains").unwrap(),
+            crate::runtime::host::host_str_contains as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("host_str_trim").unwrap(),
+            crate::runtime::host::host_str_trim as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("host_str_replace").unwrap(),
+            crate::runtime::host::host_str_replace as *const () as usize,
         );
         ee.add_global_mapping(
             &self.module.get_function("channel_send").unwrap(),
