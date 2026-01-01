@@ -51,6 +51,6 @@ pub fn parse_stmt(input: &str) -> IResult<&str, AstNode> {
         parse_return,
         parse_if,
         // Expression statement (e.g. function call with side-effects)
-        parse_full_expr.map(|expr| AstNode::ExprStmt(Box::new(expr))),
+        parse_full_expr.map(|expr| AstNode::ExprStmt { expr: Box::new(expr) }),
     )).parse(input)
 }
