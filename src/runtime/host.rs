@@ -3,6 +3,7 @@ use crate::runtime::std::std_free;
 use reqwest::blocking::Client;
 use std::ffi::{c_char, CStr, CString};
 use std::os::raw::c_void;
+use std::ptr;
 use std::time::{SystemTime, UNIX_EPOCH};
 use libc::strlen;
 
@@ -86,6 +87,7 @@ pub unsafe extern "C" fn host_tls_handshake(host: *const c_char) -> i64 {
 ///
 /// # Safety
 /// Pointers a and b must be valid null-terminated strings. Caller must eventually free returned pointer.
+#[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn host_str_concat(a: i64, b: i64) -> i64 {
     let a_ptr = a as *const u8;
     let b_ptr = b as *const u8;
@@ -102,6 +104,7 @@ pub unsafe extern "C" fn host_str_concat(a: i64, b: i64) -> i64 {
     ptr as i64
 }
 
+#[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn host_str_to_lowercase(s: i64) -> i64 {
     let ptr = s as *const u8;
     let cstr = CStr::from_ptr(ptr as *const c_char);
@@ -114,6 +117,7 @@ pub unsafe extern "C" fn host_str_to_lowercase(s: i64) -> i64 {
     new_ptr as i64
 }
 
+#[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn host_str_to_uppercase(s: i64) -> i64 {
     let ptr = s as *const u8;
     let cstr = CStr::from_ptr(ptr as *const c_char);
@@ -126,6 +130,7 @@ pub unsafe extern "C" fn host_str_to_uppercase(s: i64) -> i64 {
     new_ptr as i64
 }
 
+#[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn host_str_trim(s: i64) -> i64 {
     let ptr = s as *const u8;
     let cstr = CStr::from_ptr(ptr as *const c_char);
@@ -138,29 +143,34 @@ pub unsafe extern "C" fn host_str_trim(s: i64) -> i64 {
     new_ptr as i64
 }
 
+#[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn host_str_len(s: i64) -> i64 {
     let ptr = s as *const c_char;
     strlen(ptr) as i64
 }
 
+#[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn host_str_starts_with(haystack: i64, needle: i64) -> i64 {
     let hay = CStr::from_ptr(haystack as *const c_char).to_str().unwrap();
     let ndl = CStr::from_ptr(needle as *const c_char).to_str().unwrap();
     if hay.starts_with(ndl) { 1 } else { 0 }
 }
 
+#[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn host_str_ends_with(haystack: i64, needle: i64) -> i64 {
     let hay = CStr::from_ptr(haystack as *const c_char).to_str().unwrap();
     let ndl = CStr::from_ptr(needle as *const c_char).to_str().unwrap();
     if hay.ends_with(ndl) { 1 } else { 0 }
 }
 
+#[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn host_str_contains(haystack: i64, needle: i64) -> i64 {
     let hay = CStr::from_ptr(haystack as *const c_char).to_str().unwrap();
     let ndl = CStr::from_ptr(needle as *const c_char).to_str().unwrap();
     if hay.contains(ndl) { 1 } else { 0 }
 }
 
+#[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn host_str_replace(s: i64, old: i64, new: i64) -> i64 {
     let str_val = CStr::from_ptr(s as *const c_char).to_str().unwrap();
     let old_val = CStr::from_ptr(old as *const c_char).to_str().unwrap();
@@ -172,24 +182,4 @@ pub unsafe extern "C" fn host_str_replace(s: i64, old: i64, new: i64) -> i64 {
     let new_ptr = crate::runtime::std::std_malloc(len);
     ptr::copy_nonoverlapping(bytes.as_ptr(), new_ptr, len);
     new_ptr as i64
-}
-
-/// Concatenates two strings and returns null-terminated pointer.
-///
-/// # Safety
-/// Pointers a and b must be valid for reads of a_len and b_len bytes. Caller must free returned pointer.
-#[allow(unsafe_op_in_unsafe_fn)]
-pub unsafe extern "C" fn host_str_concat(
-    a: *const u8,
-    a_len: usize,
-    b: *const u8,
-    b_len: usize,
-) -> *mut u8 {
-    let mut result = Vec::with_capacity(a_len + b_len + 1);
-    result.extend_from_slice(std::slice::from_raw_parts(a, a_len));
-    result.extend_from_slice(std::slice::from_raw_parts(b, b_len));
-    result.push(0);
-    let ptr = result.as_mut_ptr();
-    std::mem::forget(result);
-    ptr
 }
