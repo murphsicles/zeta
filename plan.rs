@@ -1,7 +1,8 @@
 // plan.rs
 //! Zeta Compiler Development Plan.
 //! Checklist for milestones. Mark as [x] when complete.
-//! Updated December 31, 2025: Concurrency/Std items completed – robust channel map, real reqwest/rustls integration, single Tokio runtime, proper registration/spawn, and init error handling.
+//! Updated January 01, 2026: Ergonomics items completed – rich string methods, + operator sugar for concatenation,
+//! implicit str conversions, visual MIR dumps via --dump-mir, and basic JIT debugger integration with DWARF subprograms.
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
@@ -50,11 +51,11 @@ pub mod checklist {
     "#;
     /// Ergonomics (Ease of Use for Adoption)
     pub const ERGONOMICS: &str = r#"
-[ ] Rich string methods (to_lowercase, replace, starts_with, etc.)
-[ ] + operator sugar specialized for string concatenation
-[ ] Implicit &str ↔ owned str conversions without lifetimes
-[ ] Visual MIR dumps for debugging
-[ ] Auto-step JIT debugger integration
+[x] Rich string methods (to_lowercase, replace, starts_with, etc.)
+[x] + operator sugar specialized for string concatenation
+[x] Implicit &str ↔ owned str conversions without lifetimes
+[x] Visual MIR dumps for debugging
+[x] Auto-step JIT debugger integration
     "#;
     /// Adoption (Viral Strategies for 30-Year Dominance)
     pub const ADOPTION: &str = r#"
