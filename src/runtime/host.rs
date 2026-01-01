@@ -104,6 +104,10 @@ pub unsafe extern "C" fn host_str_concat(a: i64, b: i64) -> i64 {
     ptr as i64
 }
 
+/// Converts string to lowercase and returns new null-terminated pointer.
+///
+/// # Safety
+/// Input must be a valid null-terminated string pointer (i64 cast). Caller must free returned pointer.
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn host_str_to_lowercase(s: i64) -> i64 {
     let ptr = s as *const u8;
@@ -117,6 +121,10 @@ pub unsafe extern "C" fn host_str_to_lowercase(s: i64) -> i64 {
     new_ptr as i64
 }
 
+/// Converts string to uppercase and returns new null-terminated pointer.
+///
+/// # Safety
+/// Input must be a valid null-terminated string pointer (i64 cast). Caller must free returned pointer.
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn host_str_to_uppercase(s: i64) -> i64 {
     let ptr = s as *const u8;
@@ -130,6 +138,10 @@ pub unsafe extern "C" fn host_str_to_uppercase(s: i64) -> i64 {
     new_ptr as i64
 }
 
+/// Trims whitespace from string and returns new null-terminated pointer.
+///
+/// # Safety
+/// Input must be a valid null-terminated string pointer (i64 cast). Caller must free returned pointer.
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn host_str_trim(s: i64) -> i64 {
     let ptr = s as *const u8;
@@ -143,12 +155,20 @@ pub unsafe extern "C" fn host_str_trim(s: i64) -> i64 {
     new_ptr as i64
 }
 
+/// Returns the length of a null-terminated string.
+///
+/// # Safety
+/// Input must be a valid null-terminated string pointer (i64 cast).
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn host_str_len(s: i64) -> i64 {
     let ptr = s as *const c_char;
     strlen(ptr) as i64
 }
 
+/// Checks if string starts with substring, returns 1 if true, 0 otherwise.
+///
+/// # Safety
+/// Both inputs must be valid null-terminated string pointers (i64 cast).
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn host_str_starts_with(haystack: i64, needle: i64) -> i64 {
     let hay = CStr::from_ptr(haystack as *const c_char).to_str().unwrap();
@@ -156,6 +176,10 @@ pub unsafe extern "C" fn host_str_starts_with(haystack: i64, needle: i64) -> i64
     if hay.starts_with(ndl) { 1 } else { 0 }
 }
 
+/// Checks if string ends with substring, returns 1 if true, 0 otherwise.
+///
+/// # Safety
+/// Both inputs must be valid null-terminated string pointers (i64 cast).
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn host_str_ends_with(haystack: i64, needle: i64) -> i64 {
     let hay = CStr::from_ptr(haystack as *const c_char).to_str().unwrap();
@@ -163,6 +187,10 @@ pub unsafe extern "C" fn host_str_ends_with(haystack: i64, needle: i64) -> i64 {
     if hay.ends_with(ndl) { 1 } else { 0 }
 }
 
+/// Checks if string contains substring, returns 1 if true, 0 otherwise.
+///
+/// # Safety
+/// Both inputs must be valid null-terminated string pointers (i64 cast).
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn host_str_contains(haystack: i64, needle: i64) -> i64 {
     let hay = CStr::from_ptr(haystack as *const c_char).to_str().unwrap();
@@ -170,6 +198,10 @@ pub unsafe extern "C" fn host_str_contains(haystack: i64, needle: i64) -> i64 {
     if hay.contains(ndl) { 1 } else { 0 }
 }
 
+/// Replaces all occurrences of old with new and returns new null-terminated pointer.
+///
+/// # Safety
+/// All three inputs must be valid null-terminated string pointers (i64 cast). Caller must free returned pointer.
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn host_str_replace(s: i64, old: i64, new: i64) -> i64 {
     let str_val = CStr::from_ptr(s as *const c_char).to_str().unwrap();
