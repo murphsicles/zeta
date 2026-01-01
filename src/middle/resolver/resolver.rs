@@ -59,6 +59,7 @@ impl Resolver {
                         stmts: vec![],
                         exprs: HashMap::new(),
                         ctfe_consts: HashMap::new(),
+                        type_map: HashMap::new(),
                     },
                 );
                 record_specialization(key, value);
