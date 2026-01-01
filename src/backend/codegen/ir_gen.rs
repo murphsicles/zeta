@@ -20,25 +20,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
             .collect();
         let fn_type = self.i64_type.fn_type(&param_types, false);
         let fn_val = self.module.add_function(&fn_name, fn_type, None);
-
-        // Debug info: create subprogram for function
-        let di_file = self.di_builder.create_file("zeta_source.z", ".");
-        let di_sub_type = self.di_builder.create_subroutine_type(di_file, None);
-        let di_subprogram = self.di_builder.create_function(
-            self.di_builder.get_compile_unit().as_debug_info_scope(),
-            &fn_name,
-            Some(&fn_name),
-            di_file,
-            1,
-            di_sub_type,
-            false,
-            true,
-            1,
-            inkwell::debug_info::DIFlags::empty(),
-            false,
-        );
-        fn_val.set_subprogram(di_subprogram);
-
         let entry = self.context.append_basic_block(fn_val, "entry");
         self.builder.position_at_end(entry);
         self.locals.clear();
@@ -329,10 +310,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .builder
                     .build_load(self.i64_type, ptr, "timing_load")
                     .unwrap();
-                if let Some(inst) = load.as_instruction_value() {
-                    let tbaa_kind = self.context.get_kind_id("tbaa");
-                    inst.set_metadata(self.tbaa_const_time, tbaa_kind).unwrap();
-                }
                 load
             }
         }
