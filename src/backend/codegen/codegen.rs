@@ -4,10 +4,7 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::{Linkage, Module};
 use inkwell::types::{IntType, PointerType, VectorType};
-use inkwell::values::{FunctionValue, MetadataValue, PointerValue};
-use inkwell::debug_info::{
-    DebugInfoBuilder, DIFlags, DWARFSourceLanguage, DWARFVersion,
-};
+use inkwell::values::{FunctionValue, PointerValue};
 use std::collections::HashMap;
 
 pub struct LLVMCodegen<'ctx> {
@@ -18,9 +15,7 @@ pub struct LLVMCodegen<'ctx> {
     pub vec4_i64_type: VectorType<'ctx>,
     pub ptr_type: PointerType<'ctx>,
     pub locals: HashMap<u32, PointerValue<'ctx>>,
-    pub tbaa_const_time: MetadataValue<'ctx>,
     pub fns: HashMap<String, FunctionValue<'ctx>>,
-    di_builder: DebugInfoBuilder<'ctx>,
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -61,14 +56,19 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let result_is_ok_type = i64_type.fn_type(&[ptr_type.into()], false);
         module.add_function("result_is_ok", result_is_ok_type, Some(Linkage::External));
         let result_get_data_type = i64_type.fn_type(&[ptr_type.into()], false);
-        module.add_function("result_get_data", result_get_data_type, Some(Linkage::External));
+        module.add_function(
+            "result_get_data",
+            result_get_data_type,
+            Some(Linkage::External),
+        );
         let result_free_type = void_type.fn_type(&[ptr_type.into()], false);
         module.add_function("result_free", result_free_type, Some(Linkage::External));
 
         // Map host functions
         let map_new_type = ptr_type.fn_type(&[], false);
         module.add_function("map_new", map_new_type, Some(Linkage::External));
-        let map_insert_type = void_type.fn_type(&[ptr_type.into(), i64_type.into(), i64_type.into()], false);
+        let map_insert_type =
+            void_type.fn_type(&[ptr_type.into(), i64_type.into(), i64_type.into()], false);
         module.add_function("map_insert", map_insert_type, Some(Linkage::External));
         let map_get_type = i64_type.fn_type(&[ptr_type.into(), i64_type.into()], false);
         module.add_function("map_get", map_get_type, Some(Linkage::External));
@@ -91,27 +91,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
         module.add_function("host_str_contains", str_pred_type, Some(Linkage::External));
         module.add_function("host_str_replace", i64_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into()], false), Some(Linkage::External));
 
-        // Debug info setup (basic function symbols for JIT debugging)
-        let di_builder = module.create_debug_info_builder(true);
-        let di_file = di_builder.create_file("zeta_source.z", ".");
-        let di_compile_unit = di_builder.create_compile_unit(
-            DWARFSourceLanguage::Rust,
-            di_file,
-            "Zeta Compiler",
-            false,
-            "",
-            0,
-            "",
-            DWARFVersion::V5,
-            0,
-            true,
-            false,
-            "",
-            "",
-        );
-
-        let tbaa_const_time = context.metadata_string("const_time");
-
         Self {
             context,
             module,
@@ -120,13 +99,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             vec4_i64_type,
             ptr_type,
             locals: HashMap::new(),
-            tbaa_const_time,
             fns: HashMap::new(),
-            di_builder,
         }
-    }
-
-    pub fn finalize_di(&self) {
-        self.di_builder.finalize();
     }
 }
