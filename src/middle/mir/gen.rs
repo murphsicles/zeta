@@ -11,6 +11,7 @@ pub struct MirGen {
     #[allow(dead_code)]
     defers: Vec<u32>,
     defer_stmts: Vec<MirStmt>,
+    type_map: HashMap<u32, String>,
 }
 
 impl MirGen {
@@ -22,6 +23,7 @@ impl MirGen {
             ctfe_consts: HashMap::new(),
             defers: vec![],
             defer_stmts: vec![],
+            type_map: HashMap::new(),
         }
     }
 
@@ -46,6 +48,7 @@ impl MirGen {
             stmts: std::mem::take(&mut self.stmts),
             exprs: std::mem::take(&mut self.exprs),
             ctfe_consts: std::mem::take(&mut self.ctfe_consts),
+            type_map: std::mem::take(&mut self.type_map),
         }
     }
 
@@ -56,6 +59,7 @@ impl MirGen {
             stmts: std::mem::take(&mut self.stmts),
             exprs: std::mem::take(&mut self.exprs),
             ctfe_consts: std::mem::take(&mut self.ctfe_consts),
+            type_map: std::mem::take(&mut self.type_map),
         }
     }
 
@@ -77,44 +81,51 @@ impl MirGen {
                 let left_id = self.lower_expr(left);
                 let right_id = self.lower_expr(right);
                 let dest = self.next_id();
+                let lty = self.type_map[&left_id].clone();
+                let rty = self.type_map[&right_id].clone();
 
-                // Advanced semiring folding: detect mul chains and fuse into single fold
-                if op == "*"
-                    && let Some(MirStmt::SemiringFold {
-                        op: SemiringOp::Mul,
-                        values,
-                        result: chain_dest,
-                    }) = self.stmts.last_mut()
-                    && *chain_dest == left_id
-                {
-                    values.push(right_id);
-                    self.exprs.insert(dest, MirExpr::Var(dest));
-                    self.stmts.push(MirStmt::Assign {
-                        lhs: dest,
-                        rhs: left_id,
+                if op == "+" && lty == "str" && rty == "str" {
+                    self.stmts.push(MirStmt::Call {
+                        func: "host_str_concat".to_string(),
+                        args: vec![left_id, right_id],
+                        dest,
+                        type_args: vec![],
                     });
-                    return;
-                }
-
-                let op_kind = if op == "+" {
-                    SemiringOp::Add
-                } else if op == "*" {
-                    SemiringOp::Mul
+                    self.type_map.insert(dest, "str".to_string());
+                } else if lty == "i64" && rty == "i64" {
+                    if op == "+" {
+                        self.stmts.push(MirStmt::SemiringFold {
+                            op: SemiringOp::Add,
+                            values: vec![left_id, right_id],
+                            result: dest,
+                        });
+                    } else if op == "*" {
+                        self.stmts.push(MirStmt::SemiringFold {
+                            op: SemiringOp::Mul,
+                            values: vec![left_id, right_id],
+                            result: dest,
+                        });
+                    } else {
+                        self.stmts.push(MirStmt::Call {
+                            func: op.clone(),
+                            args: vec![left_id, right_id],
+                            dest,
+                            type_args: vec![],
+                        });
+                    }
+                    self.type_map.insert(dest, "i64".to_string());
                 } else {
+                    // Fallback / error case – treat as unknown call (will fail later)
                     self.stmts.push(MirStmt::Call {
                         func: op.clone(),
                         args: vec![left_id, right_id],
                         dest,
                         type_args: vec![],
                     });
-                    return;
-                };
+                    self.type_map.insert(dest, "unknown".to_string());
+                }
 
-                self.stmts.push(MirStmt::SemiringFold {
-                    op: op_kind,
-                    values: vec![left_id, right_id],
-                    result: dest,
-                });
+                self.exprs.insert(dest, MirExpr::Var(dest));
             }
             AstNode::TryProp { expr } => {
                 let expr_id = self.lower_expr(expr);
@@ -139,6 +150,7 @@ impl MirGen {
                     });
                 }
                 self.exprs.insert(map_id, MirExpr::Var(map_id));
+                self.type_map.insert(map_id, "map".to_string());
             }
             AstNode::Subscript { base, index } => {
                 let base_id = self.lower_expr(base);
@@ -149,6 +161,7 @@ impl MirGen {
                     key_id: index_id,
                     dest,
                 });
+                self.type_map.insert(dest, "i64".to_string());
             }
             AstNode::Defer(inner) => {
                 let mut subgen = MirGen::new();
@@ -191,26 +204,136 @@ impl MirGen {
                     else_: else_stmts,
                 });
             }
+            AstNode::ExprStmt(expr) => {
+                // Expression statement – evaluate for side-effects, discard result
+                let _ = self.lower_expr(expr);
+            }
             _ => {}
         }
     }
 
     fn lower_expr(&mut self, expr: &AstNode) -> u32 {
         let id = self.next_id();
-        let mir_expr = match expr {
-            AstNode::Var(_name) => MirExpr::Var(id),
-            AstNode::Lit(n) => MirExpr::Lit(*n),
-            AstNode::StringLit(s) => MirExpr::StringLit(s.clone()),
-            AstNode::FString(parts) => {
-                let ids = parts.iter().map(|p| self.lower_expr(p)).collect();
-                MirExpr::FString(ids)
+
+        match expr {
+            AstNode::Var(name) => {
+                self.exprs.insert(id, MirExpr::Var(id));
+                self.type_map.insert(id, "i64".to_string()); // Conservative default
             }
-            AstNode::TimingOwned { inner, .. } => MirExpr::TimingOwned(self.lower_expr(inner)),
-            AstNode::DictLit { .. } => MirExpr::Var(id),
-            AstNode::Subscript { .. } => MirExpr::Var(id),
-            _ => MirExpr::Lit(0),
-        };
-        self.exprs.insert(id, mir_expr);
+            AstNode::Lit(n) => {
+                self.exprs.insert(id, MirExpr::Lit(*n));
+                self.type_map.insert(id, "i64".to_string());
+            }
+            AstNode::StringLit(s) => {
+                self.exprs.insert(id, MirExpr::StringLit(s.clone()));
+                self.type_map.insert(id, "str".to_string());
+            }
+            AstNode::FString(parts) => {
+                let part_ids = parts.iter().map(|p| self.lower_expr(p)).collect();
+                self.exprs.insert(id, MirExpr::FString(part_ids));
+                self.type_map.insert(id, "str".to_string());
+            }
+            AstNode::TimingOwned { inner, .. } => {
+                let inner_id = self.lower_expr(inner);
+                self.exprs.insert(id, MirExpr::TimingOwned(inner_id));
+                self.type_map.insert(id, "i64".to_string());
+            }
+            AstNode::DictLit { .. } => {
+                self.exprs.insert(id, MirExpr::Var(id));
+                self.type_map.insert(id, "map".to_string());
+            }
+            AstNode::Subscript { .. } => {
+                self.exprs.insert(id, MirExpr::Var(id));
+                self.type_map.insert(id, "i64".to_string());
+            }
+            AstNode::Call { receiver, method, args, type_args, structural: _ } => {
+                let mut arg_ids = Vec::new();
+                let mut receiver_ty = None;
+
+                if let Some(recv) = receiver {
+                    let recv_id = self.lower_expr(recv);
+                    arg_ids.push(recv_id);
+                    receiver_ty = Some(self.type_map[&recv_id].clone());
+                }
+
+                for arg in args {
+                    let arg_id = self.lower_expr(arg);
+                    arg_ids.push(arg_id);
+                }
+
+                let func = if let Some(rty) = receiver_ty {
+                    if rty == "str" {
+                        match method.as_str() {
+                            "to_lowercase" => "host_str_to_lowercase".to_string(),
+                            "to_uppercase" => "host_str_to_uppercase".to_string(),
+                            "len" => "host_str_len".to_string(),
+                            "starts_with" => "host_str_starts_with".to_string(),
+                            "ends_with" => "host_str_ends_with".to_string(),
+                            "contains" => "host_str_contains".to_string(),
+                            "trim" => "host_str_trim".to_string(),
+                            "replace" => "host_str_replace".to_string(),
+                            _ => method.clone(),
+                        }
+                    } else {
+                        method.clone()
+                    }
+                } else {
+                    method.clone()
+                };
+
+                self.stmts.push(MirStmt::Call {
+                    func,
+                    args: arg_ids,
+                    dest: id,
+                    type_args: type_args.clone(),
+                });
+
+                let ret_ty = if receiver_ty.as_deref() == Some("str") {
+                    match method.as_str() {
+                        "starts_with" | "ends_with" | "contains" | "len" => "i64".to_string(),
+                        _ => "str".to_string(),
+                    }
+                } else {
+                    "i64".to_string()
+                };
+                self.type_map.insert(id, ret_ty);
+                self.exprs.insert(id, MirExpr::Var(id));
+            }
+            AstNode::PathCall { path: _, method, args } => {
+                // Simple path call lowering – treat as normal call for now
+                let mut arg_ids = Vec::new();
+                for arg in args {
+                    arg_ids.push(self.lower_expr(arg));
+                }
+                self.stmts.push(MirStmt::Call {
+                    func: method.clone(),
+                    args: arg_ids,
+                    dest: id,
+                    type_args: vec![],
+                });
+                self.type_map.insert(id, "i64".to_string());
+                self.exprs.insert(id, MirExpr::Var(id));
+            }
+            AstNode::Spawn { func, args } => {
+                let mut arg_ids = Vec::new();
+                for arg in args {
+                    arg_ids.push(self.lower_expr(arg));
+                }
+                self.stmts.push(MirStmt::Call {
+                    func: "spawn".to_string(),
+                    args: arg_ids,
+                    dest: id,
+                    type_args: vec![],
+                });
+                self.type_map.insert(id, "i64".to_string());
+                self.exprs.insert(id, MirExpr::Var(id));
+            }
+            _ => {
+                self.exprs.insert(id, MirExpr::Lit(0));
+                self.type_map.insert(id, "i64".to_string());
+            }
+        }
+
         id
     }
 
