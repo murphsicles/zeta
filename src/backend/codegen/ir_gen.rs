@@ -306,11 +306,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
             MirExpr::ConstEval(n) => self.i64_type.const_int(*n as u64, true).into(),
             MirExpr::TimingOwned(inner_id) => {
                 let ptr = self.locals[inner_id];
-                let load = self
+                self
                     .builder
                     .build_load(self.i64_type, ptr, "timing_load")
-                    .unwrap();
-                load
+                    .unwrap()
             }
         }
     }
