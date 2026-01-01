@@ -107,7 +107,7 @@ impl BorrowChecker {
             AstNode::Defer(inner) => self.check(inner, resolver),
             AstNode::Call { receiver, args, .. } => {
                 if let Some(r) = receiver.as_ref() {
-                    && !self.check(r, resolver) {
+                    if !self.check(r, resolver) {
                         return false;
                     }
                     // Immutable borrow for receiver (method call &self)
