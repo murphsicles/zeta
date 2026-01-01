@@ -17,7 +17,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.module.verify().map_err(|e| e.to_string())?;
 
         // Finalize debug info
-        self.finalize_di();
+        self.finalize_and_jit();
 
         // Initialize native target for proper vectorization
         Target::initialize_native(&InitializationConfig::default())?;
