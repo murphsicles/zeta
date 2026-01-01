@@ -2,7 +2,7 @@
 use super::codegen::LLVMCodegen;
 use crate::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use inkwell::values::{
-    BasicMetadataValueEnum, BasicValue, BasicValueEnum, CallSiteValue, FunctionValue,
+    BasicMetadataValueEnum, BasicValueEnum, CallSiteValue, FunctionValue,
 };
 use std::collections::HashMap;
 
