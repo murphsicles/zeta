@@ -1,9 +1,7 @@
 // src/backend/codegen/ir_gen.rs
 use super::codegen::LLVMCodegen;
 use crate::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
-use inkwell::values::{
-    BasicMetadataValueEnum, BasicValueEnum, CallSiteValue, FunctionValue,
-};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, CallSiteValue, FunctionValue};
 use std::collections::HashMap;
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -185,7 +183,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .build_call(self.get_callee("map_new"), &[], "map_new")
                     .unwrap();
                 let ptr = Self::call_site_to_basic_value(call).unwrap();
-                let ptr_i64 = self.builder.build_ptr_to_int(ptr.into_pointer_value(), self.i64_type, "map_ptr_i64").unwrap();
+                let ptr_i64 = self
+                    .builder
+                    .build_ptr_to_int(ptr.into_pointer_value(), self.i64_type, "map_ptr_i64")
+                    .unwrap();
                 let alloca = self
                     .builder
                     .build_alloca(self.i64_type, &format!("map_{dest}"))
@@ -199,7 +200,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 val_id,
             } => {
                 let map_i64 = self.load_local(*map_id);
-                let map_ptr = self.builder.build_int_to_ptr(map_i64.into_int_value(), self.ptr_type, "map_ptr").unwrap();
+                let map_ptr = self
+                    .builder
+                    .build_int_to_ptr(map_i64.into_int_value(), self.ptr_type, "map_ptr")
+                    .unwrap();
                 let key_val = self.gen_expr(&exprs[key_id], exprs);
                 let val_val = self.gen_expr(&exprs[val_id], exprs);
                 let _ = self.builder.build_call(
@@ -214,7 +218,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 dest,
             } => {
                 let map_i64 = self.load_local(*map_id);
-                let map_ptr = self.builder.build_int_to_ptr(map_i64.into_int_value(), self.ptr_type, "map_ptr").unwrap();
+                let map_ptr = self
+                    .builder
+                    .build_int_to_ptr(map_i64.into_int_value(), self.ptr_type, "map_ptr")
+                    .unwrap();
                 let key_val = self.gen_expr(&exprs[key_id], exprs);
                 let call = self
                     .builder
@@ -282,7 +289,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .collect();
                 global.set_initializer(&self.context.i8_type().const_array(&values));
                 let gptr = global.as_pointer_value();
-                self.builder.build_ptr_to_int(gptr, self.i64_type, "str_ptr_i64").unwrap().into()
+                self.builder
+                    .build_ptr_to_int(gptr, self.i64_type, "str_ptr_i64")
+                    .unwrap()
+                    .into()
             }
             MirExpr::FString(ids) => {
                 if ids.is_empty() {
@@ -306,8 +316,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             MirExpr::ConstEval(n) => self.i64_type.const_int(*n as u64, true).into(),
             MirExpr::TimingOwned(inner_id) => {
                 let ptr = self.locals[inner_id];
-                self
-                    .builder
+                self.builder
                     .build_load(self.i64_type, ptr, "timing_load")
                     .unwrap()
             }
