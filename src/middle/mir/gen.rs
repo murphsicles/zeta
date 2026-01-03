@@ -246,7 +246,13 @@ impl MirGen {
                 self.exprs.insert(id, MirExpr::Var(id));
                 self.type_map.insert(id, "i64".to_string());
             }
-            AstNode::Call { receiver, method, args, type_args, structural: _ } => {
+            AstNode::Call {
+                receiver,
+                method,
+                args,
+                type_args,
+                structural: _,
+            } => {
                 let mut arg_ids = Vec::new();
                 let receiver_ty = if let Some(recv) = receiver {
                     let recv_id = self.lower_expr(recv);
@@ -300,7 +306,11 @@ impl MirGen {
                 self.type_map.insert(id, ret_ty);
                 self.exprs.insert(id, MirExpr::Var(id));
             }
-            AstNode::PathCall { path: _, method, args } => {
+            AstNode::PathCall {
+                path: _,
+                method,
+                args,
+            } => {
                 // Simple path call lowering – treat as normal call for now
                 let mut arg_ids = Vec::new();
                 for arg in args {
