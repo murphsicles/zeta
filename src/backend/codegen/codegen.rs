@@ -80,16 +80,32 @@ impl<'ctx> LLVMCodegen<'ctx> {
         module.add_function("host_str_concat", str_concat_type, Some(Linkage::External));
 
         let str_method_type = i64_type.fn_type(&[i64_type.into()], false);
-        module.add_function("host_str_to_lowercase", str_method_type, Some(Linkage::External));
-        module.add_function("host_str_to_uppercase", str_method_type, Some(Linkage::External));
+        module.add_function(
+            "host_str_to_lowercase",
+            str_method_type,
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "host_str_to_uppercase",
+            str_method_type,
+            Some(Linkage::External),
+        );
         module.add_function("host_str_trim", str_method_type, Some(Linkage::External));
         module.add_function("host_str_len", str_method_type, Some(Linkage::External));
 
         let str_pred_type = i64_type.fn_type(&[i64_type.into(), i64_type.into()], false);
-        module.add_function("host_str_starts_with", str_pred_type, Some(Linkage::External));
+        module.add_function(
+            "host_str_starts_with",
+            str_pred_type,
+            Some(Linkage::External),
+        );
         module.add_function("host_str_ends_with", str_pred_type, Some(Linkage::External));
         module.add_function("host_str_contains", str_pred_type, Some(Linkage::External));
-        module.add_function("host_str_replace", i64_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into()], false), Some(Linkage::External));
+        module.add_function(
+            "host_str_replace",
+            i64_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
 
         Self {
             context,
