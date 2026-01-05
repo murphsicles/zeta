@@ -1,0 +1,196 @@
+// zeta_src/middle/resolver.z
+// Resolver and typechecker for Zeta (self-hosted port)
+// Handles concept/impl registration, type inference, CTFE, borrow integration
+// Specialization cache persistence stubbed for now
+
+use zorb::frontend::ast::AstNode;
+use zorb::frontend::borrow::BorrowChecker;
+use zorb::middle::mir::Mir;
+use zorb::middle::specialization::{MonoKey, MonoValue, is_cache_safe, record_specialization};
+
+type Type = String;
+
+const SPECIALIZATION_CACHE_FILE: String = ".zeta_specialization_cache.json".to_string();
+
+struct CacheFile {
+    entries: Map<MonoKey, MonoValue>,
+}
+
+struct Resolver {
+    impls: Map<(String, String), Vec<AstNode>>,
+    cached_mirs: Map<String, Mir>,
+    mono_mirs: Map<MonoKey, Mir>,
+    borrow_checker: BorrowChecker,
+    associated_types: Map<(String, String), String>,
+    ctfe_consts: Map<AstNode, i64>,
+}
+
+impl Resolver {
+    fn new() -> Self {
+        let mut r = Self {
+            impls: Map::new(),
+            cached_mirs: Map::new(),
+            mono_mirs: Map::new(),
+            borrow_checker: BorrowChecker::new(),
+            associated_types: Map::new(),
+            ctfe_consts: Map::new(),
+        };
+        r.load_specialization_cache();
+        r
+    }
+
+    fn load_specialization_cache(&mut self) {
+        // Stub: actual file I/O and JSON deserialization via host functions later
+        // For now, empty
+    }
+
+    fn persist_specialization_cache(&self) {
+        // Stub: write cache to disk
+        // Will use host_fs_write or similar
+    }
+
+    fn register(&mut self, ast: AstNode) {
+        if let AstNode::ImplBlock { concept, ty, body, .. } = ast {
+            self.impls.insert((concept, ty), body);
+        }
+    }
+
+    fn resolve_impl(&self, concept: String, ty: String) -> Option<Vec<AstNode>> {
+        self.impls.get(&(concept, ty)).cloned()
+    }
+
+    fn is_abi_stable(&self, key: MonoKey) -> bool {
+        key.type_args.iter().all(|t| is_cache_safe(t))
+    }
+
+    fn record_mono(&mut self, key: MonoKey, mir: Mir) {
+        let cache_safe = self.is_abi_stable(key.clone());
+        let mangled = key.mangle();
+
+        record_specialization(
+            key.clone(),
+            MonoValue {
+                llvm_func_name: mangled,
+                cache_safe,
+            },
+        );
+
+        self.mono_mirs.insert(key, mir);
+    }
+
+    fn typecheck(&mut self, asts: Vec<AstNode>) -> bool {
+        let mut ok = true;
+
+        // Borrow checking pass
+        for ast in &asts {
+            let borrow_ok = self.borrow_checker.check(ast.clone(), self);
+            if !borrow_ok {
+                ok = false;
+            }
+        }
+
+        // Semantic checks + CTFE
+        for ast in &asts {
+            if !self.check_node(ast) {
+                ok = false;
+            }
+        }
+
+        ok
+    }
+
+    fn check_node(&mut self, node: &AstNode) -> bool {
+        match node {
+            AstNode::Call { type_args, .. } => {
+                // Generic arity check
+                !type_args.is_empty()
+            }
+            AstNode::BinaryOp { left, right, .. } => {
+                let lty = self.infer_type(left);
+                let rty = self.infer_type(right);
+                lty == rty
+            }
+            _ => true,
+        }
+    }
+
+    fn infer_type(&mut self, node: &AstNode) -> Type {
+        if self.ctfe_eval(node).is_some() {
+            return "i64".to_string();
+        }
+
+        match node {
+            AstNode::Lit(_) => "i64".to_string(),
+            AstNode::StringLit(_) => "str".to_string(),
+            AstNode::FString(parts) => {
+                for part in parts {
+                    let ty = self.infer_type(part);
+                    if ty != "str" && ty != "i64" {
+                        return "unknown".to_string();
+                    }
+                }
+                "str".to_string()
+            }
+            AstNode::Var(_) => "i64".to_string(),
+            AstNode::BinaryOp { left, .. } => self.infer_type(left),
+            AstNode::TimingOwned { ty, .. } => ty.clone(),
+            AstNode::Call { .. } => "i64".to_string(),
+            AstNode::DictLit { entries } => {
+                if entries.is_empty() {
+                    "Map_i64_i64".to_string()
+                } else {
+                    let key_ty = self.infer_type(&entries[0].0);
+                    let val_ty = self.infer_type(&entries[0].1);
+                    format!("Map_{}_{}", key_ty, val_ty)
+                }
+            }
+            _ => "unknown".to_string(),
+        }
+    }
+
+    fn ctfe_eval(&mut self, node: &AstNode) -> Option<i64> {
+        if let Some(v) = self.ctfe_consts.get(node) {
+            return Some(*v);
+        }
+
+        let result = match node {
+            AstNode::Lit(n) => Some(*n),
+            AstNode::BinaryOp { op, left, right } => {
+                let l = self.ctfe_eval(left)?;
+                let r = self.ctfe_eval(right)?;
+                match op.as_str() {
+                    "+" => Some(l + r),
+                    "-" => Some(l - r),
+                    "*" => Some(l * r),
+                    "/" => if r == 0 { None } else { Some(l / r) },
+                    _ => None,
+                }
+            }
+            AstNode::Call { method, args, .. } => {
+                if method == "const_add" && args.len() == 2 {
+                    let a = self.ctfe_eval(&args[0])?;
+                    let b = self.ctfe_eval(&args[1])?;
+                    Some(a + b)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        };
+
+        if let Some(v) = result {
+            self.ctfe_consts.insert(node.clone(), v);
+        }
+        result
+    }
+
+    fn is_copy(&self, ty: &Type) -> bool {
+        ty == "i32" || ty == "i64" || ty == "f32" || ty == "bool" || ty == "str"
+    }
+}
+
+// Temporary test main
+fn main() -> i64 {
+    println!("Resolver stub ready");
+    0
+}
