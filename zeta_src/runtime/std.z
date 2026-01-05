@@ -1,0 +1,14 @@
+// zeta_src/runtime/std.z
+// Standard low-level memory for Zeta runtime
+
+extern "C" fn std_malloc(size: i64) -> i64;
+extern "C" fn std_free(ptr: i64);
+
+// Simple wrapper (for future Zeta allocators)
+fn malloc(size: i64) -> i64 {
+    std_malloc(size)
+}
+
+fn free(ptr: i64) {
+    std_free(ptr)
+}
