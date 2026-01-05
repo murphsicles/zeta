@@ -31,7 +31,7 @@ We're living in a brand new paradigm.
 
 > “Complexity assersions have to be part of the interface.” - Alexander Stepanov, 1995
 
-## Official Benchmarks — December 28, 2025  
+## Official Benchmarks — January 05, 2026  
 Intel i9-13900K · Linux 6.11
 
 | Benchmark                          | Zeta 0.2.0     | Rust 1.82     | Zig 0.13     | Go 1.23      | C++23 (clang++) | Verdict                              |
