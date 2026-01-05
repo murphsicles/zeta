@@ -1,0 +1,27 @@
+// zeta_src/runtime/actor/scheduler.z
+// Actor scheduler runtime for Zeta (self-hosted interface)
+// Initializes runtime and provides spawn
+
+pub fn init_runtime() {
+    host_scheduler_init();
+}
+
+pub fn spawn<F>(f: F)
+where
+    F: FnOnce(Channel) + Send + 'static,
+{
+    // Register closure, get id, spawn via host
+    let func_id = host_register_func(f);
+    host_spawn(func_id);
+}
+
+// Host functions
+extern "C" fn host_scheduler_init();
+extern "C" fn host_register_func(f: *const ()) -> i64; // stub signature
+extern "C" fn host_spawn(func_id: i64) -> i64;
+
+// Temporary test
+fn main() -> i64 {
+    println!("Actor scheduler interface ready");
+    0
+}
