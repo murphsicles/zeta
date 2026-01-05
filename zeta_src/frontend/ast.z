@@ -1,0 +1,64 @@
+// zeta_src/frontend/ast.z
+// AST definitions for Zeta compiler (self-hosted version)
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum AstNode {
+    Program(Vec<AstNode>),
+    FuncDef {
+        name: String,
+        generics: Vec<String>,
+        params: Vec<(String, String)>,
+        ret: String,
+        body: Vec<AstNode>,
+    },
+    ConceptDef {
+        name: String,
+        generics: Vec<String>,
+        methods: Vec<AstNode>,
+    },
+    ImplBlock {
+        concept: String,
+        ty: String,
+        body: Vec<AstNode>,
+    },
+    StructDef {
+        name: String,
+        fields: Vec<(String, String)>,
+    },
+    EnumDef {
+        name: String,
+        variants: Vec<(String, Vec<String>)>,
+    },
+    Call {
+        receiver: Option<Box<AstNode>>,
+        method: String,
+        args: Vec<AstNode>,
+        type_args: Vec<String>,
+    },
+    PathCall {
+        path: Vec<String>,
+        method: String,
+        args: Vec<AstNode>,
+    },
+    Spawn {
+        func: String,
+        args: Vec<AstNode>,
+    },
+    Lit(i64),
+    StringLit(String),
+    Var(String),
+    Assign(Box<AstNode>, Box<AstNode>),
+    BinaryOp {
+        op: String,
+        left: Box<AstNode>,
+        right: Box<AstNode>,
+    },
+    Return(Box<AstNode>),
+    If {
+        cond: Box<AstNode>,
+        then_: Vec<AstNode>,
+        else_: Vec<AstNode>,
+    },
+    Defer(Box<AstNode>),
+    ExprStmt(Box<AstNode>),
+}
