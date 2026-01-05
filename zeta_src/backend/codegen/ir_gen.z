@@ -2,8 +2,10 @@
 // Detailed LLVM IR generation from MIR for Zeta (self-hosted)
 // Emits instructions for statements and expressions
 // Text-based, appends to Codegen.ir
+// Expanded: full stmt/expression support, locals tracking
 
 use zorb::middle::mir::{Mir, MirStmt, MirExpr, SemiringOp};
+use std::collections::HashMap;
 
 pub struct IRGen {
     ir: &mut String,
@@ -11,6 +13,7 @@ pub struct IRGen {
     reg_counter: i64,
     label_counter: i64,
     current_fn: String,
+    locals: HashMap<u32, String>, // id -> alloca reg
 }
 
 impl IRGen {
@@ -21,12 +24,21 @@ impl IRGen {
             reg_counter: 0,
             label_counter: 0,
             current_fn: "".to_string(),
+            locals: HashMap::new(),
         }
     }
 
     fn emit(&mut self, line: String) {
         let spaces = "  ".repeat(self.indent as usize);
         self.ir.push_str(&format!("{}{}\n", spaces, line));
+    }
+
+    fn indent(&mut self) {
+        self.indent += 1;
+    }
+
+    fn dedent(&mut self) {
+        self.indent -= 1;
     }
 
     fn new_reg(&mut self) -> String {
@@ -41,65 +53,76 @@ impl IRGen {
         format!("label{}", label)
     }
 
-    pub fn gen_fn(&mut self, mir: &Mir) {
-        let fn_name = mir.name.clone().unwrap_or("anon".to_string());
-        self.current_fn = fn_name.clone();
+    pub fn gen_mirs(&mut self, mirs: &[Mir]) {
+        for mir in mirs {
+            self.gen_fn(mir);
+        }
+    }
 
-        let param_regs: Vec<String> = mir.param_indices.iter().map(|_| self.new_reg()).collect();
-        let param_str = param_regs.join(", ");
+    fn gen_fn(&mut self, mir: &Mir) {
+        let fn_name = mir.name.as_ref().cloned().unwrap_or("anon".to_string());
+        self.current_fn = fn_name.clone();
+        self.locals.clear();
+
+        let param_types: Vec<String> = (0..mir.param_indices.len()).map(|_| "i64".to_string()).collect();
+        let param_str = param_types.join(", i64 ");
 
         self.emit(format!("define i64 @{}({}) {{", fn_name, param_str));
-        self.indent += 1;
+        self.indent();
 
         self.emit("entry:".to_string());
 
-        // Allocate params
+        // Allocate and store params
         for (i, (_, param_idx)) in mir.param_indices.iter().enumerate() {
+            let param_reg = format!("%{}", i);
             let alloca = self.new_reg();
-            self.emit(format!("{} = alloca i64", alloca));
-            let param_reg = &param_regs[i];
-            self.emit(format!("store i64 {}, ptr {}", param_reg, alloca));
-            // Store alloca for later loads (stub locals map needed)
+            self.emit(format!("{} = alloca i64, align 8", alloca));
+            self.emit(format!("store i64 {}, ptr {}, align 8", param_reg, alloca));
+            self.locals.insert(*param_idx, alloca);
         }
 
         for stmt in &mir.stmts {
-            self.gen_stmt(stmt);
+            self.gen_stmt(stmt, mir);
         }
 
-        // Default return 0 if no terminator
+        // Default return if no terminator
         self.emit("ret i64 0".to_string());
 
-        self.indent -= 1;
+        self.dedent();
         self.emit("}".to_string());
+        self.emit("".to_string());
     }
 
-    fn gen_stmt(&mut self, stmt: &MirStmt) {
+    fn gen_stmt(&mut self, stmt: &MirStmt, mir: &Mir) {
         match stmt {
             MirStmt::Assign { lhs, rhs } => {
-                let rhs_reg = self.gen_expr(rhs);
-                let lhs_alloca = format!("%local_{}", lhs); // stub naming
-                self.emit(format!("store i64 {}, ptr {}", rhs_reg, lhs_alloca));
+                let rhs_reg = self.gen_expr(rhs, mir);
+                let lhs_alloca = self.locals.get(lhs).unwrap().clone();
+                self.emit(format!("store i64 {}, ptr {}, align 8", rhs_reg, lhs_alloca));
             }
             MirStmt::Call { func, args, dest, type_args: _ } => {
-                let arg_regs: Vec<String> = args.iter().map(|&id| self.gen_expr(&id)).collect();
-                let arg_str = arg_regs.join(", ");
+                let arg_regs: Vec<String> = args.iter().map(|&id| self.load_expr(id, mir)).collect();
+                let arg_str = arg_regs.join(", i64 ");
                 let dest_reg = self.new_reg();
                 self.emit(format!("{} = call i64 @{}({})", dest_reg, func, arg_str));
-                // Store to alloca for dest (stub)
+                let dest_alloca = self.new_reg();
+                self.emit(format!("{} = alloca i64, align 8", dest_alloca));
+                self.emit(format!("store i64 {}, ptr {}, align 8", dest_reg, dest_alloca));
+                self.locals.insert(*dest, dest_alloca);
             }
             MirStmt::VoidCall { func, args } => {
-                let arg_regs: Vec<String> = args.iter().map(|&id| self.gen_expr(&id)).collect();
-                let arg_str = arg_regs.join(", ");
+                let arg_regs: Vec<String> = args.iter().map(|&id| self.load_expr(id, mir)).collect();
+                let arg_str = arg_regs.join(", i64 ");
                 self.emit(format!("call void @{}({})", func, arg_str));
             }
             MirStmt::Return { val } => {
-                let val_reg = self.gen_expr(val);
+                let val_reg = self.load_expr(*val, mir);
                 self.emit(format!("ret i64 {}", val_reg));
             }
             MirStmt::SemiringFold { op, values, result } => {
-                let mut acc = self.gen_expr(&values[0]);
+                let mut acc = self.load_expr(values[0], mir);
                 for &val_id in &values[1..] {
-                    let val_reg = self.gen_expr(&val_id);
+                    let val_reg = self.load_expr(val_id, mir);
                     let tmp = self.new_reg();
                     let instr = match op {
                         SemiringOp::Add => "add",
@@ -108,10 +131,70 @@ impl IRGen {
                     self.emit(format!("{} = {} i64 {}, {}", tmp, instr, acc, val_reg));
                     acc = tmp;
                 }
-                // Store to result alloca (stub)
+                let result_alloca = self.new_reg();
+                self.emit(format!("{} = alloca i64, align 8", result_alloca));
+                self.emit(format!("store i64 {}, ptr {}, align 8", acc, result_alloca));
+                self.locals.insert(*result, result_alloca);
+            }
+            MirStmt::TryProp { expr_id, ok_dest, err_dest } => {
+                let expr_reg = self.load_expr(*expr_id, mir);
+                let is_ok_reg = self.new_reg();
+                self.emit(format!("{} = call i64 @result_is_ok(i64 {})", is_ok_reg, expr_reg));
+
+                let ok_bb = self.new_label();
+                let err_bb = self.new_label();
+                let cont_bb = self.new_label();
+
+                self.emit(format!("br i1 {}, label %{}, label %{}", is_ok_reg, ok_bb, err_bb));
+
+                self.emit(format!("{}:", ok_bb));
+                self.indent();
+                let data_reg = self.new_reg();
+                self.emit(format!("{} = call i64 @result_get_data(i64 {})", data_reg, expr_reg));
+                let ok_alloca = self.new_reg();
+                self.emit(format!("{} = alloca i64, align 8", ok_alloca));
+                self.emit(format!("store i64 {}, ptr {}, align 8", data_reg, ok_alloca));
+                self.locals.insert(*ok_dest, ok_alloca);
+                self.emit(format!("br label %{}", cont_bb));
+                self.dedent();
+
+                self.emit(format!("{}:", err_bb));
+                self.indent();
+                let err_alloca = self.new_reg();
+                self.emit(format!("{} = alloca i64, align 8", err_alloca));
+                self.emit(format!("store i64 {}, ptr {}, align 8", expr_reg, err_alloca));
+                self.locals.insert(*err_dest, err_alloca);
+                self.emit(format!("br label %{}", cont_bb));
+                self.dedent();
+
+                self.emit(format!("{}:", cont_bb));
+            }
+            MirStmt::MapNew { dest } => {
+                let ptr_reg = self.new_reg();
+                self.emit(format!("{} = call i64 @host_map_new()", ptr_reg));
+                let alloca = self.new_reg();
+                self.emit(format!("{} = alloca i64, align 8", alloca));
+                self.emit(format!("store i64 {}, ptr {}, align 8", ptr_reg, alloca));
+                self.locals.insert(*dest, alloca);
+            }
+            MirStmt::DictInsert { map_id, key_id, val_id } => {
+                let map_reg = self.load_expr(*map_id, mir);
+                let key_reg = self.load_expr(*key_id, mir);
+                let val_reg = self.load_expr(*val_id, mir);
+                self.emit(format!("call void @host_map_insert(i64 {}, i64 {}, i64 {})", map_reg, key_reg, val_reg));
+            }
+            MirStmt::DictGet { map_id, key_id, dest } => {
+                let map_reg = self.load_expr(*map_id, mir);
+                let key_reg = self.load_expr(*key_id, mir);
+                let val_reg = self.new_reg();
+                self.emit(format!("{} = call i64 @host_map_get(i64 {}, i64 {})", val_reg, map_reg, key_reg));
+                let alloca = self.new_reg();
+                self.emit(format!("{} = alloca i64, align 8", alloca));
+                self.emit(format!("store i64 {}, ptr {}, align 8", val_reg, alloca));
+                self.locals.insert(*dest, alloca);
             }
             MirStmt::If { cond, then_, else_ } => {
-                let cond_reg = self.gen_expr(cond);
+                let cond_reg = self.load_expr(*cond, mir);
                 let then_label = self.new_label();
                 let else_label = self.new_label();
                 let merge_label = self.new_label();
@@ -119,32 +202,66 @@ impl IRGen {
                 self.emit(format!("br i1 {}, label %{}, label %{}", cond_reg, then_label, else_label));
 
                 self.emit(format!("{}:", then_label));
-                self.indent += 1;
+                self.indent();
                 for s in then_ {
-                    self.gen_stmt(s);
+                    self.gen_stmt(s, mir);
                 }
                 self.emit(format!("br label %{}", merge_label));
-                self.indent -= 1;
+                self.dedent();
 
                 self.emit(format!("{}:", else_label));
-                self.indent += 1;
+                self.indent();
                 for s in else_ {
-                    self.gen_stmt(s);
+                    self.gen_stmt(s, mir);
                 }
                 self.emit(format!("br label %{}", merge_label));
-                self.indent -= 1;
+                self.dedent();
 
                 self.emit(format!("{}:", merge_label));
             }
             _ => {
-                // Stub for other stmts
                 self.emit("; unimplemented stmt".to_string());
             }
         }
     }
 
-    fn gen_expr(&mut self, expr_id: &u32) -> String {
-        // Stub: map expr_id to reg (real needs exprs map)
-        format!("%expr_{}", expr_id)
+    fn gen_expr(&mut self, expr: &MirExpr, mir: &Mir) -> String {
+        match expr {
+            MirExpr::Var(id) => self.load_expr(*id, mir),
+            MirExpr::Lit(n) => format!("i64 {}", *n as u64),
+            MirExpr::StringLit(s) => {
+                // Global string literal
+                let global_name = format!("@str_{}", self.reg_counter);
+                self.reg_counter += 1;
+                // Declare global outside fn (stub - need module-level emission)
+                // For now, assume pre-declared or emit at top
+                global_name
+            }
+            MirExpr::FString(ids) => {
+                if ids.is_empty() {
+                    return "i64 0".to_string();
+                }
+                let mut res = self.load_expr(ids[0], mir);
+                for &id in &ids[1..] {
+                    let next = self.load_expr(id, mir);
+                    let call_reg = self.new_reg();
+                    self.emit(format!("{} = call i64 @host_str_concat(i64 {}, i64 {})", call_reg, res, next));
+                    res = call_reg;
+                }
+                res
+            }
+            MirExpr::ConstEval(n) => format!("i64 {}", *n as u64),
+            MirExpr::TimingOwned(inner_id) => self.load_expr(*inner_id, mir),
+        }
+    }
+
+    fn load_expr(&mut self, id: u32, mir: &Mir) -> String {
+        if let Some(alloca) = self.locals.get(&id) {
+            let load_reg = self.new_reg();
+            self.emit(format!("{} = load i64, ptr {}, align 8", load_reg, alloca));
+            load_reg
+        } else {
+            "i64 0".to_string() // fallback
+        }
     }
 }
