@@ -1,0 +1,43 @@
+// zeta_src/runtime/actor/map.z
+// Map (dict) host helpers for Zeta runtime
+// Simple HashMap<i64, i64> with host backing
+
+extern "C" fn host_map_new() -> i64;
+extern "C" fn host_map_insert(map: i64, key: i64, val: i64);
+extern "C" fn host_map_get(map: i64, key: i64) -> i64;
+extern "C" fn host_map_free(map: i64);
+
+#[derive(Clone, Debug)]
+pub struct Map<K, V> {
+    ptr: i64,
+}
+
+impl<K, V> Map<K, V> {
+    pub fn new() -> Self {
+        Self { ptr: host_map_new() }
+    }
+
+    pub fn insert(&mut self, key: i64, val: i64) {
+        host_map_insert(self.ptr, key, val)
+    }
+
+    pub fn get(&self, key: i64) -> i64 {
+        host_map_get(self.ptr, key)
+    }
+
+    pub fn free(self) {
+        host_map_free(self.ptr)
+    }
+}
+
+// Temporary test
+fn main() -> i64 {
+    let mut map = Map::new();
+    map.insert(1, 100);
+    map.insert(2, 200);
+    println!("get(1) = {}", map.get(1));
+    println!("get(2) = {}", map.get(2));
+    map.free();
+    println!("Map runtime ready");
+    0
+}
