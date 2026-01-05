@@ -1,0 +1,6 @@
+// zeta_src/frontend/mod.z
+// Frontend module re-exports for Zeta self-hosted compiler
+
+pub mod ast;
+pub mod parser;
+pub mod borrow;
