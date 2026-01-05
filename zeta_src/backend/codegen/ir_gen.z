@@ -1,0 +1,150 @@
+// zeta_src/backend/codegen/ir_gen.z
+// Detailed LLVM IR generation from MIR for Zeta (self-hosted)
+// Emits instructions for statements and expressions
+// Text-based, appends to Codegen.ir
+
+use zorb::middle::mir::{Mir, MirStmt, MirExpr, SemiringOp};
+
+pub struct IRGen {
+    ir: &mut String,
+    indent: i64,
+    reg_counter: i64,
+    label_counter: i64,
+    current_fn: String,
+}
+
+impl IRGen {
+    pub fn new(ir: &mut String) -> Self {
+        Self {
+            ir,
+            indent: 0,
+            reg_counter: 0,
+            label_counter: 0,
+            current_fn: "".to_string(),
+        }
+    }
+
+    fn emit(&mut self, line: String) {
+        let spaces = "  ".repeat(self.indent as usize);
+        self.ir.push_str(&format!("{}{}\n", spaces, line));
+    }
+
+    fn new_reg(&mut self) -> String {
+        let reg = self.reg_counter;
+        self.reg_counter += 1;
+        format!("%{}", reg)
+    }
+
+    fn new_label(&mut self) -> String {
+        let label = self.label_counter;
+        self.label_counter += 1;
+        format!("label{}", label)
+    }
+
+    pub fn gen_fn(&mut self, mir: &Mir) {
+        let fn_name = mir.name.clone().unwrap_or("anon".to_string());
+        self.current_fn = fn_name.clone();
+
+        let param_regs: Vec<String> = mir.param_indices.iter().map(|_| self.new_reg()).collect();
+        let param_str = param_regs.join(", ");
+
+        self.emit(format!("define i64 @{}({}) {{", fn_name, param_str));
+        self.indent += 1;
+
+        self.emit("entry:".to_string());
+
+        // Allocate params
+        for (i, (_, param_idx)) in mir.param_indices.iter().enumerate() {
+            let alloca = self.new_reg();
+            self.emit(format!("{} = alloca i64", alloca));
+            let param_reg = &param_regs[i];
+            self.emit(format!("store i64 {}, ptr {}", param_reg, alloca));
+            // Store alloca for later loads (stub locals map needed)
+        }
+
+        for stmt in &mir.stmts {
+            self.gen_stmt(stmt);
+        }
+
+        // Default return 0 if no terminator
+        self.emit("ret i64 0".to_string());
+
+        self.indent -= 1;
+        self.emit("}".to_string());
+    }
+
+    fn gen_stmt(&mut self, stmt: &MirStmt) {
+        match stmt {
+            MirStmt::Assign { lhs, rhs } => {
+                let rhs_reg = self.gen_expr(rhs);
+                let lhs_alloca = format!("%local_{}", lhs); // stub naming
+                self.emit(format!("store i64 {}, ptr {}", rhs_reg, lhs_alloca));
+            }
+            MirStmt::Call { func, args, dest, type_args: _ } => {
+                let arg_regs: Vec<String> = args.iter().map(|&id| self.gen_expr(&id)).collect();
+                let arg_str = arg_regs.join(", ");
+                let dest_reg = self.new_reg();
+                self.emit(format!("{} = call i64 @{}({})", dest_reg, func, arg_str));
+                // Store to alloca for dest (stub)
+            }
+            MirStmt::VoidCall { func, args } => {
+                let arg_regs: Vec<String> = args.iter().map(|&id| self.gen_expr(&id)).collect();
+                let arg_str = arg_regs.join(", ");
+                self.emit(format!("call void @{}({})", func, arg_str));
+            }
+            MirStmt::Return { val } => {
+                let val_reg = self.gen_expr(val);
+                self.emit(format!("ret i64 {}", val_reg));
+            }
+            MirStmt::SemiringFold { op, values, result } => {
+                let mut acc = self.gen_expr(&values[0]);
+                for &val_id in &values[1..] {
+                    let val_reg = self.gen_expr(&val_id);
+                    let tmp = self.new_reg();
+                    let instr = match op {
+                        SemiringOp::Add => "add",
+                        SemiringOp::Mul => "mul",
+                    };
+                    self.emit(format!("{} = {} i64 {}, {}", tmp, instr, acc, val_reg));
+                    acc = tmp;
+                }
+                // Store to result alloca (stub)
+            }
+            MirStmt::If { cond, then_, else_ } => {
+                let cond_reg = self.gen_expr(cond);
+                let then_label = self.new_label();
+                let else_label = self.new_label();
+                let merge_label = self.new_label();
+
+                self.emit(format!("br i1 {}, label %{}, label %{}", cond_reg, then_label, else_label));
+
+                self.emit(format!("{}:", then_label));
+                self.indent += 1;
+                for s in then_ {
+                    self.gen_stmt(s);
+                }
+                self.emit(format!("br label %{}", merge_label));
+                self.indent -= 1;
+
+                self.emit(format!("{}:", else_label));
+                self.indent += 1;
+                for s in else_ {
+                    self.gen_stmt(s);
+                }
+                self.emit(format!("br label %{}", merge_label));
+                self.indent -= 1;
+
+                self.emit(format!("{}:", merge_label));
+            }
+            _ => {
+                // Stub for other stmts
+                self.emit("; unimplemented stmt".to_string());
+            }
+        }
+    }
+
+    fn gen_expr(&mut self, expr_id: &u32) -> String {
+        // Stub: map expr_id to reg (real needs exprs map)
+        format!("%expr_{}", expr_id)
+    }
+}
