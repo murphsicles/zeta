@@ -1,6 +1,7 @@
 // zeta_src/backend/codegen/codegen.z
 // LLVM Codegen module for Zeta
 // Uses IRGen for detailed emission
+// Updated to use expanded IRGen
 
 use zorb::middle::mir::Mir;
 use super::ir_gen::IRGen;
@@ -18,12 +19,12 @@ impl LLVMCodegen {
         // Declare externs
         let externs = vec![
             "declare i64 @datetime_now()",
-            "declare void @free(ptr)",
+            "declare void @free(i64)",
             "declare void @channel_send(i64, i64)",
             "declare i64 @channel_recv(i64)",
             "declare i64 @spawn(i64)",
-            "declare i64 @http_get(ptr)",
-            "declare i64 @tls_handshake(ptr)",
+            "declare i64 @http_get(i64)",
+            "declare i64 @tls_handshake(i64)",
             "declare i64 @host_str_concat(i64, i64)",
             "declare i64 @host_str_to_lowercase(i64)",
             "declare i64 @host_str_to_uppercase(i64)",
@@ -33,6 +34,11 @@ impl LLVMCodegen {
             "declare i64 @host_str_ends_with(i64, i64)",
             "declare i64 @host_str_contains(i64, i64)",
             "declare i64 @host_str_replace(i64, i64, i64)",
+            "declare i64 @result_is_ok(i64)",
+            "declare i64 @result_get_data(i64)",
+            "declare i64 @host_map_new()",
+            "declare void @host_map_insert(i64, i64, i64)",
+            "declare i64 @host_map_get(i64, i64)",
         ];
         for ext in externs {
             ir.push_str(&format!("{}\n", ext));
@@ -44,9 +50,7 @@ impl LLVMCodegen {
 
     pub fn gen_mirs(&mut self, mirs: Vec<Mir>) {
         let mut ir_gen = IRGen::new(&mut self.ir);
-        for mir in mirs {
-            ir_gen.gen_fn(&mir);
-        }
+        ir_gen.gen_mirs(&mirs);
     }
 
     pub fn finalize(&self) -> String {
