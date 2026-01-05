@@ -557,35 +557,3 @@ impl Parser {
         }
     }
 }
-
-// Entry point for testing the parser
-fn main() -> i64 {
-    let source = r#"
-fn main() -> i64 {
-    let x = 42;
-    let y = "hello";
-    if x > 10 {
-        return x + 1;
-    } else {
-        return 0;
-    }
-}
-
-concept Add<T> {
-    fn add(self, other: T) -> T;
-}
-
-impl Add<i64> for i64 {
-    fn add(self, other: i64) -> i64 {
-        self + other
-    }
-}
-"#;
-
-    let mut lexer = Lexer::new(source.to_string());
-    let tokens = lexer.tokenize();
-    let mut parser = Parser::new(tokens);
-    let ast = parser.parse();
-    println!("{:#?}", ast);
-    0
-}
