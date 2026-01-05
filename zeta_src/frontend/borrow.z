@@ -1,0 +1,155 @@
+// zeta_src/frontend/borrow.z
+// Borrow checker for Zeta (self-hosted port)
+// Enforces affine ownership rules with basic borrow states
+// Tracks moves/consumes for non-copy types
+
+use zorb::frontend::ast::AstNode;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum BorrowState {
+    Owned,
+    Borrowed,
+    MutBorrowed,
+    Consumed,
+}
+
+#[derive(Clone)]
+struct BorrowChecker {
+    borrows: Map<String, BorrowState>,
+    affine_moves: Map<String, bool>,
+    types: Map<String, String>,
+}
+
+impl BorrowChecker {
+    fn new() -> Self {
+        Self {
+            borrows: Map::new(),
+            affine_moves: Map::new(),
+            types: Map::new(),
+        }
+    }
+
+    fn declare(&mut self, var: String, state: BorrowState, ty: String) {
+        self.borrows.insert(var.clone(), state);
+        self.affine_moves.insert(var.clone(), false);
+        self.types.insert(var, ty);
+    }
+
+    fn is_copy(&self, ty: String) -> bool {
+        ty == "i32" || ty == "i64" || ty == "f32" || ty == "bool" || ty == "str"
+    }
+
+    fn check(&mut self, node: AstNode, resolver: &mut Resolver) -> bool {
+        match node {
+            AstNode::Var(v) => {
+                if let Some(state) = self.borrows.get(&v) {
+                    *state == BorrowState::Owned || *state == BorrowState::Borrowed
+                } else {
+                    false
+                }
+            }
+            AstNode::Assign(lhs, rhs) => {
+                if !self.check(*rhs, resolver) {
+                    return false;
+                }
+                match *lhs {
+                    AstNode::Var(v) => {
+                        let ty = resolver.infer_type(*rhs);
+                        self.declare(v, BorrowState::Owned, ty);
+                        true
+                    }
+                    AstNode::Subscript { base, index } => {
+                        if !self.check(*base, resolver) || !self.check(*index, resolver) {
+                            return false;
+                        }
+                        if let AstNode::Var(name) = *base {
+                            if let Some(state) = self.borrows.get(&name) {
+                                if *state != BorrowState::Owned && *state != BorrowState::MutBorrowed {
+                                    return false;
+                                }
+                            }
+                            self.borrows.insert(name, BorrowState::MutBorrowed);
+                        }
+                        true
+                    }
+                    _ => false,
+                }
+            }
+            AstNode::BinaryOp { left, right, .. } => {
+                self.check(*left, resolver) && self.check(*right, resolver)
+            }
+            AstNode::FString(parts) => {
+                for p in parts {
+                    if !self.check(p, resolver) {
+                        return false;
+                    }
+                }
+                true
+            }
+            AstNode::TimingOwned { inner, .. } => self.check(*inner, resolver),
+            AstNode::Defer(inner) => self.check(*inner, resolver),
+            AstNode::Call { receiver, args, .. } => {
+                if let Some(r) = receiver {
+                    if !self.check(*r, resolver) {
+                        return false;
+                    }
+                    // Immutable borrow for &self in method call
+                    if let AstNode::Var(name) = *r {
+                        self.borrows.insert(name, BorrowState::Borrowed);
+                    }
+                }
+                for arg in args {
+                    if !self.check(arg, resolver) {
+                        return false;
+                    }
+                    if let AstNode::Var(name) = arg {
+                        if let Some(ty) = self.types.get(&name) {
+                            if !self.is_copy(ty.clone()) {
+                                if let Some(moved) = self.affine_moves.get(&name) {
+                                    if !*moved {
+                                        self.affine_moves.insert(name.clone(), true);
+                                        self.borrows.insert(name, BorrowState::Consumed);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                true
+            }
+            AstNode::TryProp { expr } => self.check(*expr, resolver),
+            AstNode::DictLit { entries } => {
+                for (k, v) in entries {
+                    if !self.check(k, resolver) || !self.check(v, resolver) {
+                        return false;
+                    }
+                }
+                true
+            }
+            AstNode::Subscript { base, index } => {
+                self.check(*base, resolver) && self.check(*index, resolver)
+            }
+            AstNode::Return(inner) => self.check(*inner, resolver),
+            AstNode::ExprStmt { expr } => self.check(*expr, resolver),
+            _ => true,
+        }
+    }
+}
+
+// Stub Resolver reference (needed for infer_type and is_copy)
+// Will be properly implemented in zeta_src/middle/resolver.z later
+struct Resolver {
+    // placeholder fields
+}
+
+impl Resolver {
+    fn infer_type(&self, node: AstNode) -> String {
+        "i64".to_string() // stub
+    }
+}
+
+// For testing the borrow checker (temporary main)
+fn main() -> i64 {
+    println!("Borrow checker stub ready");
+    0
+}
