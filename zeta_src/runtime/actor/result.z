@@ -1,0 +1,58 @@
+// zeta_src/runtime/actor/result.z
+// Result type host helpers for Zeta runtime
+// Used for ? propagation and error handling
+
+extern "C" fn host_result_make_ok(data: i64) -> i64;
+extern "C" fn host_result_make_err(data: i64) -> i64;
+extern "C" fn host_result_is_ok(ptr: i64) -> i64;
+extern "C" fn host_result_get_data(ptr: i64) -> i64;
+extern "C" fn host_result_free(ptr: i64);
+
+#[derive(Clone, Debug)]
+pub enum Result<T, E> {
+    Ok(T),
+    Err(E),
+}
+
+impl<T, E> Result<T, E> {
+    pub fn is_ok(&self) -> bool {
+        match self {
+            Result::Ok(_) => true,
+            Result::Err(_) => false,
+        }
+    }
+
+    pub fn unwrap(self) -> T {
+        match self {
+            Result::Ok(val) => val,
+            Result::Err(_) => panic("unwrap on Err"),
+        }
+    }
+
+    // Stub helpers using host (real impl in Rust)
+    pub fn make_ok(data: i64) -> i64 {
+        host_result_make_ok(data)
+    }
+
+    pub fn make_err(data: i64) -> i64 {
+        host_result_make_err(data)
+    }
+
+    pub fn is_ok_ptr(ptr: i64) -> bool {
+        host_result_is_ok(ptr) != 0
+    }
+
+    pub fn get_data(ptr: i64) -> i64 {
+        host_result_get_data(ptr)
+    }
+
+    pub fn free(ptr: i64) {
+        host_result_free(ptr)
+    }
+}
+
+// Temporary test
+fn main() -> i64 {
+    println!("Result runtime ready");
+    0
+}
