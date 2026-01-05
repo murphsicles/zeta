@@ -1,0 +1,60 @@
+// zeta_src/main.z
+// Entry point for the self-hosted Zeta compiler
+// Currently: minimal driver that tokenizes and parses input, prints AST
+// Future: full pipeline → resolver → MIR → codegen → JIT/AOT
+
+use zorb::frontend::ast::AstNode;
+use zorb::frontend::parser::{Lexer, Parser};
+
+fn compile(source: String) -> i64 {
+    let mut lexer = Lexer::new(source);
+    let tokens = lexer.tokenize();
+    println!("Tokens: {:#?}", tokens);
+
+    let mut parser = Parser::new(tokens);
+    let ast = parser.parse();
+    println!("Parsed AST: {:#?}", ast);
+
+    // Stub: successful parse returns 0
+    0
+}
+
+fn main() -> i64 {
+    let example_source = r#"
+fn add(x: i64, y: i64) -> i64 {
+    return x + y;
+}
+
+concept Adder<T> {
+    fn add(self, other: T) -> T;
+}
+
+impl Adder<i64> for i64 {
+    fn add(self, other: i64) -> i64 {
+        self + other
+    }
+}
+
+struct Point {
+    x: i64;
+    y: i64;
+}
+
+enum Option<T> {
+    None,
+    Some(T),
+}
+
+fn main() -> i64 {
+    let p = Point { x: 10, y: 20 };
+    let sum = add(40, 2);
+    if sum > 0 {
+        return sum;
+    } else {
+        return 0;
+    }
+}
+"#;
+
+    compile(example_source.to_string())
+}
