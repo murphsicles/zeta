@@ -1,0 +1,50 @@
+// zeta_src/runtime/host.z
+// Host runtime functions for Zeta (self-hosted interface)
+// Declares extern "C" functions that the generated code calls
+// Implemented in Rust host (zetac runtime)
+
+// Standard memory
+extern "C" fn std_malloc(size: i64) -> i64;
+extern "C" fn std_free(ptr: i64);
+
+// Time
+extern "C" fn host_datetime_now() -> i64;
+
+// HTTP/TLS (stub lengths/success)
+extern "C" fn host_http_get(url: i64) -> i64;
+extern "C" fn host_tls_handshake(host: i64) -> i64;
+
+// String operations (ptr as i64)
+extern "C" fn host_str_concat(a: i64, b: i64) -> i64;
+extern "C" fn host_str_to_lowercase(s: i64) -> i64;
+extern "C" fn host_str_to_uppercase(s: i64) -> i64;
+extern "C" fn host_str_trim(s: i64) -> i64;
+extern "C" fn host_str_len(s: i64) -> i64;
+extern "C" fn host_str_starts_with(haystack: i64, needle: i64) -> i64;
+extern "C" fn host_str_ends_with(haystack: i64, needle: i64) -> i64;
+extern "C" fn host_str_contains(haystack: i64, needle: i64) -> i64;
+extern "C" fn host_str_replace(s: i64, old: i64, new: i64) -> i64;
+
+// Actor runtime
+extern "C" fn host_channel_send(chan: i64, msg: i64) -> i64;
+extern "C" fn host_channel_recv(chan: i64) -> i64;
+extern "C" fn host_spawn(func_id: i64) -> i64;
+
+// Result helpers (optional, if used)
+extern "C" fn host_result_make_ok(data: i64) -> i64;
+extern "C" fn host_result_make_err(data: i64) -> i64;
+extern "C" fn host_result_is_ok(ptr: i64) -> i64;
+extern "C" fn host_result_get_data(ptr: i64) -> i64;
+extern "C" fn host_result_free(ptr: i64);
+
+// Map helpers
+extern "C" fn host_map_new() -> i64;
+extern "C" fn host_map_insert(map: i64, key: i64, val: i64);
+extern "C" fn host_map_get(map: i64, key: i64) -> i64;
+extern "C" fn host_map_free(map: i64);
+
+// Temporary test
+fn main() -> i64 {
+    println!("Runtime host interface ready");
+    0
+}
