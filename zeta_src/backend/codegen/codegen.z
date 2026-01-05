@@ -1,0 +1,118 @@
+// zeta_src/backend/codegen/codegen.z
+// LLVM IR generation for Zeta (self-hosted port)
+// Text-based IR emitter (pure Zeta, no direct Inkwell dependency)
+// Builds module as string; future: host_llvm_jit(ir: String) for execution
+// Starts simple: declares externs, generates basic functions from MIR
+
+use zorb::middle::mir::{Mir, MirStmt, MirExpr, SemiringOp};
+
+struct LLVMCodegen {
+    ir: String,
+    indent: i64,
+    current_fn: String,
+}
+
+impl LLVMCodegen {
+    fn new(module_name: String) -> Self {
+        let mut codegen = Self {
+            ir: String::new(),
+            indent: 0,
+            current_fn: "".to_string(),
+        };
+        codegen.emit(format!("; ModuleID = '{}'", module_name));
+        codegen.emit("target triple = \"x86_64-unknown-linux-gnu\"".to_string());
+        codegen.emit("".to_string());
+
+        // Declare common externs (match Rust version)
+        codegen.declare_extern("datetime_now", "i64", vec![]);
+        codegen.declare_extern("free", "void", vec!["ptr"]);
+        codegen.declare_extern("channel_send", "void", vec!["i64", "i64"]);
+        codegen.declare_extern("channel_recv", "i64", vec!["i64"]);
+        codegen.declare_extern("spawn", "i64", vec!["i64"]);
+        codegen.declare_extern("http_get", "i64", vec!["ptr"]);
+        codegen.declare_extern("tls_handshake", "i64", vec!["ptr"]);
+
+        // Result/Map/String host functions
+        codegen.declare_extern("host_str_concat", "i64", vec!["i64", "i64"]);
+        codegen.declare_extern("host_str_to_lowercase", "i64", vec!["i64"]);
+        codegen.declare_extern("host_str_to_uppercase", "i64", vec!["i64"]);
+        codegen.declare_extern("host_str_trim", "i64", vec!["i64"]);
+        codegen.declare_extern("host_str_len", "i64", vec!["i64"]);
+        codegen.declare_extern("host_str_starts_with", "i64", vec!["i64", "i64"]);
+        codegen.declare_extern("host_str_ends_with", "i64", vec!["i64", "i64"]);
+        codegen.declare_extern("host_str_contains", "i64", vec!["i64", "i64"]);
+        codegen.declare_extern("host_str_replace", "i64", vec!["i64", "i64", "i64"]);
+
+        codegen
+    }
+
+    fn declare_extern(&mut self, name: String, ret: String, params: Vec<String>) {
+        let param_str = params.iter().map(|p| format!("i64")).collect::<Vec<String>>().join(", ");
+        self.emit(format!("declare {} @{}( {})", ret, name, param_str));
+    }
+
+    fn emit(&mut self, line: String) {
+        let spaces = "  ".repeat(self.indent as usize);
+        self.ir.push_str(&format!("{}{}\n", spaces, line));
+    }
+
+    fn indent(&mut self) {
+        self.indent += 1;
+    }
+
+    fn dedent(&mut self) {
+        self.indent -= 1;
+    }
+
+    pub fn gen_mirs(&mut self, mirs: Vec<Mir>) {
+        for mir in mirs {
+            self.gen_fn(&mir);
+        }
+    }
+
+    fn gen_fn(&mut self, mir: &Mir) {
+        let fn_name = mir.name.clone().unwrap_or("anon".to_string());
+        self.current_fn = fn_name.clone();
+
+        let param_types: Vec<String> = (0..mir.param_indices.len()).map(|_| "i64".to_string()).collect();
+        let param_str = param_types.join(", ");
+        self.emit(format!("define i64 @{}({}) {{", fn_name, param_str));
+        self.indent();
+
+        self.emit("entry:".to_string());
+
+        // Simple stub: return 0 for now
+        // Future: full stmt/expression emission
+        self.emit("ret i64 0".to_string());
+
+        self.dedent();
+        self.emit("}".to_string());
+        self.emit("".to_string());
+    }
+
+    pub fn finalize(&self) -> String {
+        self.ir.clone()
+    }
+}
+
+// Temporary test driver
+fn main() -> i64 {
+    let mut codegen = LLVMCodegen::new("test_module".to_string());
+
+    // Stub MIR for testing
+    let stub_mir = Mir {
+        name: Some("main".to_string()),
+        param_indices: vec![],
+        stmts: vec![],
+        exprs: Map::new(),
+        ctfe_consts: Map::new(),
+        type_map: Map::new(),
+    };
+
+    codegen.gen_mirs(vec![stub_mir]);
+
+    let ir = codegen.finalize();
+    println!("{}", ir);
+
+    0
+}
