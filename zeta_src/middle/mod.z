@@ -1,0 +1,6 @@
+// zeta_src/middle/mod.z
+// Middle module re-exports for Zeta self-hosted compiler
+
+pub mod resolver;
+pub mod mir;
+pub mod specialization;
