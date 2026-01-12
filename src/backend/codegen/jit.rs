@@ -5,9 +5,19 @@ use crate::runtime::actor::map::{host_map_get, host_map_insert, host_map_new};
 use crate::runtime::actor::result::{host_result_get_data, host_result_is_ok};
 use crate::runtime::actor::scheduler::host_spawn;
 use crate::runtime::host::{
-    host_datetime_now, host_free, host_http_get, host_str_concat, host_str_contains,
-    host_str_ends_with, host_str_len, host_str_replace, host_str_starts_with,
-    host_str_to_lowercase, host_str_to_uppercase, host_str_trim, host_tls_handshake,
+    host_datetime_now,
+    host_free,
+    host_http_get,
+    host_str_concat,
+    host_str_contains,
+    host_str_ends_with,
+    host_str_len,
+    host_str_replace,
+    host_str_starts_with,
+    host_str_to_lowercase,
+    host_str_to_uppercase,
+    host_str_trim,
+    host_tls_handshake,
 };
 use crate::runtime::xai::XAIClient;
 use inkwell::context::Context;
@@ -205,129 +215,87 @@ pub fn host_llvm_jit_from_ir(ir: String) -> Result<ExecutionEngine<'static>, Box
     let ee = module.create_jit_execution_engine(OptimizationLevel::Aggressive)?;
 
     ee.add_global_mapping(
-        &module
-            .get_function("datetime_now")
-            .unwrap_or_else(|| panic!("missing datetime_now")),
+        &module.get_function("datetime_now").expect("missing datetime_now"),
         host_datetime_now as *const () as usize,
     );
     ee.add_global_mapping(
-        &module
-            .get_function("free")
-            .unwrap_or_else(|| panic!("missing free")),
+        &module.get_function("free").expect("missing free"),
         host_free as *const () as usize,
     );
     ee.add_global_mapping(
-        &module
-            .get_function("host_str_concat")
-            .unwrap_or_else(|| panic!("missing host_str_concat")),
+        &module.get_function("host_str_concat").expect("missing host_str_concat"),
         host_str_concat as *const () as usize,
     );
     ee.add_global_mapping(
-        &module
-            .get_function("host_str_to_lowercase")
-            .unwrap_or_else(|| panic!("missing host_str_to_lowercase")),
+        &module.get_function("host_str_to_lowercase").expect("missing host_str_to_lowercase"),
         host_str_to_lowercase as *const () as usize,
     );
     ee.add_global_mapping(
-        &module
-            .get_function("host_str_to_uppercase")
-            .unwrap_or_else(|| panic!("missing host_str_to_uppercase")),
+        &module.get_function("host_str_to_uppercase").expect("missing host_str_to_uppercase"),
         host_str_to_uppercase as *const () as usize,
     );
     ee.add_global_mapping(
-        &module
-            .get_function("host_str_len")
-            .unwrap_or_else(|| panic!("missing host_str_len")),
+        &module.get_function("host_str_len").expect("missing host_str_len"),
         host_str_len as *const () as usize,
     );
     ee.add_global_mapping(
-        &module
-            .get_function("host_str_starts_with")
-            .unwrap_or_else(|| panic!("missing host_str_starts_with")),
+        &module.get_function("host_str_starts_with").expect("missing host_str_starts_with"),
         host_str_starts_with as *const () as usize,
     );
     ee.add_global_mapping(
-        &module
-            .get_function("host_str_ends_with")
-            .unwrap_or_else(|| panic!("missing host_str_ends_with")),
+        &module.get_function("host_str_ends_with").expect("missing host_str_ends_with"),
         host_str_ends_with as *const () as usize,
     );
     ee.add_global_mapping(
-        &module
-            .get_function("host_str_contains")
-            .unwrap_or_else(|| panic!("missing host_str_contains")),
+        &module.get_function("host_str_contains").expect("missing host_str_contains"),
         host_str_contains as *const () as usize,
     );
     ee.add_global_mapping(
-        &module
-            .get_function("host_str_trim")
-            .unwrap_or_else(|| panic!("missing host_str_trim")),
+        &module.get_function("host_str_trim").expect("missing host_str_trim"),
         host_str_trim as *const () as usize,
     );
     ee.add_global_mapping(
-        &module
-            .get_function("host_str_replace")
-            .unwrap_or_else(|| panic!("missing host_str_replace")),
+        &module.get_function("host_str_replace").expect("missing host_str_replace"),
         host_str_replace as *const () as usize,
     );
     ee.add_global_mapping(
-        &module
-            .get_function("channel_send")
-            .unwrap_or_else(|| panic!("missing channel_send")),
+        &module.get_function("channel_send").expect("missing channel_send"),
         host_channel_send as *const () as usize,
     );
     ee.add_global_mapping(
-        &module
-            .get_function("channel_recv")
-            .unwrap_or_else(|| panic!("missing channel_recv")),
+        &module.get_function("channel_recv").expect("missing channel_recv"),
         host_channel_recv as *const () as usize,
     );
     ee.add_global_mapping(
-        &module
-            .get_function("spawn")
-            .unwrap_or_else(|| panic!("missing spawn")),
+        &module.get_function("spawn").expect("missing spawn"),
         host_spawn as *const () as usize,
     );
     ee.add_global_mapping(
-        &module
-            .get_function("http_get")
-            .unwrap_or_else(|| panic!("missing http_get")),
+        &module.get_function("http_get").expect("missing http_get"),
         host_http_get as *const () as usize,
     );
     ee.add_global_mapping(
-        &module
-            .get_function("tls_handshake")
-            .unwrap_or_else(|| panic!("missing tls_handshake")),
+        &module.get_function("tls_handshake").expect("missing tls_handshake"),
         host_tls_handshake as *const () as usize,
     );
     ee.add_global_mapping(
-        &module
-            .get_function("result_is_ok")
-            .unwrap_or_else(|| panic!("missing result_is_ok")),
+        &module.get_function("result_is_ok").expect("missing result_is_ok"),
         host_result_is_ok as *const () as usize,
     );
     ee.add_global_mapping(
-        &module
-            .get_function("result_get_data")
-            .unwrap_or_else(|| panic!("missing result_get_data")),
+        &module.get_function("result_get_data").expect("missing result_get_data"),
         host_result_get_data as *const () as usize,
     );
     ee.add_global_mapping(
-        &module
-            .get_function("host_map_new")
-            .unwrap_or_else(|| panic!("missing host_map_new")),
+        &module.get_function("host_map_new").expect("missing host_map_new"),
         host_map_new as *const () as usize,
     );
     ee.add_global_mapping(
-        &module
-            .get_function("host_map_insert")
-            .unwrap_or_else(|| panic!("missing host_map_insert")),
+        &module.get_function("host_map_insert").expect("missing host_map_insert"),
         host_map_insert as *const () as usize,
     );
     ee.add_global_mapping(
-        &module
-            .get_function("host_map_get")
-            .unwrap_or_else(|| panic!("missing host_map_get")),
+        &module.get_function("host_map_get").expect("missing host_map_get"),
         host_map_get as *const () as usize,
     );
 
