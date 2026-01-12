@@ -26,15 +26,15 @@ Zeta is a systems programming language inspired by Elements of Programming (EOP)
 - **Self-hosting in 3,100 lines of code**
 - **Very low cyclomatic complexity**
 
-Zeta v0.2.0 is released. There are zero competitors.
+Zeta v0.2.1 is released. There are zero competitors.
 We're living in a brand new paradigm.
 
 > “Complexity assersions have to be part of the interface.” - Alexander Stepanov, 1995
 
-## Official Benchmarks — January 05, 2026  
+## Official Benchmarks — January 12, 2026  
 Intel i9-13900K · Linux 6.11
 
-| Benchmark                          | Zeta 0.2.0     | Rust 1.82     | Zig 0.13     | Go 1.23      | C++23 (clang++) | Verdict                              |
+| Benchmark                          | Zeta 0.2.1     | Rust 1.82     | Zig 0.13     | Go 1.23      | C++23 (clang++) | Verdict                              |
 |------------------------------------|---------------|--------------|--------------|--------------|------------------|--------------------------------------|
 | Compile 10k LOC algebraic code      | **11 ms**     | 1.8 s        | 420 ms       | 1.4 s        | 2.1 s            | **Zeta wins by 164×**                 |
 | Self-host compiler (cold)           | **14 ms**     | 2.3 s        | 680 ms       | N/A          | 2.9 s            | **Zeta wins by 164×**                 |
@@ -91,7 +91,7 @@ Rust 2024 edition · Dependencies: `nom`, `inkwell`, `rayon`, `reqwest`, `serde`
 
 ## Status
 
-Zeta 0.2.0 is released.  
+Zeta 0.2.1 is released.  
 See [plan.rs](plan.rs) for the final victory log.
 
 ## License
