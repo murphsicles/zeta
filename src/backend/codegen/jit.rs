@@ -281,7 +281,9 @@ pub fn host_llvm_jit_from_ir(ir: String) -> Result<ExecutionEngine<'static>, Box
         host_http_get as *const () as usize,
     );
     ee.add_global_mapping(
-        &module.get_function("tls_handshake").expect("missing tls_handshake"),
+        &module
+            .get_function("tls_handshake")
+            .expect("missing tls_handshake"),
         host_tls_handshake as *const () as usize,
     );
     ee.add_global_mapping(
