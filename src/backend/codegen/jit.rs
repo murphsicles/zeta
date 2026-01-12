@@ -233,7 +233,9 @@ pub fn host_llvm_jit_from_ir(ir: String) -> Result<ExecutionEngine<'static>, Box
         host_str_to_uppercase as *const () as usize,
     );
     ee.add_global_mapping(
-        &module.get_function("host_str_len").expect("missing host_str_len"),
+        &module
+            .get_function("host_str_len")
+            .expect("missing host_str_len"),
         host_str_len as *const () as usize,
     );
     ee.add_global_mapping(
@@ -255,7 +257,9 @@ pub fn host_llvm_jit_from_ir(ir: String) -> Result<ExecutionEngine<'static>, Box
         host_str_contains as *const () as usize,
     );
     ee.add_global_mapping(
-        &module.get_function("host_str_trim").expect("missing host_str_trim"),
+        &module
+            .get_function("host_str_trim")
+            .expect("missing host_str_trim"),
         host_str_trim as *const () as usize,
     );
     ee.add_global_mapping(
@@ -265,11 +269,15 @@ pub fn host_llvm_jit_from_ir(ir: String) -> Result<ExecutionEngine<'static>, Box
         host_str_replace as *const () as usize,
     );
     ee.add_global_mapping(
-        &module.get_function("channel_send").expect("missing channel_send"),
+        &module
+            .get_function("channel_send")
+            .expect("missing channel_send"),
         host_channel_send as *const () as usize,
     );
     ee.add_global_mapping(
-        &module.get_function("channel_recv").expect("missing channel_recv"),
+        &module
+            .get_function("channel_recv")
+            .expect("missing channel_recv"),
         host_channel_recv as *const () as usize,
     );
     ee.add_global_mapping(
@@ -287,7 +295,9 @@ pub fn host_llvm_jit_from_ir(ir: String) -> Result<ExecutionEngine<'static>, Box
         host_tls_handshake as *const () as usize,
     );
     ee.add_global_mapping(
-        &module.get_function("result_is_ok").expect("missing result_is_ok"),
+        &module
+            .get_function("result_is_ok")
+            .expect("missing result_is_ok"),
         host_result_is_ok as *const () as usize,
     );
     ee.add_global_mapping(
@@ -297,7 +307,9 @@ pub fn host_llvm_jit_from_ir(ir: String) -> Result<ExecutionEngine<'static>, Box
         host_result_get_data as *const () as usize,
     );
     ee.add_global_mapping(
-        &module.get_function("host_map_new").expect("missing host_map_new"),
+        &module
+            .get_function("host_map_new")
+            .expect("missing host_map_new"),
         host_map_new as *const () as usize,
     );
     ee.add_global_mapping(
@@ -307,7 +319,9 @@ pub fn host_llvm_jit_from_ir(ir: String) -> Result<ExecutionEngine<'static>, Box
         host_map_insert as *const () as usize,
     );
     ee.add_global_mapping(
-        &module.get_function("host_map_get").expect("missing host_map_get"),
+        &module
+            .get_function("host_map_get")
+            .expect("missing host_map_get"),
         host_map_get as *const () as usize,
     );
 
