@@ -17,6 +17,7 @@ use inkwell::passes::PassManager;
 use inkwell::targets::{InitializationConfig, Target, TargetMachine};
 use inkwell::OptimizationLevel;
 use serde_json::Value;
+use std::boxed::Box;
 use std::error::Error;
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -185,7 +186,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
 // New: JIT from IR string for self-hosted compiler
 pub fn host_llvm_jit_from_ir(ir: String) -> Result<ExecutionEngine<'static>, Box<dyn Error>> {
-    let context = Context::create();
+    let context_box = Box::new(Context::create());
+    let context = Box::leak(context_box);
+
     let memory_buffer = MemoryBuffer::create_from_memory_range_copy(ir.as_bytes(), "zeta_ir");
     let module = context.create_module_from_ir(memory_buffer)?;
 
@@ -203,51 +206,28 @@ pub fn host_llvm_jit_from_ir(ir: String) -> Result<ExecutionEngine<'static>, Box
 
     let ee = module.create_jit_execution_engine(OptimizationLevel::Aggressive)?;
 
-    // Map host functions (same set as above)
-    ee.add_global_mapping(
-        &module.get_function("datetime_now").unwrap_or_else(|| panic!("missing datetime_now")),
-        host_datetime_now as usize,
-    );
-    ee.add_global_mapping(
-        &module.get_function("free").unwrap_or_else(|| panic!("missing free")),
-        host_free as usize,
-    );
-    ee.add_global_mapping(
-        &module.get_function("host_str_concat").unwrap_or_else(|| panic!("missing host_str_concat")),
-        host_str_concat as usize,
-    );
-    ee.add_global_mapping(
-        &module.get_function("host_str_to_lowercase").unwrap_or_else(|| panic!("missing host_str_to_lowercase")),
-        host_str_to_lowercase as usize,
-    );
-    ee.add_global_mapping(
-        &module.get_function("host_str_to_uppercase").unwrap_or_else(|| panic!("missing host_str_to_uppercase")),
-        host_str_to_uppercase as usize,
-    );
-    ee.add_global_mapping(
-        &module.get_function("host_str_len").unwrap_or_else(|| panic!("missing host_str_len")),
-        host_str_len as usize,
-    );
-    ee.add_global_mapping(
-        &module.get_function("host_str_starts_with").unwrap_or_else(|| panic!("missing host_str_starts_with")),
-        host_str_starts_with as usize,
-    );
-    ee.add_global_mapping(
-        &module.get_function("host_str_ends_with").unwrap_or_else(|| panic!("missing host_str_ends_with")),
-        host_str_ends_with as usize,
-    );
-    ee.add_global_mapping(
-        &module.get_function("host_str_contains").unwrap_or_else(|| panic!("missing host_str_contains")),
-        host_str_contains as usize,
-    );
-    ee.add_global_mapping(
-        &module.get_function("host_str_trim").unwrap_or_else(|| panic!("missing host_str_trim")),
-        host_str_trim as usize,
-    );
-    ee.add_global_mapping(
-        &module.get_function("host_str_replace").unwrap_or_else(|| panic!("missing host_str_replace")),
-        host_str_replace as usize,
-    );
+    // Map host functions
+    macro_rules! map_fn {
+        ($name:expr) => {
+            ee.add_global_mapping(
+                &module.get_function($name).unwrap_or_else(|| panic!("missing {}", $name)),
+                crate::runtime::host::$name as usize,
+            )
+        };
+    }
+
+    map_fn!("datetime_now");
+    map_fn!("free");
+    map_fn!("host_str_concat");
+    map_fn!("host_str_to_lowercase");
+    map_fn!("host_str_to_uppercase");
+    map_fn!("host_str_len");
+    map_fn!("host_str_starts_with");
+    map_fn!("host_str_ends_with");
+    map_fn!("host_str_contains");
+    map_fn!("host_str_trim");
+    map_fn!("host_str_replace");
+
     ee.add_global_mapping(
         &module.get_function("channel_send").unwrap_or_else(|| panic!("missing channel_send")),
         host_channel_send as usize,
