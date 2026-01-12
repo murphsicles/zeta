@@ -10,12 +10,12 @@ use crate::runtime::host::{
     host_str_to_lowercase, host_str_to_uppercase, host_str_trim, host_tls_handshake,
 };
 use crate::runtime::xai::XAIClient;
+use inkwell::OptimizationLevel;
 use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::memory_buffer::MemoryBuffer;
 use inkwell::passes::PassManager;
 use inkwell::targets::{InitializationConfig, Target, TargetMachine};
-use inkwell::OptimizationLevel;
 use serde_json::Value;
 use std::boxed::Box;
 use std::error::Error;
