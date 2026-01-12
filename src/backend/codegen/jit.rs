@@ -13,8 +13,6 @@ use crate::runtime::xai::XAIClient;
 use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::memory_buffer::MemoryBuffer;
-use inkwell::module::Module;
-use inkwell::optimization::PassManagerBuilder;
 use inkwell::passes::PassManager;
 use inkwell::targets::{InitializationConfig, Target, TargetMachine};
 use inkwell::OptimizationLevel;
@@ -188,15 +186,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
 // New: JIT from IR string for self-hosted compiler
 pub fn host_llvm_jit_from_ir(ir: String) -> Result<ExecutionEngine<'static>, Box<dyn Error>> {
     let context = Context::create();
-    let memory_buffer = MemoryBuffer::create_from_memory_range(ir.as_bytes(), "zeta_ir")?;
+    let memory_buffer = MemoryBuffer::create_from_memory_range_copy(ir.as_bytes(), "zeta_ir");
     let module = context.create_module_from_ir(memory_buffer)?;
 
-    // Same optimization/MLGO as above
     Target::initialize_native(&InitializationConfig::default())?;
     let target_triple = TargetMachine::get_default_triple();
     module.set_triple(&target_triple);
 
-    // Stub stats/MLGO for now (can add later)
     let fpm = PassManager::create(&module);
     fpm.initialize();
     for func in module.get_functions() {
@@ -207,13 +203,91 @@ pub fn host_llvm_jit_from_ir(ir: String) -> Result<ExecutionEngine<'static>, Box
 
     let ee = module.create_jit_execution_engine(OptimizationLevel::Aggressive)?;
 
-    // Map all host functions (same as above)
-    // (duplicate code for simplicity; can factor later)
+    // Map host functions (same set as above)
     ee.add_global_mapping(
         &module.get_function("datetime_now").unwrap_or_else(|| panic!("missing datetime_now")),
         host_datetime_now as usize,
     );
-    // ... (add all mappings like in finalize_and_jit)
+    ee.add_global_mapping(
+        &module.get_function("free").unwrap_or_else(|| panic!("missing free")),
+        host_free as usize,
+    );
+    ee.add_global_mapping(
+        &module.get_function("host_str_concat").unwrap_or_else(|| panic!("missing host_str_concat")),
+        host_str_concat as usize,
+    );
+    ee.add_global_mapping(
+        &module.get_function("host_str_to_lowercase").unwrap_or_else(|| panic!("missing host_str_to_lowercase")),
+        host_str_to_lowercase as usize,
+    );
+    ee.add_global_mapping(
+        &module.get_function("host_str_to_uppercase").unwrap_or_else(|| panic!("missing host_str_to_uppercase")),
+        host_str_to_uppercase as usize,
+    );
+    ee.add_global_mapping(
+        &module.get_function("host_str_len").unwrap_or_else(|| panic!("missing host_str_len")),
+        host_str_len as usize,
+    );
+    ee.add_global_mapping(
+        &module.get_function("host_str_starts_with").unwrap_or_else(|| panic!("missing host_str_starts_with")),
+        host_str_starts_with as usize,
+    );
+    ee.add_global_mapping(
+        &module.get_function("host_str_ends_with").unwrap_or_else(|| panic!("missing host_str_ends_with")),
+        host_str_ends_with as usize,
+    );
+    ee.add_global_mapping(
+        &module.get_function("host_str_contains").unwrap_or_else(|| panic!("missing host_str_contains")),
+        host_str_contains as usize,
+    );
+    ee.add_global_mapping(
+        &module.get_function("host_str_trim").unwrap_or_else(|| panic!("missing host_str_trim")),
+        host_str_trim as usize,
+    );
+    ee.add_global_mapping(
+        &module.get_function("host_str_replace").unwrap_or_else(|| panic!("missing host_str_replace")),
+        host_str_replace as usize,
+    );
+    ee.add_global_mapping(
+        &module.get_function("channel_send").unwrap_or_else(|| panic!("missing channel_send")),
+        host_channel_send as usize,
+    );
+    ee.add_global_mapping(
+        &module.get_function("channel_recv").unwrap_or_else(|| panic!("missing channel_recv")),
+        host_channel_recv as usize,
+    );
+    ee.add_global_mapping(
+        &module.get_function("spawn").unwrap_or_else(|| panic!("missing spawn")),
+        host_spawn as usize,
+    );
+    ee.add_global_mapping(
+        &module.get_function("http_get").unwrap_or_else(|| panic!("missing http_get")),
+        host_http_get as usize,
+    );
+    ee.add_global_mapping(
+        &module.get_function("tls_handshake").unwrap_or_else(|| panic!("missing tls_handshake")),
+        host_tls_handshake as usize,
+    );
+    ee.add_global_mapping(
+        &module.get_function("result_is_ok").unwrap_or_else(|| panic!("missing result_is_ok")),
+        host_result_is_ok as usize,
+    );
+    ee.add_global_mapping(
+        &module.get_function("result_get_data").unwrap_or_else(|| panic!("missing result_get_data")),
+        host_result_get_data as usize,
+    );
+    ee.add_global_mapping(
+        &module.get_function("host_map_new").unwrap_or_else(|| panic!("missing host_map_new")),
+        host_map_new as usize,
+    );
+    ee.add_global_mapping(
+        &module.get_function("host_map_insert").unwrap_or_else(|| panic!("missing host_map_insert")),
+        host_map_insert as usize,
+    );
+    ee.add_global_mapping(
+        &module.get_function("host_map_get").unwrap_or_else(|| panic!("missing host_map_get")),
+        host_map_get as usize,
+    );
 
     Ok(ee)
 }
