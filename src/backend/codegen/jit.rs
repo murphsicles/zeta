@@ -2,7 +2,14 @@
 use super::codegen::LLVMCodegen;
 use crate::runtime::actor::channel::{host_channel_recv, host_channel_send};
 use crate::runtime::actor::scheduler::host_spawn;
-use crate::runtime::host::{host_datetime_now, host_free, host_http_get, host_tls_handshake};
+use crate::runtime::host::{
+    host_datetime_now, host_free, host_http_get, host_tls_handshake,
+    host_str_concat, host_str_contains, host_str_ends_with, host_str_len,
+    host_str_replace, host_str_starts_with, host_str_to_lowercase,
+    host_str_to_uppercase, host_str_trim,
+};
+use crate::runtime::actor::map::{host_map_get, host_map_insert, host_map_new};
+use crate::runtime::actor::result::{host_result_get_data, host_result_is_ok};
 use crate::runtime::xai::XAIClient;
 use inkwell::OptimizationLevel;
 use inkwell::execution_engine::ExecutionEngine;
@@ -103,39 +110,39 @@ impl<'ctx> LLVMCodegen<'ctx> {
         );
         ee.add_global_mapping(
             &self.module.get_function("host_str_concat").unwrap(),
-            crate::runtime::host::host_str_concat as *const () as usize,
+            host_str_concat as *const () as usize,
         );
         ee.add_global_mapping(
             &self.module.get_function("host_str_to_lowercase").unwrap(),
-            crate::runtime::host::host_str_to_lowercase as *const () as usize,
+            host_str_to_lowercase as *const () as usize,
         );
         ee.add_global_mapping(
             &self.module.get_function("host_str_to_uppercase").unwrap(),
-            crate::runtime::host::host_str_to_uppercase as *const () as usize,
+            host_str_to_uppercase as *const () as usize,
         );
         ee.add_global_mapping(
             &self.module.get_function("host_str_len").unwrap(),
-            crate::runtime::host::host_str_len as *const () as usize,
+            host_str_len as *const () as usize,
         );
         ee.add_global_mapping(
             &self.module.get_function("host_str_starts_with").unwrap(),
-            crate::runtime::host::host_str_starts_with as *const () as usize,
+            host_str_starts_with as *const () as usize,
         );
         ee.add_global_mapping(
             &self.module.get_function("host_str_ends_with").unwrap(),
-            crate::runtime::host::host_str_ends_with as *const () as usize,
+            host_str_ends_with as *const () as usize,
         );
         ee.add_global_mapping(
             &self.module.get_function("host_str_contains").unwrap(),
-            crate::runtime::host::host_str_contains as *const () as usize,
+            host_str_contains as *const () as usize,
         );
         ee.add_global_mapping(
             &self.module.get_function("host_str_trim").unwrap(),
-            crate::runtime::host::host_str_trim as *const () as usize,
+            host_str_trim as *const () as usize,
         );
         ee.add_global_mapping(
             &self.module.get_function("host_str_replace").unwrap(),
-            crate::runtime::host::host_str_replace as *const () as usize,
+            host_str_replace as *const () as usize,
         );
         ee.add_global_mapping(
             &self.module.get_function("channel_send").unwrap(),
@@ -156,6 +163,26 @@ impl<'ctx> LLVMCodegen<'ctx> {
         ee.add_global_mapping(
             &self.module.get_function("tls_handshake").unwrap(),
             host_tls_handshake as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("result_is_ok").unwrap(),
+            host_result_is_ok as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("result_get_data").unwrap(),
+            host_result_get_data as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("host_map_new").unwrap(),
+            host_map_new as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("host_map_insert").unwrap(),
+            host_map_insert as *const () as usize,
+        );
+        ee.add_global_mapping(
+            &self.module.get_function("host_map_get").unwrap(),
+            host_map_get as *const () as usize,
         );
 
         Ok(ee)
