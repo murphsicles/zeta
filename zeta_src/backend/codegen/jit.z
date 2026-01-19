@@ -1,12 +1,11 @@
 // zeta_src/backend/codegen/jit.z
 // JIT execution integration for Zeta (self-hosted port)
 // Takes IR string from Codegen, "finalizes" (stub passes), maps host functions
-// Actual JIT via host_llvm_jit(ir: String) -> ExecutionEngine handle (stub)
+// Actual JIT via host_llvm_jit(ir: String) -> ExecutionEngine handle
 // Returns function pointer for "main" or error
-
 use zorb::backend::codegen::codegen::LLVMCodegen;
 
-// Stub ExecutionEngine handle (i64 pointer to engine)
+// ExecutionEngine handle (i64 pointer to engine)
 type ExecutionEngine = i64;
 
 // Host function to JIT compile IR string
@@ -38,12 +37,10 @@ impl JITExecutor {
     fn new(ir: String) -> Self {
         // Stub passes (real optimization later)
         println!("Applying stub passes...");
-
         let engine = host_llvm_jit(ir);
         if engine == 0 {
             panic("JIT compilation failed");
         }
-
         Self { engine }
     }
 
@@ -69,20 +66,16 @@ extern "C" fn main_stub() -> i64 {
 pub fn finalize_and_jit(codegen: LLVMCodegen) -> Result<JITExecutor, String> {
     let ir = codegen.finalize();
     println!("Generated IR:\n{}", ir);
-
     let executor = JITExecutor::new(ir);
     executor.add_mappings();
-
     Ok(executor)
 }
 
 // Temporary test main
 fn main() -> i64 {
     let mut codegen = LLVMCodegen::new("test".to_string());
-
     // Stub MIR with simple main returning 42
     // (build real MIR in future tests)
-
     match finalize_and_jit(codegen) {
         Ok(executor) => {
             if let Some(main_fn) = executor.get_main() {
@@ -92,6 +85,5 @@ fn main() -> i64 {
         }
         Err(e) => println!("JIT error: {}", e),
     }
-
     0
 }
