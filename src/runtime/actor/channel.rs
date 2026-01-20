@@ -71,11 +71,7 @@ pub unsafe extern "C" fn host_channel_send(chan_id: i64, msg: i64) -> i64 {
     };
     let guard = map.lock().unwrap();
     if let Some(inner) = guard.get(&chan_id) {
-        if inner.tx.try_send(msg).is_ok() {
-            0
-        } else {
-            -1
-        }
+        inner.tx.try_send(msg).map(|_| 0).unwrap_or(-1)
     } else {
         -1
     }
@@ -92,11 +88,7 @@ pub unsafe extern "C" fn host_channel_recv(chan_id: i64) -> i64 {
     let guard = map.lock().unwrap();
     if let Some(inner) = guard.get(&chan_id) {
         let mut rx_guard = inner.rx.lock().unwrap();
-        match rx_guard.try_recv() {
-            Ok(m) => m,
-            Err(mpsc::error::TryRecvError::Empty) => 0,
-            Err(_) => 0,
-        }
+        rx_guard.try_recv().unwrap_or(0)
     } else {
         0
     }
