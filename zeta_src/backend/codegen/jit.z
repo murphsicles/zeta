@@ -4,13 +4,10 @@
 // Actual JIT via host_llvm_jit(ir: String) -> ExecutionEngine handle
 // Returns function pointer for "main" or error
 use zorb::backend::codegen::codegen::LLVMCodegen;
-
 // ExecutionEngine handle (i64 pointer to engine)
 type ExecutionEngine = i64;
-
 // Host function to JIT compile IR string
 extern "C" fn host_llvm_jit(ir: String) -> ExecutionEngine;
-
 // Host functions for global mappings (addresses as i64)
 extern "C" fn host_datetime_now() -> i64;
 extern "C" fn host_free(ptr: i64);
@@ -28,11 +25,9 @@ extern "C" fn host_channel_recv(chan: i64) -> i64;
 extern "C" fn host_spawn(func_id: i64) -> i64;
 extern "C" fn host_http_get(url: i64) -> i64;
 extern "C" fn host_tls_handshake(host: i64) -> i64;
-
 struct JITExecutor {
     engine: ExecutionEngine,
 }
-
 impl JITExecutor {
     fn new(ir: String) -> Self {
         // Stub passes (real optimization later)
@@ -43,25 +38,21 @@ impl JITExecutor {
         }
         Self { engine }
     }
-
     fn add_mappings(&self) {
         // Stub: map known functions
         // In real impl: host_llvm_add_mapping(engine, fn_name: String, addr: i64)
         println!("Mapping host functions...");
     }
-
     fn get_main(&self) -> Option<extern "C" fn() -> i64> {
         // Stub: return main function pointer
         // Real: host_llvm_get_function(engine, "main")
         Some(main_stub)
     }
 }
-
 // Temporary stub main function for testing
 extern "C" fn main_stub() -> i64 {
     42
 }
-
 // Public finalize_and_jit
 pub fn finalize_and_jit(codegen: LLVMCodegen) -> Result<JITExecutor, String> {
     let ir = codegen.finalize();
@@ -70,7 +61,6 @@ pub fn finalize_and_jit(codegen: LLVMCodegen) -> Result<JITExecutor, String> {
     executor.add_mappings();
     Ok(executor)
 }
-
 // Temporary test main
 fn main() -> i64 {
     let mut codegen = LLVMCodegen::new("test".to_string());
