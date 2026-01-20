@@ -17,7 +17,7 @@ static FUNC_MAP: OnceLock<Arc<Mutex<HashMap<i64, ActorEntry>>>> = OnceLock::new(
 pub fn register_func(f: impl FnOnce(Channel) + Send + 'static) -> i64 {
     let map = FUNC_MAP.get_or_init(|| Arc::new(Mutex::new(HashMap::new())));
     let id = super::channel::CHANNEL_ID_COUNTER.fetch_add(1, Ordering::SeqCst);
-    let mut guard = tokio::runtime::Handle::current().block_on(map.lock());
+    let mut guard = map.lock().unwrap();
     guard.insert(id, Box::new(f));
     id
 }
@@ -31,16 +31,16 @@ pub unsafe extern "C" fn host_spawn(func_id: i64) -> i64 {
         None => return -1,
     };
 
-    let rt = tokio::runtime::Handle::current();
-    rt.block_on(async {
-        let mut guard = map.lock().await;
-        if let Some(func) = guard.remove(&func_id) {
-            spawn(func).await;
-            0
-        } else {
-            -1
-        }
-    })
+    let mut guard = map.lock().unwrap();
+    if let Some(func) = guard.remove(&func_id) {
+        std::thread::spawn(move || {
+            let chan = Channel::new();
+            func(chan);
+        });
+        0
+    } else {
+        -1
+    }
 }
 
 /// Represents an actor with its channel and entry function.
@@ -60,7 +60,7 @@ struct Scheduler {
 
 impl Scheduler {
     /// Creates a new scheduler with worker threads.
-    pub async fn new(thread_count: usize) -> Arc<Self> {
+    pub fn new(thread_count: usize) -> Arc<Self> {
         let sched = Arc::new(Self {
             actors: Mutex::new(VecDeque::new()),
             _tasks: Mutex::new(vec![]),
@@ -69,7 +69,7 @@ impl Scheduler {
         for _ in 0..thread_count {
             let sched_clone = Arc::clone(&sched);
             let handle = task::spawn(async move { sched_clone.worker_loop().await });
-            let mut tasks = sched._tasks.lock().await;
+            let mut tasks = sched._tasks.lock().unwrap();
             tasks.push(handle);
         }
 
@@ -97,7 +97,7 @@ impl Scheduler {
     }
 
     /// Enqueues a new actor for scheduling.
-    pub async fn spawn<F>(func: F)
+    pub fn spawn<F>(func: F)
     where
         F: FnOnce(Channel) + Send + 'static,
     {
@@ -108,7 +108,7 @@ impl Scheduler {
         };
 
         let sched = SCHEDULER.get().expect("Scheduler not initialized");
-        let mut actors = sched.actors.lock().await;
+        let mut actors = sched.actors.lock().unwrap();
         actors.push_back(actor);
     }
 
@@ -124,7 +124,7 @@ impl Scheduler {
                 .expect("Failed to create Tokio runtime")
         });
 
-        let sched = rt.block_on(async { Self::new(num_cpus::get().max(1)).await });
+        let sched = rt.block_on(async { Self::new(num_cpus::get().max(1)) });
         let _ = SCHEDULER.set(sched);
         Ok(())
     }
@@ -136,9 +136,9 @@ pub fn init_runtime() {
 }
 
 /// Spawns an actor asynchronously.
-pub async fn spawn<F>(f: F)
+pub fn spawn<F>(f: F)
 where
     F: FnOnce(Channel) + Send + 'static,
 {
-    Scheduler::spawn(f).await;
+    Scheduler::spawn(f);
 }
