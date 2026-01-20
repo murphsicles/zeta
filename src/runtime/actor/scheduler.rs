@@ -26,7 +26,7 @@ pub fn register_func(f: impl FnOnce(Channel) + Send + 'static) -> i64 {
 /// # Safety
 /// No safety concerns as parameters are plain i64 values.
 pub unsafe extern "C" fn host_spawn(func_id: i64) -> i64 {
-    let map = match FUNC_MAP.get() {
+    let map: Arc<Mutex<HashMap<i64, ActorEntry>>> = match FUNC_MAP.get() {
         Some(m) => Arc::clone(m),
         None => return -1,
     };
