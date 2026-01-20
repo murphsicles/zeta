@@ -1,8 +1,7 @@
 // plan.rs
 //! Zeta Compiler Development Plan.
 //! Checklist for milestones. Mark as [x] when complete.
-//! Updated January 01, 2026: Ergonomics items completed – rich string methods, + operator sugar for concatenation,
-//! implicit str conversions, visual MIR dumps via --dump-mir, and basic JIT debugger integration with DWARF subprograms.
+//! Updated January 20, 2026: Full self-hosting achieved.
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
@@ -46,8 +45,8 @@ pub mod checklist {
     "#;
     /// Bootstrap/Self-host
     pub const BOOTSTRAP: &str = r#"
-[ ] True self-hosting bootstrap (Zeta compiler written in Zeta, compiles itself to native binary)
-[ ] Expand selfhost.z to full parser/AST/resolver/codegen in Zeta syntax
+[x] True self-hosting bootstrap (Zeta compiler written in Zeta, compiles itself to native binary)
+[x] Expand selfhost.z to full parser/AST/resolver/codegen in Zeta syntax
     "#;
     /// Ergonomics (Ease of Use for Adoption)
     pub const ERGONOMICS: &str = r#"
