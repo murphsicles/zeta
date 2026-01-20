@@ -1,5 +1,5 @@
 // src/runtime/host.rs
-use crate::runtime::std::{std_malloc, std_free};
+use crate::runtime::std::{std_free, std_malloc};
 use libc::strlen;
 use reqwest::blocking::Client;
 use std::ffi::{CStr, CString, c_char};
@@ -81,8 +81,12 @@ pub unsafe extern "C" fn host_str_concat(a: i64, b: i64) -> i64 {
     if a == 0 || b == 0 {
         return 0;
     }
-    let s1 = unsafe { CStr::from_ptr(a as *const c_char) }.to_str().unwrap_or("");
-    let s2 = unsafe { CStr::from_ptr(b as *const c_char) }.to_str().unwrap_or("");
+    let s1 = unsafe { CStr::from_ptr(a as *const c_char) }
+        .to_str()
+        .unwrap_or("");
+    let s2 = unsafe { CStr::from_ptr(b as *const c_char) }
+        .to_str()
+        .unwrap_or("");
     let concat = format!("{}{}", s1, s2);
     let cstring = CString::new(concat).unwrap();
     let len = cstring.as_bytes_with_nul().len();
@@ -169,9 +173,15 @@ pub unsafe extern "C" fn host_str_replace(s: i64, old: i64, new: i64) -> i64 {
     if s == 0 || old == 0 || new == 0 {
         return 0;
     }
-    let str_val = unsafe { CStr::from_ptr(s as *const c_char) }.to_str().unwrap_or("");
-    let old_val = unsafe { CStr::from_ptr(old as *const c_char) }.to_str().unwrap_or("");
-    let new_val = unsafe { CStr::from_ptr(new as *const c_char) }.to_str().unwrap_or("");
+    let str_val = unsafe { CStr::from_ptr(s as *const c_char) }
+        .to_str()
+        .unwrap_or("");
+    let old_val = unsafe { CStr::from_ptr(old as *const c_char) }
+        .to_str()
+        .unwrap_or("");
+    let new_val = unsafe { CStr::from_ptr(new as *const c_char) }
+        .to_str()
+        .unwrap_or("");
     let replaced = str_val.replace(old_val, new_val);
     let cstring = CString::new(replaced).unwrap();
     let len = cstring.as_bytes_with_nul().len();
@@ -190,7 +200,9 @@ where
     if s == 0 {
         return 0;
     }
-    let input = unsafe { CStr::from_ptr(s as *const c_char) }.to_str().unwrap_or("");
+    let input = unsafe { CStr::from_ptr(s as *const c_char) }
+        .to_str()
+        .unwrap_or("");
     let result = op(input);
     let cstring = CString::new(result).unwrap();
     let len = cstring.as_bytes_with_nul().len();
@@ -209,7 +221,11 @@ where
     if haystack == 0 || needle == 0 {
         return 0;
     }
-    let hay = unsafe { CStr::from_ptr(haystack as *const c_char) }.to_str().unwrap_or("");
-    let ndl = unsafe { CStr::from_ptr(needle as *const c_char) }.to_str().unwrap_or("");
+    let hay = unsafe { CStr::from_ptr(haystack as *const c_char) }
+        .to_str()
+        .unwrap_or("");
+    let ndl = unsafe { CStr::from_ptr(needle as *const c_char) }
+        .to_str()
+        .unwrap_or("");
     if pred(hay, ndl) { 1 } else { 0 }
 }
