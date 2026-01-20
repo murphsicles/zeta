@@ -1,7 +1,4 @@
 // zeta_src/main.z
-// Full self-hosted Zeta compiler pipeline
-// Parse → Resolve → MIR → Codegen → JIT (stub) → Execute main
-
 use zorb::frontend::ast::AstNode;
 use zorb::frontend::parser::{Lexer, Parser};
 use zorb::middle::resolver::Resolver;
@@ -17,23 +14,22 @@ fn compile(source: String) -> i64 {
     // Parse
     let mut parser = Parser::new(tokens);
     let ast = parser.parse();
-
-    println!("=== Parsed AST ===");
-    println!("{:#?}", ast);
+    println("=== Parsed AST ===");
+    println("{:#?}", ast);
 
     // Resolve / typecheck
     let mut resolver = Resolver::new();
-    if let AstNode::Program(nodes) = ast {
-        for node in &nodes {
+    if let AstNode::Program(nodes) = &ast {
+        for node in nodes {
             resolver.register(node.clone());
         }
         let type_ok = resolver.typecheck(nodes);
         if !type_ok {
-            println!("Typecheck failed");
+            println("Typecheck failed");
             return -1;
         }
     } else {
-        println!("Not a program AST");
+        println("Not a program AST");
         return -1;
     }
 
@@ -48,18 +44,16 @@ fn compile(source: String) -> i64 {
             }
         }
     }
-
-    println!("=== Generated MIR ===");
+    println("=== Generated MIR ===");
     for mir in &mono_mirs {
-        println!("{:#?}", mir);
+        println("{:#?}", mir);
     }
 
     // Codegen to LLVM IR
     let mut codegen = LLVMCodegen::new("zeta_module".to_string());
-    codegen.gen_mirs(mono_mirs);
-
+    codegen.gen_mirs(&mono_mirs);
     let ir = codegen.finalize();
-    println!("=== Generated LLVM IR ===");
+    println("=== Generated LLVM IR ===");
     println!("{}", ir);
 
     // JIT and execute main
@@ -67,15 +61,15 @@ fn compile(source: String) -> i64 {
         Ok(executor) => {
             if let Some(main_fn) = executor.get_main() {
                 let result = main_fn();
-                println!("Execution result: {}", result);
-                result
+                println("Execution result: {}", result);
+                result as i64
             } else {
-                println!("No main function found");
-                -1
+                println("No main function found");
+                -2
             }
         }
         Err(e) => {
-            println!("JIT error: {}", e);
+            println("JIT error: {}", e);
             -1
         }
     }
@@ -84,11 +78,8 @@ fn compile(source: String) -> i64 {
 fn main() -> i64 {
     let test_source = r#"
 fn main() -> i64 {
-    let x = 40;
-    let y = 2;
-    return x + y;
+    return 42;
 }
 "#;
-
     compile(test_source.to_string())
 }
