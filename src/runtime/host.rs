@@ -81,13 +81,15 @@ pub unsafe extern "C" fn host_str_concat(a: i64, b: i64) -> i64 {
     if a == 0 || b == 0 {
         return 0;
     }
-    let s1 = CStr::from_ptr(a as *const c_char).to_str().unwrap_or("");
-    let s2 = CStr::from_ptr(b as *const c_char).to_str().unwrap_or("");
+    let s1 = unsafe { CStr::from_ptr(a as *const c_char) }.to_str().unwrap_or("");
+    let s2 = unsafe { CStr::from_ptr(b as *const c_char) }.to_str().unwrap_or("");
     let concat = format!("{}{}", s1, s2);
     let cstring = CString::new(concat).unwrap();
     let len = cstring.as_bytes_with_nul().len();
     let ptr = std_malloc(len);
-    ptr::copy_nonoverlapping(cstring.as_ptr(), ptr as *mut c_char, len);
+    unsafe {
+        ptr::copy_nonoverlapping(cstring.as_ptr(), ptr as *mut c_char, len);
+    }
     ptr as i64
 }
 
@@ -167,17 +169,20 @@ pub unsafe extern "C" fn host_str_replace(s: i64, old: i64, new: i64) -> i64 {
     if s == 0 || old == 0 || new == 0 {
         return 0;
     }
-    let str_val = CStr::from_ptr(s as *const c_char).to_str().unwrap_or("");
-    let old_val = CStr::from_ptr(old as *const c_char).to_str().unwrap_or("");
-    let new_val = CStr::from_ptr(new as *const c_char).to_str().unwrap_or("");
+    let str_val = unsafe { CStr::from_ptr(s as *const c_char) }.to_str().unwrap_or("");
+    let old_val = unsafe { CStr::from_ptr(old as *const c_char) }.to_str().unwrap_or("");
+    let new_val = unsafe { CStr::from_ptr(new as *const c_char) }.to_str().unwrap_or("");
     let replaced = str_val.replace(old_val, new_val);
     let cstring = CString::new(replaced).unwrap();
     let len = cstring.as_bytes_with_nul().len();
     let ptr = std_malloc(len);
-    ptr::copy_nonoverlapping(cstring.as_ptr(), ptr as *mut c_char, len);
+    unsafe {
+        ptr::copy_nonoverlapping(cstring.as_ptr(), ptr as *mut c_char, len);
+    }
     ptr as i64
 }
 
+#[allow(unsafe_op_in_unsafe_fn)]
 unsafe fn string_op<F>(s: i64, op: F) -> i64
 where
     F: FnOnce(&str) -> String,
@@ -185,15 +190,18 @@ where
     if s == 0 {
         return 0;
     }
-    let input = CStr::from_ptr(s as *const c_char).to_str().unwrap_or("");
+    let input = unsafe { CStr::from_ptr(s as *const c_char) }.to_str().unwrap_or("");
     let result = op(input);
     let cstring = CString::new(result).unwrap();
     let len = cstring.as_bytes_with_nul().len();
     let ptr = std_malloc(len);
-    ptr::copy_nonoverlapping(cstring.as_ptr(), ptr as *mut c_char, len);
+    unsafe {
+        ptr::copy_nonoverlapping(cstring.as_ptr(), ptr as *mut c_char, len);
+    }
     ptr as i64
 }
 
+#[allow(unsafe_op_in_unsafe_fn)]
 unsafe fn string_pred<F>(haystack: i64, needle: i64, pred: F) -> i64
 where
     F: FnOnce(&str, &str) -> bool,
@@ -201,7 +209,7 @@ where
     if haystack == 0 || needle == 0 {
         return 0;
     }
-    let hay = CStr::from_ptr(haystack as *const c_char).to_str().unwrap_or("");
-    let ndl = CStr::from_ptr(needle as *const c_char).to_str().unwrap_or("");
+    let hay = unsafe { CStr::from_ptr(haystack as *const c_char) }.to_str().unwrap_or("");
+    let ndl = unsafe { CStr::from_ptr(needle as *const c_char) }.to_str().unwrap_or("");
     if pred(hay, ndl) { 1 } else { 0 }
 }
