@@ -3,7 +3,7 @@ use super::channel::Channel;
 use num_cpus;
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::Ordering;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, OnceLock};
 use tokio::sync::Mutex as TokioMutex;
 use tokio::task;
 
