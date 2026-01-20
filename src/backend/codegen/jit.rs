@@ -325,3 +325,14 @@ pub fn host_llvm_jit_from_ir(ir: String) -> Result<ExecutionEngine<'static>, Box
 
     Ok(ee)
 }
+
+pub fn host_llvm_get_main(engine_ptr: i64) -> i64 {
+    if engine_ptr == 0 {
+        return 0;
+    }
+    let ee: &ExecutionEngine = unsafe { &*(engine_ptr as *const ExecutionEngine) };
+    match ee.get_function_address("main") {
+        Ok(addr) => addr as i64,
+        Err(_) => 0,
+    }
+}
