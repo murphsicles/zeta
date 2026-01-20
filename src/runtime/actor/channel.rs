@@ -2,7 +2,7 @@
 use std::collections::HashMap;
 use std::sync::atomic::AtomicI64;
 use std::sync::{Arc, OnceLock};
-use tokio::sync::{mpsc, Mutex as TokioMutex};
+use tokio::sync::{Mutex as TokioMutex, mpsc};
 
 type Message = i64;
 
