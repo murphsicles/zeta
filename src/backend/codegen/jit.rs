@@ -1,12 +1,7 @@
 // src/backend/codegen/jit.rs
-// Complete Phase 5: real JIT for both bootstrap and self-hosted paths
-// finalize_and_jit for Rust bootstrap
-// host_llvm_jit_from_ir for self-hosted Zeta (IR string → ExecutionEngine)
-// Full mappings, optimization, main retrieval stubbed for final verification
-
 use super::codegen::LLVMCodegen;
 use crate::runtime::actor::channel::{host_channel_recv, host_channel_send};
-use crate::runtime::actor::map::{host_map_free, host_map_get, host_map_insert, host_map_new};
+use crate::runtime::actor::map::{host_map_get, host_map_insert, host_map_new};
 use crate::runtime::actor::result::{host_result_get_data, host_result_is_ok};
 use crate::runtime::actor::scheduler::host_spawn;
 use crate::runtime::host::{
@@ -186,7 +181,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
     }
 }
 
-// Real JIT from IR string for self-hosted Zeta compiler
+// New: JIT from IR string for self-hosted compiler
 pub fn host_llvm_jit_from_ir(ir: String) -> Result<ExecutionEngine<'static>, Box<dyn Error>> {
     let context_box = Box::new(Context::create());
     let context = Box::leak(context_box);
