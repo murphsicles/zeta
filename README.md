@@ -26,7 +26,7 @@ Zeta is a systems programming language inspired by Elements of Programming (EOP)
 - **Self-hosting in 3,400 lines of code**
 - **Very low cyclomatic complexity**
 
-Zeta v0.2.2 is released. There are zero competitors.
+Zeta v0.2.3 is released. There are zero competitors.
 We're living in a brand new paradigm.
 
 > “Complexity assersions have to be part of the interface.” - Alexander Stepanov, 1995
