@@ -1,6 +1,6 @@
 // src/runtime/actor/channel.rs
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::atomic::AtomicI64;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::{Mutex, mpsc};
 
@@ -15,10 +15,53 @@ type ChannelMap = Arc<Mutex<HashMap<i64, Arc<ChannelInner>>>>;
 #[allow(clippy::type_complexity)]
 static CHANNEL_MAP: OnceLock<ChannelMap> = OnceLock::new();
 
+/// Communication channel for actor messages, compatible with C representations.
+#[repr(C)]
+#[derive(Clone, Debug)]
+pub struct Channel {
+    id: i64,
+}
+
 #[derive(Debug)]
 struct ChannelInner {
     tx: mpsc::Sender<Message>,
     rx: Mutex<mpsc::Receiver<Message>>,
+}
+
+impl Channel {
+    /// Creates a new unbounded channel and registers it globally.
+    pub fn new() -> Self {
+        let (tx, rx) = mpsc::channel(1024);
+        let id = CHANNEL_ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+
+        let map = CHANNEL_MAP.get_or_init(|| Arc::new(Mutex::new(HashMap::new())));
+        let inner = Arc::new(ChannelInner {
+            tx,
+            rx: Mutex::new(rx),
+        });
+
+        let rt = tokio::runtime::Handle::current();
+        rt.block_on(async {
+            let mut guard = map.lock().await;
+            guard.insert(id, inner);
+        });
+
+        Self { id }
+    }
+
+    #[allow(dead_code)]
+    async fn get_inner(&self) -> Option<Arc<ChannelInner>> {
+        let map = CHANNEL_MAP.get()?;
+        let guard = map.lock().await;
+        guard.get(&self.id).cloned()
+    }
+}
+
+#[allow(clippy::new_without_default)]
+impl Default for Channel {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// Host function to send a message to a channel.
