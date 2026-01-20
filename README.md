@@ -141,7 +141,7 @@ Rust 2024 edition · Dependencies: `nom`, `inkwell` (LLVM 21), `rayon`, `reqwest
 ## Status
 
 Zeta v0.3.0 achieved self-hosting bootstrap on January 20, 2026.  
-See [plan.z](plan.z) for the victory log.
+See [plan.rs](plan.rs) for the victory log.
 
 ## License
 
