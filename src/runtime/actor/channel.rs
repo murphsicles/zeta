@@ -1,15 +1,15 @@
 // src/runtime/actor/channel.rs
 use std::collections::HashMap;
 use std::sync::atomic::AtomicI64;
-use std::sync::{Arc, Mutex, OnceLock};
-use tokio::sync::mpsc;
+use std::sync::{Arc, OnceLock};
+use tokio::sync::{mpsc, Mutex as TokioMutex};
 
 type Message = i64;
 
 /// Global counter for unique channel IDs.
 pub static CHANNEL_ID_COUNTER: AtomicI64 = AtomicI64::new(0);
 
-type ChannelMap = Arc<Mutex<HashMap<i64, Arc<ChannelInner>>>>;
+type ChannelMap = Arc<TokioMutex<HashMap<i64, Arc<ChannelInner>>>>;
 
 /// Global map of channel IDs to channel inners.
 #[allow(clippy::type_complexity)]
@@ -25,7 +25,7 @@ pub struct Channel {
 #[derive(Debug)]
 struct ChannelInner {
     tx: mpsc::Sender<Message>,
-    rx: Mutex<mpsc::Receiver<Message>>,
+    rx: TokioMutex<mpsc::Receiver<Message>>,
 }
 
 impl Channel {
@@ -34,22 +34,22 @@ impl Channel {
         let (tx, rx) = mpsc::channel(1024);
         let id = CHANNEL_ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
-        let map = CHANNEL_MAP.get_or_init(|| Arc::new(Mutex::new(HashMap::new())));
+        let map = CHANNEL_MAP.get_or_init(|| Arc::new(TokioMutex::new(HashMap::new())));
         let inner = Arc::new(ChannelInner {
             tx,
-            rx: Mutex::new(rx),
+            rx: TokioMutex::new(rx),
         });
 
-        let mut guard = map.lock().unwrap();
+        let mut guard = map.blocking_lock();
         guard.insert(id, inner);
 
         Self { id }
     }
 
     #[allow(dead_code)]
-    fn get_inner(&self) -> Option<Arc<ChannelInner>> {
+    async fn get_inner(&self) -> Option<Arc<ChannelInner>> {
         let map = CHANNEL_MAP.get()?;
-        let guard = map.lock().unwrap();
+        let guard = map.lock().await;
         guard.get(&self.id).cloned()
     }
 }
@@ -69,9 +69,13 @@ pub unsafe extern "C" fn host_channel_send(chan_id: i64, msg: i64) -> i64 {
         Some(m) => m,
         None => return -1,
     };
-    let guard = map.lock().unwrap();
+    let guard = map.blocking_lock();
     if let Some(inner) = guard.get(&chan_id) {
-        inner.tx.try_send(msg).map(|_| 0).unwrap_or(-1)
+        if inner.tx.try_send(msg).is_ok() {
+            0
+        } else {
+            -1
+        }
     } else {
         -1
     }
@@ -85,10 +89,14 @@ pub unsafe extern "C" fn host_channel_recv(chan_id: i64) -> i64 {
         Some(m) => m,
         None => return 0,
     };
-    let guard = map.lock().unwrap();
+    let guard = map.blocking_lock();
     if let Some(inner) = guard.get(&chan_id) {
-        let mut rx_guard = inner.rx.lock().unwrap();
-        rx_guard.try_recv().unwrap_or(0)
+        let mut rx_guard = inner.rx.blocking_lock();
+        match rx_guard.try_recv() {
+            Ok(m) => m,
+            Err(mpsc::error::TryRecvError::Empty) => 0,
+            Err(_) => 0,
+        }
     } else {
         0
     }
