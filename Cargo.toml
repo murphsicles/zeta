@@ -8,7 +8,7 @@ version = "0.2.3"
 # Rust edition.
 edition = "2024"
 # Minimum Rust version.
-rust-version = "1.93.0"
+rust-version = "1.92.0"
 # License type.
 license = "MIT"
 # Brief description.
