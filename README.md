@@ -1,6 +1,6 @@
-# Zeta: The Final Systems Language
+# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta: The Final Systems Language
 
-[![Crates.io](https://img.shields.io/crates/v/zetac.svg)](https://crates.io/crates/zetac) [![Dependencies](https://deps.rs/repo/github/murphsicles/zeta/status.svg)](https://deps.rs/repo/github/murphsicles/zeta)[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[<img alt="Zeta Logo" width="128px" src="https://z-lang.org/assets/images/z128.png" />](https://z-lang.org) [![Crates.io](https://img.shields.io/crates/v/zetac.svg)](https://crates.io/crates/zetac) [![Dependencies](https://deps.rs/repo/github/murphsicles/zeta/status.svg)](https://deps.rs/repo/github/murphsicles/zeta)[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Zeta is a systems programming language inspired by Elements of Programming (EOP) algebraic foundations, by Alexander Stepanov, the Godfather of the C++ Standard Template Library. Zeta exists for one reason: to become the most efficient systems programming language ever created. First Principles engineering with zero tolerance for bottlenecks, bloat or barriers.
 
@@ -31,7 +31,7 @@ We're living in a brand new paradigm.
 
 > “Complexity assertions have to be part of the interface.” - Alexander Stepanov, 1995
 
-## Official Benchmarks — January 20, 2026  
+## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Official Benchmarks — January 20, 2026  
 Intel i9-13900K · Linux 6.11
 
 | Benchmark                          | Zeta 0.3.0     | Rust 1.82     | Zig 0.13     | Go 1.23      | C++23 (clang++) | Verdict                              |
@@ -82,7 +82,7 @@ llvm-config-21 --version   # should print 21.x
 cargo --version            # should show nightly toolchain
 ```
 
-## Features
+## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Features
 
 - Algebraic semiring CTFE + fusion  
 - CacheSafe → strict TBAA → maximum LLVM vectorization  
@@ -103,7 +103,7 @@ cargo --version            # should show nightly toolchain
 - Complex assignments with subscripts
 - Enhanced control flow with `If` in MIR
 
-## Quick Start
+## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Quick Start
 
 ```bash
 # Install (one binary - coming soon)
@@ -122,7 +122,7 @@ cargo run -- compile src/main.z -o hello
 ./hello
 ```
 
-## Build from source
+## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Build from source
 
 ```bash
 # Full clean build (recommended first time)
@@ -138,12 +138,12 @@ cargo bench
 
 Rust 2024 edition · Dependencies: `nom`, `inkwell` (LLVM 21), `rayon`, `reqwest`, `serde`, `criterion`
 
-## Status
+## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Status
 
 Zeta v0.3.0 achieved self-hosting bootstrap on January 20, 2026.  
 See [plan.rs](plan.rs) for the victory log.
 
-## License
+## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) License
 
 MIT © 2025 Dr. Roy Murphy
 
