@@ -1,6 +1,6 @@
 // zeta_src/runtime/mod.z
 // Runtime module re-exports for Zeta self-hosted compiler
-
 pub mod host;
 pub mod std;
 pub mod actor;
+pub mod xai;
