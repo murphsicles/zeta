@@ -1,0 +1,153 @@
+// zeta_src/frontend/parser/parser.z
+#[derive(Clone, Debug, PartialEq)]
+enum Token {
+    Ident(String),
+    KeywordFn,
+    KeywordConcept,
+    KeywordImpl,
+    KeywordStruct,
+    KeywordEnum,
+    KeywordReturn,
+    KeywordIf,
+    KeywordElse,
+    KeywordDefer,
+    KeywordSpawn,
+    KeywordFor,
+    Lit(i64),
+    StringLit(String),
+    LParen, RParen,
+    LBrace, RBrace,
+    LBracket, RBracket,
+    Colon, Comma, Eq, Arrow,
+    Plus, Minus, Star, Slash,
+    Lt, Gt,
+    Dot, Question,
+    Semi,
+    Eof,
+}
+
+struct Lexer {
+    input: String,
+    pos: i64,
+    tokens: Vec<Token>,
+}
+
+impl Lexer {
+    fn new(input: String) -> Self {
+        Self { input, pos: 0, tokens: vec![] }
+    }
+
+    fn tokenize(&mut self) -> Vec<Token> {
+        while self.pos < self.input.len() as i64 {
+            let ch = self.peek();
+            if ch.is_whitespace() {
+                self.skip_whitespace();
+                continue;
+            }
+            if ch.is_alphabetic() || ch == '_' {
+                self.lex_ident_or_keyword();
+            } else if ch.is_digit(10) {
+                self.lex_number();
+            } else if ch == '"' {
+                self.lex_string();
+            } else {
+                self.lex_symbol();
+            }
+        }
+        self.tokens.push(Token::Eof);
+        self.tokens.clone()
+    }
+
+    fn peek(&self) -> char {
+        self.input.chars().nth(self.pos as usize).unwrap_or('\0')
+    }
+
+    fn peek_next(&self) -> char {
+        self.input.chars().nth((self.pos + 1) as usize).unwrap_or('\0')
+    }
+
+    fn advance(&mut self) {
+        self.pos += 1;
+    }
+
+    fn skip_whitespace(&mut self) {
+        while self.peek().is_whitespace() {
+            self.advance();
+        }
+    }
+
+    fn lex_ident_or_keyword(&mut self) {
+        let mut word = String::new();
+        while self.peek().is_alphanumeric() || self.peek() == '_' {
+            word.push(self.peek());
+            self.advance();
+        }
+        let tok = match word.as_str() {
+            "fn" => Token::KeywordFn,
+            "concept" => Token::KeywordConcept,
+            "impl" => Token::KeywordImpl,
+            "struct" => Token::KeywordStruct,
+            "enum" => Token::KeywordEnum,
+            "return" => Token::KeywordReturn,
+            "if" => Token::KeywordIf,
+            "else" => Token::KeywordElse,
+            "defer" => Token::KeywordDefer,
+            "spawn" => Token::KeywordSpawn,
+            "for" => Token::KeywordFor,
+            _ => Token::Ident(word),
+        };
+        self.tokens.push(tok);
+    }
+
+    fn lex_number(&mut self) {
+        let mut num: i64 = 0;
+        while self.peek().is_digit(10) {
+            num = num * 10 + (self.peek() as i64 - '0' as i64);
+            self.advance();
+        }
+        self.tokens.push(Token::Lit(num));
+    }
+
+    fn lex_string(&mut self) {
+        self.advance(); // opening "
+        let mut s = String::new();
+        while self.peek() != '"' && self.peek() != '\0' {
+            s.push(self.peek());
+            self.advance();
+        }
+        self.advance(); // closing "
+        self.tokens.push(Token::StringLit(s));
+    }
+
+    fn lex_symbol(&mut self) {
+        let tok = match self.peek() {
+            '(' => Token::LParen,
+            ')' => Token::RParen,
+            '{' => Token::LBrace,
+            '}' => Token::RBrace,
+            '[' => Token::LBracket,
+            ']' => Token::RBracket,
+            ':' => Token::Colon,
+            ',' => Token::Comma,
+            '=' => Token::Eq,
+            '+' => Token::Plus,
+            '-' => if self.peek_next() == '>' {
+                self.advance();
+                self.advance();
+                Token::Arrow
+            } else {
+                Token::Minus
+            },
+            '*' => Token::Star,
+            '/' => Token::Slash,
+            '<' => Token::Lt,
+            '>' => Token::Gt,
+            '.' => Token::Dot,
+            '?' => Token::Question,
+            ';' => Token::Semi,
+            _ => Token::Eof,
+        };
+        self.advance();
+        self.tokens.push(tok);
+    }
+}
