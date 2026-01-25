@@ -1,32 +1,103 @@
 // zeta_src/runtime/actor/channel.z
 // Actor channel runtime for Zeta (self-hosted interface)
 // Declares Channel type and host send/recv functions
+// Ported from src/runtime/actor/channel.rs, implementations now in Zeta.
 
+use std::collections::HashMap;
+use std::sync::atomic::AtomicI64;
+use std::sync::{Arc, OnceLock};
+use tokio::sync::{Mutex as TokioMutex, mpsc};
+
+type Message = i64;
+
+/// Global counter for unique channel IDs.
+pub static CHANNEL_ID_COUNTER: AtomicI64 = AtomicI64::new(0);
+
+type ChannelMap = Arc<TokioMutex<HashMap<i64, Arc<ChannelInner>>>>;
+
+/// Global map of channel IDs to channel inners.
+#[allow(clippy::type_complexity)]
+static CHANNEL_MAP: OnceLock<ChannelMap> = OnceLock::new();
+
+/// Communication channel for actor messages, compatible with C representations.
+#[repr(C)]
 #[derive(Clone, Debug)]
 pub struct Channel {
     id: i64,
 }
 
+#[derive(Debug)]
+struct ChannelInner {
+    tx: mpsc::Sender<Message>,
+    rx: TokioMutex<mpsc::Receiver<Message>>,
+}
+
 impl Channel {
+    /// Creates a new unbounded channel and registers it globally.
     pub fn new() -> Self {
-        // Host creates channel and returns id
-        let id = host_channel_new();
+        let (tx, rx) = mpsc::channel(1024);
+        let id = CHANNEL_ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let map = CHANNEL_MAP.get_or_init(|| Arc::new(TokioMutex::new(HashMap::new())));
+        let inner = Arc::new(ChannelInner {
+            tx,
+            rx: TokioMutex::new(rx),
+        });
+        let mut guard = map.blocking_lock();
+        guard.insert(id, inner);
         Self { id }
     }
 
-    pub fn send(&self, msg: i64) -> i64 {
-        host_channel_send(self.id, msg)
-    }
-
-    pub fn recv(&self) -> i64 {
-        host_channel_recv(self.id)
+    #[allow(dead_code)]
+    async fn get_inner(&self) -> Option<Arc<ChannelInner>> {
+        let map = CHANNEL_MAP.get()?;
+        let guard = map.lock().await;
+        guard.get(&self.id).cloned()
     }
 }
 
-// Host functions (implemented in Rust runtime)
-extern "C" fn host_channel_new() -> i64;
-extern "C" fn host_channel_send(chan_id: i64, msg: i64) -> i64;
-extern "C" fn host_channel_recv(chan_id: i64) -> i64;
+#[allow(clippy::new_without_default)]
+impl Default for Channel {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Host function to send a message to a channel.
+pub fn host_channel_send(chan_id: i64, msg: i64) -> i64 {
+    let map = match CHANNEL_MAP.get() {
+        Some(m) => m,
+        None => return -1,
+    };
+    let guard = map.blocking_lock();
+    if let Some(inner) = guard.get(&chan_id) {
+        if inner.tx.try_send(msg).is_ok() {
+            0
+        } else {
+            -1
+        }
+    } else {
+        -1
+    }
+}
+
+/// Host function to receive a message from a channel.
+pub fn host_channel_recv(chan_id: i64) -> i64 {
+    let map = match CHANNEL_MAP.get() {
+        Some(m) => m,
+        None => return 0,
+    };
+    let guard = map.blocking_lock();
+    if let Some(inner) = guard.get(&chan_id) {
+        let mut rx_guard = inner.rx.blocking_lock();
+        match rx_guard.try_recv() {
+            Ok(m) => m,
+            Err(mpsc::error::TryRecvError::Empty) => 0,
+            Err(_) => 0,
+        }
+    } else {
+        0
+    }
+}
 
 // Temporary test
 fn main() -> i64 {
