@@ -1,12 +1,52 @@
 // zeta_src/runtime/actor/result.z
 // Result type host helpers for Zeta runtime
 // Used for ? propagation and error handling
+// Ported from src/runtime/actor/result.rs, implementations now in Zeta.
 
-extern "C" fn host_result_make_ok(data: i64) -> i64;
-extern "C" fn host_result_make_err(data: i64) -> i64;
-extern "C" fn host_result_is_ok(ptr: i64) -> i64;
-extern "C" fn host_result_get_data(ptr: i64) -> i64;
-extern "C" fn host_result_free(ptr: i64);
+use std::ffi::c_void;
+
+#[derive(Debug)]
+struct ResultInner {
+    tag: bool, // true for Ok, false for Err
+    data: i64,
+}
+
+/// Host function to create an ok result.
+pub fn host_result_make_ok(data: i64) -> *mut c_void {
+    Box::into_raw(Box::new(ResultInner { tag: true, data })) as *mut c_void
+}
+
+/// Host function to create an error result.
+pub fn host_result_make_err(data: i64) -> *mut c_void {
+    Box::into_raw(Box::new(ResultInner { tag: false, data })) as *mut c_void
+}
+
+/// Host function to check if a result is ok.
+pub fn host_result_is_ok(ptr: *const c_void) -> i64 {
+    if ptr.is_null() {
+        0
+    } else {
+        unsafe { (*(ptr as *const ResultInner)).tag as i64 }
+    }
+}
+
+/// Host function to retrieve data from a result.
+pub fn host_result_get_data(ptr: *const c_void) -> i64 {
+    if ptr.is_null() {
+        0
+    } else {
+        unsafe { (*(ptr as *const ResultInner)).data }
+    }
+}
+
+/// Host function to free a result pointer.
+pub fn host_result_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        unsafe {
+            let _ = Box::from_raw(ptr as *mut ResultInner);
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub enum Result<T, E> {
@@ -31,23 +71,23 @@ impl<T, E> Result<T, E> {
 
     // Stub helpers using host (real impl in Rust)
     pub fn make_ok(data: i64) -> i64 {
-        host_result_make_ok(data)
+        host_result_make_ok(data) as i64
     }
 
     pub fn make_err(data: i64) -> i64 {
-        host_result_make_err(data)
+        host_result_make_err(data) as i64
     }
 
     pub fn is_ok_ptr(ptr: i64) -> bool {
-        host_result_is_ok(ptr) != 0
+        host_result_is_ok(ptr as *const c_void) != 0
     }
 
     pub fn get_data(ptr: i64) -> i64 {
-        host_result_get_data(ptr)
+        host_result_get_data(ptr as *const c_void)
     }
 
     pub fn free(ptr: i64) {
-        host_result_free(ptr)
+        host_result_free(ptr as *mut c_void)
     }
 }
 
