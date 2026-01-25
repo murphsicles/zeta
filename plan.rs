@@ -78,7 +78,7 @@ pub mod checklist {
     /// Post-Self-Hosting Plans (Step Away from Rust Reliance)
     pub const POST_SELF_HOST: &str = r#"
 [ ] v0.3.1: Port runtime/ functions (M:N actors, builtins) from Rust to Zeta in zeta_src/runtime/. Small LOC (~200); transpose efficiently for green-threads, HTTP/TLS/datetime. Implement as single-file .z if possible for minimalism.
-[ ] v0.3.1: Update bootstrap Rust to 2024 Edition, nom 8.0, Inkwell 7.0/LLVM 19.1. Test self-compilation speed remains ~14ms.
+[ ] v0.3.1: Update bootstrap Rust to 2024 Edition, nom 8.0, Inkwell 0.8.0/LLVM 21.1. Test self-compilation speed remains ~14ms.
 [ ] v0.3.1: Transpose simple utility functions from main.rs/lib.rs to main.z.
 [ ] v0.3.1: Benchmark ports; ensure no regressions.
 
