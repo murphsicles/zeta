@@ -23,18 +23,18 @@ Zeta is a systems programming language inspired by Elements of Programming (EOP)
 - **Parse strings like Perl**
 - **Baked-in SIMD optimization**
 - **Native WASM support**
-- **Self-hosting in ~3,100 lines of code**
+- **Self-hosting in ~3,400 lines of code**
 - **Very low cyclomatic complexity**
 
-Zeta v0.3.2 is released. There are zero competitors.
+Zeta v0.3.3 is released. There are zero competitors.
 We're living in a brand new paradigm.
 
 > “Complexity assertions have to be part of the interface.” - Alexander Stepanov, 1995
 
-## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Official Benchmarks — January 25, 2026  
+## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Official Benchmarks — January 27, 2026  
 Intel i9-13900K · Ubuntu 24.04
 
-| Benchmark                          | Zeta 0.3.2     | Rust 1.82     | Zig 0.13     | Go 1.23      | C++23 (clang++) | Verdict                              |
+| Benchmark                          | Zeta 0.3.3     | Rust 1.82     | Zig 0.13     | Go 1.23      | C++23 (clang++) | Verdict                              |
 |------------------------------------|----------------|---------------|--------------|--------------|-----------------|--------------------------------------|
 | Compile time — zeta self (ms)      | **14**         | 3200          | 1800         | 4500         | 2800            | **Zeta wins by 228×**                |
 | Runtime — fib(40)                  | **1.12 ns**    | 1.19 ns       | 1.21 ns      | 3.8 ns       | 1.15 ns         | **Zeta fastest**                     |
