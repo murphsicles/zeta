@@ -13,27 +13,25 @@ use zetac::middle::resolver::resolver::Resolver;
 use zetac::middle::specialization::{is_cache_safe, lookup_specialization, record_specialization};
 use zetac::runtime::actor::channel;
 use zetac::runtime::actor::scheduler;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Manually create Tokio runtime to avoid nested runtime panic
+    let rt = tokio::runtime::Runtime::new()?;
+    rt.block_on(async_main())
+}
+async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize async actor runtime.
     scheduler::init_runtime();
-
     let args: Vec<String> = std::env::args().collect();
     let dump_mir = args.iter().any(|a| a == "--dump-mir");
-
     if args.len() > 1 && args[1] == "--repl" {
         repl(dump_mir)?;
         return Ok(());
     }
-
     // Load self-host example (assume contains main { let x = 42; x.add(1); } -> 43)
     let code = fs::read_to_string("examples/selfhost.z")?;
     let (_, asts) = parse_zeta(&code).map_err(|e| format!("Parse error: {:?}", e))?;
-
     // Print parsed nodes count for test.
     println!("Parsed {} nodes from selfhost.z", asts.len());
-
     // Register impls and typecheck.
     let mut resolver = Resolver::new();
     for ast in &asts {
@@ -41,10 +39,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let type_ok = resolver.typecheck(&asts);
     println!("Typecheck: {}", if type_ok { "OK" } else { "Failed" });
-
     // Collect used specializations
     let used_specs = resolver.collect_used_specializations(&asts);
-
     // Lower all FuncDefs to MIR.
     let mir_map: HashMap<String, Mir> = asts
         .iter()
@@ -56,10 +52,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         })
         .collect();
-
     // Monomorphize: for each generic fn used, duplicate MIR with mangled names
     let mut mono_mirs: Vec<Mir> = vec![];
-
     for (fn_name, specs) in &used_specs {
         if let Some(base_mir) = mir_map.get(fn_name) {
             if specs.is_empty() {
@@ -95,7 +89,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             mono_mirs.push(mir.clone());
         }
     }
-
     if dump_mir {
         for mir in &mono_mirs {
             if let Some(name) = &mir.name {
@@ -104,13 +97,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-
     // Setup LLVM.
     let context = Context::create();
     let mut codegen = LLVMCodegen::new(&context, "selfhost");
     codegen.gen_mirs(&mono_mirs);
     let ee = codegen.finalize_and_jit()?;
-
     // Map std_free to host.
     let free_fn = zetac::runtime::std::std_free as *const () as usize;
     ee.add_global_mapping(&codegen.module.get_function("free").unwrap(), free_fn);
@@ -127,7 +118,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         &codegen.module.get_function("spawn").unwrap(),
         scheduler::host_spawn as *const () as usize,
     );
-
     // JIT execute main, print result (expect 43 from 42+1).
     type MainFn = unsafe extern "C" fn() -> i64;
     unsafe {
@@ -135,7 +125,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let result = main.call();
         println!("Zeta self-hosted result: {}", result); // Should print 43
     }
-
     // Full bootstrap stub (unchanged – persistence works via Resolver::drop)
     let zetac_code = fs::read_to_string("examples/zetac.z")?; // Placeholder
     let (_, zetac_asts) =
@@ -156,9 +145,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         })
         .collect();
-
     let mut boot_mono_mirs: Vec<Mir> = vec![];
-
     for (fn_name, specs) in &boot_used_specs {
         if let Some(base_mir) = boot_mir_map.get(fn_name) {
             if specs.is_empty() {
@@ -192,7 +179,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             boot_mono_mirs.push(mir.clone());
         }
     }
-
     if dump_mir {
         for mir in &boot_mono_mirs {
             if let Some(name) = &mir.name {
@@ -201,7 +187,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-
     let boot_context = Context::create();
     let mut boot_codegen = LLVMCodegen::new(&boot_context, "bootstrap");
     boot_codegen.gen_mirs(&boot_mono_mirs);
@@ -215,7 +200,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     Ok(())
 }
-
 fn repl(dump_mir: bool) -> Result<(), Box<dyn std::error::Error>> {
     let stdin = io::stdin();
     let mut stdin_lock = stdin.lock();
@@ -225,29 +209,23 @@ fn repl(dump_mir: bool) -> Result<(), Box<dyn std::error::Error>> {
         let mut line = String::new();
         stdin_lock.read_line(&mut line)?;
         let line = line.trim();
-
         if line.is_empty() {
             continue;
         }
-
         let code = format!("fn main() -> i64 {{ {} }}", line);
         let (_, asts) = parse_zeta(&code).map_err(|e| format!("Parse error: {:?}", e))?;
-
         if asts.is_empty() {
             continue;
         }
-
         let mut resolver = Resolver::new();
         for ast in &asts {
             resolver.register(ast.clone());
         }
-
         let type_ok = resolver.typecheck(&asts);
         if !type_ok {
             println!("Typecheck failed");
             continue;
         }
-
         let mir_map: HashMap<String, Mir> = asts
             .iter()
             .filter_map(|ast| {
@@ -258,17 +236,14 @@ fn repl(dump_mir: bool) -> Result<(), Box<dyn std::error::Error>> {
                 }
             })
             .collect();
-
         if dump_mir && let Some(main_mir) = mir_map.get("main") {
             println!("=== REPL MIR for main ===");
             println!("{main_mir:#?}");
         }
-
         let context = Context::create();
         let mut codegen = LLVMCodegen::new(&context, "repl");
         codegen.gen_mirs(&mir_map.values().cloned().collect::<Vec<_>>());
         let ee = codegen.finalize_and_jit()?;
-
         let free_fn = zetac::runtime::std::std_free as *const () as usize;
         ee.add_global_mapping(&codegen.module.get_function("free").unwrap(), free_fn);
         ee.add_global_mapping(
@@ -283,7 +258,6 @@ fn repl(dump_mir: bool) -> Result<(), Box<dyn std::error::Error>> {
             &codegen.module.get_function("spawn").unwrap(),
             scheduler::host_spawn as *const () as usize,
         );
-
         type ReplFn = unsafe extern "C" fn() -> i64;
         unsafe {
             if let Ok(f) = ee.get_function::<ReplFn>("main") {
