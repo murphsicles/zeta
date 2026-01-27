@@ -5,8 +5,9 @@ use inkwell::context::Context;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, BufRead, Write};
+use std::path::Path;
 use zetac::backend::codegen::codegen::LLVMCodegen;
-use zetac::compile_and_run_zeta;
+use zetac::backend::codegen::jit::finalize_and_aot;
 use zetac::frontend::ast::AstNode;
 use zetac::frontend::parser::top_level::parse_zeta;
 use zetac::middle::mir::mir::Mir;
@@ -23,29 +24,125 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         repl(dump_mir)?;
         return Ok(());
     }
-    if args.len() > 1 {
-        // Compile and run input file
-        let file = &args[1];
-        let code = fs::read_to_string(file)?;
-        let result = compile_and_run_zeta(&code)?;
-        println!("Result: {}", result);
+    let mut input = None;
+    let mut output = None;
+    let mut i = 1;
+    while i < args.len() {
+        match args[i].as_str() {
+            "-o" => {
+                i += 1;
+                if i < args.len() {
+                    output = Some(args[i].clone());
+                }
+            }
+            _ => {
+                input = Some(args[i].clone());
+            }
+        }
+        i += 1;
+    }
+    if let Some(file) = input {
+        let code = fs::read_to_string(&file)?;
+        // Parse to AST.
+        let (_, asts) = parse_zeta(&code).map_err(|e| format!("Parse error: {:?}", e))?;
+        // Resolve and check.
+        let mut resolver = Resolver::new();
+        for ast in &asts {
+            resolver.register(ast.clone());
+        }
+        let type_ok = resolver.typecheck(&asts);
+        if !type_ok {
+            return Err("Typecheck failed".into());
+        }
+        let used_specs = resolver.collect_used_specializations(&asts);
+        // Lower to MIR.
+        let mir_map: HashMap<String, Mir> = asts
+            .iter()
+            .filter_map(|ast| {
+                if let AstNode::FuncDef { name, .. } = ast {
+                    Some((name.clone(), resolver.lower_to_mir(ast)))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        // Monomorphize.
+        let mut mono_mirs: Vec<Mir> = vec![];
+        for (fn_name, specs) in &used_specs {
+            if let Some(base_mir) = mir_map.get(fn_name) {
+                if specs.is_empty() {
+                    mono_mirs.push(base_mir.clone());
+                } else {
+                    for spec in specs {
+                        let key = zetac::middle::specialization::MonoKey {
+                            func_name: fn_name.clone(),
+                            type_args: spec.clone(),
+                        };
+                        let mangled = key.mangle();
+                        if lookup_specialization(&key).is_none() {
+                            let cache_safe = spec.iter().all(|t| is_cache_safe(t));
+                            record_specialization(
+                                key.clone(),
+                                zetac::middle::specialization::MonoValue {
+                                    llvm_func_name: mangled.clone(),
+                                    cache_safe,
+                                },
+                            );
+                        }
+                        let mut mono_mir = base_mir.clone();
+                        mono_mir.name = Some(mangled);
+                        mono_mirs.push(mono_mir);
+                    }
+                }
+            }
+        }
+        for (fn_name, mir) in &mir_map {
+            if !used_specs.contains_key(fn_name) {
+                mono_mirs.push(mir.clone());
+            }
+        }
+        // Codegen.
+        let context = Context::create();
+        let mut codegen = LLVMCodegen::new(&context, "module");
+        codegen.gen_mirs(&mono_mirs);
+        if let Some(out) = output {
+            let obj_path = format!("{}.o", out);
+            finalize_and_aot(&codegen, Path::new(&obj_path))?;
+            // Link to executable (assume clang installed)
+            let status = std::process::Command::new("clang")
+                .arg(&obj_path)
+                .arg("-o")
+                .arg(&out)
+                .status()?;
+            if !status.success() {
+                return Err("Linking failed".into());
+            }
+            println!("Compiled to {}", out);
+        } else {
+            let ee = codegen.finalize_and_jit()?;
+            type MainFn = unsafe extern "C" fn() -> i64;
+            unsafe {
+                if let Ok(main) = ee.get_function::<MainFn>("main") {
+                    let result = main.call();
+                    println!("Result: {}", result);
+                } else {
+                    println!("No main function");
+                }
+            }
+        }
         return Ok(());
     }
-    // Load self-host example (assume contains main { let x = 42; x.add(1); } -> 43)
+    // Default self-host demo if no args
     let code = fs::read_to_string("examples/selfhost.z")?;
     let (_, asts) = parse_zeta(&code).map_err(|e| format!("Parse error: {:?}", e))?;
-    // Print parsed nodes count for test.
     println!("Parsed {} nodes from selfhost.z", asts.len());
-    // Register impls and typecheck.
     let mut resolver = Resolver::new();
     for ast in &asts {
         resolver.register(ast.clone());
     }
     let type_ok = resolver.typecheck(&asts);
     println!("Typecheck: {}", if type_ok { "OK" } else { "Failed" });
-    // Collect used specializations
     let used_specs = resolver.collect_used_specializations(&asts);
-    // Lower all FuncDefs to MIR.
     let mir_map: HashMap<String, Mir> = asts
         .iter()
         .filter_map(|ast| {
@@ -56,7 +153,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         })
         .collect();
-    // Monomorphize: for each generic fn used, duplicate MIR with mangled names
     let mut mono_mirs: Vec<Mir> = vec![];
     for (fn_name, specs) in &used_specs {
         if let Some(base_mir) = mir_map.get(fn_name) {
@@ -69,7 +165,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         type_args: spec.clone(),
                     };
                     let mangled = key.mangle();
-                    // Check persistent + in-memory cache first
                     if lookup_specialization(&key).is_none() {
                         let cache_safe = spec.iter().all(|t| is_cache_safe(t));
                         record_specialization(
@@ -87,7 +182,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-    // Add non-generic mirs not in used_specs
     for (fn_name, mir) in &mir_map {
         if !used_specs.contains_key(fn_name) {
             mono_mirs.push(mir.clone());
@@ -101,15 +195,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-    // Setup LLVM.
     let context = Context::create();
     let mut codegen = LLVMCodegen::new(&context, "selfhost");
     codegen.gen_mirs(&mono_mirs);
     let ee = codegen.finalize_and_jit()?;
-    // Map std_free to host.
     let free_fn = zetac::runtime::std::std_free as *const () as usize;
     ee.add_global_mapping(&codegen.module.get_function("free").unwrap(), free_fn);
-    // Map async actor intrinsics.
     ee.add_global_mapping(
         &codegen.module.get_function("channel_send").unwrap(),
         channel::host_channel_send as *const () as usize,
@@ -122,14 +213,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &codegen.module.get_function("spawn").unwrap(),
         scheduler::host_spawn as *const () as usize,
     );
-    // JIT execute main, print result (expect 43 from 42+1).
     type MainFn = unsafe extern "C" fn() -> i64;
     unsafe {
         let main = ee.get_function::<MainFn>("main").map_err(|_| "No main")?;
         let result = main.call();
         println!("Zeta self-hosted result: {}", result); // Should print 43
     }
-    // Full bootstrap stub (unchanged – persistence works via Resolver::drop)
     let zetac_code = fs::read_to_string("examples/zetac.z")?; // Placeholder
     let (_, zetac_asts) =
         parse_zeta(&zetac_code).map_err(|e| format!("Bootstrap parse: {:?}", e))?;
