@@ -15,10 +15,12 @@ use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::memory_buffer::MemoryBuffer;
 use inkwell::passes::PassManager;
-use inkwell::targets::{InitializationConfig, Target, TargetMachine};
+use inkwell::targets::{FileType, InitializationConfig, Target, TargetMachine};
 use serde_json::Value;
 use std::boxed::Box;
 use std::error::Error;
+use std::fs;
+use std::path::Path;
 impl<'ctx> LLVMCodegen<'ctx> {
     pub fn finalize_and_jit(&mut self) -> Result<ExecutionEngine<'ctx>, Box<dyn Error>> {
         self.module.verify()?;
@@ -147,6 +149,29 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
         Ok(ee)
     }
+}
+// New: AOT compile to object file
+pub fn finalize_and_aot<'ctx>(codegen: &LLVMCodegen<'ctx>, path: &Path) -> Result<(), Box<dyn Error>> {
+    codegen.module.verify()?;
+    Target::initialize_native(&InitializationConfig::default())?;
+    let target_triple = TargetMachine::get_default_triple();
+    let target = Target::from_triple(&target_triple)?;
+    let target_machine = target
+        .create_target_machine(
+            &target_triple,
+            &TargetMachine::get_host_cpu_name().to_string(),
+            &TargetMachine::get_host_cpu_features().to_string(),
+            OptimizationLevel::Aggressive,
+            inkwell::targets::RelocMode::Default,
+            inkwell::targets::CodeModel::Default,
+        )
+        .ok_or("Failed to create target machine")?;
+    codegen.module.set_triple(&target_triple);
+    codegen.module
+        .set_data_layout(&target_machine.get_target_data().get_data_layout());
+    let buffer = target_machine.write_to_memory_buffer(&codegen.module, FileType::Object)?;
+    fs::write(path, buffer.as_slice())?;
+    Ok(())
 }
 // New: JIT from IR string for self-hosted compiler
 pub fn host_llvm_jit_from_ir(ir: String) -> Result<ExecutionEngine<'static>, Box<dyn Error>> {
