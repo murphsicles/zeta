@@ -1,5 +1,4 @@
 // zeta_src/backend/codegen/mod.z
-// Backend codegen module re-export
-
 pub mod codegen;
 pub mod ir_gen;
+pub mod jit;
