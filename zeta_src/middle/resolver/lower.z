@@ -24,7 +24,7 @@ impl Resolver {
                 && !type_args.is_empty()
             {
                 used.entry(method.clone())
-                    .or_insert(vec![])
+                    .or_default()
                     .push(type_args.clone());
             }
             match node {
