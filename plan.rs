@@ -1,7 +1,7 @@
 // plan.rs
 //! Zeta Compiler Development Plan.
 //! Checklist for milestones. Mark as [x] when complete.
-//! Updated January 25, 2026: Completed v0.3.2 ports.
+//! Updated January 27, 2026: Completed v0.3.3 ports and full self-sufficiency.
 pub mod checklist {
     /// Core Language Features
     pub const PARSER: &str = r#"
@@ -75,9 +75,9 @@ pub mod checklist {
 [x] v0.3.2: Port frontend/ (parser/lexer) from Rust (nom) to Zeta in zeta_src/frontend/. Implement recursive descent parser in Zeta for first principles (avoid combinator deps); transpose nom logic efficiently.
 [x] v0.3.2: Port tests.rs functions to Zeta-based testing framework.
 [x] v0.3.2: Validate full self-parsing (Zeta parses its own .z files without Rust frontend).
-[ ] v0.3.3: Port middle/ (MIR, optimizations) to zeta_src/middle/. Transpose semiring CTFE, fusion, monomorphization.
-[ ] v0.3.3: Port backend/ (codegen, LLVM interface) to zeta_src/backend/, integrating with ported runtime.
-[ ] v0.3.3: Remove Rust bootstrap; compile purely with Zeta. Deprecate /src/ directory.
-[ ] v0.3.3: Full benchmarks; AI-opt all components.
+[x] v0.3.3: Port middle/ (MIR, optimizations) to zeta_src/middle/. Transpose semiring CTFE, fusion, monomorphization.
+[x] v0.3.3: Port backend/ (codegen, LLVM interface) to zeta_src/backend/, integrating with ported runtime.
+[x] v0.3.3: Remove Rust bootstrap; compile purely with Zeta. Deprecate /src/ directory.
+[x] v0.3.3: Full benchmarks; AI-opt all components.
 "#;
 }
