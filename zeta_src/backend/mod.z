@@ -1,4 +1,2 @@
 // zeta_src/backend/mod.z
-// Backend module re-exports for Zeta self-hosted compiler
-
 pub mod codegen;
