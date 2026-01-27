@@ -1,7 +1,4 @@
 // zeta_src/middle/specialization.z
-// Complete specialization cache for Phase 2 (v0.2.2)
-// Global static Vec — thread-unsafe for early bootstrap
-
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct MonoKey {
     pub func_name: String,
@@ -14,6 +11,8 @@ pub struct MonoValue {
     pub cache_safe: bool,
 }
 
+static mut CACHE: Vec<(MonoKey, MonoValue)> = vec![];
+
 impl MonoKey {
     pub fn mangle(&self) -> String {
         if self.type_args.is_empty() {
@@ -23,8 +22,6 @@ impl MonoKey {
         }
     }
 }
-
-static mut CACHE: Vec<(MonoKey, MonoValue)> = vec![];
 
 pub fn lookup_specialization(key: &MonoKey) -> Option<MonoValue> {
     unsafe {
@@ -36,20 +33,25 @@ pub fn lookup_specialization(key: &MonoKey) -> Option<MonoValue> {
 
 pub fn record_specialization(key: MonoKey, value: MonoValue) {
     unsafe {
-        if let Some(pos) = CACHE.iter().position(|(k, _)| k == &key) {
-            CACHE[pos] = (key, value);
-        } else {
-            CACHE.push((key, value));
-        }
+        CACHE.push((key, value));
     }
 }
 
-pub fn is_cache_safe(ty: &String) -> bool {
+pub fn is_cache_safe(ty: &str) -> bool {
     matches!(
-        ty.as_str(),
-        "i64" | "i32" | "f64" | "f32" | "bool" | "u8" |
-        "&i64" | "&str" |
-        "Result_i64" | "Result_str" |
-        "Map_i64_i64" | "Map_str_str" | "Map_i64_str"
+        ty,
+        "i64"
+            | "i32"
+            | "f64"
+            | "f32"
+            | "bool"
+            | "u8"
+            | "&i64"
+            | "&str"
+            | "Result_i64"
+            | "Result_str"
+            | "Map_i64_i64"
+            | "Map_str_str"
+            | "Map_i64_str"
     )
 }
