@@ -22,6 +22,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         repl(dump_mir)?;
         return Ok(());
     }
+    if args.len() > 1 {
+        // Compile and run input file
+        let file = &args[1];
+        let code = fs::read_to_string(file)?;
+        let result = compile_and_run_zeta(&code)?;
+        println!("Result: {}", result);
+        return Ok(());
+    }
     // Load self-host example (assume contains main { let x = 42; x.add(1); } -> 43)
     let code = fs::read_to_string("examples/selfhost.z")?;
     let (_, asts) = parse_zeta(&code).map_err(|e| format!("Parse error: {:?}", e))?;
