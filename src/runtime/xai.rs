@@ -60,6 +60,9 @@ impl XAIClient {
     }
     /// Sends prompt to Grok-beta and returns response content.
     pub fn query(&self, prompt: &str) -> Result<String, Box<dyn std::error::Error>> {
+        if self.api_key == "stub_key" {
+            return Ok("{\"passes\": [\"default<O3>\"], \"params\": {}}".to_string());
+        }
         let request = ChatRequest {
             model: "grok-beta".to_string(),
             messages: vec![Message {
@@ -86,9 +89,4 @@ impl XAIClient {
         );
         self.query(&prompt)
     }
-}
-// Temporary test
-fn main() -> i64 {
-    println!("xAI runtime ready");
-    0
 }
