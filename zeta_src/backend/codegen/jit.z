@@ -1,62 +1,40 @@
 // zeta_src/backend/codegen/jit.z
-use zorb::backend::codegen::codegen::LLVMCodegen;
-// ExecutionEngine handle (i64 pointer to engine)
-type ExecutionEngine = i64;
+use crate::backend::codegen::codegen::LLVMCodegen;
+use crate::runtime::xai::XAIClient;
+use std::collections::HashMap;
 
-// Host function to JIT compile IR string
-extern "C" fn host_llvm_jit(ir: String) -> ExecutionEngine;
-extern "C" fn host_llvm_get_main(engine: ExecutionEngine) -> i64;
+// Host JIT from IR string
+extern "C" fn host_llvm_jit_from_ir(ir: &str) -> Result<i64, String>;
 
-// Host functions for global mappings (addresses as i64)
-extern "C" fn host_datetime_now() -> i64;
-extern "C" fn host_free(ptr: i64);
-extern "C" fn host_str_concat(a: i64, b: i64) -> i64;
-extern "C" fn host_str_to_lowercase(s: i64) -> i64;
-extern "C" fn host_str_to_uppercase(s: i64) -> i64;
-extern "C" fn host_str_len(s: i64) -> i64;
-extern "C" fn host_str_starts_with(haystack: i64, needle: i64) -> i64;
-extern "C" fn host_str_ends_with(haystack: i64, needle: i64) -> i64;
-extern "C" fn host_str_contains(haystack: i64, needle: i64) -> i64;
-extern "C" fn host_str_trim(s: i64) -> i64;
-extern "C" fn host_str_replace(s: i64, old: i64, new: i64) -> i64;
-extern "C" fn host_channel_send(chan: i64, msg: i64);
-extern "C" fn host_channel_recv(chan: i64) -> i64;
-extern "C" fn host_spawn(func_id: i64) -> i64;
-extern "C" fn host_http_get(url: i64) -> i64;
-extern "C" fn host_tls_handshake(host: i64) -> i64;
-struct JITExecutor {
-    engine: ExecutionEngine,
-}
+// Host get main fn address
+extern "C" fn host_llvm_get_main(ee: i64) -> i64;
 
-impl JITExecutor {
-    fn new(ir: String) -> Self {
-        println("Applying stub passes...");
-        let engine = host_llvm_jit(ir);
-        if engine == 0 {
-            panic("JIT compilation failed");
-        }
-        Self { engine }
-    }
-
-    fn add_mappings(&self) {
-        println("Mapping host functions...");
-        // Real mappings can be added later via host_llvm_add_mapping if needed
-    }
-
-    fn get_main(&self) -> Option<extern "C" fn() -> i64> {
-        let addr = host_llvm_get_main(self.engine);
-        if addr == 0 {
-            None
-        } else {
-            Some(unsafe { std::mem::transmute(addr) })
-        }
-    }
-}
-
-pub fn finalize_and_jit(codegen: LLVMCodegen) -> Result<JITExecutor, String> {
+pub fn finalize_and_jit(codegen: LLVMCodegen) -> Result<ExecutionEngine, String> {
     let ir = codegen.finalize();
-    println("Generated IR:\n{}", ir);
-    let executor = JITExecutor::new(ir);
-    executor.add_mappings();
-    Ok(executor)
+    // Stub MLGO: Query xai for passes
+    let client = XAIClient::new()?;
+    let mir_stats = "stub_stats"; // Compute from MIR
+    let rec = client.mlgo_optimize(mir_stats)?;
+    // Apply passes to IR string (textual transform stub)
+    let optimized_ir = ir; // Placeholder
+    host_llvm_jit_from_ir(&optimized_ir)
+}
+
+struct ExecutionEngine {
+    ptr: i64,
+}
+
+impl ExecutionEngine {
+    fn get_function<Fn>(&self, name: &str) -> Result<Fn, String> {
+        let addr = if name == "main" {
+            host_llvm_get_main(self.ptr)
+        } else {
+            0
+        };
+        if addr == 0 {
+            Err("No function".to_string())
+        } else {
+            Ok(unsafe { std::mem::transmute(addr) })
+        }
+    }
 }
