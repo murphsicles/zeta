@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::{self, BufRead, Write};
 use zetac::backend::codegen::codegen::LLVMCodegen;
+use zetac::compile_and_run_zeta;
 use zetac::frontend::ast::AstNode;
 use zetac::frontend::parser::top_level::parse_zeta;
 use zetac::middle::mir::mir::Mir;
