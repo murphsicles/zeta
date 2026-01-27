@@ -1,53 +1,47 @@
 // zeta_src/backend/codegen/codegen.z
-// LLVM Codegen entry point for self-hosted Zeta
-// Collects IR string and declares all extern host functions
-
-use zorb::middle::mir::Mir;
-use super::ir_gen::IRGen;
+use crate::middle::mir::Mir;
+use crate::backend::codegen::ir_gen::IRGen;
 
 pub struct LLVMCodegen {
     ir: String,
 }
 
 impl LLVMCodegen {
-    pub fn new(module_name: String) -> Self {
-        let mut ir = String::new();
-        ir.push_str(&format!("; ModuleID = '{}'\n", module_name));
+    pub fn new(module_name: &str) -> Self {
+        let mut ir = format!("; ModuleID = '{}'\n", module_name);
         ir.push_str("source_filename = \"zeta_module\"\n");
         ir.push_str("target datalayout = \"e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128\"\n");
         ir.push_str("target triple = \"x86_64-unknown-linux-gnu\"\n\n");
 
-        // Declare all external host functions
+        // Declare external host functions
         let externs = vec![
             "declare i64 @host_datetime_now()",
-            "declare void @host_free(i64)",
-            "declare i64 @host_http_get(i64)",
-            "declare i64 @host_tls_handshake(i64)",
-            "declare void @host_channel_send(i64, i64)",
-            "declare i64 @host_channel_recv(i64)",
-            "declare i64 @host_spawn(i64)",
-            "declare i64 @host_result_is_ok(i64)",
-            "declare i64 @host_result_get_data(i64)",
-            "declare i64 @host_map_new()",
-            "declare void @host_map_insert(i64, i64, i64)",
-            "declare i64 @host_map_get(i64, i64)",
-            "declare void @host_map_free(i64)",
+            "declare void @free(i8*)",
+            "declare i64 @host_http_get(i8*)",
+            "declare i64 @host_tls_handshake(i8*)",
+            "declare void @channel_send(i64, i64)",
+            "declare i64 @channel_recv(i64)",
+            "declare i64 @spawn(i64)",
+            "declare i64 @result_is_ok(i8*)",
+            "declare i64 @result_get_data(i8*)",
+            "declare i8* @host_map_new()",
+            "declare void @host_map_insert(i8*, i64, i64)",
+            "declare i64 @host_map_get(i8*, i64)",
+            "declare void @host_map_free(i8*)",
             "declare i64 @host_str_concat(i64, i64)",
             "declare i64 @host_str_to_lowercase(i64)",
             "declare i64 @host_str_to_uppercase(i64)",
-            "declare i64 @host_str_trim(i64)",
             "declare i64 @host_str_len(i64)",
             "declare i64 @host_str_starts_with(i64, i64)",
             "declare i64 @host_str_ends_with(i64, i64)",
             "declare i64 @host_str_contains(i64, i64)",
+            "declare i64 @host_str_trim(i64)",
             "declare i64 @host_str_replace(i64, i64, i64)",
         ];
-
         for ext in externs {
             ir.push_str(&format!("{}\n", ext));
         }
         ir.push_str("\n");
-
         Self { ir }
     }
 
@@ -56,7 +50,7 @@ impl LLVMCodegen {
         ir_gen.gen_mirs(mirs);
     }
 
-    pub fn finalize(&self) -> String {
+    pub fn finalize(&mut self) -> String {
         self.ir.clone()
     }
 }
