@@ -105,9 +105,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             finalize_and_aot(&codegen, Path::new(&obj_path))?;
             // Link to executable (assume clang installed)
             let status = std::process::Command::new("clang")
-                .arg("-nostdlib")
-                .arg("-Wl,-e,main")
                 .arg(&obj_path)
+                .arg("-nostdlib")
+                .arg("-lc")
+                .arg("-lm")
+                .arg("-lgcc")
                 .arg("-o")
                 .arg(&out)
                 .status()?;
