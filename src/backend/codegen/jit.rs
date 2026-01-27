@@ -15,10 +15,13 @@ use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::memory_buffer::MemoryBuffer;
 use inkwell::passes::PassManager;
-use inkwell::targets::{InitializationConfig, Target, TargetMachine};
+use inkwell::targets::{FileType, InitializationConfig, Target, TargetMachine};
 use serde_json::Value;
 use std::boxed::Box;
 use std::error::Error;
+use std::fs;
+use std::path::Path;
+
 impl<'ctx> LLVMCodegen<'ctx> {
     pub fn finalize_and_jit(&mut self) -> Result<ExecutionEngine<'ctx>, Box<dyn Error>> {
         self.module.verify()?;
