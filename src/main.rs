@@ -14,11 +14,6 @@ use zetac::middle::specialization::{is_cache_safe, lookup_specialization, record
 use zetac::runtime::actor::channel;
 use zetac::runtime::actor::scheduler;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Manually create Tokio runtime to avoid nested runtime panic
-    let rt = tokio::runtime::Runtime::new()?;
-    rt.block_on(async_main())
-}
-async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize async actor runtime.
     scheduler::init_runtime();
     let args: Vec<String> = std::env::args().collect();
