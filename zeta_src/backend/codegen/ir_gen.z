@@ -1,5 +1,5 @@
 // zeta_src/backend/codegen/ir_gen.z
-use crate::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
+use zeta::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 
 pub struct IRGen {
     ir: String,
@@ -21,9 +21,18 @@ impl IRGen {
     }
 
     pub fn gen_mirs(&mut self, mirs: &[Mir]) {
+        self.gen_start();
         for mir in mirs {
             self.gen_fn(mir);
         }
+    }
+
+    fn gen_start(&mut self) {
+        self.emit("define void @_start() {");
+        self.emit("entry:");
+        self.emit("%0 = call i64 @main()");
+        self.emit("ret void");
+        self.emit("}");
     }
 
     fn gen_fn(&mut self, mir: &Mir) {
@@ -55,9 +64,7 @@ impl IRGen {
                 let lhs_alloca = self.locals.get(lhs).cloned().unwrap();
                 self.emit(&format!("store i64 {}, i64* {}", rhs_val, lhs_alloca));
             }
-            MirStmt::Call {
-                func, args, dest, type_args: _,
-            } => {
+            MirStmt::Call { func, args, dest, type_args: _ } => {
                 let arg_vals = args.iter().map(|&id| self.gen_expr(&mir.exprs[id], mir)).collect::<Vec<_>>().join(", i64 ");
                 let call = self.next_reg();
                 self.emit(&format!("{} = call i64 @{}({})", call, func, arg_vals));
@@ -142,7 +149,7 @@ impl IRGen {
                 let map = self.gen_expr(&mir.exprs[map_id], mir);
                 let key = self.gen_expr(&mir.exprs[key_id], mir);
                 let val = self.gen_expr(&mir.exprs[val_id], mir);
-                self.emit(&format!("call void @host_map_insert(i64 {}, i64 {}, i64 {})", map, key, val));
+                self.emit(&format!("call void @host_map_insert(i64 {}, i64 {}, i64 {}", map, key, val));
             }
             MirStmt::DictGet { map_id, key_id, dest } => {
                 let map = self.gen_expr(&mir.exprs[map_id], mir);
@@ -166,8 +173,7 @@ impl IRGen {
                 self.string_counter += 1;
                 let bytes = s.as_bytes().iter().map(|b| b.to_string()).collect::<Vec<_>>().join(", ");
                 let len = s.len() + 1;
-                // Emit global
-                self.ir = format!("{} = private constant [{} x i8] c\"{}\\00\"\n{}", global, len, s.escape_default(), self.ir);
+                self.emit(&format!("{} = private constant [{} x i8] [{} , i8 0]", global, len, bytes));
                 let ptr = self.next_reg();
                 self.emit(&format!("{} = getelementptr [{} x i8], [{} x i8]* {}, i32 0, i32 0", ptr, len, len, global));
                 let i64_ptr = self.next_reg();
