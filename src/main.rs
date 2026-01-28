@@ -109,6 +109,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .arg("-nostdlib")
                 .arg("-lc")
                 .arg("-lm")
+                .arg("-lpthread")
+                .arg("-ldl")
                 .arg("-lgcc")
                 .arg("-Wl,--entry=main")
                 .arg("-o")
