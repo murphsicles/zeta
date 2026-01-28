@@ -4,7 +4,7 @@
 use inkwell::context::Context;
 use std::collections::HashMap;
 use std::fs;
-use std::io::{self, BufRead, Write};
+use std::io::{io, BufRead, Write};
 use std::path::Path;
 use zetac::backend::codegen::codegen::LLVMCodegen;
 use zetac::backend::codegen::jit::finalize_and_aot;
@@ -110,6 +110,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .arg("-lc")
                 .arg("-lm")
                 .arg("-lgcc")
+                .arg("-Wl,--entry=main")
                 .arg("-o")
                 .arg(&out)
                 .status()?;
