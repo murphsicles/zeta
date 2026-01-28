@@ -4,7 +4,7 @@
 use inkwell::context::Context;
 use std::collections::HashMap;
 use std::fs;
-use std::io::{io, BufRead, Write};
+use std::io::{self, BufRead, Write};
 use std::path::Path;
 use zetac::backend::codegen::codegen::LLVMCodegen;
 use zetac::backend::codegen::jit::finalize_and_aot;
