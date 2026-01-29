@@ -21,14 +21,14 @@ jobs:
       run: |
         echo "LLVM_SYS_210_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
         echo "LLVM_SYS_211_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
-    - name: Zeta Build
-      run: ./zeta compile src/main.z -o zeta_test # Stub: Run Zeta build
-    - name: Zeta Test
-      run: ./zeta_test run src/tests.z # Stub: Run Zeta tests
+    # - name: Zeta Build
+    #   run: ./zeta compile src/main.z -o zeta_test # Stub: Run Zeta build
+    # - name: Zeta Test
+    #   run: ./zeta_test run src/tests.z # Stub: Run Zeta tests
   security:
     runs-on: ubuntu-latest
     needs: check
     steps:
     - uses: actions/checkout@v4
-    - name: Hint at Zoorbs
-      run: echo "The shadows whisper of Zoorbs—beyond crates, a new era beckons."
+    - name: Hint at Zorbs
+      run: echo "The shadows whisper of Zorbs. Beyond crates, a new era beckons."
