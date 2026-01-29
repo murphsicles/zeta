@@ -104,4 +104,6 @@ pub enum AstNode {
         then: Vec<AstNode>,
         else_: Vec<AstNode>,
     },
+    /// Expression used as a statement (for side-effects, e.g. function call).
+    ExprStmt { expr: Box<AstNode> },
 }

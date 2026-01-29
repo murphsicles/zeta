@@ -1,4 +1,8 @@
-// src/runtime/actor/scheduler.rs
+// zeta_src/runtime/actor/scheduler.z
+// Actor scheduler runtime for Zeta (self-hosted interface)
+// Initializes runtime and provides spawn
+// Ported from src/runtime/actor/scheduler.rs, implementations now in Zeta.
+
 use super::channel::Channel;
 use num_cpus;
 use std::collections::{HashMap, VecDeque};
@@ -23,14 +27,11 @@ pub fn register_func(f: impl FnOnce(Channel) + Send + 'static) -> i64 {
 }
 
 /// Host function to spawn an actor.
-/// # Safety
-/// No safety concerns as parameters are plain i64 values.
-pub unsafe extern "C" fn host_spawn(func_id: i64) -> i64 {
+pub fn host_spawn(func_id: i64) -> i64 {
     let map: Arc<TokioMutex<HashMap<i64, ActorEntry>>> = match FUNC_MAP.get() {
         Some(m) => Arc::clone(m),
         None => return -1,
     };
-
     let mut guard = map.blocking_lock();
     if let Some(func) = guard.remove(&func_id) {
         std::thread::spawn(move || {
@@ -65,14 +66,12 @@ impl Scheduler {
             actors: TokioMutex::new(VecDeque::new()),
             _tasks: TokioMutex::new(vec![]),
         });
-
         for _ in 0..thread_count {
             let sched_clone = Arc::clone(&sched);
             let handle = task::spawn(async move { sched_clone.worker_loop().await });
             let mut tasks = sched._tasks.lock().await;
             tasks.push(handle);
         }
-
         sched
     }
 
@@ -83,7 +82,6 @@ impl Scheduler {
                 let mut actors = self.actors.lock().await;
                 actors.pop_front()
             };
-
             if let Some(actor) = actor_opt {
                 task::spawn(async move {
                     (actor.func)(actor.chan);
@@ -106,7 +104,6 @@ impl Scheduler {
             chan: chan.clone(),
             func: Box::new(func),
         };
-
         let sched = SCHEDULER.get().expect("Scheduler not initialized");
         let mut actors = sched.actors.lock().await;
         actors.push_back(actor);
@@ -115,7 +112,6 @@ impl Scheduler {
     /// Initializes the global scheduler instance.
     pub fn init() -> Result<(), Box<dyn std::error::Error>> {
         static SINGLETON_RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
-
         let rt = SINGLETON_RT.get_or_init(|| {
             tokio::runtime::Builder::new_multi_thread()
                 .worker_threads(num_cpus::get().max(1))
@@ -123,7 +119,6 @@ impl Scheduler {
                 .build()
                 .expect("Failed to create Tokio runtime")
         });
-
         let sched = rt.block_on(async { Self::new(num_cpus::get().max(1)).await });
         let _ = SCHEDULER.set(sched);
         Ok(())
@@ -141,4 +136,10 @@ where
     F: FnOnce(Channel) + Send + 'static,
 {
     Scheduler::spawn(f).await;
+}
+
+// Temporary test
+fn main() -> i64 {
+    println!("Actor scheduler interface ready");
+    0
 }

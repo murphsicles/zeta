@@ -4,11 +4,11 @@
 # Package name.
 name = "zetac"
 # Current version.
-version = "0.1.6"
+version = "0.3.3"
 # Rust edition.
 edition = "2024"
 # Minimum Rust version.
-rust-version = "1.93.0"
+rust-version = "1.92.0"
 # License type.
 license = "MIT"
 # Brief description.
@@ -25,15 +25,15 @@ readme = "README.md"
 # Runtime and build dependencies.
 [dependencies]
 # Date and time handling.
-chrono = { version = "0.4.42", features = ["serde"] }
+chrono = { version = "0.4.43", features = ["serde"] }
 # Sum type for two variants.
 either = "1.15.0"
 # LLVM bindings.
-inkwell = { version = "0.7.1", features = ["llvm21-1"] }
+inkwell = { version = "0.8.0", features = ["llvm21-1"] }
 # Lazy static initialization.
 lazy_static = "1.5.0"
 # C library interfaces.
-libc = "0.2.178"
+libc = "0.2.180"
 # Parsing combinators.
 nom = "8.0.0"
 # CPU count detection.
@@ -45,11 +45,11 @@ rayon = "1.11.0"
 # HTTP client with rustls TLS (no native-tls)
 reqwest = { version = "0.13.1", features = ["blocking", "json", "rustls"], default-features = false }
 # TLS library for reqwest
-rustls = "0.23.35"
+rustls = "0.23.36"
 # Serialization framework.
 serde = { version = "1.0.228", features = ["derive"] }
 # JSON handling.
-serde_json = "1.0.148"
+serde_json = "1.0.149"
 # Asynchronous runtime.
 tokio = { version = "1.40.0", features = ["full"] }
 # Parallel trait solver components.

@@ -1,4 +1,8 @@
-// src/runtime/actor/channel.rs
+// zeta_src/runtime/actor/channel.z
+// Actor channel runtime for Zeta (self-hosted interface)
+// Declares Channel type and host send/recv functions
+// Ported from src/runtime/actor/channel.rs, implementations now in Zeta.
+
 use std::collections::HashMap;
 use std::sync::atomic::AtomicI64;
 use std::sync::{Arc, OnceLock};
@@ -33,16 +37,13 @@ impl Channel {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::channel(1024);
         let id = CHANNEL_ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-
         let map = CHANNEL_MAP.get_or_init(|| Arc::new(TokioMutex::new(HashMap::new())));
         let inner = Arc::new(ChannelInner {
             tx,
             rx: TokioMutex::new(rx),
         });
-
         let mut guard = map.blocking_lock();
         guard.insert(id, inner);
-
         Self { id }
     }
 
@@ -62,9 +63,7 @@ impl Default for Channel {
 }
 
 /// Host function to send a message to a channel.
-/// # Safety
-/// No safety concerns as parameters are plain i64 values.
-pub unsafe extern "C" fn host_channel_send(chan_id: i64, msg: i64) -> i64 {
+pub fn host_channel_send(chan_id: i64, msg: i64) -> i64 {
     let map = match CHANNEL_MAP.get() {
         Some(m) => m,
         None => return -1,
@@ -82,9 +81,7 @@ pub unsafe extern "C" fn host_channel_send(chan_id: i64, msg: i64) -> i64 {
 }
 
 /// Host function to receive a message from a channel.
-/// # Safety
-/// No safety concerns as parameters are plain i64 values.
-pub unsafe extern "C" fn host_channel_recv(chan_id: i64) -> i64 {
+pub fn host_channel_recv(chan_id: i64) -> i64 {
     let map = match CHANNEL_MAP.get() {
         Some(m) => m,
         None => return 0,
@@ -100,4 +97,10 @@ pub unsafe extern "C" fn host_channel_recv(chan_id: i64) -> i64 {
     } else {
         0
     }
+}
+
+// Temporary test
+fn main() -> i64 {
+    println!("Actor channel interface ready");
+    0
 }

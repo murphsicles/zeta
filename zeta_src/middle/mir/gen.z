@@ -1,14 +1,12 @@
-// src/middle/mir/gen.rs
+// zeta_src/middle/mir/gen.z
 use crate::frontend::ast::AstNode;
 use crate::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
-use std::collections::{HashMap, VecDeque};
 
 pub struct MirGen {
     next_id: u32,
     stmts: Vec<MirStmt>,
     exprs: HashMap<u32, MirExpr>,
     ctfe_consts: HashMap<u32, i64>,
-    #[allow(dead_code)]
     defers: Vec<u32>,
     defer_stmts: Vec<MirStmt>,
     type_map: HashMap<u32, String>,
@@ -29,7 +27,6 @@ impl MirGen {
 
     pub fn lower_to_mir(&mut self, ast: &AstNode) -> Mir {
         self.lower_ast(ast);
-
         Mir {
             name: if let AstNode::FuncDef { name, .. } = ast {
                 Some(name.clone())
@@ -83,7 +80,6 @@ impl MirGen {
                 let dest = self.next_id();
                 let lty = self.type_map[&left_id].clone();
                 let rty = self.type_map[&right_id].clone();
-
                 if op == "+" && lty == "str" && rty == "str" {
                     self.stmts.push(MirStmt::Call {
                         func: "host_str_concat".to_string(),
@@ -115,7 +111,6 @@ impl MirGen {
                     }
                     self.type_map.insert(dest, "i64".to_string());
                 } else {
-                    // Fallback / error case – treat as unknown call (will fail later)
                     self.stmts.push(MirStmt::Call {
                         func: op.clone(),
                         args: vec![left_id, right_id],
@@ -124,7 +119,6 @@ impl MirGen {
                     });
                     self.type_map.insert(dest, "unknown".to_string());
                 }
-
                 self.exprs.insert(dest, MirExpr::Var(dest));
             }
             AstNode::TryProp { expr } => {
@@ -188,15 +182,15 @@ impl MirGen {
                 let cond_id = self.lower_expr(cond);
                 let mut then_stmts = vec![];
                 for s in then {
-                    let mut r#gen = MirGen::new();
-                    r#gen.lower_ast(s);
-                    then_stmts.extend(r#gen.stmts);
+                    let mut gen = MirGen::new();
+                    gen.lower_ast(s);
+                    then_stmts.extend(gen.stmts);
                 }
                 let mut else_stmts = vec![];
                 for s in else_ {
-                    let mut r#gen = MirGen::new();
-                    r#gen.lower_ast(s);
-                    else_stmts.extend(r#gen.stmts);
+                    let mut gen = MirGen::new();
+                    gen.lower_ast(s);
+                    else_stmts.extend(gen.stmts);
                 }
                 self.stmts.push(MirStmt::If {
                     cond: cond_id,
@@ -205,7 +199,6 @@ impl MirGen {
                 });
             }
             AstNode::ExprStmt { expr } => {
-                // Expression statement – evaluate for side-effects, discard result
                 let _ = self.lower_expr(expr);
             }
             _ => {}
@@ -214,11 +207,10 @@ impl MirGen {
 
     fn lower_expr(&mut self, expr: &AstNode) -> u32 {
         let id = self.next_id();
-
         match expr {
             AstNode::Var(_name) => {
                 self.exprs.insert(id, MirExpr::Var(id));
-                self.type_map.insert(id, "i64".to_string()); // Conservative default
+                self.type_map.insert(id, "i64".to_string());
             }
             AstNode::Lit(n) => {
                 self.exprs.insert(id, MirExpr::Lit(*n));
@@ -261,12 +253,10 @@ impl MirGen {
                 } else {
                     None
                 };
-
                 for arg in args {
                     let arg_id = self.lower_expr(arg);
                     arg_ids.push(arg_id);
                 }
-
                 let func = if let Some(ref rty) = receiver_ty {
                     if rty == "str" {
                         match method.as_str() {
@@ -286,14 +276,12 @@ impl MirGen {
                 } else {
                     method.clone()
                 };
-
                 self.stmts.push(MirStmt::Call {
                     func,
                     args: arg_ids,
                     dest: id,
                     type_args: type_args.clone(),
                 });
-
                 let ret_ty = if receiver_ty.is_some_and(|rty| rty == "str") {
                     match method.as_str() {
                         "starts_with" | "ends_with" | "contains" => "i64".to_string(),
@@ -311,7 +299,6 @@ impl MirGen {
                 method,
                 args,
             } => {
-                // Simple path call lowering – treat as normal call for now
                 let mut arg_ids = Vec::new();
                 for arg in args {
                     arg_ids.push(self.lower_expr(arg));
@@ -344,7 +331,6 @@ impl MirGen {
                 self.type_map.insert(id, "i64".to_string());
             }
         }
-
         id
     }
 
@@ -352,11 +338,5 @@ impl MirGen {
         let id = self.next_id;
         self.next_id += 1;
         id
-    }
-}
-
-impl Default for MirGen {
-    fn default() -> Self {
-        Self::new()
     }
 }
