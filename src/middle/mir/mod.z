@@ -1,1 +1,3 @@
-
+// zeta_src/middle/mir/mod.z
+pub mod gen;
+pub mod mir;
