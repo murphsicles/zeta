@@ -1,0 +1,216 @@
+// zeta_src/frontend/parser/top_level.z
+use super::parser::{Parser, Token};
+use crate::frontend::ast::AstNode;
+
+impl Parser {
+    pub fn parse(&mut self) -> AstNode {
+        let mut nodes = vec![];
+        while !self.at_end() {
+            nodes.push(self.parse_top_level());
+        }
+        AstNode::Program(nodes)
+    }
+
+    fn parse_top_level(&mut self) -> AstNode {
+        match self.peek() {
+            Token::KeywordFn => self.parse_func_def(),
+            Token::KeywordConcept => self.parse_concept_def(),
+            Token::KeywordImpl => self.parse_impl_block(),
+            Token::KeywordStruct => self.parse_struct_def(),
+            Token::KeywordEnum => self.parse_enum_def(),
+            _ => {
+                self.advance();
+                AstNode::Lit(0)
+            }
+        }
+    }
+
+    fn parse_func_def(&mut self) -> AstNode {
+        self.expect(Token::KeywordFn);
+        let name = self.expect_ident();
+        let generics = self.parse_generics();
+        self.expect(Token::LParen);
+        let params = self.parse_params();
+        self.expect(Token::RParen);
+        let ret = if self.consume(Token::Arrow) {
+            self.expect_ident()
+        } else {
+            "i64".to_string()
+        };
+        let (body, single_line, ret_expr) = if self.consume(Token::Eq) {
+            let expr = self.parse_expr();
+            (vec![], true, Some(Box::new(expr)))
+        } else {
+            let b = self.parse_block();
+            (b, false, None)
+        };
+        AstNode::FuncDef {
+            name,
+            generics,
+            params,
+            ret,
+            body,
+            attrs: vec![],
+            ret_expr,
+            single_line,
+            doc: "".to_string(),
+        }
+    }
+
+    fn parse_concept_def(&mut self) -> AstNode {
+        self.expect(Token::KeywordConcept);
+        let name = self.expect_ident();
+        let generics = self.parse_generics();
+        self.expect(Token::LBrace);
+        let mut methods = vec![];
+        while self.peek() != Token::RBrace {
+            methods.push(self.parse_func_def());
+        }
+        self.expect(Token::RBrace);
+        AstNode::ConceptDef {
+            name,
+            generics,
+            methods,
+            doc: "".to_string(),
+        }
+    }
+
+    fn parse_impl_block(&mut self) -> AstNode {
+        self.expect(Token::KeywordImpl);
+        let concept = self.expect_ident();
+        let _generics = self.parse_generics();
+        self.expect(Token::KeywordFor);
+        let ty = self.expect_ident();
+        let body = self.parse_block();
+        AstNode::ImplBlock {
+            concept,
+            ty,
+            body,
+            doc: "".to_string(),
+        }
+    }
+
+    fn parse_struct_def(&mut self) -> AstNode {
+        self.expect(Token::KeywordStruct);
+        let name = self.expect_ident();
+        self.expect(Token::LBrace);
+        let mut fields = vec![];
+        while self.peek() != Token::RBrace {
+            let name = self.expect_ident();
+            self.expect(Token::Colon);
+            let ty = self.expect_ident();
+            fields.push((name, ty));
+            self.consume(Token::Comma);
+        }
+        self.expect(Token::RBrace);
+        AstNode::StructDef {
+            name,
+            fields,
+            doc: "".to_string(),
+        }
+    }
+
+    fn parse_enum_def(&mut self) -> AstNode {
+        self.expect(Token::KeywordEnum);
+        let name = self.expect_ident();
+        self.expect(Token::LBrace);
+        let mut variants = vec![];
+        while self.peek() != Token::RBrace {
+            let name = self.expect_ident();
+            let params = if self.consume(Token::LParen) {
+                let p = self.parse_params();
+                self.expect(Token::RParen);
+                p
+            } else {
+                vec![]
+            };
+            variants.push((name, params));
+            self.consume(Token::Comma);
+        }
+        self.expect(Token::RBrace);
+        AstNode::EnumDef {
+            name,
+            variants,
+            doc: "".to_string(),
+        }
+    }
+
+    pub fn parse_generics(&mut self) -> Vec<String> {
+        if self.consume(Token::Lt) {
+            let mut gens = vec![];
+            loop {
+                gens.push(self.expect_ident());
+                if !self.consume(Token::Comma) {
+                    break;
+                }
+            }
+            self.expect(Token::Gt);
+            gens
+        } else {
+            vec![]
+        }
+    }
+
+    pub fn parse_params(&mut self) -> Vec<(String, String)> {
+        let mut params = vec![];
+        while self.peek() != Token::RParen {
+            let name = self.expect_ident();
+            self.expect(Token::Colon);
+            let ty = self.expect_ident();
+            params.push((name, ty));
+            if !self.consume(Token::Comma) {
+                break;
+            }
+        }
+        params
+    }
+
+    pub fn parse_args(&mut self) -> Vec<AstNode> {
+        let mut args = vec![];
+        while self.peek() != Token::RParen {
+            args.push(self.parse_expr());
+            if !self.consume(Token::Comma) {
+                break;
+            }
+        }
+        args
+    }
+
+    fn peek(&self) -> Token {
+        self.tokens.get(self.pos as usize).cloned().unwrap_or(Token::Eof)
+    }
+
+    fn advance(&mut self) {
+        self.pos += 1;
+    }
+
+    fn at_end(&self) -> bool {
+        self.peek() == Token::Eof
+    }
+
+    fn consume(&mut self, expected: Token) -> bool {
+        if self.peek() == expected {
+            self.advance();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn expect(&mut self, expected: Token) {
+        if self.peek() == expected {
+            self.advance();
+        } else {
+            panic!("Expected {:?}, got {:?}", expected, self.peek());
+        }
+    }
+
+    fn expect_ident(&mut self) -> String {
+        if let Token::Ident(s) = self.peek() {
+            self.advance();
+            s
+        } else {
+            panic!("Expected identifier, got {:?}", self.peek());
+        }
+    }
+}
