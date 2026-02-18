@@ -3,7 +3,6 @@
 //!
 //! Single source of truth for type resolution, specialization caching,
 //! borrow checking coordination, and MIR lowering.
-//! All logic from the old lower.rs is now here. Clean, fast, and production-ready.
 
 use crate::frontend::ast::AstNode;
 use crate::frontend::borrow::BorrowChecker;
