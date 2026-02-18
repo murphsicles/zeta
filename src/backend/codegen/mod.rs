@@ -1,5 +1,6 @@
 // src/backend/codegen/mod.rs
-#[allow(clippy::module_inception)]
-pub mod codegen;
-pub mod ir_gen;
-pub mod jit;
+mod codegen;
+mod jit;
+
+pub use codegen::LLVMCodegen;
+pub use jit::*;
