@@ -1,0 +1,53 @@
+├── .github/
+│   └── workflows/
+│       ├── ci.yml
+│       └── publish.yml
+├── docs/
+│   └── ZETA_SYNTAX_REFERENCE.md
+├── src/
+│   ├── backend/
+│   │   ├── codegen/
+│   │   │   ├── codegen.z
+│   │   │   ├── ir_gen.z
+│   │   │   ├── jit.z
+│   │   │   └── mod.z
+│   │   └── mod.z
+│   ├── frontend/
+│   │   ├── parser/
+│   │   │   ├── expr.z
+│   │   │   ├── mod.z
+│   │   │   ├── parser.z
+│   │   │   ├── stmt.z
+│   │   │   └── top_level.z
+│   │   ├── ast.z
+│   │   ├── borrow.z
+│   │   └── mod.z
+│   ├── middle/
+│   │   ├── mir/
+│   │   │   ├── gen.z
+│   │   │   ├── mir.z
+│   │   │   └── mod.z
+│   │   ├── resolver/
+│   │   │   ├── lower.z
+│   │   │   ├── mod.z
+│   │   │   ├── resolver.z
+│   │   │   └── typecheck.z
+│   │   ├── mod.z
+│   │   └── specialization.z
+│   ├── runtime/
+│   │   ├── actor/
+│   │   │   ├── channel.z
+│   │   │   ├── map.z
+│   │   │   ├── mod.z
+│   │   │   ├── result.z
+│   │   │   └── scheduler.z
+│   │   ├── host.z
+│   │   ├── mod.z
+│   │   ├── std.z
+│   │   └── xai.z
+│   ├── main.z
+│   └── tests.z
+├── .gitignore
+├── build.sh
+├── LICENSE
+└── README.md
