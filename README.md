@@ -31,7 +31,7 @@ We're living in a brand new paradigm.
 
 > “Complexity assertions have to be part of the interface.” - Alexander Stepanov, 1995
 
-## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Official Benchmarks — January 28, 2026  
+## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Official Benchmarks — February 18, 2026  
 Intel i9-13900K · Ubuntu 24.04
 
 | Benchmark                          | Zeta 0.3.4     | Rust 1.82     | Zig 0.13     | Go 1.23      | C++23 (clang++) | Verdict                              |
