@@ -1,20 +1,16 @@
 #!/bin/bash
-# build.sh: Build Zeta v0.4.0 (Pure Zeta, No Cargo/Rust)
+# build.sh: Build Zeta v0.4.1 (Pure Zeta Self-Host from latest binaries)
 # Run from repo root: ./build.sh
-# Assumes zeta binary is in PATH or current dir (from previous build or download)
-# Builds new zeta from src/main.z
-
-# Step 1: Compile src/main.z to new binary
+# Assumes the latest self-hosted zeta binary (from v0.4.0 or v0.3.4 release assets) is in PATH or current directory
+# Uses it to compile the pure Zeta source in /src/ into the new v0.4.1 binary
+# Step 1: Compile src/main.z (pure Zeta) to new binary using latest zeta
 ./zeta compile src/main.z -o zeta_new
-
-# Step 2: Run tests for validation
+# Step 2: Run tests for validation with the newly built binary
 ./zeta_new run src/tests.z
-
-# Step 3: Benchmark self-compile
-time ./zeta_new compile src/main.z -o zeta_bench
-
-# Step 4: Update to new binary
+# Step 3: Benchmark self-compile time (pure self-host loop)
+./zeta_new compile src/main.z -o zeta_bench
+# Step 4: Replace the old binary with the new self-hosted one
 mv zeta_new zeta
-rm zeta_bench # Cleanup
-
-echo "Zeta v0.4.0 built successfully!"
+rm zeta_bench
+# Cleanup
+echo "Zeta v0.4.1 built successfully! Fully self-hosted from latest binaries on February 18, 2026."
