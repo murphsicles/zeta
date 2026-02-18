@@ -1,52 +1,65 @@
 // src/lib.rs
-//! Zeta compiler library crate.
-//! Exports modules and utilities for parsing, type resolution, code generation, and runtime execution.
+//! # Zeta Compiler Library (v0.3.4 Foundation Release)
+//!
+//! The core library for the Zeta systems programming language.
+//! This crate provides a complete pipeline:
+//!   1. Parsing → AST
+//!   2. Resolution + monomorphization + MIR lowering
+//!   3. LLVM code generation + JIT/AOT
+//!
+//! This is the **foundational bedrock** for all future Zeta self-hosting.
+//! Every line is optimized for speed, simplicity, and clarity.
+
 pub mod backend;
 pub mod frontend;
 pub mod middle;
 pub mod runtime;
-pub use backend::codegen::codegen::LLVMCodegen;
+
+pub use backend::codegen::LLVMCodegen;
 pub use frontend::ast::AstNode;
 pub use frontend::parser::top_level::parse_zeta;
-use inkwell::context::Context;
 pub use middle::mir::mir::Mir;
 pub use middle::resolver::resolver::Resolver;
 pub use runtime::actor::scheduler::{init_runtime, spawn};
-/// Compiles Zeta source code to LLVM IR, JIT-executes it, and returns the result from main.
+
+use inkwell::context::Context;
+
+/// Compiles a Zeta source string to executable code and runs `main()`.
+///
+/// This is the primary public API used by the bootstrap `main.rs` and will
+/// become the entry point when Zeta becomes fully self-hosted.
 pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
-    // Init runtime.
     init_runtime();
-    // Parse to AST.
+
     let (_, asts) = parse_zeta(code).map_err(|e| format!("Parse error: {:?}", e))?;
-    // Resolve and check.
+
     let mut resolver = Resolver::new();
     for ast in &asts {
         resolver.register(ast.clone());
     }
-    resolver.typecheck(&asts);
-    // LLVM setup.
+    if !resolver.typecheck(&asts) {
+        return Err("Typecheck failed".into());
+    }
+
     let context = Context::create();
-    let mut codegen = LLVMCodegen::new(&context, "bench");
-    // Lower main to MIR.
+    let mut codegen = LLVMCodegen::new(&context, "zeta");
+
     let main_func = asts
         .iter()
-        .find(|a| {
-            if let AstNode::FuncDef { name, .. } = a {
-                name == "main"
-            } else {
-                false
-            }
-        })
+        .find(|a| matches!(a, AstNode::FuncDef { name, .. } if name == "main"))
         .ok_or("No main function".to_string())?;
+
     let mir = resolver.lower_to_mir(main_func);
     codegen.gen_mirs(&[mir]);
+
     let ee = codegen.finalize_and_jit().map_err(|e| e.to_string())?;
-    // Map std_free.
-    {
+
+    // Map required runtime functions
+    if let Some(f) = codegen.module.get_function("free") {
         let free_fn = crate::runtime::std::std_free as *const () as usize;
-        ee.add_global_mapping(&codegen.module.get_function("free").unwrap(), free_fn);
+        ee.add_global_mapping(&f, free_fn);
     }
-    // Execute.
+
     type MainFn = unsafe extern "C" fn() -> i64;
     unsafe {
         let main = ee
