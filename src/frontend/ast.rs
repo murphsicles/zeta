@@ -15,6 +15,7 @@ pub enum AstNode {
     /// Implementation block for a concept on a type.
     ImplBlock {
         concept: String,
+        generics: Vec<String>,
         ty: String,
         body: Vec<AstNode>,
         doc: String,
@@ -38,6 +39,11 @@ pub enum AstNode {
         ret_expr: Option<Box<AstNode>>,
         single_line: bool,
         doc: String,
+    },
+    ExternFunc {
+        name: String,
+        params: Vec<(String, String)>,
+        ret: String,
     },
     /// Enumeration definition with variants.
     EnumDef {
@@ -106,4 +112,68 @@ pub enum AstNode {
     },
     /// Expression used as a statement (for side-effects, e.g. function call).
     ExprStmt { expr: Box<AstNode> },
+    /// Use statement for importing paths.
+    Use { path: Vec<String> },
+    /// Type alias definition.
+    TypeAlias { name: String, ty: String },
+    /// Unary operation on an expression.
+    UnaryOp { op: String, expr: Box<AstNode> },
+    /// Type cast expression.
+    Cast { expr: Box<AstNode>, ty: String },
+    /// Closure expression with parameters and body.
+    Closure {
+        params: Vec<String>,
+        body: Box<AstNode>,
+    },
+    /// Block expression with statements.
+    Block { body: Vec<AstNode> },
+    /// If-let conditional with pattern matching.
+    IfLet {
+        pattern: Box<AstNode>,
+        expr: Box<AstNode>,
+        then: Vec<AstNode>,
+        else_: Vec<AstNode>,
+    },
+    /// Ignore pattern (_).
+    Ignore,
+    /// Tuple pattern or expression.
+    Tuple(Vec<AstNode>),
+    /// Struct pattern for matching.
+    StructPattern {
+        variant: String,
+        fields: Vec<(String, AstNode)>,
+        rest: bool,
+    },
+    /// Let binding statement.
+    Let {
+        mut_: bool,
+        pattern: Box<AstNode>,
+        ty: Option<String>,
+        expr: Box<AstNode>,
+    },
+    /// For loop statement.
+    For {
+        pattern: Box<AstNode>,
+        expr: Box<AstNode>,
+        body: Vec<AstNode>,
+    },
+    /// Loop statement.
+    Loop { body: Vec<AstNode> },
+    /// Unsafe block.
+    Unsafe { body: Vec<AstNode> },
+    /// Macro call.
+    MacroCall { name: String, args: Vec<AstNode> },
+    /// Struct literal.
+    StructLit {
+        variant: String,
+        fields: Vec<(String, AstNode)>,
+    },
+    /// Break statement.
+    Break(Option<Box<AstNode>>),
+    /// Continue statement.
+    Continue(Option<Box<AstNode>>),
+    /// Array literal.
+    ArrayLit(Vec<AstNode>),
+    /// Boolean literal.
+    Bool(bool),
 }
