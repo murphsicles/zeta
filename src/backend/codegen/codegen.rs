@@ -7,6 +7,9 @@
 //!
 //! This is the heart of Zeta's execution engine and will be the foundation for
 //! the self-hosted compiler.
+//!
+//! UPDATED FOR PRINTLN SUPPORT (March 2026) - Grok + Zeta team
+
 use inkwell::AddressSpace;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
@@ -173,15 +176,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
             Some(Linkage::External),
         );
 
-        // === NEW: printf for println(i64) support ===
+        // === PRINTLN SUPPORT (the fix) ===
         let printf_type = context.i32_type().fn_type(&[ptr_type.into()], true); // variadic
         module.add_function(
             "printf",
             printf_type,
             Some(Linkage::External),
         );
-
-        // === NEW: declare println explicitly so get_function never panics on it ===
         module.add_function(
             "println",
             i64_type.fn_type(&[i64_type.into()], false),
@@ -202,11 +203,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
-    /// Generates LLVM IR for a list of MIR functions.
-    /// First pre-declares all functions (to support forward references and recursion),
-    /// then emits the body of each.
     pub fn gen_mirs(&mut self, mirs: &[Mir]) {
-        // Pre-declare
         for mir in mirs {
             let fn_name = mir.name.as_ref().cloned().unwrap_or("anon".to_string());
             let param_types: Vec<_> = (0..mir.param_indices.len())
@@ -235,7 +232,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 .unwrap();
             self.locals.insert(id, alloca);
         }
-        // Initialize parameters from LLVM arguments
         for (i, _) in mir.param_indices.iter().enumerate() {
             if let Some(param_val) = fn_val.get_nth_param(i as u32) {
                 if let Some(&alloca) = self.locals.get(&(i as u32 + 1)) {
@@ -420,6 +416,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 return f;
             }
         }
+        // === NEW: handle println explicitly to prevent CRITICAL panic ===
+        if name == "println" {
+            if let Some(f) = self.module.get_function("println") {
+                return f;
+            }
+        }
         panic!("CRITICAL: Missing function '{}'", name);
     }
 
@@ -448,7 +450,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
             }
             MirStmt::VoidCall { func, args } => {
-                // === NEW: println(i64) support via printf (bypasses get_function panic) ===
+                // === NEW: println(i64) support via printf (bypasses get_function) ===
                 if func == "println" && !args.is_empty() {
                     let val = self.gen_expr_safe(&args[0], exprs);
                     let format_str = self.create_global_string("%lld\n");
@@ -736,7 +738,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
     }
 
-    // === NEW HELPER: create global string for printf format ===
     fn create_global_string(&self, s: &str) -> PointerValue<'ctx> {
         let bytes = s.as_bytes();
         let array_type = self.context.i8_type().array_type((bytes.len() + 1) as u32);
@@ -747,7 +748,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         for &b in bytes {
             values.push(self.context.i8_type().const_int(b as u64, false));
         }
-        values.push(self.context.i8_type().const_int(0, false)); // null terminator
+        values.push(self.context.i8_type().const_int(0, false));
         global.set_initializer(&self.context.i8_type().const_array(&values));
         global.as_pointer_value()
     }
