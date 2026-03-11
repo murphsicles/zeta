@@ -7,7 +7,6 @@
 //!
 //! This is the heart of Zeta's execution engine and will be the foundation for
 //! the self-hosted compiler.
-
 use inkwell::AddressSpace;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
@@ -17,7 +16,6 @@ use inkwell::values::{
     BasicMetadataValueEnum, BasicValueEnum, CallSiteValue, FunctionValue, PointerValue,
 };
 use std::collections::HashMap;
-
 use crate::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use inkwell::IntPredicate;
 
@@ -79,7 +77,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
             i64_type.fn_type(&[ptr_type.into()], false),
             Some(Linkage::External),
         );
-
         module.add_function(
             "result_make_ok",
             ptr_type.fn_type(&[i64_type.into()], false),
@@ -105,7 +102,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
             void_type.fn_type(&[ptr_type.into()], false),
             Some(Linkage::External),
         );
-
         module.add_function(
             "map_new",
             ptr_type.fn_type(&[], false),
@@ -126,7 +122,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
             void_type.fn_type(&[ptr_type.into()], false),
             Some(Linkage::External),
         );
-
         module.add_function(
             "host_str_concat",
             i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
@@ -172,10 +167,17 @@ impl<'ctx> LLVMCodegen<'ctx> {
             i64_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into()], false),
             Some(Linkage::External),
         );
-
         module.add_function(
             "scheduler::init_runtime",
             void_type.fn_type(&[], false),
+            Some(Linkage::External),
+        );
+
+        // === NEW: println(i64) support via standard printf (no new runtime needed) ===
+        let printf_type = context.i32_type().fn_type(&[ptr_type.into()], true); // variadic
+        module.add_function(
+            "printf",
+            printf_type,
             Some(Linkage::External),
         );
 
@@ -207,7 +209,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
             let fn_val = self.module.add_function(&fn_name, fn_type, None);
             self.fns.insert(fn_name.clone(), fn_val);
         }
-
         for mir in mirs {
             self.gen_fn(mir);
         }
@@ -219,7 +220,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let entry = self.context.append_basic_block(fn_val, "entry");
         self.builder.position_at_end(entry);
         self.locals.clear();
-
         let all_ids = self.collect_all_local_ids(mir);
         for &id in &all_ids {
             let alloca = self
@@ -228,7 +228,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 .unwrap();
             self.locals.insert(id, alloca);
         }
-
         // Initialize parameters from LLVM arguments
         for (i, _) in mir.param_indices.iter().enumerate() {
             if let Some(param_val) = fn_val.get_nth_param(i as u32) {
@@ -237,11 +236,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
             }
         }
-
         for stmt in &mir.stmts {
             self.gen_stmt(stmt, &mir.exprs);
         }
-
         if self
             .builder
             .get_insert_block()
@@ -444,6 +441,23 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
             }
             MirStmt::VoidCall { func, args } => {
+                // === NEW: special handling for println(i64) ===
+                if func == "println" && !args.is_empty() {
+                    let val = self.gen_expr_safe(&args[0], exprs);
+                    let format_str = self.create_global_string("%lld\n");
+                    let format_ptr = self.builder.build_ptr_to_int(format_str, self.i64_type, "format_ptr").unwrap();
+                    let _ = self
+                        .builder
+                        .build_call(
+                            self.get_function("printf"),
+                            &[format_ptr.into(), val.into()],
+                            "println_call",
+                        )
+                        .unwrap();
+                    return;
+                }
+
+                // original code for other VoidCalls
                 let callee = self.get_function(func);
                 let arg_vals: Vec<BasicMetadataValueEnum> = args
                     .iter()
@@ -511,7 +525,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         "is_ok_i1",
                     )
                     .unwrap();
-
                 let parent_fn = self
                     .builder
                     .get_insert_block()
@@ -521,11 +534,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let ok_bb = self.context.append_basic_block(parent_fn, "prop_ok");
                 let err_bb = self.context.append_basic_block(parent_fn, "prop_err");
                 let cont_bb = self.context.append_basic_block(parent_fn, "prop_cont");
-
                 self.builder
                     .build_conditional_branch(is_ok_i1, ok_bb, err_bb)
                     .unwrap();
-
                 self.builder.position_at_end(ok_bb);
                 let data = self
                     .builder
@@ -539,12 +550,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let ok_alloca = *self.locals.get(ok_dest).unwrap();
                 self.builder.build_store(ok_alloca, data_val).unwrap();
                 self.builder.build_unconditional_branch(cont_bb).unwrap();
-
                 self.builder.position_at_end(err_bb);
                 let err_alloca = *self.locals.get(err_dest).unwrap();
                 self.builder.build_store(err_alloca, expr_val).unwrap();
                 self.builder.build_unconditional_branch(cont_bb).unwrap();
-
                 self.builder.position_at_end(cont_bb);
             }
             MirStmt::MapNew { dest } => {
@@ -612,7 +621,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         "cond_i1",
                     )
                     .unwrap();
-
                 let parent_fn = self
                     .builder
                     .get_insert_block()
@@ -622,23 +630,19 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let then_bb = self.context.append_basic_block(parent_fn, "then");
                 let else_bb = self.context.append_basic_block(parent_fn, "else");
                 let merge_bb = self.context.append_basic_block(parent_fn, "merge");
-
                 self.builder
                     .build_conditional_branch(cond_i1, then_bb, else_bb)
                     .unwrap();
-
                 self.builder.position_at_end(then_bb);
                 for s in then {
                     self.gen_stmt(s, exprs);
                 }
                 self.builder.build_unconditional_branch(merge_bb).unwrap();
-
                 self.builder.position_at_end(else_bb);
                 for s in else_ {
                     self.gen_stmt(s, exprs);
                 }
                 self.builder.build_unconditional_branch(merge_bb).unwrap();
-
                 self.builder.position_at_end(merge_bb);
             }
             MirStmt::ParamInit { .. } => {} // handled at entry
@@ -720,5 +724,21 @@ impl<'ctx> LLVMCodegen<'ctx> {
             inkwell::values::ValueKind::Basic(basic) => Some(basic),
             _ => None,
         }
+    }
+
+    // === NEW HELPER: create global string for printf format ===
+    fn create_global_string(&self, s: &str) -> PointerValue<'ctx> {
+        let bytes = s.as_bytes();
+        let array_type = self.context.i8_type().array_type((bytes.len() + 1) as u32);
+        let global = self.module.add_global(array_type, None, "printf_fmt");
+        global.set_linkage(inkwell::module::Linkage::Private);
+        global.set_constant(true);
+        let mut values = vec![];
+        for &b in bytes {
+            values.push(self.context.i8_type().const_int(b as u64, false));
+        }
+        values.push(self.context.i8_type().const_int(0, false)); // null terminator
+        global.set_initializer(&self.context.i8_type().const_array(&values));
+        global.as_pointer_value()
     }
 }
