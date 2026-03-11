@@ -173,11 +173,18 @@ impl<'ctx> LLVMCodegen<'ctx> {
             Some(Linkage::External),
         );
 
-        // === NEW: println(i64) support via standard printf (no new runtime needed) ===
+        // === NEW: printf for println(i64) support ===
         let printf_type = context.i32_type().fn_type(&[ptr_type.into()], true); // variadic
         module.add_function(
             "printf",
             printf_type,
+            Some(Linkage::External),
+        );
+
+        // === NEW: declare println explicitly so get_function never panics on it ===
+        module.add_function(
+            "println",
+            i64_type.fn_type(&[i64_type.into()], false),
             Some(Linkage::External),
         );
 
@@ -441,15 +448,18 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
             }
             MirStmt::VoidCall { func, args } => {
-                // === NEW: special handling for println(i64) ===
+                // === NEW: println(i64) support via printf ===
                 if func == "println" && !args.is_empty() {
                     let val = self.gen_expr_safe(&args[0], exprs);
                     let format_str = self.create_global_string("%lld\n");
-                    let format_ptr = self.builder.build_ptr_to_int(format_str, self.i64_type, "format_ptr").unwrap();
+                    let format_ptr = self
+                        .builder
+                        .build_ptr_to_int(format_str, self.i64_type, "format_ptr")
+                        .unwrap();
                     let _ = self
                         .builder
                         .build_call(
-                            self.get_function("printf"),
+                            self.module.get_function("printf").unwrap(),
                             &[format_ptr.into(), val.into()],
                             "println_call",
                         )
