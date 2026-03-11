@@ -448,7 +448,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
             }
             MirStmt::VoidCall { func, args } => {
-                // === NEW: println(i64) support via printf ===
+                // === NEW: println(i64) support via printf (bypasses get_function panic) ===
                 if func == "println" && !args.is_empty() {
                     let val = self.gen_expr_safe(&args[0], exprs);
                     let format_str = self.create_global_string("%lld\n");
