@@ -63,7 +63,10 @@ impl Resolver {
     }
 
     pub fn persist_specialization_cache(&self) {
-        let cache_guard = CACHE.read().unwrap();
+        match CACHE.read() {
+            Ok(val) => val,
+            Err(e) => return Err(e.into()),
+        }
         let entries = cache_guard.clone();
         let cache_file = CacheFile { entries };
         if let Ok(json) = serde_json::to_string_pretty(&cache_file) {

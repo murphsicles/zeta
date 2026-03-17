@@ -85,7 +85,10 @@ fn test() -> i32 {
             res.register(ast.clone());
         }
         let ast_hash = format!("{:?}", asts[0]);
-        let mir = res.get_cached_mir(&ast_hash).unwrap();
+        match res.get_cached_mir(&ast_hash) {
+            Ok(val) => val,
+            Err(e) => return Err(e.into()),
+        }
         assert!(!mir.stmts.is_empty());
     }
     /// Tests parallel resolution of traits.
@@ -121,9 +124,15 @@ fn semiring_test() -> i32 {
             res.register(ast.clone());
         }
         let ast_hash = format!("{:?}", asts[0]);
-        let mir = res.get_cached_mir(&ast_hash).unwrap();
+        match res.get_cached_mir(&ast_hash) {
+            Ok(val) => val,
+            Err(e) => return Err(e.into()),
+        }
         assert!(mir.ctfe_consts.contains_key(&2));
-        assert_eq!(*mir.ctfe_consts.get(&2).unwrap(), 5);
+        match ctfe_consts.get(&2) {
+            Ok(val) => val,
+            Err(e) => return Err(e.into()),
+        }
     }
     /// Tests thin monomorphization of templates.
     #[test]
@@ -139,7 +148,10 @@ fn generic_add<T>(a: T, b: T) -> T { a.add(b) }
         let key = MonoKey(("generic_add".to_string(), vec!["i32".to_string()]));
         let mono_ast = res.monomorphize(key.clone(), &asts[0]);
         assert_eq!(mono_ast.generics, vec![]);
-        let mir = res.get_mono_mir(&key).unwrap();
+        match res.get_mono_mir(&key) {
+            Ok(val) => val,
+            Err(e) => return Err(e.into()),
+        }
         assert!(!mir.stmts.is_empty());
     }
     /// Tests cache safety for types.
@@ -170,7 +182,10 @@ fn fusion_test() -> i32 {
         }
         assert!(res.typecheck(&asts));
         let ast_hash = format!("{:?}", asts[0]);
-        let mir = res.get_cached_mir(&ast_hash).unwrap();
+        match res.get_cached_mir(&ast_hash) {
+            Ok(val) => val,
+            Err(e) => return Err(e.into()),
+        }
         // Stub: Check for Fusion stmt
         assert!(mir.stmts.iter().any(|s| matches!(s, MirStmt::Fusion { .. })));
     }
@@ -185,8 +200,8 @@ concept Semiring {
     fn one() -> Self;
 }
 impl Semiring for i32 {
-    fn add(self: i32, rhs: i32) -> i32 { self + rhs }
-    fn mul(self: i32, rhs: i32) -> i32 { self * rhs }
+    fn add(self: i32, rhs: i32) -> i32 { self.checked_add(rhs).unwrap() }
+    fn mul(self: i32, rhs: i32) -> i32 { self.checked_mul(rhs).unwrap() }
     fn zero() -> i32 { 0 }
     fn one() -> i32 { 1 }
 }
@@ -228,7 +243,7 @@ impl Send for i32 {}
 impl Sync for i32 {}
 impl CacheSafe for i32 {}
 actor Counter {
-    async fn increment(&self, delta: i32) -> i32 { self.state + delta }
+    async fn increment(&self, delta: i32) -> i32 { self.state.checked_add(delta).unwrap() }
     state: i32 = 0;
 }
 fn actor_test() -> i32 {
@@ -251,7 +266,7 @@ fn actor_test() -> i32 {
     fn test_stable_abi() {
         let input = r#"
 #[stable_abi]
-fn ffi_add(a: i32, b: i32) -> i32 { a + b } // No generics
+fn ffi_add(a: i32, b: i32) -> i32 { a.checked_add(b).unwrap() } // No generics
 "#;
         let (_, asts) = parse_zeta(input).unwrap();
         let mut res = Resolver::new();

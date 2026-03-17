@@ -30,12 +30,18 @@ impl MonoKey {
 }
 
 pub fn lookup_specialization(key: &MonoKey) -> Option<MonoValue> {
-    let cache = CACHE.read().unwrap();
+    match CACHE.read() {
+        Ok(val) => val,
+        Err(e) => return Err(e.into()),
+    }
     cache.get(key).cloned()
 }
 
 pub fn record_specialization(key: MonoKey, value: MonoValue) {
-    let mut cache = CACHE.write().unwrap();
+    match CACHE.write() {
+        Ok(val) => val,
+        Err(e) => return Err(e.into()),
+    }
     cache.insert(key, value);
 }
 

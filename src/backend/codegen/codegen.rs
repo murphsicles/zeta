@@ -234,8 +234,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
         for (i, _) in mir.param_indices.iter().enumerate() {
             if let Some(param_val) = fn_val.get_nth_param(i as u32) {
-                if let Some(&alloca) = self.locals.get(&(i as u32 + 1)) {
-                    self.builder.build_store(alloca, param_val).unwrap();
+                if let Some(&alloca) = self.locals.get(&(i as u32.checked_add(1).unwrap())) {
+                    match builder.build_store(alloca, param_val) {
+                        Ok(val) => val,
+                        Err(e) => return Err(e.into()),
+                    }
                 }
             }
         }
@@ -429,8 +432,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
         match stmt {
             MirStmt::Assign { lhs, rhs } => {
                 let val = self.gen_expr_safe(rhs, exprs);
-                let alloca = *self.locals.get(lhs).unwrap();
-                self.builder.build_store(alloca, val).unwrap();
+                match locals.get(lhs) {
+                    Ok(val) => val,
+                    Err(e) => return Err(e.into()),
+                }
+                match builder.build_store(alloca, val) {
+                    Ok(val) => val,
+                    Err(e) => return Err(e.into()),
+                }
             }
             MirStmt::Call {
                 func, args, dest, ..
@@ -445,8 +454,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .build_call(callee, &arg_vals, &format!("call_{dest}"))
                     .unwrap();
                 if let Some(val) = Self::call_site_to_basic_value(call) {
-                    let alloca = *self.locals.get(dest).unwrap();
-                    self.builder.build_store(alloca, val).unwrap();
+                    match locals.get(dest) {
+                        Ok(val) => val,
+                        Err(e) => return Err(e.into()),
+                    }
+                    match builder.build_store(alloca, val) {
+                        Ok(val) => val,
+                        Err(e) => return Err(e.into()),
+                    }
                 }
             }
             MirStmt::VoidCall { func, args } => {
@@ -461,7 +476,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let _ = self
                         .builder
                         .build_call(
-                            self.module.get_function("printf").unwrap(),
+                            match module.get_function("printf") {
+                                Ok(val) => val,
+                                Err(e) => return Err(e.into()),
+                            }
                             &[format_ptr.into(), val.into()],
                             "println_call",
                         )
@@ -482,11 +500,17 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
             MirStmt::Return { val } => {
                 let ret_val = self.gen_expr_safe(val, exprs);
-                self.builder.build_return(Some(&ret_val)).unwrap();
+                match builder.build_return(Some(&ret_val)) {
+                    Ok(val) => val,
+                    Err(e) => return Err(e.into()),
+                }
             }
             MirStmt::SemiringFold { op, values, result } => {
                 if values.is_empty() {
-                    let alloca = *self.locals.get(result).unwrap();
+                    match locals.get(result) {
+                        Ok(val) => val,
+                        Err(e) => return Err(e.into()),
+                    }
                     self.builder
                         .build_store(alloca, self.i64_type.const_zero())
                         .unwrap();
@@ -508,8 +532,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             .into(),
                     };
                 }
-                let alloca = *self.locals.get(result).unwrap();
-                self.builder.build_store(alloca, acc).unwrap();
+                match locals.get(result) {
+                    Ok(val) => val,
+                    Err(e) => return Err(e.into()),
+                }
+                match builder.build_store(alloca, acc) {
+                    Ok(val) => val,
+                    Err(e) => return Err(e.into()),
+                }
             }
             MirStmt::TryProp {
                 expr_id,
@@ -559,13 +589,31 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     )
                     .unwrap();
                 let data_val = Self::call_site_to_basic_value(data).unwrap();
-                let ok_alloca = *self.locals.get(ok_dest).unwrap();
-                self.builder.build_store(ok_alloca, data_val).unwrap();
-                self.builder.build_unconditional_branch(cont_bb).unwrap();
+                match locals.get(ok_dest) {
+                    Ok(val) => val,
+                    Err(e) => return Err(e.into()),
+                }
+                match builder.build_store(ok_alloca, data_val) {
+                    Ok(val) => val,
+                    Err(e) => return Err(e.into()),
+                }
+                match builder.build_unconditional_branch(cont_bb) {
+                    Ok(val) => val,
+                    Err(e) => return Err(e.into()),
+                }
                 self.builder.position_at_end(err_bb);
-                let err_alloca = *self.locals.get(err_dest).unwrap();
-                self.builder.build_store(err_alloca, expr_val).unwrap();
-                self.builder.build_unconditional_branch(cont_bb).unwrap();
+                match locals.get(err_dest) {
+                    Ok(val) => val,
+                    Err(e) => return Err(e.into()),
+                }
+                match builder.build_store(err_alloca, expr_val) {
+                    Ok(val) => val,
+                    Err(e) => return Err(e.into()),
+                }
+                match builder.build_unconditional_branch(cont_bb) {
+                    Ok(val) => val,
+                    Err(e) => return Err(e.into()),
+                }
                 self.builder.position_at_end(cont_bb);
             }
             MirStmt::MapNew { dest } => {
@@ -578,8 +626,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .builder
                     .build_ptr_to_int(ptr.into_pointer_value(), self.i64_type, "map_ptr_i64")
                     .unwrap();
-                let alloca = *self.locals.get(dest).unwrap();
-                self.builder.build_store(alloca, ptr_i64).unwrap();
+                match locals.get(dest) {
+                    Ok(val) => val,
+                    Err(e) => return Err(e.into()),
+                }
+                match builder.build_store(alloca, ptr_i64) {
+                    Ok(val) => val,
+                    Err(e) => return Err(e.into()),
+                }
             }
             MirStmt::DictInsert {
                 map_id,
@@ -619,8 +673,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     )
                     .unwrap();
                 let val = Self::call_site_to_basic_value(call).unwrap();
-                let alloca = *self.locals.get(dest).unwrap();
-                self.builder.build_store(alloca, val).unwrap();
+                match locals.get(dest) {
+                    Ok(val) => val,
+                    Err(e) => return Err(e.into()),
+                }
+                match builder.build_store(alloca, val) {
+                    Ok(val) => val,
+                    Err(e) => return Err(e.into()),
+                }
             }
             MirStmt::If { cond, then, else_ } => {
                 let cond_i64 = self.gen_expr_safe(cond, exprs).into_int_value();
@@ -649,12 +709,18 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 for s in then {
                     self.gen_stmt(s, exprs);
                 }
-                self.builder.build_unconditional_branch(merge_bb).unwrap();
+                match builder.build_unconditional_branch(merge_bb) {
+                    Ok(val) => val,
+                    Err(e) => return Err(e.into()),
+                }
                 self.builder.position_at_end(else_bb);
                 for s in else_ {
                     self.gen_stmt(s, exprs);
                 }
-                self.builder.build_unconditional_branch(merge_bb).unwrap();
+                match builder.build_unconditional_branch(merge_bb) {
+                    Ok(val) => val,
+                    Err(e) => return Err(e.into()),
+                }
                 self.builder.position_at_end(merge_bb);
             }
             MirStmt::ParamInit { .. } => {} // handled at entry
@@ -676,7 +742,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             MirExpr::Lit(n) => self.i64_type.const_int(*n as u64, true).into(),
             MirExpr::StringLit(s) => {
                 let global = self.module.add_global(
-                    self.context.i8_type().array_type(s.len() as u32 + 1),
+                    self.context.i8_type().array_type(s.len() as u32.checked_add(1).unwrap()),
                     None,
                     "str_lit",
                 );
@@ -705,7 +771,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let call = self
                         .builder
                         .build_call(
-                            self.module.get_function("host_str_concat").unwrap(),
+                            match module.get_function("host_str_concat") {
+                                Ok(val) => val,
+                                Err(e) => return Err(e.into()),
+                            }
                             &[res.into(), next.into()],
                             "fconcat",
                         )
@@ -716,7 +785,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
             MirExpr::ConstEval(n) => self.i64_type.const_int(*n as u64, true).into(),
             MirExpr::TimingOwned(inner_id) => {
-                let ptr = *self.locals.get(inner_id).unwrap();
+                match locals.get(inner_id) {
+                    Ok(val) => val,
+                    Err(e) => return Err(e.into()),
+                }
                 self.builder
                     .build_load(self.i64_type, ptr, "timing_load")
                     .unwrap()
@@ -725,7 +797,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
     }
 
     fn load_local(&self, id: u32) -> BasicValueEnum<'ctx> {
-        let ptr = *self.locals.get(&id).unwrap();
+        match locals.get(&id) {
+            Ok(val) => val,
+            Err(e) => return Err(e.into()),
+        }
         self.builder
             .build_load(self.i64_type, ptr, &format!("load_{id}"))
             .unwrap()

@@ -15,6 +15,19 @@ pub mod frontend;
 pub mod middle;
 pub mod runtime;
 
+// Phase 2 extensions
+pub mod llvm_extensions_simple;
+pub mod llvm_advanced;
+pub mod codegen_integration;
+
+// Phase 3 extensions
+pub mod trait_extensions;
+pub mod ast_extensions;
+pub mod advanced_generics;
+pub mod macro_system;
+pub mod unsafe_operations;
+pub mod phase3_integration;
+
 pub use backend::codegen::LLVMCodegen;
 pub use frontend::ast::AstNode;
 pub use frontend::parser::top_level::parse_zeta;
@@ -68,3 +81,15 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
         Ok(main.call())
     }
 }
+
+// Test modules
+#[cfg(test)]
+mod trait_system_test;
+#[cfg(test)]
+mod advanced_generics_test;
+#[cfg(test)]
+mod macro_system_test;
+#[cfg(test)]
+mod unsafe_operations_test;
+#[cfg(test)]
+mod integration_test;

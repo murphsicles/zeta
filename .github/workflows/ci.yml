@@ -1,38 +1,33 @@
-# .github/workflows/ci.yml: CI for Zeta (build/test/lint)
 name: CI
+
 on:
   push:
-    branches: [ main ]
+    branches: [ main, v0.3.4 ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, v0.3.4 ]
+
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: "-Dwarnings"
+  RUST_BACKTRACE: full
+
 jobs:
-  check:
-    runs-on: ubuntu-latest
+  test:
+    name: Test Suite
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        toolchain: [nightly] # 2024 edition requires nightly (stable post-2024)
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        rust: [stable, nightly]
+    
     steps:
     - uses: actions/checkout@v4
-    - name: Install LLVM 21
-      run: |
-        wget https://apt.llvm.org/llvm.sh
-        chmod +x llvm.sh
-        sudo ./llvm.sh 21
-        sudo apt-get update
-        sudo apt-get install -y llvm-21 llvm-21-dev llvm-21-tools libpolly-21-dev
-    - name: Set LLVM prefix
-      run: |
-        echo "LLVM_SYS_210_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
-        echo "LLVM_SYS_211_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
+    
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
-        toolchain: ${{ matrix.toolchain }}
-        components: rustfmt, clippy
-    - name: Cache cargo
+        toolchain: ${{ matrix.rust }}
+    
+    - name: Cache dependencies
       uses: actions/cache@v4
       with:
         path: |
@@ -40,58 +35,117 @@ jobs:
           ~/.cargo/git
           target
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-    - name: Check
-      run: cargo check --workspace --all-features --all-targets
-    - name: Clippy
-      run: cargo clippy --workspace --all-features --all-targets -- -D warnings
-    - name: Fmt
-      run: cargo fmt --all -- --check
-  test:
-    runs-on: ubuntu-latest
-    needs: check
-    steps:
-    - uses: actions/checkout@v4
-    - name: Install LLVM 21
-      run: |
-        wget https://apt.llvm.org/llvm.sh
-        chmod +x llvm.sh
-        sudo ./llvm.sh 21
-        sudo apt-get update
-        sudo apt-get install -y llvm-21 llvm-21-dev llvm-21-tools libpolly-21-dev
-    - name: Set LLVM prefix
-      run: |
-        echo "LLVM_SYS_210_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
-        echo "LLVM_SYS_211_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@master
-      with:
-        toolchain: nightly
-        components: rustfmt, clippy
-    - name: Cache cargo
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-    - name: Test
-      run: cargo test --workspace --all-features
-    - name: Bench (no plot)
-      run: cargo bench --no-run # Stub: Run benches
+    
+    - name: Build
+      run: cargo build --verbose
+    
+    - name: Run tests
+      run: cargo test --verbose
+    
+    - name: Run benchmarks
+      run: cargo bench --verbose
+    
+    - name: Check formatting
+      run: cargo fmt -- --check
+    
+    - name: Clippy lint
+      run: cargo clippy -- -D warnings
+
   security:
+    name: Security Audit
     runs-on: ubuntu-latest
-    needs: test
+    
     steps:
     - uses: actions/checkout@v4
+    
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
-        toolchain: nightly
-    - name: Audit deps
-      uses: EmbarkStudios/cargo-deny-action@v2
+        toolchain: stable
+    
+    - name: Cargo audit
+      run: |
+        cargo install cargo-audit
+        cargo audit
+    
+    - name: Cargo deny
+      run: |
+        cargo install cargo-deny
+        cargo deny check
+    
+    - name: Check for unsafe code
+      run: |
+        cargo install cargo-geiger
+        cargo geiger
+
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@master
       with:
-        command: check licenses
-        log-level: warn
-        arguments: --no-default-features
-        manifest-path: ./Cargo.toml
+        toolchain: stable
+    
+    - name: Install tarpaulin
+      run: cargo install cargo-tarpaulin
+    
+    - name: Generate coverage
+      run: cargo tarpaulin --verbose --out Lcov
+    
+    - name: Upload to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.lcov
+
+  performance:
+    name: Performance Regression
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: stable
+    
+    - name: Run benchmarks
+      run: cargo bench --verbose
+    
+    - name: Store benchmark results
+      uses: actions/upload-artifact@v4
+      with:
+        name: benchmark-results
+        path: target/criterion/
+
+  release:
+    name: Release Build
+    needs: [test, security, coverage, performance]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: stable
+    
+    - name: Build release
+      run: cargo build --release --verbose
+    
+    - name: Create release archive
+      run: |
+        mkdir -p release
+        cp target/release/zeta release/
+        tar czf zeta-${{ github.ref_name }}-linux-x86_64.tar.gz release/
+    
+    - name: Upload release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: zeta-*.tar.gz
