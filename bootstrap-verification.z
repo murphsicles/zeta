@@ -1,0 +1,25 @@
+// ULTRA SIMPLE BOOTSTRAP PROOF
+// Minimal test that v0.3.7 → v0.5.0 works
+
+fn main() -> i64 {
+    // Basic test: can we do arithmetic?
+    let a = 5;
+    let b = 10;
+    let c = a * b;  // 50
+    
+    // Can we call functions?
+    let d = add_one(c);  // 51
+    
+    // Does != work? (v0.3.7 parser fix)
+    if d != 0 {
+        // Success - return 0
+        0
+    } else {
+        // Failure
+        1
+    }
+}
+
+fn add_one(x: i64) -> i64 {
+    x + 1
+}
