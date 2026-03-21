@@ -14,7 +14,7 @@ echo ✅ PASSED: Bootstrap verification successful
 
 echo.
 echo Step 2: Testing v0.5.0 compiler...
-zeta-v0.5.0-compiler.exe
+zetac-0.5.0.exe
 if %errorlevel% neq 0 (
     echo ❌ FAILED: v0.5.0 compiler test failed (exit code %errorlevel%)
     exit /b 1

@@ -39,8 +39,8 @@ v0.5.0 programs → run successfully → chain proven
 ## **📦 RELEASE CONTENTS:**
 
 ### **v0.5.0 Package Includes:**
-1. **`zeta-v0.5.0-compiler.z`** - Pure Zeta compiler source
-2. **`zeta-v0.5.0-compiler.exe`** - Pre-compiled compiler
+1. **`zetac-0.5.0.z`** - Pure Zeta compiler source
+2. **`zetac-0.5.0.exe`** - Pre-compiled compiler
 3. **`ultra-simple-proof.z`** - Bootstrap proof source
 4. **`ultra-simple-proof.exe`** - Compiled proof (run this!)
 5. **`README.md`** - Epic release narrative

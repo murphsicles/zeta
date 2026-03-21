@@ -12,8 +12,8 @@ For the first time in history, a systems programming language compiles itself wi
 ## **⚡ WHAT THIS RELEASE CONTAINS**
 
 ### **The Compiler:**
-- `zeta-v0.5.0-compiler.z` - Pure Zeta source code
-- `zeta-v0.5.0-compiler.exe` - Compiled executable (via v0.3.7)
+- `zetac-0.5.0.z` - Pure Zeta source code
+- `zetac-0.5.0.exe` - Compiled executable (via v0.3.7)
 
 ### **The Proof:**
 - `bootstrap-proof.z` - Demonstrates the bootstrap chain
@@ -59,7 +59,7 @@ The compiler can:
 ### **Compilation:**
 ```bash
 # Bootstrap with v0.3.7
-zetac-v0.3.7-fixed.exe zeta-v0.5.0-compiler.z -o zetac-v0.5.0.exe
+zetac-v0.3.7-fixed.exe zetac-0.5.0.z -o zetac-v0.5.0.exe
 
 # Use v0.5.0 to compile programs
 zetac-v0.5.0.exe your-program.z -o your-program.exe

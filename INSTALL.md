@@ -12,8 +12,8 @@
 ```
 
 ### **What's Included:**
-- `zeta-v0.5.0-compiler.z` - Pure Zeta compiler source
-- `zeta-v0.5.0-compiler.exe` - Pre-compiled compiler
+- `zetac-0.5.0.z` - Pure Zeta compiler source
+- `zetac-0.5.0.exe` - Pre-compiled compiler
 - `ultra-simple-proof.z` - Bootstrap proof source
 - `ultra-simple-proof.exe` - Compiled proof (run this!)
 - `README.md` - Complete documentation
@@ -45,7 +45,7 @@ This simple program proves:
 ## **USING THE v0.5.0 COMPILER**
 
 ### **Current Status:**
-The v0.5.0 compiler (`zeta-v0.5.0-compiler.exe`) is a **proof-of-concept** that:
+The v0.5.0 compiler (`zetac-0.5.0.exe`) is a **proof-of-concept** that:
 - Parses a simplified Zeta program
 - Validates syntax
 - Demonstrates the compiler architecture
@@ -62,10 +62,10 @@ This compiler will be extended to:
 ### **For Compiler Developers:**
 ```bash
 # 1. Modify compiler source
-edit zeta-v0.5.0-compiler.z
+edit zetac-0.5.0.z
 
 # 2. Compile with v0.3.7
-zetac-v0.3.7-fixed.exe zeta-v0.5.0-compiler.z -o new-compiler.exe
+zetac-v0.3.7-fixed.exe zetac-0.5.0.z -o new-compiler.exe
 
 # 3. Test the new compiler
 .\new-compiler.exe

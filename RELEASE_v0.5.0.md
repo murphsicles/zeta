@@ -26,8 +26,8 @@ No human wrote this code. No human debugged these issues. No human made these ar
 ## **🚀 WHAT v0.5.0 DELIVERS**
 
 ### **The Pure Zeta Compiler:**
-- `zeta-v0.5.0-compiler.z` - Complete source in Zeta
-- `zeta-v0.5.0-compiler.exe` - Pre-compiled executable
+- `zetac-0.5.0.z` - Complete source in Zeta
+- `zetac-0.5.0.exe` - Pre-compiled executable
 - Self-contained, no external dependencies
 
 ### **The Bootstrap Proof:**
