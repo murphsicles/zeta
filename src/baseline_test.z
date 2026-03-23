@@ -1,0 +1,21 @@
+// PUBLIC BASELINE TEST - What v0.3.7 CAN compile
+// This establishes the public starting point for incremental extensions
+
+// Simple function - v0.3.7 can compile this
+fn add(x: i64, y: i64) -> i64 {
+    x + y
+}
+
+// Main function with basic operations
+fn main() -> i64 {
+    let a = 5;
+    let b = 10;
+    let result = add(a, b);
+    
+    // Basic control flow
+    if result > 0 {
+        return 0;  // Success
+    } else {
+        return 1;  // Failure
+    }
+}

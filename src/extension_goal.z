@@ -1,0 +1,21 @@
+// PUBLIC EXTENSION GOAL - What we want v0.3.7 to compile
+// This is what v0.3.7 CANNOT compile yet (generic types)
+
+// Goal 1: Simple generic type (current failure)
+fn with_generic() -> lt(Result, i64) {
+    // v0.3.7 fails on `lt(Result, i64)`
+    return 0;
+}
+
+// Goal 2: Complex function from actual bootstrap source
+fn compile_and_run_zeta(code: &str) -> lt(Result, i64), String> {
+    // This is from src/main.z - v0.3.7 fails on nested generics
+    // Current status: 4665 characters of src/main.z remain unparsed
+    // because v0.3.7 can't handle `lt(Result, i64), String>`
+    return 0;
+}
+
+// Current working baseline
+fn main() -> i64 {
+    return 42;
+}
