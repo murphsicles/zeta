@@ -1,0 +1,11 @@
+// TEST 1: Simple generic type
+// Current: FAILS (v0.3.7 can't parse)
+// Goal: Should parse successfully
+
+fn returns_generic() -> lt(Result, i64) {
+    return 0;
+}
+
+fn main() -> i64 {
+    return 42;
+}

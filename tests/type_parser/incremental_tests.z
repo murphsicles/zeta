@@ -1,0 +1,46 @@
+// INCREMENTAL TYPE PARSER TESTS
+// Test from simplest to most complex
+
+// LEVEL 0: What already works (baseline)
+fn level0_simple() -> i64 {
+    return 42;
+}
+
+fn level0_ident() -> MyType {
+    return 0;
+}
+
+// LEVEL 1: Empty parentheses (simplest extension)
+fn level1_empty_paren() -> MyType() {
+    return 0;
+}
+
+// LEVEL 2: Single argument
+fn level2_single_arg() -> MyType(Arg1) {
+    return 0;
+}
+
+// LEVEL 3: Multiple arguments
+fn level3_multi_arg() -> MyType(Arg1, Arg2) {
+    return 0;
+}
+
+// LEVEL 4: Built-in generic (lt)
+fn level4_lt_simple() -> lt(Result) {
+    return 0;
+}
+
+// LEVEL 5: Full generic with multiple args
+fn level5_lt_full() -> lt(Result, i64) {
+    return 0;
+}
+
+// LEVEL 6: Nested generic (future)
+fn level6_nested() -> lt(Result, i64), String> {
+    return 0;
+}
+
+// Main function that should always work
+fn main() -> i64 {
+    return 42;
+}

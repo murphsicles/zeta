@@ -1,0 +1,34 @@
+// TYPE ALIAS WORKAROUND FOR v0.3.7
+// Since v0.3.7 can't parse `lt(Result, i64)`, we use type aliases
+// This is a temporary workaround until we extend the parser
+
+// Basic type aliases that v0.3.7 CAN compile
+type i64 = i64;  // Base type
+
+// Generic type aliases (workaround)
+type Result = i64;  // Simplified for now
+
+// Generic type representations as aliases
+type lt_Result = i64;          // Represents `lt(Result)`
+type lt_Result_i64 = i64;      // Represents `lt(Result, i64)`
+type lt_Result_i64_String = i64; // Represents `lt(Result, i64), String>`
+
+// Usage examples that v0.3.7 CAN compile:
+fn returns_simple_generic() -> lt_Result {
+    return 42;
+}
+
+fn returns_full_generic() -> lt_Result_i64 {
+    return 42;
+}
+
+// Test function
+fn test_type_aliases() -> i64 {
+    let x = returns_simple_generic();
+    let y = returns_full_generic();
+    x + y
+}
+
+fn main() -> i64 {
+    test_type_aliases()
+}

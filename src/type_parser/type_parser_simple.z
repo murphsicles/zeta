@@ -1,0 +1,33 @@
+// SIMPLE TYPE PARSER - v0.3.7 compatible
+// Minimal implementation to test v0.3.7's capabilities
+
+// Check if a type string contains parentheses
+fn has_parentheses(type_str: &str) -> i64 {
+    // Simple check - does it contain '('?
+    // v0.3.7 doesn't have .contains() or .find()
+    // We'll implement manually
+    
+    let mut i = 0;
+    while i < type_str.len() {
+        // Get character at position i
+        // This is simplified - v0.3.7 might not have char access
+        if type_str[i] == '(' {
+            return 1; // true
+        }
+        i = i + 1;
+    }
+    
+    0 // false
+}
+
+// Main test
+fn main() -> i64 {
+    // Test cases
+    let test1 = "i64";
+    let test2 = "MyType()";
+    let test3 = "lt(Result, i64)";
+    
+    // For now, just return success
+    // Actual parsing will come later
+    0
+}
