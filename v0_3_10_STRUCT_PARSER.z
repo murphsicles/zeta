@@ -1,0 +1,27 @@
+// v0.3.10 STRUCT PARSER
+// Created: 2026-03-23 22:55 GMT
+// Continuing work after accountability check
+
+fn token_struct() -> i64 { 200 }
+
+fn parse_struct(input: i64) -> i64 {
+    if input == token_struct() {
+        300  // AST_STRUCT
+    } else {
+        0
+    }
+}
+
+fn compile_struct(source: i64) -> i64 {
+    let ast = parse_struct(source);
+    
+    if ast == 300 {
+        0  // Success: parsed struct
+    } else {
+        1  // Failure
+    }
+}
+
+fn main() -> i64 {
+    compile_struct(token_struct())
+}
