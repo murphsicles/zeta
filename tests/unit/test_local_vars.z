@@ -1,0 +1,10 @@
+// Test with local variables, not parameters
+fn test() -> i64 {
+    let a = 5;
+    let b = 3;
+    if ne(a, b) { 1 } else { 0 }
+}
+
+fn main() -> i64 {
+    test()
+}

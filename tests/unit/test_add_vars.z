@@ -1,0 +1,8 @@
+// Test addition with variables (not constants)
+fn add_test(x: i64, y: i64) -> i64 {
+    add(x, y)
+}
+
+fn main() -> i64 {
+    add_test(5, 3)  // Should return 8
+}

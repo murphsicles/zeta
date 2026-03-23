@@ -1,0 +1,6 @@
+// Test simple less than
+fn main() -> i64 {
+    let x = 1;
+    let y = 2;
+    lt(x, y)  // Should return 1 (true)
+}

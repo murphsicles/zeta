@@ -1,0 +1,345 @@
+// zeta_src/runtime/stdlib/collections/vec.z
+// Vec<T> - Dynamic array implementation for Zeta v0.5.0
+// Cache-friendly, performance-optimized design
+
+use super::super::mem;
+use super::super::ptr;
+
+/// A contiguous growable array type.
+///
+/// # Examples
+///
+/// ```
+/// let mut vec = Vec::new();
+/// vec.push(1);
+/// vec.push(2);
+/// vec.push(3);
+/// assert_eq!(vec.len(), 3);
+/// assert_eq!(vec[0], 1);
+/// ```
+pub struct Vec<T> {
+    ptr: *mut T,
+    len: usize,
+    cap: usize,
+    _marker: std::marker::PhantomData<T>,
+}
+
+impl<T> Vec<T> {
+    /// Constructs a new, empty `Vec<T>`.
+    ///
+    /// The vector will not allocate until elements are pushed onto it.
+    pub fn new() -> Self {
+        Self {
+            ptr: ptr::null_mut(),
+            len: 0,
+            cap: 0,
+            _marker: std::marker::PhantomData,
+        }
+    }
+    
+    /// Constructs a new, empty `Vec<T>` with the specified capacity.
+    ///
+    /// The vector will be able to hold exactly `capacity` elements without
+    /// reallocating. If `capacity` is 0, the vector will not allocate.
+    pub fn with_capacity(capacity: usize) -> Self {
+        let mut vec = Vec::new();
+        vec.reserve(capacity);
+        vec
+    }
+    
+    /// Returns the number of elements in the vector.
+    pub fn len(&self) -> usize {
+        self.len
+    }
+    
+    /// Returns `true` if the vector contains no elements.
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+    
+    /// Returns the number of elements the vector can hold without reallocating.
+    pub fn capacity(&self) -> usize {
+        self.cap
+    }
+    
+    /// Appends an element to the back of the vector.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the new capacity exceeds `isize::MAX` bytes.
+    pub fn push(&mut self, value: T) {
+        if self.len == self.cap {
+            self.grow();
+        }
+        
+        unsafe {
+            let end = self.ptr.add(self.len);
+            ptr::write(end, value);
+        }
+        
+        self.len += 1;
+    }
+    
+    /// Removes the last element from the vector and returns it, or `None` if empty.
+    pub fn pop(&mut self) -> Option<T> {
+        if self.len == 0 {
+            None
+        } else {
+            self.len -= 1;
+            unsafe {
+                Some(ptr::read(self.ptr.add(self.len)))
+            }
+        }
+    }
+    
+    /// Returns a reference to the element at the given index, or `None` if out of bounds.
+    pub fn get(&self, index: usize) -> Option<&T> {
+        if index < self.len {
+            unsafe {
+                Some(&*self.ptr.add(index))
+            }
+        } else {
+            None
+        }
+    }
+    
+    /// Returns a mutable reference to the element at the given index, or `None` if out of bounds.
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
+        if index < self.len {
+            unsafe {
+                Some(&mut *self.ptr.add(index))
+            }
+        } else {
+            None
+        }
+    }
+    
+    /// Reserves capacity for at least `additional` more elements.
+    ///
+    /// The collection may reserve more space to avoid frequent reallocations.
+    pub fn reserve(&mut self, additional: usize) {
+        if self.cap - self.len < additional {
+            let new_cap = self.len + additional;
+            self.grow_to(new_cap);
+        }
+    }
+    
+    /// Shrinks the capacity to fit the current length.
+    pub fn shrink_to_fit(&mut self) {
+        if self.cap > self.len {
+            self.reallocate(self.len);
+        }
+    }
+    
+    /// Clears the vector, removing all values.
+    ///
+    /// Note that this method has no effect on the allocated capacity.
+    pub fn clear(&mut self) {
+        // Drop all elements
+        unsafe {
+            ptr::drop_in_place(ptr::slice_from_raw_parts_mut(self.ptr, self.len));
+        }
+        self.len = 0;
+    }
+    
+    /// Returns an iterator over the vector's elements.
+    pub fn iter(&self) -> Iter<T> {
+        Iter {
+            ptr: self.ptr,
+            len: self.len,
+            index: 0,
+            _marker: std::marker::PhantomData,
+        }
+    }
+    
+    /// Returns a mutable iterator over the vector's elements.
+    pub fn iter_mut(&mut self) -> IterMut<T> {
+        IterMut {
+            ptr: self.ptr,
+            len: self.len,
+            index: 0,
+            _marker: std::marker::PhantomData,
+        }
+    }
+    
+    // Internal growth strategy: double capacity or use requested size
+    fn grow(&mut self) {
+        let new_cap = if self.cap == 0 {
+            1
+        } else {
+            self.cap * 2
+        };
+        self.grow_to(new_cap);
+    }
+    
+    fn grow_to(&mut self, new_cap: usize) {
+        if new_cap <= self.cap {
+            return;
+        }
+        
+        self.reallocate(new_cap);
+    }
+    
+    fn reallocate(&mut self, new_cap: usize) {
+        if new_cap == 0 {
+            if self.cap > 0 {
+                unsafe {
+                    mem::dealloc(self.ptr as *mut u8, self.layout());
+                }
+            }
+            self.ptr = ptr::null_mut();
+            self.cap = 0;
+        } else {
+            let new_layout = mem::Layout::array::<T>(new_cap)
+                .expect("capacity overflow");
+            
+            let new_ptr = if self.cap == 0 {
+                unsafe { mem::alloc(new_layout) as *mut T }
+            } else {
+                let old_layout = self.layout();
+                unsafe {
+                    mem::realloc(self.ptr as *mut u8, old_layout, new_layout.size()) as *mut T
+                }
+            };
+            
+            if new_ptr.is_null() {
+                mem::handle_alloc_error(new_layout);
+            }
+            
+            self.ptr = new_ptr;
+            self.cap = new_cap;
+        }
+    }
+    
+    fn layout(&self) -> mem::Layout {
+        mem::Layout::array::<T>(self.cap).expect("capacity overflow")
+    }
+}
+
+impl<T> Drop for Vec<T> {
+    fn drop(&mut self) {
+        self.clear();
+        if self.cap > 0 {
+            unsafe {
+                mem::dealloc(self.ptr as *mut u8, self.layout());
+            }
+        }
+    }
+}
+
+impl<T> std::ops::Index<usize> for Vec<T> {
+    type Output = T;
+    
+    fn index(&self, index: usize) -> &Self::Output {
+        self.get(index).expect("index out of bounds")
+    }
+}
+
+impl<T> std::ops::IndexMut<usize> for Vec<T> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        self.get_mut(index).expect("index out of bounds")
+    }
+}
+
+// Iterator implementations
+pub struct Iter<'a, T> {
+    ptr: *const T,
+    len: usize,
+    index: usize,
+    _marker: std::marker::PhantomData<&'a T>,
+}
+
+impl<'a, T> Iterator for Iter<'a, T> {
+    type Item = &'a T;
+    
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index < self.len {
+            let item = unsafe { &*self.ptr.add(self.index) };
+            self.index += 1;
+            Some(item)
+        } else {
+            None
+        }
+    }
+    
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.len - self.index;
+        (remaining, Some(remaining))
+    }
+}
+
+pub struct IterMut<'a, T> {
+    ptr: *mut T,
+    len: usize,
+    index: usize,
+    _marker: std::marker::PhantomData<&'a mut T>,
+}
+
+impl<'a, T> Iterator for IterMut<'a, T> {
+    type Item = &'a mut T;
+    
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index < self.len {
+            let item = unsafe { &mut *self.ptr.add(self.index) };
+            self.index += 1;
+            Some(item)
+        } else {
+            None
+        }
+    }
+    
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.len - self.index;
+        (remaining, Some(remaining))
+    }
+}
+
+// Convenience functions
+impl<T: Clone> Vec<T> {
+    /// Creates a `Vec<T>` from a slice by cloning each element.
+    pub fn from_slice(slice: &[T]) -> Self {
+        let mut vec = Vec::with_capacity(slice.len());
+        for item in slice {
+            vec.push(item.clone());
+        }
+        vec
+    }
+}
+
+impl<T: Default> Vec<T> {
+    /// Resizes the vector to `new_len`, filling with `T::default()` if needed.
+    pub fn resize_default(&mut self, new_len: usize) {
+        self.resize_with(new_len, T::default);
+    }
+}
+
+impl<T> Vec<T> {
+    /// Resizes the vector to `new_len`, using `f` to create new elements.
+    pub fn resize_with<F>(&mut self, new_len: usize, mut f: F)
+    where
+        F: FnMut() -> T,
+    {
+        if new_len > self.len {
+            self.reserve(new_len - self.len);
+            while self.len < new_len {
+                self.push(f());
+            }
+        } else {
+            self.truncate(new_len);
+        }
+    }
+    
+    /// Shortens the vector, keeping the first `len` elements.
+    pub fn truncate(&mut self, len: usize) {
+        if len < self.len {
+            let old_len = self.len;
+            self.len = len;
+            
+            // Drop truncated elements
+            unsafe {
+                let s = ptr::slice_from_raw_parts_mut(self.ptr.add(len), old_len - len);
+                ptr::drop_in_place(s);
+            }
+        }
+    }
+}

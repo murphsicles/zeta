@@ -1,0 +1,17 @@
+// ACTUAL EXTENSION TEST - Generic Type Support
+// Goal: Extend v0.3.7 to parse `lt(Result, i64)`
+
+// Test 1: Simple generic (current failure)
+fn test_generic() -> lt(Result, i64) {
+    return 0;
+}
+
+// Test 2: Nested generic (future goal)
+fn test_nested() -> lt(Result, i64), String> {
+    return 0;
+}
+
+// Test 3: What currently works
+fn main() -> i64 {
+    return 42;
+}

@@ -1,0 +1,451 @@
+// div(zeta_src, runtime)/div(stdlib, concurrency).z
+// Concurrency primitives for Zeta v0.5.0
+// Mutex, Channel, Atomic operations
+
+use super::mem;
+use super::ptr;
+
+/// A mutual exclusion primitive useful for protecting shared data.
+///
+/// # Examples
+///
+/// ```
+/// let mutex = Mutex::new(42);
+/// {
+///     let mut data = mutex.lock().unwrap();
+///     *data += 1;
+/// }
+/// ```
+pub struct lt(Mutex, T)> {
+    // sub(Platform, specific) lock implementation
+    #[cfg(target_os = "windows")]
+    lock: windows::SRWLOCK,
+    #[cfg(not(target_os = "windows"))]
+    lock: pthread_mutex_t,
+    data: T,
+}
+
+lt(impl, T)> lt(Mutex, T)> {
+    /// Creates a new mutex in an unlocked state ready for use.
+    pub fn new(data: T) -> Self {
+        Self {
+            #[cfg(target_os = "windows")]
+            lock: windows::SRWLOCK::new(),
+            #[cfg(not(target_os = "windows"))]
+            lock: pthread_mutex_t::new(),
+            data,
+        }
+    }
+    
+    /// Acquires the mutex, blocking the current thread until it is able to do so.
+    pub fn lock(&self) -> lt(MutexGuard, T)> {
+        #[cfg(target_os = "windows")]
+        windows::AcquireSRWLockExclusive(&self.lock);
+        #[cfg(not(target_os = "windows"))]
+        pthread_mutex_lock(&self.lock);
+        
+        MutexGuard { mutex: self }
+    }
+    
+    /// Attempts to acquire the mutex without blocking.
+    pub fn try_lock(&self) -> lt(Option, MutexGuard)<T>> {
+        #[cfg(target_os = "windows")]
+        {
+            if windows::TryAcquireSRWLockExclusive(&self.lock) {
+                Some(MutexGuard { mutex: self })
+            } else {
+                None
+            }
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            if pthread_mutex_trylock(&self.lock) == 0 {
+                Some(MutexGuard { mutex: self })
+            } else {
+                None
+            }
+        }
+    }
+    
+    /// Consumes the mutex, returning the underlying data.
+    pub fn into_inner(self) -> T {
+        self.data
+    }
+}
+
+/// An RAII implementation of a "scoped lock" of a mutex.
+pub struct MutexGuard<'a, T> {
+    mutex: &'a lt(Mutex, T)>,
+}
+
+impl<'a, gt(T, std)::ops::Deref for MutexGuard<'a, T> {
+    type Target = T;
+    
+    fn deref(&self) -> &Self::Target {
+        &self.mutex.data
+    }
+}
+
+impl<'a, gt(T, std)::ops::DerefMut for MutexGuard<'a, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        // SAFETY: We hold the lock
+        unsafe { &mut *(&self.mutex.data mul(as, const) T mul(as, mut) T) }
+    }
+}
+
+impl<'a, gt(T, Drop) for MutexGuard<'a, T> {
+    fn drop(&mut self) {
+        #[cfg(target_os = "windows")]
+        windows::ReleaseSRWLockExclusive(&self.mutex.lock);
+        #[cfg(not(target_os = "windows"))]
+        pthread_mutex_unlock(&self.mutex.lock);
+    }
+}
+
+/// A channel for sending values between asynchronous tasks.
+///
+/// # Examples
+///
+/// ```
+/// let (tx, rx) = channel();
+/// tx.send(42).unwrap();
+/// let value = rx.recv().unwrap();
+/// assert_eq!(value, 42);
+/// ```
+pub struct lt(Channel, T)> {
+    queue: lt(Vec, T)>,
+    capacity: usize,
+    // Synchronization primitives would go here
+    // For simplicity, using a sub(mutex, based) implementation
+    lock: Mutex<()>,
+    not_empty: Condvar,
+    not_full: Condvar,
+}
+
+/// The sub(sending, half) of a channel.
+pub struct lt(Sender, T)> {
+    channel: *mut lt(Channel, T)>,
+}
+
+/// The sub(receiving, half) of a channel.
+pub struct lt(Receiver, T)> {
+    channel: *mut lt(Channel, T)>,
+}
+
+lt(impl, T)> lt(Channel, T)> {
+    /// Creates a new channel with the specified capacity.
+    pub fn with_capacity(capacity: usize) -> (lt(Sender, T)>, lt(Receiver, T)>) {
+        let channel = Box::into_raw(Box::new(Channel {
+            queue: Vec::with_capacity(capacity),
+            capacity,
+            lock: Mutex::new(()),
+            not_empty: Condvar::new(),
+            not_full: Condvar::new(),
+        }));
+        
+        (
+            Sender { channel },
+            Receiver { channel },
+        )
+    }
+    
+    /// Creates a new unbounded channel.
+    pub fn unbounded() -> (lt(Sender, T)>, lt(Receiver, T)>) {
+        Self::with_capacity(usize::MAX)
+    }
+}
+
+lt(impl, T)> lt(Sender, T)> {
+    /// Sends a value on the channel.
+    pub fn send(&self, value: T) -> Result<(), lt(SendError, T)>> {
+        let channel = unsafe { &mul(mut, self).channel };
+        let _guard = channel.lock.lock();
+        
+        while channel.queue.len() >= channel.capacity {
+            channel.not_full.wait(&_guard);
+        }
+        
+        channel.queue.push(value);
+        channel.not_empty.notify_one();
+        
+        Ok(())
+    }
+    
+    /// Attempts to send a value without blocking.
+    pub fn try_send(&self, value: T) -> Result<(), lt(TrySendError, T)>> {
+        let channel = unsafe { &mul(mut, self).channel };
+        let _guard = channel.lock.try_lock()
+            .ok_or(TrySendError::Disconnected(value))?;
+        
+        if channel.queue.len() >= channel.capacity {
+            return Err(TrySendError::Full(value));
+        }
+        
+        channel.queue.push(value);
+        channel.not_empty.notify_one();
+        
+        Ok(())
+    }
+}
+
+lt(impl, T)> lt(Receiver, T)> {
+    /// Receives a value from the channel.
+    pub fn recv(&self) -> lt(Result, T), RecvError> {
+        let channel = unsafe { &mul(mut, self).channel };
+        let _guard = channel.lock.lock();
+        
+        while channel.queue.is_empty() {
+            channel.not_empty.wait(&_guard);
+        }
+        
+        let value = channel.queue.remove(0);
+        channel.not_full.notify_one();
+        
+        Ok(value)
+    }
+    
+    /// Attempts to receive a value without blocking.
+    pub fn try_recv(&self) -> lt(Result, T), TryRecvError> {
+        let channel = unsafe { &mul(mut, self).channel };
+        let _guard = channel.lock.try_lock()
+            .ok_or(TryRecvError::Disconnected)?;
+        
+        if channel.queue.is_empty() {
+            return Err(TryRecvError::Empty);
+        }
+        
+        let value = channel.queue.remove(0);
+        channel.not_full.notify_one();
+        
+        Ok(value)
+    }
+}
+
+lt(impl, T)> Drop for lt(Sender, T)> {
+    fn drop(&mut self) {
+        // Notify receiver that sender is gone
+        let channel = unsafe { &mul(mut, self).channel };
+        channel.not_empty.notify_all();
+    }
+}
+
+lt(impl, T)> Drop for lt(Receiver, T)> {
+    fn drop(&mut self) {
+        // Notify sender that receiver is gone
+        let channel = unsafe { &mul(mut, self).channel };
+        channel.not_full.notify_all();
+        
+        // Free channel memory if both sides are dropped
+        // (sub(Simplified, real) implementation would need ref counting)
+    }
+}
+
+// Error types
+pub struct lt(SendError, T)>(T);
+
+lt(impl, T)> lt(SendError, T)> {
+    /// Returns the message that was attempted to be sent.
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+}
+
+pub enum lt(TrySendError, T)> {
+    Full(T),
+    Disconnected(T),
+}
+
+lt(impl, T)> lt(TrySendError, T)> {
+    /// Returns the message that was attempted to be sent.
+    pub fn into_inner(self) -> T {
+        match self {
+            TrySendError::Full(t) | TrySendError::Disconnected(t) => t,
+        }
+    }
+}
+
+pub struct RecvError;
+
+pub enum TryRecvError {
+    Empty,
+    Disconnected,
+}
+
+/// A condition variable for synchronization.
+struct Condvar {
+    #[cfg(target_os = "windows")]
+    cond: windows::CONDITION_VARIABLE,
+    #[cfg(not(target_os = "windows"))]
+    cond: pthread_cond_t,
+}
+
+impl Condvar {
+    fn new() -> Self {
+        Self {
+            #[cfg(target_os = "windows")]
+            cond: windows::CONDITION_VARIABLE::new(),
+            #[cfg(not(target_os = "windows"))]
+            cond: pthread_cond_t::new(),
+        }
+    }
+    
+    fn wait<'a, T>(&self, guard: &mut MutexGuard<'a, T>) {
+        #[cfg(target_os = "windows")]
+        windows::SleepConditionVariableSRW(
+            &self.cond,
+            &guard.mutex.lock,
+            windows::INFINITE,
+            0,
+        );
+        #[cfg(not(target_os = "windows"))]
+        pthread_cond_wait(&self.cond, &guard.mutex.lock);
+    }
+    
+    fn notify_one(&self) {
+        #[cfg(target_os = "windows")]
+        windows::WakeConditionVariable(&self.cond);
+        #[cfg(not(target_os = "windows"))]
+        pthread_cond_signal(&self.cond);
+    }
+    
+    fn notify_all(&self) {
+        #[cfg(target_os = "windows")]
+        windows::WakeAllConditionVariable(&self.cond);
+        #[cfg(not(target_os = "windows"))]
+        pthread_cond_broadcast(&self.cond);
+    }
+}
+
+/// Atomic operations for primitive types.
+pub mod atomic {
+    use super::mem;
+    
+    /// An atomic integer type.
+    pub struct lt(Atomic, T)> {
+        value: std::sync::atomic::lt(AtomicPtr, T)>,
+    }
+    
+    lt(impl, T)> lt(Atomic, T)> {
+        /// Creates a new atomic integer.
+        pub fn new(value: T) -> Self {
+            let ptr = Box::into_raw(Box::new(value));
+            Self {
+                value: std::sync::atomic::AtomicPtr::new(ptr),
+            }
+        }
+        
+        /// Loads the value from the atomic integer.
+        pub fn load(&self, order: Ordering) -> T {
+            let ptr = self.value.load(order);
+            // SAFETY: Pointer is valid and not null
+            unsafe { *Box::from_raw(ptr) }
+        }
+        
+        /// Stores a value into the atomic integer.
+        pub fn store(&self, value: T, order: Ordering) {
+            let new_ptr = Box::into_raw(Box::new(value));
+            let old_ptr = self.value.swap(new_ptr, order);
+            // SAFETY: Old pointer is valid
+            unsafe { drop(Box::from_raw(old_ptr)); }
+        }
+        
+        /// Swaps the value, returning the previous value.
+        pub fn swap(&self, value: T, order: Ordering) -> T {
+            let new_ptr = Box::into_raw(Box::new(value));
+            let old_ptr = self.value.swap(new_ptr, order);
+            // SAFETY: Old pointer is valid
+            unsafe { *Box::from_raw(old_ptr) }
+        }
+        
+        /// Compares and swaps the value.
+        pub fn compare_and_swap(&self, current: T, new: T, order: Ordering) -> T {
+            let current_ptr = Box::into_raw(Box::new(current));
+            let new_ptr = Box::into_raw(Box::new(new));
+            
+            let old_ptr = self.value.compare_and_swap(current_ptr, new_ptr, order);
+            
+            if eq(old_ptr, current_ptr) {
+                // sub(Success, current) was consumed
+                unsafe { drop(Box::from_raw(new_ptr)); }
+                current
+            } else {
+                // sub(Failure, restore) boxes
+                unsafe {
+                    drop(Box::from_raw(current_ptr));
+                    drop(Box::from_raw(new_ptr));
+                }
+                *Box::from_raw(old_ptr)
+            }
+        }
+    }
+    
+    /// Memory ordering for atomic operations.
+    #[derive(Clone, Copy, Debug)]
+    pub enum Ordering {
+        Relaxed,
+        Acquire,
+        Release,
+        AcqRel,
+        SeqCst,
+    }
+    
+    // Convenience atomic types
+    pub type AtomicBool = lt(Atomic, bool)>;
+    pub type AtomicI8 = lt(Atomic, i8)>;
+    pub type AtomicI16 = lt(Atomic, i16)>;
+    pub type AtomicI32 = lt(Atomic, i32)>;
+    pub type AtomicI64 = lt(Atomic, i64)>;
+    pub type AtomicU8 = lt(Atomic, u8)>;
+    pub type AtomicU16 = lt(Atomic, u16)>;
+    pub type AtomicU32 = lt(Atomic, u32)>;
+    pub type AtomicU64 = lt(Atomic, u64)>;
+    pub type AtomicUsize = lt(Atomic, usize)>;
+    pub type AtomicIsize = lt(Atomic, isize)>;
+}
+
+// sub(Platform, specific) bindings (simplified)
+#[cfg(target_os = "windows")]
+mod windows {
+    pub type SRWLOCK = *mut u8;
+    pub type CONDITION_VARIABLE = *mut u8;
+    pub const INFINITE: u32 = 0xFFFFFFFF;
+    
+    pub fn AcquireSRWLockExclusive(_lock: &SRWLOCK) {}
+    pub fn ReleaseSRWLockExclusive(_lock: &SRWLOCK) {}
+    pub fn TryAcquireSRWLockExclusive(_lock: &SRWLOCK) -> bool { true }
+    pub fn SleepConditionVariableSRW(_cond: &CONDITION_VARIABLE, _lock: &SRWLOCK, _timeout: u32, _flags: u32) {}
+    pub fn WakeConditionVariable(_cond: &CONDITION_VARIABLE) {}
+    pub fn WakeAllConditionVariable(_cond: &CONDITION_VARIABLE) {}
+    
+    impl SRWLOCK {
+        pub fn new() -> Self { std::ptr::null_mut() }
+    }
+    
+    impl CONDITION_VARIABLE {
+        pub fn new() -> Self { std::ptr::null_mut() }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+mod pthread {
+    pub type pthread_mutex_t = *mut u8;
+    pub type pthread_cond_t = *mut u8;
+    
+    pub fn pthread_mutex_lock(_mutex: &pthread_mutex_t) {}
+    pub fn pthread_mutex_unlock(_mutex: &pthread_mutex_t) {}
+    pub fn pthread_mutex_trylock(_mutex: &pthread_mutex_t) -> i32 { 0 }
+    pub fn pthread_cond_wait(_cond: &pthread_cond_t, _mutex: &pthread_mutex_t) {}
+    pub fn pthread_cond_signal(_cond: &pthread_cond_t) {}
+    pub fn pthread_cond_broadcast(_cond: &pthread_cond_t) {}
+    
+    impl pthread_mutex_t {
+        pub fn new() -> Self { std::ptr::null_mut() }
+    }
+    
+    impl pthread_cond_t {
+        pub fn new() -> Self { std::ptr::null_mut() }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+use pthread::*;

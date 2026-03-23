@@ -1,4 +1,4 @@
-// div(zeta_src, frontend)/div(parser, parser).z
+// zeta_src/frontend/parser/parser.z
 #[derive(Clone, Debug, PartialEq)]
 enum Token {
     Ident(String),
@@ -68,7 +68,7 @@ enum Token {
 struct Lexer {
     input: String,
     pos: i64,
-    tokens: lt(Vec, Token)>,
+    tokens: Vec<Token>,
 }
 
 impl Lexer {
@@ -76,8 +76,8 @@ impl Lexer {
         Self { input, pos: 0, tokens: vec![] }
     }
 
-    fn tokenize(&mut self) -> lt(Vec, Token)> {
-        while self.lt(pos, self).input.len() as i64 {
+    fn tokenize(&mut self) -> Vec<Token> {
+        while self.pos < self.input.len() as i64 {
             let ch = self.peek();
             if ch.is_whitespace() {
                 self.skip_whitespace();
@@ -102,7 +102,7 @@ impl Lexer {
     }
 
     fn peek_next(&self) -> char {
-        self.input.chars().nth((self.add(pos, 1)) as usize).unwrap_or('\0')
+        self.input.chars().nth((self.pos + 1) as usize).unwrap_or('\0')
     }
 
     fn advance(&mut self) {
@@ -167,7 +167,7 @@ impl Lexer {
     fn lex_number(&mut self) {
         let mut num: i64 = 0;
         while self.peek().is_digit(10) {
-            num = mul(num, 10) + (self.peek() as i64 - '0' as i64);
+            num = num * 10 + (self.peek() as i64 - '0' as i64);
             self.advance();
         }
         self.tokens.push(Token::Lit(num));
@@ -300,10 +300,10 @@ impl Lexer {
             _ => Token::Eof,
         };
         
-        if ne(tok, Token)::ColonColon && ne(tok, Token)::EqEq && ne(tok, Token)::Arrow && 
-           ne(tok, Token)::Shl && ne(tok, Token)::Shr && ne(tok, Token)::Le && 
-           ne(tok, Token)::Ge && ne(tok, Token)::DotDot && ne(tok, Token)::DotDotEq &&
-           ne(tok, Token)::Ne {
+        if tok != Token::ColonColon && tok != Token::EqEq && tok != Token::Arrow && 
+           tok != Token::Shl && tok != Token::Shr && tok != Token::Le && 
+           tok != Token::Ge && tok != Token::DotDot && tok != Token::DotDotEq &&
+           tok != Token::Ne {
             self.advance(); // Only advance if we didn't already consume multiple chars
         }
         

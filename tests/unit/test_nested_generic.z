@@ -1,0 +1,15 @@
+// Test: Can v0.3.7 parse nested generic types?
+// Target: Add support for `lt(Result, i64), String>`
+
+// Current v0.3.7 probably fails on this:
+fn test1() -> lt(Result, i64), String> {
+    // v0.3.7 can't parse nested generics
+    return 0;
+}
+
+// Simpler test - does it work?
+fn main() -> i64 {
+    // First, test what DOES work
+    let x = 42;
+    return x;
+}

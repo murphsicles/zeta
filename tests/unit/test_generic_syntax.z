@@ -1,0 +1,11 @@
+// Test: Can v0.3.7 parse generic-looking syntax as type?
+// Define a type that looks like generic syntax
+type lt_Result_i64 = i64;
+
+fn test_generic_looking() -> lt_Result_i64 {
+    return 42;
+}
+
+fn main() -> i64 {
+    return test_generic_looking();
+}

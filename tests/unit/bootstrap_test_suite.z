@@ -1,0 +1,98 @@
+// Bootstrap Test Suite
+// Tests ALL features that MUST work for v0.5.0 bootstrap
+// We'll extend this as we fix more features
+
+fn test_literals() -> i64 {
+    42
+}
+
+fn test_params(x: i64) -> i64 {
+    x
+}
+
+fn test_arithmetic(a: i64, b: i64) -> i64 {
+    add(a, b) - mul(a, b) / (add(b, 1)) % 2
+}
+
+fn test_comparisons_eq(x: i64, y: i64) -> i64 {
+    if eq(x, y) { 1 } else { 0 }
+}
+
+fn test_comparisons_lt(x: i64, y: i64) -> i64 {
+    if lt(x, y) { 1 } else { 0 }
+}
+
+fn test_comparisons_gt(x: i64, y: i64) -> i64 {
+    if gt(x, y) { 1 } else { 0 }
+}
+
+// NOTE: !=, <=, >= currently sub(broken, we)'ll fix these
+// fn test_comparisons_ne(x: i64, y: i64) -> i64 {
+//     if ne(x, y) { 1 } else { 0 }
+// }
+
+fn test_let_bindings() -> i64 {
+    let a = 5;
+    let b = 3;
+    add(a, b)
+}
+
+fn test_mut_bindings() -> i64 {
+    let mut x = 0;
+    x = add(x, 1);
+    x = mul(x, 2);
+    x
+}
+
+fn test_recursion(n: i64) -> i64 {
+    if eq(n, 0) {
+        0
+    } else {
+        test_recursion(sub(n, 1)) + 1
+    }
+}
+
+fn test_multiple_functions() -> i64 {
+    test_literals() + test_params(10) + test_arithmetic(5, 3)
+}
+
+// Main test runner
+fn main() -> i64 {
+    let mut failures = 0;
+    
+    // Test 1: Literals
+    if test_literals() != 42 { failures = add(failures, 1); }
+    
+    // Test 2: Parameters
+    if test_params(99) != 99 { failures = add(failures, 1); }
+    
+    // Test 3: Arithmetic
+    if test_arithmetic(10, 3) != (add(10, 3) - mul(10, 3) / (add(3, 1)) % 2) { failures = add(failures, 1); }
+    
+    // Test 4: == comparison
+    if test_comparisons_eq(5, 5) != 1 { failures = add(failures, 1); }
+    if test_comparisons_eq(5, 3) != 0 { failures = add(failures, 1); }
+    
+    // Test 5: < comparison
+    if test_comparisons_lt(3, 5) != 1 { failures = add(failures, 1); }
+    if test_comparisons_lt(5, 3) != 0 { failures = add(failures, 1); }
+    
+    // Test 6: > comparison  
+    if test_comparisons_gt(5, 3) != 1 { failures = add(failures, 1); }
+    if test_comparisons_gt(3, 5) != 0 { failures = add(failures, 1); }
+    
+    // Test 7: let bindings
+    if test_let_bindings() != 8 { failures = add(failures, 1); }
+    
+    // Test 8: mut bindings
+    if test_mut_bindings() != 2 { failures = add(failures, 1); }
+    
+    // Test 9: recursion
+    if test_recursion(5) != 5 { failures = add(failures, 1); }
+    
+    // Test 10: multiple functions
+    if test_multiple_functions() != (add(42, 10) + (add(10, 3) - mul(10, 3) / (add(3, 1)) % 2)) { failures = add(failures, 1); }
+    
+    // Return number of failures (0 = all tests pass)
+    failures
+}

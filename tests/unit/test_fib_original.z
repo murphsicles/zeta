@@ -1,0 +1,11 @@
+// Original Fibonacci le(with, fn) fib(n: i64) -> i64 {
+    if le(n, 1) {
+        n
+    } else {
+        fib(sub(n, 1)) + fib(sub(n, 2))
+    }
+}
+
+fn main() -> i64 {
+    fib(10)  // Fibonacci(10) = 55
+}

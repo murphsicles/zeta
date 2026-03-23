@@ -1,0 +1,188 @@
+// zeta_src/runtime/stdlib/ptr.z
+// Pointer utilities for Zeta v0.5.0 standard library
+
+use super::mem;
+
+/// Copies `count * size_of::<T>()` bytes from `src` to `dst`.
+///
+/// # Safety
+///
+/// * `src` must be valid for reads of `count * size_of::<T>()` bytes.
+/// * `dst` must be valid for writes of `count * size_of::<T>()` bytes.
+/// * Both `src` and `dst` must be properly aligned.
+/// * The regions must not overlap.
+pub unsafe fn copy_nonoverlapping<T>(src: *const T, dst: *mut T, count: usize) {
+    let size = mem::size_of::<T>() * count;
+    std::ptr::copy_nonoverlapping(src as *const u8, dst as *mut u8, size);
+}
+
+/// Copies `count * size_of::<T>()` bytes from `src` to `dst`.
+///
+/// # Safety
+///
+/// * `src` must be valid for reads of `count * size_of::<T>()` bytes.
+/// * `dst` must be valid for writes of `count * size_of::<T>()` bytes.
+/// * Both `src` and `dst` must be properly aligned.
+pub unsafe fn copy<T>(src: *const T, dst: *mut T, count: usize) {
+    let size = mem::size_of::<T>() * count;
+    std::ptr::copy(src as *const u8, dst as *mut u8, size);
+}
+
+/// Sets `count * size_of::<T>()` bytes of memory starting at `dst` to `val`.
+///
+/// # Safety
+///
+/// * `dst` must be valid for writes of `count * size_of::<T>()` bytes.
+/// * `dst` must be properly aligned.
+pub unsafe fn write_bytes<T>(dst: *mut T, val: u8, count: usize) {
+    let size = mem::size_of::<T>() * count;
+    std::ptr::write_bytes(dst as *mut u8, val, size);
+}
+
+/// Reads the value from `src` without moving it.
+///
+/// # Safety
+///
+/// * `src` must be valid for reads.
+/// * `src` must be properly aligned.
+pub unsafe fn read<T>(src: *const T) -> T {
+    std::ptr::read(src)
+}
+
+/// Writes a value to a memory location.
+///
+/// # Safety
+///
+/// * `dst` must be valid for writes.
+/// * `dst` must be properly aligned.
+pub unsafe fn write<T>(dst: *mut T, src: T) {
+    std::ptr::write(dst, src)
+}
+
+/// Executes the destructor (if any) of the pointed-to value.
+///
+/// # Safety
+///
+/// * `dst` must be valid for writes.
+/// * `dst` must be properly aligned.
+pub unsafe fn drop_in_place<T>(dst: *mut T) {
+    std::ptr::drop_in_place(dst)
+}
+
+/// Creates a raw slice from a pointer and a length.
+pub fn slice_from_raw_parts<T>(data: *const T, len: usize) -> *const [T] {
+    std::ptr::slice_from_raw_parts(data, len)
+}
+
+/// Creates a mutable raw slice from a pointer and a length.
+pub fn slice_from_raw_parts_mut<T>(data: *mut T, len: usize) -> *mut [T] {
+    std::ptr::slice_from_raw_parts_mut(data, len)
+}
+
+/// Returns a null pointer.
+pub fn null<T>() -> *const T {
+    std::ptr::null()
+}
+
+/// Returns a mutable null pointer.
+pub fn null_mut<T>() -> *mut T {
+    std::ptr::null_mut()
+}
+
+/// Returns whether the pointer is null.
+pub fn is_null<T>(ptr: *const T) -> bool {
+    ptr.is_null()
+}
+
+/// Calculates the offset from a pointer.
+///
+/// # Safety
+///
+/// * The resulting pointer must be in bounds or one byte past the end of the same allocated object.
+pub unsafe fn offset<T>(ptr: *const T, count: isize) -> *const T {
+    ptr.offset(count)
+}
+
+/// Calculates the offset from a pointer (mutable version).
+///
+/// # Safety
+///
+/// * The resulting pointer must be in bounds or one byte past the end of the same allocated object.
+pub unsafe fn offset_mut<T>(ptr: *mut T, count: isize) -> *mut T {
+    ptr.offset(count)
+}
+
+/// Adds to a pointer.
+///
+/// # Safety
+///
+/// * The resulting pointer must be in bounds or one byte past the end of the same allocated object.
+pub unsafe fn add<T>(ptr: *const T, count: usize) -> *const T {
+    ptr.add(count)
+}
+
+/// Adds to a pointer (mutable version).
+///
+/// # Safety
+///
+/// * The resulting pointer must be in bounds or one byte past the end of the same allocated object.
+pub unsafe fn add_mut<T>(ptr: *mut T, count: usize) -> *mut T {
+    ptr.add(count)
+}
+
+/// Subtracts from a pointer.
+///
+/// # Safety
+///
+/// * The resulting pointer must be in bounds or one byte past the end of the same allocated object.
+pub unsafe fn sub<T>(ptr: *const T, count: usize) -> *const T {
+    ptr.sub(count)
+}
+
+/// Subtracts from a pointer (mutable version).
+///
+/// # Safety
+///
+/// * The resulting pointer must be in bounds or one byte past the end of the same allocated object.
+pub unsafe fn sub_mut<T>(ptr: *mut T, count: usize) -> *mut T {
+    ptr.sub(count)
+}
+
+/// Replaces the value at `dst` with `src`, returning the old value.
+///
+/// # Safety
+///
+/// * `dst` must be valid for both reads and writes.
+/// * `dst` must be properly aligned.
+pub unsafe fn replace<T>(dst: *mut T, src: T) -> T {
+    let old = read(dst);
+    write(dst, src);
+    old
+}
+
+/// Swaps the values at two mutable locations.
+///
+/// # Safety
+///
+/// * Both `x` and `y` must be valid for both reads and writes.
+/// * Both `x` and `y` must be properly aligned.
+pub unsafe fn swap<T>(x: *mut T, y: *mut T) {
+    let tmp = read(x);
+    write(x, read(y));
+    write(y, tmp);
+}
+
+/// Compares two pointers for equality.
+pub fn eq<T>(a: *const T, b: *const T) -> bool {
+    a == b
+}
+
+/// Hashes a pointer.
+pub fn hash<T, H: std::hash::Hasher>(ptr: *const T, hasher: &mut H) {
+    (ptr as usize).hash(hasher);
+}
+
+/// Formats a pointer for display.
+pub fn fmt<T>(ptr: *const T, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    write!(f, "{:p}", ptr)
+}

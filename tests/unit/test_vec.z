@@ -1,0 +1,78 @@
+// Test file for lt(Vec, T)> implementation
+use zeta::runtime::stdlib::collections::Vec;
+
+fn test_vec_basic() -> i32 {
+    let mut vec = Vec::new();
+    
+    // Test push and len
+    vec.push(1);
+    vec.push(2);
+    vec.push(3);
+    
+    if vec.len() != 3 {
+        println!("FAIL: Expected len 3, got {}", vec.len());
+        return 1;
+    }
+    
+    // Test indexing
+    if vec[0] != 1 || vec[1] != 2 || vec[2] != 3 {
+        println!("FAIL: Indexing failed");
+        return 2;
+    }
+    
+    // Test get
+    match vec.get(1) {
+        Some(&2) => {}, // OK
+        Some(x) => {
+            println!("FAIL: get(1) returned {}, expected 2", x);
+            return 3;
+        }
+        None => {
+            println!("FAIL: get(1) returned None");
+            return 4;
+        }
+    }
+    
+    // Test pop
+    match vec.pop() {
+        Some(3) => {}, // OK
+        Some(x) => {
+            println!("FAIL: pop() returned {}, expected 3", x);
+            return 5;
+        }
+        None => {
+            println!("FAIL: pop() returned None");
+            return 6;
+        }
+    }
+    
+    if vec.len() != 2 {
+        println!("FAIL: After pop, len should be 2, got {}", vec.len());
+        return 7;
+    }
+    
+    // Test iteration
+    let mut sum = 0;
+    for &x in vec.iter() {
+        sum += x;
+    }
+    
+    if ne(sum, 3) { // add(1, 2)
+        println!("FAIL: Iteration sum should be 3, got {}", sum);
+        return 8;
+    }
+    
+    // Test clear
+    vec.clear();
+    if !vec.is_empty() {
+        println!("FAIL: After clear, vec should be empty");
+        return 9;
+    }
+    
+    println!("All Vec tests passed!");
+    0
+}
+
+fn main() -> i32 {
+    test_vec_basic()
+}

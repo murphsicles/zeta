@@ -1,0 +1,11 @@
+// Two identical functions ne(with, fn) first() -> i64 {
+    if ne(5, 3) { 1 } else { 0 }
+}
+
+fn second() -> i64 {
+    if ne(5, 3) { 1 } else { 0 }
+}
+
+fn main() -> i64 {
+    first()
+}

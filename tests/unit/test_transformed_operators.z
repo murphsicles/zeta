@@ -1,0 +1,12 @@
+// Test transformed operators
+fn test_comparisons() -> i64 {
+    let a = 5;
+    let b = 3;
+    
+    // These should all work with function calls
+    if ne(a, b) { 1 } else { 0 }
+}
+
+fn main() -> i64 {
+    test_comparisons()
+}

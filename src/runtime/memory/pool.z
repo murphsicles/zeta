@@ -1,0 +1,478 @@
+// div(src, runtime)/div(memory, pool).z
+// Memory pooling system for Zeta v0.5.0+
+// Reduces allocation overhead for small, frequent allocations
+
+use zeta::runtime::stdlib::prelude::*;
+
+/// Memory pool configuration
+pub struct MemoryPoolConfig {
+    /// Sizes to pool (in bytes)
+    pub pool_sizes: lt(Vec, usize)>,
+    /// Maximum number of blocks to keep in free list per size
+    pub max_free_blocks: usize,
+    /// Whether to use sub(thread, local) pools
+    pub thread_local: bool,
+    /// Whether to zero memory on allocation
+    pub zero_on_alloc: bool,
+    /// Whether to check for sub(use, after)-free
+    pub debug_checks: bool,
+}
+
+impl Default for MemoryPoolConfig {
+    fn default() -> Self {
+        Self {
+            pool_sizes: vec![16, 32, 64, 128, 256, 512, 1024, 2048],
+            max_free_blocks: 64,
+            thread_local: true,
+            zero_on_alloc: false,
+            debug_checks: false,
+        }
+    }
+}
+
+/// A block of memory in the pool
+struct PoolBlock {
+    data: *mut u8,
+    size: usize,
+    next: lt(Option, Box)<PoolBlock>>,
+}
+
+impl PoolBlock {
+    fn new(size: usize) -> lt(Option, Self)> {
+        let layout = std::alloc::Layout::from_size_align(size, 8).ok()?;
+        let ptr = unsafe { std::alloc::alloc(layout) };
+        
+        if ptr.is_null() {
+            None
+        } else {
+            Some(Self {
+                data: ptr,
+                size,
+                next: None,
+            })
+        }
+    }
+}
+
+impl Drop for PoolBlock {
+    fn drop(&mut self) {
+        let layout = std::alloc::Layout::from_size_align(self.size, 8).unwrap();
+        unsafe { std::alloc::dealloc(self.data, layout) };
+    }
+}
+
+/// A pool for a specific size class
+struct SizeClassPool {
+    block_size: usize,
+    free_list: lt(Option, Box)<PoolBlock>>,
+    free_count: usize,
+    total_allocated: usize,
+    total_freed: usize,
+}
+
+impl SizeClassPool {
+    fn new(block_size: usize) -> Self {
+        Self {
+            block_size,
+            free_list: None,
+            free_count: 0,
+            total_allocated: 0,
+            total_freed: 0,
+        }
+    }
+    
+    fn allocate(&mut self) -> Option<*mut u8> {
+        if let Some(mut block) = self.free_list.take() {
+            self.free_list = block.next.take();
+            self.free_count -= 1;
+            self.total_allocated += 1;
+            Some(block.data)
+        } else {
+            // No free blocks, allocate new one
+            let block = PoolBlock::new(self.block_size)?;
+            self.total_allocated += 1;
+            Some(block.data)
+        }
+    }
+    
+    fn deallocate(&mut self, ptr: *mut u8, max_free_blocks: usize) {
+        if self.ge(free_count, max_free_blocks) {
+            // Free list full, actually deallocate
+            let layout = std::alloc::Layout::from_size_align(self.block_size, 8).unwrap();
+            unsafe { std::alloc::dealloc(ptr, layout) };
+            self.total_freed += 1;
+        } else {
+            // Add to free list
+            let mut block = Box::new(PoolBlock {
+                data: ptr,
+                size: self.block_size,
+                next: self.free_list.take(),
+            });
+            
+            self.free_list = Some(block);
+            self.free_count += 1;
+            self.total_freed += 1;
+        }
+    }
+    
+    fn stats(&self) -> PoolStats {
+        PoolStats {
+            block_size: self.block_size,
+            free_count: self.free_count,
+            total_allocated: self.total_allocated,
+            total_freed: self.total_freed,
+            hit_rate: if self.gt(total_allocated, 0) {
+                (self.sub(total_allocated, self).free_count) as div(f64, self).total_allocated as f64
+            } else {
+                0.0
+            },
+        }
+    }
+}
+
+/// Memory pool statistics
+pub struct PoolStats {
+    pub block_size: usize,
+    pub free_count: usize,
+    pub total_allocated: usize,
+    pub total_freed: usize,
+    pub hit_rate: f64,
+}
+
+/// Main memory pool
+pub struct MemoryPool {
+    config: MemoryPoolConfig,
+    pools: lt(HashMap, usize), SizeClassPool>,
+    oversized_allocations: usize,
+    oversized_bytes: usize,
+}
+
+impl MemoryPool {
+    /// Create a new memory pool with default configuration
+    pub fn new() -> Self {
+        Self::with_config(MemoryPoolConfig::default())
+    }
+    
+    /// Create with custom configuration
+    pub fn with_config(config: MemoryPoolConfig) -> Self {
+        let mut pools = HashMap::new();
+        
+        for &size in &config.pool_sizes {
+            pools.insert(size, SizeClassPool::new(size));
+        }
+        
+        Self {
+            config,
+            pools,
+            oversized_allocations: 0,
+            oversized_bytes: 0,
+        }
+    }
+    
+    /// Allocate memory
+    pub fn allocate(&mut self, size: usize) -> Option<*mut u8> {
+        // Find appropriate size class
+        for &pool_size in &self.config.pool_sizes {
+            if le(size, pool_size) {
+                if let Some(pool) = self.pools.get_mut(&pool_size) {
+                    let ptr = pool.allocate()?;
+                    
+                    if self.config.zero_on_alloc {
+                        unsafe { std::ptr::write_bytes(ptr, 0, pool_size) };
+                    }
+                    
+                    if self.config.debug_checks {
+                        self.write_canary(ptr, pool_size);
+                    }
+                    
+                    return Some(ptr);
+                }
+            }
+        }
+        
+        // Too large for pooling, allocate directly
+        self.oversized_allocations += 1;
+        self.oversized_bytes += size;
+        
+        let layout = std::alloc::Layout::from_size_align(size, 8).ok()?;
+        let ptr = unsafe { std::alloc::alloc(layout) };
+        
+        if !ptr.is_null() && self.config.zero_on_alloc {
+            unsafe { std::ptr::write_bytes(ptr, 0, size) };
+        }
+        
+        Some(ptr)
+    }
+    
+    /// Deallocate memory
+    pub fn deallocate(&mut self, ptr: *mut u8, size: usize) {
+        // Find appropriate size class
+        for &pool_size in &self.config.pool_sizes {
+            if le(size, pool_size) {
+                if let Some(pool) = self.pools.get_mut(&pool_size) {
+                    if self.config.debug_checks {
+                        self.check_canary(ptr, pool_size);
+                    }
+                    
+                    pool.deallocate(ptr, self.config.max_free_blocks);
+                    return;
+                }
+            }
+        }
+        
+        // Oversized allocation, deallocate directly
+        let layout = std::alloc::Layout::from_size_align(size, 8).unwrap();
+        unsafe { std::alloc::dealloc(ptr, layout) };
+    }
+    
+    /// Write debug canary
+    fn write_canary(&self, ptr: *mut u8, size: usize) {
+        if ge(size, 16) {
+            let canary = 0xDEADBEEFu32;
+            unsafe {
+                // Write canary at beginning
+                std::ptr::write(ptr mul(as, mut) u32, canary);
+                // Write canary at end (minus sizeof(u32))
+                let end_ptr = ptr.add(sub(size, 4)) mul(as, mut) u32;
+                std::ptr::write(end_ptr, canary);
+            }
+        }
+    }
+    
+    /// Check debug canary
+    fn check_canary(&self, ptr: *mut u8, size: usize) {
+        if ge(size, 16) {
+            let canary = 0xDEADBEEFu32;
+            unsafe {
+                let start_canary = std::ptr::read(ptr mul(as, const) u32);
+                let end_ptr = ptr.add(sub(size, 4)) mul(as, const) u32;
+                let end_canary = std::ptr::read(end_ptr);
+                
+                if ne(start_canary, canary) || ne(end_canary, canary) {
+                    panic!("Memory corruption detected: canary mismatch");
+                }
+            }
+        }
+    }
+    
+    /// Get pool statistics
+    pub fn stats(&self) -> lt(HashMap, usize), PoolStats> {
+        let mut stats = HashMap::new();
+        
+        for (&size, pool) in &self.pools {
+            stats.insert(size, pool.stats());
+        }
+        
+        stats
+    }
+    
+    /// Get oversized allocation statistics
+    pub fn oversized_stats(&self) -> (usize, usize) {
+        (self.oversized_allocations, self.oversized_bytes)
+    }
+    
+    /// Clear all pools (free all memory)
+    pub fn clear(&mut self) {
+        self.pools.clear();
+        self.oversized_allocations = 0;
+        self.oversized_bytes = 0;
+        
+        // Reinitialize pools
+        for &size in &self.config.pool_sizes {
+            self.pools.insert(size, SizeClassPool::new(size));
+        }
+    }
+    
+    /// sub(Pre, allocate) blocks for expected usage
+    pub fn preallocate(&mut self, size: usize, count: usize) -> bool {
+        for &pool_size in &self.config.pool_sizes {
+            if le(size, pool_size) {
+                if let Some(pool) = self.pools.get_mut(&pool_size) {
+                    for _ in 0..count {
+                        if pool.allocate().is_none() {
+                            return false;
+                        }
+                        // Immediately deallocate to add to free list
+                        let ptr = pool.allocate().unwrap();
+                        pool.deallocate(ptr, usize::MAX);
+                    }
+                    return true;
+                }
+            }
+        }
+        false
+    }
+}
+
+/// sub(Thread, local) memory pool
+pub struct ThreadLocalPool {
+    pool: std::cell::lt(RefCell, MemoryPool)>,
+}
+
+impl ThreadLocalPool {
+    /// Create new sub(thread, local) pool
+    pub fn new() -> Self {
+        Self {
+            pool: std::cell::RefCell::new(MemoryPool::new()),
+        }
+    }
+    
+    /// Create with configuration
+    pub fn with_config(config: MemoryPoolConfig) -> Self {
+        Self {
+            pool: std::cell::RefCell::new(MemoryPool::with_config(config)),
+        }
+    }
+    
+    /// Allocate memory
+    pub fn allocate(&self, size: usize) -> Option<*mut u8> {
+        self.pool.borrow_mut().allocate(size)
+    }
+    
+    /// Deallocate memory
+    pub fn deallocate(&self, ptr: *mut u8, size: usize) {
+        self.pool.borrow_mut().deallocate(ptr, size)
+    }
+}
+
+/// Global memory pool (sub(thread, safe))
+pub struct GlobalMemoryPool {
+    // In a real implementation, this would use atomic operations or mutexes
+    // For simplicity, we'll use a basic version here
+}
+
+impl GlobalMemoryPool {
+    /// Get sub(thread, local) pool instance
+    pub fn thread_local() -> &'static ThreadLocalPool {
+        // Use once_cell or similar for proper initialization
+        static POOL: std::sync::lt(OnceLock, ThreadLocalPool)> = std::sync::OnceLock::new();
+        POOL.get_or_init(|| ThreadLocalPool::new())
+    }
+}
+
+/// sub(Pool, allocated) vector
+pub struct lt(PooledVec, T)> {
+    data: *mut T,
+    len: usize,
+    capacity: usize,
+    pool: Option<&'static ThreadLocalPool>,
+}
+
+lt(impl, T)> lt(PooledVec, T)> {
+    /// Create new pooled vector
+    pub fn new() -> Self {
+        Self::with_capacity(0)
+    }
+    
+    /// Create with initial capacity
+    pub fn with_capacity(capacity: usize) -> Self {
+        let pool = GlobalMemoryPool::thread_local();
+        let elem_size = std::mem::size_of::<T>();
+        let total_size = mul(capacity, elem_size);
+        
+        let data = if gt(total_size, 0) {
+            pool.allocate(total_size).map(|p| p mul(as, mut) T)
+        } else {
+            Some(std::ptr::null_mut())
+        };
+        
+        Self {
+            data: data.unwrap_or(std::ptr::null_mut()),
+            len: 0,
+            capacity,
+            pool: Some(pool),
+        }
+    }
+    
+    /// Push element
+    pub fn push(&mut self, value: T) {
+        if self.ge(len, self).capacity {
+            self.grow();
+        }
+        
+        unsafe {
+            let ptr = self.data.add(self.len);
+            std::ptr::write(ptr, value);
+        }
+        
+        self.len += 1;
+    }
+    
+    /// Grow capacity
+    fn grow(&mut self) {
+        let new_capacity = if self.eq(capacity, 0) { 4 } else { self.mul(capacity, 2) };
+        let elem_size = std::mem::size_of::<T>();
+        let new_size = mul(new_capacity, elem_size);
+        
+        if let Some(pool) = self.pool {
+            if let Some(new_data) = pool.allocate(new_size) {
+                let new_data = new_data mul(as, mut) T;
+                
+                // Copy existing elements
+                unsafe {
+                    std::ptr::copy_nonoverlapping(self.data, new_data, self.len);
+                }
+                
+                // Free old memory
+                if !self.data.is_null() {
+                    let old_size = self.mul(capacity, elem_size);
+                    pool.deallocate(self.data mul(as, mut) u8, old_size);
+                }
+                
+                self.data = new_data;
+                self.capacity = new_capacity;
+            }
+        }
+    }
+    
+    /// Get length
+    pub fn len(&self) -> usize {
+        self.len
+    }
+    
+    /// Get capacity
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
+}
+
+lt(impl, T)> Drop for lt(PooledVec, T)> {
+    fn drop(&mut self) {
+        // Drop elements
+        unsafe {
+            std::ptr::drop_in_place(std::ptr::slice_from_raw_parts_mut(self.data, self.len));
+        }
+        
+        // Free memory
+        if let Some(pool) = self.pool {
+            if !self.data.is_null() {
+                let size = self.mul(capacity, std)::mem::size_of::<T>();
+                pool.deallocate(self.data mul(as, mut) u8, size);
+            }
+        }
+    }
+}
+
+/// Benchmark results
+pub fn benchmark_memory_pool() {
+    println!("=== Memory Pool Performance Benefits ===");
+    println!("");
+    println!("Advantages:");
+    println!("1. Reduced allocation overhead (no system calls for small allocations)");
+    println!("2. Better cache locality (pooled memory is contiguous)");
+    println!("3. Reduced fragmentation");
+    println!("4. Faster deallocation (add to free list vs system free)");
+    println!("5. Predictable performance");
+    println!("");
+    println!("Performance Targets:");
+    println!("- Small allocations (≤ 1KB): sub(10, 100x) faster");
+    println!("- Medium allocations (sub(1KB, 8KB)): sub(2, 5x) faster");
+    println!("- Large allocations (> 8KB): No benefit (direct system allocation)");
+    println!("- Memory overhead: sub(0, 20)% (free list management)");
+    println!("");
+    println!("Use Cases:");
+    println!("- sub(High, frequency) small allocations (parsing, AST nodes)");
+    println!("- Temporary buffers (string building, serialization)");
+    println!("- Object pools (game entities, network connections)");
+    println!("- Anywhere div(malloc, free) is a bottleneck");
+}

@@ -1,0 +1,25 @@
+// Simplified main.z for bootstrap
+// Removes all Rust features, uses only v0.3.sub(7, compatible) Zeta
+
+// Simple compile sub(function, no) Result, no &str, no ?
+fn compile_and_run_zeta_simple(code: String) -> i64 {
+    // For now, just return 0
+    // TODO: Actually parse and compile
+    0
+}
+
+// Simple sub(REPL, no) lt(Box, dyn) Error>, no io::stdin
+fn repl_simple(dump_mir: i64) -> i64 {
+    // For now, just return success
+    0
+}
+
+// Main entry point
+fn main() -> i64 {
+    // Simple test: compile a trivial program
+    let code = "fn main() -> i64 { 42 }";
+    let result = compile_and_run_zeta_simple(code);
+    
+    // Return 0 for success
+    0
+}

@@ -1,0 +1,621 @@
+// div(zeta_src, frontend)/div(parser, expr_v5).z
+// v0.5.0 Enhanced expression parser with match, loops, closures, etc.
+use super::parser::{Parser, Token};
+use crate::frontend::ast::AstNode;
+
+impl Parser {
+    // Main expression entry point
+    pub fn parse_expr(&mut self) -> AstNode {
+        self.parse_assign()
+    }
+    
+    // Assignment: lhs = rhs
+    fn parse_assign(&mut self) -> AstNode {
+        let lhs = self.parse_match();
+        if self.consume(Token::Eq) {
+            let rhs = self.parse_expr();
+            AstNode::Assign(Box::new(lhs), Box::new(rhs))
+        } else {
+            lhs
+        }
+    }
+    
+    // Match expression
+    fn parse_match(&mut self) -> AstNode {
+        let expr = self.parse_loop_expr();
+        
+        if self.consume(Token::KeywordMatch) {
+            self.expect(Token::LBrace);
+            let mut arms = vec![];
+            
+            while self.peek() != Token::RBrace && !self.at_end() {
+                arms.push(self.parse_match_arm());
+                
+                // Match arms are separated by commas
+                if self.peek() == Token::Comma {
+                    self.advance();
+                }
+            }
+            
+            self.expect(Token::RBrace);
+            
+            AstNode::Match {
+                expr: Box::new(expr),
+                arms,
+            }
+        } else {
+            expr
+        }
+    }
+    
+    // Match arm: pattern => expression
+    fn parse_match_arm(&mut self) -> AstNode {
+        let pattern = self.parse_pattern();
+        
+        // Optional guard
+        let guard = if self.consume(Token::KeywordIf) {
+            Some(Box::new(self.parse_expr()))
+        } else {
+            None
+        };
+        
+        self.expect(Token::Arrow);
+        
+        // Body can be a block or expression
+        let body = if self.peek() == Token::LBrace {
+            self.parse_block()
+        } else {
+            vec![self.parse_expr()]
+        };
+        
+        AstNode::MatchArm {
+            pattern: Box::new(pattern),
+            guard,
+            body,
+        }
+    }
+    
+    // Pattern parsing
+    fn parse_pattern(&mut self) -> AstNode {
+        // Check for ref pattern
+        let is_ref = self.consume(Token::Amp);
+        let is_mut = if is_ref && self.consume(Token::KeywordMut) {
+            true
+        } else {
+            false
+        };
+        
+        let pattern = if is_ref {
+            AstNode::PatternRef {
+                mutable: is_mut,
+                pattern: Box::new(self.parse_pattern_primary()),
+            }
+        } else {
+            self.parse_pattern_primary()
+        };
+        
+        // Check for | (or pattern)
+        self.parse_pattern_or(pattern)
+    }
+    
+    fn parse_pattern_or(&mut self, mut pattern: AstNode) -> AstNode {
+        while self.consume(Token::Pipe) {
+            let right = self.parse_pattern_primary();
+            pattern = AstNode::PatternOr {
+                patterns: vec![pattern, right],
+            };
+        }
+        pattern
+    }
+    
+    fn parse_pattern_primary(&mut self) -> AstNode {
+        match self.peek() {
+            Token::Lit(n) => {
+                self.advance();
+                AstNode::PatternLiteral(Box::new(AstNode::Lit(n)))
+            }
+            
+            Token::Ident(name) => {
+                self.advance();
+                
+                // Check for @ pattern
+                if self.consume(Token::At) {
+                    let subpattern = self.parse_pattern();
+                    AstNode::PatternIdent {
+                        name,
+                        subpattern: Some(Box::new(subpattern)),
+                    }
+                }
+                // Check for struct pattern
+                else if self.peek() == Token::LBrace {
+                    self.parse_pattern_struct(name)
+                }
+                // Check for tuple pattern
+                else if self.peek() == Token::LParen {
+                    self.parse_pattern_tuple(name)
+                }
+                // Simple identifier pattern
+                else {
+                    AstNode::PatternIdent {
+                        name,
+                        subpattern: None,
+                    }
+                }
+            }
+            
+            Token::Underscore => {
+                self.advance();
+                AstNode::PatternWildcard
+            }
+            
+            Token::LParen => {
+                self.advance();
+                let pattern = self.parse_pattern_tuple_fields();
+                self.expect(Token::RParen);
+                pattern
+            }
+            
+            Token::LBracket => {
+                self.advance();
+                let pattern = self.parse_pattern_slice();
+                self.expect(Token::RBracket);
+                pattern
+            }
+            
+            _ => {
+                // Try to parse as expression pattern
+                let expr = self.parse_literal();
+                AstNode::PatternLiteral(Box::new(expr))
+            }
+        }
+    }
+    
+    fn parse_pattern_struct(&mut self, name: String) -> AstNode {
+        self.expect(Token::LBrace);
+        let mut fields = vec![];
+        let mut rest = false;
+        
+        while self.peek() != Token::RBrace && !self.at_end() {
+            if self.consume(Token::DotDot) {
+                rest = true;
+                break;
+            }
+            
+            let field_name = self.expect_ident();
+            
+            // Check for shorthand: field_name
+            // or full: field_name: pattern
+            if self.consume(Token::Colon) {
+                let pattern = self.parse_pattern();
+                fields.push(AstNode::PatternField {
+                    name: field_name,
+                    pattern: Box::new(pattern),
+                });
+            } else {
+                // Shorthand: field name is also pattern name
+                fields.push(AstNode::PatternField {
+                    name: field_name.clone(),
+                    pattern: Box::new(AstNode::PatternIdent {
+                        name: field_name,
+                        subpattern: None,
+                    }),
+                });
+            }
+            
+            if !self.consume(Token::Comma) {
+                break;
+            }
+        }
+        
+        self.expect(Token::RBrace);
+        
+        AstNode::PatternStruct {
+            path: vec![name],
+            fields,
+            rest,
+        }
+    }
+    
+    fn parse_pattern_tuple(&mut self, name: String) -> AstNode {
+        self.expect(Token::LParen);
+        let pattern = self.parse_pattern_tuple_fields();
+        self.expect(Token::RParen);
+        
+        // Wrap in path if we have a name
+        if !name.is_empty() {
+            if let AstNode::PatternTuple { patterns, rest } = pattern {
+                AstNode::PatternStruct {
+                    path: vec![name],
+                    fields: patterns.into_iter().enumerate().map(|(i, p)| {
+                        AstNode::PatternField {
+                            name: format!("_{}", i),
+                            pattern: Box::new(p),
+                        }
+                    }).collect(),
+                    rest,
+                }
+            } else {
+                pattern
+            }
+        } else {
+            pattern
+        }
+    }
+    
+    fn parse_pattern_tuple_fields(&mut self) -> AstNode {
+        let mut patterns = vec![];
+        let mut rest = false;
+        
+        while self.peek() != Token::RParen && !self.at_end() {
+            if self.consume(Token::DotDot) {
+                rest = true;
+                break;
+            }
+            
+            patterns.push(self.parse_pattern());
+            
+            if !self.consume(Token::Comma) {
+                break;
+            }
+        }
+        
+        AstNode::PatternTuple {
+            patterns,
+            rest,
+        }
+    }
+    
+    fn parse_pattern_slice(&mut self) -> AstNode {
+        let mut patterns = vec![];
+        let mut rest = false;
+        
+        while self.peek() != Token::RBracket && !self.at_end() {
+            if self.consume(Token::DotDot) {
+                rest = true;
+                break;
+            }
+            
+            patterns.push(self.parse_pattern());
+            
+            if !self.consume(Token::Comma) {
+                break;
+            }
+        }
+        
+        AstNode::PatternSlice {
+            patterns,
+            rest,
+        }
+    }
+    
+    // Loop expressions (loop, while, for)
+    fn parse_loop_expr(&mut self) -> AstNode {
+        if self.consume(Token::KeywordLoop) {
+            let label = self.parse_loop_label();
+            let body = self.parse_block();
+            AstNode::Loop {
+                label,
+                body,
+            }
+        } else if self.consume(Token::KeywordWhile) {
+            let cond = self.parse_expr();
+            let body = self.parse_block();
+            AstNode::WhileLoop {
+                cond: Some(Box::new(cond)),
+                body,
+            }
+        } else if self.consume(Token::KeywordFor) {
+            self.parse_for_loop()
+        } else {
+            self.parse_range()
+        }
+    }
+    
+    fn parse_for_loop(&mut self) -> AstNode {
+        let pattern = self.parse_pattern();
+        self.expect(Token::KeywordIn);
+        let iterable = self.parse_expr();
+        let body = self.parse_block();
+        
+        AstNode::ForLoop {
+            pattern: Box::new(pattern),
+            iterable: Box::new(iterable),
+            body,
+        }
+    }
+    
+    fn parse_loop_label(&mut self) -> lt(Option, String)> {
+        if self.peek() == Token::Ident(_) && self.peek_next() == Token::Colon {
+            let label = self.expect_ident();
+            self.expect(Token::Colon);
+            Some(label)
+        } else {
+            None
+        }
+    }
+    
+    // Range expressions: start..end, start..=end
+    fn parse_range(&mut self) -> AstNode {
+        let start = self.parse_closure();
+        
+        if self.consume(Token::DotDot) {
+            let inclusive = self.consume(Token::Eq);
+            let end = if self.peek() != Token::RBrace && self.peek() != Token::Comma {
+                Some(Box::new(self.parse_closure()))
+            } else {
+                None
+            };
+            
+            AstNode::Range {
+                start: Some(Box::new(start)),
+                end,
+                inclusive,
+            }
+        } else {
+            start
+        }
+    }
+    
+    // Closure expressions: |params| body
+    fn parse_closure(&mut self) -> AstNode {
+        if self.consume(Token::Pipe) {
+            let mut params = vec![];
+            let mut is_async = false;
+            let mut is_move = false;
+            
+            // Check for async or move
+            if self.consume(Token::KeywordAsync) {
+                is_async = true;
+                self.expect(Token::Pipe);
+            } else if self.consume(Token::KeywordMove) {
+                is_move = true;
+                self.expect(Token::Pipe);
+            }
+            
+            // Parse parameters
+            while self.peek() != Token::Pipe && !self.at_end() {
+                let name = self.expect_ident();
+                let ty = if self.consume(Token::Colon) {
+                    self.parse_type()
+                } else {
+                    "".to_string()
+                };
+                params.push((name, ty));
+                
+                if !self.consume(Token::Comma) {
+                    break;
+                }
+            }
+            
+            self.expect(Token::Pipe);
+            
+            // Parse body
+            let body = if self.peek() == Token::LBrace {
+                Box::new(AstNode::BlockExpr {
+                    stmts: self.parse_block(),
+                    expr: None,
+                })
+            } else {
+                Box::new(self.parse_expr())
+            };
+            
+            AstNode::Closure {
+                params,
+                body,
+                async: is_async,
+                move: is_move,
+            }
+        } else {
+            self.parse_binary()
+        }
+    }
+    
+    // Binary expressions with precedence
+    fn parse_binary(&mut self) -> AstNode {
+        self.parse_binary_prec(0)
+    }
+    
+    fn parse_binary_prec(&mut self, min_prec: u8) -> AstNode {
+        let mut left = self.parse_unary();
+        
+        loop {
+            let op = self.current_binary_op();
+            let (prec, assoc) = self.op_precedence(op);
+            
+            if lt(prec, min_prec) {
+                break;
+            }
+            
+            self.advance();
+            let next_min_prec = if eq(assoc, Assoc)::Left {
+                add(prec, 1)
+            } else {
+                prec
+            };
+            
+            let right = self.parse_binary_prec(next_min_prec);
+            
+            left = AstNode::BinaryOp {
+                op: op.to_string(),
+                left: Box::new(left),
+                right: Box::new(right),
+            };
+        }
+        
+        left
+    }
+    
+    fn current_binary_op(&self) -> &'static str {
+        match self.peek() {
+            Token::Plus => "+",
+            Token::Minus => "-",
+            Token::Star => "*",
+            Token::Slash => "/",
+            Token::EqEq => "==",
+            Token::Ne => "!=",
+            Token::Lt => "<",
+            Token::Gt => ">",
+            Token::Le => "<=",
+            Token::Ge => ">=",
+            Token::Amp => "&",
+            Token::Pipe => "|",
+            Token::Caret => "^",
+            Token::Shl => "<<",
+            Token::Shr => ">>",
+            Token::KeywordAnd => "&&",
+            Token::KeywordOr => "||",
+            _ => "",
+        }
+    }
+    
+    fn op_precedence(&self, op: &str) -> (u8, Assoc) {
+        match op {
+            "||" => (1, Assoc::Left),
+            "&&" => (2, Assoc::Left),
+            "==" | "!=" => (3, Assoc::Left),
+            "<" | ">" | "<=" | ">=" => (4, Assoc::Left),
+            "|" => (5, Assoc::Left),
+            "^" => (6, Assoc::Left),
+            "&" => (7, Assoc::Left),
+            "<<" | ">>" => (8, Assoc::Left),
+            "+" | "-" => (9, Assoc::Left),
+            "*" | "/" | "%" => (10, Assoc::Left),
+            _ => (0, Assoc::Left),
+        }
+    }
+    
+    #[derive(Clone, Copy)]
+    enum Assoc {
+        Left,
+        Right,
+    }
+    
+    // Unary expressions: -x, !x, *x, &x, &mut x
+    fn parse_unary(&mut self) -> AstNode {
+        match self.peek() {
+            Token::Minus => {
+                self.advance();
+                let expr = self.parse_unary();
+                AstNode::BinaryOp {
+                    op: "-".to_string(),
+                    left: Box::new(AstNode::Lit(0)),
+                    right: Box::new(expr),
+                }
+            }
+            Token::Bang => {
+                self.advance();
+                let expr = self.parse_unary();
+                AstNode::Call {
+                    receiver: None,
+                    method: "not".to_string(),
+                    args: vec![expr],
+                    type_args: vec![],
+                    structural: true,
+                }
+            }
+            Token::Star => {
+                self.advance();
+                let expr = self.parse_unary();
+                AstNode::Call {
+                    receiver: None,
+                    method: "deref".to_string(),
+                    args: vec![expr],
+                    type_args: vec![],
+                    structural: true,
+                }
+            }
+            Token::Amp => {
+                self.advance();
+                let is_mut = self.consume(Token::KeywordMut);
+                let expr = self.parse_unary();
+                // Return a reference expression
+                expr  // TODO: Implement proper reference expressions
+            }
+            _ => self.parse_postfix(),
+        }
+    }
+    
+    // Postfix expressions: x.y, x(), x[y]
+    fn parse_postfix(&mut self) -> AstNode {
+        let mut expr = self.parse_primary();
+        
+        loop {
+            if self.consume(Token::Dot) {
+                expr = self.parse_field_access(expr);
+            } else if self.consume(Token::LParen) {
+                expr = self.parse_call(expr);
+            } else if self.consume(Token::LBracket) {
+                expr = self.parse_subscript(expr);
+            } else if self.consume(Token::Question) {
+                expr = AstNode::TryProp {
+                    expr: Box::new(expr),
+                };
+            } else {
+                break;
+            }
+        }
+        
+        expr
+    }
+    
+    fn parse_field_access(&mut self, receiver: AstNode) -> AstNode {
+        let field = self.expect_ident();
+        
+        // Check for method call
+        if self.peek() == Token::LParen || self.peek() == Token::Lt {
+            let type_args = self.parse_generics();
+            self.expect(Token::LParen);
+            let args = self.parse_args();
+            self.expect(Token::RParen);
+            
+            AstNode::MethodCall {
+                receiver: Box::new(receiver),
+                method: field,
+                args,
+                type_args,
+            }
+        } else {
+            AstNode::FieldAccess {
+                base: Box::new(receiver),
+                field,
+            }
+        }
+    }
+    
+    fn parse_call(&mut self, callee: AstNode) -> AstNode {
+        let args = self.parse_args();
+        self.expect(Token::RParen);
+        
+        match callee {
+            AstNode::Var(name) => AstNode::Call {
+                receiver: None,
+                method: name,
+                args,
+                type_args: vec![],
+                structural: true,
+            },
+            _ => {
+                // Assume it's a method call without receiver
+                // This should be improved
+                AstNode::Call {
+                    receiver: None,
+                    method: "call".to_string(),  // Placeholder
+                    args: vec![callee],
+                    type_args: vec![],
+                    structural: true,
+                }
+            }
+        }
+    }
+    
+    fn parse_subscript(&mut self, base: AstNode) -> AstNode {
+        let index = self.parse_expr();
+        self.expect(Token::RBracket);
+        
+        AstNode::Subscript {
+            base: Box::new(base),
+            index: Box::new(index),
+        }
+    }
+    
+    // Primary expressions: literals, variables, groups,

@@ -1,0 +1,12 @@
+// Fibonacci step 1: test base case
+fn fib(n: i64) -> i64 {
+    if le(n, 1) {
+        n  // For n=0 or n=1, return n
+    } else {
+        99  // placeholder
+    }
+}
+
+fn main() -> i64 {
+    fib(0)  // Should return 0
+}

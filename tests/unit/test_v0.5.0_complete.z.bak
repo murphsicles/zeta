@@ -1,0 +1,327 @@
+// test_v0.5.0_complete.z
+// Comprehensive test of v0.5.0 features
+
+use zeta::runtime::stdlib::prelude::*;
+
+// Test 1: Match expressions
+fn test_match() -> i32 {
+    let value = 42;
+    let result = match value {
+        0 => "zero",
+        1..=10 => "small",
+        11..=100 => "medium",
+        101..=1000 => "large",
+        _ => "huge",
+    };
+    
+    if result != "medium" {
+        println!("Match test failed: expected 'medium', got '{}'", result);
+        return 1;
+    }
+    
+    // Pattern matching with guards
+    let point = (10, 20);
+    let category = match point {
+        (x, y) if x == 0 && y == 0 => "origin",
+        (x, y) if x == 0 => "y-axis",
+        (x, y) if y == 0 => "x-axis",
+        (x, y) if x > 0 && y > 0 => "quadrant I",
+        (x, y) if x < 0 && y > 0 => "quadrant II",
+        (x, y) if x < 0 && y < 0 => "quadrant III",
+        (x, y) if x > 0 && y < 0 => "quadrant IV",
+        _ => "unknown",
+    };
+    
+    if category != "quadrant I" {
+        println!("Pattern match test failed: expected 'quadrant I', got '{}'", category);
+        return 2;
+    }
+    
+    0
+}
+
+// Test 2: Const generics
+struct Array<T, const N: usize> {
+    data: [T; N],
+}
+
+impl<T: Default + Copy, const N: usize> Array<T, N> {
+    fn new() -> Self {
+        Self {
+            data: [T::default(); N],
+        }
+    }
+    
+    fn len(&self) -> usize {
+        N
+    }
+}
+
+fn test_const_generics() -> i32 {
+    const SIZE: usize = 10;
+    let array: Array<i32, SIZE> = Array::new();
+    
+    if array.len() != SIZE {
+        println!("Const generics test failed: expected len {}, got {}", SIZE, array.len());
+        return 3;
+    }
+    
+    // Compile-time arithmetic
+    const DOUBLE_SIZE: usize = SIZE * 2;
+    let double_array: Array<i32, DOUBLE_SIZE> = Array::new();
+    
+    if double_array.len() != 20 {
+        println!("Const arithmetic test failed: expected len 20, got {}", double_array.len());
+        return 4;
+    }
+    
+    0
+}
+
+// Test 3: Associated types
+concept Iterator {
+    type Item;
+    
+    fn next(&mut self) -> Option<Self::Item>;
+}
+
+struct Range {
+    current: i32,
+    end: i32,
+}
+
+impl Iterator for Range {
+    type Item = i32;
+    
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current < self.end {
+            let value = self.current;
+            self.current += 1;
+            Some(value)
+        } else {
+            None
+        }
+    }
+}
+
+fn test_associated_types() -> i32 {
+    let mut range = Range { current: 0, end: 5 };
+    let mut sum = 0;
+    
+    while let Some(value) = range.next() {
+        sum += value;
+    }
+    
+    if sum != 10 { // 0+1+2+3+4
+        println!("Associated types test failed: expected sum 10, got {}", sum);
+        return 5;
+    }
+    
+    0
+}
+
+// Test 4: Vec<T>
+fn test_vec() -> i32 {
+    let mut vec = Vec::new();
+    
+    // Push elements
+    for i in 0..10 {
+        vec.push(i);
+    }
+    
+    if vec.len() != 10 {
+        println!("Vec test failed: expected len 10, got {}", vec.len());
+        return 6;
+    }
+    
+    // Iteration
+    let mut sum = 0;
+    for &value in vec.iter() {
+        sum += value;
+    }
+    
+    if sum != 45 { // 0+1+...+9
+        println!("Vec iteration test failed: expected sum 45, got {}", sum);
+        return 7;
+    }
+    
+    // Indexing
+    if vec[0] != 0 || vec[9] != 9 {
+        println!("Vec indexing test failed");
+        return 8;
+    }
+    
+    0
+}
+
+// Test 5: HashMap<K, V>
+fn test_hashmap() -> i32 {
+    let mut map = HashMap::new();
+    
+    // Insert values
+    map.insert("one", 1);
+    map.insert("two", 2);
+    map.insert("three", 3);
+    
+    if map.len() != 3 {
+        println!("HashMap test failed: expected len 3, got {}", map.len());
+        return 9;
+    }
+    
+    // Get values
+    if *map.get("one").unwrap() != 1 {
+        println!("HashMap get test failed");
+        return 10;
+    }
+    
+    // Update value
+    map.insert("one", 10);
+    if *map.get("one").unwrap() != 10 {
+        println!("HashMap update test failed");
+        return 11;
+    }
+    
+    // Remove value
+    map.remove("two");
+    if map.contains_key("two") {
+        println!("HashMap remove test failed");
+        return 12;
+    }
+    
+    0
+}
+
+// Test 6: String
+fn test_string() -> i32 {
+    let mut s = String::from_utf8("Hello");
+    
+    if s.len() != 5 {
+        println!("String test failed: expected len 5, got {}", s.len());
+        return 13;
+    }
+    
+    // Append
+    s.push_str(" world!");
+    
+    if s != "Hello world!" {
+        println!("String append test failed: expected 'Hello world!', got '{}'", s);
+        return 14;
+    }
+    
+    // Character access
+    s.push('!');
+    
+    if s != "Hello world!!" {
+        println!("String push test failed");
+        return 15;
+    }
+    
+    0
+}
+
+// Test 7: Concurrency (basic)
+fn test_concurrency() -> i32 {
+    // Mutex
+    let mutex = Mutex::new(0);
+    {
+        let mut data = mutex.lock().unwrap();
+        *data = 42;
+    }
+    
+    let data = mutex.lock().unwrap();
+    if *data != 42 {
+        println!("Mutex test failed: expected 42, got {}", *data);
+        return 16;
+    }
+    
+    // Channel
+    let (tx, rx) = Channel::unbounded();
+    tx.send(100).unwrap();
+    
+    let received = rx.recv().unwrap();
+    if received != 100 {
+        println!("Channel test failed: expected 100, got {}", received);
+        return 17;
+    }
+    
+    0
+}
+
+// Test 8: Loops
+fn test_loops() -> i32 {
+    // For loop
+    let mut sum = 0;
+    for i in 0..10 {
+        sum += i;
+    }
+    
+    if sum != 45 {
+        println!("For loop test failed: expected sum 45, got {}", sum);
+        return 18;
+    }
+    
+    // While loop
+    let mut count = 0;
+    while count < 5 {
+        count += 1;
+    }
+    
+    if count != 5 {
+        println!("While loop test failed: expected count 5, got {}", count);
+        return 19;
+    }
+    
+    // Loop with break
+    let mut value = 0;
+    loop {
+        value += 1;
+        if value >= 10 {
+            break;
+        }
+    }
+    
+    if value != 10 {
+        println!("Loop break test failed: expected value 10, got {}", value);
+        return 20;
+    }
+    
+    0
+}
+
+// Main test runner
+fn main() -> i32 {
+    println!("Starting Zeta v0.5.0 comprehensive tests...");
+    
+    let tests = [
+        ("Match expressions", test_match),
+        ("Const generics", test_const_generics),
+        ("Associated types", test_associated_types),
+        ("Vec<T>", test_vec),
+        ("HashMap<K, V>", test_hashmap),
+        ("String", test_string),
+        ("Concurrency", test_concurrency),
+        ("Loops", test_loops),
+    ];
+    
+    let mut failed = 0;
+    
+    for (name, test) in tests.iter() {
+        print!("Testing {}... ", name);
+        let result = test();
+        
+        if result == 0 {
+            println!("✓");
+        } else {
+            println!("✗ (error code: {})", result);
+            failed += 1;
+        }
+    }
+    
+    if failed == 0 {
+        println!("\n🎉 All tests passed! Zeta v0.5.0 features are working correctly.");
+        0
+    } else {
+        println!("\n⚠️  {} test(s) failed. Please check the errors above.", failed);
+        1
+    }
+}

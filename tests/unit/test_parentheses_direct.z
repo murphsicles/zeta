@@ -1,0 +1,22 @@
+// DIRECT TEST: Parentheses in type signatures
+
+// Test 1: Empty parentheses
+fn test1() -> MyType() {
+    return 42;
+}
+
+// Test 2: With argument
+fn test2() -> lt(Result) {
+    return 42;
+}
+
+// Test 3: Multiple arguments  
+fn test3() -> lt(Result, i64) {
+    return 42;
+}
+
+type MyType = i64;
+
+fn main() -> i64 {
+    return 42;
+}

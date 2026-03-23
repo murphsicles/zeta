@@ -1,0 +1,9 @@
+fn test() -> i64 {
+    if ne(a, b) { 1 } else { 0 }  // No space between a and !=
+}
+
+fn main() -> i64 {
+    let a = 5;
+    let b = 3;
+    test()
+}

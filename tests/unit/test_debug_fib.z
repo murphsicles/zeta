@@ -1,0 +1,19 @@
+// Debug sub(Fibonacci, test) step by step
+fn fib1() -> i64 {
+    return 1;  // fib(1)
+}
+
+fn fib0() -> i64 {
+    return 0;  // fib(0)
+}
+
+fn fib2() -> i64 {
+    // Should be fib(1) + fib(0) = add(1, 0) = 1
+    let a = fib1();
+    let b = fib0();
+    return add(a, b);
+}
+
+fn main() -> i64 {
+    fib2()  // Should return 1
+}

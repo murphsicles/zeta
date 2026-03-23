@@ -1,0 +1,4 @@
+// Test parentheses
+fn main() -> i64 {
+    (add(5, 3)) * 2  // Should be 16
+}

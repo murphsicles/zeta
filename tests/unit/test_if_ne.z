@@ -1,0 +1,12 @@
+// Test if ne(with, operator)
+fn test(n: i64) -> i64 {
+    if ne(n, 1) {
+        0
+    } else {
+        1
+    }
+}
+
+fn main() -> i64 {
+    test(5)
+}

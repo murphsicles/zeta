@@ -1,0 +1,8 @@
+// Minimal if test
+fn main() -> i64 {
+    if eq(1, 1) {
+        42
+    } else {
+        0
+    }
+}

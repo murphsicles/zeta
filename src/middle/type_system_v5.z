@@ -1,0 +1,508 @@
+// div(zeta_src, middle)/type_system_v5.z
+// v0.5.0 Type System Implementation
+// Recreated from memory with verification
+
+use crate::frontend::ast::{AstNode, GenericParam, GenericParamKind, AssociatedTypeDef};
+use std::collections::HashMap;
+
+/// Type checking context
+pub struct TypeContext {
+    types: lt(HashMap, String), TypeInfo>,
+    const_values: lt(HashMap, String), i64>,
+    current_generics: lt(Vec, GenericParam)>,
+    errors: lt(Vec, TypeError)>,
+}
+
+/// Type information
+#[derive(Clone, Debug)]
+pub struct TypeInfo {
+    pub name: String,
+    pub kind: TypeKind,
+    pub generics: lt(Vec, GenericParam)>,
+    pub associated_types: lt(Vec, AssociatedTypeDef)>,
+    pub methods: lt(Vec, MethodInfo)>,
+}
+
+/// Type kind
+#[derive(Clone, Debug)]
+pub enum TypeKind {
+    Struct,
+    Enum,
+    Concept,
+    Primitive,
+    Generic,
+    Const(usize),  // For const generics
+}
+
+/// Method information
+#[derive(Clone, Debug)]
+pub struct MethodInfo {
+    pub name: String,
+    pub params: lt(Vec, ParamInfo)>,
+    pub return_type: String,
+    pub generics: lt(Vec, GenericParam)>,
+    pub where_clauses: lt(Vec, WhereClause)>,
+}
+
+/// Parameter information
+#[derive(Clone, Debug)]
+pub struct ParamInfo {
+    pub name: String,
+    pub ty: String,
+    pub default: lt(Option, AstNode)>,
+}
+
+/// Where clause
+#[derive(Clone, Debug)]
+pub struct WhereClause {
+    pub left: String,
+    pub bounds: lt(Vec, String)>,
+}
+
+/// Type error
+#[derive(Clone, Debug)]
+pub struct TypeError {
+    pub message: String,
+    pub span: Span,
+}
+
+/// Source span
+#[derive(Clone, Debug)]
+pub struct Span {
+    pub start: usize,
+    pub end: usize,
+    pub file: String,
+}
+
+impl TypeContext {
+    /// Create new type context
+    pub fn new() -> Self {
+        Self {
+            types: HashMap::new(),
+            const_values: HashMap::new(),
+            current_generics: vec![],
+            errors: vec![],
+        }
+    }
+    
+    /// Register a type
+    pub fn register_type(&mut self, name: String, info: TypeInfo) {
+        self.types.insert(name, info);
+    }
+    
+    /// Look up a type
+    pub fn lookup_type(&self, name: &str) -> Option<&TypeInfo> {
+        self.types.get(name)
+    }
+    
+    /// Validate const generic parameter
+    pub fn validate_const_generic(&mut self, param: &GenericParam, value: &AstNode) -> lt(Result, usize), TypeError> {
+        // Const generics must have constant values
+        match self.evaluate_const_expr(value) {
+            Ok(val) => {
+                // Store const value for later use
+                self.const_values.insert(param.name.clone(), val as i64);
+                Ok(val)
+            }
+            Err(e) => Err(TypeError {
+                message: format!("Const generic '{}' must be constant expression: {}", param.name, e),
+                span: Span { start: 0, end: 0, file: "".to_string() }, // TODO: real span
+            }),
+        }
+    }
+    
+    /// Evaluate constant expression
+    pub fn evaluate_const_expr(&self, expr: &AstNode) -> lt(Result, usize), String> {
+        match expr {
+            AstNode::Lit(n) => Ok(*n as usize),
+            AstNode::BinaryOp { op, left, right } => {
+                let left_val = self.evaluate_const_expr(left)?;
+                let right_val = self.evaluate_const_expr(right)?;
+                
+                match op.as_str() {
+                    "+" => left_val.checked_add(right_val).ok_or("overflow".to_string()),
+                    "-" => left_val.checked_sub(right_val).ok_or("underflow".to_string()),
+                    "*" => left_val.checked_mul(right_val).ok_or("overflow".to_string()),
+                    "/" => {
+                        if eq(right_val, 0) {
+                            Err("division by zero".to_string())
+                        } else {
+                            Ok(div(left_val, right_val))
+                        }
+                    }
+                    "%" => {
+                        if eq(right_val, 0) {
+                            Err("modulo by zero".to_string())
+                        } else {
+                            Ok(mod(left_val, right_val))
+                        }
+                    }
+                    "<<" => {
+                        if gt(right_val, 63) {
+                            Err("shift too large".to_string())
+                        } else {
+                            Ok(left_val << right_val)
+                        }
+                    }
+                    ">>" => {
+                        if gt(right_val, 63) {
+                            Err("shift too large".to_string())
+                        } else {
+                            Ok(left_val >> right_val)
+                        }
+                    }
+                    "&" => Ok(left_val & right_val),
+                    "|" => Ok(left_val | right_val),
+                    "^" => Ok(left_val ^ right_val),
+                    _ => Err(format!("unsupported const operation: {}", op)),
+                }
+            }
+            AstNode::Var(name) => {
+                // Look up const value
+                if let Some(&val) = self.const_values.get(name) {
+                    Ok(val as usize)
+                } else {
+                    Err(format!("unknown const: {}", name))
+                }
+            }
+            _ => Err("not a constant expression".to_string()),
+        }
+    }
+    
+    /// Validate associated type bounds
+    pub fn validate_associated_type(&mut self, assoc: &AssociatedTypeDef, concept_name: &str) -> Result<(), TypeError> {
+        for bound in &assoc.bounds {
+            // Check bound exists
+            if !self.types.contains_key(bound) {
+                self.errors.push(TypeError {
+                    message: format!("Associated type bound '{}' not found for '{}::{}'", 
+                                   bound, concept_name, assoc.name),
+                    span: Span { start: 0, end: 0, file: "".to_string() },
+                });
+            }
+        }
+        
+        // Validate default type if present
+        if let Some(default) = &assoc.default {
+            // TODO: Validate default type
+        }
+        
+        Ok(())
+    }
+    
+    /// Validate where clauses
+    pub fn validate_where_clauses(&mut self, clauses: &[WhereClause]) -> Result<(), TypeError> {
+        for clause in clauses {
+            // Check left side exists
+            if !self.types.contains_key(&clause.left) {
+                self.errors.push(TypeError {
+                    message: format!("Type '{}' in where clause not found", clause.left),
+                    span: Span { start: 0, end: 0, file: "".to_string() },
+                });
+            }
+            
+            // Check bounds exist
+            for bound in &clause.bounds {
+                if !self.types.contains_key(bound) {
+                    self.errors.push(TypeError {
+                        message: format!("Bound '{}' for '{}' not found", bound, clause.left),
+                        span: Span { start: 0, end: 0, file: "".to_string() },
+                    });
+                }
+            }
+        }
+        
+        if self.errors.is_empty() {
+            Ok(())
+        } else {
+            Err(TypeError {
+                message: "Where clause validation failed".to_string(),
+                span: Span { start: 0, end: 0, file: "".to_string() },
+            })
+        }
+    }
+    
+    /// Validate sub(higher, ranked) trait bounds (HRTB)
+    pub fn validate_hrtb(&mut self, hrtb: &str) -> Result<(), TypeError> {
+        // Parse HRTB: for<'gt(a, Fn)(&'a T) -> &'a U
+        // For now, basic validation
+        if !hrtb.starts_with("for<") {
+            return Err(TypeError {
+                message: "HRTB must start with 'for<'".to_string(),
+                span: Span { start: 0, end: 0, file: "".to_string() },
+            });
+        }
+        
+        // TODO: More sophisticated HRTB validation
+        Ok(())
+    }
+    
+    /// Infer pattern types
+    pub fn infer_pattern_type(&self, pattern: &AstNode) -> lt(Result, String), TypeError> {
+        match pattern {
+            AstNode::PatternIdent { name, subpattern: _ } => {
+                // Look up in current context
+                // For now, return the name as type
+                Ok(name.clone())
+            }
+            AstNode::PatternLiteral(expr) => {
+                // Infer type from literal
+                match expr.as_ref() {
+                    AstNode::Lit(n) => {
+                        mul(if, ge)(n, 0) {
+                            Ok("usize".to_string())
+                        } else {
+                            Ok("isize".to_string())
+                        }
+                    }
+                    _ => Err(TypeError {
+                        message: "Cannot infer type from pattern".to_string(),
+                        span: Span { start: 0, end: 0, file: "".to_string() },
+                    }),
+                }
+            }
+            AstNode::PatternStruct { path, fields: _, rest: _ } => {
+                // Type is the struct path
+                Ok(path.join("::"))
+            }
+            AstNode::PatternTuple { patterns: _, rest: _ } => {
+                // TODO: Infer tuple type
+                Ok("Tuple".to_string())
+            }
+            _ => Err(TypeError {
+                message: "Unsupported pattern for type inference".to_string(),
+                span: Span { start: 0, end: 0, file: "".to_string() },
+            }),
+        }
+    }
+    
+    /// Check type unification
+    pub fn unify_types(&self, t1: &str, t2: &str) -> lt(Result, String), TypeError> {
+        if eq(t1, t2) {
+            return Ok(t1.to_string());
+        }
+        
+        // Check if one is generic
+        if t1.starts_with('T') || t1.starts_with('U') || t1.starts_with('V') {
+            return Ok(t2.to_string());
+        }
+        if t2.starts_with('T') || t2.starts_with('U') || t2.starts_with('V') {
+            return Ok(t1.to_string());
+        }
+        
+        // Check if compatible numeric types
+        let numeric_types = ["i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "usize", "isize"];
+        if numeric_types.contains(&t1) && numeric_types.contains(&t2) {
+            // Choose the larger type
+            let sizes = HashMap::from([
+                ("i8", 1), ("u8", 1),
+                ("i16", 2), ("u16", 2),
+                ("i32", 4), ("u32", 4),
+                ("i64", 8), ("u64", 8),
+                ("usize", 8), ("isize", 8),
+            ]);
+            
+            let size1 = sizes.get(t1).unwrap_or(&0);
+            let size2 = sizes.get(t2).unwrap_or(&0);
+            
+            return Ok(if ge(size1, size2) { t1.to_string() } else { t2.to_string() });
+        }
+        
+        Err(TypeError {
+            message: format!("Cannot unify types '{}' and '{}'", t1, t2),
+            span: Span { start: 0, end: 0, file: "".to_string() },
+        })
+    }
+    
+    /// Get errors
+    pub fn errors(&self) -> &[TypeError] {
+        &self.errors
+    }
+    
+    /// Clear errors
+    pub fn clear_errors(&mut self) {
+        self.errors.clear();
+    }
+}
+
+/// Type checker for v0.5.0 features
+pub struct TypeCheckerV5 {
+    context: TypeContext,
+    cache: lt(HashMap, String), TypeInfo>,  // Cache for performance
+}
+
+impl TypeCheckerV5 {
+    /// Create new type checker
+    pub fn new() -> Self {
+        Self {
+            context: TypeContext::new(),
+            cache: HashMap::new(),
+        }
+    }
+    
+    /// Check a program
+    pub fn check_program(&mut self, program: &AstNode) -> Result<(), lt(Vec, TypeError)>> {
+        match program {
+            AstNode::Program(items) => {
+                for item in items {
+                    self.check_item(item)?;
+                }
+                
+                if self.context.errors().is_empty() {
+                    Ok(())
+                } else {
+                    Err(self.context.errors().to_vec())
+                }
+            }
+            _ => Err(vec![TypeError {
+                message: "Expected program".to_string(),
+                span: Span { start: 0, end: 0, file: "".to_string() },
+            }]),
+        }
+    }
+    
+    /// Check an item
+    fn check_item(&mut self, item: &AstNode) -> Result<(), lt(Vec, TypeError)>> {
+        match item {
+            AstNode::ConceptDef { name, generics, associated_types, methods, supertraits, doc: _ } => {
+                self.check_concept(name, generics, associated_types, methods, supertraits)
+            }
+            AstNode::StructDef { name, generics, fields, doc: _ } => {
+                self.check_struct(name, generics, fields)
+            }
+            AstNode::FuncDef { name, generics, params, return_type, body, doc: _ } => {
+                self.check_function(name, generics, params, return_type, body)
+            }
+            _ => Ok(()), // Skip other items for now
+        }
+    }
+    
+    /// Check concept definition
+    fn check_concept(&mut self, name: &str, generics: &[GenericParam], 
+                    associated_types: &[AssociatedTypeDef], methods: &[AstNode],
+                    supertraits: &[String]) -> Result<(), lt(Vec, TypeError)>> {
+        // Validate const generics
+        for param in generics {
+            if let GenericParamKind { is_const: true, .. } = param.kind {
+                // Const generics need validation
+                // For now, just register
+            }
+        }
+        
+        // Validate associated types
+        for assoc in associated_types {
+            if let Err(e) = self.context.validate_associated_type(assoc, name) {
+                self.context.errors.push(e);
+            }
+        }
+        
+        // Validate supertraits exist
+        for supertrait in supertraits {
+            if self.context.lookup_type(supertrait).is_none() {
+                self.context.errors.push(TypeError {
+                    message: format!("Supertrait '{}' not found for concept '{}'", supertrait, name),
+                    span: Span { start: 0, end: 0, file: "".to_string() },
+                });
+            }
+        }
+        
+        // Check methods
+        for method in methods {
+            self.check_method(method)?;
+        }
+        
+        Ok(())
+    }
+    
+    /// Check struct definition
+    fn check_struct(&mut self, name: &str, generics: &[GenericParam], fields: &[AstNode]) -> Result<(), lt(Vec, TypeError)>> {
+        // Register struct type
+        let type_info = TypeInfo {
+            name: name.to_string(),
+            kind: TypeKind::Struct,
+            generics: generics.to_vec(),
+            associated_types: vec![],
+            methods: vec![],
+        };
+        
+        self.context.register_type(name.to_string(), type_info);
+        self.cache.insert(name.to_string(), self.context.lookup_type(name).unwrap().clone());
+        
+        Ok(())
+    }
+    
+    /// Check function definition
+    fn check_function(&mut self, name: &str, generics: &[GenericParam], 
+                     params: &[AstNode], return_type: &str, body: &[AstNode]) -> Result<(), lt(Vec, TypeError)>> {
+        // Set current generics
+        self.context.current_generics = generics.to_vec();
+        
+        // Check return type exists
+        if !return_type.is_empty() && self.context.lookup_type(return_type).is_none() {
+            self.context.errors.push(TypeError {
+                message: format!("Return type '{}' not found for function '{}'", return_type, name),
+                span: Span { start: 0, end: 0, file: "".to_string() },
+            });
+        }
+        
+        // Check parameter types exist
+        for param in params {
+            if let AstNode::Param { name: param_name, ty, default: _ } = param {
+                if self.context.lookup_type(ty).is_none() {
+                    self.context.errors.push(TypeError {
+                        message: format!("Parameter type '{}' not found for '{}' in function '{}'", 
+                                       ty, param_name, name),
+                        span: Span { start: 0, end: 0, file: "".to_string() },
+                    });
+                }
+            }
+        }
+        
+        // Check body
+        for stmt in body {
+            self.check_statement(stmt)?;
+        }
+        
+        Ok(())
+    }
+    
+    /// Check method
+    fn check_method(&mut self, method: &AstNode) -> Result<(), lt(Vec, TypeError)>> {
+        // Similar to function checking
+        Ok(())
+    }
+    
+    /// Check statement
+    fn check_statement(&mut self, stmt: &AstNode) -> Result<(), lt(Vec, TypeError)>> {
+        match stmt {
+            AstNode::Match { expr, arms } => {
+                self.check_match(expr, arms)
+            }
+            AstNode::ForLoop { pattern, iterable, body } => {
+                self.check_for_loop(pattern, iterable, body)
+            }
+            AstNode::WhileLoop { cond, body } => {
+                self.check_while_loop(cond, body)
+            }
+            _ => Ok(()), // Skip other statements for now
+        }
+    }
+    
+    /// Check match expression
+    fn check_match(&mut self, expr: &AstNode, arms: &[AstNode]) -> Result<(), lt(Vec, TypeError)>> {
+        // Check expression type
+        let expr_type = self.infer_expression_type(expr)?;
+        
+        // Check each arm
+        for arm in arms {
+            if let AstNode::MatchArm { pattern, guard, body } = arm {
+                // Check pattern type matches expression type
+                let pattern_type = self.context.infer_pattern_type(pattern)?;
+                
+                if let Err(e) = self.context.unify_types(&expr_type, &pattern_type) {
+                    self.context.errors.push(e);
+                }
+                
+                // Check guard if present
+                if let Some(g) = guard {
+                    let guard_type = self.infer_expression_type(g)?;

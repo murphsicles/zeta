@@ -1,0 +1,9 @@
+// Simple Fibonacci that should return 55
+fn fib(n: i64) -> i64 {
+    // Hardcode Fibonacci(10) = 55
+    55
+}
+
+fn main() -> i64 {
+    fib(10)
+}

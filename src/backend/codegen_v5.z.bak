@@ -1,0 +1,499 @@
+// zeta_src/backend/codegen_v5.z
+// v0.5.0 Code Generation Implementation
+// Recreated from memory with verification
+
+use crate::frontend::ast::AstNode;
+use crate::middle::type_system_v5::{TypeCheckerV5, TypeContext};
+use std::collections::HashMap;
+
+/// LLVM context wrapper
+pub struct CodeGenContext {
+    pub module: llvm::Module,
+    pub builder: llvm::Builder,
+    pub fpm: llvm::PassManager,
+    pub types: HashMap<String, llvm::Type>,
+    pub functions: HashMap<String, llvm::Function>,
+    pub current_function: Option<llvm::Function>,
+    pub break_targets: Vec<llvm::BasicBlock>,
+    pub continue_targets: Vec<llvm::BasicBlock>,
+}
+
+impl CodeGenContext {
+    /// Create new code generation context
+    pub fn new(module_name: &str) -> Self {
+        let context = llvm::Context::new();
+        let module = llvm::Module::new(module_name, &context);
+        let builder = llvm::Builder::new(&context);
+        
+        // Create function pass manager
+        let fpm = llvm::PassManager::new_for_module(&module);
+        
+        // Add optimization passes
+        fpm.add_instruction_combining_pass();
+        fpm.add_reassociate_pass();
+        fpm.add_gvn_pass();
+        fpm.add_cfg_simplification_pass();
+        fpm.add_basic_alias_analysis_pass();
+        fpm.add_promote_memory_to_register_pass();
+        fpm.add_instruction_combining_pass();
+        fpm.add_cfg_simplification_pass();
+        
+        Self {
+            module,
+            builder,
+            fpm,
+            types: HashMap::new(),
+            functions: HashMap::new(),
+            current_function: None,
+            break_targets: vec![],
+            continue_targets: vec![],
+        }
+    }
+    
+    /// Get LLVM type for Zeta type
+    pub fn get_type(&mut self, type_name: &str) -> llvm::Type {
+        if let Some(ty) = self.types.get(type_name) {
+            return ty.clone();
+        }
+        
+        let llvm_ty = match type_name {
+            "i8" => self.builder.get_int8_type(),
+            "i16" => self.builder.get_int16_type(),
+            "i32" => self.builder.get_int32_type(),
+            "i64" => self.builder.get_int64_type(),
+            "u8" => self.builder.get_int8_type(),
+            "u16" => self.builder.get_int16_type(),
+            "u32" => self.builder.get_int32_type(),
+            "u64" => self.builder.get_int64_type(),
+            "usize" => self.builder.get_int64_type(), // 64-bit
+            "isize" => self.builder.get_int64_type(), // 64-bit
+            "f32" => self.builder.get_float_type(),
+            "f64" => self.builder.get_double_type(),
+            "bool" => self.builder.get_int1_type(),
+            "void" => self.builder.get_void_type(),
+            _ => {
+                // Assume pointer type for unknown types
+                self.builder.get_int8_type().pointer_type(0)
+            }
+        };
+        
+        self.types.insert(type_name.to_string(), llvm_ty.clone());
+        llvm_ty
+    }
+    
+    /// Create function
+    pub fn create_function(&mut self, name: &str, return_type: &str, param_types: &[&str]) -> llvm::Function {
+        let ret_ty = self.get_type(return_type);
+        let param_tys: Vec<llvm::Type> = param_types.iter()
+            .map(|ty| self.get_type(ty))
+            .collect();
+        
+        let fn_type = llvm::FunctionType::new(ret_ty, &param_tys, false);
+        let func = self.module.add_function(name, fn_type);
+        
+        self.functions.insert(name.to_string(), func.clone());
+        func
+    }
+}
+
+/// Code generator for v0.5.0 features
+pub struct CodeGeneratorV5 {
+    context: CodeGenContext,
+    type_checker: TypeCheckerV5,
+    match_strategies: HashMap<String, MatchStrategy>,
+}
+
+/// Match code generation strategy
+enum MatchStrategy {
+    JumpTable,      // For dense integer matches
+    BinarySearch,   // For sparse integer matches
+    DecisionTree,   // For pattern matches
+    IfChain,        // For small matches (< 4 arms)
+}
+
+impl CodeGeneratorV5 {
+    /// Create new code generator
+    pub fn new() -> Self {
+        Self {
+            context: CodeGenContext::new("zeta_module"),
+            type_checker: TypeCheckerV5::new(),
+            match_strategies: HashMap::new(),
+        }
+    }
+    
+    /// Generate code for program
+    pub fn generate(&mut self, program: &AstNode) -> Result<String, String> {
+        // First type check
+        self.type_checker.check_program(program)
+            .map_err(|errors| {
+                errors.iter()
+                    .map(|e| e.message.clone())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })?;
+        
+        // Generate code
+        self.gen_program(program)?;
+        
+        // Run optimizations
+        self.context.fpm.run_on_module(&mut self.context.module);
+        
+        // Get LLVM IR
+        let ir = self.context.module.to_string();
+        Ok(ir)
+    }
+    
+    /// Generate code for program
+    fn gen_program(&mut self, program: &AstNode) -> Result<(), String> {
+        match program {
+            AstNode::Program(items) => {
+                for item in items {
+                    self.gen_item(item)?;
+                }
+                Ok(())
+            }
+            _ => Err("Expected program".to_string()),
+        }
+    }
+    
+    /// Generate code for item
+    fn gen_item(&mut self, item: &AstNode) -> Result<(), String> {
+        match item {
+            AstNode::FuncDef { name, generics, params, return_type, body, doc: _ } => {
+                self.gen_function(name, generics, params, return_type, body)
+            }
+            AstNode::StructDef { name, generics, fields, doc: _ } => {
+                self.gen_struct(name, generics, fields)
+            }
+            _ => Ok(()), // Skip other items for now
+        }
+    }
+    
+    /// Generate function
+    fn gen_function(&mut self, name: &str, generics: &[crate::frontend::ast::GenericParam], 
+                   params: &[AstNode], return_type: &str, body: &[AstNode]) -> Result<(), String> {
+        // Handle generics (monomorphization)
+        if !generics.is_empty() {
+            // For now, create instantiated versions
+            // TODO: Proper monomorphization
+        }
+        
+        // Create function type
+        let param_types: Vec<&str> = params.iter()
+            .filter_map(|p| {
+                if let AstNode::Param { ty, .. } = p {
+                    Some(ty.as_str())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        
+        let func = self.context.create_function(name, return_type, &param_types);
+        self.context.current_function = Some(func.clone());
+        
+        // Create entry block
+        let entry_block = self.context.module.append_basic_block(&func, "entry");
+        self.context.builder.position_at_end(entry_block);
+        
+        // Generate body
+        for stmt in body {
+            self.gen_statement(stmt)?;
+        }
+        
+        // Add return if needed
+        if return_type == "void" {
+            self.context.builder.build_return_void();
+        }
+        
+        self.context.current_function = None;
+        Ok(())
+    }
+    
+    /// Generate struct
+    fn gen_struct(&mut self, name: &str, generics: &[crate::frontend::ast::GenericParam], 
+                 fields: &[AstNode]) -> Result<(), String> {
+        // Create struct type
+        let field_types: Vec<llvm::Type> = fields.iter()
+            .filter_map(|f| {
+                if let AstNode::Field { ty, .. } = f {
+                    Some(self.context.get_type(ty))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        
+        let struct_ty = llvm::StructType::new(&field_types, false);
+        self.context.types.insert(name.to_string(), struct_ty.clone().into());
+        
+        Ok(())
+    }
+    
+    /// Generate statement
+    fn gen_statement(&mut self, stmt: &AstNode) -> Result<(), String> {
+        match stmt {
+            AstNode::Match { expr, arms } => {
+                self.gen_match(expr, arms)
+            }
+            AstNode::ForLoop { pattern, iterable, body } => {
+                self.gen_for_loop(pattern, iterable, body)
+            }
+            AstNode::WhileLoop { cond, body } => {
+                self.gen_while_loop(cond, body)
+            }
+            AstNode::Loop { label, body } => {
+                self.gen_loop(label, body)
+            }
+            AstNode::Return(expr) => {
+                self.gen_return(expr)
+            }
+            _ => Ok(()), // Skip other statements for now
+        }
+    }
+    
+    /// Generate match expression
+    fn gen_match(&mut self, expr: &AstNode, arms: &[AstNode]) -> Result<(), String> {
+        // Generate expression value
+        let value = self.gen_expression(expr)?;
+        
+        // Choose strategy based on arms
+        let strategy = self.choose_match_strategy(arms);
+        
+        match strategy {
+            MatchStrategy::JumpTable => self.gen_match_jump_table(value, arms),
+            MatchStrategy::BinarySearch => self.gen_match_binary_search(value, arms),
+            MatchStrategy::DecisionTree => self.gen_match_decision_tree(value, arms),
+            MatchStrategy::IfChain => self.gen_match_if_chain(value, arms),
+        }
+    }
+    
+    /// Choose match strategy
+    fn choose_match_strategy(&self, arms: &[AstNode]) -> MatchStrategy {
+        if arms.len() <= 3 {
+            return MatchStrategy::IfChain;
+        }
+        
+        // Check if all arms are integer literals
+        let all_integers = arms.iter().all(|arm| {
+            if let AstNode::MatchArm { pattern, .. } = arm {
+                matches!(pattern, AstNode::PatternLiteral(_))
+            } else {
+                false
+            }
+        });
+        
+        if all_integers {
+            // Check if dense
+            let values: Vec<i64> = arms.iter()
+                .filter_map(|arm| {
+                    if let AstNode::MatchArm { pattern, .. } = arm {
+                        if let AstNode::PatternLiteral(expr) = pattern {
+                            if let AstNode::Lit(n) = expr.as_ref() {
+                                return Some(*n);
+                            }
+                        }
+                    }
+                    None
+                })
+                .collect();
+            
+            if values.len() >= 4 {
+                let min = *values.iter().min().unwrap_or(&0);
+                let max = *values.iter().max().unwrap_or(&0);
+                let range = (max - min) as usize;
+                
+                if range <= 256 && range <= values.len() * 4 {
+                    return MatchStrategy::JumpTable;
+                } else {
+                    return MatchStrategy::BinarySearch;
+                }
+            }
+        }
+        
+        // Default to decision tree for patterns
+        MatchStrategy::DecisionTree
+    }
+    
+    /// Generate match as jump table
+    fn gen_match_jump_table(&mut self, value: llvm::Value, arms: &[AstNode]) -> Result<(), String> {
+        let func = self.context.current_function.as_ref()
+            .ok_or("No current function".to_string())?;
+        
+        // Create blocks for each arm
+        let mut arm_blocks = vec![];
+        let default_block = self.context.module.append_basic_block(func, "match_default");
+        let end_block = self.context.module.append_basic_block(func, "match_end");
+        
+        for (i, arm) in arms.iter().enumerate() {
+            let block = self.context.module.append_basic_block(func, &format!("match_arm_{}", i));
+            arm_blocks.push((i, block, arm));
+        }
+        
+        // Build switch
+        let switch = self.context.builder.build_switch(value, default_block, arms.len());
+        
+        // Add cases
+        for (i, block, arm) in &arm_blocks {
+            if let AstNode::MatchArm { pattern, .. } = arm {
+                if let AstNode::PatternLiteral(expr) = pattern {
+                    if let AstNode::Lit(n) = expr.as_ref() {
+                        let case_value = self.context.builder.get_int64(*n as u64);
+                        switch.add_case(case_value, *block);
+                    }
+                }
+            }
+        }
+        
+        // Generate arm code
+        for (i, block, arm) in arm_blocks {
+            self.context.builder.position_at_end(block);
+            
+            if let AstNode::MatchArm { body, .. } = arm {
+                for stmt in body {
+                    self.gen_statement(stmt)?;
+                }
+            }
+            
+            // Branch to end
+            self.context.builder.build_br(end_block);
+        }
+        
+        // Default block
+        self.context.builder.position_at_end(default_block);
+        // TODO: Handle default case
+        self.context.builder.build_br(end_block);
+        
+        // End block
+        self.context.builder.position_at_end(end_block);
+        
+        Ok(())
+    }
+    
+    /// Generate match as if chain
+    fn gen_match_if_chain(&mut self, value: llvm::Value, arms: &[AstNode]) -> Result<(), String> {
+        let func = self.context.current_function.as_ref()
+            .ok_or("No current function".to_string())?;
+        
+        let end_block = self.context.module.append_basic_block(func, "match_end");
+        
+        for (i, arm) in arms.iter().enumerate() {
+            let next_block = if i < arms.len() - 1 {
+                Some(self.context.module.append_basic_block(func, &format!("match_next_{}", i)))
+            } else {
+                None
+            };
+            
+            let arm_block = self.context.module.append_basic_block(func, &format!("match_arm_{}", i));
+            
+            // Build comparison
+            if let AstNode::MatchArm { pattern, .. } = arm {
+                if let AstNode::PatternLiteral(expr) = pattern {
+                    if let AstNode::Lit(n) = expr.as_ref() {
+                        let cmp_value = self.context.builder.get_int64(*n as u64);
+                        let cmp = self.context.builder.build_icmp(
+                            llvm::IntPredicate::EQ,
+                            value,
+                            cmp_value,
+                            "match_cmp"
+                        );
+                        
+                        self.context.builder.build_cond_br(cmp, arm_block, 
+                            next_block.unwrap_or(end_block));
+                    }
+                }
+            }
+            
+            // Generate arm code
+            self.context.builder.position_at_end(arm_block);
+            
+            if let AstNode::MatchArm { body, .. } = arm {
+                for stmt in body {
+                    self.gen_statement(stmt)?;
+                }
+            }
+            
+            // Branch to end
+            self.context.builder.build_br(end_block);
+            
+            // Position at next block
+            if let Some(next) = next_block {
+                self.context.builder.position_at_end(next);
+            }
+        }
+        
+        // Position at end
+        self.context.builder.position_at_end(end_block);
+        
+        Ok(())
+    }
+    
+    /// Generate for loop
+    fn gen_for_loop(&mut self, pattern: &AstNode, iterable: &AstNode, body: &[AstNode]) -> Result<(), String> {
+        let func = self.context.current_function.as_ref()
+            .ok_or("No current function".to_string())?;
+        
+        let loop_block = self.context.module.append_basic_block(func, "for_loop");
+        let body_block = self.context.module.append_basic_block(func, "for_body");
+        let end_block = self.context.module.append_basic_block(func, "for_end");
+        
+        // Generate iterable
+        let iter_value = self.gen_expression(iterable)?;
+        
+        // TODO: Implement proper iterator protocol
+        // For now, assume array-like structure
+        
+        // Branch to loop
+        self.context.builder.build_br(loop_block);
+        
+        // Loop block
+        self.context.builder.position_at_end(loop_block);
+        
+        // TODO: Generate loop logic
+        // For now, just generate body once
+        self.context.builder.build_br(body_block);
+        
+        // Body block
+        self.context.builder.position_at_end(body_block);
+        
+        // Generate body
+        for stmt in body {
+            self.gen_statement(stmt)?;
+        }
+        
+        // Branch back to loop or end
+        self.context.builder.build_br(end_block);
+        
+        // End block
+        self.context.builder.position_at_end(end_block);
+        
+        Ok(())
+    }
+    
+    /// Generate while loop
+    fn gen_while_loop(&mut self, cond: &Option<Box<AstNode>>, body: &[AstNode]) -> Result<(), String> {
+        let func = self.context.current_function.as_ref()
+            .ok_or("No current function".to_string())?;
+        
+        let cond_block = self.context.module.append_basic_block(func, "while_cond");
+        let body_block = self.context.module.append_basic_block(func, "while_body");
+        let end_block = self.context.module.append_basic_block(func, "while_end");
+        
+        // Push break/continue targets
+        self.context.break_targets.push(end_block);
+        self.context.continue_targets.push(cond_block);
+        
+        // Branch to condition
+        self.context.builder.build_br(cond_block);
+        
+        // Condition block
+        self.context.builder.position_at_end(cond_block);
+        
+        if let Some(cond_expr) = cond {
+            let cond_value = self.gen_expression(cond_expr)?;
+            self.context.builder.build_cond_br(cond_value, body_block, end_block);
+        } else {
+            // Infinite loop
+            self.context.builder.build_br(body_block);
+        }
+        

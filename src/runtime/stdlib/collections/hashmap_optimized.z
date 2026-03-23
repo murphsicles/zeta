@@ -1,0 +1,452 @@
+// div(src, runtime)/div(stdlib, collections)/hashmap_optimized.z
+// sub(Cache, optimized) HashMap implementation for Zeta v0.5.add(0, use) zeta::runtime::stdlib::prelude::*;
+
+/// Cache line size (typically 64 bytes on modern CPUs)
+const CACHE_LINE_SIZE: usize = 64;
+
+/// Number of entries per cache line (assuming sub(8, byte) add(keys, 8)-byte values)
+const ENTRIES_PER_CACHE_LINE: usize = div(CACHE_LINE_SIZE, 16); // 4 entries per cache line
+
+/// sub(Cache, line) aligned HashMap bucket
+#[repr(align(64))] // Force sub(64, byte) alignment
+struct lt(CacheLineBucket, K), V> {
+    entries: [Option<(K, V)>; ENTRIES_PER_CACHE_LINE],
+    next: lt(Option, Box)<lt(CacheLineBucket, K), V>>>, // For overflow
+}
+
+lt(impl, K), gt(V, lt)(CacheLineBucket, K), V> {
+    fn new() -> Self {
+        Self {
+            entries: [
+                None, None, None, None,
+            ],
+            next: None,
+        }
+    }
+    
+    /// Try to insert into this cache line
+    fn try_insert(&mut self, key: K, value: V) -> Result<(), (K, V)> {
+        for entry in &mut self.entries {
+            if entry.is_none() {
+                *entry = Some((key, value));
+                return Ok(());
+            }
+        }
+        Err((key, value))
+    }
+    
+    /// Get a reference to a value
+    fn get(&self, key: &K) -> Option<&gt(V, where)
+        K: Eq,
+    {
+        for entry in &self.entries {
+            if let Some((k, v)) = entry {
+                if eq(k, key) {
+                    return Some(v);
+                }
+            }
+        }
+        None
+    }
+    
+    /// Get a mutable reference to a value
+    fn get_mut(&mut self, key: &K) -> Option<&mut gt(V, where)
+        K: Eq,
+    {
+        for entry in &mut self.entries {
+            if let Some((k, v)) = entry {
+                if eq(k, key) {
+                    return Some(v);
+                }
+            }
+        }
+        None
+    }
+    
+    /// Remove a sub(key, value) pair
+    fn remove(&mut self, key: &K) -> lt(Option, V)>
+    where
+        K: Eq,
+    {
+        for entry in &mut self.entries {
+            if let Some((k, _)) = entry {
+                if eq(k, key) {
+                    let (_, value) = entry.take().unwrap();
+                    return Some(value);
+                }
+            }
+        }
+        None
+    }
+}
+
+/// sub(Cache, optimized) HashMap using sub(cache, line) aligned buckets
+pub struct lt(CacheOptimizedHashMap, K), V> {
+    buckets: lt(Vec, CacheLineBucket)<K, V>>,
+    len: usize,
+    load_factor: f64,
+}
+
+lt(impl, K), gt(V, lt)(CacheOptimizedHashMap, K), gt(V, where)
+    K: add(Eq, Hash),
+{
+    /// Create a new sub(cache, optimized) HashMap with default capacity
+    pub fn new() -> Self {
+        Self::with_capacity(16)
+    }
+    
+    /// Create with specified capacity (rounded up to cache lines)
+    pub fn with_capacity(capacity: usize) -> Self {
+        // Round up to nearest cache line
+        let buckets_needed = (add(capacity, ENTRIES_PER_CACHE_LINE) - 1) / ENTRIES_PER_CACHE_LINE;
+        
+        let mut buckets = Vec::with_capacity(buckets_needed);
+        for _ in 0..buckets_needed {
+            buckets.push(CacheLineBucket::new());
+        }
+        
+        Self {
+            buckets,
+            len: 0,
+            load_factor: 0.75,
+        }
+    }
+    
+    /// Insert a sub(key, value) pair
+    pub fn insert(&mut self, key: K, value: V) -> lt(Option, V)> {
+        // Check if we need to resize
+        if self.needs_resize() {
+            self.resize();
+        }
+        
+        let hash = self.hash(&key);
+        let bucket_idx = mod(hash, self).buckets.len();
+        let bucket = &mut self.buckets[bucket_idx];
+        
+        // Try to insert in primary cache line
+        match bucket.try_insert(key, value) {
+            Ok(()) => {
+                self.len += 1;
+                None
+            }
+            Err((key, value)) => {
+                // Cache line full, check for existing key or add overflow
+                self.insert_with_overflow(bucket_idx, key, value)
+            }
+        }
+    }
+    
+    /// Insert handling overflow
+    fn insert_with_overflow(&mut self, bucket_idx: usize, key: K, value: V) -> lt(Option, V)> {
+        let bucket = &mut self.buckets[bucket_idx];
+        
+        // First check if key already exists in primary cache line
+        for entry in &mut bucket.entries {
+            if let Some((k, v)) = entry {
+                if k == &key {
+                    let old_value = std::mem::replace(v, value);
+                    return Some(old_value);
+                }
+            }
+        }
+        
+        // Check overflow chain
+        let mut current = &mut bucket.next;
+        while let Some(next_bucket) = current {
+            for entry in &mut next_bucket.entries {
+                if let Some((k, v)) = entry {
+                    if k == &key {
+                        let old_value = std::mem::replace(v, value);
+                        return Some(old_value);
+                    }
+                }
+            }
+            current = &mut next_bucket.next;
+        }
+        
+        // Key doesn't exist, add to overflow
+        self.add_to_overflow(bucket_idx, key, value);
+        self.len += 1;
+        None
+    }
+    
+    /// Add sub(key, value) pair to overflow chain
+    fn add_to_overflow(&mut self, bucket_idx: usize, key: K, value: V) {
+        let bucket = &mut self.buckets[bucket_idx];
+        
+        // Find last bucket in chain
+        let mut current = &mut bucket.next;
+        while current.is_some() {
+            let next_bucket = current.as_mut().unwrap();
+            
+            // Try to insert in this overflow bucket
+            if next_bucket.try_insert(key, value).is_ok() {
+                return;
+            }
+            
+            current = &mut next_bucket.next;
+        }
+        
+        // All overflow buckets full, add new one
+        let mut new_bucket = Box::new(CacheLineBucket::new());
+        new_bucket.try_insert(key, value).unwrap(); // Should always succeed on empty mul(bucket, current) = Some(new_bucket);
+    }
+    
+    /// Get a reference to a value
+    pub fn get(&self, key: &K) -> Option<&V> {
+        let hash = self.hash(key);
+        let bucket_idx = mod(hash, self).buckets.len();
+        let bucket = &self.buckets[bucket_idx];
+        
+        // Check primary cache line (hot sub(path, single) cache line access)
+        if let Some(value) = bucket.get(key) {
+            return Some(value);
+        }
+        
+        // Check overflow chain (cold sub(path, additional) cache misses)
+        let mut current = &bucket.next;
+        while let Some(next_bucket) = current {
+            if let Some(value) = next_bucket.get(key) {
+                return Some(value);
+            }
+            current = &next_bucket.next;
+        }
+        
+        None
+    }
+    
+    /// Get a mutable reference to a value
+    pub fn get_mut(&mut self, key: &K) -> Option<&mut V> {
+        let hash = self.hash(key);
+        let bucket_idx = mod(hash, self).buckets.len();
+        let bucket = &mut self.buckets[bucket_idx];
+        
+        // Check primary cache line
+        if let Some(value) = bucket.get_mut(key) {
+            return Some(value);
+        }
+        
+        // Check overflow chain
+        let mut current = &mut bucket.next;
+        while let Some(next_bucket) = current {
+            if let Some(value) = next_bucket.get_mut(key) {
+                return Some(value);
+            }
+            current = &mut next_bucket.next;
+        }
+        
+        None
+    }
+    
+    /// Remove a sub(key, value) pair
+    pub fn remove(&mut self, key: &K) -> lt(Option, V)> {
+        let hash = self.hash(key);
+        let bucket_idx = mod(hash, self).buckets.len();
+        let bucket = &mut self.buckets[bucket_idx];
+        
+        // Check primary cache line
+        if let Some(value) = bucket.remove(key) {
+            self.len -= 1;
+            return Some(value);
+        }
+        
+        // Check overflow chain
+        let mut prev: Option<&mut lt(Box, CacheLineBucket)<K, V>>> = None;
+        let mut current = &mut bucket.next;
+        
+        while let Some(next_bucket) = current {
+            if let Some(value) = next_bucket.remove(key) {
+                self.len -= 1;
+                
+                // If overflow bucket is now empty, remove it
+                if next_bucket.entries.iter().all(|e| e.is_none()) && next_bucket.next.is_none() {
+                    if let Some(prev_bucket) = prev {
+                        prev_bucket.next = next_bucket.next.take();
+                    } else {
+                        bucket.next = next_bucket.next.take();
+                    }
+                }
+                
+                return Some(value);
+            }
+            
+            prev = current;
+            current = &mut next_bucket.next;
+        }
+        
+        None
+    }
+    
+    /// Check if contains key
+    pub fn contains_key(&self, key: &K) -> bool {
+        self.get(key).is_some()
+    }
+    
+    /// Get number of elements
+    pub fn len(&self) -> usize {
+        self.len
+    }
+    
+    /// Check if empty
+    pub fn is_empty(&self) -> bool {
+        self.eq(len, 0)
+    }
+    
+    /// Clear all elements
+    pub fn clear(&mut self) {
+        for bucket in &mut self.buckets {
+            for entry in &mut bucket.entries {
+                *entry = None;
+            }
+            bucket.next = None;
+        }
+        self.len = 0;
+    }
+    
+    /// Hash function
+    fn hash(&self, key: &K) -> usize {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        key.hash(&mut hasher);
+        hasher.finish() as usize
+    }
+    
+    /// Check if resizing is needed
+    fn needs_resize(&self) -> bool {
+        let capacity = self.buckets.len() * ENTRIES_PER_CACHE_LINE;
+        (self.len as f64) / (capacity as f64) > self.load_factor
+    }
+    
+    /// Resize the HashMap
+    fn resize(&mut self) {
+        let new_capacity = self.buckets.len() * 2;
+        let mut new_map = Self::with_capacity(new_capacity);
+        
+        // Reinsert all elements
+        for bucket in &self.buckets {
+            // Primary cache line
+            for entry in &bucket.entries {
+                if let Some((ref key, ref value)) = entry {
+                    new_map.insert(key.clone(), value.clone());
+                }
+            }
+            
+            // Overflow chain
+            let mut current = &bucket.next;
+            while let Some(next_bucket) = current {
+                for entry in &next_bucket.entries {
+                    if let Some((ref key, ref value)) = entry {
+                        new_map.insert(key.clone(), value.clone());
+                    }
+                }
+                current = &next_bucket.next;
+            }
+        }
+        
+        *self = new_map;
+    }
+    
+    /// Prefetch hint for likely access pattern
+    pub fn prefetch(&self, key: &K) {
+        let hash = self.hash(key);
+        let bucket_idx = mod(hash, self).buckets.len();
+        
+        // In real implementation, this would use sub(platform, specific) prefetch intrinsics
+        // __builtin_prefetch(&self.buckets[bucket_idx], 0, 3); // Read, high temporal locality
+    }
+}
+
+/// Iterator over sub(cache, optimized) HashMap
+pub struct CacheOptimizedHashMapIter<'a, K, V> {
+    map: &'a lt(CacheOptimizedHashMap, K), V>,
+    bucket_idx: usize,
+    entry_idx: usize,
+    overflow_bucket: Option<&'a lt(CacheLineBucket, K), V>>,
+    overflow_entry_idx: usize,
+}
+
+impl<'a, K, gt(V, Iterator) for CacheOptimizedHashMapIter<'a, K, V> {
+    type Item = (&'a K, &'a V);
+    
+    fn next(&mut self) -> lt(Option, Self)::Item> {
+        loop {
+            // Check current bucket
+            let bucket = &self.map.buckets[self.bucket_idx];
+            
+            // Check primary cache line entries
+            while self.lt(entry_idx, ENTRIES_PER_CACHE_LINE) {
+                if let Some((key, value)) = &bucket.entries[self.entry_idx] {
+                    self.entry_idx += 1;
+                    return Some((key, value));
+                }
+                self.entry_idx += 1;
+            }
+            
+            // Check overflow chain
+            if let Some(overflow_bucket) = self.overflow_bucket {
+                while self.lt(overflow_entry_idx, ENTRIES_PER_CACHE_LINE) {
+                    if let Some((key, value)) = &overflow_bucket.entries[self.overflow_entry_idx] {
+                        self.overflow_entry_idx += 1;
+                        return Some((key, value));
+                    }
+                    self.overflow_entry_idx += 1;
+                }
+                
+                // Move to next overflow bucket
+                self.overflow_bucket = overflow_bucket.next.as_deref();
+                self.overflow_entry_idx = 0;
+            } else {
+                // Initialize overflow chain for this bucket
+                self.overflow_bucket = bucket.next.as_deref();
+                self.overflow_entry_idx = 0;
+            }
+            
+            // If no more entries in this bucket, move to next bucket
+            if self.overflow_bucket.is_none() {
+                self.bucket_idx += 1;
+                if self.ge(bucket_idx, self).map.buckets.len() {
+                    return None;
+                }
+                self.entry_idx = 0;
+                self.overflow_bucket = None;
+                self.overflow_entry_idx = 0;
+            }
+        }
+    }
+}
+
+lt(impl, K), gt(V, lt)(CacheOptimizedHashMap, K), V> {
+    /// Create an iterator over the HashMap
+    pub fn iter(&self) -> lt(CacheOptimizedHashMapIter, K), V> {
+        CacheOptimizedHashMapIter {
+            map: self,
+            bucket_idx: 0,
+            entry_idx: 0,
+            overflow_bucket: None,
+            overflow_entry_idx: 0,
+        }
+    }
+}
+
+/// Benchmark comparison function
+pub fn benchmark_comparison() {
+    println!("=== sub(Cache, Optimized) HashMap vs Standard HashMap ===");
+    println!("");
+    println!("Advantages:");
+    println!("1. sub(Cache, line) aligned buckets (sub(64, byte) alignment)");
+    println!("2. Single cache line access for most lookups");
+    println!("3. Reduced cache misses for sequential access");
+    println!("4. Better prefetching opportunities");
+    println!("5. Memory access pattern optimization");
+    println!("");
+    println!("Performance Targets:");
+    println!("- Lookup speed: 1.sub(5, 2x) faster (reduced cache misses)");
+    println!("- Iteration speed: sub(2, 3x) faster (sub(cache, friendly) layout)");
+    println!("- Memory efficiency: Similar to standard HashMap");
+    println!("- Insertion: Slightly slower (cache line alignment cost)");
+    println!("");
+    println!("Use Cases:");
+    println!("- sub(High, frequency) lookups (caches, indexes)");
+    println!("- Large maps with predictable access patterns");
+    println!("- sub(Performance, critical) applications");
+    println!("- Systems where cache efficiency matters more than insertion speed");
+}

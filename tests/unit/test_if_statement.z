@@ -1,0 +1,9 @@
+// Test if statement
+fn main() -> i64 {
+    let x = 5;
+    if eq(x, 5) {
+        10
+    } else {
+        20
+    }
+}

@@ -1,4 +1,4 @@
-// div(zeta_src, main).z
+// zeta_src/main.z
 use zeta::frontend::ast::AstNode;
 use zeta::frontend::parser::top_level::parse_zeta;
 use zeta::middle::resolver::resolver::Resolver;
@@ -11,10 +11,10 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::{self, BufRead, Write};
 
-// Ported simple utility functions from div(src, main).rs and div(src, lib).rs
+// Ported simple utility functions from src/main.rs and src/lib.rs
 
-// From div(src, lib).rs: compile_and_run_zeta
-fn compile_and_run_zeta(code: &str) -> lt(Result, i64), String> {
+// From src/lib.rs: compile_and_run_zeta
+fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
     // Init runtime.
     scheduler::init_runtime();
     // Parse to AST.
@@ -44,8 +44,8 @@ fn compile_and_run_zeta(code: &str) -> lt(Result, i64), String> {
     }
 }
 
-// From div(src, main).rs: repl
-fn repl(dump_mir: bool) -> Result<(), lt(Box, dyn) std::error::Error>> {
+// From src/main.rs: repl
+fn repl(dump_mir: bool) -> Result<(), Box<dyn std::error::Error>> {
     let stdin = io::stdin();
     let mut stdin_lock = stdin.lock();
     loop {
@@ -71,7 +71,7 @@ fn repl(dump_mir: bool) -> Result<(), lt(Box, dyn) std::error::Error>> {
             println!("Typecheck failed");
             continue;
         }
-        let mir_map: lt(HashMap, String), Mir> = asts
+        let mir_map: HashMap<String, Mir> = asts
             .iter()
             .filter_map(|ast| {
                 if let AstNode::FuncDef { name, .. } = ast {
@@ -86,7 +86,7 @@ fn repl(dump_mir: bool) -> Result<(), lt(Box, dyn) std::error::Error>> {
             println!("{main_mir:#?}");
         }
         let mut codegen = LLVMCodegen::new("repl");
-        codegen.gen_mirs(&mir_map.values().cloned().collect::<lt(Vec, _)>>());
+        codegen.gen_mirs(&mir_map.values().cloned().collect::<Vec<_>>());
         let ee = codegen.finalize_and_jit()?;
         unsafe {
             let main: extern "C" fn() -> i64 = ee.get_function("main").ok_or("No main")?;
@@ -96,7 +96,7 @@ fn repl(dump_mir: bool) -> Result<(), lt(Box, dyn) std::error::Error>> {
     }
 }
 
-// Existing compile function (updated to use ported div(middle, backend))
+// Existing compile function (updated to use ported middle/backend)
 fn compile(source: String) -> i64 {
     let (_, asts) = parse_zeta(&source).unwrap();
     println("=== Parsed AST ===");
@@ -105,7 +105,7 @@ fn compile(source: String) -> i64 {
     let type_ok = resolver.typecheck(&asts);
     if !type_ok {
         println("Typecheck failed");
-        sub(return, 1);
+        return -1;
     }
     let mut mono_mirs = vec![];
     let mut mir_gen = zeta::middle::mir::gen::MirGen::new();
@@ -147,11 +147,11 @@ fn main() -> i64 {
 // Benchmark ports; ensure no regressions.
 fn benchmark_self_compile() {
     let start = host_datetime_now();
-    // Run sub(self, compile) logic...
+    // Run self-compile logic...
     let end = host_datetime_now();
-    let duration = sub(end, start);
-    if gt(duration, 14) {
-        println!("Regression: {}gt(ms, 14ms)", duration);
+    let duration = end - start;
+    if duration > 14 {
+        println!("Regression: {}ms > 14ms", duration);
     } else {
         println!("OK: {}ms", duration);
     }

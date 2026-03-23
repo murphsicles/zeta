@@ -1,0 +1,14 @@
+// Fibonacci using function calls instead of operators
+fn fib(n: i64) -> i64 {
+    if lt(n, 2) {
+        n  // return n
+    } else {
+        let a = fib(sub(n, 1));
+        let b = fib(sub(n, 2));
+        add(a, b)  // return add(a, b)
+    }
+}
+
+fn main() -> i64 {
+    fib(6)  // Should return 8
+}

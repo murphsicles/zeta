@@ -1,0 +1,48 @@
+// SYNTAX EXPLORATION - What does v0.3.7 accept?
+
+// Test 1: Simple function
+fn test1() -> i64 {
+    return 42;
+}
+
+// Test 2: Function with parameter
+fn test2(x: i64) -> i64 {
+    return x;
+}
+
+// Test 3: Multiple parameters
+fn test3(x: i64, y: i64) -> i64 {
+    return x + y;
+}
+
+// Test 4: Type alias
+type MyAlias = i64;
+
+// Test 5: Using type alias
+fn test5() -> MyAlias {
+    return 42;
+}
+
+// Test 6: What about parentheses in type?
+// fn test6() -> MyAlias() {  // Will this work?
+//     return 42;
+// }
+
+// Test 7: What about generic-looking as identifier?
+fn test7() -> lt {
+    return 42;
+}
+
+// Test 8: What about with parentheses?
+// fn test8() -> lt() {  // Will this work?
+//     return 42;
+// }
+
+// Test 9: What about with arguments?
+// fn test9() -> lt(Result) {  // Will this work?
+//     return 42;
+// }
+
+fn main() -> i64 {
+    test1()
+}

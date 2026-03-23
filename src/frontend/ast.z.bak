@@ -1,0 +1,328 @@
+// zeta_src/frontend/ast.z
+// Full AST definition for Zeta v0.5.0
+// Extended with v0.5.0 features: match expressions, const generics, associated types, etc.
+#[derive(Clone, Debug, PartialEq)]
+pub enum AstNode {
+    Program(Vec<AstNode>),
+    
+    // v0.4.1 Concepts (enhanced for v0.5.0)
+    ConceptDef {
+        name: String,
+        generics: Vec<GenericParam>,  // Now includes const generics
+        associated_types: Vec<AssociatedTypeDef>,
+        methods: Vec<AstNode>,
+        supertraits: Vec<String>,
+        doc: String,
+    },
+    
+    // Associated type definition (v0.5.0)
+    AssociatedTypeDef {
+        name: String,
+        bounds: Vec<String>,
+        default: Option<String>,
+    },
+    
+    // Generic parameter (enhanced for v0.5.0)
+    GenericParam {
+        name: String,
+        kind: GenericParamKind,  // Type, Lifetime, or Const
+        bounds: Vec<String>,
+        default: Option<String>,
+    },
+    
+    // Generic parameter kind (v0.5.0)
+    GenericParamKind {
+        is_type: bool,
+        is_lifetime: bool,
+        is_const: bool,
+        const_ty: Option<String>,  // For const generics: "usize", "i32", etc.
+    },
+    
+    ImplBlock {
+        concept: String,
+        ty: String,
+        generics: Vec<GenericParam>,
+        body: Vec<AstNode>,
+        doc: String,
+    },
+    
+    FuncDef {
+        name: String,
+        generics: Vec<GenericParam>,
+        params: Vec<(String, String)>,
+        ret: String,
+        body: Vec<AstNode>,
+        attrs: Vec<String>,
+        ret_expr: Option<Box<AstNode>>,
+        single_line: bool,
+        doc: String,
+    },
+    
+    EnumDef {
+        name: String,
+        generics: Vec<GenericParam>,
+        variants: Vec<(String, Vec<String>)>,
+        doc: String,
+    },
+    
+    StructDef {
+        name: String,
+        generics: Vec<GenericParam>,
+        fields: Vec<(String, String)>,
+        doc: String,
+    },
+    
+    // v0.5.0: Match expression
+    Match {
+        expr: Box<AstNode>,
+        arms: Vec<MatchArm>,
+    },
+    
+    // Match arm (v0.5.0)
+    MatchArm {
+        pattern: Box<AstNode>,
+        guard: Option<Box<AstNode>>,
+        body: Vec<AstNode>,
+    },
+    
+    // Patterns (v0.5.0)
+    PatternLiteral(Box<AstNode>),
+    PatternIdent {
+        name: String,
+        subpattern: Option<Box<AstNode>>,
+    },
+    PatternWildcard,
+    PatternStruct {
+        path: Vec<String>,
+        fields: Vec<PatternField>,
+        rest: bool,
+    },
+    PatternTuple {
+        patterns: Vec<AstNode>,
+        rest: bool,
+    },
+    PatternRef {
+        mutable: bool,
+        pattern: Box<AstNode>,
+    },
+    PatternSlice {
+        patterns: Vec<AstNode>,
+        rest: bool,
+    },
+    PatternRange {
+        start: Box<AstNode>,
+        end: Box<AstNode>,
+        inclusive: bool,
+    },
+    PatternOr {
+        patterns: Vec<AstNode>,
+    },
+    
+    // Pattern field (v0.5.0)
+    PatternField {
+        name: String,
+        pattern: Box<AstNode>,
+    },
+    
+    // v0.5.0: For loop
+    ForLoop {
+        pattern: Box<AstNode>,
+        iterable: Box<AstNode>,
+        body: Vec<AstNode>,
+    },
+    
+    // v0.5.0: While loop with optional condition
+    WhileLoop {
+        cond: Option<Box<AstNode>>,
+        body: Vec<AstNode>,
+    },
+    
+    // v0.5.0: Loop with optional label
+    Loop {
+        label: Option<String>,
+        body: Vec<AstNode>,
+    },
+    
+    // v0.5.0: Break with optional value and label
+    Break {
+        label: Option<String>,
+        value: Option<Box<AstNode>>,
+    },
+    
+    // v0.5.0: Continue with optional label
+    Continue {
+        label: Option<String>,
+    },
+    
+    // v0.5.0: Where clause for generic bounds
+    WhereClause {
+        bounds: Vec<WhereBound>,
+    },
+    
+    // Where bound (v0.5.0)
+    WhereBound {
+        ty: String,
+        bounds: Vec<String>,
+    },
+    
+    // Existing nodes (from v0.4.1)
+    Call {
+        receiver: Option<Box<AstNode>>,
+        method: String,
+        args: Vec<AstNode>,
+        type_args: Vec<String>,
+        structural: bool,
+    },
+    PathCall {
+        path: Vec<String>,
+        method: String,
+        args: Vec<AstNode>,
+    },
+    Spawn {
+        func: String,
+        args: Vec<AstNode>,
+    },
+    Lit(i64),
+    StringLit(String),
+    FString(Vec<AstNode>),
+    Var(String),
+    Assign(Box<AstNode>, Box<AstNode>),
+    BinaryOp {
+        op: String,
+        left: Box<AstNode>,
+        right: Box<AstNode>,
+    },
+    TimingOwned {
+        ty: String,
+        inner: Box<AstNode>,
+    },
+    Defer(Box<AstNode>),
+    TryProp {
+        expr: Box<AstNode>,
+    },
+    DictLit {
+        entries: Vec<(AstNode, AstNode)>,
+    },
+    Subscript {
+        base: Box<AstNode>,
+        index: Box<AstNode>,
+    },
+    Return(Box<AstNode>),
+    If {
+        cond: Box<AstNode>,
+        then_: Vec<AstNode>,
+        else_: Vec<AstNode>,
+    },
+    ExprStmt {
+        expr: Box<AstNode>,
+    },
+    
+    // v0.5.0: Type ascription
+    TypeAscription {
+        expr: Box<AstNode>,
+        ty: String,
+    },
+    
+    // v0.5.0: Block expression
+    BlockExpr {
+        stmts: Vec<AstNode>,
+        expr: Option<Box<AstNode>>,
+    },
+    
+    // v0.5.0: Range expressions
+    Range {
+        start: Option<Box<AstNode>>,
+        end: Option<Box<AstNode>>,
+        inclusive: bool,
+    },
+    
+    // v0.5.0: Tuple expression
+    TupleExpr {
+        elements: Vec<AstNode>,
+    },
+    
+    // v0.5.0: Array expression
+    ArrayExpr {
+        elements: Vec<AstNode>,
+        repeat: Option<(Box<AstNode>, Box<AstNode>)>,  // [value; count]
+    },
+    
+    // v0.5.0: Struct expression
+    StructExpr {
+        path: Vec<String>,
+        fields: Vec<StructField>,
+        rest: Option<Box<AstNode>>,
+    },
+    
+    // Struct field in expression (v0.5.0)
+    StructField {
+        name: String,
+        value: Box<AstNode>,
+        shorthand: bool,
+    },
+    
+    // v0.5.0: Field access expression
+    FieldAccess {
+        base: Box<AstNode>,
+        field: String,
+    },
+    
+    // v0.5.0: Method call expression
+    MethodCall {
+        receiver: Box<AstNode>,
+        method: String,
+        args: Vec<AstNode>,
+        type_args: Vec<String>,
+    },
+    
+    // v0.5.0: Closure expression
+    Closure {
+        params: Vec<(String, String)>,
+        body: Box<AstNode>,
+        async: bool,
+        move: bool,
+    },
+    
+    // v0.5.0: Async block
+    AsyncBlock {
+        body: Vec<AstNode>,
+    },
+    
+    // v0.5.0: Await expression
+    Await {
+        expr: Box<AstNode>,
+    },
+    
+    // v0.5.0: Try block
+    TryBlock {
+        body: Vec<AstNode>,
+    },
+    
+    // v0.5.0: Const expression (compile-time evaluation)
+    ConstExpr {
+        expr: Box<AstNode>,
+    },
+    
+    // v0.5.0: Inline assembly
+    InlineAsm {
+        template: String,
+        operands: Vec<AsmOperand>,
+        options: Vec<String>,
+    },
+    
+    // Assembly operand (v0.5.0)
+    AsmOperand {
+        constraint: String,
+        expr: Box<AstNode>,
+        is_input: bool,
+        is_output: bool,
+        is_inout: bool,
+    },
+    
+    // v0.5.0: SIMD intrinsic
+    SimdIntrinsic {
+        name: String,
+        args: Vec<AstNode>,
+        ty: String,
+    },
+}

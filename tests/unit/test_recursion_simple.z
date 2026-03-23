@@ -1,0 +1,9 @@
+// Simple recursion without if
+fn countdown(n: i64) -> i64 {
+    // Just return n for now
+    n
+}
+
+fn main() -> i64 {
+    countdown(5)
+}

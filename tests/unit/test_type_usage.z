@@ -1,0 +1,11 @@
+// Test: Can v0.3.7 use defined types?
+type MyType = i64;
+
+fn returns_mytype() -> MyType {
+    return 42;
+}
+
+fn main() -> i64 {
+    let x = returns_mytype();
+    return x;
+}

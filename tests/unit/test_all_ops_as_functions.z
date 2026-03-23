@@ -1,0 +1,17 @@
+// Test all operators as function calls
+fn test_ops(x: i64, y: i64) -> i64 {
+    let mut result = 0;
+    
+    if eq(x, y) { result = add(result, 1); }
+    if ne(x, y) { result = add(result, 2); }
+    if lt(x, y) { result = add(result, 4); }
+    if gt(x, y) { result = add(result, 8); }
+    if le(x, y) { result = add(result, 16); }
+    if ge(x, y) { result = add(result, 32); }
+    
+    result
+}
+
+fn main() -> i64 {
+    test_ops(5, 3)  // Should return: add(2, 8) + 32 = 42
+}

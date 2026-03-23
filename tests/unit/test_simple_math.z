@@ -1,0 +1,8 @@
+// Test simple math
+fn add(a: i64, b: i64) -> i64 {
+    add(a, b)
+}
+
+fn main() -> i64 {
+    add(5, 3)  // Should return 8
+}

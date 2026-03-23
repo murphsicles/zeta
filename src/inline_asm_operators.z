@@ -1,0 +1,44 @@
+// Operators implemented with inline assembly
+// First principles: Direct machine code
+
+// Equality for i64 using inline assembly
+fn eq_i64(a: i64, b: i64) -> i64 {
+    let result: i64;
+    unsafe {
+        asm!(
+            "cmp {0}, {1}",
+            "sete al",
+            "movzx {2}, al",
+            in(reg) a,
+            in(reg) b,
+            out(reg) result,
+        );
+    }
+    result
+}
+
+// Addition for i64
+fn add_i64(a: i64, b: i64) -> i64 {
+    let result: i64;
+    unsafe {
+        asm!(
+            "add {0}, {1}",
+            inout(reg) a => result,
+            in(reg) b,
+        );
+    }
+    result
+}
+
+// Test with inline assembly operators
+fn main() -> i64 {
+    let x = 5;
+    let y = 3;
+    
+    // Use our assembly operators
+    let sum = add_i64(x, y);  // add(5, 3) = 8
+    let is_equal = eq_i64(x, y);  // eq(5, 3) = 0
+    
+    // Return sum (8)
+    sum
+}

@@ -1,0 +1,31 @@
+// TEST: What type syntax CAN v0.3.7 parse?
+
+// Test 1: Simple identifier as type (should work)
+fn test1() -> MyType {
+    return 0;
+}
+
+// Test 2: Identifier with parentheses (might work)
+fn test2() -> MyType() {
+    return 0;
+}
+
+// Test 3: What about "lt" as identifier?
+fn test3() -> lt {
+    return 0;
+}
+
+// Test 4: "lt" with parentheses?
+fn test4() -> lt() {
+    return 0;
+}
+
+// Test 5: Multiple arguments?
+fn test5() -> lt(Result) {
+    return 0;
+}
+
+// Baseline: What definitely works
+fn main() -> i64 {
+    return 42;
+}

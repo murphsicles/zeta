@@ -1,0 +1,12 @@
+// Test Fibonacci base case
+fn fib(n: i64) -> i64 {
+    if lt(n, 2) {
+        return n;
+    } else {
+        return 99;  // placeholder
+    }
+}
+
+fn main() -> i64 {
+    fib(1)  // Should return 1
+}

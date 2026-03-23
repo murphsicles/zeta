@@ -1,0 +1,180 @@
+// zeta_src/frontend/parser/expr.z
+use super::parser::{Lexer, Parser, Token};
+use crate::frontend::ast::AstNode;
+
+impl Parser {
+    pub fn parse_expr(&mut self) -> AstNode {
+        self.parse_assign()
+    }
+
+    fn parse_assign(&mut self) -> AstNode {
+        let lhs = self.parse_binary();
+        if self.consume(Token::Eq) {
+            let rhs = self.parse_expr();
+            AstNode::Assign(Box::new(lhs), Box::new(rhs))
+        } else {
+            lhs
+        }
+    }
+
+    fn parse_binary(&mut self) -> AstNode {
+        let mut left = self.parse_postfix();
+        while let Some(op) = self.binary_op() {
+            self.advance();
+            let right = self.parse_postfix();
+            left = AstNode::BinaryOp {
+                op,
+                left: Box::new(left),
+                right: Box::new(right),
+            };
+        }
+        left
+    }
+
+    fn parse_postfix(&mut self) -> AstNode {
+        let mut expr = self.parse_primary();
+        loop {
+            if self.consume(Token::Dot) {
+                let method = self.expect_ident();
+                let type_args = self.parse_generics();
+                self.expect(Token::LParen);
+                let args = self.parse_args();
+                self.expect(Token::RParen);
+                expr = AstNode::Call {
+                    receiver: Some(Box::new(expr)),
+                    method,
+                    args,
+                    type_args,
+                    structural: false,
+                };
+            } else if self.consume(Token::LBracket) {
+                let index = self.parse_expr();
+                self.expect(Token::RBracket);
+                expr = AstNode::Subscript {
+                    base: Box::new(expr),
+                    index: Box::new(index),
+                };
+            } else if self.consume(Token::Question) {
+                expr = AstNode::TryProp { expr: Box::new(expr) };
+            } else {
+                break;
+            }
+        }
+        expr
+    }
+
+    fn parse_primary(&mut self) -> AstNode {
+        match self.peek() {
+            Token::Lit(n) => {
+                self.advance();
+                AstNode::Lit(n)
+            }
+            Token::StringLit(s) => {
+                self.advance();
+                AstNode::StringLit(s)
+            }
+            Token::Ident(name) => {
+                self.advance();
+                if name == "f" && matches!(self.peek(), Token::StringLit(_)) {
+                    self.parse_fstring()
+                } else if self.peek() == Token::LParen || self.peek() == Token::Lt {
+                    let type_args = self.parse_generics();
+                    self.expect(Token::LParen);
+                    let args = self.parse_args();
+                    self.expect(Token::RParen);
+                    AstNode::Call {
+                        receiver: None,
+                        method: name,
+                        args,
+                        type_args,
+                        structural: true,
+                    }
+                } else if name == "TimingOwned" {
+                    self.expect(Token::Lt);
+                    let ty = self.expect_ident();
+                    self.expect(Token::Gt);
+                    let inner = self.parse_expr();
+                    AstNode::TimingOwned { ty, inner: Box::new(inner) }
+                } else {
+                    AstNode::Var(name)
+                }
+            }
+            Token::LParen => {
+                self.advance();
+                let expr = self.parse_expr();
+                self.expect(Token::RParen);
+                expr
+            }
+            Token::LBrace => self.parse_dict_lit(),
+            Token::KeywordDefer => {
+                self.advance();
+                let inner = self.parse_expr();
+                AstNode::Defer(Box::new(inner))
+            }
+            Token::KeywordSpawn => {
+                self.advance();
+                let func = self.expect_ident();
+                self.expect(Token::LParen);
+                let args = self.parse_args();
+                self.expect(Token::RParen);
+                AstNode::Spawn { func, args }
+            }
+            _ => {
+                self.advance();
+                AstNode::Lit(0)
+            }
+        }
+    }
+
+    fn parse_fstring(&mut self) -> AstNode {
+        let mut parts = vec![];
+        if let Token::StringLit(mut content) = self.peek() {
+            self.advance();
+            let mut pos = 0;
+            while let Some(start) = content[pos..].find('{') {
+                if start > 0 {
+                    parts.push(AstNode::StringLit(content[pos..pos+start].to_string()));
+                }
+                pos += start + 1;
+                if content[pos..].starts_with('{') {
+                    parts.push(AstNode::StringLit("{".to_string()));
+                    pos += 1;
+                    continue;
+                }
+                let expr = self.parse_primary();
+                parts.push(expr);
+                if content[pos..].starts_with('}') {
+                    pos += 1;
+                }
+            }
+            if pos < content.len() {
+                parts.push(AstNode::StringLit(content[pos..].to_string()));
+            }
+        }
+        AstNode::FString(parts)
+    }
+
+    fn parse_dict_lit(&mut self) -> AstNode {
+        self.expect(Token::LBrace);
+        let mut entries = vec![];
+        while self.peek() != Token::RBrace {
+            let key = self.parse_expr();
+            self.expect(Token::Colon);
+            let val = self.parse_expr();
+            entries.push((key, val));
+            self.consume(Token::Comma);
+        }
+        self.expect(Token::RBrace);
+        AstNode::DictLit { entries }
+    }
+
+    fn binary_op(&self) -> Option<String> {
+        match self.peek() {
+            Token::Plus => Some("+".to_string()),
+            Token::Minus => Some("-".to_string()),
+            Token::Star => Some("*".to_string()),
+            Token::Slash => Some("/".to_string()),
+            _ => None,
+        }
+    }
+}

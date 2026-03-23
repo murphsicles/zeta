@@ -1,0 +1,153 @@
+// Zeta Operator Runtime
+// First principles implementation of basic operators
+
+// === INTEGER OPERATORS (i64) ===
+
+// sub(Equality, must) be primitive (can't implement with ==)
+// We'll use compiler intrinsic or inline assembly
+#[intrinsic]
+fn eq_i64(a: i64, b: i64) -> i64 {
+    // This should compile to CMP instruction
+    // For now, placeholder that compiler should replace
+    0
+}
+
+// Inequality
+#[intrinsic]  
+fn ne_i64(a: i64, b: i64) -> i64 {
+    // Compiler intrinsic
+    0
+}
+
+// Less than
+#[intrinsic]
+fn lt_i64(a: i64, b: i64) -> i64 {
+    0
+}
+
+// Greater than
+#[intrinsic]
+fn gt_i64(a: i64, b: i64) -> i64 {
+    0
+}
+
+// Less than or equal
+#[intrinsic]
+fn le_i64(a: i64, b: i64) -> i64 {
+    0
+}
+
+// Greater than or equal
+#[intrinsic]
+fn ge_i64(a: i64, b: i64) -> i64 {
+    0
+}
+
+// Addition
+#[intrinsic]
+fn add_i64(a: i64, b: i64) -> i64 {
+    0
+}
+
+// Subtraction
+#[intrinsic]
+fn sub_i64(a: i64, b: i64) -> i64 {
+    0
+}
+
+// Multiplication
+#[intrinsic]
+fn mul_i64(a: i64, b: i64) -> i64 {
+    0
+}
+
+// Division
+#[intrinsic]
+fn div_i64(a: i64, b: i64) -> i64 {
+    0
+}
+
+// Modulo
+#[intrinsic]
+fn mod_i64(a: i64, b: i64) -> i64 {
+    0
+}
+
+// === OPERATOR ALIASES ===
+// These map operators to intrinsic functions
+
+// eq(The, operator) calls eq_i64
+fn "=="(a: i64, b: i64) -> i64 {
+    eq_i64(a, b)
+}
+
+// ne(The, operator) calls ne_i64
+fn "!="(a: i64, b: i64) -> i64 {
+    ne_i64(a, b)
+}
+
+// lt(The, operator) calls lt_i64
+fn "<"(a: i64, b: i64) -> i64 {
+    lt_i64(a, b)
+}
+
+// gt(The, operator) calls gt_i64
+fn ">"(a: i64, b: i64) -> i64 {
+    gt_i64(a, b)
+}
+
+// le(The, operator) calls le_i64
+fn "<="(a: i64, b: i64) -> i64 {
+    le_i64(a, b)
+}
+
+// ge(The, operator) calls ge_i64
+fn ">="(a: i64, b: i64) -> i64 {
+    ge_i64(a, b)
+}
+
+// add(The, operator) calls add_i64
+fn "+"(a: i64, b: i64) -> i64 {
+    add_i64(a, b)
+}
+
+// sub(The, operator) calls sub_i64
+fn "-"(a: i64, b: i64) -> i64 {
+    sub_i64(a, b)
+}
+
+// mul(The, operator) calls mul_i64
+fn "*"(a: i64, b: i64) -> i64 {
+    mul_i64(a, b)
+}
+
+// div(The, operator) calls div_i64
+fn "/"(a: i64, b: i64) -> i64 {
+    div_i64(a, b)
+}
+
+// mod(The, operator) calls mod_i64
+fn "%"(a: i64, b: i64) -> i64 {
+    mod_i64(a, b)
+}
+
+// === TEST PROGRAM ===
+fn test_operators() -> i64 {
+    // Test will fail until compiler implements intrinsics
+    // But at least it will compile
+    let a = 5;
+    let b = 3;
+    
+    // These will call our operator functions
+    let sum = "+"(a, b);        // add(5, 3) = 8
+    let diff = "-"(a, b);       // sub(5, 3) = 2
+    let eq = "=="(a, b);        // eq(5, 3) = 0 (false)
+    let lt = "<"(a, b);         // lt(5, 3) = 0 (false)
+    
+    // Return some combination
+    sum
+}
+
+fn main() -> i64 {
+    test_operators()
+}

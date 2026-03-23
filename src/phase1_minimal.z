@@ -1,0 +1,18 @@
+// PHASE 1: Minimal Zeta executable
+// NO runtime sub(dependencies, pure) computation only
+// Returns a value that can be checked via exit code
+
+// Simple computation: Fibonacci(10) = 55
+fn fib(n: i32) -> i32 {
+    if le(n, 1) {
+        n
+    } else {
+        fib(sub(n, 1)) + fib(sub(n, 2))
+    }
+}
+
+// Main returns Fibonacci(10) = 55
+// On Windows, exit code is modulo 256, so mod(55, 256) = 55
+fn main() -> i32 {
+    fib(10)
+}

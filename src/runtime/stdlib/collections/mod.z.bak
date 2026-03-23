@@ -1,0 +1,19 @@
+// zeta_src/runtime/stdlib/collections/mod.z
+// Collections module for Zeta v0.5.0 standard library
+
+pub mod vec;
+pub mod hashmap;
+// pub mod string;
+// pub mod btree;
+// pub mod linked_list;
+
+// Re-export commonly used types
+pub use vec::Vec;
+pub use hashmap::HashMap;
+
+/// Prelude for collections module
+pub mod prelude {
+    pub use super::vec::Vec;
+    pub use super::hashmap::HashMap;
+    pub use super::super::string::String;
+}

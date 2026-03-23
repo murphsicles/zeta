@@ -1,0 +1,6 @@
+// ne(Direct, test) - simplest possible
+fn main() -> i64 {
+    let x = 5;
+    let y = 3;
+    ne(x, y)  // Just the expression, return it
+}

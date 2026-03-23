@@ -1,0 +1,8 @@
+// Simple ne() call
+fn test() -> i64 {
+    ne(5, 3)  // Just return ne(5, 3)
+}
+
+fn main() -> i64 {
+    test()
+}

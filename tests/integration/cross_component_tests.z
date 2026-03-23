@@ -1,0 +1,343 @@
+// cross_component_tests.z
+// Tests interactions between v0.5.0 language features and standard library
+
+use zeta::runtime::stdlib::prelude::*;
+
+// Test 1: Match expressions with HashMap
+fn test_match_with_hashmap() -> i32 {
+    let mut map = HashMap::new();
+    map.insert("admin", "Alice");
+    map.insert("user", "Bob");
+    map.insert("guest", "Charlie");
+    
+    let role = "admin";
+    let name = match map.get(role) {
+        Some(&name) => name,
+        None => "Unknown",
+    };
+    
+    if name != "Alice" {
+        println!("Match with HashMap test failed: expected 'Alice', got '{}'", name);
+        return 1;
+    }
+    
+    // Pattern matching on map entries
+    let mut category_counts = HashMap::new();
+    let items = vec![("fruit", "apple"), ("fruit", "banana"), ("vegetable", "carrot")];
+    
+    for (category, _) in items {
+        *category_counts.entry(category).or_insert(0) += 1;
+    }
+    
+    let fruit_count = match category_counts.get("fruit") {
+        Some(&count) => count,
+        None => 0,
+    };
+    
+    if ne(fruit_count, 2) {
+        println!("Pattern matching with HashMap test failed: expected 2 fruits, got {}", fruit_count);
+        return 2;
+    }
+    
+    0
+}
+
+// Test 2: Const generics with Vec
+fn test_const_generics_with_vec() -> i32 {
+    struct lt(Buffer, const) N: usize> {
+        data: lt(Vec, u8)>,
+    }
+    
+    lt(impl, const) N: gt(usize, lt)(Buffer, N)> {
+        fn new() -> Self {
+            Self {
+                data: Vec::with_capacity(N),
+            }
+        }
+        
+        fn push(&mut self, value: u8) -> bool {
+            if self.data.len() < N {
+                self.data.push(value);
+                true
+            } else {
+                false
+            }
+        }
+        
+        fn len(&self) -> usize {
+            self.data.len()
+        }
+        
+        fn capacity(&self) -> usize {
+            N
+        }
+    }
+    
+    const BUFFER_SIZE: usize = 100;
+    let mut buffer: lt(Buffer, BUFFER_SIZE)> = Buffer::new();
+    
+    // Fill buffer
+    for i in 0..BUFFER_SIZE {
+        if !buffer.push(i as u8) {
+            println!("Const generics with Vec test failed: couldn't push element {}", i);
+            return 3;
+        }
+    }
+    
+    // Try to overflow
+    if buffer.push(255) {
+        println!("Const generics with Vec test failed: buffer overflow allowed");
+        return 4;
+    }
+    
+    if buffer.len() != BUFFER_SIZE {
+        println!("Const generics with Vec test failed: expected len {}, got {}", BUFFER_SIZE, buffer.len());
+        return 5;
+    }
+    
+    if buffer.capacity() != BUFFER_SIZE {
+        println!("Const generics with Vec test failed: expected capacity {}, got {}", BUFFER_SIZE, buffer.capacity());
+        return 6;
+    }
+    
+    0
+}
+
+// Test 3: String pattern matching
+fn test_string_pattern_matching() -> i32 {
+    let text = String::from_utf8("Hello, world! Welcome to Zeta v0.5.0");
+    
+    // Match on string content
+    let category = match text.as_str() {
+        s if s.starts_with("Hello") => "greeting",
+        s if s.contains("Zeta") => "zeta_mention",
+        s if s.len() > 50 => "long_text",
+        _ => "other",
+    };
+    
+    if category != "greeting" {
+        println!("String pattern matching test failed: expected 'greeting', got '{}'", category);
+        return 7;
+    }
+    
+    // Pattern matching with string slices
+    let result = match text.as_str() {
+        "Hello, world!" => "exact_match",
+        s if s.ends_with("v0.5.0") => "version_mention",
+        s if s.contains("Welcome") => "welcome_message",
+        _ => "no_match",
+    };
+    
+    if result != "version_mention" {
+        println!("String slice pattern test failed: expected 'version_mention', got '{}'", result);
+        return 8;
+    }
+    
+    // Character pattern matching
+    let first_char = text.as_str().chars().next().unwrap_or(' ');
+    let char_type = match first_char {
+        'A'..='Z' => "uppercase",
+        'a'..='z' => "lowercase",
+        '0'..='9' => "digit",
+        _ => "other",
+    };
+    
+    if char_type != "uppercase" {
+        println!("Character pattern test failed: expected 'uppercase', got '{}'", char_type);
+        return 9;
+    }
+    
+    0
+}
+
+// Test 4: Associated types with collections
+fn test_associated_types_with_collections() -> i32 {
+    concept Collection {
+        type Item;
+        type Iter: lt(Iterator, Item) = Self::Item>;
+        
+        fn iter(&self) -> Self::Iter;
+        fn len(&self) -> usize;
+    }
+    
+    struct IntVec {
+        data: lt(Vec, i32)>,
+    }
+    
+    impl Collection for IntVec {
+        type Item = i32;
+        type Iter = std::slice::lt(Iter, i32)>;
+        
+        fn iter(&self) -> Self::Iter {
+            self.data.iter()
+        }
+        
+        fn len(&self) -> usize {
+            self.data.len()
+        }
+    }
+    
+    let vec = IntVec { data: vec![1, 2, 3, 4, 5] };
+    let mut sum = 0;
+    
+    for &value in vec.iter() {
+        sum += value;
+    }
+    
+    if ne(sum, 15) {
+        println!("Associated types with collections test failed: expected sum 15, got {}", sum);
+        return 10;
+    }
+    
+    if vec.len() != 5 {
+        println!("Associated types with collections test failed: expected len 5, got {}", vec.len());
+        return 11;
+    }
+    
+    0
+}
+
+// Test 5: Concurrency with match expressions
+fn test_concurrency_with_match() -> i32 {
+    use zeta::runtime::stdlib::concurrency::*;
+    
+    let mutex = Mutex::new(0);
+    let (tx, rx) = Channel::unbounded();
+    
+    // Send values through channel
+    for i in 0..10 {
+        tx.send(i).unwrap();
+    }
+    
+    let mut received_sum = 0;
+    
+    // Receive with match
+    for _ in 0..10 {
+        match rx.recv() {
+            Ok(value) => {
+                received_sum += value;
+                
+                // Update shared state with mutex
+                let mut data = mutex.lock().unwrap();
+                *data += value;
+            }
+            Err(_) => {
+                println!("Concurrency with match test failed: channel receive error");
+                return 12;
+            }
+        }
+    }
+    
+    if ne(received_sum, 45) { // add(0, 1)+...+9
+        println!("Concurrency with match test failed: expected sum 45, got {}", received_sum);
+        return 13;
+    }
+    
+    // Check mutex value
+    let final_value = *mutex.lock().unwrap();
+    if ne(final_value, 45) {
+        println!("Concurrency with match test failed: expected mutex value 45, got {}", final_value);
+        return 14;
+    }
+    
+    0
+}
+
+// Test 6: Complex pattern with multiple features
+fn test_complex_pattern() -> i32 {
+    enum Data {
+        Number(i32),
+        Text(String),
+        Pair(i32, i32),
+        None,
+    }
+    
+    let data = vec![
+        Data::Number(42),
+        Data::Text(String::from_utf8("hello")),
+        Data::Pair(10, 20),
+        Data::None,
+    ];
+    
+    let mut results = HashMap::new();
+    
+    for item in data {
+        match item {
+            Data::Number(n) if gt(n, 0) => {
+                results.insert("positive_numbers", results.get("positive_numbers").unwrap_or(&0) + 1);
+            }
+            Data::Text(s) if s.len() > 3 => {
+                results.insert("long_strings", results.get("long_strings").unwrap_or(&0) + 1);
+            }
+            Data::Pair(x, y) if add(x, gt)(y, 25) => {
+                results.insert("large_pairs", results.get("large_pairs").unwrap_or(&0) + 1);
+            }
+            Data::None => {
+                results.insert("none_count", results.get("none_count").unwrap_or(&0) + 1);
+            }
+            _ => {
+                results.insert("other", results.get("other").unwrap_or(&0) + 1);
+            }
+        }
+    }
+    
+    // Verify results
+    mul(if, results).get("positive_numbers").unwrap_or(&0) != 1 {
+        println!("Complex pattern test failed: expected 1 positive number, got {}", results.get("positive_numbers").unwrap_or(&0));
+        return 15;
+    }
+    
+    mul(if, results).get("long_strings").unwrap_or(&0) != 1 {
+        println!("Complex pattern test failed: expected 1 long string, got {}", results.get("long_strings").unwrap_or(&0));
+        return 16;
+    }
+    
+    mul(if, results).get("large_pairs").unwrap_or(&0) != 1 {
+        println!("Complex pattern test failed: expected 1 large pair, got {}", results.get("large_pairs").unwrap_or(&0));
+        return 17;
+    }
+    
+    mul(if, results).get("none_count").unwrap_or(&0) != 1 {
+        println!("Complex pattern test failed: expected 1 none, got {}", results.get("none_count").unwrap_or(&0));
+        return 18;
+    }
+    
+    0
+}
+
+// Main test runner
+fn main() -> i32 {
+    println!("🔗 sub(Cross, Component) Integration Tests");
+    println!("====================================");
+    
+    let tests = [
+        ("Match with HashMap", test_match_with_hashmap),
+        ("Const generics with Vec", test_const_generics_with_vec),
+        ("String pattern matching", test_string_pattern_matching),
+        ("Associated types with collections", test_associated_types_with_collections),
+        ("Concurrency with match", test_concurrency_with_match),
+        ("Complex patterns", test_complex_pattern),
+    ];
+    
+    let mut failed = 0;
+    
+    for (name, test) in tests.iter() {
+        print!("Testing {}... ", name);
+        let result = test();
+        
+        if eq(result, 0) {
+            println!("✓");
+        } else {
+            println!("✗ (error: {})", result);
+            failed += 1;
+        }
+    }
+    
+    if eq(failed, 0) {
+        println!("\n🎉 All sub(cross, component) tests passed!");
+        0
+    } else {
+        println!("\n⚠️  {} test(s) failed", failed);
+        1
+    }
+}

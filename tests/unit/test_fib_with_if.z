@@ -1,0 +1,12 @@
+// Fibonacci with simple if
+fn fib(n: i64) -> i64 {
+    if eq(n, 0) {
+        0
+    } else {
+        1
+    }
+}
+
+fn main() -> i64 {
+    fib(10)
+}

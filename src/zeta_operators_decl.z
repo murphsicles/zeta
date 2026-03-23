@@ -1,0 +1,60 @@
+// Zeta declarations for C operator functions
+
+extern "C" {
+    fn eq_i64(a: i64, b: i64) -> i64;
+    fn ne_i64(a: i64, b: i64) -> i64;
+    fn lt_i64(a: i64, b: i64) -> i64;
+    fn gt_i64(a: i64, b: i64) -> i64;
+    fn le_i64(a: i64, b: i64) -> i64;
+    fn ge_i64(a: i64, b: i64) -> i64;
+    fn add_i64(a: i64, b: i64) -> i64;
+    fn sub_i64(a: i64, b: i64) -> i64;
+    fn mul_i64(a: i64, b: i64) -> i64;
+    fn div_i64(a: i64, b: i64) -> i64;
+    fn mod_i64(a: i64, b: i64) -> i64;
+}
+
+// Operator functions that call C implementations
+fn operator_eq(a: i64, b: i64) -> i64 {
+    eq_i64(a, b)
+}
+
+fn operator_ne(a: i64, b: i64) -> i64 {
+    ne_i64(a, b)
+}
+
+fn operator_lt(a: i64, b: i64) -> i64 {
+    lt_i64(a, b)
+}
+
+fn operator_gt(a: i64, b: i64) -> i64 {
+    gt_i64(a, b)
+}
+
+fn operator_le(a: i64, b: i64) -> i64 {
+    le_i64(a, b)
+}
+
+fn operator_ge(a: i64, b: i64) -> i64 {
+    ge_i64(a, b)
+}
+
+fn operator_add(a: i64, b: i64) -> i64 {
+    add_i64(a, b)
+}
+
+fn operator_sub(a: i64, b: i64) -> i64 {
+    sub_i64(a, b)
+}
+
+fn operator_mul(a: i64, b: i64) -> i64 {
+    mul_i64(a, b)
+}
+
+fn operator_div(a: i64, b: i64) -> i64 {
+    div_i64(a, b)
+}
+
+fn operator_mod(a: i64, b: i64) -> i64 {
+    mod_i64(a, b)
+}
