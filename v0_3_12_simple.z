@@ -1,0 +1,24 @@
+fn tok_ident() -> i64 { 0 }
+fn tok_const() -> i64 { 100 }
+
+fn parse_simple(input: i64) -> i64 {
+    if input == tok_const() {
+        100
+    } else {
+        1
+    }
+}
+
+fn compile_simple(source: i64) -> i64 {
+    let ast = parse_simple(source);
+    
+    if ast > 0 {
+        0
+    } else {
+        1
+    }
+}
+
+fn main() -> i64 {
+    compile_simple(tok_const())
+}
