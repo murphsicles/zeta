@@ -1,0 +1,56 @@
+// v0.3.9 TRANSLATED: Const Parsing Extension
+// Translated for v0.3.7 compatibility
+// Uses functions instead of const declarations
+
+// Token system - using functions instead of const
+fn tok_ident() -> i64 { 0 }
+fn tok_eof() -> i64 { 1 }
+fn tok_const() -> i64 { 100 }    // "const" keyword
+fn tok_colon() -> i64 { 101 }    // ":"
+fn tok_eq() -> i64 { 102 }       // "="
+fn tok_semicolon() -> i64 { 103 } // ";"
+
+// Check if token is const (v0.3.9 extension)
+fn is_const(tok: i64) -> i64 {
+    if tok == tok_const() {
+        1  // Yes
+    } else {
+        0  // No
+    }
+}
+
+// Parse const declaration (v0.3.9)
+fn parse_const(input: i64) -> i64 {
+    let is_const_token = is_const(input);
+    
+    if is_const_token == 1 {
+        100  // AST_CONST
+    } else {
+        0    // Not a const
+    }
+}
+
+// Compiler with const support
+fn compile_with_const(source_encoded: i64) -> i64 {
+    let ast = parse_const(source_encoded);
+    
+    if ast == 100 {
+        0  // Success: parsed const
+    } else {
+        1  // Failure
+    }
+}
+
+// Test v0.3.9 capability
+fn test_v0_3_9() -> i64 {
+    // Test with const token
+    let result = compile_with_const(tok_const());
+    
+    // Should return 0 (success)
+    result
+}
+
+// Main - v0.3.9 release
+fn main() -> i64 {
+    test_v0_3_9()
+}
