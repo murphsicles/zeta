@@ -10,8 +10,8 @@
 ## Queue (Priority Order)
 
 ### 🔴 HIGH PRIORITY - Blocking Progress
-1. [ ] **v0.3.12** - Combine capabilities (const + struct + generic)
-2. [ ] **v0.3.13** - Add expression parsing
+1. [x] **v0.3.12** - Expression parsing (COMPLETED - released 13:00 GMT)
+2. [ ] **v0.3.13** - Combine capabilities (const + struct + generic)
 3. [ ] **v0.3.14** - Add type checking
 4. [ ] **v0.3.15** - Create actual compiler (not just parser)
 
@@ -33,24 +33,25 @@
 - [x] **Created accountability system** (22:59 GMT)
 - [x] **v0.3.10 released** - Struct parser (22:56 GMT)
 - [x] **v0.3.11 created** - Generic parser (22:57 GMT)
-- [x] **v0.3.12 started** - Combined capabilities (23:00 GMT)
-- [ ] **v0.3.12 testing** - Compile and verify
+- [x] **v0.3.12 completed** - Expression parsing (released 13:00 GMT)
+- [x] **v0.3.12 verified** - Binary tested, exit code 0
 - [x] **Heartbeat accountability check** (23:21 GMT)
 
 ### Bootstrap Ladder Status
 ```
-v0.3.7 (given) → v0.3.8 → v0.3.9 → v0.3.10 → v0.3.11 → [v0.3.12]
+v0.3.7 (given) → v0.3.8 → v0.3.9 → v0.3.10 → v0.3.11 → v0.3.12 ✅ → [v0.3.13]
 ```
 
 ### Capability Matrix
-| Version | Const | Struct | Generic | Combined |
-|---------|-------|--------|---------|----------|
-| v0.3.7  | ❌ No | ❌ No  | ❌ No   | ❌ No    |
-| v0.3.8  | ❌ No | ❌ No  | ❌ No   | ❌ No    |
-| v0.3.9  | ✅ Yes| ❌ No  | ❌ No   | ❌ No    |
-| v0.3.10 | ❌ No | ✅ Yes | ❌ No   | ❌ No    |
-| v0.3.11 | ❌ No | ❌ No  | ✅ Yes  | ❌ No    |
-| v0.3.12 | ❌ No | ❌ No  | ❌ No   | ⏳ Planned |
+| Version | Const | Struct | Generic | Expression | Combined |
+|---------|-------|--------|---------|------------|----------|
+| v0.3.7  | ❌ No | ❌ No  | ❌ No   | ❌ No      | ❌ No    |
+| v0.3.8  | ❌ No | ❌ No  | ❌ No   | ❌ No      | ❌ No    |
+| v0.3.9  | ✅ Yes| ❌ No  | ❌ No   | ❌ No      | ❌ No    |
+| v0.3.10 | ✅ Yes| ✅ Yes | ❌ No   | ❌ No      | ❌ No    |
+| v0.3.11 | ✅ Yes| ✅ Yes | ✅ Yes  | ❌ No      | ❌ No    |
+| v0.3.12 | ✅ Yes| ✅ Yes | ✅ Yes  | ✅ Yes     | ❌ No    |
+| v0.3.13 | ✅ Yes| ✅ Yes | ✅ Yes  | ✅ Yes     | ⏳ Planned |
 
 ## Accountability Rules
 
