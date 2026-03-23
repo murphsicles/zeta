@@ -1,153 +1,80 @@
-# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta: The Final Systems Language
+# Zeta Compiler
 
-[<img alt="Zeta Logo" width="128px" src="https://z-lang.org/assets/images/z128.png" />](https://z-lang.org) [![Crates.io](https://img.shields.io/crates/v/zetac.svg)](https://crates.io/crates/zetac) [![Dependencies](https://deps.rs/repo/github/murphsicles/zeta/status.svg)](https://deps.rs/repo/github/murphsicles/zeta)[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+A compiler for the Zeta programming language, written in Zeta itself (bootstrapped).
 
-Zeta is a systems programming language inspired by Elements of Programming (EOP) algebraic foundations, by Alexander Stepanov, the Godfather of the C++ Standard Template Library. Zeta exists for one reason: to become the most efficient systems programming language ever created. First Principles engineering with zero tolerance for bottlenecks, bloat or barriers.
+## Current Status
 
-> "It's not just efficiency, it's weaponized minimalism. It's surgical violence against complexity." - Roy Murphy
+**v0.3.7** (March 23, 2026) - Bootstrap compiler
 
-- **Insane efficiency**
-- **Unbeatable execution speed & performance**
-- **Built for next-gen AI infrastructure**
-- **Designed for machine learning & numerical analysis**
-- **Perfect for scientific computation**
-- **Awesome for embedded hardware**
-- **Military grade security**
-- **Runs faster than Rust & Zig**
-- **Compiles faster than Go**
-- **Practicality of Python**
-- **Beats Julia for scientific computation**
-- **Quicker statistics than R**
-- **Magnitudes faster algebra than MATLAB**
-- **Produces smaller binaries than C**
-- **Parse strings like Perl**
-- **Baked-in SIMD optimization**
-- **Native WASM support**
-- **Self-hosting in ~3,400 lines of code**
-- **Very low cyclomatic complexity**
+### What Works:
+- Basic Zeta syntax parsing
+- Simple type checking
+- Code generation to LLVM
+- REPL and file compilation
 
-Zeta v0.3.7 is released. There are zero competitors.
-We're living in a brand new paradigm.
+### Known Limitations:
+- v0.3.7 cannot parse the full bootstrap source (`src/main.z`)
+- Only 635/5300 characters of `src/main.z` parse successfully
+- Generic types (`lt(Result, i64)`) not supported
+- Advanced features from bootstrap source not available
 
-> "Complexity assertions have to be part of the interface." - Alexander Stepanov, 1995
+## Development Strategy
 
-## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Official Benchmarks — March 23, 2026  
-Intel i9-13900K · Ubuntu 24.04
+### Phase 1: Generic Type Support
+**Goal:** Extend v0.3.7 to parse `lt(Result, i64)`
 
-| Benchmark                          | Zeta 0.3.7     | Rust 1.82     | Zig 0.13     | Go 1.23      | C++23 (clang++) | Verdict                              |
-|------------------------------------|----------------|---------------|--------------|--------------|-----------------|--------------------------------------|
-| Compile time — zeta self (ms)      | **14**         | 3200          | 1800         | 4500         | 2800            | **Zeta wins by 228×**                |
-| Runtime — fib(40)                  | **1.12 ns**    | 1.19 ns       | 1.21 ns      | 3.8 ns       | 1.15 ns         | **Zeta fastest**                     |
-| 100k actors ping-pong              | **0.94 ms**    | 1.41 ms       | 1.12 ms      | 2.8 ms       | 1.08 ms         | **Zeta wins by 50%**                 |
+**Current capability:** v0.3.7 fails on parenthesized types (`MyType()`, `lt(Result, i64)`)
 
-```bash
-$ time zeta compile src/main.z -o zeta3
-0.014s  ← compiles itself in fourteen milliseconds.
+**Approach:** Incremental extension of v0.3.7's parser
+
+## Project Structure
+
+```
+src/
+├── frontend/              # Lexical and syntactic analysis
+│   ├── lexer/            # Tokenization
+│   ├── parser/           # Parsing (parser.z, expr.z, stmt.z)
+│   ├── ast/              # Abstract syntax tree
+│   └── diagnostics/      # Error reporting
+├── middle/               # Semantic analysis
+│   ├── mir/              # Mid-level IR
+│   ├── resolver/         # Name resolution
+│   ├── types/            # Type checking
+│   └── ownership/        # Borrow checking
+├── backend/              # Code generation
+│   └── codegen/          # LLVM code generation
+├── driver/               # Compiler driver
+└── runtime/              # Runtime support
 ```
 
-## Prerequisites (Ubuntu 22.04 / 24.04 LTS or Debian 12)
+## Getting Started
 
-To build Zeta from source, you need:
+### Prerequisites
+- Windows (currently)
+- LLVM (for code generation)
+- v0.3.7 compiler (`zetac-v0.3.7-fixed.exe`)
 
-1. Rust nightly (2024 edition requires it until stable catches up
+### Building
+The compiler is bootstrapped. Current bootstrap chain:
+1. v0.3.7 (C++/Rust) → compiles basic Zeta
+2. Extended v0.3.7 (goal) → compiles more of bootstrap
+3. Eventually: full bootstrap compiler
+
+### Testing
 ```bash
-rustup toolchain install nightly
-rustup default nightly
-rustup component add rustfmt clippy
+# Test with v0.3.7
+.\zetac-v0.3.7-fixed.exe src\baseline_test.z
 ```
 
-3. LLVM 21 (exactly — Inkwell 0.8.0 + llvm-sys-211 targets LLVM 21.1)
-```bash
-wget https://apt.llvm.org/llvm.sh
-chmod +x llvm.sh
-sudo ./llvm.sh 21
-sudo apt-get update
-sudo apt-get install -y llvm-21 llvm-21-dev llvm-21-tools libpolly-21-dev clang-21 libclang-21-dev
-```
+## Public Development
 
-5. Development libraries (required by linker for zlib, zstd, etc.)
-```bash
-sudo apt-get install -y build-essential zlib1g-dev libzstd-dev libxml2-dev libstdc++-13-dev
-```
+All development is public and transparent:
+- GitHub: https://github.com/murphsicles/zeta
+- CI verification on every commit
+- Incremental, verifiable progress
 
-7. Set LLVM environment variable (add to ~/.bashrc or run before build)
-```bash
-export LLVM_SYS_211_PREFIX=/usr/lib/llvm-21
-source ~/.bashrc
-```
+## License
 
-8. Verify
-```bash
-llvm-config-21 --version   # should print 21.x
-cargo --version            # should show nightly toolchain
-```
+Copyright 2025-2026 Roy Murphy
 
-## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Features
-
-- Algebraic semiring CTFE + fusion  
-- CacheSafe → strict TBAA → maximum LLVM vectorization  
-- Thin monomorphization + global specialization cache
-- Owned UTF-8 string literals are now built-in. 
-- M:N green-thread actors (full runtime < 200 LOC)  
-- `std::http_get`, `std::tls_get`, `std::datetime_now`, `std::free`  
-- Live AI-driven optimization (`#[ai_opt]` powered by xAI Grok)  
-- Self-hosting bootstrap (`.z` files)  
-- Affine borrow checking with speculative states for safe concurrency  
-- TimingOwned for constant-time guarantees and stable ABI  
-- Type inference, trait resolution, and MIR lowering with semiring optimizations  
-- Nom-based parser with generics and structural dispatch support
-- No borrow checker, no trait solver, no Cargo, no lockfiles, no macros
-- Error propagation with `?` and `Result` types
-- Dictionary literals and map operations
-- Single-line functions and explicit returns
-- Complex assignments with subscripts
-- Enhanced control flow with `If` in MIR
-
-## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Quick Start
-
-```bash
-# Install (one binary - coming soon)
-# curl -L https://z-lang.org/install | sh
-
-# Build from source (after prerequisites above)
-git clone https://github.com/murphsicles/zeta
-cd zeta
-cargo build --release
-
-# Run a simple program
-cargo run -- examples/add.z          # JIT execution
-
-# Compile to binary
-cargo run -- compile src/main.z -o hello
-./hello
-```
-
-## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Build from source
-
-```bash
-# Full clean build (recommended first time)
-cargo clean
-cargo build --release
-
-# Run tests
-cargo test --workspace
-
-# Run benchmarks (no plot yet)
-cargo bench
-```
-
-Rust 2024 edition · Dependencies: `nom`, `inkwell` (LLVM 21), `rayon`, `reqwest`, `serde`, `criterion`
-
-## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Status
-
-Zeta v0.3.7 achieved self-hosting bootstrap on March 23, 2026.
-See [plan.rs](plan.rs) for the victory log.
-
-## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) License
-
-MIT © 2025-2026 Dr. Roy Murphy
-
----
-
-The world has changed.  
-You just didn't notice yet.
+See LICENSE for details.

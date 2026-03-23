@@ -1,111 +1,131 @@
 # PUBLIC PROGRESS TRACKER
 
-## 🏭 PUBLIC ACCOUNTABILITY MANDATE
-**All work tracked publicly via GitHub issues. No local-only development.**
+## 🏗️ CURRENT STATE: BOOTSTRAP GAP
 
-## 📋 ACTIVE ISSUES
+### The Problem:
+**v0.3.7 compiler cannot parse its own bootstrap source.**
 
-### Phase 1: Generic Type Support
-**Issue:** Parse `lt(Result, i64)` successfully  
-**Status:** 🔄 IN PROGRESS  
-**Start:** 2026-03-23  
-**Target:** 2026-03-30  
+### Baseline Test (v0.3.7 capability):
+- **File:** `src/baseline_test.z`
+- **Parsed:** 635/5300 characters of `src/main.z`
+- **Failure point:** Generic types (`lt(Result, i64)`)
+- **Root cause:** v0.3.7's parser stops at `(` after type names
 
-#### Progress:
-- [ ] **Analyze parser failure point** - Identify why v0.3.7 stops at `lt(`
-- [ ] **Create test suite** - Comprehensive tests for generic types
-- [ ] **Extend lexer** - Recognize `lt` as keyword in type context
-- [ ] **Extend parser** - Parse generic type arguments
-- [ ] **Test incrementally** - CI verification at each step
-- [ ] **Verify against bootstrap** - Reduce unparsed characters in `src/main.z`
+### Actual Bootstrap Source:
+- **49 .z files** in `src/` structure
+- **Advanced features** not supported by v0.3.7
+- **Written in Zeta dialect** too advanced for current compiler
 
-#### Current Status:
-- **Baseline established:** v0.3.7 fails on `lt(Result, i64)`
-- **Test files created:** `src/extension_goal.z` demonstrates failure
-- **CI workflow ready:** Automated testing on push
+## 🎯 PHASE 1: GENERIC TYPE SUPPORT
 
-#### Next Action:
-Create detailed test suite to pinpoint exact failure location.
+### Goal:
+**Extend v0.3.7 to parse `lt(Result, i64)`**
 
-## 📊 METRICS
+### Current Status: NOT STARTED
+- **Problem identified:** Parenthesized type parsing
+- **Workaround designed:** Type aliases (`lt_Result_i64`)
+- **Implementation pending:** Parser extension
 
-### Bootstrap Compilation Progress
-- **Total characters in `src/main.z`:** 5300
-- **Currently parsed:** 635 (12%)
-- **Remaining unparsed:** 4665 (88%)
-- **Goal after Phase 1:** Parse ≥ 2000 characters (38%)
+### Success Criteria:
+1. `src/baseline_test.z` compiles with v0.3.7 (exit code 0)
+2. `src/extension_goal.z` (with `lt(Result, i64)`) compiles
+3. More of `src/main.z` parses successfully
 
-### Test Coverage
-- **Baseline tests:** 1 file (`src/baseline_test.z`) - ✅ PASSING
-- **Extension tests:** 1 file (`src/extension_goal.z`) - ❌ FAILING
-- **Goal:** 10+ test files covering edge cases
+## 📊 PROGRESS METRICS
 
-### CI Status
-- **Workflow:** `.github/workflows/ci.yml`
-- **Last run:** Not yet run (will run on next push)
-- **Requirements:** All tests must pass for merge
+### Current Metrics:
+- **Bootstrap source:** 49 files, ~5300 characters in `main.z`
+- **v0.3.7 parsed:** 635 characters (12%)
+- **Blocking feature:** Generic type syntax
 
-## 📝 UPDATE LOG
+### Target Metrics (Phase 1):
+- **Goal:** Parse 1000+ characters of `main.z`
+- **Improvement:** +365 characters (57% increase)
+- **Key feature:** Generic type support
 
-### 2026-03-23 02:56 GMT
-**Public accountability established:**
-- ✅ GitHub repository updated with actual state
-- ✅ CI workflow created for public verification
-- ✅ Development plan documented publicly
-- ✅ Baseline tests showing current capabilities
-- ✅ README corrected (minimal updates only)
+## 🔧 IMMEDIATE NEXT STEPS
 
-**Phase 1 initiated:**
-- Issue template created
-- Progress tracker established
-- Clear success criteria defined
+### Step 1: Create Baseline Test
+**File:** `src/baseline_test.z`
+```zeta
+// What v0.3.7 CAN parse currently
+fn main() -> i64 {
+    return 42;
+}
+```
 
-## 🎯 NEXT STEPS
+### Step 2: Create Extension Goal  
+**File:** `src/extension_goal.z`
+```zeta
+// What we want v0.3.7 to parse after Phase 1
+fn test_generic() -> lt(Result, i64) {
+    return 0;
+}
 
-### Immediate (Today):
-1. Create comprehensive test suite for generic types
-2. Analyze exact parser failure location
-3. Begin lexer extension implementation
+fn main() -> i64 {
+    return 42;
+}
+```
+
+### Step 3: Implement Parser Extension
+**Approach:** Incremental extension of v0.3.7's type parser
+**Method:** Type alias bridge → Parser prototype → Actual extension
+
+## 🚀 DEVELOPMENT PRINCIPLES
+
+### Public Accountability:
+1. **No local-only development** - Everything on GitHub
+2. **No simulated tests** - Real CI verification only
+3. **No unverified claims** - Push → Test → Verify → Report
+4. **Full transparency** - Every commit, every failure public
+
+### Incremental Progress:
+1. **Small steps** - One feature at a time
+2. **Verifiable** - Each step compiles with v0.3.7
+3. **Measurable** - Track parsed character count
+4. **Public** - All work on GitHub with CI
+
+## 📝 GITHUB WORKFLOW
+
+### For Each Feature:
+1. **Create test** - Show current failure
+2. **Implement fix** - Small, focused change
+3. **Verify compilation** - Exit code 0 with v0.3.7
+4. **Commit and push** - With clear description
+5. **CI verification** - Automated testing
+6. **Update tracker** - Document progress
+
+### CI Requirements:
+- **Compilation test** - All .z files must compile
+- **Baseline maintenance** - `baseline_test.z` must always pass
+- **Incremental verification** - Each commit improves capability
+
+## 🏭 THE PATH FORWARD
 
 ### Short-term (This Week):
-1. Implement generic type parsing
-2. Test incrementally with CI
-3. Verify against bootstrap source
+1. Establish baseline measurement
+2. Implement type alias workaround
+3. Create parser extension prototype
+4. Measure improvement
 
-### Medium-term (Next Week):
-1. Complete Phase 1 (generic types working)
-2. Begin Phase 2 (nested generics)
-3. Measure bootstrap compilation improvement
+### Medium-term (This Month):
+1. Extend v0.3.7 to parse generic types
+2. Compile more of bootstrap source
+3. Reduce bootstrap gap significantly
 
-## 🔒 VERIFICATION
+### Long-term Vision:
+1. v0.3.7 → v0.4.0 → v0.5.0 bootstrap chain
+2. Self-hosting compiler
+3. Production-ready Zeta
 
-### For Each Completion:
-1. **Push to GitHub** - Public commit
-2. **CI runs automatically** - Tests must pass
-3. **Update this tracker** - Document progress
-4. **Update issue** - Mark completed steps
+## 🔗 LINKS
 
-### Failure Protocol:
-1. **CI failure = blocked merge**
-2. **Create public post-mortem**
-3. **Revert broken changes**
-4. **Document lessons learned**
-
-## 🌟 SUCCESS INDICATORS
-
-### Phase 1 Success:
-- `src/extension_goal.z` compiles with exit code 0
-- v0.3.7 parses ≥ 2000 characters of `src/main.z`
-- CI passes all generic type tests
-- Public verification complete
-
-### Overall Success:
-- Bootstrap chain complete (v0.3.7 → v0.5.0)
-- Self-hosting compiler working
-- Production-ready v1.0
+- **GitHub Repository:** https://github.com/murphsicles/zeta
+- **CI Status:** (Will be added after first push)
+- **Issue Tracker:** (Will be used for Phase 1)
 
 ---
 
-**Last Updated:** 2026-03-23 02:56 GMT  
-**Status:** Public accountability active, Phase 1 in progress  
-**Next Update:** After test suite creation and parser analysis
+**Last Updated:** 2026-03-23 03:40 GMT  
+**Status:** Bootstrap gap identified, Phase 1 planned  
+**Next Action:** Create baseline test and extension goal files

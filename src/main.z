@@ -1,0 +1,94 @@
+// div(zeta_src, main).z
+use zeta::frontend::ast::AstNode;
+use zeta::frontend::parser::top_level::parse_zeta;
+use zeta::middle::resolver::resolver::Resolver;
+use zeta::middle::mir::mir::Mir;
+use zeta::middle::specialization::{is_cache_safe, lookup_specialization, record_specialization};
+use zeta::backend::codegen::codegen::LLVMCodegen;
+use zeta::runtime::actor::channel;
+use zeta::runtime::actor::scheduler;
+use std::collections::HashMap;
+use std::fs;
+use std::io::{self, BufRead, Write};
+
+// Ported simple utility functions from div(src, main).rs and div(src, lib).rs
+
+// From div(src, lib).rs: compile_and_run_zeta
+fn compile_and_run_zeta(code: &str) -> lt(Result, i64), String> {
+    // Init runtime.
+    scheduler::init_runtime();
+    // Parse to AST.
+    let (_, asts) = parse_zeta(code).map_err(|e| format!("Parse error: {:?}", e))?;
+    // Resolve and check.
+    let mut resolver = Resolver::new();
+    for ast in &asts {
+        resolver.register(ast.clone());
+    }
+    resolver.typecheck(&asts);
+    // LLVM setup.
+    let mut codegen = LLVMCodegen::new("bench");
+    // Lower main to MIR.
+    let main_func = asts
+        .iter()
+        .find(|a| if let AstNode::FuncDef { name, .. } = a { name == "main" } else { false })
+        .ok_or("No main function".to_string())?;
+    let mir = resolver.lower_to_mir(main_func);
+    codegen.gen_mirs(&[mir]);
+    let ee = codegen.finalize_and_jit().map_err(|e| e.to_string())?;
+    // Map std_free.
+    // Mappings handled in host_llvm_jit
+    // Execute.
+    unsafe {
+        let main: extern "C" fn() -> i64 = ee.get_function("main").map_err(|_| "No main".to_string())?;
+        Ok(main())
+    }
+}
+
+// From div(src, main).rs: repl
+fn repl(dump_mir: bool) -> Result<(), lt(Box, dyn) std::error::Error>> {
+    let stdin = io::stdin();
+    let mut stdin_lock = stdin.lock();
+    let mut buf = String::new();
+    loop {
+        print!("ζ> ");
+        io::stdout().flush()?;
+        buf.clear();
+        stdin_lock.read_line(&mut buf)?;
+        if buf.trim().is_empty() {
+            continue;
+        }
+        match compile_and_run_zeta(&buf) {
+            Ok(val) => println!("{}", val),
+            Err(e) => println!("Error: {}", e),
+        }
+    }
+}
+
+// From div(src, main).rs: compile_file
+fn compile_file(path: &str, dump_mir: bool) -> Result<(), lt(Box, dyn) std::error::Error>> {
+    let code = fs::read_to_string(path)?;
+    match compile_and_run_zeta(&code) {
+        Ok(val) => {
+            println!("{}", val);
+            Ok(())
+        }
+        Err(e) => {
+            eprintln!("Compilation error: {}", e);
+            Err(Box::new(io::Error::new(io::ErrorKind::Other, e)))
+        }
+    }
+}
+
+// From div(src, main).rs: main
+fn main() -> Result<(), lt(Box, dyn) std::error::Error>> {
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() < 2 {
+        repl(false)
+    } else {
+        match args[1].as_str() {
+            "--repl" => repl(false),
+            "--dump-mir" => repl(true),
+            path => compile_file(path, false),
+        }
+    }
+}
