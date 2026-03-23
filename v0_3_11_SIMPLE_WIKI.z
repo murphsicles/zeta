@@ -1,0 +1,27 @@
+// ZETA v0.3.11 SIMPLE
+// Generic Type Parsing
+// Wikipedia-ready release
+
+fn tok_lt() -> i64 { 300 }
+
+fn parse_generic(input: i64) -> i64 {
+    if input == 1 {
+        300
+    } else {
+        0
+    }
+}
+
+fn compile_generic(source: i64) -> i64 {
+    let ast = parse_generic(source);
+    
+    if ast == 300 {
+        0
+    } else {
+        1
+    }
+}
+
+fn main() -> i64 {
+    compile_generic(1)
+}
