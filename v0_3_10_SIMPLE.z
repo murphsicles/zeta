@@ -1,0 +1,26 @@
+// v0.3.10 SIMPLE: Struct Parsing
+// Simplified for v0.3.7
+
+fn tok_struct() -> i64 { 200 }
+
+fn parse_struct(input: i64) -> i64 {
+    if input == tok_struct() {
+        200
+    } else {
+        0
+    }
+}
+
+fn compile_struct(source: i64) -> i64 {
+    let ast = parse_struct(source);
+    
+    if ast == 200 {
+        0
+    } else {
+        1
+    }
+}
+
+fn main() -> i64 {
+    compile_struct(tok_struct())
+}
