@@ -1,0 +1,12 @@
+// WORKING PROOF: v0.3.7 can compile this
+// Minimal but complete Zeta program
+
+fn add(a: i64, b: i64) -> i64 {
+    a + b
+}
+
+fn main() -> i64 {
+    let x = 10;
+    let y = 20;
+    add(x, y)
+}
