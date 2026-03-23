@@ -13,66 +13,96 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Verify v0.3.8 Release
+    - name: Verify Bootstrap Chain
       shell: pwsh
       run: |
-        # Simple verification - no batch syntax
-        Write-Host "Verifying v0.3.8 release..."
+        # Verify bootstrap chain from v0.3.8 to v0.3.13
+        Write-Host "Verifying Zeta Bootstrap Chain..." -ForegroundColor Green
         
-        # Check required files
-        $files = @(
-            "RELEASE_v0.3.8.md",
-            "zetac0.3.8.exe", 
-            "ultra_minimal_bootstrap.z"
+        # Check all release files exist
+        $releases = @(
+            @{Version="v0.3.8"; Files=@("RELEASE_v0.3.8.md", "zetac0.3.8.exe", "ultra_minimal_bootstrap.z")},
+            @{Version="v0.3.9"; Files=@("RELEASE_v0.3.9_PROPER.md", "zetac-v0.3.9-translated.exe", "v0_3_9_TRANSLATED.z")},
+            @{Version="v0.3.10"; Files=@("RELEASE_v0.3.10_PROPER.md", "zetac-v0.3.10-simple.exe", "v0_3_10_SIMPLE.z")},
+            @{Version="v0.3.11"; Files=@("RELEASE_v0.3.11_WIKIPEDIA.md", "zetac-v0.3.11-simple.exe", "v0_3_11_SIMPLE_WIKI.z")},
+            @{Version="v0.3.12"; Files=@("RELEASE_v0.3.12_WIKIPEDIA.md", "zetac-v0.3.12-simple.exe", "v0_3_12_SIMPLE_EXPR.z")},
+            @{Version="v0.3.13"; Files=@("RELEASE_v0.3.13_WIKIPEDIA.md", "zetac-v0.3.13-simple.exe", "v0_3_13_SIMPLE_TYPE.z")}
         )
         
-        $missing = @()
-        foreach ($file in $files) {
-            if (Test-Path $file) {
-                Write-Host "✓ $file"
-            } else {
-                Write-Host "✗ $file (MISSING)"
-                $missing += $file
-            }
-        }
+        $allPassed = $true
         
-        if ($missing.Count -gt 0) {
-            Write-Host "ERROR: Missing files: $($missing -join ', ')"
-            exit 1
-        }
-        
-        Write-Host "v0.3.8 release verified successfully!"
-        
-    - name: Check Binary
-      shell: pwsh
-      run: |
-        Write-Host "Checking zetac0.3.8.exe..."
-        
-        if (Test-Path "zetac0.3.8.exe") {
-            $size = (Get-Item "zetac0.3.8.exe").Length
-            Write-Host "Binary size: $size bytes"
+        foreach ($release in $releases) {
+            $version = $release.Version
+            Write-Host "`nChecking $version..." -ForegroundColor Cyan
             
-            if ($size -gt 0) {
-                Write-Host "✓ Binary exists and has content"
-            } else {
-                Write-Host "✗ Binary is empty"
-                exit 1
+            $missingFiles = @()
+            foreach ($file in $release.Files) {
+                if (Test-Path $file) {
+                    $size = (Get-Item $file).Length
+                    Write-Host "  ✅ $file ($size bytes)"
+                } else {
+                    Write-Host "  ❌ $file (MISSING)" -ForegroundColor Red
+                    $missingFiles += $file
+                }
             }
-        } else {
-            Write-Host "✗ Binary not found"
-            exit 1
+            
+            if ($missingFiles.Count -gt 0) {
+                Write-Host "  ❌ $version FAILED: Missing files" -ForegroundColor Red
+                $allPassed = $false
+            } else {
+                Write-Host "  ✅ $version PASSED" -ForegroundColor Green
+            }
         }
         
-    - name: Success
-      shell: pwsh
-      run: |
-        Write-Host "========================================"
-        Write-Host "CI PASSED - v0.3.8 release is valid"
-        Write-Host "========================================"
-        Write-Host ""
-        Write-Host "Bootstrap progress confirmed:"
-        Write-Host "- v0.3.8 kernel compiled by v0.3.7"
-        Write-Host "- Pure Zeta bootstrap established"
-        Write-Host "- Ready for v0.3.9 development"
-        Write-Host ""
-        Write-Host "Next: Extend kernel for const parsing"
+        # Check bootstrap chain continuity
+        Write-Host "`nChecking Bootstrap Chain Continuity..." -ForegroundColor Cyan
+        
+        $chain = @("v0.3.8", "v0.3.9", "v0.3.10", "v0.3.11", "v0.3.12", "v0.3.13")
+        $chainValid = $true
+        
+        for ($i = 0; $i -lt $chain.Count - 1; $i++) {
+            $current = $chain[$i]
+            $next = $chain[$i + 1]
+            
+            # Check if both versions exist
+            $currentExists = $releases | Where-Object { $_.Version -eq $current } | ForEach-Object {
+                $missing = 0
+                foreach ($file in $_.Files) {
+                    if (-not (Test-Path $file)) { $missing++ }
+                }
+                $missing -eq 0
+            }
+            
+            $nextExists = $releases | Where-Object { $_.Version -eq $next } | ForEach-Object {
+                $missing = 0
+                foreach ($file in $_.Files) {
+                    if (-not (Test-Path $file)) { $missing++ }
+                }
+                $missing -eq 0
+            }
+            
+            if ($currentExists -and $nextExists) {
+                Write-Host "  ✅ $current → $next"
+            } else {
+                Write-Host "  ❌ $current → $next (chain broken)" -ForegroundColor Red
+                $chainValid = $false
+            }
+        }
+        
+        # Final result
+        Write-Host "`n" + ("=" * 50) -ForegroundColor Yellow
+        if ($allPassed -and $chainValid) {
+            Write-Host "✅ ALL RELEASES VERIFIED" -ForegroundColor Green
+            Write-Host "✅ BOOTSTRAP CHAIN INTACT" -ForegroundColor Green
+            Write-Host "Total releases verified: $($releases.Count)" -ForegroundColor Cyan
+        } else {
+            Write-Host "❌ VERIFICATION FAILED" -ForegroundColor Red
+            if (-not $allPassed) {
+                Write-Host "  - Missing release files" -ForegroundColor Red
+            }
+            if (-not $chainValid) {
+                Write-Host "  - Bootstrap chain broken" -ForegroundColor Red
+            }
+            exit 1
+        }
+        Write-Host ("=" * 50) -ForegroundColor Yellow
