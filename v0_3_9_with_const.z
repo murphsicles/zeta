@@ -1,0 +1,65 @@
+// v0.3.9: WITH CONST PARSING EXTENSION
+// Extends v0.3.8 pattern with const awareness
+
+// Token constants
+fn tok_ident() -> i64 { 0 }
+fn tok_number() -> i64 { 1 }
+fn tok_const() -> i64 { 100 }    // v0.3.9: const keyword
+fn tok_colon() -> i64 { 101 }    // v0.3.9: :
+fn tok_eq() -> i64 { 102 }       // v0.3.9: =
+fn tok_semicolon() -> i64 { 103 } // v0.3.9: ;
+
+// Check if token is const
+fn is_const_token(tok: i64) -> i64 {
+    if tok == tok_const() {
+        1  // Yes, it's const
+    } else {
+        0  // No
+    }
+}
+
+// Parse const declaration (v0.3.9 extension)
+fn parse_const(input: i64) -> i64 {
+    let is_const = is_const_token(input);
+    
+    if is_const == 1 {
+        100  // AST_CONST encoded
+    } else {
+        0    // Not a const
+    }
+}
+
+// Extended parser with const support
+fn parse_with_const(input: i64) -> i64 {
+    // First try to parse as const (v0.3.9)
+    let const_ast = parse_const(input);
+    
+    if const_ast == 100 {
+        100  // Success: parsed const
+    } else {
+        // Try to parse as function (v0.3.8)
+        if input == tok_ident() {
+            1  // AST_FUNCTION
+        } else {
+            0  // AST_NONE
+        }
+    }
+}
+
+// Compiler with const awareness
+fn compile_with_const(source_encoded: i64) -> i64 {
+    let ast = parse_with_const(source_encoded);
+    
+    // Success if we got any AST
+    if ast > 0 {
+        0  // Success
+    } else {
+        1  // Failure
+    }
+}
+
+// Main - exact working pattern
+fn main() -> i64 {
+    // Test with const token (v0.3.9 test)
+    compile_with_const(tok_const())
+}
