@@ -1,0 +1,27 @@
+// v0.3.14 SIMPLE: Error Reporting
+// Simplified for v0.3.7
+
+fn err_success() -> i64 { 0 }
+fn err_failure() -> i64 { 1 }
+
+fn report_error(err_code: i64) -> i64 {
+    if err_code == err_success() {
+        0
+    } else {
+        err_code
+    }
+}
+
+fn compile_with_error(source: i64) -> i64 {
+    // source=0 means success, source=1 means failure
+    if source == 0 {
+        report_error(err_success())
+    } else {
+        report_error(err_failure())
+    }
+}
+
+fn main() -> i64 {
+    // Test success case
+    compile_with_error(0)
+}
