@@ -24,8 +24,10 @@
 ## Verification
 - ✅ `zetac.exe` runs and parses Zeta code
 - ✅ `selfhost.z` compiles (parses 4 ASTs)
+- ✅ `test_minimal.z` compiles successfully to executable
 - ✅ Release documentation complete
 - ✅ Bootstrap chain validated
+- ✅ v0.3.7 compiler functional (compiles minimal programs)
 
 ## Immediate Action Needed
 1. **Push v0.5.0 to GitHub** as latest release

@@ -1,0 +1,4 @@
+// Minimal test program for v0.3.7 compiler
+fn main() -> i64 {
+    42
+}
