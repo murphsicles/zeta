@@ -1,0 +1,93 @@
+// Bootstrap test for Zeta v0.3.8
+// Testing all new features: Unicode identifiers, complete operators, etc.
+
+// Test Unicode identifiers
+let π = 3.14159
+let 半径 = 10.0
+let 面積 = π * 半径 * 半径
+let α = 1.0
+let β = 2.0
+let γ = α + β
+
+// Test all operators
+let x = 10
+let y = 20
+
+// Arithmetic
+let sum = x + y
+let diff = x - y
+let prod = x * y
+let quot = x / y
+let rem = x % y
+
+// Comparison
+let eq = x == y
+let ne = x != y
+let lt = x < y
+let gt = x > y
+let le = x <= y
+let ge = x >= y
+
+// Logical
+let a = true
+let b = false
+let and = a && b
+let or = a || b
+let not = !a
+
+// Bitwise
+let bit_and = x & y
+let bit_or = x | y
+let bit_xor = x ^ y
+let bit_not = ~x
+let shift_left = x << 2
+let shift_right = x >> 1
+
+// Assignment operators
+let mut z = 5
+z += 3      // z = z + 3
+z -= 2      // z = z - 2  
+z *= 4      // z = z * 4
+z /= 2      // z = z / 2
+z %= 3      // z = z % 3
+z &= 0xF    // z = z & 0xF
+z |= 0x10   // z = z | 0x10
+z ^= 0x05   // z = z ^ 0x05
+z <<= 1     // z = z << 1
+z >>= 2     // z = z >> 2
+
+// Test string escapes (already implemented by LEX)
+let escaped = "Hello\nWorld\tTab\"Quote\\Backslash\u{1F600}Smiley\x7FDelete"
+
+// Test float literals (already implemented by LEX)
+let float1 = 3.14
+let float2 = 1.23e-4
+let float3 = 123.
+let float4 = .456
+
+// Complex expressions with Unicode
+let 結果 = (α * β) + (γ / 2.0)
+if 結果 > 5.0 {
+    println("大きい")
+} else {
+    println("小さい")
+}
+
+// Function with Unicode parameters
+fn 計算(値1: f64, 値2: f64) -> f64 {
+    return 値1 * 値2 + π
+}
+
+// Call the function
+let 答え = 計算(α, β)
+
+// Test mixed expressions
+let complex = (x & 0xFF) | ((y << 8) & 0xFF00)
+let logical_complex = (x > 5) && (y < 30) || !(x == y)
+
+// Range operator (already existed)
+for i in 0..10 {
+    println(i)
+}
+
+// The end - all features should parse correctly!
