@@ -1,0 +1,94 @@
+// zeta_src/plan.z
+// Victory plan for full self-hosting of Zeta compiler
+// Target: v0.3.0 — Full bootstrap, Rust host only for runtime + Inkwell JIT
+// Subsequent versions will replace Inkwell with pure Zeta LLVM IR emission + host_llvm_jit
+
+// Phase 0: Current state (clean build)
+// - Rust zetac uses Inkwell 0.8.0 (LLVM 21.1 bindings), nom 8.0.0, Rust 2024 edition
+// - All CI passes, no errors
+// - Zeta sources (.z files) provided and compile cleanly with current zetac
+// - Current Zeta compiler in main.z can:
+//   • Parse simple programs (recursive-descent parser)
+//   • Build AST
+//   • Basic type inference / CTFE
+//   • Lower to MIR
+//   • Text-based LLVM IR emission (codegen.z + ir_gen.z)
+//   • Stub JIT (calls host_llvm_jit, maps host functions)
+
+// Phase 1: Stabilize core frontend in Zeta (next 1-2 weeks)
+// Goals:
+// - Make zeta_src/frontend/parser.z feature-complete with Rust nom parser
+//   • Full support for generics, paths, method calls, structural dispatch flag
+//   • FString interpolation with expressions
+//   • Dict literals, subscripts, TimingOwned, Defer, TryProp
+//   • Better error recovery and diagnostics (stub prints for now)
+// - Port full AstNode enum exactly matching Rust version
+// - Implement complete borrow checker in zeta_src/frontend/borrow.z
+//   • Affine moves for non-copy types
+//   • Speculative states for concurrency safety
+//   • Full integration with Resolver::infer_type and is_copy
+
+// Phase 2: Full middle-end in Zeta (2-3 weeks)
+// Goals:
+// - Complete zeta_src/middle/resolver.z
+//   • Concept/impl registration and lookup
+//   • Monomorphization key collection
+//   • Thin monomorphization (AST substitution)
+//   • Persistent specialization cache (use host_fs_read/write stubs)
+//   • Full typecheck with two passes (borrow + semantic/CTFE)
+// - Complete zeta_src/middle/mir.z lowering
+//   • All MirStmt and MirExpr variants
+//   • Proper defer handling (reverse execution)
+//   • Semiring fusion for + and * chains
+//   • Full If branching in MIR
+
+// Phase 3: Full backend in Zeta (3-4 weeks)
+// Goals:
+// - Enhance zeta_src/backend/codegen/ir_gen.z to emit 100% of current Inkwell output
+//   • Proper global string literals (@str_N = private unnamed_addr constant [...])
+//   • Correct param handling, allocas, loads/stores
+//   • All call types (direct, host functions, void calls)
+//   • Full If branching with proper labels and br
+//   • TryProp with result host functions
+//   • Map operations (new, insert, get)
+//   • FString concat chains
+// - Implement host_llvm_jit in Rust runtime (src/runtime/jit.rs)
+//   • Take IR string, write to temp file or MemoryBuffer
+//   • Use Inkwell ExecutionEngine::create_from_module or similar
+//   • Add global mappings for all host_* functions
+//   • Return engine handle + get_function_address("main")
+
+// Phase 4: Runtime completeness (parallel with Phase 3)
+// Goals:
+// - Implement all host functions in Rust runtime that Zeta code calls
+//   • String operations (concat, len, trim, case, predicates, replace)
+//   • Map<Result> host helpers
+//   • Actor channel send/recv with global CHANNEL_MAP
+//   • Scheduler init + spawn with FUNC_MAP registration
+//   • http_get, tls_handshake, datetime_now, malloc/free
+// - Make zeta_src/runtime/* modules compile and provide clean extern declarations
+
+// Phase 5: Bootstrap verification (final week)
+// Goals:
+// - Compile the full Zeta compiler sources with zetac → zeta_compiler binary
+// - Use zeta_compiler to compile a simple "hello zeta" program → working executable
+// - Use zeta_compiler to recompile itself → binary identical to previous (within reason)
+// - Declare v0.3.0 achieved
+
+// Post-v0.0.3 roadmap (victory log)
+// - Replace Inkwell entirely with pure Zeta IR emission + LLVM MCJIT/orc JIT via LLVM C API
+// - Add #[ai_opt] integration with xAI Grok for pass recommendations
+// - Full SIMD vectorization hints in MIR
+// - CacheSafe TBAA enforcement
+// - WASM target
+// - Smaller binaries than C
+
+// Final note
+// We stay disciplined: only port stable, tested Rust code.
+// No new features until self-hosting is solid.
+// Every commit must keep zetac building cleanly.
+
+fn victory() -> i64 {
+    println("Zeta self-hosted. The world has changed.");
+    0
+}

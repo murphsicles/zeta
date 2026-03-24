@@ -1,0 +1,78 @@
+// zeta_src/middle/resolver/resolver.z
+use crate::frontend::ast::AstNode;
+use crate::frontend::borrow::BorrowChecker;
+use crate::middle::mir::mir::Mir;
+use crate::middle::specialization::{MonoKey, MonoValue, is_cache_safe, record_specialization};
+use std::collections::HashMap;
+
+pub type Type = String;
+
+const SPECIALIZATION_CACHE_FILE: &str = ".zeta_specialization_cache.json";
+
+struct CacheFile {
+    entries: HashMap<MonoKey, MonoValue>,
+}
+
+pub struct Resolver {
+    pub impls: HashMap<(String, String), Vec<AstNode>>,
+    pub cached_mirs: HashMap<String, Mir>,
+    pub mono_mirs: HashMap<MonoKey, Mir>,
+    pub borrow_checker: BorrowChecker,
+    pub associated_types: HashMap<(String, String), String>,
+    pub ctfe_consts: HashMap<AstNode, i64>,
+}
+
+impl Resolver {
+    pub fn new() -> Self {
+        let mut r = Self {
+            impls: HashMap::new(),
+            cached_mirs: HashMap::new(),
+            mono_mirs: HashMap::new(),
+            borrow_checker: BorrowChecker::new(),
+            associated_types: HashMap::new(),
+            ctfe_consts: HashMap::new(),
+        };
+        r.load_specialization_cache();
+        r
+    }
+
+    fn load_specialization_cache(&mut self) {
+        // Stub: Read from file if exists
+        // For now, empty
+    }
+
+    pub fn persist_specialization_cache(&self) {
+        // Stub: Write to file
+    }
+
+    pub fn register(&mut self, ast: AstNode) {
+        if let AstNode::ImplBlock {
+            concept, ty, body, ..
+        } = ast
+        {
+            self.impls.insert((concept, ty), body);
+        }
+    }
+
+    pub fn resolve_impl(&self, concept: &str, ty: &str) -> Option<Vec<AstNode>> {
+        let key = (concept.to_string(), ty.to_string());
+        self.impls.get(&key).cloned()
+    }
+
+    pub fn is_abi_stable(&self, key: &MonoKey) -> bool {
+        key.type_args.iter().all(|t| is_cache_safe(t))
+    }
+
+    pub fn record_mono(&mut self, key: MonoKey, mir: Mir) {
+        let cache_safe = self.is_abi_stable(&key);
+        let mangled = key.mangle();
+        record_specialization(
+            key.clone(),
+            MonoValue {
+                llvm_func_name: mangled,
+                cache_safe,
+            },
+        );
+        self.mono_mirs.insert(key, mir);
+    }
+}
