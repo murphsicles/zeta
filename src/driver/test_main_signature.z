@@ -1,0 +1,17 @@
+// Test different main signatures
+// First principles: Discover what the compiler expects
+
+// Try 1: i32 return (like our test)
+fn main() -> i32 {
+    0
+}
+
+// Try 2: i64 return (like in docs)
+fn main2() -> i64 {
+    0
+}
+
+// Try 3: No return (implicit)
+fn main3() {
+    // nothing
+}

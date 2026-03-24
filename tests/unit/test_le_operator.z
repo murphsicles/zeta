@@ -1,0 +1,15 @@
+// le(Test, operator)
+fn test_le(x: i64) -> i64 {
+    if le(x, 1) {
+        1  // true
+    } else {
+        0  // false
+    }
+}
+
+fn main() -> i64 {
+    // test_le(0) should return 1
+    // test_le(1) should return 1  
+    // test_le(2) should return 0
+    test_le(2)
+}

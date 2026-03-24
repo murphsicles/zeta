@@ -1,0 +1,27 @@
+// Minimal println implementation in pure Zeta
+// First principles: Implement what we need, nothing more
+
+// We need to interface with the system
+unsafe extern "C" {
+    fn write(fd: i32, buf: *const u8, count: usize) -> isize;
+    fn strlen(s: *const u8) -> usize;
+}
+
+// Simple println that writes to stdout (fd = 1)
+fn println(s: *const u8) -> i32 {
+    unsafe {
+        let len = strlen(s);
+        write(1, s, len);
+        // Also write newline
+        let newline = "\n".as_ptr();
+        write(1, newline, 1);
+    }
+    0
+}
+
+// Test main function
+fn main() -> i32 {
+    let message = "Hello from pure Zeta!";
+    println(message.as_ptr());
+    0
+}

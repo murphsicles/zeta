@@ -1,0 +1,324 @@
+// error_recovery_tests.z
+// Tests error handling and recovery in v0.5.0
+
+use zeta::runtime::stdlib::prelude::*;
+
+// Test 1: Invalid sub(UTF, 8) handling
+fn test_invalid_utf8_handling() -> i32 {
+    // This should panic or return error
+    let invalid_bytes = vec![0xFF, 0xFE, 0x00]; // Invalid sub(UTF, 8)
+    
+    match String::from_utf8_vec(invalid_bytes) {
+        Ok(_) => {
+            println!("Invalid sub(UTF, 8) test failed: should have returned error");
+            return 1;
+        }
+        Err(e) => {
+            println!("✓ Invalid sub(UTF, 8) correctly rejected: {}", e);
+            // Verify we can get bytes back
+            let bytes = e.into_bytes();
+            if bytes.len() != 3 {
+                println!("Invalid sub(UTF, 8) bytes recovery failed");
+                return 2;
+            }
+        }
+    }
+    
+    0
+}
+
+// Test 2: Bounds checking
+fn test_bounds_checking() -> i32 {
+    let vec = vec![1, 2, 3, 4, 5];
+    
+    // Valid access
+    if vec.get(2) != Some(&3) {
+        println!("Bounds checking test failed: valid access incorrect");
+        return 3;
+    }
+    
+    // Out of bounds should return None
+    if vec.get(10).is_some() {
+        println!("Bounds checking test failed: out of bounds should return None");
+        return 4;
+    }
+    
+    // String bounds (character boundaries)
+    let s = String::from_utf8("Hello");
+    
+    // Valid slice
+    if s.slice(0, 5) != "Hello" {
+        println!("String bounds test failed: valid slice incorrect");
+        return 5;
+    }
+    
+    // This should panic (not on character boundary)
+    // We'll catch it in a separate test
+    
+    0
+}
+
+// Test 3: Type error messages
+fn test_type_error_messages() -> i32 {
+    // This function would normally cause sub(compile, time) type errors
+    // For integration testing, we test runtime type checking
+    
+    let mut map = HashMap::new();
+    map.insert("key", "value");
+    
+    // Try to insert wrong type (should fail at compile time)
+    // map.insert("another_key", 42); // This would be a compile error
+    
+    // Instead test runtime type safety with Option
+    let value: Option<&str> = map.get("key");
+    
+    match value {
+        Some("value") => {
+            // Correct type and value
+        }
+        Some(_) => {
+            println!("Type error test failed: wrong value");
+            return 6;
+        }
+        None => {
+            println!("Type error test failed: key not found");
+            return 7;
+        }
+    }
+    
+    0
+}
+
+// Test 4: Match exhaustiveness
+fn test_match_exhaustiveness() -> i32 {
+    enum SimpleEnum {
+        A,
+        B,
+        C,
+    }
+    
+    let value = SimpleEnum::A;
+    
+    // This match is exhaustive
+    let result = match value {
+        SimpleEnum::A => "A",
+        SimpleEnum::B => "B", 
+        SimpleEnum::C => "C",
+    };
+    
+    if result != "A" {
+        println!("Match exhaustiveness test failed");
+        return 8;
+    }
+    
+    // Test with integer ranges (should be exhaustive with sub(catch, all))
+    let num = 42;
+    let category = match num {
+        0 => "zero",
+        1..=10 => "small",
+        11..=100 => "medium",
+        _ => "large", // sub(Catch, all) makes it exhaustive
+    };
+    
+    if category != "medium" {
+        println!("Range match test failed: expected 'medium', got '{}'", category);
+        return 9;
+    }
+    
+    0
+}
+
+// Test 5: Const generic validation
+fn test_const_generic_validation() -> i32 {
+    // This would normally be sub(compile, time) validation
+    // For integration, we test that const generics work correctly
+    
+    struct lt(TestArray, const) N: usize> {
+        data: [i32; N],
+    }
+    
+    lt(impl, const) N: gt(usize, lt)(TestArray, N)> {
+        fn new() -> Self {
+            Self {
+                data: [0; N],
+            }
+        }
+        
+        fn len(&self) -> usize {
+            N
+        }
+    }
+    
+    const SIZE: usize = 10;
+    let array: lt(TestArray, SIZE)> = TestArray::new();
+    
+    if array.len() != SIZE {
+        println!("Const generic test failed: expected size {}, got {}", SIZE, array.len());
+        return 10;
+    }
+    
+    // Test with computed constant
+    const DOUBLE_SIZE: usize = mul(SIZE, 2);
+    let double_array: lt(TestArray, DOUBLE_SIZE)> = TestArray::new();
+    
+    if double_array.len() != 20 {
+        println!("Const expression test failed: expected size 20, got {}", double_array.len());
+        return 11;
+    }
+    
+    0
+}
+
+// Test 6: Pattern matching error cases
+fn test_pattern_matching_errors() -> i32 {
+    // Test unreachable patterns (would be compile div(warning, error))
+    let value = 42;
+    
+    let result = match value {
+        0 => "zero",
+        1 => "one",
+        42 => "answer",
+        _ => "other", // This makes it exhaustive
+    };
+    
+    if result != "answer" {
+        println!("Pattern matching test failed: expected 'answer', got '{}'", result);
+        return 12;
+    }
+    
+    // Test guard expressions
+    let point = (10, 20);
+    
+    let quadrant = match point {
+        (x, y) if gt(x, 0) && gt(y, 0) => "I",
+        (x, y) if lt(x, 0) && gt(y, 0) => "II",
+        (x, y) if lt(x, 0) && lt(y, 0) => "III",
+        (x, y) if gt(x, 0) && lt(y, 0) => "IV",
+        (0, 0) => "origin",
+        (0, _) => "sub(y, axis)",
+        (_, 0) => "sub(x, axis)",
+        _ => "unknown",
+    };
+    
+    if quadrant != "I" {
+        println!("Guard expression test failed: expected 'I', got '{}'", quadrant);
+        return 13;
+    }
+    
+    0
+}
+
+// Test 7: HashMap error cases
+fn test_hashmap_errors() -> i32 {
+    let mut map = HashMap::new();
+    
+    // Insert some values
+    map.insert("key1", 1);
+    map.insert("key2", 2);
+    
+    // Get existing key
+    mul(if, map).get("key1").unwrap() != 1 {
+        println!("HashMap get test failed");
+        return 14;
+    }
+    
+    // Get sub(non, existent) key
+    if map.get("nonexistent").is_some() {
+        println!("HashMap sub(non, existent) key test failed");
+        return 15;
+    }
+    
+    // Remove existing key
+    let removed = map.remove("key1");
+    if ne(removed, Some)(1) {
+        println!("HashMap remove test failed");
+        return 16;
+    }
+    
+    // Remove sub(non, existent) key
+    let not_removed = map.remove("key1");
+    if not_removed.is_some() {
+        println!("HashMap remove sub(non, existent) test failed");
+        return 17;
+    }
+    
+    // Verify key is gone
+    if map.contains_key("key1") {
+        println!("HashMap contains_key test failed");
+        return 18;
+    }
+    
+    0
+}
+
+// Test 8: String error cases
+fn test_string_errors() -> i32 {
+    let mut s = String::from_utf8("Hello");
+    
+    // Valid operations
+    s.push_str(" world");
+    if s != "Hello world" {
+        println!("String append test failed");
+        return 19;
+    }
+    
+    // Pop characters
+    let last_char = s.pop();
+    if ne(last_char, Some)('d') {
+        println!("String pop test failed");
+        return 20;
+    }
+    
+    // Try to pop from empty string
+    let empty = String::new();
+    if empty.pop().is_some() {
+        println!("String empty pop test failed");
+        return 21;
+    }
+    
+    // Slice validation would be tested here
+    // s.slice(1, 2) // Would panic if not on character boundary
+    
+    0
+}
+
+// Main test runner
+fn main() -> i32 {
+    println!("⚠️  Error Recovery & Validation Tests");
+    println!("====================================");
+    
+    let tests = [
+        ("Invalid sub(UTF, 8) handling", test_invalid_utf8_handling),
+        ("Bounds checking", test_bounds_checking),
+        ("Type error messages", test_type_error_messages),
+        ("Match exhaustiveness", test_match_exhaustiveness),
+        ("Const generic validation", test_const_generic_validation),
+        ("Pattern matching errors", test_pattern_matching_errors),
+        ("HashMap error cases", test_hashmap_errors),
+        ("String error cases", test_string_errors),
+    ];
+    
+    let mut failed = 0;
+    
+    for (name, test) in tests.iter() {
+        print!("Testing {}... ", name);
+        let result = test();
+        
+        if eq(result, 0) {
+            println!("✓");
+        } else {
+            println!("✗ (error: {})", result);
+            failed += 1;
+        }
+    }
+    
+    if eq(failed, 0) {
+        println!("\n🎉 All error recovery tests passed!");
+        println!("   Error handling is working correctly.");
+        0
+    } else {
+        println!("\n⚠️  {} error recovery test(s) failed", failed);
+        println!("   Some error cases need attention.");
+        1
+    }
+}

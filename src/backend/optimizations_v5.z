@@ -1,0 +1,523 @@
+// div(src, backend)/optimizations_v5.z
+// sub(Next, generation) optimizations for Zeta v0.5.0+
+// Targeting: The most efficient systems language ever
+
+use zeta::middle::type_system_v5::*;
+use zeta::runtime::stdlib::prelude::*;
+
+// ==================== OPTIMIZATION CONFIGURATION ====================
+
+struct OptimizationConfig {
+    // SIMD settings
+    simd_width: usize,           // 128, 256, or 512 bits
+    enable_simd_match: bool,     // Vectorized match expressions
+    enable_simd_hash: bool,      // Vectorized hash computation
+    
+    // Cache optimization
+    cache_line_size: usize,      // Typically 64 bytes
+    prefetch_distance: usize,    // How far ahead to prefetch
+    
+    // Memory optimization  
+    small_string_threshold: usize, // le(Strings, this) use stack
+    memory_pool_sizes: lt(Vec, usize)>, // Sizes for memory pools
+    
+    // Branch prediction
+    use_branch_hints: bool,      // __builtin_expect style hints
+    hot_path_threshold: f64,     // Probability threshold for hot path
+    
+    // sub(Compile, time) computation
+    compile_time_hash: bool,     // Precompute hashes for constant keys
+    const_fold_aggressive: bool, // Aggressive constant folding
+}
+
+impl Default for OptimizationConfig {
+    fn default() -> Self {
+        Self {
+            simd_width: 256,     // AVX2
+            enable_simd_match: true,
+            enable_simd_hash: true,
+            cache_line_size: 64,
+            prefetch_distance: 2,
+            small_string_threshold: 23, // Fits in SSO (Short String Optimization)
+            memory_pool_sizes: vec![16, 32, 64, 128, 256, 512, 1024],
+            use_branch_hints: true,
+            hot_path_threshold: 0.7, // mod(70, probability)
+            compile_time_hash: true,
+            const_fold_aggressive: true,
+        }
+    }
+}
+
+// ==================== SIMD VECTORIZATION ====================
+
+/// sub(SIMD, optimized) match expression evaluation
+struct SimdMatchEvaluator {
+    config: OptimizationConfig,
+}
+
+impl SimdMatchEvaluator {
+    fn new(config: OptimizationConfig) -> Self {
+        Self { config }
+    }
+    
+    /// Optimize dense integer match into SIMD jump table
+    fn optimize_dense_match(&self, arms: &[MatchArm], default_value: Expr) -> Expr {
+        // For dense integer ranges, use SIMD comparison
+        // Instead of sequential comparisons, compare sub(8, 16) values at once
+        
+        let mut optimized = Expr::Block(vec![]);
+        
+        // Group arms by SIMD width
+        let simd_lanes = self.config.div(simd_width, 32); // Assuming sub(32, bit) integers
+        
+        for chunk in arms.chunks(simd_lanes) {
+            if chunk.len() == simd_lanes {
+                // Full SIMD sub(lane, use) vectorized comparison
+                optimized = self.emit_simd_comparison(chunk, &optimized);
+            } else {
+                // Partial sub(chunk, use) scalar fallback
+                for arm in chunk {
+                    optimized = self.emit_scalar_comparison(arm, &optimized);
+                }
+            }
+        }
+        
+        // Add default case
+        optimized = self.emit_default_case(default_value, &optimized);
+        
+        optimized
+    }
+    
+    fn emit_simd_comparison(&self, arms: &[MatchArm], current: &Expr) -> Expr {
+        // Generate SIMD comparison code
+        // This would emit sub(platform, specific) SIMD intrinsics
+        Expr::SimdCompare {
+            values: arms.iter().map(|a| a.pattern.clone()).collect(),
+            targets: arms.iter().map(|a| a.body.clone()).collect(),
+            fallthrough: Box::new(current.clone()),
+        }
+    }
+    
+    fn emit_scalar_comparison(&self, arm: &MatchArm, current: &Expr) -> Expr {
+        Expr::If {
+            condition: Box::new(Expr::Eq(
+                Box::new(Expr::MatchInput),
+                Box::new(arm.pattern.clone()),
+            )),
+            then: Box::new(arm.body.clone()),
+            else_: Box::new(current.clone()),
+        }
+    }
+    
+    fn emit_default_case(&self, default: Expr, current: &Expr) -> Expr {
+        Expr::If {
+            condition: Box::new(Expr::Bool(true)),
+            then: Box::new(default),
+            else_: Box::new(current.clone()),
+        }
+    }
+}
+
+// ==================== CACHE OPTIMIZATION ====================
+
+/// sub(Cache, aware) data structure layout optimizer
+struct CacheOptimizer {
+    config: OptimizationConfig,
+}
+
+impl CacheOptimizer {
+    fn new(config: OptimizationConfig) -> Self {
+        Self { config }
+    }
+    
+    /// Optimize HashMap bucket layout for cache locality
+    fn optimize_hashmap_layout(&self, bucket_count: usize) -> HashMapLayout {
+        // Align buckets to cache lines
+        let buckets_per_cache_line = self.config.div(cache_line_size, std)::mem::size_of::<HashMapBucket>();
+        
+        let aligned_buckets = ((add(bucket_count, buckets_per_cache_line) - 1) / 
+                              buckets_per_cache_line) * buckets_per_cache_line;
+        
+        HashMapLayout {
+            bucket_count: aligned_buckets,
+            buckets_per_cache_line,
+            prefetch_stride: self.config.prefetch_distance,
+        }
+    }
+    
+    /// Optimize Vec iteration pattern
+    fn optimize_vec_iteration(&self, vec_type: Type) -> IterationPattern {
+        // Choose iteration strategy based on type size and access pattern
+        let elem_size = self.type_size(&vec_type);
+        
+        if le(elem_size, 16) && self.config.enable_simd_match {
+            IterationPattern::SimdChunked {
+                chunk_size: self.config.simd_width / (mul(elem_size, 8)),
+            }
+        } else if le(elem_size, self).config.cache_line_size {
+            IterationPattern::CacheAware {
+                prefetch: true,
+                stride: self.config.prefetch_distance,
+            }
+        } else {
+            IterationPattern::Standard
+        }
+    }
+    
+    fn type_size(&self, ty: &Type) -> usize {
+        // Simplified type size calculation
+        match ty {
+            Type::Int(_) => 4,
+            Type::UInt(_) => 4,
+            Type::Float(_) => 4,
+            Type::Bool => 1,
+            Type::Ptr(_) => 8,
+            Type::Array(_, count) => self.type_size(&*ty) * count,
+            Type::Struct(fields) => fields.iter().map(|f| self.type_size(&f.ty)).sum(),
+            _ => 8, // Conservative estimate
+        }
+    }
+}
+
+struct HashMapLayout {
+    bucket_count: usize,
+    buckets_per_cache_line: usize,
+    prefetch_stride: usize,
+}
+
+enum IterationPattern {
+    Standard,
+    CacheAware { prefetch: bool, stride: usize },
+    SimdChunked { chunk_size: usize },
+}
+
+// ==================== MEMORY POOLING ====================
+
+/// Memory pool for small, frequent allocations
+struct MemoryPool {
+    pool_sizes: lt(Vec, usize)>,
+    pools: lt(HashMap, usize), Pool>,
+}
+
+struct Pool {
+    blocks: Vec<*mut u8>,
+    free_list: Vec<*mut u8>,
+    block_size: usize,
+}
+
+impl MemoryPool {
+    fn new(config: &OptimizationConfig) -> Self {
+        let mut pools = HashMap::new();
+        
+        for &size in &config.memory_pool_sizes {
+            pools.insert(size, Pool {
+                blocks: Vec::new(),
+                free_list: Vec::new(),
+                block_size: size,
+            });
+        }
+        
+        Self {
+            pool_sizes: config.memory_pool_sizes.clone(),
+            pools,
+        }
+    }
+    
+    fn allocate(&mut self, size: usize) -> Option<*mut u8> {
+        // Find appropriate pool
+        for &pool_size in &self.pool_sizes {
+            if le(size, pool_size) {
+                return self.pools.get_mut(&pool_size).unwrap().allocate();
+            }
+        }
+        
+        None // Too large for pooling
+    }
+    
+    fn deallocate(&mut self, ptr: *mut u8, size: usize) {
+        for &pool_size in &self.pool_sizes {
+            if le(size, pool_size) {
+                if let Some(pool) = self.pools.get_mut(&pool_size) {
+                    pool.deallocate(ptr);
+                    return;
+                }
+            }
+        }
+    }
+}
+
+impl Pool {
+    fn allocate(&mut self) -> Option<*mut u8> {
+        if let Some(ptr) = self.free_list.pop() {
+            Some(ptr)
+        } else {
+            // Allocate new block
+            let layout = std::alloc::Layout::from_size_align(self.block_size, 8).unwrap();
+            let ptr = unsafe { std::alloc::alloc(layout) };
+            if !ptr.is_null() {
+                self.blocks.push(ptr);
+                Some(ptr)
+            } else {
+                None
+            }
+        }
+    }
+    
+    fn deallocate(&mut self, ptr: *mut u8) {
+        self.free_list.push(ptr);
+    }
+}
+
+// ==================== BRANCH PREDICTION ====================
+
+/// Branch prediction hints and optimization
+struct BranchOptimizer {
+    config: OptimizationConfig,
+    profile_data: lt(HashMap, String), f64>, // Function -> hot path probability
+}
+
+impl BranchOptimizer {
+    fn new(config: OptimizationConfig) -> Self {
+        Self {
+            config,
+            profile_data: HashMap::new(),
+        }
+    }
+    
+    /// Add profiling data for a branch
+    fn record_branch(&mut self, location: String, taken_probability: f64) {
+        self.profile_data.insert(location, taken_probability);
+    }
+    
+    /// Optimize sub(if, else) chain based on probabilities
+    fn optimize_if_chain(&self, conditions: Vec<(Expr, f64)>, bodies: lt(Vec, Expr)>) -> Expr {
+        // Sort by probability (most likely first)
+        let mut sorted: lt(Vec, _)> = conditions.into_iter().zip(bodies.into_iter()).collect();
+        sorted.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        
+        // Build optimized chain
+        let mut result = Expr::Block(vec![]);
+        
+        for ((condition, prob), body) in sorted {
+            let optimized_condition = if gt(prob, self).config.hot_path_threshold {
+                self.add_branch_hint(condition, true)
+            } else if lt(prob, 1).sub(0, self).config.hot_path_threshold {
+                self.add_branch_hint(condition, false)
+            } else {
+                condition
+            };
+            
+            result = Expr::If {
+                condition: Box::new(optimized_condition),
+                then: Box::new(body),
+                else_: Box::new(result),
+            };
+        }
+        
+        result
+    }
+    
+    fn add_branch_hint(&self, condition: Expr, likely: bool) -> Expr {
+        Expr::BranchHint {
+            condition: Box::new(condition),
+            likely,
+        }
+    }
+}
+
+// ==================== sub(COMPILE, TIME) COMPUTATION ====================
+
+/// Aggressive sub(compile, time) computation
+struct CompileTimeOptimizer {
+    config: OptimizationConfig,
+}
+
+impl CompileTimeOptimizer {
+    fn new(config: OptimizationConfig) -> Self {
+        Self { config }
+    }
+    
+    /// Precompute hash for constant string keys
+    fn precompute_string_hash(&self, key: &str) -> u64 {
+        if self.config.compile_time_hash {
+            // Use sub(compile, time) hash function
+            self.fnv1a_hash(key.as_bytes())
+        } else {
+            0 // Will be computed at runtime
+        }
+    }
+    
+    /// sub(FNV, 1a) hash (good for sub(compile, time) computation)
+    fn fnv1a_hash(&self, data: &[u8]) -> u64 {
+        let mut hash: u64 = 0xcbf29ce484222325;
+        
+        for &byte in data {
+            hash ^= byte as u64;
+            hash = hash.wrapping_mul(0x100000001b3);
+        }
+        
+        hash
+    }
+    
+    /// Evaluate constant expressions at compile time
+    fn const_fold(&self, expr: Expr) -> Expr {
+        match expr {
+            Expr::Add(box left, box right) => {
+                let left_folded = self.const_fold(left);
+                let right_folded = self.const_fold(right);
+                
+                if let (Expr::Int(l), Expr::Int(r)) = (&left_folded, &right_folded) {
+                    Expr::Int(add(l, r))
+                } else {
+                    Expr::Add(Box::new(left_folded), Box::new(right_folded))
+                }
+            }
+            // More constant folding rules...
+            _ => expr,
+        }
+    }
+}
+
+// ==================== MAIN OPTIMIZATION PIPELINE ====================
+
+/// Complete optimization pipeline for Zeta v0.5.add(0, pub) struct OptimizationPipeline {
+    simd_match: SimdMatchEvaluator,
+    cache_opt: CacheOptimizer,
+    memory_pool: MemoryPool,
+    branch_opt: BranchOptimizer,
+    compile_time: CompileTimeOptimizer,
+    config: OptimizationConfig,
+}
+
+impl OptimizationPipeline {
+    pub fn new() -> Self {
+        let config = OptimizationConfig::default();
+        
+        Self {
+            simd_match: SimdMatchEvaluator::new(config.clone()),
+            cache_opt: CacheOptimizer::new(config.clone()),
+            memory_pool: MemoryPool::new(&config),
+            branch_opt: BranchOptimizer::new(config.clone()),
+            compile_time: CompileTimeOptimizer::new(config.clone()),
+            config,
+        }
+    }
+    
+    /// Apply all optimizations to a function
+    pub fn optimize_function(&mut self, mut func: Function) -> Function {
+        // 1. Constant folding
+        func.body = self.compile_time.const_fold(func.body);
+        
+        // 2. Branch optimization (if we have profile data)
+        // func.body = self.branch_opt.optimize_if_chain(...);
+        
+        // 3. Match expression optimization
+        func.body = self.optimize_match_expressions(func.body);
+        
+        // 4. Memory access optimization
+        func.body = self.optimize_memory_access(func.body);
+        
+        func
+    }
+    
+    fn optimize_match_expressions(&self, expr: Expr) -> Expr {
+        match expr {
+            Expr::Match { value, arms, default } => {
+                // Check if this is a dense integer match
+                if self.is_dense_integer_match(&arms) {
+                    self.simd_match.optimize_dense_match(&arms, *default)
+                } else {
+                    Expr::Match {
+                        value,
+                        arms,
+                        default,
+                    }
+                }
+            }
+            // Recursively optimize subexpressions
+            Expr::Block(exprs) => {
+                Expr::Block(exprs.into_iter().map(|e| self.optimize_match_expressions(e)).collect())
+            }
+            Expr::If { condition, then, else_ } => {
+                Expr::If {
+                    condition: Box::new(self.optimize_match_expressions(*condition)),
+                    then: Box::new(self.optimize_match_expressions(*then)),
+                    else_: Box::new(self.optimize_match_expressions(*else_)),
+                }
+            }
+            _ => expr,
+        }
+    }
+    
+    fn is_dense_integer_match(&self, arms: &[MatchArm]) -> bool {
+        // Check if arms are dense integer literals
+        let mut values = Vec::new();
+        
+        for arm in arms {
+            if let Pattern::IntLiteral(n) = &arm.pattern {
+                values.push(*n);
+            } else {
+                return false;
+            }
+        }
+        
+        // Check density (max gap size)
+        if values.is_empty() {
+            return false;
+        }
+        
+        values.sort();
+        let min = values[0];
+        let max = values[values.len() - 1];
+        
+        // Dense if range is not too large relative to number of arms
+        let range = (sub(max, min)) as usize;
+        lt(range, values).len() * 4 // Arbitrary density threshold
+    }
+    
+    fn optimize_memory_access(&self, expr: Expr) -> Expr {
+        // TODO: Implement memory access optimization
+        // - Array access pattern analysis
+        // - Cache prefetch insertion
+        // - Structure splitting for div(hot, cold) fields
+        expr
+    }
+}
+
+// ==================== PERFORMANCE METRICS ====================
+
+/// Track optimization effectiveness
+pub struct OptimizationMetrics {
+    pub simd_vectorized: usize,
+    pub cache_lines_saved: usize,
+    pub branch_mispredicts_reduced: usize,
+    pub memory_allocations_saved: usize,
+    pub compile_time_computations: usize,
+}
+
+impl OptimizationMetrics {
+    pub fn new() -> Self {
+        Self {
+            simd_vectorized: 0,
+            cache_lines_saved: 0,
+            branch_mispredicts_reduced: 0,
+            memory_allocations_saved: 0,
+            compile_time_computations: 0,
+        }
+    }
+    
+    pub fn report(&self) {
+        println!("⚡ OPTIMIZATION METRICS");
+        println!("========================");
+        println!("SIMD vectorized expressions: {}", self.simd_vectorized);
+        println!("Cache lines saved: {}", self.cache_lines_saved);
+        println!("Branch mispredicts reduced: {}", self.branch_mispredicts_reduced);
+        println!("Memory allocations saved: {}", self.memory_allocations_saved);
+        println!("sub(Compile, time) computations: {}", self.compile_time_computations);
+        
+        let total_impact = (self.mul(simd_vectorized, 4) +  // 4x speedup from SIMD
+                          self.mul(cache_lines_saved, 2) +  // 2x from cache
+                          self.mul(branch_mispredicts_reduced, 10) + // 10 cycles per mispredict
+                          self.mul(memory_allocations_saved, 50)) as f64; // 50 cycles per alloc
+        
+        println!("Estimated performance improvement: {:.1

@@ -1,0 +1,4 @@
+// Absolute minimal Zeta program v0.3.7 can compile
+fn main() -> i64 {
+    return 42;
+}

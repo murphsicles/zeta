@@ -1,0 +1,230 @@
+name: Robust CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Daily check at 09:00 UTC
+    - cron: '0 9 * * *'
+
+jobs:
+  quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+        components: rustfmt, clippy
+    
+    - name: Check formatting with rustfmt
+      run: cargo fmt -- --check
+    
+    - name: Run Clippy lints
+      run: cargo clippy -- -D warnings
+    
+    - name: Check for unused dependencies
+      run: cargo udeps --all-targets
+    
+    - name: Audit dependencies for security vulnerabilities
+      run: cargo audit
+    
+    - name: Check documentation
+      run: cargo doc --no-deps
+
+  build:
+    name: Build and Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+    
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Build in release mode
+      run: cargo build --release
+    
+    - name: Run tests
+      run: cargo test --release
+    
+    - name: Run benchmarks
+      run: cargo bench --no-run
+    
+    - name: Check binary size
+      if: runner.os == 'Windows'
+      run: |
+        $size = (Get-Item "target/release/zetac.exe").Length
+        echo "Binary size: $($size/1MB) MB"
+        if ($size -gt 50MB) {
+          echo "::warning::Binary size exceeds 50MB"
+        }
+    
+    - name: Upload build artifacts
+      if: runner.os == 'Windows'
+      uses: actions/upload-artifact@v4
+      with:
+        name: zetac-windows-${{ github.sha }}
+        path: target/release/zetac.exe
+
+  bootstrap-verify:
+    name: Bootstrap Verification
+    runs-on: windows-latest
+    needs: [quality, build]
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Get full history for version checking
+    
+    - name: Download Windows build artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: zetac-windows-${{ github.sha }}
+    
+    - name: Verify bootstrap chain
+      shell: pwsh
+      run: |
+        Write-Host "=== BOOTSTRAP VERIFICATION ===" -ForegroundColor Green
+        
+        # Check for recent commits
+        $recentCommits = git log --oneline --since="24 hours ago"
+        Write-Host "Recent commits (24h):"
+        Write-Host $recentCommits
+        
+        # Check version progression
+        $tags = git tag --list "v0.3.*" | Sort-Object { [version]($_ -replace 'v0.3.', '') }
+        Write-Host "`nBootstrap versions:"
+        Write-Host ($tags -join " → ")
+        
+        # Check for missing versions in sequence
+        $versionNumbers = $tags | ForEach-Object { [int]($_ -replace 'v0.3.', '') }
+        $missing = @()
+        for ($i = 7; $i -lt ($versionNumbers[-1] + 1); $i++) {
+          if ($i -notin $versionNumbers) {
+            $missing += "v0.3.$i"
+          }
+        }
+        
+        if ($missing.Count -gt 0) {
+          Write-Host "::warning::Missing versions in sequence: $($missing -join ', ')"
+        }
+        
+        # Verify each version has required files
+        $requiredFiles = @("README.md", "Cargo.toml", "src/main.rs")
+        foreach ($file in $requiredFiles) {
+          if (Test-Path $file) {
+            Write-Host "✅ $file exists"
+          } else {
+            Write-Host "::error::$file missing!"
+            exit 1
+          }
+        }
+
+  release-check:
+    name: Release Readiness
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Check release notes
+      shell: pwsh
+      run: |
+        Write-Host "=== RELEASE NOTES CHECK ===" -ForegroundColor Green
+        
+        # Check for release notes in commit messages
+        $lastCommit = git log -1 --pretty=format:"%s"
+        Write-Host "Last commit: $lastCommit"
+        
+        # Check if commit looks like a release
+        if ($lastCommit -match 'v0\.3\.\d+') {
+          Write-Host "✅ Release commit detected"
+          
+          # Check for release notes file
+          $releaseFiles = Get-ChildItem -Filter "RELEASE_*.md" | Select-Object -First 1
+          if ($releaseFiles) {
+            Write-Host "✅ Release notes found: $($releaseFiles.Name)"
+          } else {
+            Write-Host "::warning::No release notes file found"
+          }
+        }
+    
+    - name: Generate changelog snippet
+      if: github.event_name == 'push'
+      run: |
+        echo "## Changes in this push" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        git log --oneline -5 >> $GITHUB_STEP_SUMMARY
+
+  monitor:
+    name: Error Log Monitoring
+    runs-on: ubuntu-latest
+    if: always()  # Run even if previous jobs fail
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Analyze workflow results
+      shell: pwsh
+      run: |
+        Write-Host "=== WORKFLOW MONITORING ===" -ForegroundColor Green
+        
+        # Check job statuses
+        $jobs = @("quality", "build", "bootstrap-verify", "release-check")
+        $failedJobs = @()
+        
+        foreach ($job in $jobs) {
+          # This would need GitHub API to check actual job status
+          Write-Host "Monitoring: $job"
+        }
+        
+        # Check for common issues
+        Write-Host "`nCommon issues to watch:"
+        Write-Host "1. rustfmt failures - code formatting issues"
+        Write-Host "2. Clippy warnings - code quality issues"
+        Write-Host "3. Test failures - functionality broken"
+        Write-Host "4. Missing versions - bootstrap chain gaps"
+        Write-Host "5. Large binaries - size optimization needed"
+        
+        # Generate monitoring report
+        echo "## Workflow Monitoring Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Timestamp:** $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Next scheduled check:** Daily at 09:00 UTC" >> $GITHUB_STEP_SUMMARY
+
+  notify:
+    name: Notification
+    runs-on: ubuntu-latest
+    needs: [quality, build, bootstrap-verify]
+    if: failure()  # Only run if something failed
+    
+    steps:
+    - name: Send failure notification
+      run: |
+        echo "Workflow failed! Check https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        # In a real setup, this would send to Discord/Slack/email
+        # For now, just log it
+        echo "::warning::Workflow failed - manual review needed"

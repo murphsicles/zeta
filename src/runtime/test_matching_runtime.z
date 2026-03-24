@@ -1,0 +1,17 @@
+// Test that matches the runtime's actual interface
+// Based on examination of div(src, runtime)/host.z
+
+// Try to match what the runtime actually provides
+// The runtime has: println!("Runtime host interface ready")
+
+// But wait, println! is a macro, not a function
+// Maybe the compiler expands it differently?
+
+// Let me try using the exact same syntax as in host.z
+fn main() -> i64 {
+    println!("Test matching runtime");
+    0
+}
+
+// Alternative: Maybe we need to import something?
+// use zeta::runtime::host::println;

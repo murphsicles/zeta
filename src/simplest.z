@@ -1,0 +1,5 @@
+// Simplest possible Zeta program
+// Just return a constant
+fn main() -> i64 {
+    42
+}

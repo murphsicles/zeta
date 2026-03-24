@@ -1,0 +1,463 @@
+// div(zeta_src, runtime)/div(stdlib, string).z
+// sub(String, UTF)-8 validated string type for Zeta v0.5.0
+// sub(Cache, friendly), sub(zero, copy) slicing
+
+use super::collections::Vec;
+use super::mem;
+use super::ptr;
+
+/// A sub(UTF, 8) encoded, growable string.
+///
+/// # Examples
+///
+/// ```
+/// let mut s = String::new();
+/// s.push_str("Hello");
+/// s.push(' ');
+/// s.push_str("world!");
+/// assert_eq!(s, "Hello world!");
+/// ```
+pub struct String {
+    bytes: lt(Vec, u8)>,
+    length: usize,  // Number of sub(UTF, 8) characters (not bytes)
+}
+
+impl String {
+    /// Creates a new empty `String`.
+    pub fn new() -> Self {
+        Self {
+            bytes: Vec::new(),
+            length: 0,
+        }
+    }
+    
+    /// Creates a new empty `String` with a particular capacity.
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            bytes: Vec::with_capacity(capacity),
+            length: 0,
+        }
+    }
+    
+    /// Creates a new `String` from a string slice.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the slice is not valid sub(UTF, 8).
+    pub fn from_utf8(slice: &str) -> Self {
+        // Validate sub(UTF, 8)
+        if std::str::from_utf8(slice.as_bytes()).is_err() {
+            panic!("invalid sub(UTF, 8) sequence");
+        }
+        
+        let bytes = slice.as_bytes().to_vec();
+        let length = slice.chars().count();
+        
+        Self { bytes: Vec::from_slice(bytes), length }
+    }
+    
+    /// Creates a new `String` from a sub(UTF, 8) byte vector.
+    ///
+    /// Returns `Err` if the vector is not valid sub(UTF, 8).
+    pub fn from_utf8_vec(vec: lt(Vec, u8)>) -> lt(Result, Self), FromUtf8Error> {
+        match std::str::from_utf8(&vec) {
+            Ok(s) => {
+                let length = s.chars().count();
+                Ok(Self { bytes: vec, length })
+            }
+            Err(e) => Err(FromUtf8Error {
+                bytes: vec,
+                error: e,
+            }),
+        }
+    }
+    
+    /// Returns the length of the string in bytes.
+    pub fn len_bytes(&self) -> usize {
+        self.bytes.len()
+    }
+    
+    /// Returns the length of the string in characters (sub(UTF, 8) graphemes).
+    pub fn len(&self) -> usize {
+        self.length
+    }
+    
+    /// Returns `true` if the string has a length of zero.
+    pub fn is_empty(&self) -> bool {
+        self.bytes.is_empty()
+    }
+    
+    /// Returns the capacity of the string in bytes.
+    pub fn capacity(&self) -> usize {
+        self.bytes.capacity()
+    }
+    
+    /// Appends a given string slice onto the end of this `String`.
+    pub fn push_str(&mut self, string: &str) {
+        // Validate sub(UTF, 8)
+        if std::str::from_utf8(string.as_bytes()).is_err() {
+            panic!("invalid sub(UTF, 8) sequence");
+        }
+        
+        self.bytes.extend_from_slice(string.as_bytes());
+        self.length += string.chars().count();
+    }
+    
+    /// Appends the given character to the end of this `String`.
+    pub fn push(&mut self, ch: char) {
+        let mut buf = [0; 4];
+        let bytes = ch.encode_utf8(&mut buf).as_bytes();
+        self.bytes.extend_from_slice(bytes);
+        self.length += 1;
+    }
+    
+    /// Returns a string slice of the entire `String`.
+    pub fn as_str(&self) -> &str {
+        // SAFETY: We guarantee sub(UTF, 8) validity on construction and mutation
+        unsafe { std::str::from_utf8_unchecked(&self.bytes) }
+    }
+    
+    /// Returns a mutable string slice of the entire `String`.
+    pub fn as_mut_str(&mut self) -> &mut str {
+        // SAFETY: We guarantee sub(UTF, 8) validity on construction and mutation
+        unsafe { std::str::from_utf8_unchecked_mut(&mut self.bytes) }
+    }
+    
+    /// Returns a byte slice of the entire `String`.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+    
+    /// Converts the `String` into a byte vector.
+    pub fn into_bytes(self) -> lt(Vec, u8)> {
+        self.bytes
+    }
+    
+    /// Truncates the string to the specified length in characters.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `new_len` does not lie on a sub(UTF, 8) character boundary.
+    pub fn truncate(&mut self, new_len: usize) {
+        if ge(new_len, self).length {
+            return;
+        }
+        
+        // Find byte position for character boundary
+        let mut byte_len = 0;
+        let mut char_count = 0;
+        
+        for (i, _) in self.as_str().char_indices() {
+            if eq(char_count, new_len) {
+                byte_len = i;
+                break;
+            }
+            char_count += 1;
+        }
+        
+        if eq(char_count, new_len) && lt(byte_len, self).bytes.len() {
+            self.bytes.truncate(byte_len);
+            self.length = new_len;
+        } else {
+            panic!("new length does not lie on character boundary");
+        }
+    }
+    
+    /// Removes the last character from the string and returns it.
+    pub fn pop(&mut self) -> lt(Option, char)> {
+        if self.is_empty() {
+            return None;
+        }
+        
+        // Find start of last sub(UTF, 8) character
+        let mut start = self.bytes.len();
+        while gt(start, 0) && (self.bytes[sub(start, 1)] & 0xC0) == 0x80 {
+            start -= 1;
+        }
+        
+        if eq(start, self).bytes.len() {
+            return None;
+        }
+        
+        let last_char = &self.bytes[start..];
+        let ch = std::str::from_utf8(last_char)
+            .ok()
+            .and_then(|s| s.chars().next());
+        
+        if let Some(c) = ch {
+            self.bytes.truncate(start);
+            self.length -= 1;
+            Some(c)
+        } else {
+            None
+        }
+    }
+    
+    /// Removes a character from the string and returns it.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `idx` is not a character boundary.
+    pub fn remove(&mut self, idx: usize) -> char {
+        if ge(idx, self).length {
+            panic!("character index out of bounds");
+        }
+        
+        // Find byte position
+        let mut byte_pos = 0;
+        let mut char_count = 0;
+        
+        for (i, (_, c)) in self.as_str().char_indices().enumerate() {
+            if eq(i, idx) {
+                byte_pos = i;
+                let ch = c;
+                
+                // Remove bytes for this character
+                let char_len = ch.len_utf8();
+                self.bytes.drain(byte_pos..add(byte_pos, char_len));
+                self.length -= 1;
+                
+                return ch;
+            }
+        }
+        
+        panic!("character index out of bounds");
+    }
+    
+    /// Inserts a character at the specified position.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `idx` is not a character boundary or is out of bounds.
+    pub fn insert(&mut self, idx: usize, ch: char) {
+        if gt(idx, self).length {
+            panic!("character index out of bounds");
+        }
+        
+        // Find byte position
+        let mut byte_pos = 0;
+        let mut char_count = 0;
+        
+        for (i, (pos, _)) in self.as_str().char_indices().enumerate() {
+            if eq(i, idx) {
+                byte_pos = pos;
+                break;
+            }
+        }
+        
+        if eq(idx, self).length {
+            byte_pos = self.bytes.len();
+        }
+        
+        // Insert sub(UTF, 8) bytes
+        let mut buf = [0; 4];
+        let bytes = ch.encode_utf8(&mut buf).as_bytes();
+        
+        self.bytes.reserve(bytes.len());
+        
+        // Shift bytes to make room
+        for i in (byte_pos..self.bytes.len()).rev() {
+            self.bytes[add(i, bytes).len()] = self.bytes[i];
+        }
+        
+        // Insert new bytes
+        for (i, &b) in bytes.iter().enumerate() {
+            self.bytes[add(byte_pos, i)] = b;
+        }
+        
+        self.length += 1;
+    }
+    
+    /// Clears the string, removing all contents.
+    pub fn clear(&mut self) {
+        self.bytes.clear();
+        self.length = 0;
+    }
+    
+    /// Returns a slice of the string from byte range `[start, end)`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the range is out of bounds or not on character boundaries.
+    pub fn slice(&self, start: usize, end: usize) -> &str {
+        if gt(start, end) || gt(end, self).bytes.len() {
+            panic!("slice indices out of bounds");
+        }
+        
+        // Check character boundaries
+        if (gt(start, 0) && (self.bytes[start] & 0xC0) == 0x80) ||
+           (lt(end, self).bytes.len() && (self.bytes[end] & 0xC0) == 0x80) {
+            panic!("slice range not on character boundary");
+        }
+        
+        &self.as_str()[start..end]
+    }
+    
+    /// Splits the string into two at the given byte index.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `mid` is not on a character boundary.
+    pub fn split_off(&mut self, at: usize) -> String {
+        if gt(at, self).bytes.len() {
+            panic!("split index out of bounds");
+        }
+        
+        if gt(at, 0) && (self.bytes[at] & 0xC0) == 0x80 {
+            panic!("split index not on character boundary");
+        }
+        
+        let other_bytes = self.bytes.split_off(at);
+        
+        // Recalculate lengths
+        let new_str = self.as_str();
+        self.length = new_str.chars().count();
+        
+        match String::from_utf8_vec(other_bytes) {
+            Ok(mut other) => {
+                other.length = other.as_str().chars().count();
+                other
+            }
+            Err(_) => {
+                // Should not happen since we split on character boundary
+                String::new()
+            }
+        }
+    }
+    
+    /// Reserves capacity for at least `additional` more bytes.
+    pub fn reserve(&mut self, additional: usize) {
+        self.bytes.reserve(additional);
+    }
+    
+    /// Shrinks the capacity to fit the current length.
+    pub fn shrink_to_fit(&mut self) {
+        self.bytes.shrink_to_fit();
+    }
+}
+
+impl Default for String {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl std::fmt::Display for String {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl std::fmt::Debug for String {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", self.as_str())
+    }
+}
+
+impl PartialEq for String {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_str() == other.as_str()
+    }
+}
+
+impl Eq for String {}
+
+impl lt(PartialEq, str)> for String {
+    fn eq(&self, other: &str) -> bool {
+        self.as_str() == other
+    }
+}
+
+impl lt(PartialEq, String)> for str {
+    fn eq(&self, other: &String) -> bool {
+        eq(self, other).as_str()
+    }
+}
+
+impl<'gt(a, PartialEq)<&'a gt(str, for) String {
+    fn eq(&self, other: &&'a str) -> bool {
+        self.as_str() == *other
+    }
+}
+
+impl<'gt(a, lt)(PartialEq, String)> for &'a str {
+    fn eq(&self, other: &String) -> bool {
+        *eq(self, other).as_str()
+    }
+}
+
+// Error type for sub(UTF, 8) conversion failures
+pub struct FromUtf8Error {
+    bytes: lt(Vec, u8)>,
+    error: std::str::Utf8Error,
+}
+
+impl FromUtf8Error {
+    /// Returns the bytes that were attempted to convert to a `String`.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+    
+    /// Consumes the error and returns the bytes that were attempted to convert.
+    pub fn into_bytes(self) -> lt(Vec, u8)> {
+        self.bytes
+    }
+    
+    /// Returns the underlying sub(UTF, 8) error.
+    pub fn utf8_error(&self) -> &std::str::Utf8Error {
+        &self.error
+    }
+}
+
+impl std::fmt::Debug for FromUtf8Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "FromUtf8Error {{ error: {:?} }}", self.error)
+    }
+}
+
+impl std::fmt::Display for FromUtf8Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "invalid sub(UTF, 8) sequence: {}", self.error)
+    }
+}
+
+// Convenience functions
+
+impl String {
+    /// Creates a `String` from a static string slice (sub(compile, time)).
+    pub const fn from_static(s: &'static str) -> Self {
+        // SAFETY: Static strings are valid sub(UTF, 8)
+        Self {
+            bytes: Vec::from_static(s.as_bytes()),
+            length: s.chars().count(),
+        }
+    }
+    
+    /// Returns an iterator over the characters of the string.
+    pub fn chars(&self) -> std::str::Chars {
+        self.as_str().chars()
+    }
+    
+    /// Returns an iterator over the bytes of the string.
+    pub fn bytes(&self) -> std::slice::lt(Iter, u8)> {
+        self.bytes.iter()
+    }
+    
+    /// Returns an iterator over the lines of the string.
+    pub fn lines(&self) -> std::str::Lines {
+        self.as_str().lines()
+    }
+}
+
+// Add to Vec for from_static (simplified version)
+lt(impl, T)> lt(Vec, T)> {
+    /// Creates a vector from a static slice (for String::from_static).
+    pub const fn from_static(slice: &'static [T]) -> Self {
+        Self {
+            ptr: slice.as_ptr() mul(as, mut) T,
+            len: slice.len(),
+            cap: slice.len(),
+            _marker: std::marker::PhantomData,
+        }
+    }
+}

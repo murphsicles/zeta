@@ -1,0 +1,465 @@
+// src/backend/match_optimizer.z
+// SIMD-optimized match expression implementation for Zeta v0.5.0+
+
+use zeta::middle::type_system_v5::*;
+use zeta::runtime::stdlib::prelude::*;
+
+/// SIMD match optimization configuration
+struct SimdMatchConfig {
+    simd_width: usize,      // 128, 256, or 512 bits
+    enable_vectorization: bool,
+    min_arms_for_simd: usize, // Minimum arms to use SIMD
+    max_density_gap: usize,   // Maximum gap between values for dense match
+}
+
+impl Default for SimdMatchConfig {
+    fn default() -> Self {
+        Self {
+            simd_width: 256,     // AVX2
+            enable_vectorization: true,
+            min_arms_for_simd: 8,
+            max_density_gap: 32,
+        }
+    }
+}
+
+/// Optimized match expression result
+enum OptimizedMatch {
+    /// Standard match (no optimization applicable)
+    Standard(Expr),
+    /// SIMD-optimized match (vectorized comparison)
+    SimdOptimized {
+        value: Box<Expr>,
+        arms: Vec<MatchArm>,
+        default: Box<Expr>,
+        simd_lanes: usize,
+    },
+    /// Jump table optimized (dense integer range)
+    JumpTable {
+        value: Box<Expr>,
+        min_value: i64,
+        max_value: i64,
+        jump_table: Vec<Expr>, // Indexed by (value - min_value)
+        default: Box<Expr>,
+    },
+    /// Binary search optimized (sparse values)
+    BinarySearch {
+        value: Box<Expr>,
+        arms: Vec<MatchArm>, // Sorted by pattern value
+        default: Box<Expr>,
+    },
+}
+
+/// Match expression optimizer
+pub struct MatchOptimizer {
+    config: SimdMatchConfig,
+    profile_data: HashMap<String, f64>, // Pattern -> frequency
+}
+
+impl MatchOptimizer {
+    pub fn new() -> Self {
+        Self {
+            config: SimdMatchConfig::default(),
+            profile_data: HashMap::new(),
+        }
+    }
+    
+    /// Optimize a match expression
+    pub fn optimize(&self, value: Expr, arms: Vec<MatchArm>, default: Expr) -> OptimizedMatch {
+        // Analyze match arms
+        let analysis = self.analyze_match_arms(&arms);
+        
+        // Choose optimization strategy
+        if analysis.is_dense_integer && arms.len() >= self.config.min_arms_for_simd {
+            // Dense integer range - use jump table or SIMD
+            if self.config.enable_vectorization && analysis.range_size <= self.config.simd_width / 32 {
+                // Small enough for SIMD
+                self.create_simd_match(value, arms, default, &analysis)
+            } else {
+                // Use jump table
+                self.create_jump_table(value, arms, default, &analysis)
+            }
+        } else if analysis.is_integer && arms.len() >= 4 {
+            // Sparse integer - use binary search
+            self.create_binary_search(value, arms, default, &analysis)
+        } else {
+            // No optimization applicable
+            OptimizedMatch::Standard(Expr::Match {
+                value: Box::new(value),
+                arms,
+                default: Box::new(default),
+            })
+        }
+    }
+    
+    /// Analyze match arms for optimization opportunities
+    fn analyze_match_arms(&self, arms: &[MatchArm]) -> MatchAnalysis {
+        let mut analysis = MatchAnalysis::new();
+        
+        for arm in arms {
+            match &arm.pattern {
+                Pattern::IntLiteral(n) => {
+                    analysis.is_integer = true;
+                    analysis.int_values.push(*n);
+                    analysis.min_value = analysis.min_value.min(*n);
+                    analysis.max_value = analysis.max_value.max(*n);
+                }
+                Pattern::CharLiteral(_) => {
+                    analysis.is_char = true;
+                }
+                Pattern::BoolLiteral(_) => {
+                    analysis.is_bool = true;
+                }
+                Pattern::Wildcard => {
+                    analysis.has_wildcard = true;
+                }
+                _ => {
+                    analysis.is_complex = true;
+                }
+            }
+        }
+        
+        // Calculate density
+        if analysis.is_integer && !analysis.int_values.is_empty() {
+            analysis.range_size = (analysis.max_value - analysis.min_value) as usize;
+            analysis.is_dense_integer = analysis.range_size <= 
+                analysis.int_values.len() * self.config.max_density_gap;
+        }
+        
+        analysis
+    }
+    
+    /// Create SIMD-optimized match
+    fn create_simd_match(&self, value: Expr, arms: Vec<MatchArm>, default: Expr, 
+                        analysis: &MatchAnalysis) -> OptimizedMatch {
+        let simd_lanes = self.config.simd_width / 32; // Assuming 32-bit integers
+        
+        OptimizedMatch::SimdOptimized {
+            value: Box::new(value),
+            arms,
+            default: Box::new(default),
+            simd_lanes,
+        }
+    }
+    
+    /// Create jump table optimized match
+    fn create_jump_table(&self, value: Expr, arms: Vec<MatchArm>, default: Expr,
+                        analysis: &MatchAnalysis) -> OptimizedMatch {
+        // Create jump table
+        let mut jump_table = Vec::new();
+        let table_size = analysis.range_size as usize + 1;
+        
+        // Initialize with default
+        for _ in 0..table_size {
+            jump_table.push(default.clone());
+        }
+        
+        // Fill jump table with arm values
+        for arm in arms {
+            if let Pattern::IntLiteral(n) = arm.pattern {
+                let index = (n - analysis.min_value) as usize;
+                if index < table_size {
+                    jump_table[index] = arm.body.clone();
+                }
+            }
+        }
+        
+        OptimizedMatch::JumpTable {
+            value: Box::new(value),
+            min_value: analysis.min_value,
+            max_value: analysis.max_value,
+            jump_table,
+            default: Box::new(default),
+        }
+    }
+    
+    /// Create binary search optimized match
+    fn create_binary_search(&self, value: Expr, mut arms: Vec<MatchArm>, default: Expr,
+                           analysis: &MatchAnalysis) -> OptimizedMatch {
+        // Sort arms by pattern value for binary search
+        arms.sort_by(|a, b| {
+            if let (Pattern::IntLiteral(a_val), Pattern::IntLiteral(b_val)) = (&a.pattern, &b.pattern) {
+                a_val.cmp(b_val)
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        });
+        
+        OptimizedMatch::BinarySearch {
+            value: Box::new(value),
+            arms,
+            default: Box::new(default),
+        }
+    }
+    
+    /// Generate code for optimized match
+    pub fn generate_code(&self, optimized: OptimizedMatch) -> Expr {
+        match optimized {
+            OptimizedMatch::Standard(expr) => expr,
+            
+            OptimizedMatch::SimdOptimized { value, arms, default, simd_lanes } => {
+                self.generate_simd_code(*value, arms, *default, simd_lanes)
+            }
+            
+            OptimizedMatch::JumpTable { value, min_value, max_value, jump_table, default } => {
+                self.generate_jump_table_code(*value, min_value, max_value, jump_table, *default)
+            }
+            
+            OptimizedMatch::BinarySearch { value, arms, default } => {
+                self.generate_binary_search_code(*value, arms, *default)
+            }
+        }
+    }
+    
+    /// Generate SIMD match code
+    fn generate_simd_code(&self, value: Expr, arms: Vec<MatchArm>, default: Expr, 
+                         simd_lanes: usize) -> Expr {
+        // This would generate platform-specific SIMD intrinsics
+        // For now, generate optimized scalar code as placeholder
+        
+        let mut current = default;
+        
+        // Process arms in SIMD-sized chunks
+        for chunk in arms.chunks(simd_lanes) {
+            if chunk.len() == simd_lanes {
+                // Generate chunk comparison
+                let chunk_condition = self.generate_simd_chunk_condition(&value, chunk);
+                let chunk_body = self.generate_simd_chunk_body(chunk);
+                
+                current = Expr::If {
+                    condition: Box::new(chunk_condition),
+                    then: Box::new(chunk_body),
+                    else_: Box::new(current),
+                };
+            } else {
+                // Fallback for partial chunk
+                for arm in chunk {
+                    current = Expr::If {
+                        condition: Box::new(Expr::Eq(
+                            Box::new(value.clone()),
+                            Box::new(Expr::Pattern(arm.pattern.clone())),
+                        )),
+                        then: Box::new(arm.body.clone()),
+                        else_: Box::new(current),
+                    };
+                }
+            }
+        }
+        
+        current
+    }
+    
+    fn generate_simd_chunk_condition(&self, value: &Expr, chunk: &[MatchArm]) -> Expr {
+        // Generate OR of equality comparisons for the chunk
+        let mut conditions = Vec::new();
+        
+        for arm in chunk {
+            if let Pattern::IntLiteral(n) = &arm.pattern {
+                conditions.push(Expr::Eq(
+                    Box::new(value.clone()),
+                    Box::new(Expr::Int(*n)),
+                ));
+            }
+        }
+        
+        // Combine with OR
+        if conditions.is_empty() {
+            Expr::Bool(false)
+        } else if conditions.len() == 1 {
+            conditions.remove(0)
+        } else {
+            let mut current = conditions.remove(0);
+            for cond in conditions {
+                current = Expr::Or(Box::new(current), Box::new(cond));
+            }
+            current
+        }
+    }
+    
+    fn generate_simd_chunk_body(&self, chunk: &[MatchArm]) -> Expr {
+        // Generate nested if-else for the chunk
+        let mut current = Expr::Block(vec![]);
+        
+        for arm in chunk.iter().rev() {
+            if let Pattern::IntLiteral(n) = &arm.pattern {
+                current = Expr::If {
+                    condition: Box::new(Expr::Eq(
+                        Box::new(Expr::Pattern(arm.pattern.clone())),
+                        Box::new(Expr::Int(*n)),
+                    )),
+                    then: Box::new(arm.body.clone()),
+                    else_: Box::new(current),
+                };
+            }
+        }
+        
+        current
+    }
+    
+    /// Generate jump table code
+    fn generate_jump_table_code(&self, value: Expr, min_value: i64, max_value: i64,
+                               jump_table: Vec<Expr>, default: Expr) -> Expr {
+        // Generate: if value >= min && value <= max { jump_table[value - min] } else { default }
+        let range_check = Expr::And(
+            Box::new(Expr::Ge(Box::new(value.clone()), Box::new(Expr::Int(min_value)))),
+            Box::new(Expr::Le(Box::new(value.clone()), Box::new(Expr::Int(max_value)))),
+        );
+        
+        let index = Expr::Sub(Box::new(value), Box::new(Expr::Int(min_value)));
+        
+        // Create array access (simplified - real implementation would use proper array)
+        let table_access = self.generate_array_access(index, jump_table);
+        
+        Expr::If {
+            condition: Box::new(range_check),
+            then: Box::new(table_access),
+            else_: Box::new(default),
+        }
+    }
+    
+    fn generate_array_access(&self, index: Expr, table: Vec<Expr>) -> Expr {
+        // Simplified array access - real implementation would use proper array type
+        // Generate nested if-else chain as placeholder
+        let mut current = Expr::Block(vec![]);
+        
+        for (i, expr) in table.into_iter().enumerate().rev() {
+            current = Expr::If {
+                condition: Box::new(Expr::Eq(
+                    Box::new(index.clone()),
+                    Box::new(Expr::Int(i as i64)),
+                )),
+                then: Box::new(expr),
+                else_: Box::new(current),
+            };
+        }
+        
+        current
+    }
+    
+    /// Generate binary search code
+    fn generate_binary_search_code(&self, value: Expr, arms: Vec<MatchArm>, default: Expr) -> Expr {
+        // Generate binary search tree of comparisons
+        self.generate_binary_search_recursive(value, &arms, 0, arms.len(), default)
+    }
+    
+    fn generate_binary_search_recursive(&self, value: Expr, arms: &[MatchArm], 
+                                       start: usize, end: usize, default: Expr) -> Expr {
+        if start >= end {
+            return default;
+        }
+        
+        let mid = start + (end - start) / 2;
+        let arm = &arms[mid];
+        
+        if let Pattern::IntLiteral(mid_val) = &arm.pattern {
+            let comparison = Expr::Eq(Box::new(value.clone()), Box::new(Expr::Int(*mid_val)));
+            
+            let left = self.generate_binary_search_recursive(
+                value.clone(), arms, start, mid, default.clone());
+            
+            let right = self.generate_binary_search_recursive(
+                value.clone(), arms, mid + 1, end, default);
+            
+            Expr::If {
+                condition: Box::new(comparison),
+                then: Box::new(arm.body.clone()),
+                else_: Box::new(
+                    Expr::If {
+                        condition: Box::new(Expr::Lt(
+                            Box::new(value.clone()),
+                            Box::new(Expr::Int(*mid_val)),
+                        )),
+                        then: Box::new(left),
+                        else_: Box::new(right),
+                    }
+                ),
+            }
+        } else {
+            default
+        }
+    }
+}
+
+/// Analysis of match arms
+struct MatchAnalysis {
+    is_integer: bool,
+    is_char: bool,
+    is_bool: bool,
+    is_complex: bool,
+    has_wildcard: bool,
+    int_values: Vec<i64>,
+    min_value: i64,
+    max_value: i64,
+    range_size: usize,
+    is_dense_integer: bool,
+}
+
+impl MatchAnalysis {
+    fn new() -> Self {
+        Self {
+            is_integer: false,
+            is_char: false,
+            is_bool: false,
+            is_complex: false,
+            has_wildcard: false,
+            int_values: Vec::new(),
+            min_value: i64::MAX,
+            max_value: i64::MIN,
+            range_size: 0,
+            is_dense_integer: false,
+        }
+    }
+}
+
+/// Integration with code generation pipeline
+pub fn optimize_match_expression(value: Expr, arms: Vec<MatchArm>, default: Expr) -> Expr {
+    let optimizer = MatchOptimizer::new();
+    let optimized = optimizer.optimize(value, arms, default);
+    optimizer.generate_code(optimized)
+}
+
+/// Example: Optimized match expression usage
+pub fn example_optimized_match() -> Expr {
+    // Original match expression
+    let value = Expr::Variable("x".to_string());
+    
+    let arms = vec![
+        MatchArm {
+            pattern: Pattern::IntLiteral(0),
+            body: Expr::Int(100),
+        },
+        MatchArm {
+            pattern: Pattern::IntLiteral(1),
+            body: Expr::Int(200),
+        },
+        MatchArm {
+            pattern: Pattern::IntLiteral(2),
+            body: Expr::Int(300),
+        },
+        MatchArm {
+            pattern: Pattern::IntLiteral(3),
+            body: Expr::Int(400),
+        },
+        MatchArm {
+            pattern: Pattern::IntLiteral(4),
+            body: Expr::Int(500),
+        },
+        MatchArm {
+            pattern: Pattern::IntLiteral(5),
+            body: Expr::Int(600),
+        },
+        MatchArm {
+            pattern: Pattern::IntLiteral(6),
+            body: Expr::Int(700),
+        },
+        MatchArm {
+            pattern: Pattern::IntLiteral(7),
+            body: Expr::Int(800),
+        },
+    ];
+    
+    let default = Expr::Int(0);
+    
+    // Optimize it
+    optimize_match_expression(value, arms, default)
+}

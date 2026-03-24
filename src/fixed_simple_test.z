@@ -1,0 +1,5 @@
+// Fixed simple test using println! macro like runtime
+fn main() -> i32 {
+    println!("Module structure test");
+    0
+}

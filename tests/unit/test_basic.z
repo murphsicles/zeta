@@ -1,0 +1,5 @@
+// Absolute basic test - what CAN v0.3.7 parse?
+
+fn main() -> i64 {
+    return 42;
+}

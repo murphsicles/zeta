@@ -1,0 +1,8 @@
+// Test with main first, other function second
+fn main() -> i64 {
+    if ne(5, 3) { 1 } else { 0 }
+}
+
+fn other() -> i64 {
+    if ne(5, 3) { 1 } else { 0 }
+}

@@ -1,0 +1,113 @@
+name: Push Frequency Monitor
+
+on:
+  schedule:
+    # Check every 4 hours
+    - cron: '0 */4 * * *'
+  workflow_dispatch:
+
+jobs:
+  monitor-push-frequency:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Get full history
+    
+    - name: Analyze push frequency
+      shell: pwsh
+      run: |
+        Write-Host "=== PUSH FREQUENCY MONITOR ===" -ForegroundColor Green
+        
+        # Get commits from last 24 hours
+        $commits24h = git log --oneline --since="24 hours ago" | Measure-Object -Line
+        Write-Host "Commits in last 24h: $($commits24h.Lines)"
+        
+        # Get commits from last 7 days
+        $commits7d = git log --oneline --since="7 days ago" | Measure-Object -Line
+        Write-Host "Commits in last 7 days: $($commits7d.Lines)"
+        
+        # Calculate average per day
+        $avgPerDay = if ($commits7d.Lines -gt 0) { [math]::Round($commits7d.Lines / 7, 1) } else { 0 }
+        Write-Host "Average commits per day: $avgPerDay"
+        
+        # Check for gaps (no commits for >12 hours)
+        $lastCommitTime = git log -1 --pretty=format:"%ct"
+        $currentTime = [int][double]::Parse((Get-Date -UFormat %s))
+        $hoursSinceLastCommit = [math]::Round(($currentTime - $lastCommitTime) / 3600, 1)
+        
+        Write-Host "Hours since last commit: $hoursSinceLastCommit"
+        
+        # Generate report
+        echo "## Push Frequency Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Last 24 hours:** $($commits24h.Lines) commits" >> $GITHUB_STEP_SUMMARY
+        echo "**Last 7 days:** $($commits7d.Lines) commits" >> $GITHUB_STEP_SUMMARY
+        echo "**Average per day:** $avgPerDay commits" >> $GITHUB_STEP_SUMMARY
+        echo "**Hours since last commit:** $hoursSinceLastCommit" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Warning conditions
+        if ($hoursSinceLastCommit -gt 12) {
+          echo "::warning::No commits in over 12 hours!" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ⚠️ SLOW - Need more frequent pushes" >> $GITHUB_STEP_SUMMARY
+        } elseif ($avgPerDay -lt 3) {
+          echo "::warning::Low commit frequency (less than 3 per day)" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ⚠️ MODERATE - Could push more" >> $GITHUB_STEP_SUMMARY
+        } else {
+          echo "**Status:** ✅ GOOD - Regular pushes detected" >> $GITHUB_STEP_SUMMARY
+        }
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Recent commits:**" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        git log --oneline -10 >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        
+        # Set output for other jobs
+        echo "hours_since=$hoursSinceLastCommit" >> $GITHUB_OUTPUT
+        echo "commits_24h=$($commits24h.Lines)" >> $GITHUB_OUTPUT
+    
+    - name: Check for meaningful commits
+      shell: pwsh
+      run: |
+        Write-Host "=== COMMIT QUALITY CHECK ===" -ForegroundColor Green
+        
+        # Get last 10 commit messages
+        $commits = git log --pretty=format:"%s" -10
+        
+        $meaningfulCount = 0
+        $trivialCount = 0
+        
+        foreach ($commit in $commits) {
+          # Check if commit looks meaningful
+          if ($commit -match '^(feat|fix|refactor|docs|test|chore|style|perf|build|ci|revert):' -or
+              $commit -match 'v0\.3\.\d+' -or
+              $commit.Length -gt 20) {
+            $meaningfulCount++
+            Write-Host "✅ Meaningful: $commit"
+          } else {
+            $trivialCount++
+            Write-Host "⚠️  Trivial: $commit"
+          }
+        }
+        
+        Write-Host "`nMeaningful commits: $meaningfulCount"
+        Write-Host "Trivial commits: $trivialCount"
+        
+        if ($trivialCount -gt $meaningfulCount) {
+          echo "::warning::Too many trivial commits!" >> $GITHUB_STEP_SUMMARY
+        }
+
+  enforce-push-schedule:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'schedule' && needs.monitor-push-frequency.outputs.hours_since > 24 }}
+    
+    steps:
+    - name: Alert for no pushes in 24+ hours
+      run: |
+        echo "::error::NO PUSHES IN 24+ HOURS!"
+        echo "Bootstrap progress has stalled."
+        echo "Check the 24/7 worker or manual work needed."
+        exit 1

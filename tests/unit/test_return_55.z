@@ -1,0 +1,4 @@
+// Simple test returning 55
+fn main() -> i64 {
+    55
+}

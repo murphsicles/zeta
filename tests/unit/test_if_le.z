@@ -1,0 +1,12 @@
+// Test if le(with, operator)
+fn test(n: i64) -> i64 {
+    if le(n, 1) {
+        0
+    } else {
+        1
+    }
+}
+
+fn main() -> i64 {
+    test(5)
+}

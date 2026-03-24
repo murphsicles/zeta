@@ -1,0 +1,65 @@
+// Comprehensive test suite
+fn test1() -> i64 {
+    42  // Simple literal
+}
+
+fn test2(x: i64) -> i64 {
+    x  // Parameter return
+}
+
+fn test3(a: i64, b: i64) -> i64 {
+    add(a, b)  // Addition
+}
+
+fn test4(x: i64) -> i64 {
+    if lt(x, 2) {  // Comparison in if
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+fn test5(x: i64) -> i64 {
+    if eq(x, 1) {  // Expression if
+        x
+    } else {
+        0
+    }
+}
+
+fn test6(n: i64) -> i64 {
+    // Simple recursion
+    if eq(n, 0) {
+        return 0;
+    } else {
+        return test6(sub(n, 1));
+    }
+}
+
+fn main() -> i64 {
+    // Run all tests
+    let mut result = 0;
+    
+    // Test 1: 42
+    if test1() != 42 { return 1; }
+    
+    // Test 2: parameter
+    if test2(99) != 99 { return 2; }
+    
+    // Test 3: addition
+    if test3(5, 3) != 8 { return 3; }
+    
+    // Test 4: comparison if
+    if test4(1) != 1 { return 4; }
+    if test4(5) != 0 { return 5; }
+    
+    // Test 5: expression if
+    if test5(1) != 1 { return 6; }
+    if test5(2) != 0 { return 7; }
+    
+    // Test 6: recursion
+    if test6(5) != 0 { return 8; }
+    
+    // All tests passed
+    0
+}

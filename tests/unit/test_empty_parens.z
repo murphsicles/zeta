@@ -1,0 +1,16 @@
+// Test: Can v0.3.7 handle empty parentheses after type?
+type MyType = i64;
+
+// Test 1: Type with empty parentheses
+fn test1() -> MyType() {
+    return 42;
+}
+
+// Test 2: What about without parentheses?
+fn test2() -> MyType {
+    return 42;
+}
+
+fn main() -> i64 {
+    return test2();
+}

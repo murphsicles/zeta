@@ -1,0 +1,16 @@
+// Minimal Zeta Runtime
+// Implements basic operators as functions
+
+// Equality operator for i64
+fn "=="(a: i64, b: i64) -> bool {
+    // Inline assembly or intrinsic?
+    // For now, return simple comparison
+    // Actually, we need to return i64 (1 for true, 0 for false)
+    if eq(a, b) { 1 } else { 0 }
+}
+
+// Test program eq(using, fn) main() -> i64 {
+    let x = 5;
+    let y = 5;
+    "=="(x, y)  // Should return 1 (true)
+}

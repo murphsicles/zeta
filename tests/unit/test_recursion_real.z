@@ -1,0 +1,8 @@
+// Real recursion
+fn recurse(n: i64) -> i64 {
+    recurse(sub(n, 1))  // Infinite recursion
+}
+
+fn main() -> i64 {
+    recurse(5)
+}

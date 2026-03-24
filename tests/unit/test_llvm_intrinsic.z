@@ -1,0 +1,11 @@
+// Test LLVM intrinsic
+extern "C" {
+    // LLVM intrinsic for addition?
+    fn llvm_add_i64(a: i64, b: i64) -> i64;
+}
+
+fn main() -> i64 {
+    unsafe {
+        llvm_add_i64(5, 3)
+    }
+}

@@ -1,0 +1,51 @@
+// zeta_src/frontend/parser/stmt.z
+use super::parser::{Parser, Token};
+use crate::frontend::ast::AstNode;
+
+impl Parser {
+    pub fn parse_stmt(&mut self) -> AstNode {
+        match self.peek() {
+            Token::KeywordReturn => {
+                self.advance();
+                let expr = self.parse_expr();
+                AstNode::Return(Box::new(expr))
+            }
+            Token::KeywordIf => self.parse_if_stmt(),
+            Token::KeywordDefer => {
+                self.advance();
+                let expr = self.parse_expr();
+                AstNode::Defer(Box::new(expr))
+            }
+            _ => {
+                let expr = self.parse_expr();
+                if self.consume(Token::Semi) {
+                    AstNode::ExprStmt { expr: Box::new(expr) }
+                } else {
+                    expr
+                }
+            }
+        }
+    }
+
+    fn parse_if_stmt(&mut self) -> AstNode {
+        self.expect(Token::KeywordIf);
+        let cond = Box::new(self.parse_expr());
+        let then_ = self.parse_block();
+        let else_ = if self.consume(Token::KeywordElse) {
+            self.parse_block()
+        } else {
+            vec![]
+        };
+        AstNode::If { cond, then_, else_ }
+    }
+
+    pub fn parse_block(&mut self) -> Vec<AstNode> {
+        self.expect(Token::LBrace);
+        let mut stmts = vec![];
+        while self.peek() != Token::RBrace && !self.at_end() {
+            stmts.push(self.parse_stmt());
+        }
+        self.expect(Token::RBrace);
+        stmts
+    }
+}

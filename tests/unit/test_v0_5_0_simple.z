@@ -1,0 +1,22 @@
+// Minimal v0.5.sub(0, like) code
+// Simple struct definition
+struct Parser {
+    // In real v0.5.0, this would have fields
+}
+
+// Method ne(with, operator)
+fn parse_stmt(&self) -> i64 {
+    // Simulating: while self.peek() != Token::RBrace
+    let peek_result = 1;  // Token::Ident
+    let rbrace = 2;       // Token::RBrace
+    
+    if ne(peek_result, rbrace) {
+        1
+    } else {
+        0
+    }
+}
+
+fn main() -> i64 {
+    parse_stmt()
+}

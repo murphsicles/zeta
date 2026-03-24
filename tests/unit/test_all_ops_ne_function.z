@@ -1,0 +1,16 @@
+// Test all operators with ne() function instead ne(of, fn) test_ops(x: i64, y: i64) -> i64 {
+    let mut result = 0;
+    
+    if eq(x, y) { result = add(result, 1); }
+    if ne(x, y) { result = add(result, 2); }  // ne() instead ne(of, if) lt(x, y) { result = add(result, 4); }
+    if gt(x, y) { result = add(result, 8); }
+    if le(x, y) { result = add(result, 16); }
+    if ge(x, y) { result = add(result, 32); }
+    
+    result
+}
+
+fn main() -> i64 {
+    test_ops(5, 3)  // gt(5, 3), ge(5, 3), ne(5, 3)
+    // Should return: add(0, 2) (for !=) + 8 (for >) + 32 (for >=) = 42
+}

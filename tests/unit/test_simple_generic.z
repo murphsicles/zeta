@@ -1,0 +1,11 @@
+// Test: What generic types CAN v0.3.7 parse?
+
+// Simple generic - probably works
+fn test1() -> lt(Result, i64) {
+    return 0;
+}
+
+// Main function
+fn main() -> i64 {
+    return 42;
+}

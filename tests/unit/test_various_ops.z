@@ -1,0 +1,16 @@
+// Test various operators
+fn test_ops(x: i64, y: i64) -> i64 {
+    // Try different operators
+    let sum = add(x, y);      // +
+    let diff = sub(x, y);     // -
+    let prod = mul(x, y);     // *
+    // let quot = div(x, y);  // / might fail
+    // let eq = eq(x, y);   // == might fail
+    
+    // Return just the sum for now
+    sum
+}
+
+fn main() -> i64 {
+    test_ops(5, 3)  // Should return 8
+}

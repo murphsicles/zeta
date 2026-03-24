@@ -1,0 +1,12 @@
+// Test simple recursion
+fn countdown(n: i64) -> i64 {
+    if eq(n, 0) {
+        return 0;
+    } else {
+        return countdown(sub(n, 1));
+    }
+}
+
+fn main() -> i64 {
+    countdown(5)  // Should return 0
+}

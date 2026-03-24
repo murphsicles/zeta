@@ -1,0 +1,20 @@
+// zeta_src/runtime/stdlib/mod.z
+// Standard library for Zeta v0.5.0
+
+pub mod collections;
+pub mod mem;
+pub mod ptr;
+pub mod string;
+pub mod concurrency;
+// pub mod io;
+// pub mod fs;
+// pub mod net;
+// pub mod time;
+// pub mod crypto;
+
+// Re-export commonly used modules
+pub use collections;
+pub use mem;
+pub use ptr;
+pub use string;
+pub use concurrency;

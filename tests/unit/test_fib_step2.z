@@ -1,0 +1,12 @@
+// Fibonacci step 2: test n=1
+fn fib(n: i64) -> i64 {
+    if le(n, 1) {
+        n
+    } else {
+        99
+    }
+}
+
+fn main() -> i64 {
+    fib(1)  // Should return 1
+}

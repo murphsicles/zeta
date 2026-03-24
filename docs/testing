@@ -1,0 +1,349 @@
+# 🧪 TEST PLAN: v0.4.1 BASELINE vs v0.5.0 OPTIMIZATIONS
+## Comprehensive Testing Strategy (When Compiler Works)
+
+---
+
+## **🎯 TESTING OBJECTIVES**
+
+### **Primary Goal:**
+Establish performance baseline with v0.4.1 compiler and compare against v0.5.0 optimizations.
+
+### **Secondary Goals:**
+1. Verify optimization code compiles correctly
+2. Measure actual performance improvements
+3. Validate no functionality regressions
+4. Document empirical performance data
+
+---
+
+## **🔧 CURRENT STATUS**
+
+### **Compiler Availability:**
+- **v0.4.1:** Binary available (39MB) but has dependency issues (missing VC++ runtime)
+- **v0.3.5:** Source corrupted, build failing
+- **v0.5.0:** Optimization code ready (2,448 lines)
+
+### **Dependency Issue:**
+```
+Error: Os { code: 2, kind: NotFound, message: "The system cannot find the file specified." }
+```
+**Likely Cause:** Missing Visual C++ Redistributable 2015-2022
+
+### **Workaround:**
+Create comprehensive test documentation now, execute when dependencies fixed.
+
+---
+
+## **🧪 TEST CATEGORIES**
+
+### **1. Match Expression Performance**
+**Test File:** `benches/match_performance.z`
+
+**Test Cases:**
+```
+// Test 1: Dense integer match (should use jump table)
+match x {
+    0 => 0, 1 => 1, 2 => 2, 3 => 3, 4 => 4,
+    5 => 5, 6 => 6, 7 => 7, 8 => 8, 9 => 9,
+    _ => -1
+}
+
+// Test 2: Sparse match (should use binary search)
+match x {
+    100 => "hundred",
+    200 => "two hundred",
+    300 => "three hundred",
+    400 => "four hundred",
+    500 => "five hundred",
+    _ => "other"
+}
+
+// Test 3: Mixed pattern match
+match (x, y) {
+    (0, 0) => "origin",
+    (x, 0) if x > 0 => "positive x-axis",
+    (0, y) if y > 0 => "positive y-axis",
+    (x, y) if x > 0 && y > 0 => "quadrant I",
+    _ => "other quadrant"
+}
+```
+
+**Metrics to Measure:**
+- Execution time (nanoseconds per match)
+- Code size (bytes)
+- Branch prediction accuracy (if hardware counters available)
+- Cache performance
+
+**Expected v0.5.0 Improvement:** 2-8x faster
+
+### **2. HashMap Performance**
+**Test File:** `benches/hashmap_bench.z`
+
+**Test Cases:**
+```
+// Test 1: Insert performance
+for i in 0..n {
+    map.insert(i, i * 2);
+}
+
+// Test 2: Lookup performance
+for i in 0..n {
+    let _ = map.get(&i);
+}
+
+// Test 3: Iteration performance
+for (k, v) in map.iter() {
+    // Access all entries
+}
+
+// Test 4: Cache-optimized HashMap
+let mut cache_map = CacheOptimizedHashMap::new();
+// Same tests as above
+```
+
+**Metrics to Measure:**
+- Insertion time (ns per insert)
+- Lookup time (ns per lookup)
+- Iteration time (ns per entry)
+- Memory usage (bytes per entry)
+- Cache miss rates
+
+**Expected v0.5.0 Improvement:** 1.5-3x faster
+
+### **3. Memory Allocation Performance**
+**Test File:** `benches/memory_bench.z`
+
+**Test Cases:**
+```
+// Test 1: Small allocations (16-256 bytes)
+for i in 0..n {
+    let _ = allocate(i % 256 + 16);
+}
+
+// Test 2: Pooled allocations
+let pool = MemoryPool::new();
+for i in 0..n {
+    let ptr = pool.allocate(64);
+    pool.deallocate(ptr, 64);
+}
+
+// Test 3: PooledVec performance
+let mut pvec = PooledVec::new();
+for i in 0..n {
+    pvec.push(i);
+}
+```
+
+**Metrics to Measure:**
+- Allocation time (ns per allocation)
+- Deallocation time (ns per deallocation)
+- Memory fragmentation
+- Pool hit rate
+- Thread scaling performance
+
+**Expected v0.5.0 Improvement:** 10-100x faster for small allocations
+
+### **4. End-to-End Integration**
+**Test File:** `tests/integration/test_compiler_integration.z`
+
+**Test Cases:**
+- Complete optimization system integration
+- Cross-component functionality
+- Error handling and edge cases
+- Memory safety validation
+
+**Metrics to Measure:**
+- Compilation time
+- Execution time
+- Memory consumption
+- Correctness (pass/fail)
+
+---
+
+## **📊 MEASUREMENT METHODOLOGY**
+
+### **Timing Protocol:**
+1. **Warm-up:** 1000 iterations (discarded)
+2. **Measurement:** 10,000 iterations (timed)
+3. **Multiple runs:** 10 separate measurements
+4. **Statistical analysis:** Median, mean, standard deviation
+5. **Outlier removal:** Remove top/bottom 10%
+
+### **Memory Measurement:**
+- **Before/after allocation** memory usage
+- **Peak memory** tracking
+- **Fragmentation analysis** (if tools available)
+- **Cache performance** (perf counters if available)
+
+### **Code Size Analysis:**
+- **Binary size** comparison
+- **Function size** analysis
+- **Instruction count** (if disassembly available)
+
+---
+
+## **🔬 TEST EXECUTION PROCEDURE**
+
+### **Step 1: Baseline with v0.4.1**
+```bash
+# Compile test with v0.4.1
+.\zetac_v0.4.1.exe compile benches/match_performance.z -o bench_v0.4.1.exe
+
+# Run benchmark
+.\bench_v0.4.1.exe
+
+# Record results
+# - Execution time
+# - Memory usage
+# - Any other metrics
+```
+
+### **Step 2: Optimized with v0.5.0**
+```bash
+# Compile test with v0.5.0 (when available)
+.\zetac_v0.5.0.exe compile benches/match_performance.z -o bench_v0.5.0.exe
+
+# Run benchmark
+.\bench_v0.5.0.exe
+
+# Record results
+```
+
+### **Step 3: Comparison Analysis**
+```bash
+# Calculate speedup
+speedup = v0.4.1_time / v0.5.0_time
+
+# Calculate memory improvement
+memory_improvement = v0.4.1_memory / v0.5.0_memory
+
+# Generate report
+```
+
+---
+
+## **📈 EXPECTED RESULTS**
+
+### **Match Expressions:**
+- **Dense integer matches:** 3-8x faster (SIMD optimization)
+- **Sparse matches:** 2-5x faster (binary search optimization)
+- **Pattern guards:** 1.5-3x faster (optimized guard evaluation)
+- **Overall average:** 2-4x faster
+
+### **HashMap Operations:**
+- **Lookups:** 1.5-2x faster (cache-line optimization)
+- **Insertions:** 1.2-1.5x faster (optimized hashing)
+- **Iteration:** 2-3x faster (cache-friendly layout)
+- **Memory:** 10-20% less overhead
+
+### **Memory Allocation:**
+- **Small allocations (≤ 256B):** 10-50x faster
+- **Medium allocations (256B-2KB):** 2-5x faster
+- **Large allocations (> 2KB):** No significant improvement
+- **Fragmentation:** 50-70% reduction
+
+### **Overall System:**
+- **Compilation time:** 10-20% faster (optimized compiler)
+- **Runtime performance:** 1.5-3x faster (combined optimizations)
+- **Memory efficiency:** 20-30% improvement
+- **Energy efficiency:** 15-25% improvement (estimated)
+
+---
+
+## **🚨 CONTINGENCY PLANS**
+
+### **If v0.4.1 Never Works:**
+1. **Use theoretical baseline** - Document expected v0.4.1 performance
+2. **Compare against v0.3.5** - If we can build it
+3. **Community baseline** - Ask users with working v0.4.1 to test
+4. **v0.5.0 self-comparison** - Test optimizations against non-optimized v0.5.0
+
+### **If Some Tests Fail:**
+1. **Fix critical failures** immediately
+2. **Document known issues** in release notes
+3. **Disable problematic optimizations** temporarily
+4. **Schedule fixes** for v0.5.1
+
+### **If Performance Targets Not Met:**
+1. **Analyze bottlenecks** with profiling
+2. **Tune optimization parameters**
+3. **Document actual vs expected** performance
+4. **Plan improvements** for future releases
+
+---
+
+## **📋 TEST EXECUTION CHECKLIST**
+
+### **Prerequisites:**
+- [ ] v0.4.1 compiler working (dependency issues resolved)
+- [ ] Test suite compiled and ready
+- [ ] Measurement tools installed
+- [ ] Baseline environment configured
+
+### **Execution:**
+- [ ] Run all benchmark tests
+- [ ] Record all measurements
+- [ ] Verify test correctness
+- [ ] Document any issues
+
+### **Analysis:**
+- [ ] Calculate performance improvements
+- [ ] Compare against targets
+- [ ] Identify bottlenecks
+- [ ] Generate comprehensive report
+
+### **Reporting:**
+- [ ] Create performance summary
+- [ ] Document methodology
+- [ ] Share results with community
+- [ ] Update release notes
+
+---
+
+## **🎯 SUCCESS CRITERIA**
+
+### **Minimum Viable:**
+- [ ] All tests compile without errors
+- [ ] Basic functionality works
+- [ ] Some performance improvement measured
+- [ ] No critical regressions
+
+### **Target:**
+- [ ] All tests pass
+- [ ] Measured performance matches 50% of targets
+- [ ] Comprehensive performance data collected
+- [ ] Ready for production release
+
+### **Stretch Goals:**
+- [ ] All performance targets met/exceeded
+- [ ] Detailed performance analysis completed
+- [ ] Optimization tuning recommendations
+- [ ] Ready for enterprise deployment
+
+---
+
+## **🏭 TESTING PHILOSOPHY**
+
+### **Transparency:**
+- Document all test procedures
+- Share raw data when possible
+- Acknowledge limitations
+- Invite community verification
+
+### **Rigor:**
+- Statistical validity
+- Multiple measurement methods
+- Controlled testing environment
+- Peer review process
+
+### **Practicality:**
+- Focus on real-world scenarios
+- Measure what matters to users
+- Balance perfection with progress
+- Iterative improvement
+
+---
+
+**This test plan ensures rigorous validation of v0.5.0 optimizations against v0.4.1 baseline. When compiler dependency issues are resolved, we can execute this plan and provide empirical performance data to the community.** 🧪⚡
+
+*Test plan ready for execution when v0.4.1 compiler dependencies fixed.*

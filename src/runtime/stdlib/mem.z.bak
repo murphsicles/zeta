@@ -1,0 +1,197 @@
+// zeta_src/runtime/stdlib/mem.z
+// Memory utilities for Zeta v0.5.0 standard library
+
+use super::super::std;
+
+/// A memory allocator error.
+pub struct AllocError {
+    pub layout: Layout,
+}
+
+impl std::fmt::Debug for AllocError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "AllocError {{ layout: {:?} }}", self.layout)
+    }
+}
+
+/// The `Layout` of a block of memory.
+///
+/// An instance of `Layout` describes a particular layout of memory.
+/// You build a `Layout` up as an input to give to an allocator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Layout {
+    size: usize,
+    align: usize,
+}
+
+impl Layout {
+    /// Constructs a `Layout` from a given `size` and `align`,
+    /// or returns `None` if any of the following conditions are not met:
+    ///
+    /// * `align` must not be zero,
+    /// * `align` must be a power of two,
+    /// * `size`, when rounded up to the nearest multiple of `align`,
+    ///    must not overflow.
+    pub fn from_size_align(size: usize, align: usize) -> Option<Self> {
+        if align == 0 || !align.is_power_of_two() {
+            return None;
+        }
+        
+        // Check for overflow when rounding up size
+        let rounded_size = size.wrapping_add(align - 1) & !(align - 1);
+        if rounded_size < size {
+            return None;
+        }
+        
+        Some(Layout { size, align })
+    }
+    
+    /// Creates a layout suitable for holding a value of type `T`.
+    pub fn new<T>() -> Self {
+        Layout {
+            size: std::mem::size_of::<T>(),
+            align: std::mem::align_of::<T>(),
+        }
+    }
+    
+    /// Creates a layout for an array of `n` elements of type `T`.
+    pub fn array<T>(n: usize) -> Option<Self> {
+        let size = std::mem::size_of::<T>().checked_mul(n)?;
+        let align = std::mem::align_of::<T>();
+        Layout::from_size_align(size, align)
+    }
+    
+    /// The minimum size in bytes for a memory block of this layout.
+    pub fn size(&self) -> usize {
+        self.size
+    }
+    
+    /// The minimum byte alignment for a memory block of this layout.
+    pub fn align(&self) -> usize {
+        self.align
+    }
+    
+    /// Creates a layout describing the record for `self` followed by
+    /// `next` with no additional padding between the two.
+    pub fn extend(&self, next: Layout) -> Option<(Self, usize)> {
+        let new_align = self.align.max(next.align);
+        let pad = self.padding_needed_for(next.align);
+        
+        let offset = self.size.checked_add(pad)?;
+        let new_size = offset.checked_add(next.size)?;
+        
+        let layout = Layout::from_size_align(new_size, new_align)?;
+        Some((layout, offset))
+    }
+    
+    fn padding_needed_for(&self, align: usize) -> usize {
+        let len = self.size;
+        let len_rounded_up = len.wrapping_add(align - 1) & !(align - 1);
+        len_rounded_up.wrapping_sub(len)
+    }
+}
+
+/// Allocates memory with the given layout.
+///
+/// Returns a pointer to the allocated memory, or `None` if allocation fails.
+pub fn alloc(layout: Layout) -> *mut u8 {
+    if layout.size() == 0 {
+        return std::ptr::null_mut();
+    }
+    
+    unsafe {
+        std::std_malloc(layout.size()) as *mut u8
+    }
+}
+
+/// Deallocates the memory referenced by `ptr` with the given `layout`.
+///
+/// # Safety
+///
+/// * `ptr` must denote a block of memory currently allocated via this allocator,
+/// * `layout` must be the same layout that was used to allocate that block of memory.
+pub unsafe fn dealloc(ptr: *mut u8, layout: Layout) {
+    if !ptr.is_null() && layout.size() > 0 {
+        std::std_free(ptr);
+    }
+}
+
+/// Reallocates memory with the given layout.
+///
+/// Returns a pointer to the reallocated memory, or `None` if reallocation fails.
+pub unsafe fn realloc(ptr: *mut u8, old_layout: Layout, new_size: usize) -> *mut u8 {
+    if new_size == 0 {
+        dealloc(ptr, old_layout);
+        return std::ptr::null_mut();
+    }
+    
+    if ptr.is_null() {
+        return alloc(Layout::from_size_align(new_size, old_layout.align()).unwrap());
+    }
+    
+    // Simple implementation: alloc, copy, dealloc
+    let new_ptr = alloc(Layout::from_size_align(new_size, old_layout.align()).unwrap());
+    if new_ptr.is_null() {
+        return std::ptr::null_mut();
+    }
+    
+    let copy_size = old_layout.size().min(new_size);
+    std::ptr::copy_nonoverlapping(ptr, new_ptr, copy_size);
+    dealloc(ptr, old_layout);
+    
+    new_ptr
+}
+
+/// Signals a memory allocation error.
+///
+/// This function is called when an allocation fails.
+pub fn handle_alloc_error(layout: Layout) -> ! {
+    // For now, just panic
+    panic!("memory allocation of {} bytes failed", layout.size());
+}
+
+/// Returns the size of a type in bytes.
+pub fn size_of<T>() -> usize {
+    std::mem::size_of::<T>()
+}
+
+/// Returns the alignment of a type in bytes.
+pub fn align_of<T>() -> usize {
+    std::mem::align_of::<T>()
+}
+
+/// Replaces the value at `dest` with `src`, returning the old value.
+pub fn replace<T>(dest: &mut T, src: T) -> T {
+    std::mem::replace(dest, src)
+}
+
+/// Swaps the values at two mutable locations.
+pub fn swap<T>(x: &mut T, y: &mut T) {
+    std::mem::swap(x, y)
+}
+
+/// Disposes of a value.
+///
+/// This function does nothing but drop the value.
+pub fn drop<T>(_value: T) {
+    // Value is dropped when it goes out of scope
+}
+
+/// Returns an uninitialized value of type `T`.
+///
+/// # Safety
+///
+/// The caller must ensure that the value is initialized before using it.
+pub unsafe fn uninitialized<T>() -> T {
+    std::mem::uninitialized()
+}
+
+/// Forgets a value, preventing its destructor from running.
+pub fn forget<T>(_value: T) {
+    // Value is not dropped
+}
+
+/// Returns the discriminant of an enum value.
+pub fn discriminant<T>(value: &T) -> usize {
+    std::mem::discriminant(value) as usize
+}

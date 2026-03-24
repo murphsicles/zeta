@@ -1,0 +1,4 @@
+// Single ne(expression, test)
+fn main() -> i64 {
+    ne(x, y)  // Just the expression
+}

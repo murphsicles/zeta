@@ -1,0 +1,8 @@
+// Basic function with parameters
+fn add(x: i64, y: i64) -> i64 {
+    add(x, y)
+}
+
+fn main() -> i64 {
+    add(5, 3)
+}

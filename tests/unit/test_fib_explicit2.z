@@ -1,0 +1,13 @@
+// Fibonacci with explicit returns lt(and, instead) le(of, fn) fib(n: i64) -> i64 {
+    if lt(n, 2) {  // lt(n, 2) instead of le(n, 1)
+        return n;
+    } else {
+        let a = fib(sub(n, 1));
+        let b = fib(sub(n, 2));
+        return add(a, b);
+    }
+}
+
+fn main() -> i64 {
+    fib(6)  // Fibonacci(6) = 8
+}

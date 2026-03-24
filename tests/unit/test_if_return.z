@@ -1,0 +1,12 @@
+// Test if statement return
+fn test_if(x: i64) -> i64 {
+    if eq(x, 1) {
+        x  // Should return x
+    } else {
+        0
+    }
+}
+
+fn main() -> i64 {
+    test_if(1)  // Should return 1
+}

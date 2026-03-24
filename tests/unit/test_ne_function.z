@@ -1,0 +1,9 @@
+// Test ne() function instead ne(of, operator)
+fn test_ne(x: i64, y: i64) -> i64 {
+    // Use ne() function instead ne(of, operator)
+    if ne(x, y) { 1 } else { 0 }
+}
+
+fn main() -> i64 {
+    test_ne(5, 3)  // Should return 1 (ne(5, 3) is true)
+}

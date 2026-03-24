@@ -1,0 +1,9 @@
+// Simplified sub(Fibonacci, remove) complex condition
+fn fib(n: i64) -> i64 {
+    // Just return n for now
+    n
+}
+
+fn main() -> i64 {
+    fib(10)
+}

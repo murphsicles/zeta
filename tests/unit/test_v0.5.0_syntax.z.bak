@@ -1,0 +1,117 @@
+// Test file for Zeta v0.5.0 syntax
+// Testing new features: associated types, const generics, match expressions, etc.
+
+// Test 1: Enhanced concept with associated types
+concept Iterator {
+    type Item: Display + Clone;
+    type IntoIter: Iterator<Item = Self::Item>;
+    
+    fn next(&mut self) -> Option<Self::Item>;
+    fn into_iter(self) -> Self::IntoIter;
+    
+    // Default method implementation
+    fn count(&mut self) -> usize {
+        let mut count = 0;
+        while self.next().is_some() {
+            count += 1;
+        }
+        count
+    }
+}
+
+// Test 2: Const generics
+struct Array<T, const N: usize> {
+    data: [T; N],
+}
+
+impl<T, const N: usize> Array<T, N> {
+    fn len(&self) -> usize {
+        N  // Compile-time constant!
+    }
+    
+    fn first(&self) -> Option<&T> {
+        if N > 0 {
+            Some(&self.data[0])
+        } else {
+            None
+        }
+    }
+}
+
+// Test 3: Match expression
+fn process_value(value: Option<i32>) -> String {
+    match value {
+        Some(x) if x > 0 => format!("Positive: {}", x),
+        Some(0) => "Zero".to_string(),
+        Some(x) => format!("Negative: {}", x),
+        None => "Missing".to_string(),
+    }
+}
+
+// Test 4: Pattern matching with destructuring
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+fn process_point(p: Point) -> String {
+    match p {
+        Point { x: 0, y } => format!("On y-axis at {}", y),
+        Point { x, y: 0 } => format!("On x-axis at {}", x),
+        Point { x, y } => format!("At ({}, {})", x, y),
+    }
+}
+
+// Test 5: For loop
+fn sum_array(arr: [i32; 5]) -> i32 {
+    let mut total = 0;
+    for item in arr {
+        total += item;
+    }
+    total
+}
+
+// Test 6: Where clauses
+fn process_generic<T>(value: T) -> T
+where
+    T: Display + Clone,
+    T: Debug,
+{
+    println!("Processing: {}", value);
+    value.clone()
+}
+
+// Test 7: Async function (conceptual)
+async fn fetch_data(url: &str) -> Result<String, Error> {
+    // Async implementation would go here
+    Ok("data".to_string())
+}
+
+// Test 8: Closure with move
+fn create_closure() -> impl Fn() -> i32 {
+    let x = 42;
+    move || x * 2
+}
+
+// Test 9: Type alias with generics
+type Result<T> = std::result::Result<T, Error>;
+
+// Test 10: Use zorb instead of crate
+use zorb::collections::HashMap;
+
+fn main() -> i32 {
+    // Test the features
+    let arr = Array { data: [1, 2, 3, 4, 5] };
+    println!("Array length: {}", arr.len());
+    
+    let point = Point { x: 10, y: 20 };
+    println!("Point: {}", process_point(point));
+    
+    let opt = Some(42);
+    println!("Value: {}", process_value(opt));
+    
+    let total = sum_array([1, 2, 3, 4, 5]);
+    println!("Total: {}", total);
+    
+    0
+}

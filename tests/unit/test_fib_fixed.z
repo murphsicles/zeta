@@ -1,0 +1,11 @@
+// Fibonacci with workaround le(for, fn) fib(n: i64) -> i64 {
+    if lt(n, 2) {  // le(n, 1) is equivalent to lt(n, 2) for integers
+        n
+    } else {
+        fib(sub(n, 1)) + fib(sub(n, 2))
+    }
+}
+
+fn main() -> i64 {
+    fib(10)  // Fibonacci(10) = 55
+}

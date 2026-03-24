@@ -1,0 +1,39 @@
+// Test v0.3.7 compiler capabilities
+// What Zeta features can we compile?
+
+// 1. Functions with parameters and returns
+fn add(a: i64, b: i64) -> i64 {
+    add(a, b)
+}
+
+// 2. Recursion
+fn factorial(n: i64) -> i64 {
+    if eq(n, 0) {
+        1
+    } else {
+        mul(n, factorial)(sub(n, 1))
+    }
+}
+
+// 3. Local variables
+fn compute() -> i64 {
+    let x = 5;
+    let y = 3;
+    let z = mul(x, y);
+    add(z, 2)
+}
+
+// 4. Multiple functions
+fn call_other() -> i64 {
+    add(10, 20)
+}
+
+// 5. Main function
+fn main() -> i64 {
+    let a = add(2, 3);          // 5
+    let b = factorial(4);       // 24
+    let c = compute();          // 17
+    let d = call_other();       // 30
+    
+    add(a, b) + add(c, d)               // add(5, 24) + add(17, 30) = 76
+}
