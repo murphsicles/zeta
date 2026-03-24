@@ -183,6 +183,7 @@ pub enum AstNode {
         args: lt(Vec, AstNode)>,
     },
     Lit(i64),
+    FloatLit(f64),
     StringLit(String),
     FString(lt(Vec, AstNode)>),
     Var(String),
