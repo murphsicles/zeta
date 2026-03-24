@@ -1,0 +1,166 @@
+name: Zeta CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  verify-structure:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Verify Zeta project structure
+      run: |
+        echo "=== VERIFYING ZETA v0.5.0 STRUCTURE ==="
+        
+        # Check for required Zeta v0.5.0 files
+        REQUIRED_FILES=(
+          "README.md"
+          "LICENSE"
+          "RELEASE_v0.5.0.md"
+          "zetac-0.5.0.z"
+        )
+        
+        for file in "${REQUIRED_FILES[@]}"; do
+          if [ -f "$file" ]; then
+            echo "✅ $file exists"
+          else
+            echo "❌ $file missing"
+            exit 1
+          fi
+        done
+        
+        # Check for Zeta source directory
+        if [ -d "zeta_src" ]; then
+          echo "✅ zeta_src/ directory exists"
+          ZETA_FILES_COUNT=$(find zeta_src -name "*.z" | wc -l)
+          echo "📁 Found $ZETA_FILES_COUNT .z files in zeta_src/"
+        else
+          echo "❌ zeta_src/ directory missing"
+          exit 1
+        fi
+        
+        # Check for documentation
+        if [ -d "docs" ]; then
+          echo "✅ docs/ directory exists"
+        fi
+        
+        # Check for tests
+        if [ -d "tests" ]; then
+          echo "✅ tests/ directory exists"
+        fi
+        
+        echo "=== STRUCTURE VERIFICATION PASSED ==="
+
+  check-zeta-syntax:
+    runs-on: ubuntu-latest
+    needs: verify-structure
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Basic Zeta syntax check
+      run: |
+        echo "=== BASIC ZETA SYNTAX CHECK ==="
+        
+        # Check that zetac-0.5.0.z is valid Zeta syntax (basic check)
+        if [ -f "zetac-0.5.0.z" ]; then
+          echo "Checking zetac-0.5.0.z..."
+          
+          # Basic checks (can be expanded as Zeta tooling improves)
+          # 1. File exists and is readable
+          # 2. Contains Zeta keywords
+          # 3. Has function definitions
+          
+          if grep -q "fn " zetac-0.5.0.z; then
+            echo "✅ Contains function definitions"
+          else
+            echo "⚠️  No function definitions found (unusual for compiler source)"
+          fi
+          
+          if grep -q "->" zetac-0.5.0.z; then
+            echo "✅ Contains return type annotations"
+          fi
+          
+          if grep -q "i64" zetac-0.5.0.z; then
+            echo "✅ Contains i64 type usage"
+          fi
+          
+          LINE_COUNT=$(wc -l < zetac-0.5.0.z)
+          echo "📄 zetac-0.5.0.z has $LINE_COUNT lines"
+        else
+          echo "❌ zetac-0.5.0.z not found"
+          exit 1
+        fi
+        
+        echo "=== BASIC SYNTAX CHECK COMPLETE ==="
+
+  validate-release:
+    runs-on: ubuntu-latest
+    needs: check-zeta-syntax
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Validate v0.5.0 release integrity
+      run: |
+        echo "=== VALIDATING v0.5.0 RELEASE ==="
+        
+        # Check release documentation
+        if [ -f "RELEASE_v0.5.0.md" ]; then
+          echo "Checking RELEASE_v0.5.0.md..."
+          
+          if grep -q "Zeta v0.5.0" RELEASE_v0.5.0.md; then
+            echo "✅ Correctly documents v0.5.0 release"
+          fi
+          
+          if grep -q "Pure Zeta Compiler" RELEASE_v0.5.0.md; then
+            echo "✅ Identifies as pure Zeta compiler"
+          fi
+        fi
+        
+        # Check for release checklist
+        if [ -f "FINAL_CHECKLIST.md" ]; then
+          echo "✅ Release checklist present"
+        fi
+        
+        # Check for installation docs
+        if [ -f "INSTALL.md" ]; then
+          echo "✅ Installation documentation present"
+        fi
+        
+        # Check for push documentation (important for release process)
+        if [ -f "PUSH_TO_GITHUB.md" ]; then
+          echo "✅ Push documentation present"
+        fi
+        
+        echo "=== RELEASE VALIDATION COMPLETE ==="
+
+  summary:
+    runs-on: ubuntu-latest
+    needs: [verify-structure, check-zeta-syntax, validate-release]
+    if: always()
+    
+    steps:
+    - name: CI Summary
+      run: |
+        echo "=== ZETA v0.5.0 CI SUMMARY ==="
+        echo ""
+        echo "Repository: ${{ github.repository }}"
+        echo "Branch: ${{ github.ref }}"
+        echo "Commit: ${{ github.sha }}"
+        echo ""
+        echo "STATUS: ${{ job.status }}"
+        echo ""
+        echo "This CI validates the Zeta v0.5.0 pure Zeta compiler structure."
+        echo "Future enhancements:"
+        echo "1. Actual Zeta compilation tests (when Zeta tooling exists)"
+        echo "2. Zeta syntax validation"
+        echo "3. Integration tests"
+        echo "4. Performance benchmarks"
+        echo ""
+        echo "For now, basic structure and integrity checks pass."

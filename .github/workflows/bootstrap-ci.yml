@@ -1,0 +1,104 @@
+name: Bootstrap CI
+
+on:
+  push:
+    branches: [release/v0.3.*, v0.3.*]
+  pull_request:
+    branches: [release/v0.3.*, v0.3.*]
+
+jobs:
+  rust-ci:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        components: rustfmt, clippy
+        override: true
+    
+    - name: Check for Cargo.toml
+      id: check-cargo
+      run: |
+        if [ -f "Cargo.toml" ]; then
+          echo "cargo_exists=true" >> $GITHUB_OUTPUT
+          echo "✅ Cargo.toml found"
+        else
+          echo "cargo_exists=false" >> $GITHUB_OUTPUT
+          echo "⚠️  Cargo.toml not found - this branch may not be a Rust bootstrap branch"
+        fi
+    
+    - name: Run cargo check (if Rust project)
+      if: steps.check-cargo.outputs.cargo_exists == 'true'
+      run: cargo check --verbose
+    
+    - name: Run cargo fmt (if Rust project)
+      if: steps.check-cargo.outputs.cargo_exists == 'true'
+      run: cargo fmt -- --check
+    
+    - name: Run cargo clippy (if Rust project)
+      if: steps.check-cargo.outputs.cargo_exists == 'true'
+      run: cargo clippy -- -D warnings
+    
+    - name: Check Zeta source structure (if bootstrap branch)
+      run: |
+        echo "=== CHECKING BOOTSTRAP STRUCTURE ==="
+        
+        # Bootstrap branches should have both Rust and Zeta source
+        if [ -d "zeta_src" ]; then
+          echo "✅ zeta_src/ directory exists (bootstrap branch)"
+          ZETA_COUNT=$(find zeta_src -name "*.z" | wc -l)
+          echo "📁 Found $ZETA_COUNT .z files in zeta_src/"
+        else
+          echo "⚠️  zeta_src/ not found (may not be bootstrap branch)"
+        fi
+        
+        if [ -d "src" ]; then
+          echo "✅ src/ directory exists"
+          RUST_COUNT=$(find src -name "*.rs" | wc -l)
+          echo "📁 Found $RUST_COUNT .rs files in src/"
+        fi
+
+  bootstrap-validation:
+    runs-on: ubuntu-latest
+    needs: rust-ci
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Validate bootstrap integrity
+      run: |
+        echo "=== BOOTSTRAP VALIDATION ==="
+        
+        # Check for version consistency
+        if [ -f "Cargo.toml" ]; then
+          echo "Extracting version from Cargo.toml..."
+          VERSION=$(grep -E '^version =' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          if [ -n "$VERSION" ]; then
+            echo "📦 Cargo version: $VERSION"
+            
+            # Check if branch name matches version pattern
+            BRANCH_NAME="${{ github.ref_name }}"
+            if [[ "$BRANCH_NAME" == *"$VERSION"* ]]; then
+              echo "✅ Branch name contains version $VERSION"
+            else
+              echo "⚠️  Branch name doesn't match Cargo version"
+            fi
+          fi
+        fi
+        
+        # Check for release notes if this is a release branch
+        if [[ "${{ github.ref_name }}" == release/* ]]; then
+          echo "Checking for release documentation..."
+          RELEASE_FILES=$(find . -name "RELEASE_*.md" -o -name "CHANGELOG*.md" | wc -l)
+          if [ $RELEASE_FILES -gt 0 ]; then
+            echo "✅ Found $RELEASE_FILES release documentation files"
+          else
+            echo "⚠️  No release documentation found for release branch"
+          fi
+        fi
+        
+        echo "=== VALIDATION COMPLETE ==="
