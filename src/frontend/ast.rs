@@ -75,6 +75,8 @@ pub enum AstNode {
     Spawn { func: String, args: Vec<AstNode> },
     /// Integer literal value.
     Lit(i64),
+    /// Floating-point literal value (stored as string to preserve exact representation).
+    FloatLit(String),
     /// String literal as owned UTF-8 string.
     StringLit(String),
     /// Formatted string with interpolated expressions.

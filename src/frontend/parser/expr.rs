@@ -1,6 +1,5 @@
 // src/frontend/parser/expr.rs
 use super::parser::{parse_ident, parse_path, parse_type, parse_type_args, ws, skip_ws_and_comments0};
-use nom::combinator::map;
 use super::stmt::{parse_block_body, parse_pattern};
 use crate::frontend::ast::AstNode;
 use nom::IResult;
@@ -13,15 +12,67 @@ use nom::multi::{separated_list0, separated_list1};
 use nom::sequence::{delimited, preceded, terminated};
 
 fn parse_lit(input: &str) -> IResult<&str, AstNode> {
-    let (input, num) = take_while(|c: char| c.is_digit(10)).parse(input)?;
-    if num.is_empty() {
+    // Parse integer or float literal
+    // First, parse digits before decimal point
+    let (input, integer_part) = take_while(|c: char| c.is_digit(10)).parse(input)?;
+    
+    if integer_part.is_empty() {
         return Err(nom::Err::Error(NomError::new(
             input,
             nom::error::ErrorKind::Digit,
         )));
     }
-    let value = num.parse::<i64>().unwrap_or(0);
-    Ok((input, AstNode::Lit(value)))
+    
+    // Check if there's a decimal point
+    let dot_result = tag::<&str, &str, NomError<&str>>(".")(input);
+    if let Ok((remaining_after_dot, _)) = dot_result {
+        // Parse digits after decimal point
+        let (remaining, fractional_part) = take_while(|c: char| c.is_digit(10)).parse(remaining_after_dot)?;
+        
+        // Check for scientific notation (e or E followed by optional + or - and digits)
+        let sci_result = alt((tag::<&str, &str, NomError<&str>>("e"), tag::<&str, &str, NomError<&str>>("E"))).parse(remaining);
+        match sci_result {
+            Ok((after_e, _)) => {
+                // Parse optional sign
+                let (after_sign, sign) = opt(alt((tag::<&str, &str, NomError<&str>>("+"), tag::<&str, &str, NomError<&str>>("-")))).parse(after_e)?;
+                // Parse exponent digits
+                let (after_exponent, exponent_digits) = take_while(|c: char| c.is_digit(10)).parse(after_sign)?;
+                
+                if exponent_digits.is_empty() {
+                    // No exponent digits after e/E, fall through to regular float
+                } else {
+                    // Build the full float string
+                    let sign_str = sign.unwrap_or("+");
+                    let float_str = format!("{}.{}{}{}{}", integer_part, fractional_part, 
+                                           if remaining.starts_with('e') { 'e' } else { 'E' }, 
+                                           sign_str, exponent_digits);
+                    return Ok((after_exponent, AstNode::FloatLit(float_str)));
+                }
+            }
+            Err(_) => {
+                // Not scientific notation, fall through
+            }
+        }
+        
+        // Regular float without scientific notation
+        let float_str = if fractional_part.is_empty() {
+            // Handle case like "123." which should still be a float
+            format!("{}.0", integer_part)
+        } else {
+            format!("{}.{}", integer_part, fractional_part)
+        };
+        
+        return Ok((remaining, AstNode::FloatLit(float_str)));
+    } else {
+        // No decimal point, it's an integer
+        match integer_part.parse::<i64>() {
+            Ok(value) => return Ok((input, AstNode::Lit(value))),
+            Err(_) => return Err(nom::Err::Error(NomError::new(
+                input,
+                nom::error::ErrorKind::Digit,
+            ))),
+        }
+    }
 }
 
 fn parse_string_lit(input: &str) -> IResult<&str, AstNode> {
