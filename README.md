@@ -3,9 +3,9 @@
 
 Zeta is a systems programming language inspired by *Elements of Programming* (EOP) algebraic foundations, by Alexander Stepanov, the Godfather of the C++ Standard Template Library. Zeta exists for one reason: to become the most efficient systems programming language ever created. First Principles engineering with zero tolerance for bottlenecks, bloat or barriers.
 
-**Zeta v0.4.1 — Pure Zeta Self-Host from Latest Binaries**
+**Zeta v0.5.0 - Pure Zeta Source Release**
 
-> “It’s not just efficiency, it's weaponized minimalism. It’s surgical violence against complexity.” — Roy Murphy
+> "It's not just efficiency, it's weaponized minimalism. It's surgical violence against complexity." - Roy Murphy
 
 - **Insane efficiency**
 - **Unbeatable execution speed & performance**
@@ -27,20 +27,21 @@ Zeta is a systems programming language inspired by *Elements of Programming* (EO
 - **Self-hosting in ~3,400 lines of code**
 - **Very low cyclomatic complexity**
 
-Zeta v0.3.4 achieved the first full self-hosting milestone on February 18, 2026 (zeta_selfhost.exe ships as official compiler).  
-v0.4.0 delivered pure Zeta source in `/src/`.  
-**v0.4.1** completes the transition: the compiler is now built *exclusively* from the latest self-hosted binaries — no Rust traces remain.  
+Zeta v0.3.4 achieved the first full self-hosting milestone on February 18, 2026.
+v0.4.0 delivered pure Zeta source in `/src/`.
+v0.4.1 completed the transition to self-hosted binaries.
+**v0.5.0** represents the clean, pure Zeta source release - repository cleaned of Rust dependencies, ready for community development.
 There are zero competitors. We're living in a brand new paradigm.
 
-> “Complexity assertions have to be part of the interface.” — Alexander Stepanov, 1995
+> "Complexity assertions have to be part of the interface." - Alexander Stepanov, 1995
 
-## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Official Benchmarks — February 18, 2026
+## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Official Benchmarks - February 18, 2026
 Intel i9-13900K · Ubuntu 25.10
 
 | Benchmark                       | Zeta 0.4.1 | Rust 1.93 | Zig 0.15 | Go 1.25 | C++23 (clang++) | Verdict                  |
 |---------------------------------|------------|-----------|----------|---------|-----------------|--------------------------|
-| Compile time — zeta self (ms)   | **14**     | 3200      | 1800     | 4500    | 2800            | **Zeta wins by 228×**    |
-| Runtime — fib(40)               | **1.12 ns**| 1.19 ns   | 1.21 ns  | 3.8 ns  | 1.15 ns         | **Zeta fastest**         |
+| Compile time - zeta self (ms)   | **14**     | 3200      | 1800     | 4500    | 2800            | **Zeta wins by 228×**    |
+| Runtime - fib(40)               | **1.12 ns**| 1.19 ns   | 1.21 ns  | 3.8 ns  | 1.15 ns         | **Zeta fastest**         |
 | 100k actors ping-pong           | **0.94 ms**| 1.41 ms   | 1.12 ms  | 2.8 ms  | 1.08 ms         | **Zeta wins by 50%**     |
 
 ```bash
@@ -50,7 +51,7 @@ $ time zeta compile src/main.z -o zeta4
 
 ## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Prerequisites (Ubuntu 24.04 LTS / 25.10 or Debian 12)
 To build Zeta v0.4.1 self-host from the latest binaries:
-1. **LLVM 21** (exactly — required for codegen/JIT)
+1. **LLVM 21** (exactly - required for codegen/JIT)
 ```bash
 wget https://apt.llvm.org/llvm.sh
 chmod +x llvm.sh
@@ -92,7 +93,7 @@ llvm-config-21 --version  # must print 21.x
 - Complex assignments with subscripts
 - Enhanced control flow with `If` in MIR
 
-## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Quick Start (v0.4.1 self-host)
+## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Quick Start (v0.5.0 source)
 ```bash
 # 1. Ensure latest zeta binary is present
 ./zeta --version  # confirms self-hosted v0.4.0+
@@ -109,18 +110,19 @@ zeta run src/tests.z
 ```
 
 ## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Status
-- Zeta v0.3.4 achieved full self-hosting bootstrap on February 18, 2026 (ships `zeta_selfhost.exe`).
+- Zeta v0.3.4 achieved full self-hosting bootstrap on February 18, 2026.
 - Zeta v0.4.0 delivered pure Zeta source in `/src/`.
-- **Zeta v0.4.1** — built exclusively from latest self-hosted binaries — February 18, 2026.  
-  The compiler is now 100% Zeta, no external bootstrap required.
+- Zeta v0.4.1 completed the transition to self-hosted binaries.
+- **Zeta v0.5.0** - Clean pure Zeta source release - March 24, 2026.  
+  Repository cleaned of Rust dependencies, ready for community development.
 
 ## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) License
 MIT © 2025-2026 Dr. Roy Murphy
 
 ---
-The world has changed.  
-You just didn’t notice yet.
+The world has changed.
+You just didn't notice yet.
 
-## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Historical Note — Zeta v0.4.0 (January 29, 2026)
-Zeta v0.4.0 was the final pure-Zeta milestone before the self-host binary transition.  
+## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Historical Note - Zeta v0.4.0 (January 29, 2026)
+Zeta v0.4.0 was the final pure-Zeta milestone before the self-host binary transition.
 v0.4.1 finalizes the self-host pipeline using the binaries released today.

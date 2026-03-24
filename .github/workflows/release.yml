@@ -1,0 +1,69 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Run on version tags like v0.5.0, v0.5.1, etc.
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch all history for changelog generation
+    
+    - name: Get version from tag
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+    
+    - name: Create release notes
+      id: create_changelog
+      run: |
+        # Simple changelog generation
+        echo "## Zeta ${{ steps.get_version.outputs.VERSION }}" > release_notes.md
+        echo "" >> release_notes.md
+        echo "### Release Date: $(date +'%Y-%m-%d')" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "### Changes:" >> release_notes.md
+        echo "" >> release_notes.md
+        # Get commits since last tag (simplified)
+        git log --oneline --no-merges $(git describe --tags --abbrev=0 2>/dev/null || echo "")..HEAD >> release_notes.md 2>/dev/null || echo "First release or no previous tag found" >> release_notes.md
+    
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: Zeta ${{ steps.get_version.outputs.VERSION }}
+        body_path: release_notes.md
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Upload release artifacts
+      run: |
+        # Create a simple README for the release
+        echo "# Zeta ${{ steps.get_version.outputs.VERSION }}" > README-release.md
+        echo "" >> README-release.md
+        echo "Pure Zeta implementation release." >> README-release.md
+        echo "" >> README-release.md
+        echo "## Source Code" >> README-release.md
+        echo "This release contains the complete Zeta source code (72 .z files)." >> README-release.md
+        echo "" >> README-release.md
+        echo "## Building from Source" >> README-release.md
+        echo "See BUILD_INSTRUCTIONS.md for details on compiling Zeta." >> README-release.md
+        
+        # Create a simple archive of source files
+        tar -czf zeta-${{ steps.get_version.outputs.VERSION }}-source.tar.gz src/ README.md LICENSE
+        
+        # Upload as release asset
+        gh release upload ${{ steps.get_version.outputs.VERSION }} \
+          zeta-${{ steps.get_version.outputs.VERSION }}-source.tar.gz \
+          README-release.md \
+          --clobber
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
