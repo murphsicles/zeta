@@ -90,20 +90,125 @@ fn parse_string_lit(input: &str) -> IResult<&str, AstNode> {
             // Handle escape
             if let Some(next_c) = chars.next() {
                 pos += next_c.len_utf8();
-                if next_c == '"' {
-                    content.push('"');
-                } else if next_c == '\\' {
-                    content.push('\\');
-                } else if next_c == 'n' {
-                    content.push('\n');
-                } else if next_c == 't' {
-                    content.push('\t');
-                } else if next_c == 'r' {
-                    content.push('\r');
-                } else {
-                    // Keep both chars for unknown escape
-                    content.push('\\');
-                    content.push(next_c);
+                match next_c {
+                    '"' => content.push('"'),
+                    '\\' => content.push('\\'),
+                    'n' => content.push('\n'),
+                    't' => content.push('\t'),
+                    'r' => content.push('\r'),
+                    'b' => content.push('\x08'), // backspace
+                    'f' => content.push('\x0C'), // form feed
+                    '0' => content.push('\0'),   // null character
+                    // Handle Unicode escapes: \u{1F600}
+                    'u' => {
+                        // Check for {
+                        if let Some('{') = chars.next() {
+                            pos += 1; // for '{'
+                            let mut hex_digits = String::new();
+                            // Collect hex digits
+                            while let Some(digit_c) = chars.next() {
+                                pos += digit_c.len_utf8();
+                                if digit_c == '}' {
+                                    break;
+                                } else if digit_c.is_digit(16) {
+                                    hex_digits.push(digit_c);
+                                } else {
+                                    // Invalid hex digit
+                                    content.push('\\');
+                                    content.push('u');
+                                    content.push('{');
+                                    content.push_str(&hex_digits);
+                                    content.push(digit_c);
+                                    break;
+                                }
+                            }
+                            
+                            if !hex_digits.is_empty() {
+                                // Parse hex to Unicode code point
+                                if let Ok(code_point) = u32::from_str_radix(&hex_digits, 16) {
+                                    if let Some(unicode_char) = char::from_u32(code_point) {
+                                        content.push(unicode_char);
+                                    } else {
+                                        // Invalid code point
+                                        content.push('\\');
+                                        content.push('u');
+                                        content.push('{');
+                                        content.push_str(&hex_digits);
+                                        content.push('}');
+                                    }
+                                } else {
+                                    // Invalid hex
+                                    content.push('\\');
+                                    content.push('u');
+                                    content.push('{');
+                                    content.push_str(&hex_digits);
+                                    content.push('}');
+                                }
+                            } else {
+                                // Empty Unicode escape
+                                content.push('\\');
+                                content.push('u');
+                                content.push('{');
+                                content.push('}');
+                            }
+                        } else {
+                            // \u not followed by {
+                            content.push('\\');
+                            content.push('u');
+                            if let Some(not_bracket) = chars.next() {
+                                pos += not_bracket.len_utf8();
+                                content.push(not_bracket);
+                            }
+                        }
+                    }
+                    // Handle simple hex escapes: \x7F (2 hex digits)
+                    'x' => {
+                        let mut hex_digits = String::new();
+                        // Collect exactly 2 hex digits
+                        for _ in 0..2 {
+                            if let Some(digit_c) = chars.next() {
+                                pos += digit_c.len_utf8();
+                                if digit_c.is_digit(16) {
+                                    hex_digits.push(digit_c);
+                                } else {
+                                    // Not a hex digit
+                                    content.push('\\');
+                                    content.push('x');
+                                    content.push_str(&hex_digits);
+                                    content.push(digit_c);
+                                    break;
+                                }
+                            } else {
+                                // Not enough characters
+                                content.push('\\');
+                                content.push('x');
+                                content.push_str(&hex_digits);
+                                break;
+                            }
+                        }
+                        
+                        if hex_digits.len() == 2 {
+                            if let Ok(byte_val) = u8::from_str_radix(&hex_digits, 16) {
+                                // Convert byte to char (ASCII)
+                                content.push(byte_val as char);
+                            } else {
+                                // Should not happen since we validated hex digits
+                                content.push('\\');
+                                content.push('x');
+                                content.push_str(&hex_digits);
+                            }
+                        } else if !hex_digits.is_empty() {
+                            // Had some digits but not 2
+                            content.push('\\');
+                            content.push('x');
+                            content.push_str(&hex_digits);
+                        }
+                    }
+                    // Unknown escape - keep as literal
+                    _ => {
+                        content.push('\\');
+                        content.push(next_c);
+                    }
                 }
             } else {
                 content.push('\\');
