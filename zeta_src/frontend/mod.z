@@ -1,4 +1,0 @@
-// zeta_src/frontend/mod.z
-pub mod ast;
-pub mod parser;
-pub mod borrow;
