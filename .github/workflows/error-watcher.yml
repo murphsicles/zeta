@@ -1,0 +1,203 @@
+name: Error Log Watcher
+
+on:
+  workflow_run:
+    workflows: ["Robust CI", "Push Frequency Monitor"]
+    types:
+      - completed
+
+jobs:
+  analyze-errors:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    
+    steps:
+    - name: Download workflow logs
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const { data: logs } = await github.rest.actions.downloadWorkflowRunLogs({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            run_id: context.payload.workflow_run.id
+          });
+          
+          // Logs are downloaded as a zip, we'd need to extract and analyze
+          console.log(`Workflow ${context.payload.workflow_run.name} failed`);
+          console.log(`Run ID: ${context.payload.workflow_run.id}`);
+          console.log(`URL: ${context.payload.workflow_run.html_url}`);
+    
+    - name: Analyze common failure patterns
+      shell: pwsh
+      run: |
+        Write-Host "=== ERROR PATTERN ANALYSIS ===" -ForegroundColor Red
+        
+        # Common bootstrap failure patterns to watch for
+        $patterns = @{
+          "rustfmt" = "cargo fmt.*failed"
+          "clippy" = "warning.*clippy"
+          "test_failure" = "test.*FAILED"
+          "compile_error" = "error\[E\d+\]"
+          "linker_error" = "LNK\d+"
+          "parser_error" = "Parsed 0.*asts"
+          "missing_version" = "Missing versions in sequence"
+          "no_commits" = "No commits in over"
+        }
+        
+        Write-Host "Watching for patterns:"
+        foreach ($pattern in $patterns.Keys) {
+          Write-Host "  - $pattern"
+        }
+        
+        echo "## Error Pattern Watchlist" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Common bootstrap issues to monitor:**" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "1. **rustfmt failures** - Code formatting issues" >> $GITHUB_STEP_SUMMARY
+        echo "2. **Clippy warnings** - Code quality/lint issues" >> $GITHUB_STEP_SUMMARY
+        echo "3. **Test failures** - Functionality broken" >> $GITHUB_STEP_SUMMARY
+        echo "4. **Compile errors** - Rust compilation issues" >> $GITHUB_STEP_SUMMARY
+        echo "5. **Linker errors** - Windows linking problems" >> $GITHUB_STEP_SUMMARY
+        echo "6. **Parser errors** - Zeta parsing failures (Parsed 0 ASTs)" >> $GITHUB_STEP_SUMMARY
+        echo "7. **Missing versions** - Gaps in bootstrap sequence" >> $GITHUB_STEP_SUMMARY
+        echo "8. **No commits** - Development stalled" >> $GITHUB_STEP_SUMMARY
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Workflow run:** ${{ github.event.workflow_run.html_url }}" >> $GITHUB_STEP_SUMMARY
+
+  track-bootstrap-issues:
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Track recurring issues
+      shell: pwsh
+      run: |
+        Write-Host "=== BOOTSTRAP ISSUE TRACKING ===" -ForegroundColor Yellow
+        
+        # Create issue tracking file
+        $trackingFile = "bootstrap_issues.json"
+        $issues = @{}
+        
+        if (Test-Path $trackingFile) {
+          $issues = Get-Content $trackingFile | ConvertFrom-Json -AsHashtable
+        }
+        
+        # Common bootstrap issues (based on past 3 days)
+        $commonIssues = @{
+          "const_parsing_missing" = @{
+            Description = "v0.3.7 lacks const parsing (no ConstDef in AST)"
+            FirstSeen = "2026-03-21"
+            Status = "unfixed"
+            Priority = "critical"
+          }
+          "parser_fragile" = @{
+            Description = "Parser fails on else-if chains, complex patterns"
+            FirstSeen = "2026-03-21"
+            Status = "investigating"
+            Priority = "high"
+          }
+          "ast_capacity_limit" = @{
+            Description = "~16 AST maximum per compilation"
+            FirstSeen = "2026-03-22"
+            Status = "unconfirmed"
+            Priority = "medium"
+          }
+          "linker_issues" = @{
+            Description = "Windows linker errors (LNK1561, LNK4098)"
+            FirstSeen = "2026-03-22"
+            Status = "workaround"
+            Priority = "medium"
+          }
+        }
+        
+        # Update issues
+        $issues["bootstrap"] = $commonIssues
+        
+        # Save tracking
+        $issues | ConvertTo-Json -Depth 10 | Out-File $trackingFile -Encoding UTF8
+        
+        Write-Host "Bootstrap issues tracked in $trackingFile"
+        
+        echo "## Bootstrap Issue Tracking" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        foreach ($issueKey in $commonIssues.Keys) {
+          $issue = $commonIssues[$issueKey]
+          echo "**$issueKey**" >> $GITHUB_STEP_SUMMARY
+          echo "- Description: $($issue.Description)" >> $GITHUB_STEP_SUMMARY
+          echo "- Status: $($issue.Status)" >> $GITHUB_STEP_SUMMARY
+          echo "- Priority: $($issue.Priority)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        }
+
+  generate-daily-report:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Generate daily bootstrap report
+      shell: pwsh
+      run: |
+        Write-Host "=== DAILY BOOTSTRAP REPORT ===" -ForegroundColor Cyan
+        
+        $today = Get-Date -Format "yyyy-MM-dd"
+        $yesterday = (Get-Date).AddDays(-1).ToString("yyyy-MM-dd")
+        
+        # Get commits from yesterday
+        $commits = git log --since="$yesterday" --until="$today" --oneline
+        
+        # Count versions released
+        $versions = git tag --list "v0.3.*" --since="$yesterday" --until="$today"
+        
+        # Generate report
+        echo "# Daily Bootstrap Report - $today" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**New versions:** $($versions.Count)" >> $GITHUB_STEP_SUMMARY
+        echo "**Commits:** $($commits.Count)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if ($versions.Count -gt 0) {
+          echo "**Versions released:**" >> $GITHUB_STEP_SUMMARY
+          foreach ($version in $versions) {
+            echo "- $version" >> $GITHUB_STEP_SUMMARY
+          }
+          echo "" >> $GITHUB_STEP_SUMMARY
+        }
+        
+        if ($commits.Count -gt 0) {
+          echo "**Recent commits:**" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          $commits | Select-Object -First 10 >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+        }
+        
+        # Bootstrap chain status
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Bootstrap Chain Status" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        $allVersions = git tag --list "v0.3.*" | Sort-Object { [version]($_ -replace 'v0.3.', '') }
+        $latest = $allVersions[-1]
+        
+        echo "**Latest version:** $latest" >> $GITHUB_STEP_SUMMARY
+        echo "**Total versions:** $($allVersions.Count)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Progress toward v1.0.0
+        $progress = if ($allVersions.Count -gt 0) { [math]::Round(($allVersions.Count / 100) * 100, 1) } else { 0 }
+        echo "**Progress toward v1.0.0:** ${progress}% (assuming 100 versions needed)" >> $GITHUB_STEP_SUMMARY
+        
+        # Save report to file
+        $reportFile = "daily_reports/$today.md"
+        New-Item -ItemType Directory -Path "daily_reports" -Force
+        Get-Content $GITHUB_STEP_SUMMARY | Out-File $reportFile -Encoding UTF8
+        
+        Write-Host "Daily report saved to $reportFile"
