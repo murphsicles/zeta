@@ -472,7 +472,7 @@ fn parse_unary(input: &str) -> IResult<&str, AstNode> {
         (input, Some("!"))
     } else {
         // Try other unary operators
-        opt(alt((tag("&mut"), tag("&"), tag("-")))).parse(input)?
+        opt(alt((tag("&mut"), tag("&"), tag("-"), tag("~")))).parse(input)?
     };
     
     // Safe debug print
@@ -480,7 +480,7 @@ fn parse_unary(input: &str) -> IResult<&str, AstNode> {
     println!("[PARSER DEBUG] parse_unary: op_opt = {:?}, remaining: {:?}", op_opt, &input[..debug_len.min(input.len())]);
     
     let (input, expr) = if op_opt.is_some() {
-        ws(parse_primary).parse(input)?
+        ws(parse_postfix).parse(input)?
     } else {
         parse_primary(input)?
     };
@@ -503,7 +503,7 @@ fn parse_simple_ident(input: &str) -> IResult<&str, AstNode> {
     Ok((input, AstNode::Var(ident)))
 }
 
-fn parse_primary(input: &str) -> IResult<&str, AstNode> {
+pub fn parse_primary(input: &str) -> IResult<&str, AstNode> {
     // Safe debug print
     let debug_len: usize = input.chars().take(20).map(|c| c.len_utf8()).sum();
     println!("[PARSER DEBUG] parse_primary called, input: {:?}", &input[..debug_len.min(input.len())]);
@@ -602,7 +602,7 @@ fn parse_expr_no_if(input: &str) -> IResult<&str, AstNode> {
         let mut found_op = None;
         let mut remaining_input = input;
         
-        let operators = ["!=", "==", "<=", ">=", "<", ">", "+", "-", "*", "/", "%", "&&", "||", ".."];
+        let operators = ["!=", "==", "<=", ">=", "<<", ">>", "<", ">", "+", "-", "*", "/", "%", "&&", "||", "..", "&", "|", "^"];
         
         // Try operators without whitespace first
         for &op in &operators {

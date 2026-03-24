@@ -1,8 +1,8 @@
 // src/frontend/parser/stmt.rs
 //! Module for parsing statements and patterns in the Zeta language.
 
-use super::expr::parse_full_expr;
-use super::parser::{parse_ident, parse_path, parse_type, skip_ws_and_comments, ws};
+use super::expr::{parse_full_expr, parse_primary};
+use super::parser::{parse_ident, parse_path, parse_type, skip_ws_and_comments, skip_ws_and_comments0, ws};
 use super::top_level::parse_type_alias;
 use crate::frontend::ast::AstNode;
 use nom::IResult;
@@ -225,11 +225,55 @@ fn parse_if(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_assign(input: &str) -> IResult<&str, AstNode> {
-    let (input, lhs) = ws(parse_full_expr).parse(input)?;
-    let (input, _) = ws(tag("=")).parse(input)?;
+    println!("[PARSER DEBUG] parse_assign called, input: {:?}", input);
+    // Use parse_primary for LHS since assignment LHS should be simple (variable, field access, etc.)
+    let (input, lhs) = ws(parse_primary).parse(input)?;
+    println!("[PARSER DEBUG] parse_assign: parsed LHS, remaining input: {:?}", input);
+    
+    // Try to parse compound assignment operators
+    let assignment_operators = ["+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>="];
+    let mut found_op = None;
+    let mut remaining_input: &str = input;
+    
+    // Try operators without whitespace first
+    for &op in &assignment_operators {
+        println!("[PARSER DEBUG] parse_assign: checking for operator {:?} in {:?}", op, remaining_input);
+        if remaining_input.starts_with(op) {
+            found_op = Some(op);
+            remaining_input = &remaining_input[op.len()..];
+            println!("[PARSER DEBUG] parse_assign: found operator {:?}, remaining: {:?}", op, remaining_input);
+            break;
+        }
+    }
+    
+    // If no compound operator, try simple "="
+    let (input, op) = if let Some(op) = found_op {
+        // Skip whitespace after operator
+        let (i, _) = skip_ws_and_comments0(remaining_input).unwrap_or((remaining_input, ()));
+        (i, op)
+    } else {
+        // Try simple "="
+        let (i, _) = ws(tag("=")).parse(input)?;
+        (i, "=")
+    };
+    
     let (input, rhs) = ws(parse_full_expr).parse(input)?;
     let (input, _) = opt(ws(tag(";"))).parse(input)?;
-    Ok((input, AstNode::Assign(Box::new(lhs), Box::new(rhs))))
+    
+    // For compound assignments, create a binary operation
+    let rhs_node = if op != "=" {
+        // Get the base operator (remove the "=")
+        let base_op = &op[..op.len() - 1];
+        AstNode::BinaryOp {
+            op: base_op.to_string(),
+            left: Box::new(lhs.clone()),
+            right: Box::new(rhs),
+        }
+    } else {
+        rhs
+    };
+    
+    Ok((input, AstNode::Assign(Box::new(lhs), Box::new(rhs_node))))
 }
 
 fn parse_return(input: &str) -> IResult<&str, AstNode> {
