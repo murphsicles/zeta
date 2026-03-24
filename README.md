@@ -26,7 +26,7 @@ Zeta is a systems programming language inspired by Elements of Programming (EOP)
 - **Self-hosting in ~3,400 lines of code**
 - **Very low cyclomatic complexity**
 
-Zeta v0.5.0 is released — the pure Zeta implementation milestone with preserved bootstrap chain.
+Zeta v0.5.0 is released — the pure Zeta implementation milestone.
 This release represents the culmination of the bootstrap journey from Rust v0.3.7 to pure Zeta v0.5.0.
 
 > “Complexity assertions have to be part of the interface.” - Alexander Stepanov, 1995
@@ -43,18 +43,18 @@ This release represents the culmination of the bootstrap journey from Rust v0.3.
 - **v0.5.0 (Zeta):** Pure Zeta milestone with mixed repository structure
 
 ### Repository Structure
-This repository maintains a **mixed implementation** to preserve the bootstrap chain:
-- **Rust source:** Original Rust compiler (for bootstrapping)
-- **Zeta source:** Pure Zeta compiler in `zeta_src/` directory
-- **Bootstrap chain:** Rust v0.3.7 → Zeta v0.3.8 → Zeta v0.4.x → Zeta v0.5.0
+This repository now contains **pure Zeta source code**:
+- **Zeta source:** Pure Zeta compiler in `src/` directory
+- **Bootstrap preserved:** Historical bootstrap chain maintained in separate branches
+- **Clean separation:** Rust code removed from main branch for clarity
 
 ### Getting Started with v0.5.0
 ```bash
-# Download the pure Zeta compiler (Linux)
-# Check GitHub Releases for v0.5.0 artifacts
+# Download the pure Zeta source code
+# Check GitHub Releases for v0.5.0 source tarball
 
-# Or build from source using the bootstrap chain
-# See BUILD_INSTRUCTIONS.md for details
+# Build instructions coming in v0.5.1
+# Currently requires v0.4.1 compiler for bootstrapping
 ```
 
 ## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Official Benchmarks — February 18, 2026  

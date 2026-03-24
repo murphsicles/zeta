@@ -3,7 +3,7 @@
 ## Prerequisites
 
 ### For Linux/macOS:
-1. Download the latest Zeta compiler binary:
+1. Download the Zeta compiler binary (v0.4.1 required for bootstrapping):
    ```bash
    # Using curl
    curl -L -o zetac https://github.com/murphsicles/zeta/releases/download/v0.4.1/zetac
@@ -15,7 +15,7 @@
    ```
 
 ### For Windows:
-1. Download the Zeta compiler:
+1. Download the Zeta compiler (v0.4.1 required for bootstrapping):
    ```powershell
    # Using PowerShell
    Invoke-WebRequest -Uri "https://github.com/murphsicles/zeta/releases/download/v0.4.1/zetac.exe" -OutFile "zetac.exe"
