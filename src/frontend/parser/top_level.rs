@@ -66,7 +66,9 @@ fn parse_use_statement(input: &str) -> IResult<&str, Vec<AstNode>> {
 
 fn parse_func(input: &str) -> IResult<&str, AstNode> {
     println!("[PARSER DEBUG] parse_func called");
-    println!("[PARSER DEBUG] parse_func input first 50 chars: {:?}", &input[..50.min(input.len())]);
+    // Safe debug print
+    let debug_len: usize = input.chars().take(50).map(|c| c.len_utf8()).sum();
+    println!("[PARSER DEBUG] parse_func input first 50 chars: {:?}", &input[..debug_len.min(input.len())]);
     
     let (input, extern_opt) = opt(ws(tag("extern"))).parse(input)?;
     let (input, _) = ws(tag("fn")).parse(input)?;
@@ -307,7 +309,9 @@ pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
     if input.len() < 100 {
         println!("[PARSER DEBUG] Input: {:?}", input);
     } else {
-        println!("[PARSER DEBUG] First 100 chars: {:?}", &input[..100.min(input.len())]);
+        // Safe debug print
+        let debug_len: usize = input.chars().take(100).map(|c| c.len_utf8()).sum();
+        println!("[PARSER DEBUG] First 100 chars: {:?}", &input[..debug_len.min(input.len())]);
     }
     
     let (input, _) = skip_ws_and_comments(input)?;
@@ -342,3 +346,4 @@ pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
     
     Ok((input, asts))
 }
+

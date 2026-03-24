@@ -4,7 +4,7 @@ use nom::IResult;
 use nom::Parser;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_until, take_while};
-use nom::character::complete::{alpha1, multispace1, satisfy};
+use nom::character::complete::{multispace1, satisfy};
 use nom::combinator::{opt, recognize, value, verify};
 use nom::multi::{many0, many1, separated_list0, separated_list1};
 use nom::sequence::{delimited, pair, preceded, terminated};
@@ -55,15 +55,16 @@ where
 pub fn parse_ident(input: &str) -> IResult<&str, String> {
     let (input, ident): (&str, &str) = verify(
         recognize(pair(
-            alt((alpha1, tag("_"))),
-            many0(satisfy(|c: char| c.is_alphanumeric() || c == '_')),
+            // First character: Unicode XID_Start or underscore
+            satisfy(|c: char| c == '_' || unicode_ident::is_xid_start(c)),
+            // Subsequent characters: Unicode XID_Continue
+            many0(satisfy(|c: char| unicode_ident::is_xid_continue(c))),
         )),
         |s: &str| {
             ![
                 "let", "mut", "if", "else", "for", "in", "loop", "unsafe", "return", "break",
                 "continue", "fn", "concept", "impl", "enum", "struct", "type", "use", "extern",
-                "dyn", "box", "as", "true",
-                "false",
+                "dyn", "box", "as", "true", "false",
                 // TODO: re-add these when we implement logical operators
                 // or when the self-hosted parser (parser.z) becomes the default
                 // "and", "or", "not"

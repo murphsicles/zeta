@@ -391,9 +391,13 @@ fn parse_condition(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_if(input: &str) -> IResult<&str, AstNode> {
-    println!("[PARSER DEBUG] parse_if called, input: {:?}", &input[..30.min(input.len())]);
+    // Safe debug print
+    let debug_len: usize = input.chars().take(30).map(|c| c.len_utf8()).sum();
+    println!("[PARSER DEBUG] parse_if called, input: {:?}", &input[..debug_len.min(input.len())]);
     let (input, _) = ws(tag("if")).parse(input)?;
-    println!("[PARSER DEBUG] parse_if: parsed 'if', remaining: {:?}", &input[..30.min(input.len())]);
+    // Safe debug print
+    let debug_len: usize = input.chars().take(30).map(|c| c.len_utf8()).sum();
+    println!("[PARSER DEBUG] parse_if: parsed 'if', remaining: {:?}", &input[..debug_len.min(input.len())]);
     
     // Parse condition with special handling
     let (input, cond) = if let Ok((i, expr)) = parse_condition(input) {
@@ -402,7 +406,9 @@ fn parse_if(input: &str) -> IResult<&str, AstNode> {
         // Fallback: parse any expression
         ws(parse_expr_no_if).parse(input)?
     };
-    println!("[PARSER DEBUG] parse_if: parsed condition, remaining: {:?}", &input[..30.min(input.len())]);
+    // Safe debug print
+    let debug_len: usize = input.chars().take(30).map(|c| c.len_utf8()).sum();
+    println!("[PARSER DEBUG] parse_if: parsed condition, remaining: {:?}", &input[..debug_len.min(input.len())]);
     let (input, then) = delimited(ws(tag("{")), parse_block_body, ws(tag("}"))).parse(input)?;
     let (input, else_opt) = opt(preceded(
         ws(tag("else")),
@@ -455,7 +461,9 @@ fn parse_bool(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_unary(input: &str) -> IResult<&str, AstNode> {
-    println!("[PARSER DEBUG] parse_unary called, input: {:?}", &input[..20.min(input.len())]);
+    // Safe debug print that won't panic on UTF-8 boundaries
+    let debug_len: usize = input.chars().take(20).map(|c| c.len_utf8()).sum();
+    println!("[PARSER DEBUG] parse_unary called, input: {:?}", &input[..debug_len.min(input.len())]);
     
     // Check for "!" but NOT followed by "=" (which would be != operator)
     let (input, op_opt) = if input.starts_with("!") && !input.starts_with("!=") {
@@ -467,7 +475,9 @@ fn parse_unary(input: &str) -> IResult<&str, AstNode> {
         opt(alt((tag("&mut"), tag("&"), tag("-")))).parse(input)?
     };
     
-    println!("[PARSER DEBUG] parse_unary: op_opt = {:?}, remaining: {:?}", op_opt, &input[..20.min(input.len())]);
+    // Safe debug print
+    let debug_len: usize = input.chars().take(20).map(|c| c.len_utf8()).sum();
+    println!("[PARSER DEBUG] parse_unary: op_opt = {:?}, remaining: {:?}", op_opt, &input[..debug_len.min(input.len())]);
     
     let (input, expr) = if op_opt.is_some() {
         ws(parse_primary).parse(input)?
@@ -494,7 +504,9 @@ fn parse_simple_ident(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_primary(input: &str) -> IResult<&str, AstNode> {
-    println!("[PARSER DEBUG] parse_primary called, input: {:?}", &input[..20.min(input.len())]);
+    // Safe debug print
+    let debug_len: usize = input.chars().take(20).map(|c| c.len_utf8()).sum();
+    println!("[PARSER DEBUG] parse_primary called, input: {:?}", &input[..debug_len.min(input.len())]);
     alt((
         parse_tuple_or_paren,
         parse_lit,
@@ -633,7 +645,9 @@ fn parse_expr_no_if(input: &str) -> IResult<&str, AstNode> {
 }
 
 pub fn parse_expr(input: &str) -> IResult<&str, AstNode> {
-    println!("[PARSER DEBUG] parse_expr called, input first 50 chars: {:?}", &input[..50.min(input.len())]);
+    // Safe debug print
+    let debug_len: usize = input.chars().take(50).map(|c| c.len_utf8()).sum();
+    println!("[PARSER DEBUG] parse_expr called, input first 50 chars: {:?}", &input[..debug_len.min(input.len())]);
     
     // Try if expression first
     if let Ok((remaining, if_expr)) = parse_if(input) {
@@ -647,3 +661,4 @@ pub fn parse_expr(input: &str) -> IResult<&str, AstNode> {
 pub fn parse_full_expr(input: &str) -> IResult<&str, AstNode> {
     parse_expr(input)
 }
+
