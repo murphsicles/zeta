@@ -9,6 +9,9 @@ use nom::combinator::{opt, recognize, value, verify};
 use nom::multi::{many0, many1, separated_list0, separated_list1};
 use nom::sequence::{delimited, pair, preceded, terminated};
 
+// mod error;
+// pub use error::{ZetaError, make_error, make_error_with_suggestion, line_col, get_context_snippet};
+
 pub fn line_comment(input: &str) -> IResult<&str, ()> {
     value((), pair(tag("//"), take_while(|c| c != '\n' && c != '\r'))).parse(input)
 }
