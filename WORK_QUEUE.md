@@ -84,12 +84,39 @@
 4. ⚠️ **FAILURE THRESHOLD APPROACHING**: 43 minutes since last activity, 17 minutes to 1-hour failure condition
 5. ⚠️ **IMPLEMENTATION VERIFICATION**: No evidence of Unicode identifier work in codebase - must start from scratch
 
-#### 5. Critical Insights
+#### 5. Critical Insights & Technical Analysis
 - **Development Stall Detected**: 43 minutes since last commit, Unicode implementation not started
 - **Failure Threshold Imminent**: 17 minutes to 1-hour no-progress failure condition
 - **Accountability System Working**: Cron check-in catching stall before complete failure
 - **Technical Debt**: Unicode identifier support remains critical bootstrap blocker
 - **Bootstrap Advancement**: Unicode support enables parsing of Rust code with Unicode identifiers
+- **Technical Analysis Complete**: Identified exact issue in `parse_ident` function using ASCII-only `is_alphanumeric()`
+- **Implementation Path Clear**: Need to update to support Unicode categories (Lu, Ll, Lt, Lm, Lo, Nl) per Rust spec
+- **Immediate Action Required**: Update parser.rs to use Unicode-aware character classification
+
+#### 6. Immediate Technical Implementation Plan
+1. **Update `parse_ident` function** in `src/frontend/parser/parser.rs`:
+   - Replace `c.is_alphanumeric()` with Unicode-aware check
+   - Support Rust Unicode identifier categories: Lu, Ll, Lt, Lm, Lo, Nl
+   - Add `'_'` and `'$'` support for identifier continuation
+
+2. **Add Unicode dependency** to `Cargo.toml`:
+   - Add `unicode-ident` crate for proper Unicode identifier classification
+   - Or implement custom Unicode category checks
+
+3. **Create comprehensive test suite**:
+   - Add Unicode identifier test cases in `zeta_src/tests/parser_unicode.z`
+   - Test various Unicode scripts (Greek, Cyrillic, CJK, emoji identifiers)
+   - Verify identifier parsing with mixed scripts
+
+4. **Update Zeta source files**:
+   - Mirror changes in `zeta_src/frontend/parser/parser.z`
+   - Ensure Zeta self-hosted parser matches Rust bootstrap parser
+
+5. **Verification testing**:
+   - Test parsing of Rust code with Unicode identifiers
+   - Verify bootstrap chain integrity after changes
+   - Ensure no regression in ASCII identifier parsing
 
 ## ✅ CRON CHECK-IN ACTIONS (2026-03-25 05:36-05:40 GMT)
 
