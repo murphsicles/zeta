@@ -172,13 +172,52 @@
 4. **Create Test Suite**: Develop comprehensive block scoping tests
 5. **Commit and Push**: Complete implementation and push to GitHub v0.3.8 branch
 
-#### 8. Success Metrics for This Check-in
+#### 8. Technical Analysis: Block Scope Implementation Requirements
+**Current State Analysis**:
+- ✅ **Scope Management Infrastructure**: Resolver has `push_scope()`, `pop_scope()`, `declare_var()`, `lookup_var()` methods
+- ✅ **If Statement Scope Support**: Resolver already pushes/pops scopes for `then_` and `else_` blocks in `If` nodes
+- ❌ **Block AST Node Missing**: No `Block` variant in `AstNode` enum
+- ❌ **Standalone Block Parsing**: Parser doesn't support `{ ... }` as expressions or statements
+- ❌ **General Block Scope Handling**: No automatic scope management for arbitrary statement sequences
+
+**Implementation Requirements**:
+1. **Add Block AST Node**: Add `Block(Vec<AstNode>)` variant to `AstNode` enum in `ast.z`
+2. **Update Parser**: Modify `parse_block()` to return `AstNode::Block` instead of `Vec<AstNode>`
+3. **Update If Statements**: Change `If` node fields from `Vec<AstNode>` to `Box<AstNode>` (where the AST node is a `Block`)
+4. **Update Resolver**: Add `AstNode::Block` case to `check_node()` with automatic scope push/pop
+5. **Add Block Expression Parsing**: Add block support to `parse_primary()` for `{ ... }` expressions
+6. **Create Test Suite**: Develop comprehensive tests for block scoping and shadowing
+
+**Alternative Simpler Approach**:
+- **Leverage Existing Infrastructure**: Since `If` already handles scope for statement vectors, we could treat any statement vector as an implicit block
+- **Minimal Changes**: Add block scope handling to resolver for any context where multiple statements are executed sequentially
+- **Gradual Enhancement**: Start with implicit block support, add explicit `{ ... }` syntax later
+
+**Recommended Implementation Strategy**:
+1. **Phase 1**: Update resolver to treat statement vectors as implicit blocks with scope management
+2. **Phase 2**: Add `Block` AST node and update parser
+3. **Phase 3**: Add block expression support for `{ ... }` syntax
+4. **Phase 4**: Comprehensive testing of shadowing and nested scopes
+
+#### 9. Success Metrics for This Check-in
 - ✅ **Repository State Verified**: v0.3.8 branch clean, scope resolution implemented
 - ✅ **Progress Timeline Documented**: 2 minutes since last implementation, excellent momentum
 - ✅ **Implementation Status Confirmed**: Variable scope resolution complete and working
 - ✅ **Next Feature Clearly Identified**: Block scope support ready for implementation
+- ✅ **Technical Analysis Complete**: Detailed requirements and implementation strategy defined
 - ✅ **Accountability Maintained**: Progress tracking active, next feature planning complete
 - ✅ **Development Pipeline Ready**: v0.3.8 development ready for next semantic analysis feature
+
+#### 10. Immediate Next Actions
+1. **Start Phase 1 Implementation**: Update resolver to handle implicit block scoping for statement vectors
+2. **Create Test Cases**: Develop tests for variable shadowing in nested contexts
+3. **Verify Current Behavior**: Test how `If` statements currently handle scope with the new resolver
+4. **Document Scope Rules**: Define clear rules for variable visibility and shadowing
+5. **Commit Incremental Progress**: Make small, testable changes to maintain momentum
+
+**Time Allocation**: 20-30 minutes for Phase 1 implementation
+**Priority**: HIGH - Block scope is prerequisite for function return type checking and full semantic analysis
+**Impact**: HIGH - Enables realistic programming patterns with proper variable scoping
 
 #### 7. Critical Implementation Details
 - **Current Time**: 21:15 GMT (Wednesday, March 25th, 2026)
