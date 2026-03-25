@@ -13,6 +13,7 @@ enum Token {
     KeywordDefer,
     KeywordSpawn,
     KeywordFor,
+    KeywordLet,
     Lit(i64),
     FloatLit(f64),
     StringLit(String),
@@ -111,6 +112,7 @@ impl Lexer {
             "defer" => Token::KeywordDefer,
             "spawn" => Token::KeywordSpawn,
             "for" => Token::KeywordFor,
+            "let" => Token::KeywordLet,
             _ => Token::Ident(word),
         };
         self.tokens.push(tok);

@@ -16,6 +16,7 @@ impl Parser {
                 let expr = self.parse_expr();
                 AstNode::Defer(Box::new(expr))
             }
+            Token::KeywordLet => self.parse_let_stmt(),
             _ => {
                 let expr = self.parse_expr();
                 if self.consume(Token::Semi) {
@@ -47,5 +48,44 @@ impl Parser {
         }
         self.expect(Token::RBrace);
         stmts
+    }
+
+    fn parse_let_stmt(&mut self) -> AstNode {
+        self.expect(Token::KeywordLet);
+        
+        // Parse identifier name
+        let name = match self.advance() {
+            Token::Ident(ident) => ident,
+            _ => {
+                // Error handling - expected identifier
+                return AstNode::Let {
+                    name: String::new(),
+                    ty: None,
+                    value: Box::new(AstNode::Lit(0)),
+                };
+            }
+        };
+        
+        // Check for optional type annotation
+        let ty = if self.consume(Token::Colon) {
+            // Parse type identifier
+            match self.advance() {
+                Token::Ident(type_ident) => Some(type_ident),
+                _ => None,
+            }
+        } else {
+            None
+        };
+        
+        // Expect equals sign
+        self.expect(Token::Eq);
+        
+        // Parse expression value
+        let value = Box::new(self.parse_expr());
+        
+        // Expect semicolon
+        self.expect(Token::Semi);
+        
+        AstNode::Let { name, ty, value }
     }
 }

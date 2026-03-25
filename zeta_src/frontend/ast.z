@@ -88,4 +88,9 @@ pub enum AstNode {
     ExprStmt {
         expr: Box<AstNode>,
     },
+    Let {
+        name: String,
+        ty: Option<String>,
+        value: Box<AstNode>,
+    },
 }
