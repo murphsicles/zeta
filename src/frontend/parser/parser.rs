@@ -183,11 +183,38 @@ pub fn parse_type_args(input: &str) -> IResult<&str, Vec<String>> {
     .parse(input)
 }
 
+/// Parse a single generic parameter with optional trait bounds
+/// Examples: "T", "T: Display", "T: Display + Debug"
+pub fn parse_generic_param(input: &str) -> IResult<&str, String> {
+    let (input, param_name) = ws(parse_ident).parse(input)?;
+    
+    // Check for trait bounds
+    let (input, bounds_str) = if let Ok((input, _)) = ws(tag(":")).parse(input) {
+        // Parse first bound
+        let (input, first_bound) = ws(parse_ident).parse(input)?;
+        let mut bounds = vec![first_bound];
+        
+        // Parse additional bounds with +
+        let mut input = input;
+        while let Ok((new_input, _)) = ws(tag("+")).parse(input) {
+            let (new_input, bound) = ws(parse_ident).parse(new_input)?;
+            bounds.push(bound);
+            input = new_input;
+        }
+        
+        (input, format!(": {}", bounds.join(" + ")))
+    } else {
+        (input, String::new())
+    };
+    
+    Ok((input, format!("{}{}", param_name, bounds_str)))
+}
+
 pub fn parse_generic_params(input: &str) -> IResult<&str, Vec<String>> {
     delimited(
         ws(tag("<")),
         terminated(
-            separated_list0(ws(tag(",")), ws(parse_ident)),
+            separated_list0(ws(tag(",")), ws(parse_generic_param)),
             opt(ws(tag(","))),
         ),
         ws(tag(">")),

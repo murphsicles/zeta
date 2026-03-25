@@ -297,5 +297,47 @@ fn assoc_fold() -> i32 {
         let res_val = compile_and_run_zeta(input).unwrap();
         assert_eq!(res_val, 10); // 0+1+2+3+4
     }
+
+    /// Tests generic parameter parsing with trait bounds
+    #[test]
+    fn test_parse_generic_params_with_bounds() {
+        use crate::frontend::parser::parser::parse_generic_params;
+        
+        // Test simple generic
+        let input = "<T>";
+        let (remaining, params) = parse_generic_params(input).unwrap();
+        assert!(remaining.is_empty());
+        assert_eq!(params, vec!["T".to_string()]);
+        
+        // Test multiple generics
+        let input = "<T, U>";
+        let (remaining, params) = parse_generic_params(input).unwrap();
+        assert!(remaining.is_empty());
+        assert_eq!(params, vec!["T".to_string(), "U".to_string()]);
+        
+        // Test with trait bound
+        let input = "<T: Display>";
+        let (remaining, params) = parse_generic_params(input).unwrap();
+        assert!(remaining.is_empty());
+        assert_eq!(params, vec!["T: Display".to_string()]);
+        
+        // Test with multiple trait bounds
+        let input = "<T: Display + Debug>";
+        let (remaining, params) = parse_generic_params(input).unwrap();
+        assert!(remaining.is_empty());
+        assert_eq!(params, vec!["T: Display + Debug".to_string()]);
+        
+        // Test multiple parameters with bounds
+        let input = "<T: Display, U: Clone>";
+        let (remaining, params) = parse_generic_params(input).unwrap();
+        assert!(remaining.is_empty());
+        assert_eq!(params, vec!["T: Display".to_string(), "U: Clone".to_string()]);
+        
+        // Test complex bounds
+        let input = "<T: Display + Debug + Clone, U: Copy + Send>";
+        let (remaining, params) = parse_generic_params(input).unwrap();
+        assert!(remaining.is_empty());
+        assert_eq!(params, vec!["T: Display + Debug + Clone".to_string(), "U: Copy + Send".to_string()]);
+    }
 }
 }
