@@ -42,7 +42,6 @@ enum Token {
     
     // Literals
     Lit(i64),
-    FloatLit(f64),
     StringLit(String),
     
     // Punctuation
@@ -62,17 +61,6 @@ enum Token {
     // v0.5.0: Range operators
     DotDot,        // ..
     DotDotEq,      // ..=
-    
-    // Compound assignment operators
-    PlusEq,        // +=
-    MinusEq,       // -=
-    StarEq,        // *=
-    SlashEq,       // /=
-    AmpEq,         // &=
-    PipeEq,        // |=
-    CaretEq,       // ^=
-    ShlEq,         // <<=
-    ShrEq,         // >>=
     
     Eof,
 }
@@ -177,151 +165,24 @@ impl Lexer {
     }
 
     fn lex_number(&mut self) {
-        let start_pos = self.pos;
-        let mut is_float = false;
-        
-        // Parse integer part
+        let mut num: i64 = 0;
         while self.peek().is_digit(10) {
+            num = mul(num, 10) + (self.peek() as i64 - '0' as i64);
             self.advance();
         }
-        
-        // Check for decimal point
-        if self.peek() == '.' && self.peek_next().is_digit(10) {
-            is_float = true;
-            self.advance(); // consume '.'
-            while self.peek().is_digit(10) {
-                self.advance();
-            }
-        }
-        
-        // Check for exponent
-        if self.peek() == 'e' || self.peek() == 'E' {
-            is_float = true;
-            self.advance(); // consume 'e' or 'E'
-            
-            // Optional sign
-            if self.peek() == '+' || self.peek() == '-' {
-                self.advance();
-            }
-            
-            // Exponent digits
-            while self.peek().is_digit(10) {
-                self.advance();
-            }
-        }
-        
-        // Extract the number string
-        let num_str = &self.input[start_pos as usize..self.pos as usize];
-        
-        if is_float {
-            // Parse as float
-            match num_str.parse::<f64>() {
-                Ok(value) => self.tokens.push(Token::FloatLit(value)),
-                Err(_) => {
-                    // Fallback to integer if float parsing fails
-                    if let Ok(int_val) = num_str.parse::<i64>() {
-                        self.tokens.push(Token::Lit(int_val));
-                    } else {
-                        // Default to 0 if both fail
-                        self.tokens.push(Token::Lit(0));
-                    }
-                }
-            }
-        } else {
-            // Parse as integer
-            match num_str.parse::<i64>() {
-                Ok(value) => self.tokens.push(Token::Lit(value)),
-                Err(_) => self.tokens.push(Token::Lit(0)),
-            }
-        }
+        self.tokens.push(Token::Lit(num));
     }
 
     fn lex_string(&mut self) {
         self.advance(); // opening "
         let mut s = String::new();
         while self.peek() != '"' && self.peek() != '\0' {
-            if self.peek() == '\\' {
-                self.advance(); // consume backslash
-                s.push(self.parse_escape_sequence());
-            } else {
-                s.push(self.peek());
-                self.advance();
-            }
+            s.push(self.peek());
+            self.advance();
         }
         self.advance(); // closing "
         self.tokens.push(Token::StringLit(s));
     }
-    
-    fn parse_escape_sequence(&mut self) -> char {
-        match self.peek() {
-            'n' => { self.advance(); '\n' }
-            't' => { self.advance(); '\t' }
-            'r' => { self.advance(); '\r' }
-            'b' => { self.advance(); '\x08' } // backspace
-            'f' => { self.advance(); '\x0c' } // form feed
-            '\\' => { self.advance(); '\\' }
-            '"' => { self.advance(); '"' }
-            '\'' => { self.advance(); '\'' }
-            '0' => { self.advance(); '\0' }
-            'x' => {
-                self.advance(); // consume 'x'
-                // Parse 2 hex digits
-                let mut value = 0;
-                for _ in 0..2 {
-                    let ch = self.peek();
-                    if ch.is_digit(16) {
-                        let digit = ch.to_digit(16).unwrap_or(0);
-                        value = value * 16 + digit;
-                        self.advance();
-                    }
-                }
-                // Convert to char (ASCII range)
-                if value <= 0x7F {
-                    value as u8 as char
-                } else {
-                    '?' // Fallback for non-ASCII
-                }
-            }
-            'u' => {
-                self.advance(); // consume 'u'
-                if self.peek() == '{' {
-                    self.advance(); // consume '{'
-                    // Parse Unicode codepoint
-                    let mut value = 0;
-                    while self.peek().is_digit(16) {
-                        let digit = self.peek().to_digit(16).unwrap_or(0);
-                        value = value * 16 + digit;
-                        self.advance();
-                    }
-                    if self.peek() == '}' {
-                        self.advance(); // consume '}'
-                    }
-                    // Simple Unicode handling - for now just return placeholder
-                    '�' // Unicode replacement character placeholder
-                } else {
-                    // Simple \uXXXX format (4 hex digits)
-                    let mut value = 0;
-                    for _ in 0..4 {
-                        let ch = self.peek();
-                        if ch.is_digit(16) {
-                            let digit = ch.to_digit(16).unwrap_or(0);
-                            value = value * 16 + digit;
-                            self.advance();
-                        }
-                    }
-                    '�' // Unicode replacement character placeholder
-                }
-            }
-            _ => {
-                // Unknown escape sequence, just include the character
-                let c = self.peek();
-                self.advance();
-                c
-            }
-        }
-    }
-    
-
 
     fn lex_symbol(&mut self) {
         let ch = self.peek();
@@ -355,60 +216,26 @@ impl Lexer {
                 }
             },
             
-            '+' => {
-                if self.peek_next() == '=' {
-                    self.advance(); // consume '+'
-                    self.advance(); // consume '='
-                    Token::PlusEq
-                } else {
-                    Token::Plus
-                }
-            },
+            '+' => Token::Plus,
             
             '-' => {
                 if self.peek_next() == '>' {
                     self.advance(); // consume '-'
                     self.advance(); // consume '>'
                     Token::Arrow
-                } else if self.peek_next() == '=' {
-                    self.advance(); // consume '-'
-                    self.advance(); // consume '='
-                    Token::MinusEq
                 } else {
                     Token::Minus
                 }
             },
             
-            '*' => {
-                if self.peek_next() == '=' {
-                    self.advance(); // consume '*'
-                    self.advance(); // consume '='
-                    Token::StarEq
-                } else {
-                    Token::Star
-                }
-            },
-            '/' => {
-                if self.peek_next() == '=' {
-                    self.advance(); // consume '/'
-                    self.advance(); // consume '='
-                    Token::SlashEq
-                } else {
-                    Token::Slash
-                }
-            },
+            '*' => Token::Star,
+            '/' => Token::Slash,
             
             '<' => {
                 if self.peek_next() == '<' {
                     self.advance(); // consume first '<'
-                    if self.peek_next() == '=' {
-                        self.advance(); // consume second '<'
-                        self.advance(); // consume '='
-                        Token::ShlEq
-                    } else {
-                        self.advance(); // consume second '<'
-                        Token::Shl
-                    }
+                    self.advance(); // consume second '<'
+                    Token::Shl
                 } else if self.peek_next() == '=' {
                     self.advance(); // consume '<'
                     self.advance(); // consume '='
@@ -421,14 +248,8 @@ impl Lexer {
             '>' => {
                 if self.peek_next() == '>' {
                     self.advance(); // consume first '>'
-                    if self.peek_next() == '=' {
-                        self.advance(); // consume second '>'
-                        self.advance(); // consume '='
-                        Token::ShrEq
-                    } else {
-                        self.advance(); // consume second '>'
-                        Token::Shr
-                    }
+                    self.advance(); // consume second '>'
+                    Token::Shr
                 } else if self.peek_next() == '=' {
                     self.advance(); // consume '>'
                     self.advance(); // consume '='
@@ -461,33 +282,9 @@ impl Lexer {
             '#' => Token::Pound,
             '$' => Token::Dollar,
             '_' => Token::Underscore,
-            '|' => {
-                if self.peek_next() == '=' {
-                    self.advance(); // consume '|'
-                    self.advance(); // consume '='
-                    Token::PipeEq
-                } else {
-                    Token::Pipe
-                }
-            },
-            '&' => {
-                if self.peek_next() == '=' {
-                    self.advance(); // consume '&'
-                    self.advance(); // consume '='
-                    Token::AmpEq
-                } else {
-                    Token::Amp
-                }
-            },
-            '^' => {
-                if self.peek_next() == '=' {
-                    self.advance(); // consume '^'
-                    self.advance(); // consume '='
-                    Token::CaretEq
-                } else {
-                    Token::Caret
-                }
-            },
+            '|' => Token::Pipe,
+            '&' => Token::Amp,
+            '^' => Token::Caret,
             '~' => Token::Tilde,
             
             '!' => {
@@ -506,10 +303,7 @@ impl Lexer {
         if ne(tok, Token)::ColonColon && ne(tok, Token)::EqEq && ne(tok, Token)::Arrow && 
            ne(tok, Token)::Shl && ne(tok, Token)::Shr && ne(tok, Token)::Le && 
            ne(tok, Token)::Ge && ne(tok, Token)::DotDot && ne(tok, Token)::DotDotEq &&
-           ne(tok, Token)::Ne && ne(tok, Token)::PlusEq && ne(tok, Token)::MinusEq &&
-           ne(tok, Token)::StarEq && ne(tok, Token)::SlashEq && ne(tok, Token)::AmpEq &&
-           ne(tok, Token)::PipeEq && ne(tok, Token)::CaretEq && ne(tok, Token)::ShlEq &&
-           ne(tok, Token)::ShrEq {
+           ne(tok, Token)::Ne {
             self.advance(); // Only advance if we didn't already consume multiple chars
         }
         

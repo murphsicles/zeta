@@ -9,32 +9,7 @@ impl Parser {
 
     fn parse_assign(&mut self) -> AstNode {
         let lhs = self.parse_binary();
-        
-        // Check for compound assignment operators
-        let compound_op = match self.peek() {
-            Token::PlusEq => Some("+"),
-            Token::MinusEq => Some("-"),
-            Token::StarEq => Some("*"),
-            Token::SlashEq => Some("/"),
-            Token::AmpEq => Some("&"),
-            Token::PipeEq => Some("|"),
-            Token::CaretEq => Some("^"),
-            Token::ShlEq => Some("<<"),
-            Token::ShrEq => Some(">>"),
-            _ => None,
-        };
-        
-        if let Some(op) = compound_op {
-            self.advance(); // consume the compound operator
-            let rhs = self.parse_expr();
-            // Transform a += b into a = a + b
-            let binary_expr = AstNode::BinaryOp {
-                op: op.to_string(),
-                left: Box::new(lhs.clone()),
-                right: Box::new(rhs),
-            };
-            AstNode::Assign(Box::new(lhs), Box::new(binary_expr))
-        } else if self.consume(Token::Eq) {
+        if self.consume(Token::Eq) {
             let rhs = self.parse_expr();
             AstNode::Assign(Box::new(lhs), Box::new(rhs))
         } else {
@@ -93,10 +68,6 @@ impl Parser {
             Token::Lit(n) => {
                 self.advance();
                 AstNode::Lit(n)
-            }
-            Token::FloatLit(f) => {
-                self.advance();
-                AstNode::FloatLit(f)
             }
             Token::StringLit(s) => {
                 self.advance();
