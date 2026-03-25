@@ -154,7 +154,22 @@ impl Parser {
         if self.consume(Token::Lt) {
             let mut gens = vec![];
             loop {
-                gens.push(self.expect_ident());
+                // Parse generic parameter: could be simple identifier or with bounds
+                let mut param = self.expect_ident();
+                
+                // Check for trait bounds
+                if self.consume(Token::Colon) {
+                    param.push_str(": ");
+                    param.push_str(&self.expect_ident());
+                    
+                    // Check for additional bounds with +
+                    while self.consume(Token::Plus) {
+                        param.push_str(" + ");
+                        param.push_str(&self.expect_ident());
+                    }
+                }
+                
+                gens.push(param);
                 if !self.consume(Token::Comma) {
                     break;
                 }
