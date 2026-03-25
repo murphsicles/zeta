@@ -29,26 +29,27 @@
 - ✅ **Development Pipeline**: v0.3.8 development RESTARTING - Pipeline recovery in progress
 - ✅ **Training Effectiveness**: Branch discipline maintained, implementation quality high, pipeline recovery needed
 
-#### 4. Next Feature: Type Annotation Support Technical Analysis
-- **Current State**: Zeta parser doesn't support explicit type annotations (`let x: i32 = 5`)
-- **Target State**: Support type annotations for variables, function parameters, and return types
+#### 4. Next Feature: Let Statement Support Technical Analysis
+- **Current State**: Zeta parser doesn't support let statements at all (no `parse_let_stmt` function, no `Let` AST node)
+- **Target State**: Support basic let statements with optional type annotations (`let x = 5`, `let x: i32 = 5`)
 - **Implementation Components**:
-  1. Update `parse_let_stmt()` to parse optional type annotation after identifier
-  2. Add `parse_type_annotation()` helper function for `: Type` syntax
-  3. Update `parse_fn_decl()` to support parameter and return type annotations
-  4. Add `TypeAnnotation` AST node type
-  5. Extend semantic analysis to use explicit type annotations
-- **Test Coverage**: Create `parser_type_annotations.z` test suite with various annotation patterns
-- **Priority**: HIGH - Required for better type checking and code clarity
-- **Complexity**: MEDIUM - Builds on existing type inference infrastructure
+  1. Add `Let` variant to `AstNode` enum in `ast.z`
+  2. Add `parse_let_stmt()` function to parser
+  3. Update `parse_stmt()` to handle `Token::KeywordLet`
+  4. Implement type annotation parsing (`: Type` syntax)
+  5. Add test coverage for let statements
+  6. Update semantic analysis to handle let statements
+- **Test Coverage**: Create `parser_let.z` test suite with various let statement patterns
+- **Priority**: HIGH - Required for basic variable declarations and type annotation foundation
+- **Complexity**: MEDIUM - New AST node and parser function needed
 - **Time Estimate**: 45-60 minutes implementation + testing
 
-#### 5. Immediate Implementation Plan for Type Annotation Support
-1. **Analyze Current Code**: Review `parse_let_stmt()` and `parse_fn_decl()` functions in `top_level.z`
-2. **Design Enhanced Grammar**: Define syntax for type annotations in let statements and function declarations
-3. **Update Parser Logic**: Modify parser functions to handle optional type annotations
-4. **Create Test Suite**: Develop `parser_type_annotations.z` with comprehensive test cases
-5. **Verify Functionality**: Test parsing of Rust code with explicit type annotations
+#### 5. Immediate Implementation Plan for Let Statement Support
+1. **Analyze Current Code**: Review AST definition and parser structure
+2. **Add Let AST Node**: Add `Let` variant to `AstNode` enum in `ast.z`
+3. **Implement Parser Function**: Create `parse_let_stmt()` in `stmt.z` or new file
+4. **Add Type Annotation Support**: Implement `: Type` syntax parsing within let statements
+5. **Create Test Suite**: Develop `parser_let.z` with comprehensive test cases
 6. **Commit and Push**: Integrate changes into v0.3.8 branch to restart development pipeline
 
 #### 6. Development Pipeline Recovery Protocol
@@ -66,11 +67,11 @@
 - **Urgency**: HIGH - Immediate implementation start required to break failure cycle
 
 #### 8. Implementation Priority Order
-1. **Let Statement Type Annotations** (`let x: i32 = 5`) - Highest priority, most common use case
-2. **Function Parameter Annotations** (`fn foo(x: i32)`) - Logical extension for function declarations
-3. **Return Type Annotations** (`fn foo() -> i32`) - Required for complete function type signatures
-4. **Complex Type Support** - Generic types, trait bounds in annotations
-5. **Semantic Integration** - Update type checker to use explicit annotations
+1. **Basic Let Statement** (`let x = 5`) - Foundation for variable declarations
+2. **Let Statement with Type Annotation** (`let x: i32 = 5`) - Type annotation support
+3. **Function Parameter Annotations** (`fn foo(x: i32)`) - Logical extension for function declarations
+4. **Return Type Annotations** (`fn foo() -> i32`) - Required for complete function type signatures
+5. **Semantic Integration** - Update type checker to handle let statements and type annotations
 
 #### 9. Success Metrics for This Recovery Check-in
 - ✅ **Failure Status Confirmed**: 2h11m development stall, pipeline failed
