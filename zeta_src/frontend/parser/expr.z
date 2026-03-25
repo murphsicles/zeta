@@ -69,6 +69,10 @@ impl Parser {
                 self.advance();
                 AstNode::Lit(n)
             }
+            Token::FloatLit(f) => {
+                self.advance();
+                AstNode::FloatLit(f)
+            }
             Token::StringLit(s) => {
                 self.advance();
                 AstNode::StringLit(s)

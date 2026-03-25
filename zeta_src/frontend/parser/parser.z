@@ -14,6 +14,7 @@ enum Token {
     KeywordSpawn,
     KeywordFor,
     Lit(i64),
+    FloatLit(f64),
     StringLit(String),
     LParen, RParen,
     LBrace, RBrace,
@@ -100,12 +101,56 @@ impl Lexer {
     }
 
     fn lex_number(&mut self) {
-        let mut num: i64 = 0;
+        let mut num_str = String::new();
+        let mut is_float = false;
+        
+        // Parse integer part
         while self.peek().is_digit(10) {
-            num = num * 10 + (self.peek() as i64 - '0' as i64);
+            num_str.push(self.peek());
             self.advance();
         }
-        self.tokens.push(Token::Lit(num));
+        
+        // Check for decimal point
+        if self.peek() == '.' && self.peek_next().is_digit(10) {
+            is_float = true;
+            num_str.push('.');
+            self.advance();
+            
+            // Parse fractional part
+            while self.peek().is_digit(10) {
+                num_str.push(self.peek());
+                self.advance();
+            }
+        }
+        
+        // Check for exponent
+        if self.peek() == 'e' || self.peek() == 'E' {
+            is_float = true;
+            num_str.push('e');
+            self.advance();
+            
+            // Optional sign
+            if self.peek() == '+' || self.peek() == '-' {
+                num_str.push(self.peek());
+                self.advance();
+            }
+            
+            // Parse exponent digits
+            while self.peek().is_digit(10) {
+                num_str.push(self.peek());
+                self.advance();
+            }
+        }
+        
+        if is_float {
+            // Parse as f64
+            let float_val: f64 = num_str.parse().unwrap_or(0.0);
+            self.tokens.push(Token::FloatLit(float_val));
+        } else {
+            // Parse as i64
+            let int_val: i64 = num_str.parse().unwrap_or(0);
+            self.tokens.push(Token::Lit(int_val));
+        }
     }
 
     fn lex_string(&mut self) {

@@ -54,6 +54,7 @@ pub enum AstNode {
         args: Vec<AstNode>,
     },
     Lit(i64),
+    FloatLit(f64),
     StringLit(String),
     FString(Vec<AstNode>),
     Var(String),
