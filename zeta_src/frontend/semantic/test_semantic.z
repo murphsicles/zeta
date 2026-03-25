@@ -58,6 +58,54 @@ fn test_ctfe_eval() -> bool {
     }
 }
 
+fn test_let_statement_typecheck() -> bool {
+    // Test let statement type checking
+    // Create AST: let x = 42;
+    let ast = AstNode::Let {
+        name: "x".to_string(),
+        ty: None,
+        value: Box::new(AstNode::Lit(42)),
+    };
+    
+    let mut resolver = Resolver::new();
+    let asts = vec![ast];
+    
+    // This should pass type checking
+    let result = resolver.typecheck(&asts);
+    
+    println!("Let statement typecheck test (untyped): {}", if result { "PASS" } else { "FAIL" });
+    
+    // Also test type inference
+    let inferred_type = resolver.infer_type(&asts[0]);
+    println!("  Inferred type: {}", inferred_type);
+    
+    result && inferred_type == "i64"
+}
+
+fn test_let_with_type_annotation() -> bool {
+    // Test let statement with type annotation
+    // Create AST: let x: i64 = 42;
+    let ast = AstNode::Let {
+        name: "x".to_string(),
+        ty: Some("i64".to_string()),
+        value: Box::new(AstNode::Lit(42)),
+    };
+    
+    let mut resolver = Resolver::new();
+    let asts = vec![ast];
+    
+    // This should pass type checking (type matches)
+    let result = resolver.typecheck(&asts);
+    
+    println!("Let statement typecheck test (typed): {}", if result { "PASS" } else { "FAIL" });
+    
+    // Check that the type is correctly inferred as i64
+    let inferred_type = resolver.infer_type(&asts[0]);
+    println!("  Inferred type: {}", inferred_type);
+    
+    result && inferred_type == "i64"
+}
+
 fn main() {
     println!("=== SEMANTIC ANALYSIS TESTS ===");
     println!("By: SEM, Semantic Child of Dark Factory");
@@ -74,6 +122,14 @@ fn main() {
     }
     
     if !test_ctfe_eval() {
+        all_passed = false;
+    }
+    
+    if !test_let_statement_typecheck() {
+        all_passed = false;
+    }
+    
+    if !test_let_with_type_annotation() {
         all_passed = false;
     }
     

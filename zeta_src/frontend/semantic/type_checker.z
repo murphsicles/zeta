@@ -82,6 +82,26 @@ impl Resolver {
                     }
                 }
             }
+            AstNode::Let { name, ty, value } => {
+                // Check the value expression
+                if !self.check_node(value) {
+                    ok = false;
+                }
+                
+                // Get the type of the value expression
+                let value_type = self.infer_type(value);
+                
+                // If a type annotation is provided, check compatibility
+                if let Some(annotated_type) = ty {
+                    if &value_type != annotated_type {
+                        // Type mismatch between annotation and inferred type
+                        ok = false;
+                    }
+                }
+                
+                // TODO: Add variable to scope for later reference
+                // This would require updating the resolver to track variables
+            }
             _ => {}
         }
         ok
@@ -107,6 +127,15 @@ impl Resolver {
                         self.infer_type(&entries[0].0),
                         self.infer_type(&entries[0].1)
                     )
+                }
+            }
+            AstNode::Let { ty, value, .. } => {
+                // If a type annotation is provided, use it
+                // Otherwise, infer the type from the value expression
+                if let Some(annotated_type) = ty {
+                    annotated_type.clone()
+                } else {
+                    self.infer_type(value)
                 }
             }
             _ => "i64".to_string(),
