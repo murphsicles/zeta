@@ -1,0 +1,22 @@
+# .project-planner.yml — drop this at the root of any repo
+#
+# Configures the project-planner skill for this project.
+# All fields are optional — the skill auto-discovers what it can.
+
+project: MyProject                      # project name (used in issue titles)
+# repo: owner/repo                      # GitHub repo (auto-detected from git remote)
+
+proposals:
+  dir: docs/proposals                   # where proposal docs live
+  template: docs/proposals/TEMPLATE.md  # proposal template to follow
+  index: docs/proposals/index.md        # index file to update with new proposals
+  mkdocs_nav: false                     # set true if using MkDocs — updates nav on new proposals
+
+issues:
+  labels:
+    feature: enhancement                # label for feature issues
+    bug: bug                            # label for bug issues
+  # branch_prefix: feature/             # prefix for branches (e.g., feature/proposal-name)
+
+# conventions:
+#   docs: docs                          # where project docs live

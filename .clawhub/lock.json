@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "skills": {
+    "github-ops": {
+      "version": "1.0.0",
+      "installedAt": 1774234896478
+    },
+    "self-improving": {
+      "version": "1.2.16",
+      "installedAt": 1774323702406
+    },
+    "proactivity": {
+      "version": "1.0.1",
+      "installedAt": 1774324742423
+    },
+    "git-essentials": {
+      "version": "1.0.0",
+      "installedAt": 1774324743766
+    },
+    "code-review": {
+      "version": "1.0.0",
+      "installedAt": 1774324745292
+    },
+    "rust-patterns": {
+      "version": "1.0.0",
+      "installedAt": 1774324748250
+    },
+    "project-planner": {
+      "version": "1.0.2",
+      "installedAt": 1774324750516
+    },
+    "git-workflows": {
+      "version": "1.0.0",
+      "installedAt": 1774324752455
+    },
+    "rust": {
+      "version": "1.0.1",
+      "installedAt": 1774324754758
+    },
+    "elite-longterm-memory": {
+      "version": "1.2.3",
+      "installedAt": 1774324764457
+    },
+    "bootstrap": {
+      "version": "1.0.0",
+      "installedAt": 1774325286136
+    }
+  }
+}

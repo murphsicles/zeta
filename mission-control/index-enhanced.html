@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenClaw Mission Control - Enhanced</title>
+    <style>
+        :root {
+            --dark-bg: #0a0a0a;
+            --panel-bg: #1a1a1a;
+            --accent: #00ff88;
+            --text: #ffffff;
+            --subtext: #888888;
+            --danger: #ff4444;
+            --warning: #ffaa00;
+            --success: #00ff88;
+            --info: #4488ff;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', 'Roboto Mono', monospace;
+        }
+        
+        body {
+            background: var(--dark-bg);
+            color: var(--text);
+            overflow-x: hidden;
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            height: 100vh;
+        }
+        
+        /* SIDEBAR */
+        .sidebar {
+            background: var(--panel-bg);
+            border-right: 1px solid #333;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--accent);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .nav-tabs {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .tab {
+            padding: 12px 15px;
+            background: #222;
+            border: 1px solid #333;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: var(--subtext);
+        }
+        
+        .tab:hover {
+            background: #2a2a2a;
+            border-color: var(--accent);
+            color: var(--text);
+        }
+        
+        .tab.active {
+            background: #2a2a2a;
+            border-color: var(--accent);
+            color: var(--accent);
+            font-weight: bold;
+        }
+        
+        .status-bar {
+            margin-top: 30px;
+            padding: 15px;
+            background: #222;
+            border-radius: 6px;
+            border: 1px solid #333;
+        }
+        
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .status-value {
+            color: var(--accent);
+            font-weight: bold;
+        }
+        
+        /* MAIN CONTENT */
+        .main-content {
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #333;
+        }
+        
+        .page-title {
+            font-size: 28px;
+            color: var(--accent);
+        }
+        
+        .time-display {
+            font-size: 18px;
+            color: var(--subtext);
+            font-family: 'Roboto Mono', monospace;
+        }
+        
+        /* DASHBOARD GRID */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: var(--panel-bg);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            transition: all 0.3s;
+        }
+        
+        .card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 255, 136, 0.1);
+        }
+        
+        .card-title {
+            font-size: 18px;
+            color: var(--accent);
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .card-content {
+            color: var(--subtext);
+            line-height: 1.6;
+        }
+        
+        /* TASK LIST */
+        .task-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .task-item {
+            background: #222;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .task-info h4 {
+            color: var(--text);
+            margin-bottom: 5px;
+        }
+        
+        .task-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .status-pending { background: var(--warning); color: #000; }
+        .status-active { background: var(--info); color: #fff; }
+        .status-completed { background: var(--success); color: #000; }
+        .status-blocked { background: var(--danger); color: #fff; }
+        
+        /* AGENT GRID */
+        .agent-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .agent-card {
+            background: #222;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .agent-avatar {
+            width: 60px;
+            height: 60px;
+            background: #333;
+            border-radius: 50%;
+            margin: 0 auto 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: var(--accent);
+        }
+        
+        .agent-name {
+            color: var(--text);
+            margin-bottom: 5px;
+        }
+        
+        .agent-role {
+            color: var(--subtext);
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+        
+        .agent-status {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        
+        .status-online { background: var(--success); }
+        .status-offline { background: var(--danger); }
+        .status-busy { background: var(--warning); }
+        
+        /* TIMELINE */
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+        }
+        
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #333;
+        }
+        
+        .timeline-item {
+            position: relative;
+            margin-bottom: 20px;
+        }
+        
+        .timeline-dot {
+            position: absolute;
+            left: -33px;
+            top: 5px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--accent);
+            border: 2px solid var(--panel-bg);
+        }
+        
+        .timeline-time {
+            color: var(--subtext);
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+        
+        .timeline-content {
+            color: var(--text);
+        }
+        
+        /* PROGRESS BAR */
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #222;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), #00cc6a);
+            border-radius: 10px;
+            transition: width 0.5s ease;
+        }
+        
+        /* NOTIFICATIONS */
+        .notification {
+            background: #222;
+            border-left: 4px solid var(--info);
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        
+        .notification.error {
+            border-left-color: var(--danger);
+        }
+        
+        .notification.warning {
+            border-left-color: var(--warning);
+        }
+        
+        .notification.success {
+            border-left-color: var(--success);
+        }
+        
+        .notification-title {
+            color: var(--text);
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .notification-message {
+            color: var(--subtext);
+            font-size: 14px;
+        }
+        
+        /* UTILITY */
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-right: 5px;
+        }
+        
+        .badge-primary { background: var(--info); color: #fff; }
+        .badge-success { background: var(--success); color: #000; }
+        .badge-warning { background: var(--warning); color: #000; }
+        .badge-danger { background: var(--danger); color: #fff; }
+        
+        .btn {
+            padding: 8px 16px;
+            background: #333;
+            border: 1px solid #444;
+            border-radius: 4px;
+            color: var(--text);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn:hover {
+            background: #444;
+            border-color: var(--accent);
+        }
+        
+        .btn-primary {
+            background: var(--accent);
+            color: #000;
+            font-weight: bold;
+        }
+        
+        .btn-primary:hover {
+            background: #00cc6a;
+        }
+        
+        .btn-small {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: var(--subtext);
+        }
+        
+        .error {
+            color: var(--danger);
+            padding: 10px;
+            background: rgba(255, 68, 68, 0.1);
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        
+        .success {
+            color: var(--success);
+            padding: 10px;
+            background: rgba(0, 255, 136, 0.1);
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        
+        /* CONNECTION STATUS */
+        .connection-status {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        
+        .connected { background: var(--success); }
+        .disconnected { background: var(--danger); }
+        .connecting { background: var(--warning); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <div class="logo">🏭 DARK FACTORY</div>
+            
+            <div class="nav-tabs">
+                <div class="tab active" data-tab="dashboard">📊 Dashboard</div>
+                <div class="tab" data-tab="agents">🤖 Agents</div>
+                <div class="tab" data-tab="repository">🐙 Repository</div>
+                <div class="tab" data-tab="zeta">🚀 Zeta Progress</div>
+                <div class="tab" data-tab="notifications">🔔 Notifications</div>
+                <div class="tab" data-tab="management">⚙️ Management</div>
+            </div>
+            
+            <div class="status-bar">
+                <div class="status-item">
+                    <span>System Status</span>
+                    <span class="status-value" id="system-status">🟢 OPERATIONAL</span>
+                </div>
+                <div class="status-item">
+                    <span>Active Agents</span>
+                    <span class="status-value" id="active-agents">0</span>
+                </div>
+                <div class="status-item">
+                    <span>OpenClaw</span>
+                    <span class="status-value" id="openclaw-status">
+                        <span class="connection-status disconnected"></span>
+                        OFFLINE
+                    </span>
+                </div>
+                <div class="status-item">
+                    <span>GitHub</span>
+                    <span class="status-value" id="github-status">
+                        <span class="connection-status disconnected"></span>
+                        OFFLINE
+                    </span>
+                </div>
+                <div class="status-item">
+                    <span>Last Update</span>
+                    <span class="status-value" id="last-update">Just now</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- MAIN CONTENT -->
+        <div class="main-content">
+            <div class="header">
+                <h1 class="page-title" id="page-title">Enhanced Mission Control</h1>
+                <div class="time-display" id="current-time">Loading...</div>
+            </div>
+            
+            <!-- DASHBOARD CONTENT -->
+            <div id="dashboard-content" class="tab-content active">
+                <div class="dashboard-grid">
+                    <!-- SYSTEM OVERVIEW -->
+                    <div class="card">
+                        <div class="card-title">
+                            <span>🏭 System Overview</span>
+                            <span class="badge badge-success">Live</span>
+                        </div>
+                        <div class="card-content">
+                            <p>OpenClaw Mission Control with real-time API integration.</p>
+                            <div class="status-item">
+                                <span>OpenClaw Gateway</span>
+                                <span class="status-value" id="gateway-url">localhost:18789</span>
+                            </div>
+                            <div class="status-item">
+                                <span>Active Sessions</span>
+                                <span class="status-value" id="active-sessions">0</span>
+                            </div>
+                            <div class="status-item">
+                                <span>Total Tokens</span>
+                                <span class="status-value" id="total-tokens">0</span>
+                            </div>
+                            <div class="status-item">
+                                <span>WebSocket</span>
+                                <span class="status-value" id="websocket-status">
+                                    <span class="connection-status disconnected"></span>
+                                    Disconnected
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- REAL-TIME AGENTS -->
+                    <div class="card">
+                        <div class="card-title">
+                            <span>🤖 Real-time Agents</span>
+                            <button class="btn btn-primary btn-small" onclick="loadAgents()">Refresh</button>
+                        </div>
+                        <div class="card-content">
+                            <div class="loading" id="agents-loading">Loading agents...</div>
+                            <div class="agent-grid" id="agents-grid"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- GITHUB ACTIVITY -->
+                    <div class="card">
+                        <div class="card-title">
+                            <span>🐙 GitHub Activity</span>
+                            <button class="btn btn-small" onclick="loadGitHubData()">Refresh</button>
+                        </div>
+                        <div class="card-content">
+                            <div class="loading" id="github-loading">Loading GitHub data...</div>
+                            <div id="github-content" style="display: none;">
+                                <div class="status-item">
+                                    <span>Repository</span>
+                                    <span class="status-value" id="repo-name">darkfactoryai/zeta</span>
+                                </div>
+                                <div class="status-item">
+                                    <span>Last Commit</span>
+                                    <span class="status-value" id="last-commit">Loading...</span>
+                                </div>
+                                <div class="status-item">
+                                    <span>Branches</span>
+                                    <span class="status-value" id="branch-count">0</span>
+                                </div>
+                                <div class="status-item">
+                                    <span>CI Status</span>
+                                    <span class="status-value" id="ci-status">Unknown</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- ZETA PROGRESS -->
+                    <div class="card">
+                        <div class="card-title">
+                            <span>🚀 Zeta Bootstrap</span>
+                            <span class="badge badge-primary">v0.3.7 → v1.0.0</span>
+                        </div>
+                        <div class="card-content">
+                            <div class="status-item">
+                                <span>Current Version</span>
+                                <span class="status-value" id="current-version">v0.3.7</span>
+                            </div>
+                            <div class="status-item">
+                                <span>Overall Progress</span>
+                                <span class="status-value" id="bootstrap-progress">45%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progress-fill" style="width: 45%"></div>
+                            </div>
+                            <div class="status-item">
+                                <span>Next Milestone</span>
+                                <span class="status-value" id="next-milestone">v0.3.8</span>
+                            </div>
+                            <button class="btn" style="width: 100%; margin-top: 10px;" onclick="showTab('zeta')">View Details</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- RECENT ACTIVITY -->
+                <div class="card" style="margin-top: 20px;">
+                    <div class="

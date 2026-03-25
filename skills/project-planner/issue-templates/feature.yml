@@ -1,0 +1,36 @@
+name: Feature
+description: Propose a new feature or enhancement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What should we build?
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: How do we know it's done?
+      placeholder: |
+        - [ ] Criterion 1
+        - [ ] Criterion 2
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Link to relevant docs, proposals, or design docs
+      placeholder: |
+        - docs/proposals/my-proposal.md
+        - Related issue #123
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Implementation Notes
+      description: Technical notes, edge cases, related issues

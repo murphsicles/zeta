@@ -1,0 +1,40 @@
+# GitHub Release Workflow Template for Zeta
+# This workflow automates creating GitHub releases from tags
+
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Run on version tags like v0.5.0, v0.5.1, etc.
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch all history for changelog
+    
+    - name: Get version from tag
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: Zeta ${{ steps.get_version.outputs.VERSION }}
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+        files: |
+          README.md
+          LICENSE
+          docs/
+        # Add compiled binaries here when available:
+        # zetac.exe
+        # bootstrap-verification.exe

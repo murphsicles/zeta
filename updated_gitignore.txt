@@ -1,0 +1,175 @@
+# ZETA COMPILER PROJECT - UPDATED .gitignore
+# For clean professional structure
+
+# =========================================
+# BUILD ARTIFACTS
+# =========================================
+
+# Executables
+*.exe
+zeta
+zetac
+zetac-*
+
+# Object files
+*.o
+*.obj
+*.exe.o
+
+# Intermediate build files
+*.ilk
+*.pdb
+*.idb
+*.lib
+
+# Build directories
+build/
+target/
+debug/
+release/
+dist/
+out/
+
+# =========================================
+# TEMPORARY FILES
+# =========================================
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+*.save
+
+# Temporary files
+*~
+*.tmp
+*.temp
+._*
+.DS_Store
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =========================================
+# TEST ARTIFACTS
+# =========================================
+
+# Test outputs
+tests/artifacts/
+*.test.txt
+*.output.txt
+test_*.txt
+
+# Coverage reports
+coverage/
+*.gcov
+*.gcda
+*.gcno
+
+# =========================================
+# DEPENDENCIES
+# =========================================
+
+# Cargo (if Rust dependencies)
+Cargo.lock
+Cargo.toml
+
+# Node.js
+node_modules/
+package-lock.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# =========================================
+# DOCUMENTATION BUILDS
+# =========================================
+
+# Generated documentation
+docs/_build/
+docs/_site/
+docs/.jekyll-cache/
+
+# =========================================
+# SYSTEM FILES
+# =========================================
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+
+# =========================================
+# PERSONAL/DEVELOPER FILES
+# =========================================
+
+# Personal notes
+TODO.md
+NOTES.md
+scratch.*
+thinking_*.md
+
+# Local configuration
+.env
+.local
+.config
+
+# =========================================
+# ZETA-SPECIFIC
+# =========================================
+
+# Old structure (to be cleaned)
+phase1/
+phase2/
+phase3/
+phase4/
+
+# Test compilation outputs
+*_test.exe
+*_test.exe.o
+
+# Debug files
+debug_*
+trace_*
+profile_*
+
+# =========================================
+# KEEP THESE (DO NOT IGNORE)
+# =========================================
+
+# Source code
+!src/**/*.z
+
+# Documentation
+!docs/**/*.md
+!README.md
+!CONTRIBUTING.md
+
+# Scripts
+!scripts/**/*.ps1
+!scripts/**/*.sh
+!scripts/**/*.bat
+
+# Configuration
+!*.toml
+!*.json
+!*.yaml
+!*.yml
+
+# Git
+!.gitignore
+!.gitattributes

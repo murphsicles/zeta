@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenClaw Mission Control</title>
+    <style>
+        :root {
+            --dark-bg: #0a0a0a;
+            --panel-bg: #1a1a1a;
+            --accent: #00ff88;
+            --text: #ffffff;
+            --subtext: #888888;
+            --danger: #ff4444;
+            --warning: #ffaa00;
+            --success: #00ff88;
+            --info: #4488ff;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', 'Roboto Mono', monospace;
+        }
+        
+        body {
+            background: var(--dark-bg);
+            color: var(--text);
+            overflow-x: hidden;
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            height: 100vh;
+        }
+        
+        /* SIDEBAR */
+        .sidebar {
+            background: var(--panel-bg);
+            border-right: 1px solid #333;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--accent);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .nav-tabs {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .tab {
+            padding: 12px 15px;
+            background: #222;
+            border: 1px solid #333;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: var(--subtext);
+        }
+        
+        .tab:hover {
+            background: #2a2a2a;
+            border-color: var(--accent);
+            color: var(--text);
+        }
+        
+        .tab.active {
+            background: #2a2a2a;
+            border-color: var(--accent);
+            color: var(--accent);
+            font-weight: bold;
+        }
+        
+        .status-bar {
+            margin-top: 30px;
+            padding: 15px;
+            background: #222;
+            border-radius: 6px;
+            border: 1px solid #333;
+        }
+        
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .status-value {
+            color: var(--accent);
+            font-weight: bold;
+        }
+        
+        /* MAIN CONTENT */
+        .main-content {
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #333;
+        }
+        
+        .page-title {
+            font-size: 28px;
+            color: var(--accent);
+        }
+        
+        .time-display {
+            font-size: 18px;
+            color: var(--subtext);
+            font-family: 'Roboto Mono', monospace;
+        }
+        
+        /* DASHBOARD GRID */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: var(--panel-bg);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            transition: all 0.3s;
+        }
+        
+        .card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 255, 136, 0.1);
+        }
+        
+        .card-title {
+            font-size: 18px;
+            color: var(--accent);
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .card-content {
+            color: var(--subtext);
+            line-height: 1.6;
+        }
+        
+        /* TASK LIST */
+        .task-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .task-item {
+            background: #222;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .task-info h4 {
+            color: var(--text);
+            margin-bottom: 5px;
+        }
+        
+        .task-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .status-pending { background: var(--warning); color: #000; }
+        .status-active { background: var(--info); color: #fff; }
+        .status-completed { background: var(--success); color: #000; }
+        .status-blocked { background: var(--danger); color: #fff; }
+        
+        /* AGENT GRID */
+        .agent-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .agent-card {
+            background: #222;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .agent-avatar {
+            width: 60px;
+            height: 60px;
+            background: #333;
+            border-radius: 50%;
+            margin: 0 auto 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: var(--accent);
+        }
+        
+        .agent-name {
+            color: var(--text);
+            margin-bottom: 5px;
+        }
+        
+        .agent-role {
+            color: var(--subtext);
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+        
+        .agent-status {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        
+        .status-online { background: var(--success); }
+        .status-offline { background: var(--danger); }
+        .status-busy { background: var(--warning); }
+        
+        /* TIMELINE */
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+        }
+        
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #333;
+        }
+        
+        .timeline-item {
+            position: relative;
+            margin-bottom: 20px;
+        }
+        
+        .timeline-dot {
+            position: absolute;
+            left: -33px;
+            top: 5px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--accent);
+            border: 2px solid var(--panel-bg);
+        }
+        
+        .timeline-time {
+            color: var(--subtext);
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+        
+        .timeline-content {
+            color: var(--text);
+        }
+        
+        /* UTILITY */
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-right: 5px;
+        }
+        
+        .badge-primary { background: var(--info); color: #fff; }
+        .badge-success { background: var(--success); color: #000; }
+        .badge-warning { background: var(--warning); color: #000; }
+        .badge-danger { background: var(--danger); color: #fff; }
+        
+        .btn {
+            padding: 8px 16px;
+            background: #333;
+            border: 1px solid #444;
+            border-radius: 4px;
+            color: var(--text);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn:hover {
+            background: #444;
+            border-color: var(--accent);
+        }
+        
+        .btn-primary {
+            background: var(--accent);
+            color: #000;
+            font-weight: bold;
+        }
+        
+        .btn-primary:hover {
+            background: #00cc6a;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <div class="logo">🏭 DARK FACTORY</div>
+            
+            <div class="nav-tabs">
+                <div class="tab active" data-tab="dashboard">📊 Dashboard</div>
+                <div class="tab" data-tab="tasks">✅ Tasks</div>
+                <div class="tab" data-tab="agents">🤖 Agents</div>
+                <div class="tab" data-tab="content">📝 Content</div>
+                <div class="tab" data-tab="approvals">🔄 Approvals</div>
+                <div class="tab" data-tab="council">🏛️ Council</div>
+                <div class="tab" data-tab="calendar">📅 Calendar</div>
+                <div class="tab" data-tab="projects">🚀 Projects</div>
+                <div class="tab" data-tab="memory">🧠 Memory</div>
+                <div class="tab" data-tab="office">🏢 Office</div>
+                <div class="tab" data-tab="team">👥 Team</div>
+                <div class="tab" data-tab="factory">🏭 Factory</div>
+                <div class="tab" data-tab="pipeline">⚙️ Pipeline</div>
+                <div class="tab" data-tab="ai-lab">🔬 AI Lab</div>
+                <div class="tab" data-tab="feedback">💬 Feedback</div>
+            </div>
+            
+            <div class="status-bar">
+                <div class="status-item">
+                    <span>System Status</span>
+                    <span class="status-value" id="system-status">🟢 OPERATIONAL</span>
+                </div>
+                <div class="status-item">
+                    <span>Active Agents</span>
+                    <span class="status-value" id="active-agents">3</span>
+                </div>
+                <div class="status-item">
+                    <span>Pending Tasks</span>
+                    <span class="status-value" id="pending-tasks">12</span>
+                </div>
+                <div class="status-item">
+                    <span>Memory Usage</span>
+                    <span class="status-value" id="memory-usage">42%</span>
+                </div>
+                <div class="status-item">
+                    <span>Uptime</span>
+                    <span class="status-value" id="uptime">6d 14h</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- MAIN CONTENT -->
+        <div class="main-content">
+            <div class="header">
+                <h1 class="page-title" id="page-title">Mission Control Dashboard</h1>
+                <div class="time-display" id="current-time">Loading...</div>
+            </div>
+            
+            <!-- DASHBOARD CONTENT (Default View) -->
+            <div id="dashboard-content" class="tab-content active">
+                <div class="dashboard-grid">
+                    <!-- SYSTEM OVERVIEW -->
+                    <div class="card">
+                        <div class="card-title">
+                            <span>🏭 System Overview</span>
+                            <span class="badge badge-success">Live</span>
+                        </div>
+                        <div class="card-content">
+                            <p>OpenClaw Dark Factory operational. 3 agents active, 12 tasks in queue.</p>
+                            <div class="status-item">
+                                <span>Zeta Bootstrap</span>
+                                <span class="status-value">v0.3.7 → v0.5.0</span>
+                            </div>
+                            <div class="status-item">
+                                <span>Last Heartbeat</span>
+                                <span class="status-value" id="last-heartbeat">2 min ago</span>
+                            </div>
+                            <div class="status-item">
+                                <span>Next Check</span>
+                                <span class="status-value" id="next-check">28 min</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- ACTIVE TASKS -->
+                    <div class="card">
+                        <div class="card-title">
+                            <span>✅ Active Tasks</span>
+                            <button class="btn btn-primary" onclick="showTab('tasks')">View All</button>
+                        </div>
+                        <div class="card-content">
+                            <div class="task-list">
+                                <div class="task-item">
+                                    <div class="task-info">
+                                        <h4>Fix v0.3.7 Const Parsing</h4>
+                                        <p>Add ConstDef to AST, parse_const function</p>
+                                    </div>
+                                    <span class="task-status status-active">ACTIVE</span>
+                                </div>
+                                <div class="task-item">
+                                    <div class="task-info">
+                                        <h4>Clean GitHub Repository</h4>
+                                        <p>Remove token functions, organize structure</p>
+                                    </div>
+                                    <span class="task-status status-completed">DONE</span>
+                                </div>
+                                <div class="task-item">
+                                    <div class="task-info">
+                                        <h4>Build Mission Control</h4>
+                                        <p>Create visual dashboard for OpenClaw</p>
+                                    </div>
+                                    <span class="task-status status-active">ACTIVE</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- AGENT STATUS -->
+                    <div class="card">
+                        <div class="card-title">
+                            <span>🤖 Agent Status</span>
+                            <button class="btn" onclick="showTab('agents')">Manage</button>
+                        </div>
+                        <div class="card-content">
+                            <div class="agent-grid">
+                                <div class="agent-card">
+                                    <div class="agent-avatar">🏭</div>
+                                    <div class="agent-name">Dark Factory</div>
+                                    <div class="agent-role">Main Assistant</div>
+                                    <div>
+                                        <span class="agent-status status-online"></span>
+                                        <span>Online</span>
+                                    </div>
+                                </div>
+                                <div class="agent-card">
+                                    <div class="agent-avatar">⚙️</div>
+                                    <div class="agent-name">Bootstrap Worker</div>
+                                    <div class="agent-role">24/7 Compiler</div>
+                                    <div>
+                                        <span class="agent-status status-online"></span>
+                                        <span>Running</span>
+                                    </div>
+                                </div>
+                                <div class="agent-card">
+                                    <div class="agent-avatar">📊</div>
+                                    <div class="agent-name">CI Monitor</div>
+                                    <div class="agent-role">Quality Assurance</div>
+                                    <div>
+                                        <span class="agent-status status-busy"></span>
+                                        <span>Testing</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- RECENT ACTIVITY -->
+                    <div class="card">
+                        <div class="card-title">
+                            <span>📈 Recent Activity</span>
+                            <span class="badge badge-primary">Live Feed</span>
+                        </div>
+                        <div class="card-content">
+                            <div class="timeline">
+                                <div class="timeline-item">
+                                    <div class="timeline-dot"></div>
+                                    <div class="timeline-time" id="activity-1-time

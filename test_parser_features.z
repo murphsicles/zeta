@@ -1,0 +1,52 @@
+// Test file for parser improvements by SYN
+// Testing float literals, string escapes, and compound operators
+
+fn test_floats() {
+    // Float literals
+    let a = 3.14;
+    let b = 2.718;
+    let c = 1.23e-4;
+    let d = 123.;
+    let e = 1e10;
+    
+    // Operations with floats
+    let sum = a + b;
+    let product = c * d;
+}
+
+fn test_string_escapes() {
+    // String with escape sequences
+    let s1 = "Hello\nWorld";
+    let s2 = "Tab\there";
+    let s3 = "Backslash: \\";
+    let s4 = "Quote: \"";
+    let s5 = "Null: \0";
+    let s6 = "Hex: \x41"; // Should be 'A'
+    let s7 = "Unicode: \u{1F600}"; // 😀
+}
+
+fn test_compound_operators() {
+    let mut x = 10;
+    
+    // Compound assignment operators
+    x += 5;      // x = x + 5
+    x -= 3;      // x = x - 3
+    x *= 2;      // x = x * 2
+    x /= 4;      // x = x / 4
+    
+    let mut y = 0b1010;
+    y &= 0b1100; // y = y & 0b1100
+    y |= 0b0011; // y = y | 0b0011
+    y ^= 0b1111; // y = y ^ 0b1111
+    
+    let mut z = 8;
+    z <<= 1;     // z = z << 1
+    z >>= 2;     // z = z >> 2
+}
+
+fn main() {
+    test_floats();
+    test_string_escapes();
+    test_compound_operators();
+    println("Parser improvements by SYN are working!");
+}
