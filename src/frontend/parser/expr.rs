@@ -4,7 +4,7 @@ use super::parser::{
 };
 
 use super::stmt::parse_block_body;
-use crate::frontend::ast::AstNode;
+use crate::frontend::ast::{AstNode, MatchArm};
 use nom::IResult;
 use nom::Parser;
 use nom::branch::alt;
@@ -346,6 +346,7 @@ fn parse_primary(input: &str) -> IResult<&str, AstNode> {
         parse_closure,
         parse_block,
         parse_unsafe_expr,
+        parse_match_expr,
         // parse_if_let and parse_if removed - they're not primary expressions
         // They should be parsed at a higher level
     ))
@@ -472,6 +473,99 @@ fn parse_expr_no_if(input: &str) -> IResult<&str, AstNode> {
         }
     }
     Ok((input, term))
+}
+
+/// Parse a match expression: `match expr { pattern => expr, ... }`
+fn parse_match_expr(input: &str) -> IResult<&str, AstNode> {
+    // Parse "match" with optional whitespace
+    let (input, _) = tag::<_, _, nom::error::Error<&str>>("match")(input)?;
+    let (input, _) = skip_ws_and_comments0(input)?;
+    
+    // Parse scrutinee
+    let (input, scrutinee) = parse_expr(input)?;
+    
+    // Parse whitespace before brace
+    let (input, _) = skip_ws_and_comments0(input)?;
+    
+    // Parse "{"
+    let (input, _) = tag::<_, _, nom::error::Error<&str>>("{")(input)?;
+    let (input, _) = skip_ws_and_comments0(input)?;
+    
+    // Parse arms
+    let mut arms = Vec::new();
+    let mut current_input = input;
+    
+    loop {
+        // Try to parse an arm
+        match parse_match_arm(current_input) {
+            Ok((next_input, arm)) => {
+                arms.push(arm);
+                current_input = next_input;
+                
+                // Check for comma or closing brace
+                let (next_input, _) = skip_ws_and_comments0(current_input)?;
+                if let Ok((next_input, _)) = tag::<_, _, nom::error::Error<&str>>(",")(next_input) {
+                    current_input = next_input;
+                    let (next_input, _) = skip_ws_and_comments0(current_input)?;
+                    current_input = next_input;
+                    continue;
+                }
+                
+                // Check for closing brace
+                let (next_input, _) = skip_ws_and_comments0(current_input)?;
+                if let Ok((next_input, _)) = tag::<_, _, nom::error::Error<&str>>("}")(next_input) {
+                    return Ok((next_input, AstNode::Match {
+                        scrutinee: Box::new(scrutinee),
+                        arms,
+                    }));
+                }
+                
+                // No comma or closing brace - error
+                break;
+            }
+            Err(_) => break,
+        }
+    }
+    
+    // Parse closing brace
+    let (input, _) = tag::<_, _, nom::error::Error<&str>>("}")(current_input)?;
+    
+    Ok((input, AstNode::Match {
+        scrutinee: Box::new(scrutinee),
+        arms,
+    }))
+}
+
+/// Parse a single match arm: `pattern => expr` or `pattern if guard => expr`
+fn parse_match_arm(input: &str) -> IResult<&str, MatchArm> {
+    // Parse pattern (simplified - just variable or literal for now)
+    let (input, pattern) = alt((
+        parse_ident.map(|name| AstNode::Var(name)),
+        parse_lit,
+    )).parse(input)?;
+    
+    let (input, _) = skip_ws_and_comments0(input)?;
+    
+    // Parse optional guard
+    let (input, guard) = opt(preceded(
+        terminated(tag::<_, _, nom::error::Error<&str>>("if"), skip_ws_and_comments0),
+        parse_expr,
+    )).parse(input)?;
+    
+    let (input, _) = skip_ws_and_comments0(input)?;
+    
+    // Parse arrow
+    let (input, _) = tag::<_, _, nom::error::Error<&str>>("=>")(input)?;
+    let (input, _) = skip_ws_and_comments0(input)?;
+    
+    // Parse body expression
+    let (input, body) = parse_expr(input)?;
+    
+    Ok((input, MatchArm {
+        pattern: Box::new(pattern),
+        guard: guard.map(Box::new),
+        body: Box::new(body),
+    }))
 }
 
 pub fn parse_expr(input: &str) -> IResult<&str, AstNode> {

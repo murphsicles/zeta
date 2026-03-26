@@ -1,6 +1,18 @@
 // src/frontend/ast.rs
 //! Defines the Abstract Syntax Tree (AST) nodes for the Zeta language.
 //! Represents programs, definitions, expressions, statements, and algebraic constructs.
+
+/// Match expression arm with pattern and body.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct MatchArm {
+    /// Pattern to match against
+    pub pattern: Box<AstNode>,
+    /// Guard expression (optional)
+    pub guard: Option<Box<AstNode>>,
+    /// Body expression to evaluate if pattern matches
+    pub body: Box<AstNode>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AstNode {
     /// Full program as a sequence of top-level nodes.
@@ -181,5 +193,10 @@ pub enum AstNode {
         name: String,
         ty: String,
         value: Box<AstNode>,
+    },
+    /// Match expression with scrutinee and arms.
+    Match {
+        scrutinee: Box<AstNode>,
+        arms: Vec<MatchArm>,
     },
 }
