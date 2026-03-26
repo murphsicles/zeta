@@ -9,7 +9,7 @@
 - [x] Const parsing - `ConstDef` variant, critical for v0.3.7 source
 - [x] Type checking unification (SEM Phase 1) - Hindley-Milner with occurs check
 - [x] Inline operator optimization (GEN Phase 1) - 60+ redundant lines removed
-- [-] Match statements - MOVED TO v0.3.9 (not implemented in time)
+- [x] Match statements - Basic implementation (AST + Parser + MIR)
 
 ### v0.3.8 Release Notes
 See `RELEASE_v0.3.8.md` for full documentation of shipped features.

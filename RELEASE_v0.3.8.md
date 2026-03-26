@@ -29,15 +29,21 @@
 - Code generation patterns optimized
 - Implemented by GEN (Generative Engine) as Phase 1
 
+### 6. Match Statement Support
+- `Match` variant added to `AstNode` enum with `MatchArm` struct
+- Parser support for `match expr { pattern => expr, ... }` syntax
+- Basic MIR generation (if-else chain for match arms)
+- Foundation for full pattern matching in future releases
+
 ## Technical Details
 
-**Commit:** 4092f34
+**Commit:** $(git rev-parse HEAD)
 **Date:** 2026-03-26
 **Branch:** v0.3.8
 
 ## What's Next
 
-- **v0.3.9**: Match statement implementation (parser + AST + codegen)
+- **v0.3.9**: Enhanced pattern matching (literals, variables, guards)
 - **v0.4.0**: Full self-compilation capability
 - **v1.0.0**: Pure Zeta bootstrap
 
