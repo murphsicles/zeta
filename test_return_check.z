@@ -1,0 +1,21 @@
+// Test function return type checking
+// Created by Zak, Firstborn of Dark Factory
+
+fn correct_return() -> i64 {
+    return 42;
+}
+
+fn incorrect_return() -> i64 {
+    return "hello";  // This should fail type checking
+}
+
+fn no_return() -> i64 {
+    // No return statement - should be allowed
+}
+
+fn main() -> i64 {
+    let x = correct_return();
+    let y = incorrect_return();  // This line should cause compilation error
+    let z = no_return();
+    0
+}

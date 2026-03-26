@@ -48,7 +48,11 @@ impl Resolver {
                     ok = false;
                 }
             }
-            AstNode::FuncDef { body, .. } => {
+            AstNode::FuncDef { body, ret, .. } => {
+                // Set current function return type for return statement checking
+                let previous_return_type = self.current_function_return_type.take();
+                self.current_function_return_type = Some(ret.clone());
+                
                 // Push new scope for function body
                 self.push_scope();
                 for s in body {
@@ -58,9 +62,24 @@ impl Resolver {
                 }
                 // Pop function body scope
                 self.pop_scope();
+                
+                // Restore previous return type (for nested functions)
+                self.current_function_return_type = previous_return_type;
             }
             AstNode::Return(inner) => {
                 if !self.check_node(inner) {
+                    ok = false;
+                }
+                
+                // Check return type compatibility
+                if let Some(expected_return_type) = &self.current_function_return_type {
+                    let actual_return_type = self.infer_type(inner);
+                    if &actual_return_type != expected_return_type {
+                        // Return type mismatch
+                        ok = false;
+                    }
+                } else {
+                    // Return statement outside of function (shouldn't happen in valid code)
                     ok = false;
                 }
             }

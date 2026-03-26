@@ -22,6 +22,8 @@ pub struct Resolver {
     pub ctfe_consts: HashMap<AstNode, i64>,
     // Variable scope tracking
     pub scopes: Vec<HashMap<String, Type>>,
+    // Function return type tracking for type checking
+    pub current_function_return_type: Option<Type>,
 }
 
 impl Resolver {
@@ -34,6 +36,7 @@ impl Resolver {
             associated_types: HashMap::new(),
             ctfe_consts: HashMap::new(),
             scopes: vec![HashMap::new()], // Start with global scope
+            current_function_return_type: None,
         };
         r.load_specialization_cache();
         r

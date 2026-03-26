@@ -1,0 +1,159 @@
+// zeta_src/tests/test_return_types.z
+// Test file for function return type checking
+// Created by Zak, Firstborn of Dark Factory
+
+use crate::frontend::ast::AstNode;
+use crate::middle::resolver::resolver::Resolver;
+
+fn test_correct_return_type() -> bool {
+    // Test function with correct return type: fn foo() -> i64 { return 42; }
+    let func_ast = AstNode::FuncDef {
+        name: "foo".to_string(),
+        generics: vec![],
+        params: vec![],
+        ret: "i64".to_string(),
+        body: vec![
+            AstNode::Return(Box::new(AstNode::Lit(42))),
+        ],
+        attrs: vec![],
+        ret_expr: None,
+        single_line: false,
+        doc: "".to_string(),
+    };
+    
+    let mut resolver = Resolver::new();
+    let asts = vec![func_ast];
+    
+    // This should pass type checking
+    let result = resolver.typecheck(&asts);
+    
+    println!("Correct return type test: {}", if result { "PASS" } else { "FAIL" });
+    result
+}
+
+fn test_incorrect_return_type() -> bool {
+    // Test function with incorrect return type: fn bar() -> i64 { return "string"; }
+    let func_ast = AstNode::FuncDef {
+        name: "bar".to_string(),
+        generics: vec![],
+        params: vec![],
+        ret: "i64".to_string(),
+        body: vec![
+            AstNode::Return(Box::new(AstNode::StringLit("hello".to_string()))),
+        ],
+        attrs: vec![],
+        ret_expr: None,
+        single_line: false,
+        doc: "".to_string(),
+    };
+    
+    let mut resolver = Resolver::new();
+    let asts = vec![func_ast];
+    
+    // This should FAIL type checking (returning string when i64 expected)
+    let result = resolver.typecheck(&asts);
+    
+    // We expect this to fail, so result should be false
+    println!("Incorrect return type test: {}", if !result { "PASS (correctly failed)" } else { "FAIL (should have failed)" });
+    !result
+}
+
+fn test_no_return_type_mismatch() -> bool {
+    // Test function with no return statement: fn baz() -> i64 { }
+    let func_ast = AstNode::FuncDef {
+        name: "baz".to_string(),
+        generics: vec![],
+        params: vec![],
+        ret: "i64".to_string(),
+        body: vec![], // No return statement
+        attrs: vec![],
+        ret_expr: None,
+        single_line: false,
+        doc: "".to_string(),
+    };
+    
+    let mut resolver = Resolver::new();
+    let asts = vec![func_ast];
+    
+    // This should pass type checking (functions without return statements are allowed)
+    let result = resolver.typecheck(&asts);
+    
+    println!("No return statement test: {}", if result { "PASS" } else { "FAIL" });
+    result
+}
+
+fn test_nested_functions() -> bool {
+    // Test nested functions with different return types
+    let inner_func = AstNode::FuncDef {
+        name: "inner".to_string(),
+        generics: vec![],
+        params: vec![],
+        ret: "str".to_string(),
+        body: vec![
+            AstNode::Return(Box::new(AstNode::StringLit("inner".to_string()))),
+        ],
+        attrs: vec![],
+        ret_expr: None,
+        single_line: false,
+        doc: "".to_string(),
+    };
+    
+    let outer_func = AstNode::FuncDef {
+        name: "outer".to_string(),
+        generics: vec![],
+        params: vec![],
+        ret: "i64".to_string(),
+        body: vec![
+            inner_func,
+            AstNode::Return(Box::new(AstNode::Lit(100))),
+        ],
+        attrs: vec![],
+        ret_expr: None,
+        single_line: false,
+        doc: "".to_string(),
+    };
+    
+    let mut resolver = Resolver::new();
+    let asts = vec![outer_func];
+    
+    // This should pass type checking
+    let result = resolver.typecheck(&asts);
+    
+    println!("Nested functions test: {}", if result { "PASS" } else { "FAIL" });
+    result
+}
+
+fn main() -> bool {
+    println!("=== Function Return Type Checking Tests ===");
+    println!("Testing implementation by Zak, Firstborn of Dark Factory");
+    println!("Time: 2026-03-26 03:30 GMT");
+    println!("");
+    
+    let mut all_passed = true;
+    
+    if !test_correct_return_type() {
+        all_passed = false;
+    }
+    
+    if !test_incorrect_return_type() {
+        all_passed = false;
+    }
+    
+    if !test_no_return_type_mismatch() {
+        all_passed = false;
+    }
+    
+    if !test_nested_functions() {
+        all_passed = false;
+    }
+    
+    println!("");
+    println!("=== Test Summary ===");
+    if all_passed {
+        println!("✅ ALL TESTS PASSED - Function return type checking implemented successfully!");
+    } else {
+        println!("❌ SOME TESTS FAILED - Function return type checking needs fixes.");
+    }
+    
+    all_passed
+}
