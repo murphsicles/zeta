@@ -12,20 +12,63 @@
 
 ## Phase 1: Foundation Layer (Week 1)
 
+### 1.0 Testing Foundation
+```rust
+// Property-based testing for Regular types
+#[cfg(test)]
+mod tests {
+    use proptest::prelude::*;
+    
+    proptest! {
+        #[test]
+        fn test_regular_equality_properties(a: RegularType, b: RegularType) {
+            // Reflexivity: a == a
+            prop_assert!(a == a);
+            
+            // Symmetry: a == b implies b == a
+            if a == b {
+                prop_assert!(b == a);
+            }
+            
+            // Transitivity: a == b and b == c implies a == c
+            // (tested with generated c)
+        }
+        
+        #[test]
+        fn test_regular_ordering_properties(a: RegularType, b: RegularType, c: RegularType) {
+            // Total ordering: exactly one of a < b, a == b, or a > b is true
+            prop_assert!(a.partial_cmp(&b).is_some());
+            
+            // Antisymmetry: a <= b and b <= a implies a == b
+            if a <= b && b <= a {
+                prop_assert!(a == b);
+            }
+            
+            // Transitivity: a <= b and b <= c implies a <= c
+            if a <= b && b <= c {
+                prop_assert!(a <= c);
+            }
+        }
+    }
+}
+```
+
 ### 1.1 Regular Type System
 ```rust
-// Core Regular trait (inspired by EOP Chapter 1.5)
+// EOP Chapter 1.5: Regular Types require equality, assignment, destructor, 
+// default constructor, copy constructor, total ordering, and underlying type
+// 
+// In Rust: Eq implies PartialEq, Ord implies PartialOrd
+// Drop is automatically implemented, no need to specify in bounds
 pub trait Regular: 
-    Eq +            // Equality
-    PartialEq +     // Partial equality
-    Clone +         // Copy constructor
-    Default +       // Default constructor
-    Drop +          // Destructor (via Drop trait)
-    Ord +           // Total ordering
-    Sized +         // Underlying type information
-    Debug +         // For debugging
-    Hash {          // For hashing
-    // Additional EOP requirements
+    Eq +            // Equality (implies PartialEq)
+    Clone +         // Copy constructor (creates equal copy)
+    Default +       // Default constructor (partially formed state)
+    Ord +           // Total ordering (implies PartialOrd)
+    Sized +         // Underlying type information (compile-time size)
+    Debug +         // For debugging and inspection
+    Hash {          // For hashing and data structures
+    // EOP: Underlying type information for interoperability
     fn underlying_type() -> TypeId;
 }
 ```
@@ -48,15 +91,40 @@ pub trait Group: Monoid {
 
 ### 1.3 Transformation Framework
 ```rust
-// Transformation trait (EOP Chapter 2)
+// EOP Chapter 2: Transformations are self-composable unary operations
+// with mathematical properties for orbit analysis
 pub trait Transformation {
     type Domain: Regular;
+    type Error: std::error::Error + Send + Sync + 'static;
     
-    fn apply(&self, x: Self::Domain) -> Self::Domain;
+    // Apply transformation to domain element
+    // Returns Result to handle partial transformations and errors
+    fn apply(&self, x: Self::Domain) -> Result<Self::Domain, Self::Error>;
     
-    // Derived operations
-    fn power(&self, x: Self::Domain, n: usize) -> Self::Domain;
-    fn orbit(&self, x: Self::Domain) -> Orbit<Self::Domain>;
+    // Derived operations with error handling
+    fn power(&self, x: Self::Domain, n: usize) -> Result<Self::Domain, Self::Error> {
+        let mut result = x;
+        for _ in 0..n {
+            result = self.apply(result)?;
+        }
+        Ok(result)
+    }
+    
+    // Orbit analysis with cycle detection
+    fn orbit(&self, x: Self::Domain) -> Result<Orbit<Self::Domain>, Self::Error>;
+}
+
+// Orbit structure for analyzing transformation behavior
+#[derive(Debug, Clone)]
+pub enum Orbit<T: Regular> {
+    Infinite(Vec<T>),      // No cycles or terminals (sampled)
+    Terminating(T, Vec<T>), // Ends at terminal element
+    Circular(Vec<T>),      // Pure cycle
+    RhoShaped {            // Handle then cycle
+        handle: Vec<T>,
+        cycle: Vec<T>,
+        connection_point: usize,
+    },
 }
 ```
 
