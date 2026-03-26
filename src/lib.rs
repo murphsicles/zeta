@@ -15,6 +15,9 @@ pub mod frontend;
 pub mod middle;
 pub mod runtime;
 
+#[cfg(test)]
+mod tests;
+
 pub use backend::codegen::LLVMCodegen;
 pub use frontend::ast::AstNode;
 pub use frontend::parser::top_level::parse_zeta;
