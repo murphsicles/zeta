@@ -2,3 +2,4 @@
 pub mod mir;
 pub mod resolver;
 pub mod specialization;
+pub mod types;
