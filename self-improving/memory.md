@@ -38,3 +38,12 @@
 - **Skill-based quality**: Apply code-review, self-improving, proactivity, git-essentials systematically
 - **Three-pass review**: High-level → line-by-line → edge cases for all significant work
 - **Mathematical foundation**: Build on EOP principles with proofs and property testing
+
+## Verification & Testing Patterns (VER - 2026-03-26)
+- **Test maintenance gap**: When tests aren't run regularly, they become outdated and broken
+- **Verification strategy**: Need phased approach: 1) Fix infrastructure, 2) Systematic testing, 3) Formal verification
+- **Critical untested components**: Code generation and runtime system are highest risk
+- **Test organization**: Structure tests by category (unit, integration, property, regression, fuzz, benchmarks)
+- **Quality gates**: Establish CI requirements for test coverage, count, and performance
+- **Broken test detection**: Always verify tests compile and run after code changes
+- **Verification-first mindset**: Quality assurance must be systematic, not ad-hoc
