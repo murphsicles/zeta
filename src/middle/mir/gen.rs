@@ -505,10 +505,10 @@ impl MirGen {
             }
             AstNode::Match { scrutinee, arms } => {
                 // For now, implement simple match with first matching arm
-                let scrutinee_id = self.lower_expr(scrutinee);
+                let _scrutinee_id = self.lower_expr(scrutinee);
                 
                 // Generate basic if-else chain for match
-                let mut current_id = id;
+                let current_id = id;
                 
                 for (i, arm) in arms.iter().enumerate() {
                     let arm_body_id = self.lower_expr(&arm.body);
