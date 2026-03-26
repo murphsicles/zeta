@@ -577,39 +577,33 @@ fn parse_match_expr(input: &str) -> IResult<&str, AstNode> {
     let mut arms = Vec::new();
     let mut current_input = input;
 
-    loop {
-        // Try to parse an arm
-        match parse_match_arm(current_input) {
-            Ok((next_input, arm)) => {
-                arms.push(arm);
-                current_input = next_input;
+    while let Ok((next_input, arm)) = parse_match_arm(current_input) {
+        arms.push(arm);
+        current_input = next_input;
 
-                // Check for comma or closing brace
-                let (next_input, _) = skip_ws_and_comments0(current_input)?;
-                if let Ok((next_input, _)) = tag::<_, _, nom::error::Error<&str>>(",")(next_input) {
-                    current_input = next_input;
-                    let (next_input, _) = skip_ws_and_comments0(current_input)?;
-                    current_input = next_input;
-                    continue;
-                }
-
-                // Check for closing brace
-                let (next_input, _) = skip_ws_and_comments0(current_input)?;
-                if let Ok((next_input, _)) = tag::<_, _, nom::error::Error<&str>>("}")(next_input) {
-                    return Ok((
-                        next_input,
-                        AstNode::Match {
-                            scrutinee: Box::new(scrutinee),
-                            arms,
-                        },
-                    ));
-                }
-
-                // No comma or closing brace - error
-                break;
-            }
-            Err(_) => break,
+        // Check for comma or closing brace
+        let (next_input, _) = skip_ws_and_comments0(current_input)?;
+        if let Ok((next_input, _)) = tag::<_, _, nom::error::Error<&str>>(",")(next_input) {
+            current_input = next_input;
+            let (next_input, _) = skip_ws_and_comments0(current_input)?;
+            current_input = next_input;
+            continue;
         }
+
+        // Check for closing brace
+        let (next_input, _) = skip_ws_and_comments0(current_input)?;
+        if let Ok((next_input, _)) = tag::<_, _, nom::error::Error<&str>>("}")(next_input) {
+            return Ok((
+                next_input,
+                AstNode::Match {
+                    scrutinee: Box::new(scrutinee),
+                    arms,
+                },
+            ));
+        }
+
+        // No comma or closing brace - error
+        break;
     }
 
     // Parse closing brace

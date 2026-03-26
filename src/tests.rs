@@ -2,6 +2,7 @@
 // Replaces outdated test file with working tests
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod tests {
     use crate::frontend::ast::AstNode;
     use crate::frontend::parser::expr::parse_expr;
