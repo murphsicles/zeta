@@ -1,7 +1,7 @@
 // src/frontend/parser/expr.rs
 use super::parser::{parse_ident, parse_path, parse_type, parse_type_args, ws, skip_ws_and_comments0};
-use nom::combinator::map;
-use super::stmt::{parse_block_body, parse_pattern};
+
+use super::stmt::parse_block_body;
 use crate::frontend::ast::AstNode;
 use nom::IResult;
 use nom::Parser;
@@ -205,29 +205,7 @@ fn parse_unsafe_expr(input: &str) -> IResult<&str, AstNode> {
     }
 }
 
-fn parse_if_let(input: &str) -> IResult<&str, AstNode> {
-    let (input, _) = ws(tag("if")).parse(input)?;
-    let (input, _) = ws(tag("let")).parse(input)?;
-    let (input, pattern) = ws(parse_pattern).parse(input)?;
-    let (input, _) = ws(tag("=")).parse(input)?;
-    let (input, expr) = ws(parse_expr_no_if).parse(input)?;
-    let (input, then) = delimited(ws(tag("{")), parse_block_body, ws(tag("}"))).parse(input)?;
-    let (input, else_opt) = opt(preceded(
-        ws(tag("else")),
-        delimited(ws(tag("{")), parse_block_body, ws(tag("}"))),
-    ))
-    .parse(input)?;
-    let else_: Vec<AstNode> = else_opt.unwrap_or(vec![]);
-    Ok((
-        input,
-        AstNode::IfLet {
-            pattern: Box::new(pattern),
-            expr: Box::new(expr),
-            then,
-            else_,
-        },
-    ))
-}
+
 
 fn parse_condition(input: &str) -> IResult<&str, AstNode> {
     // Parse condition for if/while - stops at '{' or other block delimiters
