@@ -55,15 +55,11 @@ impl Resolver {
                     }
                 }
             }
-            AstNode::Return(inner) => {
-                if !self.check_node(inner) {
-                    ok = false;
-                }
+            AstNode::Return(inner) if !self.check_node(inner) => {
+                ok = false;
             }
-            AstNode::ExprStmt { expr } => {
-                if !self.check_node(expr) {
-                    ok = false;
-                }
+            AstNode::ExprStmt { expr } if !self.check_node(expr) => {
+                ok = false;
             }
             AstNode::If {
                 cond, then, else_, ..
