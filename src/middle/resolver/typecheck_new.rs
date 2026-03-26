@@ -3,16 +3,16 @@
 
 use super::resolver::Resolver;
 use crate::frontend::ast::AstNode;
-use crate::middle::types::{Type, Substitution, UnifyError};
+use crate::middle::types::{Substitution, Type, UnifyError};
 
 /// Extended resolver with new type checking
 pub trait NewTypeCheck {
     /// Type check with new system
     fn typecheck_new(&mut self, asts: &[AstNode]) -> Result<Substitution, Vec<UnifyError>>;
-    
+
     /// Convert old string type to new Type
     fn string_to_type(&self, s: &str) -> Type;
-    
+
     /// Convert new Type to old string
     fn type_to_string(&self, ty: &Type) -> String;
 }
@@ -20,14 +20,14 @@ pub trait NewTypeCheck {
 impl NewTypeCheck for Resolver {
     fn typecheck_new(&mut self, asts: &[AstNode]) -> Result<Substitution, Vec<UnifyError>> {
         use crate::middle::resolver::new_resolver;
-        
+
         let mut context = new_resolver::InferContext::new();
-        
+
         // Convert existing variable types from old system to new system
         // Note: This is a simplified conversion - in a full implementation,
         // we would need to convert the entire resolver state
         // For now, we start with a clean context
-        
+
         // Infer types for all AST nodes
         for ast in asts {
             match context.infer(ast) {
@@ -37,21 +37,18 @@ impl NewTypeCheck for Resolver {
                 Err(e) => {
                     // Convert inference error to unification error
                     eprintln!("Type inference error: {}", e);
-                    return Err(vec![UnifyError::Mismatch(
-                        Type::Error,
-                        Type::Error
-                    )]);
+                    return Err(vec![UnifyError::Mismatch(Type::Error, Type::Error)]);
                 }
             }
         }
-        
+
         // Solve constraints
         match context.solve() {
             Ok(_) => Ok(context.take_substitution()),
             Err(e) => Err(e),
         }
     }
-    
+
     fn string_to_type(&self, s: &str) -> Type {
         match s {
             "i64" => Type::I64,
@@ -78,7 +75,7 @@ impl NewTypeCheck for Resolver {
             }
         }
     }
-    
+
     fn type_to_string(&self, ty: &Type) -> String {
         ty.display_name()
     }
@@ -97,11 +94,11 @@ impl TypeCheckMigrator {
             use_new_system: false, // Start with old system for compatibility
         }
     }
-    
+
     pub fn enable_new_system(&mut self) {
         self.use_new_system = true;
     }
-    
+
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
         if self.use_new_system {
             // Use new system
@@ -119,7 +116,7 @@ impl TypeCheckMigrator {
             self.resolver.typecheck(asts)
         }
     }
-    
+
     pub fn infer_type(&self, node: &AstNode) -> String {
         if self.use_new_system {
             // Use new inference
@@ -140,34 +137,34 @@ impl TypeCheckMigrator {
 mod tests {
     use super::*;
     use crate::frontend::ast::AstNode;
-    
+
     #[test]
     fn test_type_conversion() {
         let resolver = Resolver::new();
-        
+
         assert_eq!(resolver.string_to_type("i64"), Type::I64);
         assert_eq!(resolver.string_to_type("bool"), Type::Bool);
         assert_eq!(resolver.string_to_type("str"), Type::Str);
-        
+
         let i64_type = Type::I64;
         assert_eq!(resolver.type_to_string(&i64_type), "i64");
-        
+
         let bool_type = Type::Bool;
         assert_eq!(resolver.type_to_string(&bool_type), "bool");
     }
-    
+
     #[test]
     fn test_migrator() {
         let resolver = Resolver::new();
         let mut migrator = TypeCheckMigrator::new(resolver);
-        
+
         // Should use old system by default
         let ast = vec![AstNode::Lit(42)];
         assert!(migrator.typecheck(&ast));
-        
+
         // Enable new system
         migrator.enable_new_system();
-        
+
         // Should still work with new system
         assert!(migrator.typecheck(&ast));
     }

@@ -17,11 +17,11 @@ use nom::sequence::{delimited, preceded, terminated};
 fn parse_float_lit(input: &str) -> IResult<&str, AstNode> {
     // Simple float parser: digits.digits
     // For v0.3.8, support basic floats without exponent
-    
+
     let mut chars = input.chars().peekable();
     let mut pos = 0;
     let mut has_digit = false;
-    
+
     // Parse integer part
     while let Some(&c) = chars.peek() {
         if c.is_ascii_digit() {
@@ -32,44 +32,44 @@ fn parse_float_lit(input: &str) -> IResult<&str, AstNode> {
             break;
         }
     }
-    
+
     if !has_digit {
         return Err(nom::Err::Error(NomError::new(
             input,
             nom::error::ErrorKind::Digit,
         )));
     }
-    
+
     // Check for decimal point
     let mut has_decimal = false;
-    if let Some(&c) = chars.peek() {
-        if c == '.' {
-            has_decimal = true;
-            chars.next();
-            pos += c.len_utf8();
-            
-            // Parse fractional part (at least one digit)
-            let mut has_fraction_digit = false;
-            while let Some(&c) = chars.peek() {
-                if c.is_ascii_digit() {
-                    has_fraction_digit = true;
-                    chars.next();
-                    pos += c.len_utf8();
-                } else {
-                    break;
-                }
-            }
-            
-            if !has_fraction_digit {
-                // Invalid: decimal point without digits
-                return Err(nom::Err::Error(NomError::new(
-                    input,
-                    nom::error::ErrorKind::Digit,
-                )));
+    if let Some(&c) = chars.peek()
+        && c == '.'
+    {
+        has_decimal = true;
+        chars.next();
+        pos += c.len_utf8();
+
+        // Parse fractional part (at least one digit)
+        let mut has_fraction_digit = false;
+        while let Some(&c) = chars.peek() {
+            if c.is_ascii_digit() {
+                has_fraction_digit = true;
+                chars.next();
+                pos += c.len_utf8();
+            } else {
+                break;
             }
         }
+
+        if !has_fraction_digit {
+            // Invalid: decimal point without digits
+            return Err(nom::Err::Error(NomError::new(
+                input,
+                nom::error::ErrorKind::Digit,
+            )));
+        }
     }
-    
+
     // Must have decimal to be a float (for v0.3.8, no exponent support yet)
     if !has_decimal {
         return Err(nom::Err::Error(NomError::new(
@@ -77,7 +77,7 @@ fn parse_float_lit(input: &str) -> IResult<&str, AstNode> {
             nom::error::ErrorKind::Digit,
         )));
     }
-    
+
     let float_str = &input[..pos];
     let remaining = &input[pos..];
     Ok((remaining, AstNode::FloatLit(float_str.to_string())))
@@ -95,7 +95,7 @@ fn parse_lit(input: &str) -> IResult<&str, AstNode> {
             println!("[PARSER DEBUG] parse_float_lit failed: {:?}", e);
         }
     }
-    
+
     let (input, num) = take_while(|c: char| c.is_ascii_digit()).parse(input)?;
     if num.is_empty() {
         return Err(nom::Err::Error(NomError::new(
@@ -562,28 +562,28 @@ fn parse_match_expr(input: &str) -> IResult<&str, AstNode> {
     // Parse "match" with optional whitespace
     let (input, _) = tag::<_, _, nom::error::Error<&str>>("match")(input)?;
     let (input, _) = skip_ws_and_comments0(input)?;
-    
+
     // Parse scrutinee
     let (input, scrutinee) = parse_expr(input)?;
-    
+
     // Parse whitespace before brace
     let (input, _) = skip_ws_and_comments0(input)?;
-    
+
     // Parse "{"
     let (input, _) = tag::<_, _, nom::error::Error<&str>>("{")(input)?;
     let (input, _) = skip_ws_and_comments0(input)?;
-    
+
     // Parse arms
     let mut arms = Vec::new();
     let mut current_input = input;
-    
+
     loop {
         // Try to parse an arm
         match parse_match_arm(current_input) {
             Ok((next_input, arm)) => {
                 arms.push(arm);
                 current_input = next_input;
-                
+
                 // Check for comma or closing brace
                 let (next_input, _) = skip_ws_and_comments0(current_input)?;
                 if let Ok((next_input, _)) = tag::<_, _, nom::error::Error<&str>>(",")(next_input) {
@@ -592,62 +592,72 @@ fn parse_match_expr(input: &str) -> IResult<&str, AstNode> {
                     current_input = next_input;
                     continue;
                 }
-                
+
                 // Check for closing brace
                 let (next_input, _) = skip_ws_and_comments0(current_input)?;
                 if let Ok((next_input, _)) = tag::<_, _, nom::error::Error<&str>>("}")(next_input) {
-                    return Ok((next_input, AstNode::Match {
-                        scrutinee: Box::new(scrutinee),
-                        arms,
-                    }));
+                    return Ok((
+                        next_input,
+                        AstNode::Match {
+                            scrutinee: Box::new(scrutinee),
+                            arms,
+                        },
+                    ));
                 }
-                
+
                 // No comma or closing brace - error
                 break;
             }
             Err(_) => break,
         }
     }
-    
+
     // Parse closing brace
     let (input, _) = tag::<_, _, nom::error::Error<&str>>("}")(current_input)?;
-    
-    Ok((input, AstNode::Match {
-        scrutinee: Box::new(scrutinee),
-        arms,
-    }))
+
+    Ok((
+        input,
+        AstNode::Match {
+            scrutinee: Box::new(scrutinee),
+            arms,
+        },
+    ))
 }
 
 /// Parse a single match arm: `pattern => expr` or `pattern if guard => expr`
 fn parse_match_arm(input: &str) -> IResult<&str, MatchArm> {
     // Parse pattern (simplified - just variable or literal for now)
-    let (input, pattern) = alt((
-        parse_ident.map(|name| AstNode::Var(name)),
-        parse_lit,
-    )).parse(input)?;
-    
+    let (input, pattern) = alt((parse_ident.map(AstNode::Var), parse_lit)).parse(input)?;
+
     let (input, _) = skip_ws_and_comments0(input)?;
-    
+
     // Parse optional guard
     let (input, guard) = opt(preceded(
-        terminated(tag::<_, _, nom::error::Error<&str>>("if"), skip_ws_and_comments0),
+        terminated(
+            tag::<_, _, nom::error::Error<&str>>("if"),
+            skip_ws_and_comments0,
+        ),
         parse_expr,
-    )).parse(input)?;
-    
+    ))
+    .parse(input)?;
+
     let (input, _) = skip_ws_and_comments0(input)?;
-    
+
     // Parse arrow
     let (input, _) = tag::<_, _, nom::error::Error<&str>>("=>")(input)?;
     let (input, _) = skip_ws_and_comments0(input)?;
-    
+
     // Parse body expression
     let (input, body) = parse_expr(input)?;
-    
-    Ok((input, MatchArm {
-        pattern: Box::new(pattern),
-        guard: guard.map(Box::new),
-        body: Box::new(body),
-    }))
+
+    Ok((
+        input,
+        MatchArm {
+            pattern: Box::new(pattern),
+            guard: guard.map(Box::new),
+            body: Box::new(body),
+        },
+    ))
 }
 
 pub fn parse_expr(input: &str) -> IResult<&str, AstNode> {

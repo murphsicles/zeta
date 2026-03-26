@@ -506,13 +506,13 @@ impl MirGen {
             AstNode::Match { scrutinee, arms } => {
                 // For now, implement simple match with first matching arm
                 let _scrutinee_id = self.lower_expr(scrutinee);
-                
+
                 // Generate basic if-else chain for match
                 let current_id = id;
-                
+
                 for (i, arm) in arms.iter().enumerate() {
                     let arm_body_id = self.lower_expr(&arm.body);
-                    
+
                     if i == 0 {
                         // First arm - just assign
                         self.stmts.push(MirStmt::Assign {
@@ -525,13 +525,13 @@ impl MirGen {
                         // Simplified: always true for now (pattern matching not implemented)
                         self.exprs.insert(cond_id, MirExpr::Lit(1));
                         self.type_map.insert(cond_id, "bool".to_string());
-                        
+
                         let then_id = self.next_id();
                         self.stmts.push(MirStmt::Assign {
                             lhs: then_id,
                             rhs: arm_body_id,
                         });
-                        
+
                         self.stmts.push(MirStmt::If {
                             cond: cond_id,
                             then: vec![MirStmt::Assign {
@@ -543,7 +543,7 @@ impl MirGen {
                         });
                     }
                 }
-                
+
                 self.exprs.insert(id, MirExpr::Var(id));
                 self.type_map.insert(id, "i64".to_string());
             }

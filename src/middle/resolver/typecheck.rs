@@ -35,7 +35,7 @@ impl Resolver {
                 for error in errors {
                     eprintln!("  Type error: {}", error);
                 }
-                
+
                 // Semantic checks (recursive) - old system
                 for ast in asts {
                     if !self.check_node(ast) {
