@@ -8,12 +8,11 @@ use crate::frontend::ast::{AstNode, MatchArm};
 use nom::IResult;
 use nom::Parser;
 use nom::branch::alt;
-use nom::bytes::complete::{tag, take_while, take_while1};
-use nom::combinator::{opt, recognize, verify};
+use nom::bytes::complete::{tag, take_while};
+use nom::combinator::opt;
 use nom::error::Error as NomError;
 use nom::multi::{separated_list0, separated_list1};
 use nom::sequence::{delimited, preceded, terminated};
-use nom::character::complete::{char, one_of};
 
 fn parse_float_lit(input: &str) -> IResult<&str, AstNode> {
     // Simple float parser: digits.digits
