@@ -300,12 +300,15 @@ fn parse_const(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("=")).parse(input)?;
     let (input, value) = ws(parse_full_expr).parse(input)?;
     let (input, _) = ws(tag(";")).parse(input)?;
-    
-    Ok((input, AstNode::ConstDef {
-        name,
-        ty,
-        value: Box::new(value),
-    }))
+
+    Ok((
+        input,
+        AstNode::ConstDef {
+            name,
+            ty,
+            value: Box::new(value),
+        },
+    ))
 }
 
 fn parse_top_level_item(input: &str) -> IResult<&str, AstNode> {

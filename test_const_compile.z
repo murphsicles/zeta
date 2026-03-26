@@ -1,0 +1,8 @@
+const MAX_SIZE: i64 = 1024;
+const DEFAULT_NAME: &str = "Zeta";
+const IS_ENABLED: bool = true;
+const PI: f64 = 3.14159;
+
+fn main() -> i64 {
+    MAX_SIZE
+}

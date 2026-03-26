@@ -102,7 +102,11 @@ impl Resolver {
             } => {
                 self.funcs.insert(name, (params, ret, false));
             }
-            AstNode::ConstDef { ref name, ref ty, ref value } => {
+            AstNode::ConstDef {
+                ref name,
+                ref ty,
+                ref value,
+            } => {
                 // Register constant for compile-time evaluation
                 // For now, we'll store it in ctfe_consts if it's a simple literal
                 if let AstNode::Lit(val) = **value {
