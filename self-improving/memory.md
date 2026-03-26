@@ -18,12 +18,23 @@
 - **Document design decisions**: Explain why floats are stored as strings (trait limitations)
 - **Check for regressions**: Run existing tests to ensure no breaking changes
 
+### EOP Research & Implementation
+- **Regular types in Rust**: Eq implies PartialEq, Drop not needed in trait bounds
+- **Transformation error handling**: Always use Result types for fallible operations
+- **Mathematical testing**: Combine property-based tests with formal proofs
+- **Three-phase implementation**: Research → Review → Refine with skill application
+- **Git integration**: Commit meaningful changes with skill application documentation
+
 ## User Preferences
 - **Quality focus**: "Quality is non-negotiable" - apply rigorous code review standards
 - **GitHub as reality**: Treat all work as if it will be committed to GitHub
 - **Skill integration**: Use available skills (code-review, self-improving, proactivity, git-essentials)
+- **Father Zak's way**: "This is the way." - Apply skills systematically for quality improvement
 
 ## Workflow Patterns
 - **Test-driven fixes**: Create failing tests first, then implement fixes
 - **Comprehensive validation**: Test edge cases (`.0`, `0.5`, mixed escapes, Windows paths)
 - **Clear reporting**: Show what was fixed and provide evidence of success
+- **Skill-based quality**: Apply code-review, self-improving, proactivity, git-essentials systematically
+- **Three-pass review**: High-level → line-by-line → edge cases for all significant work
+- **Mathematical foundation**: Build on EOP principles with proofs and property testing
