@@ -233,7 +233,7 @@ impl Substitution {
                     Ok(())
                 }
             }
-            (_, Type::Variable(b)) => self.unify(&t2, &t1),
+            (_, Type::Variable(_b)) => self.unify(&t2, &t1),
             
             // Array types
             (Type::Array(inner1, size1), Type::Array(inner2, size2)) => {

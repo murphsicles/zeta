@@ -2,7 +2,7 @@
 //! Migration from string-based types to algebraic types
 
 use crate::frontend::ast::AstNode;
-use crate::middle::types::{Type, TypeVar, Substitution, UnifyError};
+use crate::middle::types::{Type, Substitution, UnifyError};
 use std::collections::HashMap;
 
 /// Type inference context
@@ -60,7 +60,7 @@ impl InferContext {
             
             AstNode::StringLit(_) => Type::Str,
             
-            AstNode::Bool(b) => Type::Bool,
+            AstNode::Bool(_b) => Type::Bool,
             
             AstNode::Var(name) => {
                 self.lookup(name)
