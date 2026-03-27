@@ -1,0 +1,240 @@
+name: Agent Dashboard
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'  # Every 15 minutes
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  generate-dashboard:
+    name: Generate Agent Dashboard
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Fetch all branches
+        run: |
+          git fetch --all
+          
+      - name: Get agent branches
+        id: get-branches
+        run: |
+          # Get all feat/ branches
+          AGENT_BRANCHES=$(git branch -r | grep -o 'origin/feat/[^ ]*' | sed 's/origin\///')
+          echo "branches=$AGENT_BRANCHES" >> $GITHUB_OUTPUT
+          
+          # Count by agent
+          LEX_COUNT=$(echo "$AGENT_BRANCHES" | grep -c '^feat/lex-' || true)
+          SYN_COUNT=$(echo "$AGENT_BRANCHES" | grep -c '^feat/syn-' || true)
+          SEM_COUNT=$(echo "$AGENT_BRANCHES" | grep -c '^feat/sem-' || true)
+          GEN_COUNT=$(echo "$AGENT_BRANCHES" | grep -c '^feat/gen-' || true)
+          VER_COUNT=$(echo "$AGENT_BRANCHES" | grep -c '^feat/ver-' || true)
+          
+          echo "lex_count=$LEX_COUNT" >> $GITHUB_OUTPUT
+          echo "syn_count=$SYN_COUNT" >> $GITHUB_OUTPUT
+          echo "sem_count=$SEM_COUNT" >> $GITHUB_OUTPUT
+          echo "gen_count=$GEN_COUNT" >> $GITHUB_OUTPUT
+          echo "ver_count=$VER_COUNT" >> $GITHUB_OUTPUT
+          
+      - name: Get workflow statuses
+        id: workflow-status
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: workflows } = await github.rest.actions.listRepoWorkflows({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+            
+            const agentWorkflow = workflows.workflows.find(w => w.name === 'Agent Branch CI');
+            if (!agentWorkflow) {
+              console.log('Agent Branch CI workflow not found');
+              return;
+            }
+            
+            const { data: runs } = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: agentWorkflow.id,
+              per_page: 20
+            });
+            
+            // Group by branch
+            const branchStatus = {};
+            runs.workflow_runs.forEach(run => {
+              const branch = run.head_branch;
+              if (branch && branch.startsWith('feat/')) {
+                if (!branchStatus[branch] || new Date(run.created_at) > new Date(branchStatus[branch].created_at)) {
+                  branchStatus[branch] = {
+                    status: run.conclusion || run.status,
+                    created_at: run.created_at,
+                    html_url: run.html_url
+                  };
+                }
+              }
+            });
+            
+            // Convert to string for output
+            const branchStatusStr = JSON.stringify(branchStatus);
+            core.setOutput('branch_status', branchStatusStr);
+            
+      - name: Generate dashboard
+        id: generate-dashboard
+        run: |
+          # Parse branch status
+          BRANCH_STATUS='${{ steps.workflow-status.outputs.branch_status }}'
+          
+          # Create dashboard markdown
+          DASHBOARD="# 🏭 Dark Factory Agent Dashboard
+          
+          **Last Updated:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')
+          **Next Update:** $(date -u -d '+15 minutes' +'%H:%M UTC')
+          
+          ## 📊 Agent Activity
+          
+          | Agent | Active Branches | Latest Status | Last Activity |
+          |-------|-----------------|---------------|---------------|"
+          
+          # Add each agent row
+          for AGENT in LEX SYN SEM GEN VER; do
+            COUNT_VAR="${AGENT}_COUNT"
+            COUNT=${!COUNT_VAR}
+            
+            if [ "$COUNT" -gt 0 ]; then
+              # Find latest branch for this agent
+              LATEST_BRANCH=$(echo "${{ steps.get-branches.outputs.branches }}" | grep "^feat/${AGENT,,}-" | head -1)
+              
+              if [ -n "$LATEST_BRANCH" ]; then
+                # Get status from branch_status
+                STATUS_JSON=$(echo "$BRANCH_STATUS" | jq -r ".[\"$LATEST_BRANCH\"] // {}")
+                BRANCH_STATUS_TEXT=$(echo "$STATUS_JSON" | jq -r '.status // "unknown"')
+                BRANCH_URL=$(echo "$STATUS_JSON" | jq -r '.html_url // ""')
+                BRANCH_TIME=$(echo "$STATUS_JSON" | jq -r '.created_at // ""')
+                
+                # Format status
+                case "$BRANCH_STATUS_TEXT" in
+                  "success") STATUS_EMOJI="✅" ;;
+                  "failure") STATUS_EMOJI="❌" ;;
+                  "cancelled") STATUS_EMOJI="⚠️" ;;
+                  *) STATUS_EMOJI="⏳" ;;
+                esac
+                
+                # Format time
+                if [ -n "$BRANCH_TIME" ]; then
+                  TIME_AGO=$(date -u -d "$BRANCH_TIME" +'%H:%M UTC')
+                else
+                  TIME_AGO="unknown"
+                fi
+                
+                # Create link if URL exists
+                if [ -n "$BRANCH_URL" ]; then
+                  BRANCH_LINK="[$LATEST_BRANCH]($BRANCH_URL)"
+                else
+                  BRANCH_LINK="$LATEST_BRANCH"
+                fi
+                
+                DASHBOARD="$DASHBOARD
+          | $AGENT | $COUNT ($BRANCH_LINK) | $STATUS_EMOJI $BRANCH_STATUS_TEXT | $TIME_AGO |"
+              else
+                DASHBOARD="$DASHBOARD
+          | $AGENT | $COUNT | ⏳ pending | - |"
+              fi
+            else
+              DASHBOARD="$DASHBOARD
+          | $AGENT | 0 | 🔴 inactive | - |"
+            fi
+          done
+          
+          DASHBOARD="$DASHBOARD
+          
+          ## 🚨 Active Blockers
+          
+          Checking for common issues..."
+          
+          # Check for specific blockers
+          if echo "${{ steps.get-branches.outputs.branches }}" | grep -q 'feat/syn-'; then
+            DASHBOARD="$DASHBOARD
+          - **SYN**: Working on const parsing bug"
+          else
+            DASHBOARD="$DASHBOARD  
+          - **SYN**: ❌ No active branch - const parsing bug UNFIXED"
+          fi
+          
+          if echo "${{ steps.get-branches.outputs.branches }}" | grep -q 'feat/lex-'; then
+            DASHBOARD="$DASHBOARD
+          - **LEX**: Creating test suite"
+          else
+            DASHBOARD="$DASHBOARD
+          - **LEX**: ❌ No active branch - test suite incomplete"
+          fi
+          
+          if echo "${{ steps.get-branches.outputs.branches }}" | grep -q 'feat/gen-'; then
+            DASHBOARD="$DASHBOARD
+          - **GEN**: Designing match codegen"
+          else
+            DASHBOARD="$DASHBOARD
+          - **GEN**: ❌ No active branch - match codegen design pending"
+          fi
+          
+          DASHBOARD="$DASHBOARD
+          
+          ## 📈 Bootstrap Progress (v0.3.9 → v0.5.0)
+          
+          | Component | Status | Blockers |
+          |-----------|--------|----------|
+          | Const Parsing | $([ -n "$(echo "${{ steps.get-branches.outputs.branches }}" | grep 'feat/syn-')" ] && echo "✅ In progress" || echo "❌ Not started") | SYN needs to fix parser |
+          | Float Types | ⚠️ Partial | SEM needs to verify integration |
+          | Match Statements | ✅ Enhanced | GEN designing codegen |
+          | Test Suite | $([ -n "$(echo "${{ steps.get-branches.outputs.branches }}" | grep 'feat/lex-')" ] && echo "✅ In progress" || echo "❌ Not started") | LEX creating tests |
+          | Verification | ✅ Complete | VER Phase 1 done |
+          
+          ## 🔗 Quick Links
+          
+          - [All Workflows](https://github.com/${{ github.repository }}/actions)
+          - [Agent Branch CI](https://github.com/${{ github.repository }}/actions/workflows/agent-branches.yml)
+          - [v0.3.9 Branch](https://github.com/${{ github.repository }}/tree/v0.3.9)
+          - [Latest Release (v0.3.8)](https://github.com/${{ github.repository }}/releases/tag/v0.3.8)
+          
+          ---
+          
+          *Auto-generated every 15 minutes. Last run: ${{ github.run_id }}*"
+          
+          echo "$DASHBOARD" > dashboard.md
+          echo "dashboard_generated=true" >> $GITHUB_OUTPUT
+          
+      - name: Upload dashboard
+        uses: actions/upload-artifact@v3
+        with:
+          name: agent-dashboard
+          path: dashboard.md
+          retention-days: 1
+          
+      - name: Create workflow summary
+        run: |
+          cat dashboard.md >> $GITHUB_STEP_SUMMARY
+          
+      - name: Comment on latest commit (if manual trigger)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const dashboard = fs.readFileSync('dashboard.md', 'utf8');
+            
+            // Get latest commit on default branch
+            const { data: defaultBranch } = await github.rest.repos.getBranch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              branch: context.ref.replace('refs/heads/', '')
+            });
+            
+            const commitSha = defaultBranch.commit.sha;
+            
+            await github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: commitSha,
+              body: `## Agent Dashboard Update\n\n${dashboard}\n\n*Triggered manually by @${context.actor}*`
+            });

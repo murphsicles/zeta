@@ -1,0 +1,204 @@
+name: Agent Branch CI
+
+on:
+  push:
+    branches:
+      - 'feat/**'  # All agent feature branches
+      - 'v0.3.9'   # Main development branch
+  pull_request:
+    branches:
+      - 'v0.3.9'   # PRs to main dev branch
+
+jobs:
+  agent-branch-ci:
+    name: Agent Branch - ${{ github.ref_name }}
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Extract agent from branch name
+        id: extract-agent
+        run: |
+          BRANCH_NAME="${{ github.ref_name }}"
+          if [[ "$BRANCH_NAME" =~ ^feat/([a-zA-Z]+)- ]]; then
+            AGENT="${BASH_REMATCH[1]}"
+            echo "agent=${AGENT^^}" >> $GITHUB_OUTPUT
+            echo "branch_type=feat" >> $GITHUB_OUTPUT
+          elif [[ "$BRANCH_NAME" == "v0.3.9" ]]; then
+            echo "agent=MAIN" >> $GITHUB_OUTPUT
+            echo "branch_type=main" >> $GITHUB_OUTPUT
+          else
+            echo "agent=UNKNOWN" >> $GITHUB_OUTPUT
+            echo "branch_type=other" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+          
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          
+      - name: Check commit tagging
+        id: check-tags
+        run: |
+          echo "Checking commit tags for agent: ${{ steps.extract-agent.outputs.agent }}"
+          
+          # Get last commit message
+          LAST_COMMIT=$(git log --oneline -1)
+          echo "Last commit: $LAST_COMMIT"
+          
+          # Check if commit is properly tagged
+          if [[ "$LAST_COMMIT" =~ ^\[(${{ steps.extract-agent.outputs.agent }}|MAIN|UNKNOWN)\] ]]; then
+            echo "✅ Commit properly tagged"
+            echo "tagged=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Commit missing or incorrect agent tag"
+            echo "Expected: [${{ steps.extract-agent.outputs.agent }}]"
+            echo "Got: $LAST_COMMIT"
+            echo "tagged=false" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Check formatting
+        if: steps.check-tags.outputs.tagged == 'true'
+        run: cargo fmt --all -- --check
+        
+      - name: Clippy (strict)
+        if: steps.check-tags.outputs.tagged == 'true'
+        run: cargo clippy --workspace --all-features --all-targets -- -D warnings
+        
+      - name: Build
+        if: steps.check-tags.outputs.tagged == 'true'
+        run: cargo build --workspace --all-features --all-targets
+        
+      - name: Run tests
+        if: steps.check-tags.outputs.tagged == 'true'
+        run: cargo test --workspace --all-features
+        
+      - name: Generate agent report
+        id: report
+        run: |
+          # Count test files for this agent's feature
+          TEST_COUNT=$(find . -name "*.z" -type f | wc -l)
+          ZETA_FILES=$(find . -name "*.z" -type f | head -5 | xargs -I {} basename {})
+          
+          # Check for specific feature files
+          if [[ "${{ github.ref_name }}" == *"const"* ]]; then
+            FEATURE="const-parsing"
+            TEST_FILE="test_const.z"
+          elif [[ "${{ github.ref_name }}" == *"float"* ]]; then
+            FEATURE="float-types"
+            TEST_FILE="test_float*.z"
+          elif [[ "${{ github.ref_name }}" == *"match"* ]]; then
+            FEATURE="match-codegen"
+            TEST_FILE="test_match*.z"
+          elif [[ "${{ github.ref_name }}" == *"test"* ]]; then
+            FEATURE="test-suite"
+            TEST_FILE="test_*.z"
+          elif [[ "${{ github.ref_name }}" == *"verif"* ]]; then
+            FEATURE="verification"
+            TEST_FILE="verification/**/*.md"
+          else
+            FEATURE="unknown"
+            TEST_FILE=""
+          fi
+          
+          echo "feature=$FEATURE" >> $GITHUB_OUTPUT
+          echo "test_count=$TEST_COUNT" >> $GITHUB_OUTPUT
+          echo "test_files=$ZETA_FILES" >> $GITHUB_OUTPUT
+          
+      - name: Upload workflow status
+        uses: actions/upload-artifact@v3
+        with:
+          name: agent-report-${{ github.ref_name }}
+          path: |
+            target/debug/
+            Cargo.lock
+          retention-days: 1
+          
+      - name: Create summary comment
+        if: always()
+        run: |
+          echo "## Agent Branch CI Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Agent:** ${{ steps.extract-agent.outputs.agent }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Feature:** ${{ steps.report.outputs.feature }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ steps.check-tags.outputs.tagged }}" == "true" ]]; then
+            echo "✅ **Commit Tagging:** PASS" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Commit Tagging:** FAIL" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Test Files:** ${{ steps.report.outputs.test_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Sample:** ${{ steps.report.outputs.test_files }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ job.status }}" == "success" ]]; then
+            echo "🎉 **Overall Status:** PASS" >> $GITHUB_STEP_SUMMARY
+            echo "All checks passing. Ready for review." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "🚨 **Overall Status:** FAIL" >> $GITHUB_STEP_SUMMARY
+            echo "Some checks failed. Needs debugging." >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # Separate job for PR comments (only on PRs)
+  pr-comment:
+    name: PR Comment
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    needs: agent-branch-ci
+    
+    steps:
+      - name: Create PR comment
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            
+            const branch = pr.head.ref;
+            const agent = branch.match(/^feat\/([a-zA-Z]+)-/)?.[1]?.toUpperCase() || 'UNKNOWN';
+            
+            let status = '❌ FAILED';
+            let color = 'red';
+            if (context.job === 'success') {
+              status = '✅ PASSED';
+              color = 'green';
+            }
+            
+            const comment = `
+            ### Agent PR Status: ${status}
+            
+            **Agent:** ${agent}
+            **Branch:** ${branch}
+            **CI Result:** ${context.job}
+            
+            ${context.job === 'success' ? 'Ready for Father Zak review.' : 'Needs debugging before merge.'}
+            
+            ---
+            *Auto-generated by Agent Branch CI*
+            `;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
