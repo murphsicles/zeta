@@ -16,7 +16,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         
       - name: Extract agent from branch name
         id: extract-agent
@@ -41,7 +41,7 @@ jobs:
           components: clippy, rustfmt
           
       - name: Cache dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
@@ -118,7 +118,7 @@ jobs:
           echo "test_files=$ZETA_FILES" >> $GITHUB_OUTPUT
           
       - name: Upload workflow status
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: agent-report-${{ github.ref_name }}
           path: |
