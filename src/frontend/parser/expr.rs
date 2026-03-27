@@ -3,7 +3,7 @@ use super::parser::{
     parse_ident, parse_path, parse_type, parse_type_args, skip_ws_and_comments0, ws,
 };
 
-use super::stmt::parse_block_body;
+use super::stmt::{parse_block_body, parse_pattern};
 use crate::frontend::ast::{AstNode, MatchArm};
 use nom::IResult;
 use nom::Parser;
@@ -620,8 +620,8 @@ fn parse_match_expr(input: &str) -> IResult<&str, AstNode> {
 
 /// Parse a single match arm: `pattern => expr` or `pattern if guard => expr`
 fn parse_match_arm(input: &str) -> IResult<&str, MatchArm> {
-    // Parse pattern (simplified - just variable or literal for now)
-    let (input, pattern) = alt((parse_ident.map(AstNode::Var), parse_lit)).parse(input)?;
+    // Parse pattern (supports variables, literals, struct patterns, etc.)
+    let (input, pattern) = parse_pattern(input)?;
 
     let (input, _) = skip_ws_and_comments0(input)?;
 
