@@ -518,11 +518,11 @@ impl MirGen {
                     // Generate condition based on pattern
                     let cond_id = self.next_id();
                     
-                    match *arm.pattern {
+                    match &*arm.pattern {
                         AstNode::Lit(pattern_value) => {
                             // For literal patterns, generate equality check
                             let pattern_id = self.next_id();
-                            self.exprs.insert(pattern_id, MirExpr::Lit(pattern_value));
+                            self.exprs.insert(pattern_id, MirExpr::Lit(*pattern_value));
                             self.type_map.insert(pattern_id, "i64".to_string());
                             
                             // Create equality comparison: scrutinee == pattern
@@ -536,15 +536,33 @@ impl MirGen {
                             self.exprs.insert(cond_id, MirExpr::Var(cond_id));
                             self.type_map.insert(cond_id, "bool".to_string());
                         }
-                        AstNode::Var(ref var_name) if var_name == "_" => {
+                        AstNode::Var(var_name) if var_name == "_" => {
                             // Wildcard pattern - always true
                             self.exprs.insert(cond_id, MirExpr::Lit(1));
                             self.type_map.insert(cond_id, "bool".to_string());
                         }
-                        AstNode::Var(ref var_name) => {
+                        AstNode::Var(var_name) => {
                             // Variable binding pattern - always matches
                             // Add binding to name_to_id so the arm body can reference it
                             self.name_to_id.insert(var_name.clone(), scrutinee_id);
+                            self.exprs.insert(cond_id, MirExpr::Lit(1));
+                            self.type_map.insert(cond_id, "bool".to_string());
+                        }
+                        AstNode::StructPattern { variant: _, fields, rest: _ } => {
+                            // For now, treat struct patterns as always matching
+                            // Set up bindings for the field patterns
+                            for (_field_name, field_pattern) in fields {
+                                // For tuple struct patterns, field_name is "0", "1", etc.
+                                // We need to extract the field from the struct
+                                // For now, just bind the pattern variable to a placeholder
+                                if let AstNode::Var(var_name) = field_pattern {
+                                    // Create a placeholder ID for the field value
+                                    let field_id = self.next_id();
+                                    self.name_to_id.insert(var_name.clone(), field_id);
+                                    self.exprs.insert(field_id, MirExpr::Lit(0)); // Placeholder
+                                    self.type_map.insert(field_id, "i64".to_string());
+                                }
+                            }
                             self.exprs.insert(cond_id, MirExpr::Lit(1));
                             self.type_map.insert(cond_id, "bool".to_string());
                         }

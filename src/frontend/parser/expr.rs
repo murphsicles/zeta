@@ -422,8 +422,8 @@ fn parse_primary(input: &str) -> IResult<&str, AstNode> {
         parse_lit,
         parse_string_lit,
         parse_match_expr,   // Try match expression before identifier
+        parse_path_expr,    // Try full path parser (handles struct literals)
         parse_simple_ident, // Fall back to simple ident
-        parse_path_expr,    // Fall back to full path parser
         parse_array_lit,
         parse_bool,
         parse_closure,
