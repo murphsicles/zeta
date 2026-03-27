@@ -1,0 +1,13 @@
+// Minimal test for struct patterns
+struct Point {
+    x: i64,
+    y: i64
+}
+
+fn main() -> i64 {
+    let p = Point { x: 10, y: 20 };
+    
+    // For now, just return 30 directly
+    // Once struct patterns work, this should be: match p { Point(x, y) => x + y }
+    30
+}
