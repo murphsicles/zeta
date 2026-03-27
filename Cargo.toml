@@ -60,6 +60,13 @@ chalk-recursive = "0.104.0"
 # Benchmarking framework.
 criterion = { version = "0.8.1", features = ["html_reports"] }
 
+# Development dependencies for testing
+[dev-dependencies]
+# Property-based testing framework
+proptest = "1.5.0"
+# Fuzz testing
+libfuzzer-sys = "0.4.10"
+
 # Benchmark configurations.
 [[bench]]
 # Benchmark name.
