@@ -121,6 +121,17 @@ Track all TODOs, FIXMEs, placeholders, stubs, and incomplete implementations to 
 - **Impact:** Potential correctness issues in generated code
 - **Notes:** Found 6 placeholder patterns in temp assignment logic
 
+### P3 tests/smoke_test.z:10 - Replace placeholder comment with proper logic
+- **ID:** TODO-20260327-007
+- **Owner:** LEX (Test Master)
+- **Created:** 2026-03-27
+- **Due:** 2026-03-29
+- **Status:** open
+- **Description:** Smoke test has placeholder comment "// Return 0 for success"
+- **Placeholder:** Comment indicates placeholder logic
+- **Impact:** Test validation may fail due to placeholder detection
+- **Notes:** Found during commit validation, should either remove comment or implement proper test logic
+
 ## TODO Discovery Process
 
 ### Daily Scan
