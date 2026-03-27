@@ -555,6 +555,27 @@ impl MirGen {
                         }
                     }
                     
+                    // Handle guard clause if present
+                    let final_cond_id = if let Some(ref guard) = arm.guard {
+                        // Lower the guard expression
+                        let guard_id = self.lower_expr(guard);
+                        
+                        // Create AND condition: pattern_matches && guard_condition
+                        let and_cond_id = self.next_id();
+                        self.stmts.push(MirStmt::Call {
+                            func: "&&".to_string(),
+                            args: vec![cond_id, guard_id],
+                            dest: and_cond_id,
+                            type_args: vec![],
+                        });
+                        self.exprs.insert(and_cond_id, MirExpr::Var(and_cond_id));
+                        self.type_map.insert(and_cond_id, "bool".to_string());
+                        
+                        and_cond_id
+                    } else {
+                        cond_id
+                    };
+                    
                     // Now lower the arm body (after establishing pattern bindings)
                     let arm_body_id = self.lower_expr(&arm.body);
                     
@@ -565,7 +586,7 @@ impl MirGen {
                     }];
                     
                     let if_stmt = MirStmt::If {
-                        cond: cond_id,
+                        cond: final_cond_id,
                         then: then_branch,
                         else_: else_branch,
                         dest: None,
