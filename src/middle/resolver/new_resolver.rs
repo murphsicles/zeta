@@ -66,6 +66,11 @@ impl InferContext {
                 }
             }
 
+            AstNode::FloatLit(_) => {
+                // Float literals default to f64
+                Type::F64
+            }
+
             AstNode::StringLit(_) => Type::Str,
 
             AstNode::Bool(_b) => Type::Bool,
@@ -159,6 +164,8 @@ impl InferContext {
                         "i32" => Type::I32,
                         "bool" => Type::Bool,
                         "str" => Type::Str,
+                        "f32" => Type::F32,
+                        "f64" => Type::F64,
                         _ => return Err(format!("Unsupported type annotation: {}", type_str)),
                     };
                     self.constrain(expr_ty.clone(), annotated_ty);
