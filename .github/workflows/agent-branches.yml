@@ -90,7 +90,8 @@ jobs:
         run: |
           # Count test files for this agent's feature
           TEST_COUNT=$(find . -name "*.z" -type f | wc -l)
-          ZETA_FILES=$(find . -name "*.z" -type f | head -5 | xargs -I {} basename {})
+          # Get first 5 .z files, join with commas for safe output
+          ZETA_FILES=$(find . -name "*.z" -type f | head -5 | xargs -I {} basename {} | tr '\n' ',' | sed 's/,$//')
           
           # Check for specific feature files
           if [[ "${{ github.ref_name }}" == *"const"* ]]; then
@@ -115,7 +116,10 @@ jobs:
           
           echo "feature=$FEATURE" >> $GITHUB_OUTPUT
           echo "test_count=$TEST_COUNT" >> $GITHUB_OUTPUT
-          echo "test_files=$ZETA_FILES" >> $GITHUB_OUTPUT
+          # Use proper GitHub Actions output format
+          echo "test_files<<EOF" >> $GITHUB_OUTPUT
+          echo "$ZETA_FILES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
           
       - name: Upload workflow status
         uses: actions/upload-artifact@v4
