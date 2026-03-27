@@ -44,6 +44,22 @@
     "bootstrap": {
       "version": "1.0.0",
       "installedAt": 1774325286136
+    },
+    "testing-patterns": {
+      "version": "0.1.0",
+      "installedAt": 1774592286470
+    },
+    "verification-before-completion": {
+      "version": "0.1.0",
+      "installedAt": 1774592295296
+    },
+    "cs-performance-profiler": {
+      "version": "1.0.0",
+      "installedAt": 1774592318806
+    },
+    "test-runner": {
+      "version": "1.0.0",
+      "installedAt": 1774592341506
     }
   }
 }
