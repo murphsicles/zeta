@@ -116,6 +116,11 @@ pub enum AstNode {
         base: Box<AstNode>,
         index: Box<AstNode>,
     },
+    /// Field access on a base expression.
+    FieldAccess {
+        base: Box<AstNode>,
+        field: String,
+    },
     /// Explicit return statement with value.
     Return(Box<AstNode>),
     /// Conditional statement.

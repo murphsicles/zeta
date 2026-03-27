@@ -439,26 +439,39 @@ fn parse_postfix(input: &str) -> IResult<&str, AstNode> {
     let (mut input, mut expr) = parse_unary(input)?;
     loop {
         if let Ok((i, _)) = ws(tag(".")).parse(input) {
-            let (j, method) = parse_ident(i)?;
-            let (j, type_args_opt) = opt(ws(preceded(opt(tag("::")), parse_type_args))).parse(j)?;
-            let (k, args) = delimited(
+            let (j, field_or_method) = parse_ident(i)?;
+            
+            // Check if this is a method call (has parentheses) or field access
+            let (k, args_opt) = opt(delimited(
                 ws(tag("(")),
                 terminated(
                     separated_list0(ws(tag(",")), ws(parse_expr)),
                     opt(ws(tag(","))),
                 ),
                 ws(tag(")")),
-            )
+            ))
             .parse(j)?;
-            let type_args: Vec<String> = type_args_opt.unwrap_or_default();
-            expr = AstNode::Call {
-                receiver: Some(Box::new(expr)),
-                method,
-                args,
-                type_args,
-                structural: false,
-            };
-            input = k;
+            
+            if let Some(args) = args_opt {
+                // It's a method call
+                let (k, type_args_opt) = opt(ws(preceded(opt(tag("::")), parse_type_args))).parse(k)?;
+                let type_args: Vec<String> = type_args_opt.unwrap_or_default();
+                expr = AstNode::Call {
+                    receiver: Some(Box::new(expr)),
+                    method: field_or_method,
+                    args,
+                    type_args,
+                    structural: false,
+                };
+                input = k;
+            } else {
+                // It's field access
+                expr = AstNode::FieldAccess {
+                    base: Box::new(expr),
+                    field: field_or_method,
+                };
+                input = j;
+            }
         } else if let Ok((i, index)) =
             delimited(ws(tag("[")), ws(parse_expr), ws(tag("]"))).parse(input)
         {

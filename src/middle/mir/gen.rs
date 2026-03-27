@@ -624,6 +624,25 @@ impl MirGen {
                 self.exprs.insert(id, MirExpr::Var(id));
                 self.type_map.insert(id, "i64".to_string());
             }
+            AstNode::FieldAccess { base, field } => {
+                // For now, treat field access as returning 0 (placeholder)
+                // TODO: Implement proper field access
+                println!("[MIR GEN DEBUG] FieldAccess not implemented: {}.{}", 
+                         match &**base {
+                             AstNode::Var(name) => name.clone(),
+                             _ => "expr".to_string(),
+                         }, 
+                         field);
+                self.exprs.insert(id, MirExpr::Lit(0));
+                self.type_map.insert(id, "i64".to_string());
+            }
+            AstNode::StructLit { variant, fields } => {
+                // For now, treat struct literals as returning 0 (placeholder)
+                // TODO: Implement proper struct literal creation
+                println!("[MIR GEN DEBUG] StructLit not implemented: {} with {} fields", variant, fields.len());
+                self.exprs.insert(id, MirExpr::Lit(0));
+                self.type_map.insert(id, "i64".to_string());
+            }
             _ => {
                 self.exprs.insert(id, MirExpr::Lit(0));
                 self.type_map.insert(id, "i64".to_string());

@@ -1,0 +1,14 @@
+// Test field access syntax
+struct Point {
+    x: i64,
+    y: i64
+}
+
+fn test_field_access() -> i64 {
+    let p = Point { x: 10, y: 20 };
+    p.x + p.y  // Should return 30
+}
+
+fn main() -> i64 {
+    test_field_access()
+}
