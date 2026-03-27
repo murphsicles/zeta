@@ -1,0 +1,27 @@
+// Simple Zeta v0.5.0 program to test v0.3.8 compiler
+// Should compile with v0.3.8 features
+
+const PI: f64 = 3.14159
+
+fn main() -> i64 {
+    let radius = 5.0
+    let area = PI * radius * radius
+    
+    // Test float literal (v0.3.8 feature)
+    let circumference = 2.0 * PI * radius
+    
+    // Test string escape (v0.3.8 feature)
+    let message = "Area: \nCircumference: \n"
+    
+    // Return integer result
+    0
+}
+
+// Test match expression (basic structure - v0.3.9 will complete)
+fn test_match(x: i64) -> i64 {
+    match x {
+        1 => 10,
+        2 => 20,
+        _ => 0
+    }
+}

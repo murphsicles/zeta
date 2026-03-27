@@ -1,0 +1,17 @@
+// Simple Zeta v0.5.0 program without const
+// Test v0.3.8 compiler basic capabilities
+
+fn main() -> i64 {
+    // Test float literal (v0.3.8 feature)
+    let radius = 5.0
+    let pi = 3.14159
+    
+    // Test string escape (v0.3.8 feature)  
+    let message = "Hello\nWorld\tTab"
+    
+    // Simple calculation
+    let area = pi * radius * radius
+    
+    // Return result
+    42
+}

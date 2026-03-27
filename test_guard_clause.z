@@ -1,0 +1,24 @@
+// Test guard clauses in match expressions
+fn test_guard_basic() -> i64 {
+    let x = 10;
+    
+    match x {
+        y if y > 5 => y * 2,  // Should return 20
+        y => y                  // Should return 10 (but won't match since first arm matches)
+    }
+}
+
+fn test_guard_with_literal() -> i64 {
+    let x = 3;
+    
+    match x {
+        1 if false => 100,     // Won't match (pattern matches but guard fails)
+        3 if true => 200,      // Should return 200
+        _ => 0
+    }
+}
+
+fn main() -> i64 {
+    test_guard_basic()
+    // test_guard_with_literal()
+}
