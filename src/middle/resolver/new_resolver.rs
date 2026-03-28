@@ -180,6 +180,21 @@ impl InferContext {
                 Type::Tuple(vec![]) // Unit type
             }
 
+            AstNode::FuncDef { body, ret_expr, .. } => {
+                // Type check function body
+                for stmt in body {
+                    self.infer(stmt)?;
+                }
+
+                // Type check return expression if present
+                if let Some(expr) = ret_expr {
+                    self.infer(expr)?;
+                }
+
+                // Function definitions have unit type at top level
+                Type::Tuple(vec![]) // Unit type
+            }
+
             _ => {
                 // Default to error for unimplemented nodes
                 return Err(format!("Type inference not implemented for: {:?}", node));
