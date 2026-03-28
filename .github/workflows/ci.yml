@@ -79,8 +79,12 @@ jobs:
       run: cargo test --workspace --all-features
     - name: Build release compiler
       run: cargo build --release
+    - name: Install PowerShell Core
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y powershell
     - name: Run Zeta tests
-      run: powershell -ExecutionPolicy Bypass -File scripts/run_zeta_tests.ps1
+      run: pwsh -ExecutionPolicy Bypass -File scripts/run_zeta_tests.ps1
     - name: Bench (no plot)
       run: cargo bench --no-run # Stub: Run benches
   security:

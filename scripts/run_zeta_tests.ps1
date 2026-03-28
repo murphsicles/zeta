@@ -1,20 +1,30 @@
-# Zeta Test Runner for Windows
+# Zeta Test Runner (Cross-Platform)
 # Runs .z file tests through the Zeta compiler
 
 param(
     [string]$TestPattern = "tests/*.z",
-    [string]$CompilerPath = "target/release/zetac.exe",
+    [string]$CompilerPath = "target/release/zetac",
     [switch]$Verbose
 )
 
 Write-Host "=== ZETA TEST RUNNER ===" -ForegroundColor Red
 Write-Host ""
 
-# Check if compiler exists
+# Check if compiler exists (platform-specific)
+if ($IsWindows -and -not $CompilerPath.EndsWith('.exe')) {
+    $CompilerPath = "$CompilerPath.exe"
+}
+
 if (-not (Test-Path $CompilerPath)) {
     Write-Host "❌ Compiler not found: $CompilerPath" -ForegroundColor Red
     Write-Host "Building compiler first..." -ForegroundColor Yellow
     cargo build --release
+    
+    # Check again with platform-specific extension
+    if ($IsWindows -and -not $CompilerPath.EndsWith('.exe')) {
+        $CompilerPath = "$CompilerPath.exe"
+    }
+    
     if (-not (Test-Path $CompilerPath)) {
         Write-Host "❌ Failed to build compiler" -ForegroundColor Red
         exit 1
@@ -45,8 +55,12 @@ foreach ($testFile in $testFiles) {
     $testName = $testFile.Name
     $testDir = $testFile.DirectoryName
     
-    # Create output executable name
-    $outputExe = Join-Path $testDir "$($testFile.BaseName).exe"
+    # Create output executable name (platform-specific)
+    if ($IsWindows) {
+        $outputExe = Join-Path $testDir "$($testFile.BaseName).exe"
+    } else {
+        $outputExe = Join-Path $testDir "$($testFile.BaseName)"
+    }
     
     # Compile the test
     Write-Host "Compiling: $testName → $($outputExe)" -ForegroundColor Gray
