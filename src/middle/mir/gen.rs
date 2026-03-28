@@ -509,22 +509,22 @@ impl MirGen {
 
                 // Generate if-else chain for match arms
                 let result_id = id;
-                
+
                 // We'll build the match as a series of if-else statements
                 // Start from the last arm and work backwards
                 let mut else_branch = Vec::new();
-                
+
                 for arm in arms.iter().rev() {
                     // Generate condition based on pattern
                     let cond_id = self.next_id();
-                    
+
                     match &*arm.pattern {
                         AstNode::Lit(pattern_value) => {
                             // For literal patterns, generate equality check
                             let pattern_id = self.next_id();
                             self.exprs.insert(pattern_id, MirExpr::Lit(*pattern_value));
                             self.type_map.insert(pattern_id, "i64".to_string());
-                            
+
                             // Create equality comparison: scrutinee == pattern
                             // This creates a call to the "==" operator
                             self.stmts.push(MirStmt::Call {
@@ -548,7 +548,11 @@ impl MirGen {
                             self.exprs.insert(cond_id, MirExpr::Lit(1));
                             self.type_map.insert(cond_id, "bool".to_string());
                         }
-                        AstNode::StructPattern { variant: _, fields, rest: _ } => {
+                        AstNode::StructPattern {
+                            variant: _,
+                            fields,
+                            rest: _,
+                        } => {
                             // For now, treat struct patterns as always matching
                             // Set up bindings for the field patterns
                             for (_field_name, field_pattern) in fields {
@@ -572,12 +576,12 @@ impl MirGen {
                             self.type_map.insert(cond_id, "bool".to_string());
                         }
                     }
-                    
+
                     // Handle guard clause if present
                     let final_cond_id = if let Some(ref guard) = arm.guard {
                         // Lower the guard expression
                         let guard_id = self.lower_expr(guard);
-                        
+
                         // Create AND condition: pattern_matches && guard_condition
                         let and_cond_id = self.next_id();
                         self.stmts.push(MirStmt::Call {
@@ -588,32 +592,32 @@ impl MirGen {
                         });
                         self.exprs.insert(and_cond_id, MirExpr::Var(and_cond_id));
                         self.type_map.insert(and_cond_id, "bool".to_string());
-                        
+
                         and_cond_id
                     } else {
                         cond_id
                     };
-                    
+
                     // Now lower the arm body (after establishing pattern bindings)
                     let arm_body_id = self.lower_expr(&arm.body);
-                    
+
                     // Create the if statement for this arm
                     let then_branch = vec![MirStmt::Assign {
                         lhs: result_id,
                         rhs: arm_body_id,
                     }];
-                    
+
                     let if_stmt = MirStmt::If {
                         cond: final_cond_id,
                         then: then_branch,
                         else_: else_branch,
                         dest: None,
                     };
-                    
+
                     // For the next iteration, the current if becomes the else branch
                     else_branch = vec![if_stmt];
                 }
-                
+
                 // The final else_branch contains the complete if-else chain
                 // Add it to statements
                 if !else_branch.is_empty() {

@@ -28,6 +28,7 @@ pub struct LLVMCodegen<'ctx> {
     pub module: Module<'ctx>,
     pub builder: Builder<'ctx>,
     pub i64_type: IntType<'ctx>,
+    pub f64_type: inkwell::types::FloatType<'ctx>,
     pub vec4_i64_type: VectorType<'ctx>,
     pub ptr_type: PointerType<'ctx>,
     pub locals: HashMap<u32, PointerValue<'ctx>>,
@@ -40,6 +41,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let module = context.create_module(name);
         let builder = context.create_builder();
         let i64_type = context.i64_type();
+        let f64_type = context.f64_type();
         let vec4_i64_type = i64_type.vec_type(4);
         let ptr_type = context.ptr_type(AddressSpace::default());
         let void_type = context.void_type();
@@ -332,6 +334,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             module,
             builder,
             i64_type,
+            f64_type,
             vec4_i64_type,
             ptr_type,
             locals: HashMap::new(),

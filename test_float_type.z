@@ -1,0 +1,23 @@
+// Test float type inference
+fn test_float_literal() {
+    // Float literal should infer to f64
+    let x = 3.14;
+    // x should be f64
+}
+
+fn test_float_annotation() {
+    // Explicit float type annotation
+    let y: f64 = 2.71;
+    // y should be f64
+}
+
+fn test_float_operation() {
+    // Float addition
+    let a = 1.5 + 2.5;
+    // a should be f64
+}
+
+fn test_mixed_types() {
+    // This should fail type checking
+    // let b = 3 + 4.2; // int + float mismatch
+}

@@ -239,6 +239,8 @@ impl Substitution {
             (Type::I32, Type::I32) => Ok(()),
             (Type::Bool, Type::Bool) => Ok(()),
             (Type::Str, Type::Str) => Ok(()),
+            (Type::F32, Type::F32) => Ok(()),
+            (Type::F64, Type::F64) => Ok(()),
 
             // Type variable cases
             (Type::Variable(a), Type::Variable(b)) if a == b => Ok(()),

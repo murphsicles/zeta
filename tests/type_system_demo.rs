@@ -16,6 +16,8 @@ fn demonstrate_new_type_system() {
 
     println!("  i64: {}", i64_type.display_name());
     println!("  bool: {}", bool_type.display_name());
+    println!("  f32: {}", Type::F32.display_name());
+    println!("  f64: {}", Type::F64.display_name());
     println!("  [i32; 10]: {}", array_type.display_name());
     println!("  (i32, bool): {}", tuple_type.display_name());
     println!("  (i32, i32) -> i32: {}", func_type.display_name());
@@ -83,6 +85,28 @@ fn demonstrate_new_type_system() {
     assert_eq!(subst4.apply(&t2), Type::Bool);
     println!("  ✓ Inferred: t1 = i64, t2 = bool");
 
+    // Test 6: Float type unification
+    println!("\n6. Float Type Support:");
+    let mut subst5 = Substitution::new();
+
+    // Float literals unify with f64
+    assert!(subst5.unify(&Type::F64, &Type::F64).is_ok());
+    println!("  ✓ f64 = f64 unification works");
+
+    // f32 unifies with f32
+    assert!(subst5.unify(&Type::F32, &Type::F32).is_ok());
+    println!("  ✓ f32 = f32 unification works");
+
+    // f32 != f64 (different types)
+    assert!(subst5.unify(&Type::F32, &Type::F64).is_err());
+    println!("  ✓ f32 != f64 (distinct types)");
+
+    // Variable can unify with float type
+    let float_var = Type::Variable(TypeVar::fresh());
+    assert!(subst5.unify(&float_var, &Type::F64).is_ok());
+    assert_eq!(subst5.apply(&float_var), Type::F64);
+    println!("  ✓ Variable can unify with f64");
+
     println!("\n=== New Type System Features Verified ===");
     println!("All foundational components working correctly!");
 }
@@ -103,11 +127,15 @@ fn test_backward_compatibility_shim() {
     assert_eq!(resolver.string_to_type("i64"), Type::I64);
     assert_eq!(resolver.string_to_type("bool"), Type::Bool);
     assert_eq!(resolver.string_to_type("str"), Type::Str);
+    assert_eq!(resolver.string_to_type("f32"), Type::F32);
+    assert_eq!(resolver.string_to_type("f64"), Type::F64);
 
     // Convert new Type to old string representation
     assert_eq!(resolver.type_to_string(&Type::I64), "i64");
     assert_eq!(resolver.type_to_string(&Type::Bool), "bool");
     assert_eq!(resolver.type_to_string(&Type::Str), "str");
+    assert_eq!(resolver.type_to_string(&Type::F32), "f32");
+    assert_eq!(resolver.type_to_string(&Type::F64), "f64");
 
     println!("  ✓ String <-> Type conversions work");
     println!("  ✓ Migration path available");
