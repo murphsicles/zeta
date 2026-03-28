@@ -2,7 +2,7 @@
 # Runs .z file tests through the Zeta compiler
 
 param(
-    [string]$TestPattern = "tests/*.z",
+    [string]$TestPattern = "*.z",
     [string]$CompilerPath = "target/release/zetac",
     [switch]$Verbose
 )
@@ -34,7 +34,7 @@ if (-not (Test-Path $CompilerPath)) {
 Write-Host "✅ Compiler: $CompilerPath" -ForegroundColor Green
 Write-Host ""
 
-# Find test files
+# Find test files (recursive from current directory)
 $testFiles = Get-ChildItem -Path $TestPattern -Recurse
 if ($testFiles.Count -eq 0) {
     Write-Host "❌ No test files found matching: $TestPattern" -ForegroundColor Red
@@ -64,8 +64,9 @@ foreach ($testFile in $testFiles) {
     
     # Compile the test
     Write-Host "Compiling: $testName → $($outputExe)" -ForegroundColor Gray
-    & $CompilerPath $testFile.FullName -o $outputExe 2>&1 | Out-String
+    $compileOutput = & $CompilerPath $testFile.FullName -o $outputExe 2>&1
     
+    # Check for actual compilation failure (not just warnings)
     if ($LASTEXITCODE -ne 0) {
         Write-Host "❌ Compilation failed" -ForegroundColor Red
         $failed++
