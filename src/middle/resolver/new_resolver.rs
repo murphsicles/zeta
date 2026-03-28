@@ -10,6 +10,9 @@ pub struct InferContext {
     /// Variable to type mapping
     variables: HashMap<String, Type>,
 
+    /// Function signatures (name -> return type)
+    functions: HashMap<String, Type>,
+
     /// Current substitution
     substitution: Substitution,
 
@@ -30,6 +33,7 @@ impl InferContext {
     pub fn new() -> Self {
         InferContext {
             variables: HashMap::new(),
+            functions: HashMap::new(),
             substitution: Substitution::new(),
             constraints: Vec::new(),
             last_type: None,
@@ -52,6 +56,39 @@ impl InferContext {
     /// Add type constraint
     pub fn constrain(&mut self, t1: Type, t2: Type) {
         self.constraints.push((t1, t2));
+    }
+
+    /// Parse type string to Type
+    fn parse_type_string(&self, s: &str) -> Result<Type, String> {
+        // Simple type parsing - should match string_to_type in typecheck_new.rs
+        match s {
+            "i64" => Ok(Type::I64),
+            "i32" => Ok(Type::I32),
+            "bool" => Ok(Type::Bool),
+            "str" => Ok(Type::Str),
+            "f32" => Ok(Type::F32),
+            "f64" => Ok(Type::F64),
+            "char" => Ok(Type::Char),
+            "u8" => Ok(Type::U8),
+            "u16" => Ok(Type::U16),
+            "u32" => Ok(Type::U32),
+            "u64" => Ok(Type::U64),
+            _ => {
+                // Check for reference types
+                if s.starts_with("&mut ") {
+                    let inner = s.trim_start_matches("&mut ").trim();
+                    let inner_ty = self.parse_type_string(inner)?;
+                    Ok(Type::Ref(Box::new(inner_ty), crate::middle::types::Mutability::Mutable))
+                } else if s.starts_with("&") {
+                    let inner = s.trim_start_matches("&").trim();
+                    let inner_ty = self.parse_type_string(inner)?;
+                    Ok(Type::Ref(Box::new(inner_ty), crate::middle::types::Mutability::Immutable))
+                } else {
+                    // Named type
+                    Ok(Type::Named(s.to_string(), Vec::new()))
+                }
+            }
+        }
     }
 
     /// Infer type for AST node
@@ -158,16 +195,7 @@ impl InferContext {
 
                 // If type annotation provided, constrain to it
                 if let Some(type_str) = ty {
-                    // TODO: Parse type string to Type
-                    let annotated_ty = match type_str.as_str() {
-                        "i64" => Type::I64,
-                        "i32" => Type::I32,
-                        "bool" => Type::Bool,
-                        "str" => Type::Str,
-                        "f32" => Type::F32,
-                        "f64" => Type::F64,
-                        _ => return Err(format!("Unsupported type annotation: {}", type_str)),
-                    };
+                    let annotated_ty = self.parse_type_string(type_str)?;
                     self.constrain(expr_ty.clone(), annotated_ty);
                 }
 
@@ -182,15 +210,7 @@ impl InferContext {
 
             AstNode::ConstDef { name, ty, value } => {
                 // Parse the type string to Type
-                let const_ty = match ty.as_str() {
-                    "i64" => Type::I64,
-                    "i32" => Type::I32,
-                    "bool" => Type::Bool,
-                    "str" => Type::Str,
-                    "f32" => Type::F32,
-                    "f64" => Type::F64,
-                    _ => return Err(format!("Unsupported const type: {}", ty)),
-                };
+                let const_ty = self.parse_type_string(ty)?;
 
                 // Infer type of the value expression
                 let value_ty = self.infer(value)?;
@@ -205,7 +225,13 @@ impl InferContext {
                 Type::Tuple(vec![]) // Unit type
             }
 
-            AstNode::FuncDef { body, ret_expr, .. } => {
+            AstNode::FuncDef { name, ret, body, ret_expr, .. } => {
+                // Parse return type
+                let return_ty = self.parse_type_string(ret)?;
+                
+                // Register function signature
+                self.functions.insert(name.clone(), return_ty.clone());
+
                 // Type check function body
                 for stmt in body {
                     self.infer(stmt)?;
@@ -213,11 +239,22 @@ impl InferContext {
 
                 // Type check return expression if present
                 if let Some(expr) = ret_expr {
-                    self.infer(expr)?;
+                    let expr_ty = self.infer(expr)?;
+                    // Constrain return expression type to match function return type
+                    self.constrain(expr_ty, return_ty);
                 }
 
                 // Function definitions have unit type at top level
                 Type::Tuple(vec![]) // Unit type
+            }
+
+            AstNode::Call { method, .. } => {
+                // Look up function return type
+                if let Some(return_ty) = self.functions.get(method) {
+                    return_ty.clone()
+                } else {
+                    return Err(format!("Unknown function: {}", method));
+                }
             }
 
             _ => {
@@ -269,6 +306,7 @@ impl Clone for InferContext {
     fn clone(&self) -> Self {
         InferContext {
             variables: self.variables.clone(),
+            functions: self.functions.clone(),
             substitution: self.substitution.clone(),
             constraints: self.constraints.clone(),
             last_type: self.last_type.clone(),
