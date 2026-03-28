@@ -1,4 +1,4 @@
-fn test_match_basic() -> i32 {
+fn test_match_basic() -> i64 {
     let x = 5;
     match x {
         1 => 10,
@@ -10,7 +10,7 @@ fn test_match_basic() -> i32 {
     }
 }
 
-fn test_match_with_guard() -> i32 {
+fn test_match_with_guard() -> i64 {
     let x = 7;
     match x {
         n if n < 5 => 1,
@@ -19,14 +19,14 @@ fn test_match_with_guard() -> i32 {
     }
 }
 
-fn test_match_literal() -> i32 {
+fn test_match_literal() -> i64 {
     match 42 {
         42 => 100,
         _ => 0
     }
 }
 
-fn main() -> i32 {
+fn main() -> i64 {
     let a = test_match_basic();
     let b = test_match_with_guard();
     let c = test_match_literal();

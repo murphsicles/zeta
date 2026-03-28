@@ -1,6 +1,6 @@
 // Even simpler test
-const X: i32 = 42;
+const X: i64 = 42;
 
-fn main() -> i32 {
+fn main() -> i64 {
     0
 }

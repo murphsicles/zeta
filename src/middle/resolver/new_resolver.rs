@@ -180,6 +180,31 @@ impl InferContext {
                 Type::Tuple(vec![]) // Unit type
             }
 
+            AstNode::ConstDef { name, ty, value } => {
+                // Parse the type string to Type
+                let const_ty = match ty.as_str() {
+                    "i64" => Type::I64,
+                    "i32" => Type::I32,
+                    "bool" => Type::Bool,
+                    "str" => Type::Str,
+                    "f32" => Type::F32,
+                    "f64" => Type::F64,
+                    _ => return Err(format!("Unsupported const type: {}", ty)),
+                };
+
+                // Infer type of the value expression
+                let value_ty = self.infer(value)?;
+                
+                // Constrain value type to match const type
+                self.constrain(value_ty, const_ty.clone());
+
+                // Register constant in context
+                self.declare(name.clone(), const_ty.clone());
+
+                // Const definitions have unit type at top level
+                Type::Tuple(vec![]) // Unit type
+            }
+
             AstNode::FuncDef { body, ret_expr, .. } => {
                 // Type check function body
                 for stmt in body {
