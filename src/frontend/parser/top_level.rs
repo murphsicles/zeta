@@ -12,7 +12,7 @@ use nom::IResult;
 use nom::Parser;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
-use nom::combinator::{map, opt, value};
+use nom::combinator::{cut, map, opt, value};
 use nom::multi::{many0, separated_list0};
 use nom::sequence::{delimited, preceded, terminated};
 
@@ -293,11 +293,17 @@ fn parse_struct(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_const(input: &str) -> IResult<&str, AstNode> {
+    println!("[PARSER DEBUG] parse_const called, input first 50 chars: {:?}", &input[..input.len().min(50usize)]);
     let (input, _) = ws(tag("const")).parse(input)?;
+    println!("[PARSER DEBUG] parse_const: consumed 'const', remaining: {:?}", &input[..input.len().min(50usize)]);
     let (input, name) = ws(parse_ident).parse(input)?;
+    println!("[PARSER DEBUG] parse_const: consumed identifier '{}', remaining: {:?}", name, &input[..input.len().min(50usize)]);
     let (input, _) = ws(tag(":")).parse(input)?;
+    println!("[PARSER DEBUG] parse_const: consumed ':', remaining: {:?}", &input[..input.len().min(50usize)]);
     let (input, ty) = ws(parse_type).parse(input)?;
+    println!("[PARSER DEBUG] parse_const: consumed type '{}', remaining: {:?}", ty, &input[..input.len().min(50usize)]);
     let (input, _) = ws(tag("=")).parse(input)?;
+    println!("[PARSER DEBUG] parse_const: consumed '=', remaining: {:?}", &input[..input.len().min(50usize)]);
     let (input, value) = ws(parse_full_expr).parse(input)?;
     let (input, _) = ws(tag(";")).parse(input)?;
 

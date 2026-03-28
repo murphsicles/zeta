@@ -1,0 +1,13 @@
+// Test v0.3.9 compiler with const parsing
+// This should compile with our night sprint fixes
+
+const PI: f64 = 3.14159;
+const ANSWER: i64 = 42;
+
+fn main() -> i64 {
+    let radius: f64 = 5.0;
+    let area = PI * radius * radius;
+    
+    // Return success
+    0
+}

@@ -164,6 +164,11 @@ pub fn parse_type(input: &str) -> IResult<&str, String> {
         parse_tuple_type,
         parse_fn_type,
         preceded(ws(tag("dyn")), ws(parse_type_path)).map(|p| format!("dyn {}", p)),
+        // Built-in types
+        tag("i64").map(|_| "i64".to_string()),
+        tag("f64").map(|_| "f64".to_string()),
+        tag("bool").map(|_| "bool".to_string()),
+        tag("String").map(|_| "String".to_string()),
         parse_type_path,
     ))
     .parse(input)?;

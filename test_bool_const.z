@@ -1,0 +1,5 @@
+const FLAG: bool = true;
+
+fn main() -> i64 {
+    0
+}
