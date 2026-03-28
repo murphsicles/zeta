@@ -2,7 +2,7 @@
 # Runs .z file tests through the Zeta compiler
 
 param(
-    [string]$TestPattern = "*.z",
+    [string]$TestPattern = "tests/*.z",
     [string]$CompilerPath = "target/release/zetac",
     [switch]$Verbose
 )

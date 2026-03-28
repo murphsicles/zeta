@@ -27,6 +27,7 @@ cargo build                            # Exit code 0 REQUIRED
 - [ ] CI status verified (green or running)
 - [ ] Self-improving memory updated with lessons
 - [ ] No corrupted branches left behind
+- [ ] **Test files in correct location** (`tests/` directory, NOT root)
 
 ## **PROTOCOL VIOLATION CONSEQUENCES:**
 

@@ -13,6 +13,7 @@ cargo build                            # MUST PASS
 - **No local-only work** - Everything must go to GitHub
 - **Push frequently** - Small commits, frequent pushes
 - **Verify CI** - Check GitHub Actions status
+- **Correct file locations** - Test files in `tests/`, source in root
 
 ### **3. Termination Protocol:**
 **You CANNOT terminate until:**
