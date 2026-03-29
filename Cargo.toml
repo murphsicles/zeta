@@ -57,8 +57,8 @@ chalk-ir = "0.104.0"
 chalk-solve = "0.104.0"
 chalk-recursive = "0.104.0"
 
-# Benchmarking framework (temporarily disabled).
-# criterion = { version = "0.8.1", features = ["html_reports"] }
+# Benchmarking framework.
+criterion = { version = "0.8.1", features = ["html_reports"] }
 
 # Development dependencies for testing
 [dev-dependencies]
@@ -68,7 +68,8 @@ proptest = "1.5.0"
 libfuzzer-sys = "0.4.10"
 
 # Benchmark configurations.
-# Note: Benchmarks temporarily disabled due to CI issues
-# [[bench]]
-# name = "zeta_bench"
-# harness = false
+[[bench]]
+# Benchmark name.
+name = "zeta_bench"
+# Disable default harness.
+harness = false
