@@ -1,7 +1,6 @@
 //! Runtime support for Option type
 
 use std::alloc::{alloc, dealloc, Layout};
-use std::ptr;
 
 /// Option enum representation:
 /// - None: 0
