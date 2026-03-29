@@ -107,16 +107,30 @@ foreach ($testFile in $testFiles) {
 }
 
 Write-Host ""
-Write-Host "=== TEST SUMMARY ===" -ForegroundColor Red
-Write-Host "Total tests: $($testFiles.Count)" -ForegroundColor Cyan
-Write-Host "Passed: $passed" -ForegroundColor Green
-Write-Host "Failed: $failed" -ForegroundColor Red
-Write-Host "Skipped: $skipped" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "=== TEST SUMMARY ===" -ForegroundColor Cyan
+$total = $testFiles.Count
+Write-Host "Total tests: $total" -ForegroundColor White
+Write-Host "✅ Passed: $passed" -ForegroundColor Green
+Write-Host "❌ Failed: $failed" -ForegroundColor Red
+Write-Host "⏸️  Skipped: $skipped" -ForegroundColor Yellow
 
-if ($failed -gt 0) {
-    Write-Host "❌ TEST RUN FAILED" -ForegroundColor Red
-    exit 1
-} else {
-    Write-Host "✅ ALL TESTS PASSED" -ForegroundColor Green
+# Calculate percentages
+$passPercent = [math]::Round(($passed / $total) * 100, 1)
+$failPercent = [math]::Round(($failed / $total) * 100, 1)
+
+Write-Host ""
+Write-Host "=== TEST COVERAGE ===" -ForegroundColor Cyan
+Write-Host "Pass rate: $passPercent%" -ForegroundColor $(if ($passPercent -ge 80) { "Green" } elseif ($passPercent -ge 50) { "Yellow" } else { "Red" })
+Write-Host "Fail rate: $failPercent%" -ForegroundColor $(if ($failPercent -le 20) { "Green" } elseif ($failPercent -le 50) { "Yellow" } else { "Red" })
+
+if ($failed -eq 0) {
+    Write-Host ""
+    Write-Host "🎉 ✅ ALL TESTS PASSED" -ForegroundColor Green
     exit 0
+} else {
+    Write-Host ""
+    Write-Host "TEST RUN FAILED ($failed tests need attention)" -ForegroundColor Red
+    Write-Host "Note: Tests return values via exit codes (0 is success, other values are valid returns)" -ForegroundColor Gray
+    exit 1
 }

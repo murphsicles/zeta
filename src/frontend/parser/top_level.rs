@@ -195,14 +195,53 @@ fn parse_method_sig(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_impl(input: &str) -> IResult<&str, AstNode> {
+    println!(
+        "[PARSER DEBUG] parse_impl called, input: {:?}",
+        &input[..input.len().min(50)]
+    );
     let (input, _) = ws(tag("impl")).parse(input)?;
     let (input, generics_opt) = opt(ws(parse_generic_params)).parse(input)?;
-    let (input, concept) = ws(parse_ident).parse(input)?;
-    let (input, _) = ws(tag("for")).parse(input)?;
-    let (input, ty) = ws(parse_type).parse(input)?;
+    println!(
+        "[PARSER DEBUG] parse_impl: parsed generics: {:?}",
+        generics_opt
+    );
+
+    // Try to parse as inherent impl: impl<Generics> Type { ... }
+    let parse_result = alt((
+        // Trait impl: impl<Generics> Concept for Type
+        map(
+            (ws(parse_ident), ws(tag("for")), ws(parse_type)),
+            |(concept, _, ty)| (concept, ty),
+        ),
+        // Inherent impl: impl<Generics> Type
+        map(ws(parse_type), |ty| ("".to_string(), ty)),
+    ))
+    .parse(input);
+
+    let (input, (concept, ty)) = match parse_result {
+        Ok(result) => {
+            println!(
+                "[PARSER DEBUG] parse_impl: successfully parsed concept: {:?}, ty: {:?}",
+                result.0, result.1
+            );
+            result
+        }
+        Err(e) => {
+            println!(
+                "[PARSER DEBUG] parse_impl: failed to parse concept/type: {:?}",
+                e
+            );
+            return Err(e);
+        }
+    };
+
     let (input, body) =
         delimited(ws(tag("{")), many0(ws(parse_func)), ws(tag("}"))).parse(input)?;
     let generics: Vec<String> = generics_opt.unwrap_or_default();
+    println!(
+        "[PARSER DEBUG] parse_impl: parsed {} functions in body",
+        body.len()
+    );
     Ok((
         input,
         AstNode::ImplBlock {
