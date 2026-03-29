@@ -1,0 +1,41 @@
+// Zorb Standard Library - Option<T> type
+// v0.3.11 Zorb module system
+
+/// The Option type represents an optional value
+enum Option<T> {
+    /// No value
+    None,
+    /// Some value of type T
+    Some(T),
+}
+
+impl<T> Option<T> {
+    /// Returns true if the option is a Some value
+    fn is_some(&self) -> bool {
+        match self {
+            Option::Some(_) => true,
+            Option::None => false,
+        }
+    }
+
+    /// Returns true if the option is a None value
+    fn is_none(&self) -> bool {
+        !self.is_some()
+    }
+
+    /// Unwraps an option, yielding the content of a Some
+    fn unwrap(self) -> T {
+        match self {
+            Option::Some(value) => value,
+            Option::None => panic!("called `Option::unwrap()` on a `None` value"),
+        }
+    }
+
+    /// Returns the contained value or a default
+    fn unwrap_or(self, default: T) -> T {
+        match self {
+            Option::Some(value) => value,
+            Option::None => default,
+        }
+    }
+}

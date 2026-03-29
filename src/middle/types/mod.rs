@@ -284,6 +284,16 @@ impl Substitution {
                 self.unify(ret1, ret2)
             }
 
+            // Reference types
+            (Type::Ref(inner1, mutability1), Type::Ref(inner2, mutability2)) => {
+                // Mutability must match
+                if mutability1 != mutability2 {
+                    return Err(UnifyError::Mismatch(t1, t2));
+                }
+                // Inner types must unify
+                self.unify(inner1, inner2)
+            }
+
             // Mismatch
             _ => Err(UnifyError::Mismatch(t1, t2)),
         }

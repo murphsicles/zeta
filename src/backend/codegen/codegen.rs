@@ -107,6 +107,32 @@ impl<'ctx> LLVMCodegen<'ctx> {
             void_type.fn_type(&[ptr_type.into()], false),
             Some(Linkage::External),
         );
+        // Option runtime functions
+        module.add_function(
+            "option_make_some",
+            ptr_type.fn_type(&[i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "option_make_none",
+            ptr_type.fn_type(&[], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "option_is_some",
+            i64_type.fn_type(&[ptr_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "option_get_data",
+            i64_type.fn_type(&[ptr_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "option_free",
+            void_type.fn_type(&[ptr_type.into()], false),
+            Some(Linkage::External),
+        );
         module.add_function(
             "map_new",
             ptr_type.fn_type(&[], false),
@@ -649,203 +675,244 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
 
                 // Handle operator functions inline
-                if args.len() == 2 && self.is_operator(func) {
-                    let left = self.gen_expr_safe(&args[0], exprs);
-                    let right = self.gen_expr_safe(&args[1], exprs);
-
-                    let result = match func.as_str() {
-                        // Arithmetic operators
-                        "+" | "add" | "add_i64" => self
+                if self.is_operator(func) {
+                    // Handle unary operators
+                    if args.len() == 1 && func == "!" {
+                        let operand = self.gen_expr_safe(&args[0], exprs);
+                        // Logical NOT: convert to boolean (0 or 1) then invert
+                        let is_true = self
                             .builder
-                            .build_int_add(left.into_int_value(), right.into_int_value(), "add")
-                            .unwrap(),
-                        "-" | "sub" | "sub_i64" => self
-                            .builder
-                            .build_int_sub(left.into_int_value(), right.into_int_value(), "sub")
-                            .unwrap(),
-                        "*" | "mul" | "mul_i64" => self
-                            .builder
-                            .build_int_mul(left.into_int_value(), right.into_int_value(), "mul")
-                            .unwrap(),
-                        "/" | "div" | "div_i64" => self
-                            .builder
-                            .build_int_signed_div(
-                                left.into_int_value(),
-                                right.into_int_value(),
-                                "div",
+                            .build_int_compare(
+                                inkwell::IntPredicate::NE,
+                                operand.into_int_value(),
+                                self.i64_type.const_zero(),
+                                "is_true",
                             )
-                            .unwrap(),
-                        "%" | "mod" | "mod_i64" => self
+                            .unwrap();
+                        let is_false = self.builder.build_not(is_true, "not").unwrap();
+                        let result = self.builder
+                            .build_int_z_extend(is_false, self.i64_type, "not_ext")
+                            .unwrap();
+                        
+                        let alloca = *self.locals.get(dest).unwrap();
+                        self.builder.build_store(alloca, result).unwrap();
+                        return;
+                    }
+                    
+                    // Handle binary operators
+                    if args.len() == 2 {
+                        let left = self.gen_expr_safe(&args[0], exprs);
+                        let right = self.gen_expr_safe(&args[1], exprs);
+
+                        let result = match func.as_str() {
+                            // Arithmetic operators
+                            "+" | "add" | "add_i64" => self
+                                .builder
+                                .build_int_add(left.into_int_value(), right.into_int_value(), "add")
+                                .unwrap(),
+                            "-" | "sub" | "sub_i64" => self
+                                .builder
+                                .build_int_sub(left.into_int_value(), right.into_int_value(), "sub")
+                                .unwrap(),
+                            "*" | "mul" | "mul_i64" => self
+                                .builder
+                                .build_int_mul(left.into_int_value(), right.into_int_value(), "mul")
+                                .unwrap(),
+                            "/" | "div" | "div_i64" => self
+                                .builder
+                                .build_int_signed_div(
+                                    left.into_int_value(),
+                                    right.into_int_value(),
+                                    "div",
+                                )
+                                .unwrap(),
+                            "%" | "mod" | "mod_i64" => self
+                                .builder
+                                .build_int_signed_rem(
+                                    left.into_int_value(),
+                                    right.into_int_value(),
+                                    "mod",
+                                )
+                                .unwrap(),
+
+                            // Comparison operators (return i64: 1 for true, 0 for false)
+                            "==" | "eq" | "eq_i64" => {
+                                let cmp = self
+                                    .builder
+                                    .build_int_compare(
+                                        inkwell::IntPredicate::EQ,
+                                        left.into_int_value(),
+                                        right.into_int_value(),
+                                        "eq",
+                                    )
+                                    .unwrap();
+                                self.builder
+                                    .build_int_z_extend(cmp, self.i64_type, "eq_ext")
+                                    .unwrap()
+                            }
+                            "!=" | "ne" | "ne_i64" => {
+                                let cmp = self
+                                    .builder
+                                    .build_int_compare(
+                                        inkwell::IntPredicate::NE,
+                                        left.into_int_value(),
+                                        right.into_int_value(),
+                                        "ne",
+                                    )
+                                    .unwrap();
+                                self.builder
+                                    .build_int_z_extend(cmp, self.i64_type, "ne_ext")
+                                    .unwrap()
+                            }
+                            "<" | "lt" | "lt_i64" => {
+                                let cmp = self
+                                    .builder
+                                    .build_int_compare(
+                                        inkwell::IntPredicate::SLT,
+                                        left.into_int_value(),
+                                        right.into_int_value(),
+                                        "lt",
+                                    )
+                                    .unwrap();
+                                self.builder
+                                    .build_int_z_extend(cmp, self.i64_type, "lt_ext")
+                                    .unwrap()
+                            }
+                            ">" | "gt" | "gt_i64" => {
+                                let cmp = self
+                                    .builder
+                                    .build_int_compare(
+                                        inkwell::IntPredicate::SGT,
+                                        left.into_int_value(),
+                                        right.into_int_value(),
+                                        "gt",
+                                    )
+                                    .unwrap();
+                                self.builder
+                                    .build_int_z_extend(cmp, self.i64_type, "gt_ext")
+                                    .unwrap()
+                            }
+                            "<=" | "le" | "le_i64" => {
+                                let cmp = self
+                                    .builder
+                                    .build_int_compare(
+                                        inkwell::IntPredicate::SLE,
+                                        left.into_int_value(),
+                                        right.into_int_value(),
+                                        "le",
+                                    )
+                                    .unwrap();
+                                self.builder
+                                    .build_int_z_extend(cmp, self.i64_type, "le_ext")
+                                    .unwrap()
+                            }
+                            ">=" | "ge" | "ge_i64" => {
+                                let cmp = self
+                                    .builder
+                                    .build_int_compare(
+                                        inkwell::IntPredicate::SGE,
+                                        left.into_int_value(),
+                                        right.into_int_value(),
+                                        "ge",
+                                    )
+                                    .unwrap();
+                                self.builder
+                                    .build_int_z_extend(cmp, self.i64_type, "ge_ext")
+                                    .unwrap()
+                            }
+
+                            // Logical operators (treat i64 as boolean: 0=false, non-zero=true)
+                            "&&" | "and" | "and_i64" => {
+                                // Convert to boolean (0 or 1) then logical AND
+                                let left_bool = self
+                                    .builder
+                                    .build_int_compare(
+                                        inkwell::IntPredicate::NE,
+                                        left.into_int_value(),
+                                        self.i64_type.const_int(0, false),
+                                        "left_bool",
+                                    )
+                                    .unwrap();
+                                let right_bool = self
+                                    .builder
+                                    .build_int_compare(
+                                        inkwell::IntPredicate::NE,
+                                        right.into_int_value(),
+                                        self.i64_type.const_int(0, false),
+                                        "right_bool",
+                                    )
+                                    .unwrap();
+                                let bool_and = self
+                                    .builder
+                                    .build_and(left_bool, right_bool, "and")
+                                    .unwrap();
+                                self.builder
+                                    .build_int_z_extend(bool_and, self.i64_type, "and_ext")
+                                    .unwrap()
+                            }
+                            "||" | "or" | "or_i64" => {
+                                // Convert to boolean (0 or 1) then logical OR
+                                let left_bool = self
+                                    .builder
+                                    .build_int_compare(
+                                        inkwell::IntPredicate::NE,
+                                        left.into_int_value(),
+                                        self.i64_type.const_int(0, false),
+                                        "left_bool",
+                                    )
+                                    .unwrap();
+                                let right_bool = self
+                                    .builder
+                                    .build_int_compare(
+                                        inkwell::IntPredicate::NE,
+                                        right.into_int_value(),
+                                        self.i64_type.const_int(0, false),
+                                        "right_bool",
+                                    )
+                                    .unwrap();
+                                let bool_or =
+                                    self.builder.build_or(left_bool, right_bool, "or").unwrap();
+                                self.builder
+                                    .build_int_z_extend(bool_or, self.i64_type, "or_ext")
+                                    .unwrap()
+                            }
+                            // Note: "!" (not) is unary, handled separately above
+
+                            // Not an operator we handle inline
+                            _ => {
+                                let callee = self.get_function(func);
+                                let arg_vals: Vec<BasicMetadataValueEnum> = args
+                                    .iter()
+                                    .map(|&id| self.gen_expr_safe(&id, exprs).into())
+                                    .collect();
+                                let call = self
+                                    .builder
+                                    .build_call(callee, &arg_vals, &format!("call_{dest}"))
+                                    .unwrap();
+                                // Convert BasicValueEnum to IntValue
+                                let basic_val = Self::call_site_to_basic_value(call).unwrap();
+                                basic_val.into_int_value()
+                            }
+                        };
+
+                        let alloca = *self.locals.get(dest).unwrap();
+                        self.builder.build_store(alloca, result).unwrap();
+                    } else {
+                        // Operator with wrong number of arguments, fall through to regular function call
+                        let callee = self.get_function(func);
+                        let arg_vals: Vec<BasicMetadataValueEnum> = args
+                            .iter()
+                            .map(|&id| self.gen_expr_safe(&id, exprs).into())
+                            .collect();
+                        let call = self
                             .builder
-                            .build_int_signed_rem(
-                                left.into_int_value(),
-                                right.into_int_value(),
-                                "mod",
-                            )
-                            .unwrap(),
-
-                        // Comparison operators (return i64: 1 for true, 0 for false)
-                        "==" | "eq" | "eq_i64" => {
-                            let cmp = self
-                                .builder
-                                .build_int_compare(
-                                    inkwell::IntPredicate::EQ,
-                                    left.into_int_value(),
-                                    right.into_int_value(),
-                                    "eq",
-                                )
-                                .unwrap();
-                            self.builder
-                                .build_int_z_extend(cmp, self.i64_type, "eq_ext")
-                                .unwrap()
+                            .build_call(callee, &arg_vals, &format!("call_{dest}"))
+                            .unwrap();
+                        if let Some(val) = Self::call_site_to_basic_value(call) {
+                            let alloca = *self.locals.get(dest).unwrap();
+                            self.builder.build_store(alloca, val).unwrap();
                         }
-                        "!=" | "ne" | "ne_i64" => {
-                            let cmp = self
-                                .builder
-                                .build_int_compare(
-                                    inkwell::IntPredicate::NE,
-                                    left.into_int_value(),
-                                    right.into_int_value(),
-                                    "ne",
-                                )
-                                .unwrap();
-                            self.builder
-                                .build_int_z_extend(cmp, self.i64_type, "ne_ext")
-                                .unwrap()
-                        }
-                        "<" | "lt" | "lt_i64" => {
-                            let cmp = self
-                                .builder
-                                .build_int_compare(
-                                    inkwell::IntPredicate::SLT,
-                                    left.into_int_value(),
-                                    right.into_int_value(),
-                                    "lt",
-                                )
-                                .unwrap();
-                            self.builder
-                                .build_int_z_extend(cmp, self.i64_type, "lt_ext")
-                                .unwrap()
-                        }
-                        ">" | "gt" | "gt_i64" => {
-                            let cmp = self
-                                .builder
-                                .build_int_compare(
-                                    inkwell::IntPredicate::SGT,
-                                    left.into_int_value(),
-                                    right.into_int_value(),
-                                    "gt",
-                                )
-                                .unwrap();
-                            self.builder
-                                .build_int_z_extend(cmp, self.i64_type, "gt_ext")
-                                .unwrap()
-                        }
-                        "<=" | "le" | "le_i64" => {
-                            let cmp = self
-                                .builder
-                                .build_int_compare(
-                                    inkwell::IntPredicate::SLE,
-                                    left.into_int_value(),
-                                    right.into_int_value(),
-                                    "le",
-                                )
-                                .unwrap();
-                            self.builder
-                                .build_int_z_extend(cmp, self.i64_type, "le_ext")
-                                .unwrap()
-                        }
-                        ">=" | "ge" | "ge_i64" => {
-                            let cmp = self
-                                .builder
-                                .build_int_compare(
-                                    inkwell::IntPredicate::SGE,
-                                    left.into_int_value(),
-                                    right.into_int_value(),
-                                    "ge",
-                                )
-                                .unwrap();
-                            self.builder
-                                .build_int_z_extend(cmp, self.i64_type, "ge_ext")
-                                .unwrap()
-                        }
-
-                        // Logical operators (treat i64 as boolean: 0=false, non-zero=true)
-                        "&&" | "and" | "and_i64" => {
-                            // Convert to boolean (0 or 1) then logical AND
-                            let left_bool = self
-                                .builder
-                                .build_int_compare(
-                                    inkwell::IntPredicate::NE,
-                                    left.into_int_value(),
-                                    self.i64_type.const_int(0, false),
-                                    "left_bool",
-                                )
-                                .unwrap();
-                            let right_bool = self
-                                .builder
-                                .build_int_compare(
-                                    inkwell::IntPredicate::NE,
-                                    right.into_int_value(),
-                                    self.i64_type.const_int(0, false),
-                                    "right_bool",
-                                )
-                                .unwrap();
-                            let bool_and = self
-                                .builder
-                                .build_and(left_bool, right_bool, "and")
-                                .unwrap();
-                            self.builder
-                                .build_int_z_extend(bool_and, self.i64_type, "and_ext")
-                                .unwrap()
-                        }
-                        "||" | "or" | "or_i64" => {
-                            // Convert to boolean (0 or 1) then logical OR
-                            let left_bool = self
-                                .builder
-                                .build_int_compare(
-                                    inkwell::IntPredicate::NE,
-                                    left.into_int_value(),
-                                    self.i64_type.const_int(0, false),
-                                    "left_bool",
-                                )
-                                .unwrap();
-                            let right_bool = self
-                                .builder
-                                .build_int_compare(
-                                    inkwell::IntPredicate::NE,
-                                    right.into_int_value(),
-                                    self.i64_type.const_int(0, false),
-                                    "right_bool",
-                                )
-                                .unwrap();
-                            let bool_or =
-                                self.builder.build_or(left_bool, right_bool, "or").unwrap();
-                            self.builder
-                                .build_int_z_extend(bool_or, self.i64_type, "or_ext")
-                                .unwrap()
-                        }
-                        // Note: "!" (not) is unary, handled separately if needed
-
-                        // Not an operator we handle inline
-                        _ => {
-                            let callee = self.get_function(func);
-                            let arg_vals: Vec<BasicMetadataValueEnum> = args
-                                .iter()
-                                .map(|&id| self.gen_expr_safe(&id, exprs).into())
-                                .collect();
-                            let call = self
-                                .builder
-                                .build_call(callee, &arg_vals, &format!("call_{dest}"))
-                                .unwrap();
-                            // Convert BasicValueEnum to IntValue
-                            let basic_val = Self::call_site_to_basic_value(call).unwrap();
-                            basic_val.into_int_value()
-                        }
-                    };
-
-                    let alloca = *self.locals.get(dest).unwrap();
-                    self.builder.build_store(alloca, result).unwrap();
+                    }
                 } else {
                     // Regular function call
                     let callee = self.get_function(func);

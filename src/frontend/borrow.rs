@@ -58,7 +58,7 @@ impl BorrowChecker {
             AstNode::Var(v) => self
                 .borrows
                 .get(v)
-                .is_some_and(|s| matches!(s, BorrowState::Owned | BorrowState::Borrowed)),
+                .is_some_and(|s| matches!(s, BorrowState::Owned | BorrowState::Borrowed | BorrowState::MutBorrowed)),
             AstNode::Assign(lhs, rhs) => {
                 if !self.check(rhs, resolver) {
                     return false;
@@ -91,6 +91,20 @@ impl BorrowChecker {
             }
             AstNode::BinaryOp { left, right, .. } => {
                 self.check(left, resolver) && self.check(right, resolver)
+            }
+            AstNode::UnaryOp { op, expr } => {
+                // Handle dereferencing (*expr) and referencing (&expr, &mut expr)
+                match op.as_str() {
+                    "*" => {
+                        // Dereferencing: check that the expression is a valid reference
+                        self.check(expr, resolver)
+                    }
+                    "&" | "&mut" => {
+                        // Referencing: check that we can take a reference to the expression
+                        self.check(expr, resolver)
+                    }
+                    _ => self.check(expr, resolver), // Other unary ops like "-"
+                }
             }
             AstNode::FString(parts) => parts.iter().all(|p| self.check(p, resolver)),
             AstNode::TimingOwned { inner, .. } => self.check(inner, resolver),

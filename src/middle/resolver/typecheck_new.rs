@@ -151,6 +151,24 @@ impl NewTypeCheck for Resolver {
             return Type::Tuple(types);
         }
         
+        // Check for Zeta's lt() syntax: lt(Result, i64)
+        if s.starts_with("lt(") && s.ends_with(')') {
+            let inner = &s[3..s.len()-1]; // Remove "lt(" and ")"
+            // Parse type name and arguments
+            let parts: Vec<&str> = inner.split(',').map(|s| s.trim()).collect();
+            if parts.is_empty() {
+                return Type::Named(s.to_string(), Vec::new());
+            }
+            
+            let type_name = parts[0];
+            let mut args = Vec::new();
+            for arg in parts.iter().skip(1) {
+                args.push(self.string_to_type(arg));
+            }
+            
+            return Type::Named(type_name.to_string(), args);
+        }
+        
         // Check for generic type: Vec<i32>, Option<T>, Result<T, E>
         // Look for < followed by > with content in between
         if let Some(open_angle) = s.find('<') {

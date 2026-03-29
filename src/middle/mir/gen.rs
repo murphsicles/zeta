@@ -542,33 +542,153 @@ impl MirGen {
                             self.type_map.insert(cond_id, "bool".to_string());
                         }
                         AstNode::Var(var_name) => {
-                            // Variable binding pattern - always matches
-                            // Add binding to name_to_id so the arm body can reference it
-                            self.name_to_id.insert(var_name.clone(), scrutinee_id);
-                            self.exprs.insert(cond_id, MirExpr::Lit(1));
-                            self.type_map.insert(cond_id, "bool".to_string());
+                            // Check if this is an enum variant name like Option::None
+                            if var_name == "Option::None" || var_name == "Result::Err" {
+                                // For enum variant without data, check if it matches
+                                let check_func = if var_name == "Option::None" {
+                                    "option_is_some" // We'll invert this
+                                } else if var_name == "Result::Err" {
+                                    "result_is_ok" // We'll invert this
+                                } else {
+                                    // Should not happen
+                                    self.exprs.insert(cond_id, MirExpr::Lit(0));
+                                    self.type_map.insert(cond_id, "bool".to_string());
+                                    continue;
+                                };
+                                
+                                // Call the runtime function to check the variant
+                                let check_result_id = self.next_id();
+                                self.stmts.push(MirStmt::Call {
+                                    func: check_func.to_string(),
+                                    args: vec![scrutinee_id],
+                                    dest: check_result_id,
+                                    type_args: vec![],
+                                });
+                                self.exprs.insert(check_result_id, MirExpr::Var(check_result_id));
+                                self.type_map.insert(check_result_id, "bool".to_string());
+                                
+                                // Invert the check (None is not Some, Err is not Ok)
+                                let inverted_id = self.next_id();
+                                self.stmts.push(MirStmt::Call {
+                                    func: "!".to_string(),
+                                    args: vec![check_result_id],
+                                    dest: inverted_id,
+                                    type_args: vec![],
+                                });
+                                self.exprs.insert(inverted_id, MirExpr::Var(inverted_id));
+                                self.type_map.insert(inverted_id, "bool".to_string());
+                                
+                                self.exprs.insert(cond_id, MirExpr::Var(inverted_id));
+                                self.type_map.insert(cond_id, "bool".to_string());
+                            } else if var_name == "_" {
+                                // Wildcard pattern - always true
+                                self.exprs.insert(cond_id, MirExpr::Lit(1));
+                                self.type_map.insert(cond_id, "bool".to_string());
+                            } else {
+                                // Regular variable binding pattern - always matches
+                                // Add binding to name_to_id so the arm body can reference it
+                                self.name_to_id.insert(var_name.clone(), scrutinee_id);
+                                self.exprs.insert(cond_id, MirExpr::Lit(1));
+                                self.type_map.insert(cond_id, "bool".to_string());
+                            }
                         }
                         AstNode::StructPattern {
-                            variant: _,
+                            variant,
                             fields,
                             rest: _,
                         } => {
-                            // For now, treat struct patterns as always matching
-                            // Set up bindings for the field patterns
-                            for (_field_name, field_pattern) in fields {
-                                // For tuple struct patterns, field_name is "0", "1", etc.
-                                // We need to extract the field from the struct
-                                // For now, just bind the pattern variable to a placeholder
-                                if let AstNode::Var(var_name) = field_pattern {
-                                    // Create a placeholder ID for the field value
-                                    let field_id = self.next_id();
-                                    self.name_to_id.insert(var_name.clone(), field_id);
-                                    self.exprs.insert(field_id, MirExpr::Lit(0)); // Placeholder
-                                    self.type_map.insert(field_id, "i64".to_string());
+                            // Handle enum variant patterns like Option::Some(x) or Result::Ok(val)
+                            // Check if this is an enum variant pattern
+                            if variant.starts_with("Option::") || variant.starts_with("Result::") {
+                                // Generate condition to check the variant
+                                let check_func = if variant == "Option::Some" {
+                                    "option_is_some"
+                                } else if variant == "Option::None" {
+                                    // For None, we check if it's not Some
+                                    "option_is_some" // We'll invert this below
+                                } else if variant == "Result::Ok" {
+                                    "result_is_ok"
+                                } else if variant == "Result::Err" {
+                                    // For Err, we check if it's not Ok
+                                    "result_is_ok" // We'll invert this below
+                                } else {
+                                    // Unknown variant, treat as false
+                                    self.exprs.insert(cond_id, MirExpr::Lit(0));
+                                    self.type_map.insert(cond_id, "bool".to_string());
+                                    continue;
+                                };
+                                
+                                // Call the runtime function to check the variant
+                                let check_result_id = self.next_id();
+                                self.stmts.push(MirStmt::Call {
+                                    func: check_func.to_string(),
+                                    args: vec![scrutinee_id],
+                                    dest: check_result_id,
+                                    type_args: vec![],
+                                });
+                                self.exprs.insert(check_result_id, MirExpr::Var(check_result_id));
+                                self.type_map.insert(check_result_id, "bool".to_string());
+                                
+                                // For None and Err, we need to invert the check
+                                let final_check_id = if variant == "Option::None" || variant == "Result::Err" {
+                                    let inverted_id = self.next_id();
+                                    self.stmts.push(MirStmt::Call {
+                                        func: "!".to_string(),
+                                        args: vec![check_result_id],
+                                        dest: inverted_id,
+                                        type_args: vec![],
+                                    });
+                                    self.exprs.insert(inverted_id, MirExpr::Var(inverted_id));
+                                    self.type_map.insert(inverted_id, "bool".to_string());
+                                    inverted_id
+                                } else {
+                                    check_result_id
+                                };
+                                
+                                // Set up bindings for field patterns
+                                for (_field_name, field_pattern) in fields {
+                                    if let AstNode::Var(var_name) = field_pattern {
+                                        // Extract the field value from the enum
+                                        let field_id = self.next_id();
+                                        let extract_func = if variant == "Option::Some" {
+                                            "option_get_data"
+                                        } else if variant == "Result::Ok" || variant == "Result::Err" {
+                                            "result_get_data"
+                                        } else {
+                                            // No data to extract
+                                            continue;
+                                        };
+                                        
+                                        // Call runtime function to extract the data
+                                        self.stmts.push(MirStmt::Call {
+                                            func: extract_func.to_string(),
+                                            args: vec![scrutinee_id],
+                                            dest: field_id,
+                                            type_args: vec![],
+                                        });
+                                        self.exprs.insert(field_id, MirExpr::Var(field_id));
+                                        self.type_map.insert(field_id, "i64".to_string());
+                                        self.name_to_id.insert(var_name.clone(), field_id);
+                                    }
                                 }
+                                
+                                self.exprs.insert(cond_id, MirExpr::Var(final_check_id));
+                                self.type_map.insert(cond_id, "bool".to_string());
+                            } else {
+                                // For regular struct patterns, treat as always matching for now
+                                // Set up bindings for the field patterns
+                                for (_field_name, field_pattern) in fields {
+                                    if let AstNode::Var(var_name) = field_pattern {
+                                        // Create a placeholder ID for the field value
+                                        let field_id = self.next_id();
+                                        self.name_to_id.insert(var_name.clone(), field_id);
+                                        self.exprs.insert(field_id, MirExpr::Lit(0)); // Placeholder
+                                        self.type_map.insert(field_id, "i64".to_string());
+                                    }
+                                }
+                                self.exprs.insert(cond_id, MirExpr::Lit(1));
+                                self.type_map.insert(cond_id, "bool".to_string());
                             }
-                            self.exprs.insert(cond_id, MirExpr::Lit(1));
-                            self.type_map.insert(cond_id, "bool".to_string());
                         }
                         _ => {
                             // For now, treat other patterns as always false

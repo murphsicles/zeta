@@ -7,6 +7,7 @@
 use crate::frontend::ast::AstNode;
 use crate::frontend::borrow::BorrowChecker;
 use crate::middle::mir::mir::Mir;
+use crate::middle::resolver::module_resolver::ModuleResolver;
 use crate::middle::specialization::{
     CACHE, MonoKey, MonoValue, is_cache_safe, record_specialization,
 };
@@ -33,6 +34,8 @@ pub struct Resolver {
     pub associated_types: HashMap<(String, String), String>,
     pub ctfe_consts: HashMap<AstNode, i64>,
     funcs: HashMap<String, FuncSignature>,
+    /// Module resolver for Zorb imports
+    module_resolver: ModuleResolver,
 }
 
 // Learning: Complex type factored into type definition per clippy suggestion
@@ -48,6 +51,7 @@ impl Resolver {
             associated_types: HashMap::new(),
             ctfe_consts: HashMap::new(),
             funcs: HashMap::new(),
+            module_resolver: ModuleResolver::new("."),
         };
         r.load_specialization_cache();
         r
@@ -76,6 +80,35 @@ impl Resolver {
 
     pub fn register(&mut self, ast: AstNode) {
         match ast {
+            AstNode::Use { path } => {
+                // Process use statement to load module
+                match self.module_resolver.process_use_statement(&path) {
+                    Ok(module_asts) => {
+                        // Register only enum/struct definitions, not impl blocks
+                        for module_ast in module_asts {
+                            match &module_ast {
+                                AstNode::EnumDef { .. } => {
+                                    self.register(module_ast);
+                                }
+                                AstNode::StructDef { .. } => {
+                                    self.register(module_ast);
+                                }
+                                AstNode::TypeAlias { .. } => {
+                                    self.register(module_ast);
+                                }
+                                AstNode::ConstDef { .. } => {
+                                    self.register(module_ast);
+                                }
+                                // Skip impl blocks for now - they cause issues
+                                _ => {}
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Warning: Failed to process use statement {}: {}", path.join("::"), e);
+                    }
+                }
+            }
             AstNode::FuncDef {
                 name, params, ret, ..
             } => {
@@ -114,6 +147,14 @@ impl Resolver {
                 }
                 // Also register as a function-like entity for name resolution
                 self.funcs.insert(name.clone(), (vec![], ty.clone(), false));
+            }
+            AstNode::EnumDef { name, variants, .. } => {
+                // Register enum and its variants
+                // For now, we'll register each variant as a function-like entity
+                for (variant_name, _) in variants {
+                    let full_name = name.clone() + "::" + &variant_name;
+                    self.funcs.insert(full_name, (vec![], name.clone(), false));
+                }
             }
             _ => {}
         }

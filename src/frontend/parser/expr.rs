@@ -84,7 +84,7 @@ fn parse_float_lit(input: &str) -> IResult<&str, AstNode> {
 }
 
 pub fn parse_lit(input: &str) -> IResult<&str, AstNode> {
-    println!("[PARSER DEBUG] parse_lit called, input: {:?}", input);
+    println!("[PARSER DEBUG] parse_lit called, input: {:?}", &input[..20.min(input.len())]);
     // Try float first, then integer
     match parse_float_lit(input) {
         Ok(result) => {
@@ -98,6 +98,7 @@ pub fn parse_lit(input: &str) -> IResult<&str, AstNode> {
 
     let (input, num) = take_while(|c: char| c.is_ascii_digit()).parse(input)?;
     if num.is_empty() {
+        println!("[PARSER DEBUG] parse_lit: not a digit, returning error");
         return Err(nom::Err::Error(NomError::new(
             input,
             nom::error::ErrorKind::Digit,
@@ -379,7 +380,7 @@ fn parse_unary(input: &str) -> IResult<&str, AstNode> {
         (input, Some("!"))
     } else {
         // Try other unary operators
-        opt(alt((tag("&mut"), tag("&"), tag("-")))).parse(input)?
+        opt(alt((tag("&mut"), tag("&"), tag("-"), tag("*")))).parse(input)?
     };
 
     println!(
@@ -389,7 +390,7 @@ fn parse_unary(input: &str) -> IResult<&str, AstNode> {
     );
 
     let (input, expr) = if op_opt.is_some() {
-        ws(parse_primary).parse(input)?
+        ws(parse_unary).parse(input)?
     } else {
         parse_primary(input)?
     };
@@ -417,7 +418,7 @@ fn parse_primary(input: &str) -> IResult<&str, AstNode> {
         "[PARSER DEBUG] parse_primary called, input: {:?}",
         &input[..20.min(input.len())]
     );
-    alt((
+    let result = alt((
         parse_tuple_or_paren,
         parse_lit,
         parse_string_lit,
@@ -432,7 +433,19 @@ fn parse_primary(input: &str) -> IResult<&str, AstNode> {
         // parse_if_let and parse_if removed - they're not primary expressions
         // They should be parsed at a higher level
     ))
-    .parse(input)
+    .parse(input);
+    
+    match &result {
+        Ok((remaining, ast)) => {
+            println!("[PARSER DEBUG] parse_primary succeeded, remaining: {:?}, ast: {:?}", 
+                     &remaining[..20.min(remaining.len())], ast);
+        }
+        Err(e) => {
+            println!("[PARSER DEBUG] parse_primary failed: {:?}", e);
+        }
+    }
+    
+    result
 }
 
 fn parse_postfix(input: &str) -> IResult<&str, AstNode> {

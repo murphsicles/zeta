@@ -169,6 +169,7 @@ pub fn parse_type(input: &str) -> IResult<&str, String> {
         tag("f64").map(|_| "f64".to_string()),
         tag("bool").map(|_| "bool".to_string()),
         tag("String").map(|_| "String".to_string()),
+        parse_lt_type,
         parse_type_path,
     ))
     .parse(input)?;
@@ -186,6 +187,28 @@ pub fn parse_type_args(input: &str) -> IResult<&str, Vec<String>> {
         ws(tag(">")),
     )
     .parse(input)
+}
+
+/// Parse Zeta's lt() syntax for generic types: lt(Result, i64)
+pub fn parse_lt_type(input: &str) -> IResult<&str, String> {
+    let (input, _) = ws(tag("lt")).parse(input)?;
+    let (input, _) = ws(tag("(")).parse(input)?;
+    let (input, type_name) = ws(parse_ident).parse(input)?;
+    let (input, type_args) = delimited(
+        ws(tag(",")),
+        terminated(
+            separated_list0(ws(tag(",")), ws(parse_type)),
+            opt(ws(tag(","))),
+        ),
+        ws(tag(")")),
+    ).parse(input)?;
+    
+    if type_args.is_empty() {
+        Ok((input, type_name))
+    } else {
+        let args_str = type_args.join(", ");
+        Ok((input, format!("{}<{}>", type_name, args_str)))
+    }
 }
 
 /// Parse a single generic parameter with optional trait bounds

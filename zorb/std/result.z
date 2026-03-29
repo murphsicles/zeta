@@ -1,0 +1,41 @@
+// Zorb Standard Library - Result<T, E> type
+// v0.3.11 Zorb module system
+
+/// The Result type represents either success (Ok) or failure (Err)
+enum Result<T, E> {
+    /// Contains the success value
+    Ok(T),
+    /// Contains the error value
+    Err(E),
+}
+
+impl<T, E> Result<T, E> {
+    /// Returns true if the result is Ok
+    fn is_ok(&self) -> bool {
+        match self {
+            Result::Ok(_) => true,
+            Result::Err(_) => false,
+        }
+    }
+
+    /// Returns true if the result is Err
+    fn is_err(&self) -> bool {
+        !self.is_ok()
+    }
+
+    /// Unwraps a result, yielding the content of an Ok
+    fn unwrap(self) -> T {
+        match self {
+            Result::Ok(value) => value,
+            Result::Err(_) => panic!("called `Result::unwrap()` on an `Err` value"),
+        }
+    }
+
+    /// Unwraps a result, yielding the content of an Err
+    fn unwrap_err(self) -> E {
+        match self {
+            Result::Ok(_) => panic!("called `Result::unwrap_err()` on an `Ok` value"),
+            Result::Err(err) => err,
+        }
+    }
+}
