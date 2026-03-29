@@ -8,6 +8,8 @@
 //!   3. LLVM code generation + JIT/AOT
 //!
 //! This is the **foundational bedrock** for all future Zeta self-hosting.
+
+#![allow(clippy::missing_safety_doc)]
 //! Every line is optimized for speed, simplicity, and clarity.
 
 pub mod backend;

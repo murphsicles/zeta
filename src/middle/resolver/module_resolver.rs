@@ -171,7 +171,7 @@ impl ModuleResolver {
         let module = self.load_module(&module_path)?.clone();
 
         // Add all exports to import scope
-        for (name, _ast) in &module.exports {
+        for name in module.exports.keys() {
             let full_path = path.join("::") + "::" + name;
             self.imports.insert(name.clone(), full_path);
         }

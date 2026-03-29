@@ -9,11 +9,14 @@ use std::alloc::{Layout, alloc, dealloc};
 pub struct OptionPtr(*mut u8);
 
 /// Create a Some value
+///
+/// # Safety
+/// The returned pointer must be freed with `option_free` to avoid memory leaks.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn option_make_some(data: i64) -> *mut u8 {
     // Allocate space for tag (1 byte) + data (8 bytes)
     let layout = Layout::from_size_align(9, 8).unwrap();
-    let ptr = unsafe { alloc(layout) as *mut u8 };
+    let ptr = unsafe { alloc(layout) };
 
     // Set tag to 1 (Some)
     unsafe {
@@ -30,11 +33,14 @@ pub unsafe extern "C" fn option_make_some(data: i64) -> *mut u8 {
 }
 
 /// Create a None value
+///
+/// # Safety
+/// The returned pointer must be freed with `option_free` to avoid memory leaks.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn option_make_none() -> *mut u8 {
     // Allocate space for tag only (1 byte)
     let layout = Layout::from_size_align(1, 1).unwrap();
-    let ptr = unsafe { alloc(layout) as *mut u8 };
+    let ptr = unsafe { alloc(layout) };
 
     // Set tag to 0 (None)
     unsafe {

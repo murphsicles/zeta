@@ -652,25 +652,25 @@ impl<'ctx> LLVMCodegen<'ctx> {
             return f;
         }
         // Handle enum constructors
-        if name == "Option::Some" {
-            if let Some(f) = self.module.get_function("option_make_some") {
-                return f;
-            }
+        if name == "Option::Some"
+            && let Some(f) = self.module.get_function("option_make_some")
+        {
+            return f;
         }
-        if name == "Option::None" {
-            if let Some(f) = self.module.get_function("option_make_none") {
-                return f;
-            }
+        if name == "Option::None"
+            && let Some(f) = self.module.get_function("option_make_none")
+        {
+            return f;
         }
-        if name == "Result::Ok" {
-            if let Some(f) = self.module.get_function("host_result_make_ok") {
-                return f;
-            }
+        if name == "Result::Ok"
+            && let Some(f) = self.module.get_function("host_result_make_ok")
+        {
+            return f;
         }
-        if name == "Result::Err" {
-            if let Some(f) = self.module.get_function("host_result_make_err") {
-                return f;
-            }
+        if name == "Result::Err"
+            && let Some(f) = self.module.get_function("host_result_make_err")
+        {
+            return f;
         }
         // Check if it's an external function declared in the module
         if let Some(f) = self.module.get_function(name) {

@@ -174,44 +174,43 @@ impl NewTypeCheck for Resolver {
 
         // Check for generic type: Vec<i32>, Option<T>, Result<T, E>
         // Look for < followed by > with content in between
-        if let Some(open_angle) = s.find('<') {
-            if let Some(close_angle) = s.rfind('>') {
-                if open_angle < close_angle {
-                    let type_name = &s[..open_angle];
-                    let inner = &s[open_angle + 1..close_angle];
+        if let Some(open_angle) = s.find('<')
+            && let Some(close_angle) = s.rfind('>')
+            && open_angle < close_angle
+        {
+            let type_name = &s[..open_angle];
+            let inner = &s[open_angle + 1..close_angle];
 
-                    // Parse type arguments, handling nested generics
-                    let mut args = Vec::new();
-                    let mut current = String::new();
-                    let mut depth = 0;
+            // Parse type arguments, handling nested generics
+            let mut args = Vec::new();
+            let mut current = String::new();
+            let mut depth = 0;
 
-                    for ch in inner.chars() {
-                        match ch {
-                            '<' => {
-                                depth += 1;
-                                current.push(ch);
-                            }
-                            '>' => {
-                                depth -= 1;
-                                current.push(ch);
-                            }
-                            ',' if depth == 0 => {
-                                if !current.is_empty() {
-                                    args.push(self.string_to_type(current.trim()));
-                                    current.clear();
-                                }
-                            }
-                            _ => current.push(ch),
+            for ch in inner.chars() {
+                match ch {
+                    '<' => {
+                        depth += 1;
+                        current.push(ch);
+                    }
+                    '>' => {
+                        depth -= 1;
+                        current.push(ch);
+                    }
+                    ',' if depth == 0 => {
+                        if !current.is_empty() {
+                            args.push(self.string_to_type(current.trim()));
+                            current.clear();
                         }
                     }
-
-                    if !current.is_empty() {
-                        args.push(self.string_to_type(current.trim()));
-                    }
-
-                    return Type::Named(type_name.to_string(), args);
+                    _ => current.push(ch),
                 }
             }
+
+            if !current.is_empty() {
+                args.push(self.string_to_type(current.trim()));
+            }
+
+            return Type::Named(type_name.to_string(), args);
         }
 
         // Handle base types
