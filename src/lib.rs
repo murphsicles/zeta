@@ -24,6 +24,8 @@ pub use frontend::parser::top_level::parse_zeta;
 pub use middle::mir::mir::Mir;
 pub use middle::resolver::resolver::Resolver;
 pub use runtime::actor::scheduler::{init_runtime, spawn};
+pub use runtime::option;
+pub use runtime::actor::result;
 
 use inkwell::context::Context;
 
@@ -79,6 +81,48 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
     if let Some(f) = codegen.module.get_function("free") {
         let free_fn = crate::runtime::std::std_free as *const () as usize;
         ee.add_global_mapping(&f, free_fn);
+    }
+    // Map Option runtime functions
+    if let Some(f) = codegen.module.get_function("option_make_some") {
+        let fn_ptr = crate::runtime::option::option_make_some as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("option_make_none") {
+        let fn_ptr = crate::runtime::option::option_make_none as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("option_is_some") {
+        let fn_ptr = crate::runtime::option::option_is_some as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("option_get_data") {
+        let fn_ptr = crate::runtime::option::option_get_data as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("option_free") {
+        let fn_ptr = crate::runtime::option::option_free as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    // Map Result runtime functions
+    if let Some(f) = codegen.module.get_function("host_result_make_ok") {
+        let fn_ptr = crate::runtime::actor::result::host_result_make_ok as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("host_result_make_err") {
+        let fn_ptr = crate::runtime::actor::result::host_result_make_err as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("host_result_is_ok") {
+        let fn_ptr = crate::runtime::actor::result::host_result_is_ok as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("host_result_get_data") {
+        let fn_ptr = crate::runtime::actor::result::host_result_get_data as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("host_result_free") {
+        let fn_ptr = crate::runtime::actor::result::host_result_free as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
     }
 
     type MainFn = unsafe extern "C" fn() -> i64;

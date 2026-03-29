@@ -1,6 +1,7 @@
 // src/runtime/actor/result.rs
 use std::ffi::c_void;
 #[derive(Debug)]
+#[repr(C)]
 struct ResultInner {
     tag: bool, // true for Ok, false for Err
     data: i64,

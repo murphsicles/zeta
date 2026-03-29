@@ -548,7 +548,7 @@ impl MirGen {
                                 let check_func = if var_name == "Option::None" {
                                     "option_is_some" // We'll invert this
                                 } else if var_name == "Result::Err" {
-                                    "result_is_ok" // We'll invert this
+                                    "host_result_is_ok" // We'll invert this
                                 } else {
                                     // Should not happen
                                     self.exprs.insert(cond_id, MirExpr::Lit(0));
@@ -607,10 +607,10 @@ impl MirGen {
                                     // For None, we check if it's not Some
                                     "option_is_some" // We'll invert this below
                                 } else if variant == "Result::Ok" {
-                                    "result_is_ok"
+                                    "host_result_is_ok"
                                 } else if variant == "Result::Err" {
                                     // For Err, we check if it's not Ok
-                                    "result_is_ok" // We'll invert this below
+                                    "host_result_is_ok" // We'll invert this below
                                 } else {
                                     // Unknown variant, treat as false
                                     self.exprs.insert(cond_id, MirExpr::Lit(0));
@@ -653,7 +653,7 @@ impl MirGen {
                                         let extract_func = if variant == "Option::Some" {
                                             "option_get_data"
                                         } else if variant == "Result::Ok" || variant == "Result::Err" {
-                                            "result_get_data"
+                                            "host_result_get_data"
                                         } else {
                                             // No data to extract
                                             continue;

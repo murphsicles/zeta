@@ -83,27 +83,27 @@ impl<'ctx> LLVMCodegen<'ctx> {
             Some(Linkage::External),
         );
         module.add_function(
-            "result_make_ok",
+            "host_result_make_ok",
             ptr_type.fn_type(&[i64_type.into()], false),
             Some(Linkage::External),
         );
         module.add_function(
-            "result_make_err",
+            "host_result_make_err",
             ptr_type.fn_type(&[i64_type.into()], false),
             Some(Linkage::External),
         );
         module.add_function(
-            "result_is_ok",
+            "host_result_is_ok",
             i64_type.fn_type(&[ptr_type.into()], false),
             Some(Linkage::External),
         );
         module.add_function(
-            "result_get_data",
+            "host_result_get_data",
             i64_type.fn_type(&[ptr_type.into()], false),
             Some(Linkage::External),
         );
         module.add_function(
-            "result_free",
+            "host_result_free",
             void_type.fn_type(&[ptr_type.into()], false),
             Some(Linkage::External),
         );
@@ -651,6 +651,31 @@ impl<'ctx> LLVMCodegen<'ctx> {
         {
             return f;
         }
+        // Handle enum constructors
+        if name == "Option::Some" {
+            if let Some(f) = self.module.get_function("option_make_some") {
+                return f;
+            }
+        }
+        if name == "Option::None" {
+            if let Some(f) = self.module.get_function("option_make_none") {
+                return f;
+            }
+        }
+        if name == "Result::Ok" {
+            if let Some(f) = self.module.get_function("host_result_make_ok") {
+                return f;
+            }
+        }
+        if name == "Result::Err" {
+            if let Some(f) = self.module.get_function("host_result_make_err") {
+                return f;
+            }
+        }
+        // Check if it's an external function declared in the module
+        if let Some(f) = self.module.get_function(name) {
+            return f;
+        }
         panic!("CRITICAL: Missing function '{}'", name);
     }
 
@@ -916,17 +941,46 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 } else {
                     // Regular function call
                     let callee = self.get_function(func);
+                    
+                    // Check if this is a runtime function that takes pointer arguments
+                    let needs_ptr_arg = func == "option_is_some" || func == "option_get_data" || func == "option_free" ||
+                                       func == "host_result_is_ok" || func == "host_result_get_data" || func == "host_result_free";
+                    
+                    // Check if this is a runtime function that returns a pointer
+                    let returns_ptr = func == "option_make_some" || func == "option_make_none" ||
+                                     func == "host_result_make_ok" || func == "host_result_make_err";
+                    
                     let arg_vals: Vec<BasicMetadataValueEnum> = args
                         .iter()
-                        .map(|&id| self.gen_expr_safe(&id, exprs).into())
+                        .enumerate()
+                        .map(|(i, &id)| {
+                            let val = self.gen_expr_safe(&id, exprs);
+                            // If this function needs pointer arguments, convert i64 to ptr
+                            if needs_ptr_arg && i == 0 { // First argument is the pointer
+                                // Convert i64 to ptr
+                                let int_val = val.into_int_value();
+                                let ptr_val = self.builder.build_int_to_ptr(int_val, self.ptr_type, "inttoptr").unwrap();
+                                ptr_val.into()
+                            } else {
+                                val.into()
+                            }
+                        })
                         .collect();
                     let call = self
                         .builder
                         .build_call(callee, &arg_vals, &format!("call_{dest}"))
                         .unwrap();
                     if let Some(val) = Self::call_site_to_basic_value(call) {
+                        // If function returns a pointer, convert it to i64
+                        let final_val = if returns_ptr {
+                            let ptr_val = val.into_pointer_value();
+                            self.builder.build_ptr_to_int(ptr_val, self.i64_type, "ptrtoint").unwrap().into()
+                        } else {
+                            val
+                        };
+                        
                         let alloca = *self.locals.get(dest).unwrap();
-                        self.builder.build_store(alloca, val).unwrap();
+                        self.builder.build_store(alloca, final_val).unwrap();
                     }
                 }
             }

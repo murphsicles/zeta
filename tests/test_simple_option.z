@@ -1,0 +1,10 @@
+// Simple test for Option enum
+
+use zorb::std::option::Option;
+
+fn main() -> i64 {
+    let some_value: Option<i64> = Option::Some(42);
+    
+    // Simple test: just create and return
+    42
+}
