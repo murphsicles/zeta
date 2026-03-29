@@ -745,18 +745,21 @@ impl MirGen {
                 self.type_map.insert(id, "i64".to_string());
             }
             AstNode::PathCall {
-                path: _,
+                path,
                 method,
                 args,
             } => {
                 println!(
-                    "[MIR GEN DEBUG] Processing path call: method={:?}, args={:?}",
-                    method, args
+                    "[MIR GEN DEBUG] Processing path call: path={:?}, method={:?}, args={:?}",
+                    path, method, args
                 );
 
-                // For now, use simple method name
-                // TODO: Handle qualified names properly
-                let func_name = method.clone();
+                // Construct qualified name: path::method
+                let func_name = if path.is_empty() {
+                    method.clone()
+                } else {
+                    format!("{}::{}", path.join("::"), method)
+                };
 
                 println!(
                     "[MIR GEN DEBUG] Path call resolved to function: {}",
