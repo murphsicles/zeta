@@ -71,6 +71,14 @@ foreach ($testFile in $testFiles) {
     # Check for actual compilation failure (not just warnings)
     if ($LASTEXITCODE -ne 0) {
         Write-Host "❌ Compilation failed" -ForegroundColor Red
+        if ($compileOutput) {
+            Write-Host "Compilation output:" -ForegroundColor Gray
+            # Show last few lines of compilation output
+            $errorLines = $compileOutput -split "`n" | Select-Object -Last 10
+            foreach ($line in $errorLines) {
+                Write-Host "  $line" -ForegroundColor Gray
+            }
+        }
         $failed++
         continue
     }

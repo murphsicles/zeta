@@ -81,26 +81,43 @@ impl Resolver {
     pub fn register(&mut self, ast: AstNode) {
         match ast {
             AstNode::Use { path } => {
+                println!("[RESOLVER] Processing use statement: {}", path.join("::"));
                 // Process use statement to load module
                 match self.module_resolver.process_use_statement(&path) {
                     Ok(module_asts) => {
+                        println!(
+                            "[RESOLVER] Successfully loaded module, got {} ASTs",
+                            module_asts.len()
+                        );
                         // Register only enum/struct definitions, not impl blocks
                         for module_ast in module_asts {
                             match &module_ast {
-                                AstNode::EnumDef { .. } => {
+                                AstNode::EnumDef { name, .. } => {
+                                    println!("[RESOLVER] Registering enum from module: {}", name);
                                     self.register(module_ast);
                                 }
-                                AstNode::StructDef { .. } => {
+                                AstNode::StructDef { name, .. } => {
+                                    println!("[RESOLVER] Registering struct from module: {}", name);
                                     self.register(module_ast);
                                 }
-                                AstNode::TypeAlias { .. } => {
+                                AstNode::TypeAlias { name, .. } => {
+                                    println!(
+                                        "[RESOLVER] Registering type alias from module: {}",
+                                        name
+                                    );
                                     self.register(module_ast);
                                 }
-                                AstNode::ConstDef { .. } => {
+                                AstNode::ConstDef { name, .. } => {
+                                    println!("[RESOLVER] Registering const from module: {}", name);
                                     self.register(module_ast);
                                 }
                                 // Skip impl blocks for now - they cause issues
-                                _ => {}
+                                _ => {
+                                    println!(
+                                        "[RESOLVER] Skipping non-export AST from module: {:?}",
+                                        module_ast
+                                    );
+                                }
                             }
                         }
                     }

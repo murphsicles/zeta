@@ -99,9 +99,11 @@ impl ModuleResolver {
     /// Load a module from file
     pub fn load_module(&mut self, path: &Path) -> Result<&Module, String> {
         let path_str = path.to_string_lossy().to_string();
+        println!("[MODULE RESOLVER] Loading module from: {}", path.display());
 
         // Check cache first
         if self.modules.contains_key(&path_str) {
+            println!("[MODULE RESOLVER] Module already cached");
             return Ok(self.modules.get(&path_str).unwrap());
         }
 
@@ -109,8 +111,20 @@ impl ModuleResolver {
         let content = fs::read_to_string(path)
             .map_err(|e| format!("Failed to read module file {}: {}", path.display(), e))?;
 
+        println!(
+            "[MODULE RESOLVER] Read {} bytes from {}",
+            content.len(),
+            path.display()
+        );
+
         let (remaining, asts) = parse_zeta(&content)
             .map_err(|e| format!("Failed to parse module {}: {:?}", path.display(), e))?;
+
+        println!(
+            "[MODULE RESOLVER] Parsed {} ASTs from {}",
+            asts.len(),
+            path.display()
+        );
 
         if !remaining.is_empty() {
             return Err(format!(
@@ -125,18 +139,23 @@ impl ModuleResolver {
         for ast in &asts {
             match ast {
                 AstNode::EnumDef { name, .. } => {
+                    println!("[MODULE RESOLVER] Found enum export: {}", name);
                     exports.insert(name.clone(), ast.clone());
                 }
                 AstNode::StructDef { name, .. } => {
+                    println!("[MODULE RESOLVER] Found struct export: {}", name);
                     exports.insert(name.clone(), ast.clone());
                 }
                 AstNode::FuncDef { name, .. } => {
+                    println!("[MODULE RESOLVER] Found func export: {}", name);
                     exports.insert(name.clone(), ast.clone());
                 }
                 AstNode::TypeAlias { name, .. } => {
+                    println!("[MODULE RESOLVER] Found type alias export: {}", name);
                     exports.insert(name.clone(), ast.clone());
                 }
                 AstNode::ConstDef { name, .. } => {
+                    println!("[MODULE RESOLVER] Found const export: {}", name);
                     exports.insert(name.clone(), ast.clone());
                 }
                 _ => {}
@@ -151,13 +170,14 @@ impl ModuleResolver {
             .to_string();
 
         let module = Module {
-            name,
+            name: name.clone(),
             path: path.to_path_buf(),
             asts,
             exports,
         };
 
         self.modules.insert(path_str.clone(), module);
+        println!("[MODULE RESOLVER] Module loaded successfully: {}", name);
         Ok(self.modules.get(&path_str).unwrap())
     }
 
