@@ -216,7 +216,7 @@ impl MirGen {
                 } else {
                     // Expression if: create destination
                     let id = self.next_id();
-                    println!("[MIR DEBUG]   Expression if -> dest: {}", id);
+
                     self.exprs.insert(id, MirExpr::Var(id));
                     self.type_map.insert(id, "i64".to_string());
                     Some(id)

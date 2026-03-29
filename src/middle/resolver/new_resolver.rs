@@ -609,6 +609,51 @@ impl InferContext {
                 Type::Tuple(vec![]) // Unit type
             }
 
+            AstNode::EnumDef { name, variants, .. } => {
+                // Register enum type in context
+                // For now, we'll just create a named type with no type parameters
+                let _enum_ty = Type::Named(name.clone(), Vec::new());
+
+                // Store variant information for later use
+                // We could register variant constructors as functions here
+                for (variant_name, variant_params) in variants {
+                    // Create a function name like "EnumName::VariantName"
+                    let func_name = format!("{}::{}", name, variant_name);
+                    
+                    // Create return type for the variant constructor
+                    // For variants with parameters, create a function type
+                    if variant_params.is_empty() {
+                        // Nullary variant: () -> Enum
+                        let ret_type = Type::Named(name.clone(), Vec::new());
+                        self.functions.insert(func_name, ret_type);
+                    } else {
+                        // Variant with parameters: (T1, T2, ...) -> Enum
+                        // Parse the parameter types
+                        let mut param_types = Vec::new();
+                        for param_str in variant_params {
+                            // Try to parse the type string
+                            match self.parse_type_string(param_str) {
+                                Ok(ty) => param_types.push(ty),
+                                Err(_) => {
+                                    // If parsing fails, use a fresh type variable
+                                    param_types.push(Type::Variable(TypeVar::fresh()));
+                                }
+                            }
+                        }
+                        
+                        // The return type is just the enum (non-generic)
+                        let ret_type = Type::Named(name.clone(), Vec::new());
+                        
+                        // The variant constructor is a function from param_types to ret_type
+                        let func_type = Type::Function(param_types, Box::new(ret_type));
+                        self.functions.insert(func_name, func_type);
+                    }
+                }
+
+                // Enum definitions have unit type at top level
+                Type::Tuple(vec![]) // Unit type
+            }
+
             AstNode::StructLit { variant, fields } => {
                 // Look up struct type
                 let struct_ty = Type::Named(variant.clone(), Vec::new());
