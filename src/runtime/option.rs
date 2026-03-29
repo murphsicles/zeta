@@ -70,7 +70,7 @@ pub unsafe extern "C" fn option_get_data(opt: *mut u8) -> i64 {
         return 0;
     }
 
-    let data_ptr = unsafe { opt.add(1) as *mut i64 };
+    let data_ptr = unsafe { opt.add(8) as *mut i64 };
     unsafe { *data_ptr }
 }
 
@@ -82,7 +82,7 @@ pub unsafe extern "C" fn option_free(opt: *mut u8) {
     }
 
     let tag = unsafe { *opt };
-    let size = if tag == 1 { 9 } else { 1 };
+    let size = if tag == 1 { 16 } else { 1 };
     let align = if tag == 1 { 8 } else { 1 };
     let layout = Layout::from_size_align(size, align).unwrap();
     unsafe {
