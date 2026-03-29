@@ -22,3 +22,10 @@ target
 
 # Zeta specialization cache
 .zeta_specialization_cache.json
+
+# Workspace-specific directories (not part of the Zeta project)
+.openclaw/
+agent-spawn-templates/
+benches/
+memory/
+verification/
