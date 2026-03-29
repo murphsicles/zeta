@@ -777,6 +777,42 @@ impl MirGen {
                 self.exprs.insert(id, MirExpr::Lit(sum));
                 self.type_map.insert(id, "i64".to_string());
             }
+            AstNode::PathCall {
+                path: _,
+                method,
+                args,
+            } => {
+                println!(
+                    "[MIR GEN DEBUG] Processing path call: method={:?}, args={:?}",
+                    method, args
+                );
+
+                // For now, use simple method name
+                // TODO: Handle qualified names properly
+                let func_name = method.clone();
+
+                println!(
+                    "[MIR GEN DEBUG] Path call resolved to function: {}",
+                    func_name
+                );
+
+                // Generate argument IDs
+                let mut arg_ids = vec![];
+                for a in args {
+                    arg_ids.push(self.lower_expr(a));
+                }
+
+                // Generate call statement
+                self.stmts.push(MirStmt::Call {
+                    func: func_name,
+                    args: arg_ids,
+                    dest: id,
+                    type_args: vec![], // No type args for now
+                });
+
+                self.exprs.insert(id, MirExpr::Var(id));
+                self.type_map.insert(id, "i64".to_string());
+            }
             _ => {
                 self.exprs.insert(id, MirExpr::Lit(0));
                 self.type_map.insert(id, "i64".to_string());

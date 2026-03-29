@@ -141,8 +141,19 @@ impl Resolver {
             AstNode::ImplBlock {
                 concept, ty, body, ..
             } => {
-                self.impls.insert((concept, ty), body.clone());
-                for b in body {
+                self.impls.insert((concept, ty.clone()), body.clone());
+                // Register functions with qualified names
+                for b in body.clone() {
+                    if let AstNode::FuncDef {
+                        name, params, ret, ..
+                    } = &b
+                    {
+                        // Create qualified name: Type::method
+                        let qualified_name = format!("{}::{}", ty, name);
+                        self.funcs
+                            .insert(qualified_name, (params.clone(), ret.clone(), false));
+                    }
+                    // Register normally (which will register with simple name)
                     self.register(b);
                 }
             }

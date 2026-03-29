@@ -271,20 +271,26 @@ With v0.3.14 complete, the focus shifts to v0.3.15 which will target:
 - ✅ WORK_QUEUE.md updated with current status
 - 🔄 Next: Begin investigation of impl block method implementation
 
-#### 2026-03-29 15:06 UTC (Cron Execution)
+#### 2026-03-29 16:13 UTC (Cron Execution) - PROGRESS UPDATE
 - ✅ Cron job executed
-- ✅ Deep analysis of impl block method issue completed
-- ✅ Root causes identified:
-  1. **Parser issue**: `Point::new(10, 20)` is parsed as `Call { receiver: None, method: "Point::new", ... }` instead of `PathCall { path: ["Point"], method: "new", ... }`
-  2. **Resolver issue**: Methods in impl blocks are registered with simple names (e.g., `"new"`) not fully qualified names (e.g., `"Point::new"`)
-  3. **Type checker issue**: `ImplBlock` nodes are skipped with "Type inference not implemented for node type"
-  4. **Type checker issue**: Method calls with receivers return fresh type variables instead of looking up methods from receiver type
-- ✅ Test case created and verified: `test_impl.zeta` shows the exact failure
-- ✅ Parser successfully parses impl blocks and their methods
-- ✅ MIR generation works for the methods
-- ❌ Type checking fails for impl blocks
-- ❌ Code generation fails due to missing function `Point::new`
-- 🔄 Next: Implement fixes for impl block method resolution
+- ✅ Current state verified: v0.3.14 stable with 135/136 tests passing
+- ✅ Only 1 ignored test remains: `test_rust_like_code` (impl block methods)
+- ✅ Test case created: `test_impl_methods.zeta` shows exact failure
+- ✅ Issues confirmed and partially fixed:
+  1. **✅ Parser issue fixed**: `Point::new(10, 20)` is now parsed as `PathCall { path: ["Point"], method: "new", ... }` instead of `Call { receiver: None, method: "Point::new", ... }`
+  2. **✅ Resolver issue partially fixed**: Methods in impl blocks are now registered with qualified names (e.g., `"Point::new"`) in addition to simple names
+  3. **✅ Type checker issue fixed**: `ImplBlock` nodes now return unit type instead of falling through to default case
+  4. **✅ Type checker issue fixed**: `PathCall` nodes are now handled in type checker (falls back to simple names)
+  5. **✅ MIR generation fixed**: `PathCall` nodes are now handled in MIR generator (uses simple names for now)
+- ✅ Test program `test_impl_methods.zeta` now compiles and runs (returns 0 due to field access returning 0)
+- ❌ `test_rust_like_code` test still fails with "CRITICAL: Missing function 'new'" when run with `--include-ignored`
+- ❌ Field access still returns 0 (separate issue)
+- ✅ All other tests pass (135/136)
+- 🔄 Next steps for v0.3.15:
+  1. Fix the remaining issue with `test_rust_like_code` test
+  2. Investigate why `compile_and_run_zeta` can't find function `new` but direct compilation works
+  3. Consider implementing proper qualified name resolution
+  4. Fix field access to return actual field values
 
 #### Analysis:
 - **Excellent progress:** 135/136 tests passing (99.3% success rate)

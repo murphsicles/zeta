@@ -461,6 +461,29 @@ impl InferContext {
                 Type::Variable(TypeVar::fresh())
             }
 
+            AstNode::PathCall {
+                path: _,
+                method,
+                args: _,
+            } => {
+                // Path call like Point::new(10, 20)
+                // For now, use simple method name
+                // TODO: Handle qualified names properly
+
+                // Look up function by simple name
+                if let Some(return_ty) = self.functions.get(method.as_str()) {
+                    return_ty.clone()
+                } else {
+                    return Err(format!("Unknown function: {}", method));
+                }
+            }
+
+            AstNode::ImplBlock { .. } => {
+                // Impl blocks don't have a type, they're declarations
+                // Return unit type
+                Type::Tuple(vec![])
+            }
+
             _ => {
                 // Default to error for unimplemented nodes
                 return Err(format!("Type inference not implemented for: {:?}", node));

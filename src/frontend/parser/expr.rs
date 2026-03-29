@@ -216,16 +216,32 @@ fn parse_path_expr(input: &str) -> IResult<&str, AstNode> {
         .parse(input)?;
 
         if let Some(args) = args_opt {
-            Ok((
-                input,
-                AstNode::Call {
-                    receiver: None,
-                    method,
-                    args,
-                    type_args,
-                    structural: false,
-                },
-            ))
+            // Check if this is a path call (e.g., Point::new(10, 20))
+            // Path should have at least 2 segments for a path call
+            if path.len() >= 2 {
+                // Split into path and method
+                let (method_path, method_name) = path.split_at(path.len() - 1);
+                Ok((
+                    input,
+                    AstNode::PathCall {
+                        path: method_path.to_vec(),
+                        method: method_name[0].clone(),
+                        args,
+                    },
+                ))
+            } else {
+                // Single segment path, create regular Call
+                Ok((
+                    input,
+                    AstNode::Call {
+                        receiver: None,
+                        method,
+                        args,
+                        type_args,
+                        structural: false,
+                    },
+                ))
+            }
         } else {
             let (input, fields_opt) = opt(delimited(
                 ws(tag("{")),
