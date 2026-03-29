@@ -1,0 +1,128 @@
+// Zorb Standard Library - String type
+// v0.5.0 Standard Library
+
+/// A UTF-8 encoded, growable string
+pub struct String {
+    // Internal implementation - similar to Vec<u8>
+    _data: *mut u8,
+    _len: usize,
+    _capacity: usize,
+}
+
+impl String {
+    /// Creates a new empty `String`.
+    pub fn new() -> String {
+        // Stub implementation
+        String {
+            _data: 0 as *mut u8,
+            _len: 0,
+            _capacity: 0,
+        }
+    }
+
+    /// Creates a new `String` from a string slice.
+    pub fn from(s: &str) -> String {
+        // Stub implementation
+        let mut string = String::new();
+        // Would need to copy bytes from s
+        string
+    }
+
+    /// Returns the length of the string in bytes.
+    pub fn len(&self) -> usize {
+        self._len
+    }
+
+    /// Returns `true` if the string has a length of zero.
+    pub fn is_empty(&self) -> bool {
+        self._len == 0
+    }
+
+    /// Returns the capacity of the string in bytes.
+    pub fn capacity(&self) -> usize {
+        self._capacity
+    }
+
+    /// Appends a string slice to the end of this string.
+    pub fn push_str(&mut self, s: &str) {
+        // Stub implementation - would need to grow capacity if needed
+        // Would need to copy bytes from s
+        self._len += s.len(); // This doesn't actually work without &str having a len() method
+    }
+
+    /// Appends a character to the end of this string.
+    pub fn push(&mut self, ch: char) {
+        // Stub implementation - would need to encode char as UTF-8
+        // UTF-8 encoding can be 1-4 bytes
+        self._len += 1; // Simplified
+    }
+
+    /// Returns a string slice containing the entire string.
+    pub fn as_str(&self) -> &str {
+        // Stub - can't actually return a &str without proper memory management
+        // This would need unsafe code to create a &str from the raw pointer
+        ""
+    }
+
+    /// Returns a mutable string slice containing the entire string.
+    pub fn as_mut_str(&mut self) -> &mut str {
+        // Stub - can't actually return a &mut str without proper memory management
+        // This would need unsafe code
+        ""
+    }
+
+    /// Clears the string, removing all contents.
+    pub fn clear(&mut self) {
+        self._len = 0;
+    }
+}
+
+impl Drop for String {
+    /// Cleans up any resources used by the string.
+    fn drop(&mut self) {
+        // Stub - would need to free allocated memory
+    }
+}
+
+// String slice type (&str)
+/// A string slice, a view into a UTF-8 encoded string.
+pub type str = [u8]; // Simplified - actually a fat pointer (ptr + len)
+
+impl str {
+    /// Returns the length of the string slice in bytes.
+    pub fn len(&self) -> usize {
+        // Stub - would need to access the slice length
+        0
+    }
+
+    /// Returns `true` if the string slice has a length of zero.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Returns a byte slice of the string slice's contents.
+    pub fn as_bytes(&self) -> &[u8] {
+        // Stub - would need to convert &str to &[u8]
+        &[]
+    }
+
+    /// Returns an iterator over the characters of the string slice.
+    pub fn chars(&self) -> Chars {
+        // Stub - would need to implement Chars iterator
+        Chars { _pos: 0 }
+    }
+}
+
+/// An iterator over the characters of a string slice.
+pub struct Chars {
+    _pos: usize,
+}
+
+impl Iterator for Chars {
+    type Item = char;
+
+    fn next(&mut self) -> Option<char> {
+        // Stub - would need to decode UTF-8
+        Option::None
+    }
+}

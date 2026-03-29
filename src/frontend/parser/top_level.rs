@@ -15,6 +15,7 @@ use nom::Parser;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::combinator::{map, not, opt, peek, value};
+
 use nom::multi::{many0, separated_list0};
 use nom::sequence::{delimited, preceded, terminated};
 
@@ -96,6 +97,8 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
     // Parse visibility
     let (input, _pub_) = parse_visibility(input)?;
 
+    let (input, const_opt) = opt(ws(tag("const"))).parse(input)?;
+    let (input, async_opt) = opt(ws(tag("async"))).parse(input)?;
     let (input, extern_opt) = opt(ws(tag("extern"))).parse(input)?;
     let (input, _) = ws(tag("fn")).parse(input)?;
     let (input, path) = ws(parse_path).parse(input)?;
@@ -159,6 +162,8 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
             single_line,
             doc: "".to_string(),
             pub_: false,
+            async_: async_opt.is_some(),
+            const_: const_opt.is_some(),
         }
     };
     Ok((input, ast))
@@ -399,6 +404,46 @@ fn parse_const(input: &str) -> IResult<&str, AstNode> {
     ))
 }
 
+fn parse_macro_def(input: &str) -> IResult<&str, AstNode> {
+    let (input, _) = ws(tag("macro_rules!")).parse(input)?;
+    let (input, name) = ws(parse_ident).parse(input)?;
+
+    // Parse the macro body (simplified - just capture everything between braces)
+    let (input, _) = ws(tag("{")).parse(input)?;
+
+    // Find matching closing brace
+    let mut depth = 1;
+    let mut pos = 0;
+    let chars: Vec<char> = input.chars().collect();
+
+    while depth > 0 && pos < chars.len() {
+        match chars[pos] {
+            '{' => depth += 1,
+            '}' => depth -= 1,
+            _ => {}
+        }
+        pos += 1;
+    }
+
+    if depth > 0 {
+        return Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::Eof,
+        )));
+    }
+
+    let body: String = chars[..pos - 1].iter().collect(); // pos-1 to exclude the closing '}'
+    let remaining = &input[pos..];
+
+    Ok((
+        remaining,
+        AstNode::MacroDef {
+            name,
+            patterns: body,
+        },
+    ))
+}
+
 fn parse_top_level_item(input: &str) -> IResult<&str, AstNode> {
     alt((
         parse_func,
@@ -408,6 +453,7 @@ fn parse_top_level_item(input: &str) -> IResult<&str, AstNode> {
         parse_enum,
         parse_struct,
         parse_const,
+        parse_macro_def,
     ))
     .parse(input)
 }

@@ -58,6 +58,10 @@ pub enum AstNode {
         doc: String,
         /// Visibility: true for public, false for private (default)
         pub_: bool,
+        /// Async flag: true for async functions
+        async_: bool,
+        /// Const flag: true for const functions (compile-time evaluable)
+        const_: bool,
     },
     ExternFunc {
         name: String,
@@ -197,6 +201,8 @@ pub enum AstNode {
     Unsafe { body: Vec<AstNode> },
     /// Macro call.
     MacroCall { name: String, args: Vec<AstNode> },
+    /// Macro definition (macro_rules!).
+    MacroDef { name: String, patterns: String },
     /// Struct literal.
     StructLit {
         variant: String,
@@ -223,4 +229,6 @@ pub enum AstNode {
         scrutinee: Box<AstNode>,
         arms: Vec<MatchArm>,
     },
+    /// Await expression for async functions.
+    Await(Box<AstNode>),
 }

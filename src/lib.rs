@@ -3,7 +3,7 @@
 //!
 //! The core library for the Zeta systems programming language.
 //! This crate provides a complete pipeline:
-//!   1. Parsing → AST
+//!   1. Parsing â†’ AST
 //!   2. Resolution + monomorphization + MIR lowering
 //!   3. LLVM code generation + JIT/AOT
 //!
@@ -38,14 +38,25 @@ use inkwell::context::Context;
 /// become the entry point when Zeta becomes fully self-hosted.
 pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
     init_runtime();
+    // crate::runtime::r#async::init_async_runtime(); // TODO: Enable when async is fully implemented
 
     let (_, asts) = parse_zeta(code).map_err(|e| format!("Parse error: {:?}", e))?;
 
     let mut resolver = Resolver::new();
-    for ast in &asts {
+
+    // Expand macros before registration and type checking
+    let expanded_asts = resolver
+        .expand_macros(&asts)
+        .map_err(|e| format!("Macro expansion error: {}", e))?;
+
+    // Evaluate constants at compile time
+    let const_evaluated_asts = crate::middle::const_eval::evaluate_constants(&expanded_asts)
+        .map_err(|e| format!("Const evaluation error: {}", e))?;
+
+    for ast in &const_evaluated_asts {
         resolver.register(ast.clone());
     }
-    if !resolver.typecheck(&asts) {
+    if !resolver.typecheck(&const_evaluated_asts) {
         return Err("Typecheck failed".into());
     }
 
@@ -54,7 +65,7 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
 
     // Generate MIR for all function definitions, not just main
     let mut mirs = Vec::new();
-    for ast in &asts {
+    for ast in &const_evaluated_asts {
         match ast {
             AstNode::FuncDef { name: _, .. } => {
                 let mir = resolver.lower_to_mir(ast);
@@ -74,7 +85,7 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
     }
 
     // Check if we have a main function (for backward compatibility with tests)
-    let has_main = asts
+    let has_main = const_evaluated_asts
         .iter()
         .any(|a| matches!(a, AstNode::FuncDef { name, .. } if name == "main"));
     if !has_main {
@@ -132,6 +143,62 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
         let fn_ptr = crate::runtime::actor::result::host_result_free as *const () as usize;
         ee.add_global_mapping(&f, fn_ptr);
     }
+
+    // Map atomic operations (commented out until implemented)
+    // if let Some(f) = codegen.module.get_function("host_atomic_bool_new") {
+    //     let fn_ptr = crate::runtime::sync::host_atomic_bool_new as *const () as usize;
+    //     ee.add_global_mapping(&f, fn_ptr);
+    // }
+    // if let Some(f) = codegen.module.get_function("host_atomic_bool_load") {
+    //     let fn_ptr = crate::runtime::sync::host_atomic_bool_load as *const () as usize;
+    //     ee.add_global_mapping(&f, fn_ptr);
+    // }
+    // if let Some(f) = codegen.module.get_function("host_atomic_bool_store") {
+    //     let fn_ptr = crate::runtime::sync::host_atomic_bool_store as *const () as usize;
+    //     ee.add_global_mapping(&f, fn_ptr);
+    // }
+    // if let Some(f) = codegen.module.get_function("host_atomic_usize_new") {
+    //     let fn_ptr = crate::runtime::sync::host_atomic_usize_new as *const () as usize;
+    //     ee.add_global_mapping(&f, fn_ptr);
+    // }
+    // if let Some(f) = codegen.module.get_function("host_atomic_usize_load") {
+    //     let fn_ptr = crate::runtime::sync::host_atomic_usize_load as *const () as usize;
+    //     ee.add_global_mapping(&f, fn_ptr);
+    // }
+    // if let Some(f) = codegen.module.get_function("host_atomic_usize_store") {
+    //     let fn_ptr = crate::runtime::sync::host_atomic_usize_store as *const () as usize;
+    //     ee.add_global_mapping(&f, fn_ptr);
+    // }
+    // if let Some(f) = codegen.module.get_function("host_atomic_usize_fetch_add") {
+    //     let fn_ptr = crate::runtime::sync::host_atomic_usize_fetch_add as *const () as usize;
+    //     ee.add_global_mapping(&f, fn_ptr);
+    // }
+    // if let Some(f) = codegen.module.get_function("host_atomic_usize_fetch_sub") {
+    //     let fn_ptr = crate::runtime::sync::host_atomic_usize_fetch_sub as *const () as usize;
+    //     ee.add_global_mapping(&f, fn_ptr);
+    // }
+
+    // Map mpsc channel functions (commented out until implemented)
+    // if let Some(f) = codegen.module.get_function("host_mpsc_channel") {
+    //     let fn_ptr = crate::runtime::mpsc::host_mpsc_channel as *const () as usize;
+    //     ee.add_global_mapping(&f, fn_ptr);
+    // }
+    // if let Some(f) = codegen.module.get_function("host_mpsc_send") {
+    //     let fn_ptr = crate::runtime::mpsc::host_mpsc_send as *const () as usize;
+    //     ee.add_global_mapping(&f, fn_ptr);
+    // }
+    // if let Some(f) = codegen.module.get_function("host_mpsc_recv") {
+    //     let fn_ptr = crate::runtime::mpsc::host_mpsc_recv as *const () as usize;
+    //     ee.add_global_mapping(&f, fn_ptr);
+    // }
+    // if let Some(f) = codegen.module.get_function("host_mpsc_try_recv") {
+    //     let fn_ptr = crate::runtime::mpsc::host_mpsc_try_recv as *const () as usize;
+    //     ee.add_global_mapping(&f, fn_ptr);
+    // }
+    // if let Some(f) = codegen.module.get_function("host_mpsc_clone_sender") {
+    //     let fn_ptr = crate::runtime::mpsc::host_mpsc_clone_sender as *const () as usize;
+    //     ee.add_global_mapping(&f, fn_ptr);
+    // }
 
     type MainFn = unsafe extern "C" fn() -> i64;
     unsafe {

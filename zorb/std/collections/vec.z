@@ -1,0 +1,92 @@
+// Zorb Standard Library - Vec<T> type
+// v0.5.0 Standard Library
+
+/// A contiguous growable array type
+pub struct Vec<T> {
+    // Internal implementation details
+    // For now, this is a stub implementation
+    _data: *mut T,
+    _len: usize,
+    _capacity: usize,
+}
+
+impl<T> Vec<T> {
+    /// Constructs a new, empty `Vec<T>`.
+    pub fn new() -> Vec<T> {
+        // Stub implementation
+        Vec {
+            _data: 0 as *mut T,
+            _len: 0,
+            _capacity: 0,
+        }
+    }
+
+    /// Constructs a new, empty `Vec<T>` with at least the specified capacity.
+    pub fn with_capacity(capacity: usize) -> Vec<T> {
+        // Stub implementation
+        Vec {
+            _data: 0 as *mut T,
+            _len: 0,
+            _capacity: capacity,
+        }
+    }
+
+    /// Returns the number of elements in the vector.
+    pub fn len(&self) -> usize {
+        self._len
+    }
+
+    /// Returns `true` if the vector contains no elements.
+    pub fn is_empty(&self) -> bool {
+        self._len == 0
+    }
+
+    /// Returns the number of elements the vector can hold without reallocating.
+    pub fn capacity(&self) -> usize {
+        self._capacity
+    }
+
+    /// Appends an element to the back of the vector.
+    pub fn push(&mut self, value: T) {
+        // Stub implementation - would need to grow capacity if needed
+        self._len += 1;
+    }
+
+    /// Removes the last element from the vector and returns it, or `None` if empty.
+    pub fn pop(&mut self) -> Option<T> {
+        if self._len == 0 {
+            Option::None
+        } else {
+            self._len -= 1;
+            // Stub - can't actually return a value without proper memory management
+            Option::None
+        }
+    }
+
+    /// Returns a reference to an element at the given index, or `None` if out of bounds.
+    pub fn get(&self, index: usize) -> Option<&T> {
+        if index < self._len {
+            // Stub - can't actually return a reference without proper memory management
+            Option::None
+        } else {
+            Option::None
+        }
+    }
+
+    /// Returns a mutable reference to an element at the given index, or `None` if out of bounds.
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
+        if index < self._len {
+            // Stub - can't actually return a reference without proper memory management
+            Option::None
+        } else {
+            Option::None
+        }
+    }
+}
+
+impl<T> Drop for Vec<T> {
+    /// Cleans up any resources used by the vector.
+    fn drop(&mut self) {
+        // Stub - would need to free allocated memory
+    }
+}

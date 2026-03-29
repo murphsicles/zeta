@@ -1,0 +1,11 @@
+// Zorb Standard Library - Collections module
+// v0.5.0 Standard Library
+
+// Re-export collection types
+pub mod vec;
+pub mod hash_map;
+pub mod hash_set;
+
+pub use vec::Vec;
+pub use hash_map::HashMap;
+pub use hash_set::HashSet;

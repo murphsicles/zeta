@@ -1,0 +1,45 @@
+// Test macro system for v0.5.0
+
+// Test const fn
+const fn add(a: i64, b: i64) -> i64 {
+    a + b
+}
+
+// Test const evaluation
+const ANSWER: i64 = add(40, 2);
+
+// Test println! macro (should expand to function call)
+fn main() {
+    println!(ANSWER);
+    
+    // Test vec! macro
+    let v = vec![1, 2, 3];
+    
+    // Test #[test] attribute
+    #[test]
+    fn test_addition() {
+        assert!(add(2, 2) == 4);
+    }
+    
+    // Test #[inline] attribute
+    #[inline]
+    fn double(x: i64) -> i64 {
+        x * 2
+    }
+    
+    println!(double(21));
+}
+
+// Test #[derive] attribute
+#[derive(Debug, Clone, Copy)]
+struct Point {
+    x: i64,
+    y: i64,
+}
+
+// Test macro_rules! (simplified)
+macro_rules! say_hello {
+    () => {
+        println!("Hello!");
+    };
+}

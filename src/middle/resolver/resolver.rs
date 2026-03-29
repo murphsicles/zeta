@@ -6,6 +6,7 @@
 
 use crate::frontend::ast::AstNode;
 use crate::frontend::borrow::BorrowChecker;
+use crate::frontend::macro_expand::MacroExpander;
 use crate::middle::mir::mir::Mir;
 use crate::middle::resolver::module_resolver::ModuleResolver;
 use crate::middle::specialization::{
@@ -36,6 +37,8 @@ pub struct Resolver {
     funcs: HashMap<String, FuncSignature>,
     /// Module resolver for Zorb imports
     module_resolver: ModuleResolver,
+    /// Macro expander for macro processing
+    macro_expander: MacroExpander,
 }
 
 // Learning: Complex type factored into type definition per clippy suggestion
@@ -52,6 +55,7 @@ impl Resolver {
             ctfe_consts: HashMap::new(),
             funcs: HashMap::new(),
             module_resolver: ModuleResolver::new("."),
+            macro_expander: MacroExpander::new(),
         };
         r.load_specialization_cache();
         r
@@ -136,6 +140,8 @@ impl Resolver {
                                             single_line: false,
                                             doc: "".to_string(),
                                             pub_: true, // Variant constructors are always public
+                                            async_: false, // Variant constructors are not async
+                                            const_: false, // Variant constructors are not const
                                         };
 
                                         // Register the variant constructor
@@ -233,6 +239,18 @@ impl Resolver {
                 for (variant_name, _) in variants {
                     let full_name = name.clone() + "::" + &variant_name;
                     self.funcs.insert(full_name, (vec![], name.clone(), false));
+                }
+            }
+            AstNode::MacroDef { name, patterns } => {
+                // Parse and register the macro
+                match crate::frontend::macro_expand::parse_macro_rules(&patterns) {
+                    Ok(macro_def) => {
+                        self.macro_expander
+                            .register_declarative_macro(name.clone(), macro_def);
+                    }
+                    Err(e) => {
+                        eprintln!("Warning: Failed to parse macro {}: {}", name, e);
+                    }
                 }
             }
             _ => {}
@@ -390,6 +408,53 @@ impl Resolver {
         }
         substitute(&mut mono, &subst);
         mono
+    }
+
+    /// Expand macros in AST nodes
+    pub fn expand_macros(&mut self, asts: &[AstNode]) -> Result<Vec<AstNode>, String> {
+        let mut expanded = Vec::new();
+
+        for ast in asts {
+            let result = self.expand_macros_in_node(ast)?;
+            expanded.extend(result);
+        }
+
+        Ok(expanded)
+    }
+
+    /// Expand macros in a single AST node
+    fn expand_macros_in_node(&mut self, node: &AstNode) -> Result<Vec<AstNode>, String> {
+        match node {
+            AstNode::MacroCall { name, args } => {
+                // Expand macro call
+                self.macro_expander.expand_macro_call(name, args)
+            }
+            AstNode::FuncDef { attrs, .. }
+            | AstNode::StructDef { attrs, .. }
+            | AstNode::EnumDef { attrs, .. }
+            | AstNode::ConceptDef { attrs, .. }
+            | AstNode::ImplBlock { attrs, .. } => {
+                // Process attributes
+                let mut nodes = vec![node.clone()];
+                let attr_expansions =
+                    crate::frontend::macro_expand::process_attributes(attrs, node)?;
+                nodes.extend(attr_expansions);
+                Ok(nodes)
+            }
+            AstNode::Program(nodes) => {
+                // Recursively expand macros in program
+                let mut expanded_nodes = Vec::new();
+                for node in nodes {
+                    let result = self.expand_macros_in_node(node)?;
+                    expanded_nodes.extend(result);
+                }
+                Ok(vec![AstNode::Program(expanded_nodes)])
+            }
+            _ => {
+                // For other nodes, just return them as-is
+                Ok(vec![node.clone()])
+            }
+        }
     }
 }
 

@@ -744,11 +744,7 @@ impl MirGen {
                 self.exprs.insert(id, MirExpr::Lit(sum));
                 self.type_map.insert(id, "i64".to_string());
             }
-            AstNode::PathCall {
-                path,
-                method,
-                args,
-            } => {
+            AstNode::PathCall { path, method, args } => {
                 println!(
                     "[MIR GEN DEBUG] Processing path call: path={:?}, method={:?}, args={:?}",
                     path, method, args

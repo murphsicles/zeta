@@ -1,16 +1,25 @@
 // Zorb Standard Library Prelude
 // Common imports automatically available in every Zeta module
+// v0.5.0 Standard Library
 
 // Re-export commonly used types
 pub use super::option::Option;
 pub use super::result::Result;
-// pub use super::vec::Vec;  // Coming in v0.3.12
-// pub use super::string::String;  // Coming in v0.3.12
+pub use super::collections::Vec;
+pub use super::collections::HashMap;
+pub use super::collections::HashSet;
+pub use super::string::String;
+pub use super::string::str;
 
-// Common traits (coming in v0.3.13)
-// pub trait Debug { fn fmt(&self) -> String; }
-// pub trait Display { fn fmt(&self) -> String; }
+// Common traits
+pub trait Debug { 
+    fn fmt(&self) -> String; 
+}
 
-// Macros (coming in v0.3.12)
+pub trait Display { 
+    fn fmt(&self) -> String; 
+}
+
+// Macros (stubs)
 // macro println!(...) { ... }
 // macro format!(...) { ... }

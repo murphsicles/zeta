@@ -522,6 +522,10 @@ fn parse_postfix(input: &str) -> IResult<&str, AstNode> {
         };
         input = i;
     }
+    if let Ok((i, _)) = ws(tag(".await")).parse(input) {
+        expr = AstNode::Await(Box::new(expr));
+        input = i;
+    }
     Ok((input, expr))
 }
 
