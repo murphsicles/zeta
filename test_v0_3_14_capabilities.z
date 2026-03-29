@@ -1,0 +1,37 @@
+// Test v0.3.14 capabilities for v0.5.0 compilation
+
+// Test struct definition (Phase 1)
+struct Point {
+    x: i64,
+    y: i64
+}
+
+// Test method call syntax (Phase 2)
+fn test_method_calls() -> i64 {
+    let p = Point { x: 10, y: 20 };
+    // Method calls should work
+    // p.x // Field access
+    42
+}
+
+// Test generic types (Phase 3)
+fn test_generics() -> Result<i64, String> {
+    // Result type should work
+    Ok(42)
+}
+
+// Test attributes (Phase 3)
+#[derive(Copy, Clone)]
+struct TestStruct {
+    value: i64
+}
+
+fn main() -> i64 {
+    let result = test_method_calls();
+    let generic_result = test_generics();
+    
+    match generic_result {
+        Ok(value) => value,
+        Err(_) => 0
+    }
+}

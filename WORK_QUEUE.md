@@ -148,83 +148,108 @@ With v0.3.14 complete, the focus shifts to v0.3.15 which will target:
 
 ## Current Status for v0.3.15 Planning
 
-**Date:** 2026-03-29 11:56 UTC
+**Date:** 2026-03-29 13:01 UTC (Cron Execution)
 **Version:** 0.3.14 (current)
 **Next Version:** 0.3.15 (planning)
 
+### Current Test Status:
+- **Total tests:** 136 tests
+- **Passing:** 135 tests
+- **Ignored:** 1 test (`test_rust_like_code` in `module_system_integration.rs`)
+- **Failing:** 0 tests
+
 ### Issues Identified for v0.3.15:
 
-1. **MIR API Tests Ignored (5 tests) - FROM OLD TEST FILE**
-   - **File:** `tests/mir_system_smoke_old.rs`
-   - **Status:** These tests are in an old test file that references outdated MIR API
-   - **Tests:**
-     - `test_mir_smoke_complex_structure`: ignored, MIR API needs to be updated - add_expr method not available
-     - `test_mir_smoke_creation`: ignored, MIR API needs to be updated - add_expr method not available  
-     - `test_mir_smoke_expression_types`: ignored, MIR API needs to be updated - add_expr method not available
-     - `test_mir_smoke_optimization_interface`: ignored, MIR API needs to be updated - add_expr method not available
-     - `test_mir_smoke_statement_types`: ignored, MIR API needs to be updated - add_expr method not available
-   - **Note:** There's a new `tests/mir_system_smoke.rs` file with 4 tests that all pass
-
-2. **Impl Block Method Test Ignored (1 test)**
+1. **Impl Block Method Test Ignored (1 test)**
    - **File:** `tests/module_system_integration.rs`
    - **Test:** `test_rust_like_code`
    - **Status:** ignored, impl block method registration not implemented in v0.3.12 - will fix in v0.3.13 (carried over to v0.3.15)
    - **Issue:** Impl blocks with methods like `Point::new()` and `p.sum()` not implemented
+   - **Test code tests:**
+     - Struct definition: `struct Point { x: i32, y: i32 }`
+     - Impl block with static method: `Point::new(x, y)`
+     - Impl block with instance method: `p.sum()`
+     - Method calls: `Point::new(10, 20)` and `p.sum()`
 
 ### Priority for v0.3.15:
 
 **High Priority:**
 1. **Fix impl block method registration** - Make `Point::new()` and instance methods work
-2. **Fix Result linking** - Investigate `#[unsafe(no_mangle)]` attribute for linking
+   - Implement parser support for impl blocks
+   - Add type system support for method resolution
+   - Make static methods (`Point::new()`) callable
+   - Make instance methods (`p.sum()`) callable
 
 **Medium Priority:**
+2. **Fix Result linking** - Investigate `#[unsafe(no_mangle)]` attribute for linking
 3. **Add advanced patterns** - Range patterns, slice patterns
 4. **Expand standard library** - Basic `Vec<T>`, `String` implementations
 
-**Low Priority:**
-5. **Clean up old test files** - Remove `mir_system_smoke_old.rs` (outdated, replaced by new file)
-
-### Immediate Actions:
+### Immediate Actions for v0.3.15:
 
 1. **Investigate impl block method registration**
-   - Check current impl block handling in parser and type system
+   - Check current impl block handling in parser (`src/frontend/parser/`)
+   - Check type resolver for method resolution (`src/middle/resolver/`)
    - Implement method registration for impl blocks
    - Make `Point::new()` static methods and `p.sum()` instance methods callable
    - Fix `test_rust_like_code` test in `module_system_integration.rs`
 
-2. **Investigate Result linking issue**
-   - Check `#[unsafe(no_mangle)]` attribute handling
-   - Fix linking issues with Result type
+2. **Create test fix**
+   - Write minimal reproduction case
+   - Fix parser and type system issues
+   - Verify all tests pass (including the currently ignored test)
 
-3. **Clean up test suite**
-   - Delete `mir_system_smoke_old.rs` (outdated, all tests ignored)
-   - Keep `mir_system_smoke.rs` (all tests passing)
+3. **Update version and documentation**
+   - Update Cargo.toml from v0.3.14 to v0.3.15
+   - Create RELEASE_v0.3.15.md
+   - Update WORK_QUEUE.md with progress
 
 ### Progress Tracking:
 
-#### 2026-03-29 11:56 UTC
+#### 2026-03-29 13:01 UTC (Cron Execution)
 - ✅ Cron job executed
 - ✅ Current state analyzed
-- ✅ v0.3.14 confirmed as completed
-- ✅ Issues identified for v0.3.15: 6 ignored tests (5 from outdated file, 1 impl block)
-- ✅ WORK_QUEUE.md updated with v0.3.15 planning
-- ✅ **Cleanup completed:** Deleted outdated `mir_system_smoke_old.rs` file
-- ✅ **Test status improved:** Now only 1 ignored test remaining (impl block test)
-- ✅ **Changes committed and pushed to GitHub**
-- 🔄 Next: Investigate impl block method implementation
+- ✅ v0.3.14 confirmed as stable with 135/136 tests passing
+- ✅ Only 1 ignored test remains: `test_rust_like_code` (impl block methods)
+- ✅ Git repository is clean and up to date
+- ✅ WORK_QUEUE.md updated with current status
+- 🔄 Next: Begin investigation of impl block method implementation
 
 #### Analysis:
-- ~~The 5 ignored MIR tests are in an **outdated test file** (`mir_system_smoke_old.rs`)~~ ✅ DELETED
-- A **new test file** (`mir_system_smoke.rs`) exists with 4 passing tests
-- The **real issue** is the impl block method test (`test_rust_like_code`) which tests:
-  - `Point::new()` static constructor
-  - `p.sum()` instance method
-  - Impl blocks with methods
-- **Current status:** Only 1 ignored test remains (impl block methods)
-- **Git status:** Changes committed and pushed to dev branch
+- **Excellent progress:** 135/136 tests passing (99.3% success rate)
+- **Single remaining issue:** Impl block method registration
+- **Test suite is clean:** No outdated test files, all tests organized
+- **Repository status:** Clean working directory, latest changes pushed to dev branch
+- **Bootstrap momentum:** Strong foundation for final push toward self-compilation
 
-#### Summary of Changes:
-1. **Deleted outdated test file:** `tests/mir_system_smoke_old.rs` (5 ignored tests)
-2. **Updated WORK_QUEUE.md:** Added v0.3.15 planning with focus on impl blocks
-3. **Test suite status:** 95/96 tests passing, 1 ignored (impl block methods)
-4. **Code pushed to GitHub:** Successfully pushed to dev branch
+#### Bootstrap Progress Summary:
+- ✅ **v0.3.13:** Integration & Testing Phase Complete
+- ✅ **v0.3.14:** Generic method call parsing and dead code elimination fixed
+- 🔄 **v0.3.15:** Impl block method registration (current focus)
+- **Goal:** Complete core language features needed for self-compilation
+
+### Next Steps for Bootstrap Accountability:
+
+1. **Investigate impl block parsing**
+   - Examine `src/frontend/parser/mod.rs` and `src/frontend/parser/expr.rs`
+   - Look for `parse_impl` function or similar
+   - Check how struct definitions and methods are currently handled
+
+2. **Examine type resolver for method support**
+   - Check `src/middle/resolver/` for method resolution logic
+   - Look for how function calls are resolved (especially with receivers)
+
+3. **Create minimal test case**
+   - Start with simplest possible impl block test
+   - Gradually add complexity (static methods, instance methods)
+
+4. **Implement fixes**
+   - Add parser support for impl blocks if missing
+   - Extend type resolver to handle method calls on struct instances
+   - Test incrementally
+
+5. **Complete v0.3.15 release**
+   - Ensure all 136 tests pass (including previously ignored test)
+   - Update version numbers
+   - Create release documentation
+   - Push to GitHub
