@@ -30,7 +30,6 @@ impl NewTypeCheck for Resolver {
 
         // Infer types for all AST nodes
         let mut any_success = false;
-        let mut any_failure = false;
         
         for ast in asts {
             match context.infer(ast) {
@@ -43,7 +42,6 @@ impl NewTypeCheck for Resolver {
                     // Instead of failing entire system, skip this node
                     // Old system will handle it
                     eprintln!("Type inference not implemented for node type, skipping: {}", e);
-                    any_failure = true;
                     // Continue with other nodes - don't fail entire system
                 }
             }

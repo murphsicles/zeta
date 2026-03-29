@@ -11,7 +11,9 @@ Write-Host "=== ZETA TEST RUNNER ===" -ForegroundColor Red
 Write-Host ""
 
 # Check if compiler exists (platform-specific)
-if ($IsWindows -and -not $CompilerPath.EndsWith('.exe')) {
+# On Windows, check for .exe extension
+$IsWindowsEnv = ($env:OS -eq "Windows_NT") -or ($PSVersionTable.PSVersion.Major -le 5)
+if ($IsWindowsEnv -and -not $CompilerPath.EndsWith('.exe')) {
     $CompilerPath = "$CompilerPath.exe"
 }
 
@@ -21,7 +23,7 @@ if (-not (Test-Path $CompilerPath)) {
     cargo build --release
     
     # Check again with platform-specific extension
-    if ($IsWindows -and -not $CompilerPath.EndsWith('.exe')) {
+    if ($IsWindowsEnv -and -not $CompilerPath.EndsWith('.exe')) {
         $CompilerPath = "$CompilerPath.exe"
     }
     
@@ -56,7 +58,7 @@ foreach ($testFile in $testFiles) {
     $testDir = $testFile.DirectoryName
     
     # Create output executable name (platform-specific)
-    if ($IsWindows) {
+    if ($IsWindowsEnv) {
         $outputExe = Join-Path $testDir "$($testFile.BaseName).exe"
     } else {
         $outputExe = Join-Path $testDir "$($testFile.BaseName)"
