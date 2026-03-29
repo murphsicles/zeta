@@ -60,7 +60,83 @@ impl InferContext {
 
     /// Parse type string to Type
     fn parse_type_string(&self, s: &str) -> Result<Type, String> {
-        // Simple type parsing - should match string_to_type in typecheck_new.rs
+        let s = s.trim();
+        
+        // Check for reference types
+        if s.starts_with("&mut ") {
+            let inner = s.trim_start_matches("&mut ").trim();
+            let inner_ty = self.parse_type_string(inner)?;
+            return Ok(Type::Ref(Box::new(inner_ty), crate::middle::types::Mutability::Mutable));
+        } else if s.starts_with("&") {
+            let inner = s.trim_start_matches("&").trim();
+            let inner_ty = self.parse_type_string(inner)?;
+            return Ok(Type::Ref(Box::new(inner_ty), crate::middle::types::Mutability::Immutable));
+        }
+        
+        // Check for array/slice type
+        if s.starts_with('[') {
+            if !s.ends_with(']') {
+                return Err("Array/slice type missing closing ']'".to_string());
+            }
+            
+            let inner = &s[1..s.len()-1]; // Remove brackets
+            if let Some((type_part, size_part)) = inner.split_once(';') {
+                let inner_type = self.parse_type_string(type_part.trim())?;
+                let size = size_part.trim().parse::<usize>()
+                    .map_err(|e| format!("Invalid array size: {}", e))?;
+                return Ok(Type::Array(Box::new(inner_type), size));
+            } else {
+                // Slice type: [T]
+                let inner_type = self.parse_type_string(inner.trim())?;
+                return Ok(Type::Slice(Box::new(inner_type)));
+            }
+        }
+        
+        // Check for tuple type: (T1, T2, T3)
+        if s.starts_with('(') {
+            if !s.ends_with(')') {
+                return Err("Tuple type missing closing ')'".to_string());
+            }
+            
+            let inner = &s[1..s.len()-1]; // Remove parentheses
+            if inner.is_empty() {
+                // Empty tuple: ()
+                return Ok(Type::Tuple(Vec::new()));
+            }
+            
+            // Split by commas, but be careful about nested tuples
+            let mut types = Vec::new();
+            let mut current = String::new();
+            let mut depth = 0;
+            
+            for ch in inner.chars() {
+                match ch {
+                    '(' => {
+                        depth += 1;
+                        current.push(ch);
+                    }
+                    ')' => {
+                        depth -= 1;
+                        current.push(ch);
+                    }
+                    ',' if depth == 0 => {
+                        if !current.is_empty() {
+                            types.push(self.parse_type_string(current.trim())?);
+                            current.clear();
+                        }
+                    }
+                    _ => current.push(ch),
+                }
+            }
+            
+            if !current.is_empty() {
+                types.push(self.parse_type_string(current.trim())?);
+            }
+            
+            return Ok(Type::Tuple(types));
+        }
+        
+        // Handle base types
         match s {
             "i64" => Ok(Type::I64),
             "i32" => Ok(Type::I32),
@@ -73,20 +149,10 @@ impl InferContext {
             "u16" => Ok(Type::U16),
             "u32" => Ok(Type::U32),
             "u64" => Ok(Type::U64),
+            "String" => Ok(Type::Named("String".to_string(), Vec::new())),
             _ => {
-                // Check for reference types
-                if s.starts_with("&mut ") {
-                    let inner = s.trim_start_matches("&mut ").trim();
-                    let inner_ty = self.parse_type_string(inner)?;
-                    Ok(Type::Ref(Box::new(inner_ty), crate::middle::types::Mutability::Mutable))
-                } else if s.starts_with("&") {
-                    let inner = s.trim_start_matches("&").trim();
-                    let inner_ty = self.parse_type_string(inner)?;
-                    Ok(Type::Ref(Box::new(inner_ty), crate::middle::types::Mutability::Immutable))
-                } else {
-                    // Named type
-                    Ok(Type::Named(s.to_string(), Vec::new()))
-                }
+                // Named type
+                Ok(Type::Named(s.to_string(), Vec::new()))
             }
         }
     }
@@ -449,5 +515,42 @@ mod tests {
 
         // Solve constraints - should fail
         assert!(ctx.solve().is_err());
+    }
+
+    #[test]
+    fn test_complex_type_parsing() {
+        let ctx = InferContext::new();
+
+        // Test array types
+        assert_eq!(ctx.parse_type_string("[i32; 10]").unwrap(), Type::Array(Box::new(Type::I32), 10));
+        assert_eq!(ctx.parse_type_string("[bool; 5]").unwrap(), Type::Array(Box::new(Type::Bool), 5));
+        
+        // Test slice types
+        assert_eq!(ctx.parse_type_string("[i64]").unwrap(), Type::Slice(Box::new(Type::I64)));
+        assert_eq!(
+            ctx.parse_type_string("[&str]").unwrap(),
+            Type::Slice(Box::new(Type::Ref(Box::new(Type::Str), crate::middle::types::Mutability::Immutable)))
+        );
+        
+        // Test tuple types
+        assert_eq!(ctx.parse_type_string("()").unwrap(), Type::Tuple(Vec::new()));
+        assert_eq!(
+            ctx.parse_type_string("(i32, bool)").unwrap(),
+            Type::Tuple(vec![Type::I32, Type::Bool])
+        );
+        
+        // Test nested types
+        assert_eq!(
+            ctx.parse_type_string("[(i32, bool); 3]").unwrap(),
+            Type::Array(
+                Box::new(Type::Tuple(vec![Type::I32, Type::Bool])),
+                3
+            )
+        );
+        
+        // Test error cases
+        assert!(ctx.parse_type_string("[i32; not_a_number]").is_err());
+        assert!(ctx.parse_type_string("[i32;").is_err());
+        assert!(ctx.parse_type_string("(i32, bool").is_err());
     }
 }

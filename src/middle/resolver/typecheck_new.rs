@@ -86,6 +86,71 @@ impl NewTypeCheck for Resolver {
             }
         }
         
+        // Check for array type: [T; N]
+        if s.starts_with('[') {
+            if !s.ends_with(']') {
+                // Malformed array/slice - treat as named type
+                return Type::Named(s.to_string(), Vec::new());
+            }
+            
+            let inner = &s[1..s.len()-1]; // Remove brackets
+            if let Some((type_part, size_part)) = inner.split_once(';') {
+                let inner_type = self.string_to_type(type_part.trim());
+                if let Ok(size) = size_part.trim().parse::<usize>() {
+                    return Type::Array(Box::new(inner_type), size);
+                }
+            } else {
+                // Slice type: [T]
+                let inner_type = self.string_to_type(inner.trim());
+                return Type::Slice(Box::new(inner_type));
+            }
+        }
+        
+        // Check for tuple type: (T1, T2, T3)
+        if s.starts_with('(') {
+            if !s.ends_with(')') {
+                // Malformed tuple - treat as named type
+                return Type::Named(s.to_string(), Vec::new());
+            }
+            
+            let inner = &s[1..s.len()-1]; // Remove parentheses
+            if inner.is_empty() {
+                // Empty tuple: ()
+                return Type::Tuple(Vec::new());
+            }
+            
+            // Split by commas, but be careful about nested tuples
+            let mut types = Vec::new();
+            let mut current = String::new();
+            let mut depth = 0;
+            
+            for ch in inner.chars() {
+                match ch {
+                    '(' => {
+                        depth += 1;
+                        current.push(ch);
+                    }
+                    ')' => {
+                        depth -= 1;
+                        current.push(ch);
+                    }
+                    ',' if depth == 0 => {
+                        if !current.is_empty() {
+                            types.push(self.string_to_type(current.trim()));
+                            current.clear();
+                        }
+                    }
+                    _ => current.push(ch),
+                }
+            }
+            
+            if !current.is_empty() {
+                types.push(self.string_to_type(current.trim()));
+            }
+            
+            return Type::Tuple(types);
+        }
+        
         // Handle base types
         match s {
             "i64" => Type::I64,
@@ -200,6 +265,57 @@ mod tests {
             Type::Ref(Box::new(Type::Bool), crate::middle::types::Mutability::Immutable)
         );
 
+        // Test array types
+        assert_eq!(
+            resolver.string_to_type("[i32; 10]"),
+            Type::Array(Box::new(Type::I32), 10)
+        );
+        
+        assert_eq!(
+            resolver.string_to_type("[bool; 5]"),
+            Type::Array(Box::new(Type::Bool), 5)
+        );
+        
+        // Test slice types
+        assert_eq!(
+            resolver.string_to_type("[i64]"),
+            Type::Slice(Box::new(Type::I64))
+        );
+        
+        assert_eq!(
+            resolver.string_to_type("[&str]"),
+            Type::Slice(Box::new(Type::Ref(Box::new(Type::Str), crate::middle::types::Mutability::Immutable)))
+        );
+        
+        // Test tuple types
+        assert_eq!(
+            resolver.string_to_type("()"),
+            Type::Tuple(Vec::new())
+        );
+        
+        assert_eq!(
+            resolver.string_to_type("(i32, bool)"),
+            Type::Tuple(vec![Type::I32, Type::Bool])
+        );
+        
+        assert_eq!(
+            resolver.string_to_type("(i64, &str, bool)"),
+            Type::Tuple(vec![
+                Type::I64,
+                Type::Ref(Box::new(Type::Str), crate::middle::types::Mutability::Immutable),
+                Type::Bool
+            ])
+        );
+        
+        // Test nested tuples
+        assert_eq!(
+            resolver.string_to_type("((i32, bool), i64)"),
+            Type::Tuple(vec![
+                Type::Tuple(vec![Type::I32, Type::Bool]),
+                Type::I64
+            ])
+        );
+
         let i64_type = Type::I64;
         assert_eq!(resolver.type_to_string(&i64_type), "i64");
 
@@ -212,6 +328,28 @@ mod tests {
         
         let mut_ref_i64 = Type::Ref(Box::new(Type::I64), crate::middle::types::Mutability::Mutable);
         assert_eq!(resolver.type_to_string(&mut_ref_i64), "&mut i64");
+        
+        // Test array type display
+        let array_i32 = Type::Array(Box::new(Type::I32), 10);
+        assert_eq!(resolver.type_to_string(&array_i32), "[i32; 10]");
+        
+        // Test slice type display
+        let slice_i64 = Type::Slice(Box::new(Type::I64));
+        assert_eq!(resolver.type_to_string(&slice_i64), "[i64]");
+        
+        // Test tuple type display
+        let empty_tuple = Type::Tuple(Vec::new());
+        assert_eq!(resolver.type_to_string(&empty_tuple), "()");
+        
+        let simple_tuple = Type::Tuple(vec![Type::I32, Type::Bool]);
+        assert_eq!(resolver.type_to_string(&simple_tuple), "(i32, bool)");
+        
+        let complex_tuple = Type::Tuple(vec![
+            Type::I64,
+            Type::Ref(Box::new(Type::Str), crate::middle::types::Mutability::Immutable),
+            Type::Bool
+        ]);
+        assert_eq!(resolver.type_to_string(&complex_tuple), "(i64, &str, bool)");
     }
 
     #[test]
