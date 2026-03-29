@@ -95,13 +95,16 @@ impl Resolver {
                                 AstNode::EnumDef { name, variants, .. } => {
                                     println!("[RESOLVER] Registering enum from module: {}", name);
                                     self.register(module_ast.clone());
-                                    
+
                                     // Also register enum variant constructors as functions
                                     for (variant_name, variant_params) in variants {
                                         // Create a function name like "Option::Some"
                                         let func_name = format!("{}::{}", name, variant_name);
-                                        println!("[RESOLVER] Registering enum variant constructor: {}", func_name);
-                                        
+                                        println!(
+                                            "[RESOLVER] Registering enum variant constructor: {}",
+                                            func_name
+                                        );
+
                                         // Create a fake function AST for the variant constructor
                                         // The return type is the enum with its type parameters
                                         let ret_type = if variant_params.is_empty() {
@@ -111,13 +114,16 @@ impl Resolver {
                                             // For now, just use the base name
                                             name.clone()
                                         };
-                                        
+
                                         // Create parameter types from variant params
-                                        let params: Vec<(String, String)> = variant_params.iter()
+                                        let params: Vec<(String, String)> = variant_params
+                                            .iter()
                                             .enumerate()
-                                            .map(|(i, param_type)| (i.to_string(), param_type.clone()))
+                                            .map(|(i, param_type)| {
+                                                (i.to_string(), param_type.clone())
+                                            })
                                             .collect();
-                                        
+
                                         // Create a fake function definition for the variant constructor
                                         let variant_func = AstNode::FuncDef {
                                             name: func_name.clone(),
@@ -131,7 +137,7 @@ impl Resolver {
                                             doc: "".to_string(),
                                             pub_: true, // Variant constructors are always public
                                         };
-                                        
+
                                         // Register the variant constructor
                                         self.register(variant_func);
                                     }

@@ -619,7 +619,7 @@ impl InferContext {
                 for (variant_name, variant_params) in variants {
                     // Create a function name like "EnumName::VariantName"
                     let func_name = format!("{}::{}", name, variant_name);
-                    
+
                     // Create return type for the variant constructor
                     // For variants with parameters, create a function type
                     if variant_params.is_empty() {
@@ -640,10 +640,10 @@ impl InferContext {
                                 }
                             }
                         }
-                        
+
                         // The return type is just the enum (non-generic)
                         let ret_type = Type::Named(name.clone(), Vec::new());
-                        
+
                         // The variant constructor is a function from param_types to ret_type
                         let func_type = Type::Function(param_types, Box::new(ret_type));
                         self.functions.insert(func_name, func_type);
