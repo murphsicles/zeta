@@ -38,6 +38,12 @@ pub struct MacroExpander {
     declarative_macros: HashMap<String, DeclarativeMacro>,
 }
 
+impl Default for MacroExpander {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MacroExpander {
     pub fn new() -> Self {
         Self {
@@ -283,19 +289,19 @@ fn parse_macro_tokens<I: Iterator<Item = char>>(
                     let mut min = Some(0);
                     let mut max = None;
 
-                    if let Some(&next) = chars.peek() {
-                        if next.is_alphanumeric() || next == '_' {
-                            // It's a separator identifier
-                            let mut sep = String::new();
-                            while let Some(&c) = chars.peek() {
-                                if c.is_alphanumeric() || c == '_' {
-                                    sep.push(chars.next().unwrap());
-                                } else {
-                                    break;
-                                }
+                    if let Some(&next) = chars.peek()
+                        && (next.is_alphanumeric() || next == '_')
+                    {
+                        // It's a separator identifier
+                        let mut sep = String::new();
+                        while let Some(&c) = chars.peek() {
+                            if c.is_alphanumeric() || c == '_' {
+                                sep.push(chars.next().unwrap());
+                            } else {
+                                break;
                             }
-                            separator = Some(sep);
                         }
+                        separator = Some(sep);
                     }
 
                     // Parse quantifier

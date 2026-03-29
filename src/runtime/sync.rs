@@ -97,11 +97,11 @@ impl<T> ZetaMutex<T> {
         }
     }
 
-    pub fn lock(&self) -> std::sync::MutexGuard<T> {
+    pub fn lock(&self) -> std::sync::MutexGuard<'_, T> {
         self.inner.lock().unwrap()
     }
 
-    pub fn try_lock(&self) -> Option<std::sync::MutexGuard<T>> {
+    pub fn try_lock(&self) -> Option<std::sync::MutexGuard<'_, T>> {
         self.inner.try_lock().ok()
     }
 }
@@ -119,19 +119,19 @@ impl<T> ZetaRwLock<T> {
         }
     }
 
-    pub fn read(&self) -> std::sync::RwLockReadGuard<T> {
+    pub fn read(&self) -> std::sync::RwLockReadGuard<'_, T> {
         self.inner.read().unwrap()
     }
 
-    pub fn write(&self) -> std::sync::RwLockWriteGuard<T> {
+    pub fn write(&self) -> std::sync::RwLockWriteGuard<'_, T> {
         self.inner.write().unwrap()
     }
 
-    pub fn try_read(&self) -> Option<std::sync::RwLockReadGuard<T>> {
+    pub fn try_read(&self) -> Option<std::sync::RwLockReadGuard<'_, T>> {
         self.inner.try_read().ok()
     }
 
-    pub fn try_write(&self) -> Option<std::sync::RwLockWriteGuard<T>> {
+    pub fn try_write(&self) -> Option<std::sync::RwLockWriteGuard<'_, T>> {
         self.inner.try_write().ok()
     }
 }

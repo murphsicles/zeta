@@ -12,6 +12,12 @@ pub struct ConstEvaluator {
     cache: HashMap<AstNode, i64>,
 }
 
+impl Default for ConstEvaluator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ConstEvaluator {
     pub fn new() -> Self {
         Self {
@@ -163,12 +169,8 @@ impl ConstEvaluator {
                     self.eval_const_expr(expr).map(Some)
                 } else if !body.is_empty() {
                     // Try to evaluate the last expression in the body
-                    if let Some(last) = body.last() {
-                        if let AstNode::ExprStmt { expr } = last {
-                            self.eval_const_expr(expr).map(Some)
-                        } else {
-                            Ok(None)
-                        }
+                    if let Some(AstNode::ExprStmt { expr }) = body.last() {
+                        self.eval_const_expr(expr).map(Some)
                     } else {
                         Ok(None)
                     }
