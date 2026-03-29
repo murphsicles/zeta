@@ -17,14 +17,29 @@ use nom::multi::{many0, separated_list0};
 use nom::sequence::{delimited, preceded, terminated};
 
 fn parse_param(input: &str) -> IResult<&str, (String, String)> {
-    let (input, name) = ws(parse_ident).parse(input)?;
-    let (input, ty) = if name == "self" {
-        (input, "Self".to_string())
-    } else {
-        let (input, _) = ws(tag(":")).parse(input)?;
-        ws(parse_type).parse(input)?
-    };
-    Ok((input, (name, ty)))
+    // Try to parse &self or &mut self first
+    let parse_self = alt((
+        // &mut self
+        map((ws(tag("&mut")), ws(tag("self"))), |_| {
+            ("&mut self".to_string(), "Self".to_string())
+        }),
+        // &self
+        map((ws(tag("&")), ws(tag("self"))), |_| {
+            ("&self".to_string(), "Self".to_string())
+        }),
+        // self (without &)
+        map(ws(tag("self")), |_| {
+            ("self".to_string(), "Self".to_string())
+        }),
+    ));
+
+    // Try regular parameter: name: type
+    let parse_regular = map(
+        (ws(parse_ident), ws(tag(":")), ws(parse_type)),
+        |(name, _, ty)| (name, ty),
+    );
+
+    alt((parse_self, parse_regular)).parse(input)
 }
 
 fn parse_use_statement(input: &str) -> IResult<&str, Vec<AstNode>> {
@@ -219,12 +234,12 @@ fn parse_impl(input: &str) -> IResult<&str, AstNode> {
     .parse(input);
 
     let (input, (concept, ty)) = match parse_result {
-        Ok(result) => {
+        Ok((input, (concept, ty))) => {
             println!(
                 "[PARSER DEBUG] parse_impl: successfully parsed concept: {:?}, ty: {:?}",
-                result.0, result.1
+                concept, ty
             );
-            result
+            (input, (concept, ty))
         }
         Err(e) => {
             println!(
@@ -235,11 +250,15 @@ fn parse_impl(input: &str) -> IResult<&str, AstNode> {
         }
     };
 
+    println!(
+        "[PARSER DEBUG] parse_impl: trying to parse body, input starts with: {:?}",
+        &input[..input.len().min(50)]
+    );
     let (input, body) =
         delimited(ws(tag("{")), many0(ws(parse_func)), ws(tag("}"))).parse(input)?;
     let generics: Vec<String> = generics_opt.unwrap_or_default();
     println!(
-        "[PARSER DEBUG] parse_impl: parsed {} functions in body",
+        "[PARSER DEBUG] parse_impl: parsed {} functions in body, returning ImplBlock",
         body.len()
     );
     Ok((

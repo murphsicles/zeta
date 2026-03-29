@@ -1,4 +1,5 @@
 // src/runtime/actor/result.rs
+#![allow(unsafe_code)]
 use std::ffi::c_void;
 #[derive(Debug)]
 #[repr(C)]
@@ -9,18 +10,21 @@ struct ResultInner {
 /// Host function to create an ok result.
 /// # Safety
 /// No safety concerns as parameters are plain i64 values.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn host_result_make_ok(data: i64) -> *mut c_void {
     Box::into_raw(Box::new(ResultInner { tag: true, data })) as *mut c_void
 }
 /// Host function to create an error result.
 /// # Safety
 /// No safety concerns as parameters are plain i64 values.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn host_result_make_err(data: i64) -> *mut c_void {
     Box::into_raw(Box::new(ResultInner { tag: false, data })) as *mut c_void
 }
 /// Host function to check if a result is ok.
 /// # Safety
 /// Pointer must be valid Result ptr.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn host_result_is_ok(ptr: *const c_void) -> i64 {
     if ptr.is_null() {
         0
@@ -31,6 +35,7 @@ pub unsafe extern "C" fn host_result_is_ok(ptr: *const c_void) -> i64 {
 /// Host function to retrieve data from a result.
 /// # Safety
 /// Pointer must be valid Result ptr.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn host_result_get_data(ptr: *const c_void) -> i64 {
     if ptr.is_null() {
         0
@@ -41,6 +46,7 @@ pub unsafe extern "C" fn host_result_get_data(ptr: *const c_void) -> i64 {
 /// Host function to free a result pointer.
 /// # Safety
 /// Pointer must be valid from make_ok/err, not freed before.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn host_result_free(ptr: *mut c_void) {
     if !ptr.is_null() {
         unsafe {

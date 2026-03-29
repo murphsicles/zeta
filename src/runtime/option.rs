@@ -1,4 +1,5 @@
 //! Runtime support for Option type
+#![allow(unsafe_code)]
 
 use std::alloc::{Layout, alloc, dealloc};
 
