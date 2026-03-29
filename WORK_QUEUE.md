@@ -185,21 +185,77 @@ With v0.3.14 complete, the focus shifts to v0.3.15 which will target:
 3. **Add advanced patterns** - Range patterns, slice patterns
 4. **Expand standard library** - Basic `Vec<T>`, `String` implementations
 
+### Detailed Analysis of Impl Block Method Issues:
+
+#### 1. Parser Issue
+- **Current behavior**: `Point::new(10, 20)` is parsed as `Call { receiver: None, method: "Point::new", args: [...] }`
+- **Expected behavior**: Should be parsed as `PathCall { path: ["Point"], method: "new", args: [...] }` or similar
+- **Location**: `src/frontend/parser/expr.rs` in `parse_path_expr` function
+- **Issue**: Paths joined with `::` become method names instead of being separated into path and method
+
+#### 2. Resolver Issue
+- **Current behavior**: Methods in impl blocks are registered with simple names (e.g., `"new"`)
+- **Expected behavior**: Static methods should be registered with fully qualified names (e.g., `"Point::new"`)
+- **Location**: `src/middle/resolver/resolver.rs` in `register` method for `ImplBlock`
+- **Issue**: `FuncDef` nodes from impl blocks are registered with their simple names
+
+#### 3. Type Checker Issue
+- **Current behavior**: `ImplBlock` nodes are skipped with "Type inference not implemented for node type"
+- **Expected behavior**: Type checker should process impl blocks to register method signatures
+- **Location**: `src/middle/resolver/new_resolver.rs` in `infer` method
+- **Issue**: No pattern match for `AstNode::ImplBlock`
+
+#### 4. Method Call Resolution Issue
+- **Current behavior**: Method calls return fresh type variables without looking up method
+- **Expected behavior**: Method calls should look up method from receiver type's method table
+- **Location**: `src/middle/resolver/new_resolver.rs` in `infer` method for `AstNode::Call`
+- **Issue**: Comment says "For now, just return a fresh type variable for method calls"
+
+### Proposed Fixes for v0.3.15:
+
+#### Fix 1: Update Parser to Handle Path Calls Properly
+- Modify `parse_path_expr` in `src/frontend/parser/expr.rs`
+- When a path has multiple segments (e.g., `Point::new`), create `PathCall` node instead of `Call` node
+- `PathCall` should have `path: ["Point"]` and `method: "new"`
+
+#### Fix 2: Update Resolver to Register Qualified Method Names
+- Modify `register` method in `src/middle/resolver/resolver.rs` for `ImplBlock`
+- When registering functions from impl blocks, prepend type name (e.g., `Point::` to `new`)
+- Store mapping from qualified name to function signature
+
+#### Fix 3: Implement Type Checking for Impl Blocks
+- Add pattern match for `AstNode::ImplBlock` in `infer` method in `src/middle/resolver/new_resolver.rs`
+- Process impl blocks to register method signatures in type context
+
+#### Fix 4: Implement Method Resolution for Calls
+- Update `infer` method for `AstNode::Call` in `src/middle/resolver/new_resolver.rs`
+- When receiver is present, look up method from receiver type
+- When receiver is None and method contains `::`, treat as path call and look up qualified method
+
 ### Immediate Actions for v0.3.15:
 
-1. **Investigate impl block method registration**
-   - Check current impl block handling in parser (`src/frontend/parser/`)
-   - Check type resolver for method resolution (`src/middle/resolver/`)
-   - Implement method registration for impl blocks
-   - Make `Point::new()` static methods and `p.sum()` instance methods callable
-   - Fix `test_rust_like_code` test in `module_system_integration.rs`
+1. **Implement parser fix for PathCall**
+   - Update `parse_path_expr` in `src/frontend/parser/expr.rs`
+   - Test with `Point::new(10, 20)` to ensure it creates `PathCall` node
 
-2. **Create test fix**
+2. **Implement resolver fix for qualified method names**
+   - Update `register` method in `src/middle/resolver/resolver.rs`
+   - Register impl block methods with `Type::method` names
+
+3. **Implement type checker support for impl blocks**
+   - Add `AstNode::ImplBlock` pattern in `infer` method
+   - Register method signatures from impl blocks
+
+4. **Implement method resolution in type checker**
+   - Update `AstNode::Call` handling to resolve methods
+   - Add support for `PathCall` nodes
+
+5. **Create test fix**
    - Write minimal reproduction case
    - Fix parser and type system issues
    - Verify all tests pass (including the currently ignored test)
 
-3. **Update version and documentation**
+6. **Update version and documentation**
    - Update Cargo.toml from v0.3.14 to v0.3.15
    - Create RELEASE_v0.3.15.md
    - Update WORK_QUEUE.md with progress
@@ -214,6 +270,21 @@ With v0.3.14 complete, the focus shifts to v0.3.15 which will target:
 - ✅ Git repository is clean and up to date
 - ✅ WORK_QUEUE.md updated with current status
 - 🔄 Next: Begin investigation of impl block method implementation
+
+#### 2026-03-29 15:06 UTC (Cron Execution)
+- ✅ Cron job executed
+- ✅ Deep analysis of impl block method issue completed
+- ✅ Root causes identified:
+  1. **Parser issue**: `Point::new(10, 20)` is parsed as `Call { receiver: None, method: "Point::new", ... }` instead of `PathCall { path: ["Point"], method: "new", ... }`
+  2. **Resolver issue**: Methods in impl blocks are registered with simple names (e.g., `"new"`) not fully qualified names (e.g., `"Point::new"`)
+  3. **Type checker issue**: `ImplBlock` nodes are skipped with "Type inference not implemented for node type"
+  4. **Type checker issue**: Method calls with receivers return fresh type variables instead of looking up methods from receiver type
+- ✅ Test case created and verified: `test_impl.zeta` shows the exact failure
+- ✅ Parser successfully parses impl blocks and their methods
+- ✅ MIR generation works for the methods
+- ❌ Type checking fails for impl blocks
+- ❌ Code generation fails due to missing function `Point::new`
+- 🔄 Next: Implement fixes for impl block method resolution
 
 #### Analysis:
 - **Excellent progress:** 135/136 tests passing (99.3% success rate)
