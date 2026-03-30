@@ -16,6 +16,7 @@
 pub mod backend;
 pub mod error_codes;
 pub mod frontend;
+pub mod integration;
 pub mod middle;
 pub mod runtime;
 

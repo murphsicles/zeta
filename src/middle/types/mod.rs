@@ -12,7 +12,7 @@ pub use lifetime::{Lifetime, LifetimeContext, LifetimeSubstitution, LifetimeVar}
 
 /// Type variable for inference
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TypeVar(u32);
+pub struct TypeVar(pub u32);
 
 impl TypeVar {
     /// Generate a fresh type variable
@@ -448,7 +448,7 @@ pub fn handle_derive_attribute(attr: &str, type_name: &str) -> Result<Vec<String
 /// Substitution mapping type variables to types
 #[derive(Debug, Clone, Default)]
 pub struct Substitution {
-    mapping: HashMap<TypeVar, Type>,
+    pub mapping: HashMap<TypeVar, Type>,
 }
 
 impl Substitution {

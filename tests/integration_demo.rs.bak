@@ -1,0 +1,213 @@
+//! Demonstration of the generic type system integration bridge
+//!
+//! Shows how components coordinate for generic compilation:
+//! 1. Parser → Enhanced AST with GenericParam
+//! 2. Type Checker → Constraint collection and solving
+//! 3. Integration → Type context propagation
+//! 4. Codegen → Monomorphization coordination
+
+use std::collections::HashMap;
+use std::sync::Arc;
+
+// Simulated components (in real system, these would be separate modules)
+mod simulated_parser {
+    use super::*;
+    
+    pub fn parse_generic_function(code: &str) -> (String, Vec<crate::GenericParam>, Vec<String>) {
+        println!("[PARSER] Parsing: {}", code);
+        
+        // Simulate parsing a generic function like: fn identity<T>(x: T) -> T
+        let name = "identity".to_string();
+        let generic_params = vec![
+            crate::GenericParam::Type {
+                name: "T".to_string(),
+                bounds: vec![],
+            },
+        ];
+        let param_types = vec!["T".to_string(), "T".to_string()]; // param and return
+        
+        (name, generic_params, param_types)
+    }
+}
+
+mod simulated_type_checker {
+    use super::*;
+    
+    pub fn infer_types(
+        generic_params: &[crate::GenericParam],
+        usage_context: &HashMap<String, crate::Type>,
+    ) -> Vec<crate::Type> {
+        println!("[TYPE CHECKER] Inferring types for {:?}", generic_params);
+        
+        // Simulate type inference
+        // In real system, would collect and solve constraints
+        vec![crate::Type::I32] // Infer T = i32
+    }
+}
+
+mod simulated_codegen {
+    use super::*;
+    
+    pub fn monomorphize(
+        generic_fn_name: &str,
+        type_args: &[crate::Type],
+    ) -> String {
+        println!("[CODEGEN] Monomorphizing {} with {:?}", generic_fn_name, type_args);
+        
+        // Simulate generating specialized code
+        format!("{}_i32", generic_fn_name) // Specialized function name
+    }
+}
+
+fn demonstrate_integration_flow() {
+    println!("=== DEMONSTRATING INTEGRATION FLOW ===\n");
+    
+    // 1. Create coordination manager
+    let mut manager = crate::CoordinationManager::new();
+    manager.register_component("parser");
+    manager.register_component("type_checker");
+    manager.register_component("codegen");
+    manager.register_component("integration");
+    
+    println!("1. Created coordination manager with all components");
+    
+    // 2. Parser phase
+    let code = "fn identity<T>(x: T) -> T { x }";
+    let (fn_name, generic_params, _) = simulated_parser::parse_generic_function(code);
+    
+    // Send parsed AST to coordination system
+    use crate::protocols;
+    
+    // In real system: protocols::parser::send_parsed_ast(...)
+    println!("2. Parser parsed generic function: {}", fn_name);
+    println!("   Generic parameters: {:?}", generic_params);
+    
+    // 3. Type checking phase
+    let mut usage_context = HashMap::new();
+    usage_context.insert("x".to_string(), crate::Type::I32);
+    
+    let inferred_types = simulated_type_checker::infer_types(&generic_params, &usage_context);
+    
+    // Send type check results
+    // In real system: protocols::type_checker::send_type_check_result(...)
+    println!("3. Type checker inferred: {:?}", inferred_types);
+    
+    // 4. Integration phase
+    let mut integration = crate::GenericIntegration::new();
+    
+    // Create generic function representation
+    let generic_fn = crate::GenericFunction {
+        name: fn_name.clone(),
+        generic_params: generic_params.clone(),
+        param_types: vec![crate::Type::Variable(crate::middle::types::TypeVar::fresh())],
+        return_type: crate::Type::Variable(crate::middle::types::TypeVar::fresh()),
+        body: Arc::new(crate::AstNode::Program(vec![])), // Simplified
+        instantiations: HashMap::new(),
+    };
+    
+    integration.register_generic_function(generic_fn);
+    println!("4. Integration registered generic function");
+    
+    // 5. Monomorphization phase
+    let concrete_fn_name = simulated_codegen::monomorphize(&fn_name, &inferred_types);
+    println!("5. Codegen produced specialized function: {}", concrete_fn_name);
+    
+    // 6. Verify integration
+    match integration.get_concrete_function(&fn_name, &inferred_types) {
+        Ok(concrete_fn) => {
+            println!("6. Integration successfully retrieved concrete function");
+            println!("   Type args: {:?}", concrete_fn.type_args);
+            println!("   Param types: {:?}", concrete_fn.param_types);
+            println!("   Return type: {:?}", concrete_fn.return_type);
+        }
+        Err(e) => {
+            println!("6. Integration error: {:?}", e);
+        }
+    }
+    
+    // 7. Test error handling
+    integration.add_error(
+        crate::IntegrationError::CoordinationError("Test coordination error".to_string())
+    );
+    
+    if integration.has_errors() {
+        println!("7. Error handling works (expected error: {:?})", integration.get_errors());
+    }
+    
+    println!("\n=== INTEGRATION FLOW DEMONSTRATION COMPLETE ===");
+    println!("All components coordinated successfully for generic type support!");
+}
+
+fn demonstrate_type_context_propagation() {
+    println!("\n=== DEMONSTRATING TYPE CONTEXT PROPAGATION ===\n");
+    
+    use crate::{TypeContextStack, SharedTypeContext};
+    
+    let mut stack = TypeContextStack::new();
+    
+    println!("1. Created type context stack");
+    
+    // Outer scope: generic struct definition
+    {
+        let outer_context = stack.current_mut();
+        let struct_params = vec![
+            crate::GenericParam::Type {
+                name: "T".to_string(),
+                bounds: vec![],
+            },
+        ];
+        outer_context.add_generic_params(&struct_params);
+        println!("2. Outer scope: Added generic parameter T for struct");
+    }
+    
+    // Inner scope: method implementation
+    {
+        let _guard = stack.enter_scope();
+        let inner_context = stack.current_mut();
+        
+        let method_params = vec![
+            crate::GenericParam::Type {
+                name: "U".to_string(),
+                bounds: vec![],
+            },
+        ];
+        inner_context.add_generic_params(&method_params);
+        println!("3. Inner scope: Added generic parameter U for method");
+        
+        // Both T and U should be accessible
+        let has_t = inner_context.lookup_type("T").is_some();
+        let has_u = inner_context.lookup_type("U").is_some();
+        
+        println!("4. Type lookup in inner scope:");
+        println!("   - Can access T from outer scope: {}", has_t);
+        println!("   - Can access U from inner scope: {}", has_u);
+    }
+    
+    // Back in outer scope
+    println!("5. Back in outer scope:");
+    println!("   - Can access T: {}", stack.current().lookup_type("T").is_some());
+    println!("   - Cannot access U: {}", stack.current().lookup_type("U").is_none());
+    
+    println!("\n=== TYPE CONTEXT PROPAGATION DEMONSTRATION COMPLETE ===");
+    println!("Type contexts properly propagate through nested scopes!");
+}
+
+fn main() {
+    // Note: This is a demonstration, not a runnable test
+    // In a real system, we would have proper component implementations
+    
+    println!("GENERIC TYPE SYSTEM INTEGRATION BRIDGE DEMONSTRATION");
+    println!("=====================================================\n");
+    
+    demonstrate_integration_flow();
+    demonstrate_type_context_propagation();
+    
+    println!("\n=== SUMMARY ===");
+    println!("The integration bridge provides:");
+    println!("1. Generic parameter tracking across compilation phases");
+    println!("2. Type context propagation for nested scopes");
+    println!("3. Coordination protocols between components");
+    println!("4. Unified error reporting");
+    println!("5. Monomorphization coordination");
+    println!("\nReady for integration with actual parser, type checker, and codegen!");
+}

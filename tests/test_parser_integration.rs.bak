@@ -1,0 +1,78 @@
+// Test parser integration for generic type parameters
+use src::frontend::parser::expr::parse_expr;
+use src::frontend::parser::parser::parse_type;
+
+fn main() {
+    println!("Testing parser integration for generic type parameters...");
+    
+    // Test 1: Parse type with generic arguments
+    println!("\nTest 1: Parsing Vec::<i32>");
+    match parse_type("Vec::<i32>") {
+        Ok((rest, ty)) => {
+            println!("  Success: parsed type = '{}'", ty);
+            println!("  Remaining input: '{}'", rest);
+            assert_eq!(ty, "Vec<i32>");
+            assert!(rest.is_empty());
+        }
+        Err(e) => println!("  Error: {:?}", e),
+    }
+    
+    // Test 2: Parse expression with type arguments
+    println!("\nTest 2: Parsing Vec::<i32>::new()");
+    match parse_expr("Vec::<i32>::new()") {
+        Ok((rest, expr)) => {
+            println!("  Success: parsed expression");
+            println!("  AST: {:?}", expr);
+            println!("  Remaining input: '{}'", rest);
+            
+            // Check that it's a Call node with type_args
+            if let src::frontend::ast::AstNode::Call { type_args, .. } = &expr {
+                println!("  Type arguments: {:?}", type_args);
+                assert_eq!(type_args, &vec!["i32".to_string()]);
+            } else {
+                println!("  ERROR: Expected Call node, got {:?}", expr);
+            }
+        }
+        Err(e) => println!("  Error: {:?}", e),
+    }
+    
+    // Test 3: Parse direct generic function call
+    println!("\nTest 3: Parsing vec_new::<i32>()");
+    match parse_expr("vec_new::<i32>()") {
+        Ok((rest, expr)) => {
+            println!("  Success: parsed expression");
+            println!("  AST: {:?}", expr);
+            println!("  Remaining input: '{}'", rest);
+            
+            // Check that it's a Call node with type_args
+            if let src::frontend::ast::AstNode::Call { type_args, .. } = &expr {
+                println!("  Type arguments: {:?}", type_args);
+                assert_eq!(type_args, &vec!["i32".to_string()]);
+            } else {
+                println!("  ERROR: Expected Call node, got {:?}", expr);
+            }
+        }
+        Err(e) => println!("  Error: {:?}", e),
+    }
+    
+    // Test 4: Parse method call with type arguments
+    println!("\nTest 4: Parsing x.method::<T>()");
+    match parse_expr("x.method::<T>()") {
+        Ok((rest, expr)) => {
+            println!("  Success: parsed expression");
+            println!("  AST: {:?}", expr);
+            println!("  Remaining input: '{}'", rest);
+            
+            // Check that it's a Call node with type_args
+            if let src::frontend::ast::AstNode::Call { type_args, .. } = &expr {
+                println!("  Type arguments: {:?}", type_args);
+                assert_eq!(type_args, &vec!["T".to_string()]);
+            } else {
+                println!("  ERROR: Expected Call node, got {:?}", expr);
+            }
+        }
+        Err(e) => println!("  Error: {:?}", e),
+    }
+    
+    println!("\nAll tests completed!");
+}

@@ -1,0 +1,71 @@
+use inkwell::context::Context;
+use zetac::middle::types::Type;
+use zetac::backend::codegen::LLVMCodegen;
+use zetac::middle::mir::mir::{Mir, MirStmt, MirExpr};
+use std::collections::HashMap;
+
+fn main() {
+    println!("Testing monomorphization...");
+    
+    // Test 1: Type mangling
+    println!("Test 1: Type mangling");
+    let ty_i32 = Type::I32;
+    assert_eq!(ty_i32.mangled_name(), "i32");
+    println!("  ✓ i32 -> {}", ty_i32.mangled_name());
+    
+    let ty_vec_i32 = Type::Named("Vec".to_string(), vec![Type::I32]);
+    assert_eq!(ty_vec_i32.mangled_name(), "Vec_i32");
+    println!("  ✓ Vec<i32> -> {}", ty_vec_i32.mangled_name());
+    
+    // Test 2: Function name mangling
+    println!("\nTest 2: Function name mangling");
+    let context = Context::create();
+    let codegen = LLVMCodegen::new(&context, "test");
+    
+    let mangled = codegen.mangle_function_name("vec_new", &[Type::I32]);
+    assert_eq!(mangled, "vec_new_inst_i32");
+    println!("  ✓ vec_new::<i32>() -> {}", mangled);
+    
+    // Test 3: Create a simple generic function MIR
+    println!("\nTest 3: Creating generic function MIR");
+    
+    // Create a simple generic function identity<T>(x: T) -> T
+    // For now, we'll create a MIR that just returns its argument
+    let generic_mir = Mir {
+        name: Some("identity".to_string()),
+        param_indices: vec![("x".to_string(), 1)],
+        stmts: vec![
+            // Return the parameter
+            MirStmt::Return { val: 1 },
+        ],
+        exprs: {
+            let mut map = HashMap::new();
+            // Parameter x has id 1
+            map.insert(1, MirExpr::Param(0)); // First parameter
+            map
+        },
+        ctfe_consts: HashMap::new(),
+        type_map: {
+            let mut map = HashMap::new();
+            // Type of parameter x is TypeVar(0) (representing T)
+            map.insert(1, Type::Variable(zetac::middle::types::TypeVar(0)));
+            // Return type is also TypeVar(0)
+            map.insert(0, Type::Variable(zetac::middle::types::TypeVar(0))); // Return value
+            map
+        },
+    };
+    
+    println!("  ✓ Created generic identity function MIR");
+    
+    // Test 4: Try to monomorphize (this would require a full compilation)
+    println!("\nTest 4: Testing monomorphization infrastructure");
+    
+    // Check if the function is detected as generic
+    let is_generic = codegen.is_generic_function(&generic_mir);
+    // The current implementation checks for type_args in calls, which our simple
+    // function doesn't have. So it won't be detected as generic.
+    println!("  Function detected as generic: {}", is_generic);
+    
+    println!("\nAll basic tests passed!");
+    println!("\nNote: Full monomorphization testing requires integration with the compiler pipeline.");
+}

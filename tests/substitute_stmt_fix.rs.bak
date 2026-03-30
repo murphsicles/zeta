@@ -1,0 +1,17 @@
+              MirStmt::DictGet { map_id, key_id, dest } => {
+                  MirStmt::DictGet {
+                      map_id: *map_id,
+                      key_id: *key_id,
+                      dest: *dest,
+                  }
+              }
+              MirStmt::MapNew { dest } => {
+                  MirStmt::MapNew { dest: *dest }
+              }
+              MirStmt::StructNew { variant, fields, dest } => {
+                  MirStmt::StructNew {
+                      variant: variant.clone(),
+                      fields: fields.clone(),
+                      dest: *dest,
+                  }
+              }

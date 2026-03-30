@@ -1,0 +1,42 @@
+use inkwell::context::Context;
+use zetac::middle::types::Type;
+use zetac::backend::codegen::LLVMCodegen;
+
+#[test]
+fn test_type_mangling() {
+    let ty_i32 = Type::I32;
+    assert_eq!(ty_i32.mangled_name(), "i32");
+    
+    let ty_vec_i32 = Type::Named("Vec".to_string(), vec![Type::I32]);
+    assert_eq!(ty_vec_i32.mangled_name(), "Vec_i32");
+    
+    let ty_option_box_i32 = Type::Named(
+        "Option".to_string(), 
+        vec![Type::Named("Box".to_string(), vec![Type::I32])]
+    );
+    assert_eq!(ty_option_box_i32.mangled_name(), "Option_Box_i32");
+}
+
+#[test]
+fn test_function_name_mangling() {
+    let context = Context::create();
+    let codegen = LLVMCodegen::new(&context, "test");
+    
+    let mangled = codegen.mangle_function_name("vec_new", &[Type::I32]);
+    assert_eq!(mangled, "vec_new_inst_i32");
+    
+    let mangled = codegen.mangle_function_name("Vec::new", &[Type::I32]);
+    assert_eq!(mangled, "Vec::new_inst_i32");
+}
+
+fn main() {
+    println!("Running monomorphization tests...");
+    
+    test_type_mangling();
+    println!("✓ Type mangling test passed");
+    
+    test_function_name_mangling();
+    println!("✓ Function name mangling test passed");
+    
+    println!("All tests passed!");
+}

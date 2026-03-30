@@ -2,8 +2,15 @@
 //! Migration from string-based types to algebraic types
 
 use crate::frontend::ast::AstNode;
-use crate::middle::types::{Substitution, Type, TypeVar, UnifyError};
+use crate::middle::types::{GenericContext, Substitution, TraitBound, Type, TypeParam, TypeVar, UnifyError};
 use std::collections::HashMap;
+
+/// Type inference constraint
+#[derive(Debug, Clone)]
+pub enum Constraint {
+    Equality(Type, Type),
+    Bound(Type, TraitBound),
+}
 
 /// Type inference context
 pub struct InferContext {
@@ -17,7 +24,10 @@ pub struct InferContext {
     substitution: Substitution,
 
     /// Collected constraints
-    constraints: Vec<(Type, Type)>,
+    constraints: Vec<Constraint>,
+
+    /// Generic context for type parameters
+    generic_context: GenericContext,
 
     /// Type of the last expression (for debugging)
     last_type: Option<Type>,
@@ -31,13 +41,19 @@ impl Default for InferContext {
 
 impl InferContext {
     pub fn new() -> Self {
-        InferContext {
+        let mut ctx = InferContext {
             variables: HashMap::new(),
             functions: HashMap::new(),
             substitution: Substitution::new(),
             constraints: Vec::new(),
+            generic_context: GenericContext::new(),
             last_type: None,
-        }
+        };
+        
+        // Register built-in generic types
+        ctx.register_builtin_generics();
+        
+        ctx
     }
 
     /// Look up variable type
@@ -54,8 +70,18 @@ impl InferContext {
     }
 
     /// Add type constraint
-    pub fn constrain(&mut self, t1: Type, t2: Type) {
-        self.constraints.push((t1, t2));
+    pub fn constrain(&mut self, constraint: Constraint) {
+        self.constraints.push(constraint);
+    }
+    
+    /// Helper to add equality constraint (backward compatibility)
+    fn constrain_eq(&mut self, t1: Type, t2: Type) {
+        self.constrain(Constraint::Equality(t1, t2));
+    }
+    
+    /// Helper to add bound constraint
+    fn constrain_bound(&mut self, ty: Type, bound: TraitBound) {
+        self.constrain(Constraint::Bound(ty, bound));
     }
 
     /// Parse type string to Type
@@ -357,7 +383,7 @@ impl InferContext {
                     // Constrain the expected type to be a named type with the variant name
                     // and field types as type arguments
                     let struct_ty = Type::Named(variant.clone(), field_types.clone());
-                    self.constrain(expected_ty.clone(), struct_ty);
+                    self.constrain_eq(expected_ty.clone(), struct_ty);
 
                     // Check each pattern against its corresponding field type
                     for (i, (_, pat)) in fields.iter().enumerate() {
@@ -369,7 +395,7 @@ impl InferContext {
                     // Named struct: for now, just create a named type
                     // In a real implementation, we would look up field types
                     let struct_ty = Type::Named(variant.clone(), vec![]);
-                    self.constrain(expected_ty.clone(), struct_ty);
+                    self.constrain_eq(expected_ty.clone(), struct_ty);
 
                     // Check each field pattern
                     for (_field_name, pat) in fields {
@@ -383,12 +409,12 @@ impl InferContext {
             }
             AstNode::Lit(_n) => {
                 // Literal pattern: expected type must be i64
-                self.constrain(expected_ty.clone(), Type::I64);
+                self.constrain_eq(expected_ty.clone(), Type::I64);
                 Ok(())
             }
             AstNode::Bool(_b) => {
                 // Boolean literal pattern
-                self.constrain(expected_ty.clone(), Type::Bool);
+                self.constrain_eq(expected_ty.clone(), Type::Bool);
                 Ok(())
             }
             _ => Err(format!("Pattern type not supported yet: {:?}", pattern)),
@@ -401,48 +427,48 @@ impl InferContext {
             AstNode::Lit(_n) => {
                 // Integer literals default to i64 (Zeta v0.5.0 standard)
                 // This avoids type mismatches with const annotations
-                Type::I64
+                Ok(Type::I64)
             }
 
             AstNode::FloatLit(_) => {
                 // Float literals default to f64
-                Type::F64
+                Ok(Type::F64)
             }
 
-            AstNode::StringLit(_) => Type::Str,
+            AstNode::StringLit(_) => Ok(Type::Str),
 
-            AstNode::Bool(_b) => Type::Bool,
+            AstNode::Bool(_b) => Ok(Type::Bool),
 
-            AstNode::Var(name) => self
+            AstNode::Var(name) => Ok(self
                 .lookup(name)
-                .ok_or_else(|| format!("Undefined variable: {}", name))?,
+                .ok_or_else(|| format!("Undefined variable: {}", name))?),
 
             AstNode::BinaryOp { op, left, right } => {
                 let left_ty = self.infer(left)?;
                 let right_ty = self.infer(right)?;
 
                 // Constraint: left and right types must unify
-                self.constrain(left_ty.clone(), right_ty.clone());
+                self.constrain_eq(left_ty.clone(), right_ty.clone());
 
                 // Determine result type based on operator
                 match op.as_str() {
                     "+" | "-" | "*" | "/" | "%" => {
                         // Numeric operations return same type
-                        left_ty
+                        Ok(left_ty)
                     }
                     "==" | "!=" | "<" | ">" | "<=" | ">=" => {
                         // Comparisons return bool
-                        Type::Bool
+                        Ok(Type::Bool)
                     }
                     "&&" | "||" => {
                         // Logical operators require bool operands
-                        self.constrain(left_ty.clone(), Type::Bool);
-                        self.constrain(right_ty.clone(), Type::Bool);
-                        Type::Bool
+                        self.constrain_eq(left_ty.clone(), Type::Bool);
+                        self.constrain_eq(right_ty.clone(), Type::Bool);
+                        Ok(Type::Bool)
                     }
                     "&" | "|" | "^" | "<<" | ">>" => {
                         // Bitwise operations
-                        left_ty
+                        Ok(left_ty)
                     }
                     _ => return Err(format!("Unknown operator: {}", op)),
                 }
@@ -454,16 +480,16 @@ impl InferContext {
                 match op.as_str() {
                     "-" => {
                         // Numeric negation
-                        expr_ty
+                        Ok(expr_ty)
                     }
                     "!" => {
                         // Logical NOT - requires bool
-                        self.constrain(expr_ty.clone(), Type::Bool);
-                        Type::Bool
+                        self.constrain_eq(expr_ty.clone(), Type::Bool);
+                        Ok(Type::Bool)
                     }
                     "~" => {
                         // Bitwise NOT
-                        expr_ty
+                        Ok(expr_ty)
                     }
                     _ => return Err(format!("Unknown unary operator: {}", op)),
                 }
@@ -478,12 +504,12 @@ impl InferContext {
                         if let Some(existing_ty) = self.variables.get(name) {
                             // Existing variable - constrain types
                             let existing_ty: &Type = existing_ty;
-                            self.constrain(existing_ty.clone(), rhs_ty.clone());
+                            self.constrain_eq(existing_ty.clone(), rhs_ty.clone());
                         } else {
                             // New variable
                             self.declare(name.clone(), rhs_ty.clone());
                         }
-                        rhs_ty
+                        Ok(rhs_ty)
                     }
                     _ => return Err("Complex assignment not yet supported".to_string()),
                 }
@@ -497,7 +523,7 @@ impl InferContext {
                 // If type annotation provided, constrain to it
                 if let Some(type_str) = ty {
                     let annotated_ty = self.parse_type_string(type_str)?;
-                    self.constrain(expr_ty.clone(), annotated_ty.clone());
+                    self.constrain_eq(expr_ty.clone(), annotated_ty.clone());
                     // Check pattern against annotated type
                     self.check_pattern(pattern, &annotated_ty)?;
                 } else {
@@ -506,7 +532,7 @@ impl InferContext {
                 }
 
                 // Let statements have unit type
-                Type::Tuple(vec![]) // Unit type
+                Ok(Type::Tuple(vec![])) // Unit type
             }
 
             AstNode::ConstDef {
@@ -522,27 +548,41 @@ impl InferContext {
                 let value_ty = self.infer(value)?;
 
                 // Constrain value type to match const type
-                self.constrain(value_ty, const_ty.clone());
+                self.constrain_eq(value_ty, const_ty.clone());
 
                 // Register constant in context
                 self.declare(name.clone(), const_ty.clone());
 
                 // Const definitions have unit type at top level
-                Type::Tuple(vec![]) // Unit type
+                Ok(Type::Tuple(vec![])) // Unit type
             }
 
             AstNode::FuncDef {
                 name,
+                generics,
                 params,
                 ret,
                 body,
                 ret_expr,
                 ..
             } => {
-                // Parse return type
+                // Parse generic type parameters if present
+                let type_params = if !generics.is_empty() {
+                    // Parse "T: Clone + Copy" style bounds
+                    self.parse_generic_params(generics)?
+                } else {
+                    Vec::new()
+                };
+                
+                // Enter generic scope
+                self.enter_generic_scope(type_params);
+
+                // Parse return type in generic context
                 let return_ty = self.parse_type_string(ret)?;
 
                 // Register function signature
+                // For generic functions, we need to store a generic type
+                // For now, store the return type directly
                 self.functions.insert(name.clone(), return_ty.clone());
 
                 // Add parameters to variable context
@@ -560,17 +600,21 @@ impl InferContext {
                 if let Some(expr) = ret_expr {
                     let expr_ty = self.infer(expr)?;
                     // Constrain return expression type to match function return type
-                    self.constrain(expr_ty, return_ty);
+                    self.constrain_eq(expr_ty, return_ty);
                 }
 
+                // Exit generic scope
+                self.exit_generic_scope();
+
                 // Function definitions have unit type at top level
-                Type::Tuple(vec![]) // Unit type
+                Ok(Type::Tuple(vec![])) // Unit type
             }
 
             AstNode::Call {
                 receiver,
                 method,
-                args: _,
+                args,
+                type_args,
                 ..
             } => {
                 if let Some(receiver_expr) = receiver {
@@ -580,13 +624,51 @@ impl InferContext {
                     // For now, just return a fresh type variable for method calls
                     // In a complete implementation, we would look up the method
                     // from the receiver type's method table
-                    Type::Variable(TypeVar::fresh())
+                    Ok(Type::Variable(TypeVar::fresh()))
                 } else {
                     // Function call: look up function return type
-                    if let Some(return_ty) = self.functions.get(method) {
-                        return_ty.clone()
+                    if !type_args.is_empty() {
+                        // Generic function call
+                        let parsed_type_args: Result<Vec<Type>, String> = type_args
+                            .iter()
+                            .map(|s| self.parse_type_string(s))
+                            .collect();
+                        
+                        self.infer_generic_call(method, &parsed_type_args?, args)
                     } else {
-                        return Err(format!("Unknown function: {}", method));
+                        // Regular function call
+                        // Get function type first to avoid borrow issues
+                        let func_type = self.functions.get(method).cloned();
+                        
+                        if let Some(return_ty) = func_type {
+                            // Check if it's a function type that needs argument checking
+                            match return_ty {
+                                Type::Function(param_types, ret_ty) => {
+                                    // Check arguments
+                                    if args.len() != param_types.len() {
+                                        return Err(format!(
+                                            "Wrong number of arguments: expected {}, got {}",
+                                            param_types.len(),
+                                            args.len()
+                                        ));
+                                    }
+                                    
+                                    // Clone the return type before mutable borrows
+                                    let ret_ty_clone = *ret_ty.clone();
+                                    
+                                    // Type check each argument
+                                    for (i, (arg, param_ty)) in args.iter().zip(param_types.iter()).enumerate() {
+                                        let arg_ty = self.infer(arg)?;
+                                        self.constrain_eq(arg_ty, param_ty.clone());
+                                    }
+                                    
+                                    Ok(ret_ty_clone)
+                                }
+                                _ => Ok(return_ty.clone()),
+                            }
+                        } else {
+                            return Err(format!("Unknown function: {}", method));
+                        }
                     }
                 }
             }
@@ -608,7 +690,7 @@ impl InferContext {
                 // Store struct definition in context for later use
                 // For now, we'll just return unit type since struct definitions
                 // don't have a value type at the top level
-                Type::Tuple(vec![]) // Unit type
+                Ok(Type::Tuple(vec![])) // Unit type
             }
 
             AstNode::EnumDef { name, variants, .. } => {
@@ -653,7 +735,7 @@ impl InferContext {
                 }
 
                 // Enum definitions have unit type at top level
-                Type::Tuple(vec![]) // Unit type
+                Ok(Type::Tuple(vec![])) // Unit type
             }
 
             AstNode::StructLit { variant, fields } => {
@@ -667,7 +749,7 @@ impl InferContext {
                     // and constrain field_ty to match
                 }
 
-                struct_ty
+                Ok(struct_ty)
             }
 
             AstNode::FieldAccess {
@@ -679,7 +761,7 @@ impl InferContext {
                 // For now, return a fresh type variable for field access
                 // In a complete implementation, we would look up the field type
                 // from the struct definition
-                Type::Variable(TypeVar::fresh())
+                Ok(Type::Variable(TypeVar::fresh()))
             }
 
             AstNode::PathCall { path, method, args } => {
@@ -697,7 +779,7 @@ impl InferContext {
                 };
 
                 // Check if this is a function type with parameters
-                match func_ty {
+                Ok(match func_ty {
                     Type::Function(param_types, return_ty) => {
                         // Check that we have the right number of arguments
                         if args.len() != param_types.len() {
@@ -712,7 +794,7 @@ impl InferContext {
                         for (i, (arg, param_ty)) in args.iter().zip(param_types.iter()).enumerate()
                         {
                             let arg_ty = self.infer(arg)?;
-                            self.constrain(arg_ty, param_ty.clone());
+                            self.constrain_eq(arg_ty, param_ty.clone());
                         }
 
                         // Return the function's return type
@@ -722,7 +804,7 @@ impl InferContext {
                         // Not a function type, just return it (could be a constant)
                         func_ty
                     }
-                }
+                })
             }
 
             AstNode::ImplBlock {
@@ -806,7 +888,7 @@ impl InferContext {
                 }
                 // Impl blocks don't have a type, they're declarations
                 // Return unit type
-                Type::Tuple(vec![])
+                Ok(Type::Tuple(vec![]))
             }
 
             AstNode::Closure { params, body } => {
@@ -831,7 +913,7 @@ impl InferContext {
                 let body_ty = inner_ctx.infer(body)?;
 
                 // Constrain the body type to be the return type
-                inner_ctx.constrain(body_ty, return_type_var.clone());
+                inner_ctx.constrain_eq(body_ty, return_type_var.clone());
 
                 // Solve constraints in the inner context
                 if let Err(errors) = inner_ctx.solve() {
@@ -847,7 +929,7 @@ impl InferContext {
                 let final_return_type = inner_ctx.substitution.apply(&return_type_var);
 
                 // The closure type is a function type
-                Type::Function(final_param_types, Box::new(final_return_type))
+                Ok(Type::Function(final_param_types, Box::new(final_return_type)))
             }
 
             AstNode::IfLet {
@@ -875,10 +957,10 @@ impl InferContext {
                 }
 
                 // Both branches must have the same type
-                self.constrain(then_ty.clone(), else_ty.clone());
+                self.constrain_eq(then_ty.clone(), else_ty.clone());
 
                 // The if-let expression has the type of its branches
-                then_ty
+                Ok(then_ty)
             }
 
             AstNode::Match { scrutinee, arms } => {
@@ -894,7 +976,7 @@ impl InferContext {
                     // Type check guard if present
                     if let Some(guard) = &arm.guard {
                         let guard_ty = self.infer(guard)?;
-                        self.constrain(guard_ty, Type::Bool);
+                        self.constrain_eq(guard_ty, Type::Bool);
                     }
 
                     // Type check body
@@ -905,19 +987,19 @@ impl InferContext {
                 // All arms must have the same type
                 if let Some(first_ty) = arm_types.first() {
                     for other_ty in arm_types.iter().skip(1) {
-                        self.constrain(first_ty.clone(), other_ty.clone());
+                        self.constrain_eq(first_ty.clone(), other_ty.clone());
                     }
-                    first_ty.clone()
+                    Ok(first_ty.clone())
                 } else {
                     // Empty match - return unit type
-                    Type::Tuple(vec![])
+                    Ok(Type::Tuple(vec![]))
                 }
             }
 
             AstNode::Use { .. } => {
                 // Use statements are processed by the resolver before type inference
                 // They don't have a type themselves
-                Type::Tuple(vec![]) // Unit type
+                Ok(Type::Tuple(vec![])) // Unit type
             }
 
             _ => {
@@ -926,8 +1008,9 @@ impl InferContext {
             }
         };
 
-        self.last_type = Some(ty.clone());
-        Ok(ty)
+        let result_ty = ty?;
+        self.last_type = Some(result_ty.clone());
+        Ok(result_ty)
     }
 
     /// Get the current substitution
@@ -944,9 +1027,18 @@ impl InferContext {
     pub fn solve(&mut self) -> Result<(), Vec<UnifyError>> {
         let mut errors = Vec::new();
 
-        for (t1, t2) in self.constraints.drain(..) {
-            if let Err(e) = self.substitution.unify(&t1, &t2) {
-                errors.push(e);
+        for constraint in self.constraints.drain(..) {
+            match constraint {
+                Constraint::Equality(t1, t2) => {
+                    if let Err(e) = self.substitution.unify(&t1, &t2) {
+                        errors.push(e);
+                    }
+                }
+                Constraint::Bound(ty, bound) => {
+                    if !self.substitution.satisfies_bound(&ty, &bound) {
+                        errors.push(UnifyError::MissingBound(ty, bound));
+                    }
+                }
             }
         }
 
@@ -955,6 +1047,126 @@ impl InferContext {
         } else {
             Err(errors)
         }
+    }
+
+    /// Enter a new generic context
+    pub fn enter_generic_scope(&mut self, type_params: Vec<TypeParam>) {
+        let new_context = GenericContext {
+            type_params,
+            parent: Some(Box::new(self.generic_context.clone())),
+        };
+        self.generic_context = new_context;
+    }
+
+    /// Exit current generic context
+    pub fn exit_generic_scope(&mut self) {
+        if let Some(parent) = self.generic_context.parent.take() {
+            self.generic_context = *parent;
+        }
+    }
+
+    /// Infer type for generic function call
+    pub fn infer_generic_call(
+        &mut self,
+        name: &str,
+        type_args: &[Type],
+        value_args: &[AstNode],
+    ) -> Result<Type, String> {
+        // Look up generic function
+        let generic_ty = self.functions.get(name)
+            .ok_or_else(|| format!("Unknown generic function: {}", name))?;
+        
+        // Instantiate with type arguments
+        let instantiated_ty = self.substitution.instantiate_generic_with_bounds(
+            generic_ty,
+            type_args,
+            &self.generic_context,
+        )?;
+        
+        // Check if it's a function type
+        match &instantiated_ty {
+            Type::Function(param_types, ret_ty) => {
+                // Check value arguments match parameter types
+                if value_args.len() != param_types.len() {
+                    return Err(format!(
+                        "Wrong number of arguments: expected {}, got {}",
+                        param_types.len(),
+                        value_args.len()
+                    ));
+                }
+                
+                // Type check each argument
+                for (i, (arg, param_ty)) in value_args.iter().zip(param_types.iter()).enumerate() {
+                    let arg_ty = self.infer(arg)?;
+                    self.constrain_eq(arg_ty, param_ty.clone());
+                }
+                
+                Ok(*ret_ty.clone())
+            }
+            _ => Err(format!("{} is not a function", name)),
+        }
+    }
+
+    /// Parse generic parameters from strings like "T: Clone + Copy"
+    fn parse_generic_params(&self, generics: &[String]) -> Result<Vec<TypeParam>, String> {
+        let mut type_params = Vec::new();
+        
+        for generic in generics {
+            // Parse "T: Clone + Copy" or just "T"
+            let parts: Vec<&str> = generic.split(':').map(|s| s.trim()).collect();
+            
+            if parts.is_empty() {
+                return Err("Empty generic parameter".to_string());
+            }
+            
+            let name = parts[0].to_string();
+            let mut bounds = Vec::new();
+            
+            if parts.len() > 1 {
+                // Parse bounds: "Clone + Copy + Debug"
+                let bound_parts: Vec<&str> = parts[1].split('+').map(|s| s.trim()).collect();
+                
+                for bound_str in bound_parts {
+                    match bound_str {
+                        "Clone" => bounds.push(TraitBound::Clone),
+                        "Copy" => bounds.push(TraitBound::Copy),
+                        "Debug" => bounds.push(TraitBound::Debug),
+                        "Default" => bounds.push(TraitBound::Default),
+                        "PartialEq" => bounds.push(TraitBound::PartialEq),
+                        "Eq" => bounds.push(TraitBound::Eq),
+                        "PartialOrd" => bounds.push(TraitBound::PartialOrd),
+                        "Ord" => bounds.push(TraitBound::Ord),
+                        "Hash" => bounds.push(TraitBound::Hash),
+                        _ => return Err(format!("Unknown trait bound: {}", bound_str)),
+                    }
+                }
+            }
+            
+            type_params.push(TypeParam { name, bounds });
+        }
+        
+        Ok(type_params)
+    }
+    
+    /// Register built-in generic types (Vec, Option, Result)
+    pub fn register_builtin_generics(&mut self) {
+        // Vec<T> - generic type with one type parameter
+        let t_var = Type::Variable(TypeVar::fresh());
+        let vec_ty = Type::Named("Vec".to_string(), vec![t_var.clone()]);
+        
+        // Option<T> - generic type with one type parameter
+        let option_ty = Type::Named("Option".to_string(), vec![t_var.clone()]);
+        
+        // Result<T, E> - generic type with two type parameters
+        let t_var2 = Type::Variable(TypeVar::fresh());
+        let result_ty = Type::Named("Result".to_string(), vec![t_var.clone(), t_var2.clone()]);
+        
+        // Register them as function-like types that can be instantiated
+        // For now, we'll store them as simple named types
+        // In a full implementation, we'd store them in a separate generic types table
+        self.functions.insert("Vec".to_string(), vec_ty);
+        self.functions.insert("Option".to_string(), option_ty);
+        self.functions.insert("Result".to_string(), result_ty);
     }
 
     /// Get final type of expression after solving constraints
@@ -972,6 +1184,7 @@ impl Clone for InferContext {
             functions: self.functions.clone(),
             substitution: self.substitution.clone(),
             constraints: self.constraints.clone(),
+            generic_context: self.generic_context.clone(),
             last_type: self.last_type.clone(),
         }
     }

@@ -11,6 +11,7 @@
 //! UPDATED FOR PRINTLN SUPPORT (March 2026) - Grok + Zeta team
 
 use crate::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
+use crate::middle::types::{Substitution, Type, TypeVar};
 use inkwell::AddressSpace;
 use inkwell::IntPredicate;
 use inkwell::builder::Builder;
@@ -802,20 +803,133 @@ impl<'ctx> LLVMCodegen<'ctx> {
         let fn_type = self.i64_type.fn_type(&param_types, false);
         let fn_val = self.module.add_function(&mangled_name, fn_type, None);
 
-        // Generate function body (simplified - just copy for now)
-        // TODO: Implement proper type substitution
-        // For now, we'll just generate the function as-is
-        // In a real implementation, we would need to:
-        // 1. Create a copy of the MIR with type substitutions
-        // 2. Generate code from the substituted MIR
-
-        // Store the function in our maps
+        // Store the function in our maps before generating body
+        // (gen_fn will look it up)
         self.fns.insert(mangled_name.clone(), fn_val);
+        self.specialized_fns.insert(mangled_name.clone(), fn_val);
 
-        // Note: We're not actually generating the body here yet
-        // This is a placeholder that will need to be implemented properly
+        // Create a substitution for type variables
+        // For now, assume the generic function has type parameters TypeVar(0), TypeVar(1), etc.
+        let mut substitution = Substitution::new();
+        for (i, type_arg) in type_args.iter().enumerate() {
+            substitution.mapping.insert(TypeVar(i as u32), type_arg.clone());
+        }
+
+        // Apply substitution to create a monomorphized MIR
+        let monomorphized_mir = self.substitute_mir(generic_mir, &substitution);
+
+        // Generate the function body
+        self.gen_fn(&monomorphized_mir);
 
         fn_val
+    }
+
+    /// Apply type substitution to a MIR
+    fn substitute_mir(&self, mir: &Mir, substitution: &Substitution) -> Mir {
+        let mut new_mir = mir.clone();
+        
+        // Substitute types in type_map
+        let mut new_type_map = HashMap::new();
+        for (id, ty) in &mir.type_map {
+            new_type_map.insert(*id, substitution.apply(ty));
+        }
+        new_mir.type_map = new_type_map;
+        
+        // Substitute types in statements (type arguments in calls)
+        new_mir.stmts = mir.stmts.iter()
+            .map(|stmt| self.substitute_stmt(stmt, substitution))
+            .collect();
+        
+        new_mir
+    }
+
+    /// Apply type substitution to a statement
+    fn substitute_stmt(&self, stmt: &MirStmt, substitution: &Substitution) -> MirStmt {
+        match stmt {
+            MirStmt::Assign { lhs, rhs } => {
+                MirStmt::Assign {
+                    lhs: *lhs,
+                    rhs: *rhs,
+                }
+            }
+            MirStmt::Call { func, args, dest, type_args } => {
+                // Substitute type arguments in the call
+                let substituted_type_args: Vec<Type> = type_args.iter()
+                    .map(|ty| substitution.apply(ty))
+                    .collect();
+                
+                MirStmt::Call {
+                    func: func.clone(),
+                    args: args.clone(),
+                    dest: *dest,
+                    type_args: substituted_type_args,
+                }
+            }
+            MirStmt::VoidCall { func, args } => {
+                MirStmt::VoidCall {
+                    func: func.clone(),
+                    args: args.clone(),
+                }
+            }
+            MirStmt::Return { val } => {
+                MirStmt::Return { val: *val }
+            }
+            MirStmt::SemiringFold { op, values, result } => {
+                MirStmt::SemiringFold {
+                    op: op.clone(),
+                    values: values.clone(),
+                    result: *result,
+                }
+            }
+            MirStmt::ParamInit { param_id, arg_index } => {
+                MirStmt::ParamInit {
+                    param_id: *param_id,
+                    arg_index: *arg_index,
+                }
+            }
+            MirStmt::Consume { id } => {
+                MirStmt::Consume { id: *id }
+            }
+            MirStmt::If { cond, then, else_, dest } => {
+                // Recursively substitute in then and else blocks
+                let substituted_then: Vec<MirStmt> = then.iter()
+                    .map(|stmt| self.substitute_stmt(stmt, substitution))
+                    .collect();
+                let substituted_else: Vec<MirStmt> = else_.iter()
+                    .map(|stmt| self.substitute_stmt(stmt, substitution))
+                    .collect();
+                
+                MirStmt::If {
+                    cond: *cond,
+                    then: substituted_then,
+                    else_: substituted_else,
+                    dest: *dest,
+                }
+            }
+            MirStmt::TryProp { expr_id, ok_dest, err_dest } => {
+                MirStmt::TryProp {
+                    expr_id: *expr_id,
+                    ok_dest: *ok_dest,
+                    err_dest: *err_dest,
+                }
+            }
+            MirStmt::DictInsert { map_id, key_id, val_id } => {
+                MirStmt::DictInsert {
+                    map_id: *map_id,
+                    key_id: *key_id,
+                    val_id: *val_id,
+                }
+            }
+            MirStmt::DictGet { map_id, key_id, dest } => {
+                MirStmt::DictGet {
+                    map_id: *map_id,
+                    key_id: *key_id,
+                    dest: *dest,
+                }
+            }
+            // TODO: Handle other MIR statement variants
+            _ => todo!("MIR statement variant not yet implemented in substitute_stmt: {:?}", stmt),
+        }
     }
 
     fn gen_stmt(&mut self, stmt: &MirStmt, exprs: &HashMap<u32, MirExpr>) {

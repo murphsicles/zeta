@@ -1,0 +1,286 @@
+//! Shared Type Context Management
+//!
+//! Provides utilities for managing type context across compilation phases,
+//! including generic parameter tracking, substitution application, and
+//! type variable management.
+
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use crate::middle::types::{Type, TypeVar, Substitution};
+use crate::middle::types::lifetime::{Lifetime, LifetimeVar};
+use super::generic_integration::GenericParam;
+
+/// Shared type context for coordination between components
+#[derive(Debug, Clone)]
+pub struct SharedTypeContext {
+    /// Type variables and their substitutions
+    pub type_substitution: Substitution,
+    
+    /// Lifetime variables and their substitutions
+    pub lifetime_substitution: HashMap<LifetimeVar, Lifetime>,
+    
+    /// Generic parameters in scope
+    pub generic_params: HashMap<String, GenericParam>,
+    
+    /// Concrete type mappings
+    pub concrete_types: HashMap<TypeVar, Type>,
+    
+    /// Parent context for nested scopes
+    pub parent: Option<Arc<SharedTypeContext>>,
+    
+    /// Source location for error reporting
+    pub location: Option<String>,
+}
+
+impl SharedTypeContext {
+    /// Create a new root type context
+    pub fn new() -> Self {
+        Self {
+            type_substitution: Substitution::new(),
+            lifetime_substitution: HashMap::new(),
+            generic_params: HashMap::new(),
+            concrete_types: HashMap::new(),
+            parent: None,
+            location: None,
+        }
+    }
+    
+    /// Create a new context with a parent
+    pub fn with_parent(parent: Arc<SharedTypeContext>) -> Self {
+        Self {
+            type_substitution: Substitution::new(),
+            lifetime_substitution: HashMap::new(),
+            generic_params: parent.generic_params.clone(),
+            concrete_types: HashMap::new(),
+            parent: Some(parent),
+            location: None,
+        }
+    }
+    
+    /// Add generic parameters to the context
+    pub fn add_generic_params(&mut self, params: &[GenericParam]) {
+        for param in params {
+            match param {
+                GenericParam::Type { name, bounds } => {
+                    // Create a fresh type variable for this generic parameter
+                    let ty_var = TypeVar::fresh();
+                    let type_var = Type::Variable(ty_var.clone());
+                    
+                    self.generic_params.insert(name.clone(), param.clone());
+                    self.concrete_types.insert(ty_var, type_var);
+                }
+                GenericParam::Lifetime { name } => {
+                    // Create a fresh lifetime variable
+                    let lt_var = LifetimeVar::fresh();
+                    let lifetime = Lifetime::Variable(lt_var.clone());
+                    
+                    // Store in generic params
+                    self.generic_params.insert(name.clone(), param.clone());
+                    
+                    // Also track in lifetime substitution
+                    self.lifetime_substitution.insert(lt_var, lifetime);
+                }
+                GenericParam::Const { name, ty } => {
+                    // Const parameters are concrete types
+                    self.generic_params.insert(name.clone(), param.clone());
+                    // TODO: Handle const parameter tracking
+                }
+            }
+        }
+    }
+    
+    /// Look up a type by name, resolving through parent contexts
+    pub fn lookup_type(&self, name: &str) -> Option<Type> {
+        // Check if it's a generic parameter
+        if let Some(param) = self.generic_params.get(name) {
+            match param {
+                GenericParam::Type { .. } => {
+                    // Look for corresponding type variable
+                    // This is simplified - in reality we'd need to track the mapping
+                    // between generic param names and their type variables
+                    // For now, create a fresh variable
+                    Some(Type::Variable(TypeVar::fresh()))
+                }
+                GenericParam::Const { ty, .. } => {
+                    Some(ty.clone())
+                }
+                _ => None,
+            }
+        } else {
+            // Check parent context
+            self.parent.as_ref().and_then(|p| p.lookup_type(name))
+        }
+    }
+    
+    /// Apply all substitutions to a type
+    pub fn apply_substitutions(&self, ty: &Type) -> Type {
+        let mut result = self.type_substitution.apply(ty);
+        
+        // Apply lifetime substitutions if needed
+        // (This is simplified - full implementation would walk the type)
+        result
+    }
+    
+    /// Unify two types in this context
+    pub fn unify(&mut self, t1: &Type, t2: &Type) -> Result<(), String> {
+        match self.type_substitution.unify(t1, t2) {
+            Ok(()) => Ok(()),
+            Err(e) => Err(format!("Unification error: {:?}", e)),
+        }
+    }
+    
+    /// Create a substitution from type arguments to generic parameters
+    pub fn create_substitution(
+        &self,
+        generic_params: &[GenericParam],
+        type_args: &[Type],
+    ) -> Result<Substitution, String> {
+        if generic_params.len() != type_args.len() {
+            return Err(format!(
+                "Arity mismatch: {} generic params, {} type args",
+                generic_params.len(),
+                type_args.len()
+            ));
+        }
+        
+        let mut substitution = Substitution::new();
+        
+        for (param, arg) in generic_params.iter().zip(type_args) {
+            if let GenericParam::Type { name, .. } = param {
+                let type_var = Type::Variable(TypeVar::from_name(name));
+                substitution.mapping.insert(type_var, arg.clone());
+            }
+            // Note: Lifetime and const params handled separately
+        }
+        
+        Ok(substitution)
+    }
+    
+    /// Check if a type contains any unbound type variables
+    pub fn has_unbound_variables(&self, ty: &Type) -> bool {
+        match ty {
+            Type::Variable(var) => {
+                // Check if this variable is bound in our substitution
+                !self.type_substitution.mapping.contains_key(&Type::Variable(var.clone()))
+            }
+            Type::Array(inner, _) => self.has_unbound_variables(inner),
+            Type::Slice(inner) => self.has_unbound_variables(inner),
+            Type::Tuple(types) => types.iter().any(|t| self.has_unbound_variables(t)),
+            Type::Ptr(inner) => self.has_unbound_variables(inner),
+            Type::Ref(inner, _, _) => self.has_unbound_variables(inner),
+            Type::Named(_, args) => args.iter().any(|t| self.has_unbound_variables(t)),
+            Type::Function(params, ret) => {
+                params.iter().any(|t| self.has_unbound_variables(t))
+                    || self.has_unbound_variables(ret)
+            }
+            _ => false, // Primitive types have no variables
+        }
+    }
+}
+
+/// Type context stack for managing nested scopes
+#[derive(Debug, Clone)]
+pub struct TypeContextStack {
+    stack: Vec<SharedTypeContext>,
+}
+
+impl TypeContextStack {
+    pub fn new() -> Self {
+        Self {
+            stack: vec![SharedTypeContext::new()],
+        }
+    }
+    
+    /// Get the current context
+    pub fn current(&self) -> &SharedTypeContext {
+        self.stack.last().unwrap()
+    }
+    
+    /// Get mutable current context
+    pub fn current_mut(&mut self) -> &mut SharedTypeContext {
+        self.stack.last_mut().unwrap()
+    }
+    
+    /// Push a new context onto the stack
+    pub fn push(&mut self) {
+        let parent = Arc::new(self.current().clone());
+        self.stack.push(SharedTypeContext::with_parent(parent));
+    }
+    
+    /// Pop a context from the stack
+    pub fn pop(&mut self) -> Option<SharedTypeContext> {
+        if self.stack.len() > 1 {
+            self.stack.pop()
+        } else {
+            None
+        }
+    }
+    
+    /// Enter a new scope, returning a guard that will pop on drop
+    pub fn enter_scope(&mut self) -> ScopeGuard {
+        self.push();
+        ScopeGuard { stack: self }
+    }
+}
+
+/// RAII guard for scope management
+pub struct ScopeGuard<'a> {
+    stack: &'a mut TypeContextStack,
+}
+
+impl<'a> Drop for ScopeGuard<'a> {
+    fn drop(&mut self) {
+        self.stack.pop();
+    }
+}
+
+/// Utility for converting between error types
+pub mod error_conversion {
+    use crate::middle::types::UnifyError;
+    use super::super::generic_integration::IntegrationError;
+    
+    /// Convert unification error to integration error
+    pub fn unify_to_integration(error: UnifyError) -> IntegrationError {
+        IntegrationError::TypeError(format!("Unification error: {:?}", error))
+    }
+    
+    /// Convert parse error to integration error
+    pub fn parse_to_integration(error: String) -> IntegrationError {
+        IntegrationError::ParseError(error)
+    }
+    
+    /// Convert type error to integration error
+    pub fn type_to_integration(error: String) -> IntegrationError {
+        IntegrationError::TypeError(error)
+    }
+}
+
+/// Type variable utilities
+pub mod type_var_utils {
+    use crate::middle::types::{Type, TypeVar};
+    
+    /// Extract type variable from a Type if it is a variable
+    pub fn extract_type_var(ty: &Type) -> Option<TypeVar> {
+        match ty {
+            Type::Variable(var) => Some(var.clone()),
+            _ => None,
+        }
+    }
+    
+    /// Check if a type is a type variable
+    pub fn is_type_variable(ty: &Type) -> bool {
+        matches!(ty, Type::Variable(_))
+    }
+    
+    /// Create a fresh type variable
+    pub fn fresh_type_var() -> Type {
+        Type::Variable(TypeVar::fresh())
+    }
+    
+    /// Create a type variable from a name (for testing/debugging)
+    /// Note: This creates a fresh variable, not one based on the name
+    pub fn type_var_from_name(_name: &str) -> Type {
+        Type::Variable(TypeVar::fresh())
+    }
+}

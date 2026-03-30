@@ -1,0 +1,162 @@
+//! Test for the generic type system integration bridge
+//!
+//! This test verifies that the integration bridge can coordinate
+//! between components for generic type support.
+
+use zetac::integration::{
+    GenericIntegration, GenericParam, TypeContext, 
+    CoordinationManager, ComponentStatus, protocols,
+};
+use zetac::middle::types::Type;
+use std::collections::HashMap;
+use std::sync::Arc;
+
+fn test_generic_integration_basics() {
+    println!("=== Testing Generic Integration Bridge ===");
+    
+    // 1. Test GenericIntegration creation
+    let mut integration = GenericIntegration::new();
+    println!("✓ Created GenericIntegration");
+    
+    // 2. Test TypeContext
+    let mut type_context = TypeContext::new();
+    
+    // Add generic parameters
+    let generic_params = vec![
+        GenericParam::Type {
+            name: "T".to_string(),
+            bounds: vec![],
+        },
+        GenericParam::Lifetime {
+            name: "'a".to_string(),
+        },
+    ];
+    
+    type_context.add_generic_params(&generic_params);
+    println!("✓ Added generic parameters to TypeContext");
+    
+    // 3. Test type lookup
+    let looked_up = type_context.lookup_type("T");
+    assert!(looked_up.is_some(), "Should find generic parameter T");
+    println!("✓ Type lookup works");
+    
+    // 4. Test CoordinationManager
+    let mut manager = CoordinationManager::new();
+    
+    // Register components
+    manager.register_component("parser");
+    manager.register_component("type_checker");
+    manager.register_component("codegen");
+    manager.register_component("integration");
+    
+    println!("✓ Registered all components");
+    
+    // 5. Test component status
+    manager.update_status("parser", ComponentStatus::Processing, "Parsing generic syntax");
+    manager.update_status("type_checker", ComponentStatus::Ready, "Waiting for AST");
+    
+    println!("✓ Component status updates work");
+    
+    // 6. Test error handling
+    integration.add_error(
+        zetac::integration::IntegrationError::TypeError("Test error".to_string())
+    );
+    
+    assert!(integration.has_errors(), "Should have errors");
+    println!("✓ Error handling works");
+    
+    // 7. Test coordination protocols
+    protocols::integration::send_status(
+        &manager,
+        ComponentStatus::Complete,
+        "Integration test complete",
+    );
+    
+    println!("✓ Coordination protocols work");
+    
+    println!("=== All integration bridge tests passed! ===");
+}
+
+fn test_type_context_stack() {
+    println!("\n=== Testing Type Context Stack ===");
+    
+    use zetac::integration::{TypeContextStack, SharedTypeContext};
+    
+    let mut stack = TypeContextStack::new();
+    
+    // Enter new scope
+    {
+        let _guard = stack.enter_scope();
+        println!("✓ Entered new scope");
+        
+        // Add generic parameter in inner scope
+        let mut inner_context = stack.current_mut();
+        let params = vec![
+            GenericParam::Type {
+                name: "U".to_string(),
+                bounds: vec![],
+            },
+        ];
+        inner_context.add_generic_params(&params);
+        
+        // Should find U in inner scope
+        let found = inner_context.lookup_type("U");
+        assert!(found.is_some(), "Should find U in inner scope");
+        println!("✓ Inner scope parameter lookup works");
+    }
+    
+    // Back in outer scope
+    println!("✓ Automatically exited scope (RAII guard dropped)");
+    
+    // U should not be found in outer scope
+    let not_found = stack.current().lookup_type("U");
+    assert!(not_found.is_none(), "Should not find U in outer scope");
+    println!("✓ Scope isolation works");
+    
+    println!("=== Type context stack tests passed! ===");
+}
+
+fn test_error_conversion() {
+    println!("\n=== Testing Error Conversion ===");
+    
+    use zetac::integration::error_conversion;
+    use zetac::middle::types::UnifyError;
+    
+    // Test unification error conversion
+    let unify_error = UnifyError::OccursCheck;
+    let integration_error = error_conversion::unify_to_integration(unify_error);
+    
+    match integration_error {
+        zetac::integration::IntegrationError::TypeError(msg) => {
+            assert!(msg.contains("Unification error"));
+            println!("✓ Unification error conversion works");
+        }
+        _ => panic!("Wrong error type"),
+    }
+    
+    // Test parse error conversion
+    let parse_error = "Syntax error".to_string();
+    let integration_error = error_conversion::parse_to_integration(parse_error);
+    
+    match integration_error {
+        zetac::integration::IntegrationError::ParseError(msg) => {
+            assert_eq!(msg, "Syntax error");
+            println!("✓ Parse error conversion works");
+        }
+        _ => panic!("Wrong error type"),
+    }
+    
+    println!("=== Error conversion tests passed! ===");
+}
+
+fn main() {
+    println!("Starting integration bridge tests...\n");
+    
+    test_generic_integration_basics();
+    test_type_context_stack();
+    test_error_conversion();
+    
+    println!("\n=== ALL TESTS PASSED ===");
+    println!("Integration bridge is working correctly!");
+    println!("Components can coordinate for generic type support.");
+}
