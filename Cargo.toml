@@ -85,3 +85,21 @@ harness = false
 name = "regression_test"
 # Disable default harness.
 harness = false
+
+[[bench]]
+# Benchmark name.
+name = "quick_wins_bench"
+# Disable default harness.
+harness = false
+
+[[bench]]
+# Benchmark name.
+name = "optimized_mir_bench"
+# Disable default harness.
+harness = false
+
+[[bench]]
+# Benchmark name.
+name = "typecheck_bench"
+# Disable default harness.
+harness = false

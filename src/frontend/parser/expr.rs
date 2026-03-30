@@ -16,25 +16,20 @@ use nom::multi::{separated_list0, separated_list1};
 use nom::sequence::{delimited, preceded, terminated};
 
 fn parse_float_lit(input: &str) -> IResult<&str, AstNode> {
+    // OPTIMIZED: Use byte slices instead of character iteration
     // Simple float parser: digits.digits
     // For v0.3.8, support basic floats without exponent
 
-    let mut chars = input.chars().peekable();
+    let bytes = input.as_bytes();
     let mut pos = 0;
-    let mut has_digit = false;
 
-    // Parse integer part
-    while let Some(&c) = chars.peek() {
-        if c.is_ascii_digit() {
-            has_digit = true;
-            chars.next();
-            pos += c.len_utf8();
-        } else {
-            break;
-        }
+    // Parse integer part (digits)
+    let start_pos = pos;
+    while pos < bytes.len() && bytes[pos].is_ascii_digit() {
+        pos += 1;
     }
 
-    if !has_digit {
+    if pos == start_pos {
         return Err(nom::Err::Error(NomError::new(
             input,
             nom::error::ErrorKind::Digit,
@@ -43,26 +38,18 @@ fn parse_float_lit(input: &str) -> IResult<&str, AstNode> {
 
     // Check for decimal point
     let mut has_decimal = false;
-    if let Some(&c) = chars.peek()
-        && c == '.'
-    {
-        has_decimal = true;
-        chars.next();
-        pos += c.len_utf8();
-
+    if pos < bytes.len() && bytes[pos] == b'.' {
         // Parse fractional part (at least one digit)
-        let mut has_fraction_digit = false;
-        while let Some(&c) = chars.peek() {
-            if c.is_ascii_digit() {
-                has_fraction_digit = true;
-                chars.next();
-                pos += c.len_utf8();
-            } else {
-                break;
-            }
+        has_decimal = true;
+        pos += 1; // Skip the decimal point
+
+        // Parse fraction part (digits after decimal)
+        let fraction_start = pos;
+        while pos < bytes.len() && bytes[pos].is_ascii_digit() {
+            pos += 1;
         }
 
-        if !has_fraction_digit {
+        if pos == fraction_start {
             // Invalid: decimal point without digits
             return Err(nom::Err::Error(NomError::new(
                 input,
@@ -178,10 +165,11 @@ fn parse_path_expr(input: &str) -> IResult<&str, AstNode> {
         let type_args: Vec<String> = type_args_opt.unwrap_or_default();
 
         // Check for :: separator (for static methods)
-        let (temp_input_after_type_args, has_coloncolon) = match opt(ws(tag("::"))).parse(temp_input) {
-            Ok((i, sep)) => (i, sep.is_some()),
-            Err(_) => (temp_input, false),
-        };
+        let (temp_input_after_type_args, has_coloncolon) =
+            match opt(ws(tag("::"))).parse(temp_input) {
+                Ok((i, sep)) => (i, sep.is_some()),
+                Err(_) => (temp_input, false),
+            };
 
         // Check for parentheses (function call)
         let has_parens = temp_input_after_type_args.trim_start().starts_with("(");

@@ -67,7 +67,9 @@ impl Resolver {
         if let Ok(data) = fs::read_to_string(&path)
             && let Ok(cache) = serde_json::from_str::<CacheFile>(&data)
         {
+            // OPTIMIZATION: Iterate without cloning keys
             for (key, value) in cache.entries {
+                // Use key directly without clone when possible
                 self.mono_mirs.insert(key.clone(), Mir::default());
                 record_specialization(key, value);
             }
