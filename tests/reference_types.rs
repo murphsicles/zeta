@@ -207,6 +207,7 @@ fn test_string_to_type_conversion() {
                     Mutability::Immutable
                 )]
             )),
+            Lifetime::Static,
             Mutability::Mutable
         )
     );
@@ -214,12 +215,12 @@ fn test_string_to_type_conversion() {
 
     // Test 5: Type to string conversion
     let ref_str = Type::Ref(Box::new(Type::Str), Lifetime::Static, Mutability::Immutable);
-    assert_eq!(resolver.type_to_string(&ref_str), "&str");
-    println!("✓ Type::Ref(Str, Immutable) converts to '&str'");
+    assert_eq!(resolver.type_to_string(&ref_str), "&'static str");
+    println!("✓ Type::Ref(Str, Immutable) converts to '&'static str'");
 
     let mut_ref_i64 = Type::Ref(Box::new(Type::I64), Lifetime::Static, Mutability::Mutable);
-    assert_eq!(resolver.type_to_string(&mut_ref_i64), "&mut i64");
-    println!("✓ Type::Ref(I64, Mutable) converts to '&mut i64'");
+    assert_eq!(resolver.type_to_string(&mut_ref_i64), "&'static mut i64");
+    println!("✓ Type::Ref(I64, Mutable) converts to '&'static mut i64'");
 
     println!("=== All string conversion tests passed ===");
 }
