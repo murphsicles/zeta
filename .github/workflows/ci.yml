@@ -16,15 +16,18 @@ jobs:
         toolchain: [nightly] # 2024 edition requires nightly (stable post-2024)
     steps:
     - uses: actions/checkout@v4
-    - name: Install LLVM 21.1 for inkwell compatibility
+    - name: Install LLVM 21.1 for inkwell llvm21-1 feature
       run: |
-        wget https://apt.llvm.org/llvm.sh
-        chmod +x llvm.sh
-        sudo ./llvm.sh 21
+        # Add LLVM repository
+        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+        echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-21.1 main" | sudo tee /etc/apt/sources.list.d/llvm.list
         sudo apt-get update
+        
+        # Install LLVM 21.1 packages
+        sudo apt-get install -y llvm-21.1 llvm-21.1-dev llvm-21.1-tools libpolly-21.1-dev
+        
+        # Also install base LLVM 21 for compatibility
         sudo apt-get install -y llvm-21 llvm-21-dev llvm-21-tools libpolly-21-dev
-        # Also install 21.1 components for inkwell llvm21-1 feature
-        sudo apt-get install -y llvm-21.1 llvm-21.1-dev llvm-21.1-tools
     - name: Set LLVM prefix
       run: |
         echo "LLVM_SYS_210_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
@@ -53,15 +56,18 @@ jobs:
     needs: check
     steps:
     - uses: actions/checkout@v4
-    - name: Install LLVM 21.1 for inkwell compatibility
+    - name: Install LLVM 21.1 for inkwell llvm21-1 feature
       run: |
-        wget https://apt.llvm.org/llvm.sh
-        chmod +x llvm.sh
-        sudo ./llvm.sh 21
+        # Add LLVM repository
+        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+        echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-21.1 main" | sudo tee /etc/apt/sources.list.d/llvm.list
         sudo apt-get update
+        
+        # Install LLVM 21.1 packages
+        sudo apt-get install -y llvm-21.1 llvm-21.1-dev llvm-21.1-tools libpolly-21.1-dev
+        
+        # Also install base LLVM 21 for compatibility
         sudo apt-get install -y llvm-21 llvm-21-dev llvm-21-tools libpolly-21-dev
-        # Also install 21.1 components for inkwell llvm21-1 feature
-        sudo apt-get install -y llvm-21.1 llvm-21.1-dev llvm-21.1-tools
     - name: Set LLVM prefix
       run: |
         echo "LLVM_SYS_210_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
