@@ -217,10 +217,10 @@ pub fn parse_lt_type(input: &str) -> IResult<&str, String> {
 pub fn parse_lifetime_param(input: &str) -> IResult<&str, String> {
     // Parse lifetime tick '
     let (input, _) = tag("'")(input)?;
-    
+
     // Parse lifetime identifier
     let (input, lifetime_name) = parse_ident(input)?;
-    
+
     Ok((input, format!("'{}", lifetime_name)))
 }
 
@@ -257,22 +257,25 @@ pub fn parse_generic_params(input: &str) -> IResult<&str, (Vec<String>, Vec<Stri
     let (input, params) = delimited(
         ws(tag("<")),
         terminated(
-            separated_list0(ws(tag(",")), ws(alt((
-                // Try to parse as lifetime parameter first
-                map(parse_lifetime_param, |p| (p, true)),
-                // Fall back to type parameter
-                map(parse_generic_param, |p| (p, false)),
-            )))),
+            separated_list0(
+                ws(tag(",")),
+                ws(alt((
+                    // Try to parse as lifetime parameter first
+                    map(parse_lifetime_param, |p| (p, true)),
+                    // Fall back to type parameter
+                    map(parse_generic_param, |p| (p, false)),
+                ))),
+            ),
             opt(ws(tag(","))),
         ),
         ws(tag(">")),
     )
     .parse(input)?;
-    
+
     // Separate lifetime parameters from type parameters
     let mut lifetimes = Vec::new();
     let mut type_params = Vec::new();
-    
+
     for (param, is_lifetime) in params {
         if is_lifetime {
             lifetimes.push(param);
@@ -280,7 +283,7 @@ pub fn parse_generic_params(input: &str) -> IResult<&str, (Vec<String>, Vec<Stri
             type_params.push(param);
         }
     }
-    
+
     Ok((input, (lifetimes, type_params)))
 }
 

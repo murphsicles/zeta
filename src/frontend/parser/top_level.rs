@@ -149,12 +149,12 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
     };
     let ret = ret_opt.unwrap_or_else(|| "i64".to_string());
     let ast = if extern_opt.is_some() {
-        AstNode::ExternFunc { 
-            name, 
+        AstNode::ExternFunc {
+            name,
             generics: type_generics,
             lifetimes,
-            params, 
-            ret 
+            params,
+            ret,
         }
     } else {
         AstNode::FuncDef {
