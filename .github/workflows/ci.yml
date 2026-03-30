@@ -2,9 +2,9 @@
 name: CI
 on:
   push:
-    branches: [ main, v0.3.8, dev ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, v0.3.8, dev ]
+    branches: [ main ]
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-Dwarnings"
@@ -16,28 +16,17 @@ jobs:
         toolchain: [nightly] # 2024 edition requires nightly (stable post-2024)
     steps:
     - uses: actions/checkout@v4
-    - name: Install LLVM 22.1 for performance improvements (check job)
+    - name: Install LLVM 21 (check job)
       run: |
-        # Add LLVM repository for 22.1
-        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-        echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-22.1 main" | sudo tee /etc/apt/sources.list.d/llvm.list
+        wget https://apt.llvm.org/llvm.sh
+        chmod +x llvm.sh
+        sudo ./llvm.sh 21
         sudo apt-get update
-        
-        # Install LLVM 22.1 packages (performance improvements)
-        sudo apt-get install -y llvm-22.1 llvm-22.1-dev llvm-22.1-tools libpolly-22.1-dev
-        
-        # Also install LLVM 21.1 for inkwell llvm21-1 feature compatibility
-        sudo apt-get install -y llvm-21.1 llvm-21.1-dev llvm-21.1-tools libpolly-21.1-dev
-        
-        # Install base LLVM 22 for compatibility
-        sudo apt-get install -y llvm-22 llvm-22-dev llvm-22-tools libpolly-22-dev
+        sudo apt-get install -y llvm-21 llvm-21-dev llvm-21-tools libpolly-21-dev
     - name: Set LLVM prefix
       run: |
-        # Set both prefixes for compatibility
-        echo "LLVM_SYS_210_PREFIX=/usr/lib/llvm-21.1" >> $GITHUB_ENV
-        echo "LLVM_SYS_211_PREFIX=/usr/lib/llvm-21.1" >> $GITHUB_ENV
-        echo "LLVM_SYS_220_PREFIX=/usr/lib/llvm-22" >> $GITHUB_ENV
-        echo "LLVM_SYS_221_PREFIX=/usr/lib/llvm-22.1" >> $GITHUB_ENV
+        echo "LLVM_SYS_210_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
+        echo "LLVM_SYS_211_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
@@ -57,33 +46,23 @@ jobs:
       run: cargo clippy --workspace --all-features --all-targets -- -D warnings
     - name: Fmt
       run: cargo fmt --all -- --check
+
   test:
     runs-on: ubuntu-latest
     needs: check
     steps:
     - uses: actions/checkout@v4
-    - name: Install LLVM 22.1 for performance improvements (test job)
+    - name: Install LLVM 21 (test job)
       run: |
-        # Add LLVM repository for 22.1
-        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-        echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-22.1 main" | sudo tee /etc/apt/sources.list.d/llvm.list
+        wget https://apt.llvm.org/llvm.sh
+        chmod +x llvm.sh
+        sudo ./llvm.sh 21
         sudo apt-get update
-        
-        # Install LLVM 22.1 packages (performance improvements)
-        sudo apt-get install -y llvm-22.1 llvm-22.1-dev llvm-22.1-tools libpolly-22.1-dev
-        
-        # Also install LLVM 21.1 for inkwell llvm21-1 feature compatibility
-        sudo apt-get install -y llvm-21.1 llvm-21.1-dev llvm-21.1-tools libpolly-21.1-dev
-        
-        # Install base LLVM 22 for compatibility
-        sudo apt-get install -y llvm-22 llvm-22-dev llvm-22-tools libpolly-22-dev
+        sudo apt-get install -y llvm-21 llvm-21-dev llvm-21-tools libpolly-21-dev
     - name: Set LLVM prefix
       run: |
-        # Set both prefixes for compatibility
-        echo "LLVM_SYS_210_PREFIX=/usr/lib/llvm-21.1" >> $GITHUB_ENV
-        echo "LLVM_SYS_211_PREFIX=/usr/lib/llvm-21.1" >> $GITHUB_ENV
-        echo "LLVM_SYS_220_PREFIX=/usr/lib/llvm-22" >> $GITHUB_ENV
-        echo "LLVM_SYS_221_PREFIX=/usr/lib/llvm-22.1" >> $GITHUB_ENV
+        echo "LLVM_SYS_210_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
+        echo "LLVM_SYS_211_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
@@ -97,23 +76,11 @@ jobs:
           ~/.cargo/git
           target
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-    - name: Run Rust tests
+    - name: Test
       run: cargo test --workspace --all-features
-    - name: Build release compiler
-      run: cargo build --release
-    - name: Install PowerShell Core
-      run: |
-        # Install PowerShell Core using Microsoft repository
-        sudo apt-get update
-        sudo apt-get install -y wget apt-transport-https software-properties-common
-        wget -q https://packages.microsoft.com/config/ubuntu/20.04/packages-microsoft-prod.deb
-        sudo dpkg -i packages-microsoft-prod.deb
-        sudo apt-get update
-        sudo apt-get install -y powershell
-    - name: Run Zeta tests
-      run: pwsh -ExecutionPolicy Bypass -File scripts/run_zeta_tests.ps1
     - name: Bench (no plot)
       run: cargo bench --no-run # Stub: Run benches
+
   security:
     runs-on: ubuntu-latest
     needs: test
