@@ -397,11 +397,12 @@ impl MirGen {
                 receiver,
                 method,
                 args,
+                type_args,
                 ..
             } => {
                 println!(
-                    "[MIR GEN DEBUG] Processing call: method={:?}, receiver={:?}, args={:?}",
-                    method, receiver, args
+                    "[MIR GEN DEBUG] Processing call: method={:?}, receiver={:?}, args={:?}, type_args={:?}",
+                    method, receiver, args, type_args
                 );
 
                 // SPECIAL HANDLING: If method is "call" and receiver is a function name,
@@ -420,11 +421,16 @@ impl MirGen {
                                 arg_ids.push(self.lower_expr(a));
                             }
 
+                            // Convert type arguments from strings to Type objects
+                            let mir_type_args: Vec<Type> = type_args.iter()
+                                .map(|t| Type::from_string(t))
+                                .collect();
+
                             self.stmts.push(MirStmt::Call {
                                 func: func_name.clone(),
                                 args: arg_ids,
                                 dest: id,
-                                type_args: vec![], // No type args for direct call
+                                type_args: mir_type_args,
                             });
 
                             self.exprs.insert(id, MirExpr::Var(id));
@@ -458,11 +464,17 @@ impl MirGen {
                     println!("[MIR GEN DEBUG] Regular function call, func: {}", method);
                     method.clone()
                 };
+                
+                // Convert type arguments from strings to Type objects
+                let mir_type_args: Vec<Type> = type_args.iter()
+                    .map(|t| Type::from_string(t))
+                    .collect();
+                
                 self.stmts.push(MirStmt::Call {
                     func,
                     args: arg_ids,
                     dest: id,
-                    type_args: receiver_ty.map(|t| vec![t]).unwrap_or_default(),
+                    type_args: mir_type_args,
                 });
                 self.exprs.insert(id, MirExpr::Var(id));
                 self.type_map.insert(id, Type::I64);
@@ -741,10 +753,10 @@ impl MirGen {
                 self.exprs.insert(id, MirExpr::Lit(sum));
                 self.type_map.insert(id, Type::I64);
             }
-            AstNode::PathCall { path, method, args } => {
+            AstNode::PathCall { path, method, args, type_args } => {
                 println!(
-                    "[MIR GEN DEBUG] Processing path call: path={:?}, method={:?}, args={:?}",
-                    path, method, args
+                    "[MIR GEN DEBUG] Processing path call: path={:?}, method={:?}, args={:?}, type_args={:?}",
+                    path, method, args, type_args
                 );
 
                 // Construct qualified name: path::method
@@ -765,12 +777,17 @@ impl MirGen {
                     arg_ids.push(self.lower_expr(a));
                 }
 
+                // Convert type arguments from strings to Type objects
+                let mir_type_args: Vec<Type> = type_args.iter()
+                    .map(|t| Type::from_string(t))
+                    .collect();
+                
                 // Generate call statement
                 self.stmts.push(MirStmt::Call {
                     func: func_name,
                     args: arg_ids,
                     dest: id,
-                    type_args: vec![], // No type args for now
+                    type_args: mir_type_args,
                 });
 
                 self.exprs.insert(id, MirExpr::Var(id));

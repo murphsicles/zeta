@@ -12,8 +12,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::frontend::ast::AstNode;
-use crate::middle::types::{Type, TypeVar, Substitution};
 use crate::middle::types::lifetime::{Lifetime, LifetimeVar};
+use crate::middle::types::{Substitution, Type, TypeVar};
 
 /// Enhanced generic parameter representation
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -24,14 +24,9 @@ pub enum GenericParam {
         bounds: Vec<String>, // Simplified for now
     },
     /// Lifetime parameter: `'a`, `'static`
-    Lifetime {
-        name: String,
-    },
+    Lifetime { name: String },
     /// Const parameter: `const N: usize`
-    Const {
-        name: String,
-        ty: Type,
-    },
+    Const { name: String, ty: Type },
 }
 
 /// Where clause for additional bounds
@@ -49,7 +44,7 @@ pub struct GenericFunction {
     pub param_types: Vec<Type>,
     pub return_type: Type,
     pub body: Arc<AstNode>, // AST with type variables
-    
+
     // Cache of concrete instantiations
     pub instantiations: HashMap<Vec<Type>, ConcreteFunction>,
 }
@@ -59,9 +54,9 @@ pub struct GenericFunction {
 pub struct ConcreteFunction {
     pub generic_fn: Arc<GenericFunction>,
     pub type_args: Vec<Type>,
-    pub param_types: Vec<Type>,    // With type_args substituted
-    pub return_type: Type,         // With type_args substituted
-    // MIR and machine code would be added here
+    pub param_types: Vec<Type>, // With type_args substituted
+    pub return_type: Type,      // With type_args substituted
+                                // MIR and machine code would be added here
 }
 
 /// Type context for generic parameter tracking
@@ -69,18 +64,24 @@ pub struct ConcreteFunction {
 pub struct TypeContext {
     /// Variables in current scope
     pub variables: HashMap<String, Type>,
-    
+
     /// Generic parameters in scope
     pub generic_params: HashMap<String, GenericParam>,
-    
+
     /// Current substitutions for type variables
     pub substitution: Substitution,
-    
+
     /// Lifetime context
     pub lifetimes: HashMap<String, Lifetime>,
-    
+
     /// Parent context (for nested scopes)
     pub parent: Option<Arc<TypeContext>>,
+}
+
+impl Default for TypeContext {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TypeContext {
@@ -94,7 +95,7 @@ impl TypeContext {
             parent: None,
         }
     }
-    
+
     /// Enter a new scope (e.g., function body)
     pub fn enter_scope(&self) -> Self {
         Self {
@@ -105,7 +106,7 @@ impl TypeContext {
             parent: Some(Arc::new(self.clone())),
         }
     }
-    
+
     /// Add generic parameters to the current scope
     pub fn add_generic_params(&mut self, params: &[GenericParam]) {
         for param in params {
@@ -129,7 +130,7 @@ impl TypeContext {
             }
         }
     }
-    
+
     /// Look up a type, resolving generic parameters
     pub fn lookup_type(&self, name: &str) -> Option<Type> {
         // Check if it's a generic parameter
@@ -149,7 +150,7 @@ impl TypeContext {
             })
         }
     }
-    
+
     /// Apply substitution to a type
     pub fn apply_substitution(&self, ty: &Type) -> Type {
         self.substitution.apply(ty)
@@ -161,13 +162,13 @@ impl TypeContext {
 pub enum Constraint {
     /// Type equality: T = U
     Equality(Type, Type),
-    
+
     /// Trait bound: T: Debug
     TraitBound(Type, String),
-    
+
     /// Lifetime bound: 'a: 'b
     LifetimeBound(Lifetime, Lifetime),
-    
+
     /// Generic instantiation: F<T> = ConcreteType
     Instantiation(Type, Vec<Type>, Type),
 }
@@ -179,6 +180,12 @@ pub struct ConstraintSet {
     pub unsolved: Vec<Constraint>,
 }
 
+impl Default for ConstraintSet {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ConstraintSet {
     pub fn new() -> Self {
         Self {
@@ -186,7 +193,7 @@ impl ConstraintSet {
             unsolved: Vec::new(),
         }
     }
-    
+
     pub fn add_constraint(&mut self, constraint: Constraint) {
         self.constraints.push(constraint.clone());
         self.unsolved.push(constraint);
@@ -197,16 +204,16 @@ impl ConstraintSet {
 pub struct GenericIntegration {
     /// Type context stack
     pub type_context: TypeContext,
-    
+
     /// Constraint set for current inference
     pub constraints: ConstraintSet,
-    
+
     /// Cache of generic functions
     pub generic_functions: HashMap<String, Arc<GenericFunction>>,
-    
+
     /// Cache of concrete functions
     pub concrete_functions: HashMap<(String, Vec<Type>), ConcreteFunction>,
-    
+
     /// Error collector
     pub errors: Vec<IntegrationError>,
 }
@@ -216,15 +223,21 @@ pub struct GenericIntegration {
 pub enum IntegrationError {
     /// Type checking error
     TypeError(String),
-    
+
     /// Parser error for generic syntax
     ParseError(String),
-    
+
     /// Monomorphization error
     MonomorphizationError(String),
-    
+
     /// Integration coordination error
     CoordinationError(String),
+}
+
+impl Default for GenericIntegration {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl GenericIntegration {
@@ -238,13 +251,13 @@ impl GenericIntegration {
             errors: Vec::new(),
         }
     }
-    
+
     /// Register a generic function
     pub fn register_generic_function(&mut self, generic_fn: GenericFunction) {
         let name = generic_fn.name.clone();
         self.generic_functions.insert(name, Arc::new(generic_fn));
     }
-    
+
     /// Get or create a concrete function from generic function
     pub fn get_concrete_function(
         &mut self,
@@ -252,26 +265,29 @@ impl GenericIntegration {
         type_args: &[Type],
     ) -> Result<ConcreteFunction, IntegrationError> {
         let key = (generic_name.to_string(), type_args.to_vec());
-        
+
         // Check cache first
         if let Some(concrete) = self.concrete_functions.get(&key) {
             return Ok(concrete.clone());
         }
-        
+
         // Get generic function
-        let generic_fn = self.generic_functions.get(generic_name)
-            .ok_or_else(|| IntegrationError::MonomorphizationError(
-                format!("Unknown generic function: {}", generic_name)
-            ))?;
-        
+        let generic_fn = self.generic_functions.get(generic_name).ok_or_else(|| {
+            IntegrationError::MonomorphizationError(format!(
+                "Unknown generic function: {}",
+                generic_name
+            ))
+        })?;
+
         // Check arity
         if type_args.len() != generic_fn.generic_params.len() {
-            return Err(IntegrationError::MonomorphizationError(
-                format!("Type argument arity mismatch: expected {}, got {}",
-                    generic_fn.generic_params.len(), type_args.len())
-            ));
+            return Err(IntegrationError::MonomorphizationError(format!(
+                "Type argument arity mismatch: expected {}, got {}",
+                generic_fn.generic_params.len(),
+                type_args.len()
+            )));
         }
-        
+
         // Create substitution map
         let mut substitution = Substitution::new();
         for (param, arg) in generic_fn.generic_params.iter().zip(type_args) {
@@ -283,13 +299,15 @@ impl GenericIntegration {
                 substitution.mapping.insert(type_var, arg.clone());
             }
         }
-        
+
         // Apply substitution to get concrete types
-        let param_types: Vec<Type> = generic_fn.param_types.iter()
+        let param_types: Vec<Type> = generic_fn
+            .param_types
+            .iter()
             .map(|ty| substitution.apply(ty))
             .collect();
         let return_type = substitution.apply(&generic_fn.return_type);
-        
+
         // Create concrete function
         let concrete = ConcreteFunction {
             generic_fn: generic_fn.clone(),
@@ -297,28 +315,28 @@ impl GenericIntegration {
             param_types,
             return_type,
         };
-        
+
         // Cache it
         self.concrete_functions.insert(key, concrete.clone());
-        
+
         Ok(concrete)
     }
-    
+
     /// Add an error to the error collection
     pub fn add_error(&mut self, error: IntegrationError) {
         self.errors.push(error);
     }
-    
+
     /// Check if there are any errors
     pub fn has_errors(&self) -> bool {
         !self.errors.is_empty()
     }
-    
+
     /// Get all errors
     pub fn get_errors(&self) -> Vec<IntegrationError> {
         self.errors.clone()
     }
-    
+
     /// Clear errors
     pub fn clear_errors(&mut self) {
         self.errors.clear();
@@ -328,10 +346,11 @@ impl GenericIntegration {
 /// Conversion utilities between old and new representations
 pub mod conversion {
     use super::*;
-    
+
     /// Convert old Vec<String> generics to Vec<GenericParam>
     pub fn convert_generics(old_generics: &[String]) -> Vec<GenericParam> {
-        old_generics.iter()
+        old_generics
+            .iter()
             .map(|s| {
                 // Simple conversion - assumes all are type parameters without bounds
                 GenericParam::Type {
@@ -341,7 +360,7 @@ pub mod conversion {
             })
             .collect()
     }
-    
+
     /// Convert old string type to Type with generic context
     pub fn convert_type_string(
         type_str: &str,

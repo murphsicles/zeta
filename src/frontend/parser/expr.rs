@@ -291,6 +291,7 @@ fn parse_path_expr(input: &str) -> IResult<&str, AstNode> {
                         path: method_path.to_vec(),
                         method: method_name[0].clone(),
                         args,
+                        type_args,
                     },
                 ))
             } else {

@@ -73,7 +73,7 @@ fn main() {
     }
 }
 
-fn compile_and_run(ast: &[zetac::frontend::ast::AstNode]) -> Result<i64, String> {
+fn compile_and_run(_ast: &[zetac::frontend::ast::AstNode]) -> Result<i64, String> {
     // This is a simplified version - in reality we'd need to run the full compiler pipeline
     println!("(Note: Full compilation not implemented in this test)");
     Ok(30) // Expected result for 10 + 20

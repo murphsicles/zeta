@@ -123,6 +123,7 @@ pub enum AstNode {
         path: Vec<String>,
         method: String,
         args: Vec<AstNode>,
+        type_args: Vec<String>,
     },
     /// Actor spawn expression with function and arguments.
     Spawn { func: String, args: Vec<AstNode> },

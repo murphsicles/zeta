@@ -135,9 +135,15 @@ impl Resolver {
             "char" => Type::Char,
             "str" => Type::Str,
             _ => {
-                // For complex types (generics, tuples, etc.), return a Named type
-                // This is a simplified conversion - full parsing would be in typecheck_new.rs
-                Type::Named(s.to_string(), vec![])
+                // Check if it's a single uppercase letter (type variable)
+                if s.len() == 1 && s.chars().next().unwrap().is_ascii_uppercase() {
+                    // Create a fresh type variable
+                    Type::Variable(crate::middle::types::TypeVar::fresh())
+                } else {
+                    // For complex types (generics, tuples, etc.), return a Named type
+                    // This is a simplified conversion - full parsing would be in typecheck_new.rs
+                    Type::Named(s.to_string(), vec![])
+                }
             }
         }
     }

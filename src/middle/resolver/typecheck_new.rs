@@ -244,9 +244,8 @@ impl NewTypeCheck for Resolver {
                     Type::Named(s.to_string(), Vec::new())
                 } else if s.len() == 1 && s.chars().next().unwrap().is_ascii_uppercase() {
                     // Single uppercase letter: treat as type variable
-                    // This is a hack - in a real implementation, we'd need to track
-                    // type variable mappings from generic contexts
-                    Type::Variable(crate::middle::types::TypeVar(0))
+                    // Create a fresh type variable for each occurrence
+                    Type::Variable(crate::middle::types::TypeVar::fresh())
                 } else {
                     Type::Named(s.to_string(), Vec::new())
                 }

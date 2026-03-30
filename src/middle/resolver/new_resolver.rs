@@ -2,7 +2,9 @@
 //! Migration from string-based types to algebraic types
 
 use crate::frontend::ast::AstNode;
-use crate::middle::types::{GenericContext, Substitution, TraitBound, Type, TypeParam, TypeVar, UnifyError};
+use crate::middle::types::{
+    GenericContext, Substitution, TraitBound, Type, TypeParam, TypeVar, UnifyError,
+};
 use std::collections::HashMap;
 
 /// Type inference constraint
@@ -49,10 +51,10 @@ impl InferContext {
             generic_context: GenericContext::new(),
             last_type: None,
         };
-        
+
         // Register built-in generic types
         ctx.register_builtin_generics();
-        
+
         ctx
     }
 
@@ -73,15 +75,10 @@ impl InferContext {
     pub fn constrain(&mut self, constraint: Constraint) {
         self.constraints.push(constraint);
     }
-    
+
     /// Helper to add equality constraint (backward compatibility)
     fn constrain_eq(&mut self, t1: Type, t2: Type) {
         self.constrain(Constraint::Equality(t1, t2));
-    }
-    
-    /// Helper to add bound constraint
-    fn constrain_bound(&mut self, ty: Type, bound: TraitBound) {
-        self.constrain(Constraint::Bound(ty, bound));
     }
 
     /// Parse type string to Type
@@ -314,8 +311,20 @@ impl InferContext {
             "u64" => Ok(Type::U64),
             "String" => Ok(Type::Named("String".to_string(), Vec::new())),
             _ => {
-                // Named type
-                Ok(Type::Named(s.to_string(), Vec::new()))
+                // Check if it's a single uppercase letter (type variable)
+                if s.len() == 1 && s.chars().next().unwrap().is_ascii_uppercase() {
+                    // Check if it's a type parameter in the current generic context
+                    if self.generic_context.find_type_param(s).is_some() {
+                        // Create a fresh type variable for this type parameter
+                        Ok(Type::Variable(TypeVar::fresh()))
+                    } else {
+                        // Not a known type parameter, treat as named type
+                        Ok(Type::Named(s.to_string(), Vec::new()))
+                    }
+                } else {
+                    // Named type
+                    Ok(Type::Named(s.to_string(), Vec::new()))
+                }
             }
         }
     }
@@ -573,7 +582,7 @@ impl InferContext {
                 } else {
                     Vec::new()
                 };
-                
+
                 // Enter generic scope
                 self.enter_generic_scope(type_params);
 
@@ -633,13 +642,13 @@ impl InferContext {
                             .iter()
                             .map(|s| self.parse_type_string(s))
                             .collect();
-                        
+
                         self.infer_generic_call(method, &parsed_type_args?, args)
                     } else {
                         // Regular function call
                         // Get function type first to avoid borrow issues
                         let func_type = self.functions.get(method).cloned();
-                        
+
                         if let Some(return_ty) = func_type {
                             // Check if it's a function type that needs argument checking
                             match return_ty {
@@ -652,16 +661,18 @@ impl InferContext {
                                             args.len()
                                         ));
                                     }
-                                    
+
                                     // Clone the return type before mutable borrows
                                     let ret_ty_clone = *ret_ty.clone();
-                                    
+
                                     // Type check each argument
-                                    for (i, (arg, param_ty)) in args.iter().zip(param_types.iter()).enumerate() {
+                                    for (i, (arg, param_ty)) in
+                                        args.iter().zip(param_types.iter()).enumerate()
+                                    {
                                         let arg_ty = self.infer(arg)?;
                                         self.constrain_eq(arg_ty, param_ty.clone());
                                     }
-                                    
+
                                     Ok(ret_ty_clone)
                                 }
                                 _ => Ok(return_ty.clone()),
@@ -764,7 +775,7 @@ impl InferContext {
                 Ok(Type::Variable(TypeVar::fresh()))
             }
 
-            AstNode::PathCall { path, method, args } => {
+            AstNode::PathCall { path, method, args, type_args } => {
                 // Path call like Point::new(10, 20)
                 // Try qualified name first: Type::method
                 let qualified_name = format!("{}::{}", path.join("::"), method);
@@ -929,7 +940,10 @@ impl InferContext {
                 let final_return_type = inner_ctx.substitution.apply(&return_type_var);
 
                 // The closure type is a function type
-                Ok(Type::Function(final_param_types, Box::new(final_return_type)))
+                Ok(Type::Function(
+                    final_param_types,
+                    Box::new(final_return_type),
+                ))
             }
 
             AstNode::IfLet {
@@ -1073,16 +1087,18 @@ impl InferContext {
         value_args: &[AstNode],
     ) -> Result<Type, String> {
         // Look up generic function
-        let generic_ty = self.functions.get(name)
+        let generic_ty = self
+            .functions
+            .get(name)
             .ok_or_else(|| format!("Unknown generic function: {}", name))?;
-        
+
         // Instantiate with type arguments
         let instantiated_ty = self.substitution.instantiate_generic_with_bounds(
             generic_ty,
             type_args,
             &self.generic_context,
         )?;
-        
+
         // Check if it's a function type
         match &instantiated_ty {
             Type::Function(param_types, ret_ty) => {
@@ -1094,13 +1110,13 @@ impl InferContext {
                         value_args.len()
                     ));
                 }
-                
+
                 // Type check each argument
                 for (i, (arg, param_ty)) in value_args.iter().zip(param_types.iter()).enumerate() {
                     let arg_ty = self.infer(arg)?;
                     self.constrain_eq(arg_ty, param_ty.clone());
                 }
-                
+
                 Ok(*ret_ty.clone())
             }
             _ => Err(format!("{} is not a function", name)),
@@ -1110,22 +1126,22 @@ impl InferContext {
     /// Parse generic parameters from strings like "T: Clone + Copy"
     fn parse_generic_params(&self, generics: &[String]) -> Result<Vec<TypeParam>, String> {
         let mut type_params = Vec::new();
-        
+
         for generic in generics {
             // Parse "T: Clone + Copy" or just "T"
             let parts: Vec<&str> = generic.split(':').map(|s| s.trim()).collect();
-            
+
             if parts.is_empty() {
                 return Err("Empty generic parameter".to_string());
             }
-            
+
             let name = parts[0].to_string();
             let mut bounds = Vec::new();
-            
+
             if parts.len() > 1 {
                 // Parse bounds: "Clone + Copy + Debug"
                 let bound_parts: Vec<&str> = parts[1].split('+').map(|s| s.trim()).collect();
-                
+
                 for bound_str in bound_parts {
                     match bound_str {
                         "Clone" => bounds.push(TraitBound::Clone),
@@ -1141,26 +1157,26 @@ impl InferContext {
                     }
                 }
             }
-            
+
             type_params.push(TypeParam { name, bounds });
         }
-        
+
         Ok(type_params)
     }
-    
+
     /// Register built-in generic types (Vec, Option, Result)
     pub fn register_builtin_generics(&mut self) {
         // Vec<T> - generic type with one type parameter
         let t_var = Type::Variable(TypeVar::fresh());
         let vec_ty = Type::Named("Vec".to_string(), vec![t_var.clone()]);
-        
+
         // Option<T> - generic type with one type parameter
         let option_ty = Type::Named("Option".to_string(), vec![t_var.clone()]);
-        
+
         // Result<T, E> - generic type with two type parameters
         let t_var2 = Type::Variable(TypeVar::fresh());
         let result_ty = Type::Named("Result".to_string(), vec![t_var.clone(), t_var2.clone()]);
-        
+
         // Register them as function-like types that can be instantiated
         // For now, we'll store them as simple named types
         // In a full implementation, we'd store them in a separate generic types table
@@ -1431,6 +1447,7 @@ mod tests {
             path: vec!["Point".to_string()],
             method: "new".to_string(),
             args: vec![AstNode::Lit(10), AstNode::Lit(20)],
+            type_args: vec![],
         };
 
         // Type check the PathCall

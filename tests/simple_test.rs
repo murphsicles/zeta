@@ -5,12 +5,12 @@ fn main() {
 
     // Test that we can create the macro expander
     use zetac::frontend::macro_expand::MacroExpander;
-    let expander = MacroExpander::new();
+    let _expander = MacroExpander::new();
     println!("MacroExpander created successfully");
 
     // Test that we can create the const evaluator
     use zetac::middle::const_eval::ConstEvaluator;
-    let evaluator = ConstEvaluator::new();
+    let _evaluator = ConstEvaluator::new();
     println!("ConstEvaluator created successfully");
 
     println!("Macro system infrastructure is in place!");

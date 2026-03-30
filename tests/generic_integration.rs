@@ -271,5 +271,4 @@ fn test_integration_progress_report() {
     println!("\nNext 15-minute checkpoint: 22:30 GMT");
 
     // This test always passes - it's just a report
-    assert!(true);
 }

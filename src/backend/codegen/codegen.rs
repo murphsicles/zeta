@@ -783,19 +783,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
         // We need a better heuristic. For now, check if the function name
         // contains generic type parameters in its type map.
         // This is a temporary hack - we should store type parameters in MIR.
-        
+
         // Look for type variables in the type map
-        mir.type_map.values().any(|ty| {
-            match ty {
-                crate::middle::types::Type::Variable(_) => true,
-                crate::middle::types::Type::Named(_, args) => {
-                    args.iter().any(|arg| match arg {
-                        crate::middle::types::Type::Variable(_) => true,
-                        _ => false,
-                    })
-                }
-                _ => false,
-            }
+        mir.type_map.values().any(|ty| match ty {
+            crate::middle::types::Type::Variable(_) => true,
+            crate::middle::types::Type::Named(_, args) => args
+                .iter()
+                .any(|arg| matches!(arg, crate::middle::types::Type::Variable(_))),
+            _ => false,
         })
     }
 
@@ -824,7 +819,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
         // For now, assume the generic function has type parameters TypeVar(0), TypeVar(1), etc.
         let mut substitution = Substitution::new();
         for (i, type_arg) in type_args.iter().enumerate() {
-            substitution.mapping.insert(TypeVar(i as u32), type_arg.clone());
+            substitution
+                .mapping
+                .insert(TypeVar(i as u32), type_arg.clone());
         }
 
         // Apply substitution to create a monomorphized MIR
@@ -839,37 +836,41 @@ impl<'ctx> LLVMCodegen<'ctx> {
     /// Apply type substitution to a MIR
     fn substitute_mir(&self, mir: &Mir, substitution: &Substitution) -> Mir {
         let mut new_mir = mir.clone();
-        
+
         // Substitute types in type_map
         let mut new_type_map = HashMap::new();
         for (id, ty) in &mir.type_map {
             new_type_map.insert(*id, substitution.apply(ty));
         }
         new_mir.type_map = new_type_map;
-        
+
         // Substitute types in statements (type arguments in calls)
-        new_mir.stmts = mir.stmts.iter()
+        new_mir.stmts = mir
+            .stmts
+            .iter()
             .map(|stmt| self.substitute_stmt(stmt, substitution))
             .collect();
-        
+
         new_mir
     }
 
     /// Apply type substitution to a statement
     fn substitute_stmt(&self, stmt: &MirStmt, substitution: &Substitution) -> MirStmt {
         match stmt {
-            MirStmt::Assign { lhs, rhs } => {
-                MirStmt::Assign {
-                    lhs: *lhs,
-                    rhs: *rhs,
-                }
-            }
-            MirStmt::Call { func, args, dest, type_args } => {
+            MirStmt::Assign { lhs, rhs } => MirStmt::Assign {
+                lhs: *lhs,
+                rhs: *rhs,
+            },
+            MirStmt::Call {
+                func,
+                args,
+                dest,
+                type_args,
+            } => {
                 // Substitute type arguments in the call
-                let substituted_type_args: Vec<Type> = type_args.iter()
-                    .map(|ty| substitution.apply(ty))
-                    .collect();
-                
+                let substituted_type_args: Vec<Type> =
+                    type_args.iter().map(|ty| substitution.apply(ty)).collect();
+
                 MirStmt::Call {
                     func: func.clone(),
                     args: args.clone(),
@@ -877,40 +878,40 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     type_args: substituted_type_args,
                 }
             }
-            MirStmt::VoidCall { func, args } => {
-                MirStmt::VoidCall {
-                    func: func.clone(),
-                    args: args.clone(),
-                }
-            }
-            MirStmt::Return { val } => {
-                MirStmt::Return { val: *val }
-            }
-            MirStmt::SemiringFold { op, values, result } => {
-                MirStmt::SemiringFold {
-                    op: op.clone(),
-                    values: values.clone(),
-                    result: *result,
-                }
-            }
-            MirStmt::ParamInit { param_id, arg_index } => {
-                MirStmt::ParamInit {
-                    param_id: *param_id,
-                    arg_index: *arg_index,
-                }
-            }
-            MirStmt::Consume { id } => {
-                MirStmt::Consume { id: *id }
-            }
-            MirStmt::If { cond, then, else_, dest } => {
+            MirStmt::VoidCall { func, args } => MirStmt::VoidCall {
+                func: func.clone(),
+                args: args.clone(),
+            },
+            MirStmt::Return { val } => MirStmt::Return { val: *val },
+            MirStmt::SemiringFold { op, values, result } => MirStmt::SemiringFold {
+                op: *op,
+                values: values.clone(),
+                result: *result,
+            },
+            MirStmt::ParamInit {
+                param_id,
+                arg_index,
+            } => MirStmt::ParamInit {
+                param_id: *param_id,
+                arg_index: *arg_index,
+            },
+            MirStmt::Consume { id } => MirStmt::Consume { id: *id },
+            MirStmt::If {
+                cond,
+                then,
+                else_,
+                dest,
+            } => {
                 // Recursively substitute in then and else blocks
-                let substituted_then: Vec<MirStmt> = then.iter()
+                let substituted_then: Vec<MirStmt> = then
+                    .iter()
                     .map(|stmt| self.substitute_stmt(stmt, substitution))
                     .collect();
-                let substituted_else: Vec<MirStmt> = else_.iter()
+                let substituted_else: Vec<MirStmt> = else_
+                    .iter()
                     .map(|stmt| self.substitute_stmt(stmt, substitution))
                     .collect();
-                
+
                 MirStmt::If {
                     cond: *cond,
                     then: substituted_then,
@@ -918,29 +919,38 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     dest: *dest,
                 }
             }
-            MirStmt::TryProp { expr_id, ok_dest, err_dest } => {
-                MirStmt::TryProp {
-                    expr_id: *expr_id,
-                    ok_dest: *ok_dest,
-                    err_dest: *err_dest,
-                }
-            }
-            MirStmt::DictInsert { map_id, key_id, val_id } => {
-                MirStmt::DictInsert {
-                    map_id: *map_id,
-                    key_id: *key_id,
-                    val_id: *val_id,
-                }
-            }
-            MirStmt::DictGet { map_id, key_id, dest } => {
-                MirStmt::DictGet {
-                    map_id: *map_id,
-                    key_id: *key_id,
-                    dest: *dest,
-                }
-            }
+            MirStmt::TryProp {
+                expr_id,
+                ok_dest,
+                err_dest,
+            } => MirStmt::TryProp {
+                expr_id: *expr_id,
+                ok_dest: *ok_dest,
+                err_dest: *err_dest,
+            },
+            MirStmt::DictInsert {
+                map_id,
+                key_id,
+                val_id,
+            } => MirStmt::DictInsert {
+                map_id: *map_id,
+                key_id: *key_id,
+                val_id: *val_id,
+            },
+            MirStmt::DictGet {
+                map_id,
+                key_id,
+                dest,
+            } => MirStmt::DictGet {
+                map_id: *map_id,
+                key_id: *key_id,
+                dest: *dest,
+            },
             // TODO: Handle other MIR statement variants
-            _ => todo!("MIR statement variant not yet implemented in substitute_stmt: {:?}", stmt),
+            _ => todo!(
+                "MIR statement variant not yet implemented in substitute_stmt: {:?}",
+                stmt
+            ),
         }
     }
 

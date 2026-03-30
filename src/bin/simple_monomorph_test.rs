@@ -6,7 +6,7 @@ use zetac::middle::resolver::resolver::Resolver;
 
 fn main() {
     println!("=== Simple Monomorphization Test ===");
-    
+
     // Very simple test: identity function
     let code = r#"
     fn identity<T>(x: T) -> T { x }
@@ -15,37 +15,38 @@ fn main() {
         identity::<i64>(42)
     }
     "#;
-    
+
     println!("Parsing code...");
     match parse_zeta(code) {
         Ok((remaining, asts)) => {
             println!("Parse successful, remaining: '{}'", remaining);
             println!("AST count: {}", asts.len());
-            
+
             let mut resolver = Resolver::new();
-            
+
             println!("\nRegistering ASTs...");
             for ast in &asts {
                 resolver.register(ast.clone());
             }
-            
+
             println!("\nType checking...");
             let type_ok = resolver.typecheck(&asts);
             println!("Type check result: {}", type_ok);
-            
+
             if type_ok {
                 println!("\nGenerating MIR...");
-                let mirs: Vec<_> = asts.iter()
-                    .filter_map(|ast| {
+                let mirs: Vec<_> = asts
+                    .iter()
+                    .map(|ast| {
                         if let zetac::frontend::ast::AstNode::FuncDef { name, .. } = ast {
                             println!("Generating MIR for function: {}", name);
                         }
-                        Some(resolver.lower_to_mir(ast))
+                        resolver.lower_to_mir(ast)
                     })
                     .collect();
-                
+
                 println!("Generated {} MIRs", mirs.len());
-                
+
                 // Check if identity function is in MIRs
                 for mir in &mirs {
                     if let Some(name) = &mir.name {
