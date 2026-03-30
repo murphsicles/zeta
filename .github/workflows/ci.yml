@@ -16,17 +16,19 @@ jobs:
         toolchain: [nightly] # 2024 edition requires nightly (stable post-2024)
     steps:
     - uses: actions/checkout@v4
-    - name: Install LLVM 21
+    - name: Install LLVM 21.1 for inkwell compatibility
       run: |
         wget https://apt.llvm.org/llvm.sh
         chmod +x llvm.sh
         sudo ./llvm.sh 21
         sudo apt-get update
         sudo apt-get install -y llvm-21 llvm-21-dev llvm-21-tools libpolly-21-dev
+        # Also install 21.1 components for inkwell llvm21-1 feature
+        sudo apt-get install -y llvm-21.1 llvm-21.1-dev llvm-21.1-tools
     - name: Set LLVM prefix
       run: |
         echo "LLVM_SYS_210_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
-        echo "LLVM_SYS_211_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
+        echo "LLVM_SYS_211_PREFIX=/usr/lib/llvm-21.1" >> $GITHUB_ENV
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
@@ -51,17 +53,19 @@ jobs:
     needs: check
     steps:
     - uses: actions/checkout@v4
-    - name: Install LLVM 21
+    - name: Install LLVM 21.1 for inkwell compatibility
       run: |
         wget https://apt.llvm.org/llvm.sh
         chmod +x llvm.sh
         sudo ./llvm.sh 21
         sudo apt-get update
         sudo apt-get install -y llvm-21 llvm-21-dev llvm-21-tools libpolly-21-dev
+        # Also install 21.1 components for inkwell llvm21-1 feature
+        sudo apt-get install -y llvm-21.1 llvm-21.1-dev llvm-21.1-tools
     - name: Set LLVM prefix
       run: |
         echo "LLVM_SYS_210_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
-        echo "LLVM_SYS_211_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
+        echo "LLVM_SYS_211_PREFIX=/usr/lib/llvm-21.1" >> $GITHUB_ENV
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
