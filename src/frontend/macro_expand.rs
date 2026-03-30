@@ -406,6 +406,7 @@ fn create_test_function(node: &AstNode) -> Result<AstNode, String> {
             Ok(AstNode::FuncDef {
                 name: test_name,
                 generics: Vec::new(),
+                lifetimes: Vec::new(),
                 params: params.clone(),
                 ret: ret.clone(),
                 body: body.clone(),

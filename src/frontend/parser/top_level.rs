@@ -104,6 +104,7 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
     let (input, path) = ws(parse_path).parse(input)?;
     let name = path.join("::");
     let (input, generics_opt) = opt(ws(parse_generic_params)).parse(input)?;
+    let (lifetimes, type_generics) = generics_opt.unwrap_or((Vec::new(), Vec::new()));
     let (input, params) = delimited(
         ws(tag("(")),
         terminated(
@@ -146,14 +147,20 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
     } else {
         input
     };
-    let generics: Vec<String> = generics_opt.unwrap_or_default();
     let ret = ret_opt.unwrap_or_else(|| "i64".to_string());
     let ast = if extern_opt.is_some() {
-        AstNode::ExternFunc { name, params, ret }
+        AstNode::ExternFunc { 
+            name, 
+            generics: type_generics,
+            lifetimes,
+            params, 
+            ret 
+        }
     } else {
         AstNode::FuncDef {
             name,
-            generics,
+            generics: type_generics,
+            lifetimes,
             params,
             ret,
             body,
@@ -191,14 +198,15 @@ fn parse_concept(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("concept")).parse(input)?;
     let (input, name) = ws(parse_ident).parse(input)?;
     let (input, generics_opt) = opt(ws(parse_generic_params)).parse(input)?;
+    let (lifetimes, type_generics) = generics_opt.unwrap_or((Vec::new(), Vec::new()));
     let (input, methods) =
         delimited(ws(tag("{")), many0(ws(parse_method_sig)), ws(tag("}"))).parse(input)?;
-    let generics: Vec<String> = generics_opt.unwrap_or_default();
     Ok((
         input,
         AstNode::ConceptDef {
             name,
-            generics,
+            generics: type_generics,
+            lifetimes,
             methods,
             attrs,
             doc: "".to_string(),
@@ -214,6 +222,7 @@ fn parse_method_sig(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("fn")).parse(input)?;
     let (input, name) = ws(parse_ident).parse(input)?;
     let (input, generics_opt) = opt(ws(parse_generic_params)).parse(input)?;
+    let (lifetimes, type_generics) = generics_opt.unwrap_or((Vec::new(), Vec::new()));
     let (input, params) = delimited(
         ws(tag("(")),
         terminated(
@@ -225,15 +234,15 @@ fn parse_method_sig(input: &str) -> IResult<&str, AstNode> {
     .parse(input)?;
     let (input, ret_opt) = opt(preceded(ws(tag("->")), ws(parse_type))).parse(input)?;
     let (input, _) = ws(tag(";")).parse(input)?;
-    let generics: Vec<String> = generics_opt.unwrap_or_default();
     let ret = ret_opt.unwrap_or_else(|| "i64".to_string());
     Ok((
         input,
         AstNode::Method {
             name,
-            generics,
             params,
             ret,
+            generics: type_generics,
+            lifetimes,
             attrs,
             doc: "".to_string(),
         },
@@ -267,12 +276,13 @@ fn parse_impl(input: &str) -> IResult<&str, AstNode> {
     };
     let (input, body) =
         delimited(ws(tag("{")), many0(ws(parse_func)), ws(tag("}"))).parse(input)?;
-    let generics: Vec<String> = generics_opt.unwrap_or_default();
+    let (lifetimes, type_generics) = generics_opt.unwrap_or((Vec::new(), Vec::new()));
     Ok((
         input,
         AstNode::ImplBlock {
             concept,
-            generics,
+            generics: type_generics,
+            lifetimes,
             ty,
             body,
             attrs,
@@ -317,7 +327,8 @@ fn parse_enum(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("enum")).parse(input)?;
     let (input, name) = ws(parse_ident).parse(input)?;
     // Parse generic parameters if present (e.g., <T> or <T, E>)
-    let (input, _) = opt(ws(parse_generic_params)).parse(input)?;
+    let (input, generics_opt) = opt(ws(parse_generic_params)).parse(input)?;
+    let (lifetimes, type_generics) = generics_opt.unwrap_or((Vec::new(), Vec::new()));
     let (input, variants) = delimited(
         ws(tag("{")),
         terminated(
@@ -331,6 +342,8 @@ fn parse_enum(input: &str) -> IResult<&str, AstNode> {
         input,
         AstNode::EnumDef {
             name,
+            generics: type_generics,
+            lifetimes,
             variants,
             attrs,
             doc: "".to_string(),
@@ -356,7 +369,8 @@ fn parse_struct(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("struct")).parse(input)?;
     let (input, name) = ws(parse_ident).parse(input)?;
     // Parse generic parameters if present
-    let (input, _) = opt(ws(parse_generic_params)).parse(input)?;
+    let (input, generics_opt) = opt(ws(parse_generic_params)).parse(input)?;
+    let (lifetimes, type_generics) = generics_opt.unwrap_or((Vec::new(), Vec::new()));
     let (input, fields) = delimited(
         ws(tag("{")),
         terminated(
@@ -370,6 +384,8 @@ fn parse_struct(input: &str) -> IResult<&str, AstNode> {
         input,
         AstNode::StructDef {
             name,
+            generics: type_generics,
+            lifetimes,
             fields,
             attrs,
             doc: "".to_string(),

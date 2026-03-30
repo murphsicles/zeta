@@ -1171,6 +1171,8 @@ mod tests {
         // Create a struct definition
         let struct_def = AstNode::StructDef {
             name: "Point".to_string(),
+            generics: Vec::new(),
+            lifetimes: Vec::new(),
             fields: vec![
                 ("x".to_string(), "i64".to_string()),
                 ("y".to_string(), "i64".to_string()),
@@ -1184,6 +1186,7 @@ mod tests {
         let impl_block = AstNode::ImplBlock {
             concept: "".to_string(),
             generics: Vec::new(),
+            lifetimes: Vec::new(),
             ty: "Point".to_string(),
             body: vec![AstNode::Method {
                 name: "new".to_string(),
@@ -1193,6 +1196,7 @@ mod tests {
                 ],
                 ret: "Point".to_string(),
                 generics: Vec::new(),
+                lifetimes: Vec::new(),
                 attrs: Vec::new(),
                 doc: "".to_string(),
             }],

@@ -21,6 +21,7 @@ pub enum AstNode {
     ConceptDef {
         name: String,
         generics: Vec<String>,
+        lifetimes: Vec<String>,  // Lifetime parameters like 'a, 'b
         methods: Vec<AstNode>,
         attrs: Vec<String>,
         doc: String,
@@ -31,6 +32,7 @@ pub enum AstNode {
     ImplBlock {
         concept: String,
         generics: Vec<String>,
+        lifetimes: Vec<String>,  // Lifetime parameters like 'a, 'b
         ty: String,
         body: Vec<AstNode>,
         attrs: Vec<String>,
@@ -42,6 +44,7 @@ pub enum AstNode {
         params: Vec<(String, String)>,
         ret: String,
         generics: Vec<String>,
+        lifetimes: Vec<String>,  // Lifetime parameters like 'a, 'b
         attrs: Vec<String>,
         doc: String,
     },
@@ -49,6 +52,7 @@ pub enum AstNode {
     FuncDef {
         name: String,
         generics: Vec<String>,
+        lifetimes: Vec<String>,  // Lifetime parameters like 'a, 'b
         params: Vec<(String, String)>,
         ret: String,
         body: Vec<AstNode>,
@@ -65,12 +69,16 @@ pub enum AstNode {
     },
     ExternFunc {
         name: String,
+        generics: Vec<String>,
+        lifetimes: Vec<String>,  // Lifetime parameters like 'a, 'b
         params: Vec<(String, String)>,
         ret: String,
     },
     /// Enumeration definition with variants.
     EnumDef {
         name: String,
+        generics: Vec<String>,
+        lifetimes: Vec<String>,  // Lifetime parameters like 'a, 'b
         variants: Vec<(String, Vec<String>)>,
         attrs: Vec<String>,
         doc: String,
@@ -80,6 +88,8 @@ pub enum AstNode {
     /// Structure definition with fields.
     StructDef {
         name: String,
+        generics: Vec<String>,
+        lifetimes: Vec<String>,  // Lifetime parameters like 'a, 'b
         fields: Vec<(String, String)>,
         attrs: Vec<String>,
         doc: String,

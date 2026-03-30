@@ -135,6 +135,7 @@ impl Resolver {
                                         let variant_func = AstNode::FuncDef {
                                             name: func_name.clone(),
                                             generics: vec![], // TODO: Handle generics
+                                            lifetimes: vec![], // TODO: Handle lifetimes
                                             params,
                                             ret: ret_type,
                                             body: vec![],
@@ -196,7 +197,7 @@ impl Resolver {
                 let typed_ret = self.string_to_type(&ret);
                 self.funcs.insert(name, (typed_params, typed_ret, false));
             }
-            AstNode::ExternFunc { name, params, ret } => {
+            AstNode::ExternFunc { name, generics: _, lifetimes: _, params, ret } => {
                 // Convert string types to Type enum
                 let typed_params: Vec<(String, Type)> = params
                     .iter()

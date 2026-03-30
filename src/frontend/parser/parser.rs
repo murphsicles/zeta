@@ -5,7 +5,7 @@ use nom::Parser;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_until, take_while};
 use nom::character::complete::{alpha1, multispace1, satisfy};
-use nom::combinator::{opt, recognize, value, verify};
+use nom::combinator::{map, opt, recognize, value, verify};
 use nom::multi::{many0, many1, separated_list0, separated_list1};
 use nom::sequence::{delimited, pair, preceded, terminated};
 
@@ -212,6 +212,18 @@ pub fn parse_lt_type(input: &str) -> IResult<&str, String> {
     }
 }
 
+/// Parse a single lifetime parameter
+/// Examples: "'a", "'static", "'lifetime"
+pub fn parse_lifetime_param(input: &str) -> IResult<&str, String> {
+    // Parse lifetime tick '
+    let (input, _) = tag("'")(input)?;
+    
+    // Parse lifetime identifier
+    let (input, lifetime_name) = parse_ident(input)?;
+    
+    Ok((input, format!("'{}", lifetime_name)))
+}
+
 /// Parse a single generic parameter with optional trait bounds
 /// Examples: "T", "T: Display", "T: Display + Debug"
 pub fn parse_generic_param(input: &str) -> IResult<&str, String> {
@@ -239,16 +251,37 @@ pub fn parse_generic_param(input: &str) -> IResult<&str, String> {
     Ok((input, format!("{}{}", param_name, bounds_str)))
 }
 
-pub fn parse_generic_params(input: &str) -> IResult<&str, Vec<String>> {
-    delimited(
+/// Parse generic parameters including both lifetime and type parameters
+/// Examples: "<'a, T>", "<'a, 'b, T: Display, U>", "<T>"
+pub fn parse_generic_params(input: &str) -> IResult<&str, (Vec<String>, Vec<String>)> {
+    let (input, params) = delimited(
         ws(tag("<")),
         terminated(
-            separated_list0(ws(tag(",")), ws(parse_generic_param)),
+            separated_list0(ws(tag(",")), ws(alt((
+                // Try to parse as lifetime parameter first
+                map(parse_lifetime_param, |p| (p, true)),
+                // Fall back to type parameter
+                map(parse_generic_param, |p| (p, false)),
+            )))),
             opt(ws(tag(","))),
         ),
         ws(tag(">")),
     )
-    .parse(input)
+    .parse(input)?;
+    
+    // Separate lifetime parameters from type parameters
+    let mut lifetimes = Vec::new();
+    let mut type_params = Vec::new();
+    
+    for (param, is_lifetime) in params {
+        if is_lifetime {
+            lifetimes.push(param);
+        } else {
+            type_params.push(param);
+        }
+    }
+    
+    Ok((input, (lifetimes, type_params)))
 }
 
 /// Parse an attribute like #[derive(Copy)] or #[inline]
