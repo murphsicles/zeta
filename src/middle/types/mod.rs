@@ -6,6 +6,10 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
 
+// Re-export lifetime types
+pub mod lifetime;
+pub use lifetime::{Lifetime, LifetimeContext, LifetimeSubstitution, LifetimeVar};
+
 /// Type variable for inference
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeVar(u32);
@@ -46,11 +50,11 @@ pub enum Type {
     Str,
 
     // Compound types
-    Array(Box<Type>, usize),    // [T; N]
-    Slice(Box<Type>),           // [T]
-    Tuple(Vec<Type>),           // (T1, T2, ...)
-    Ptr(Box<Type>),             // *T
-    Ref(Box<Type>, Mutability), // &T, &mut T
+    Array(Box<Type>, usize),              // [T; N]
+    Slice(Box<Type>),                     // [T]
+    Tuple(Vec<Type>),                     // (T1, T2, ...)
+    Ptr(Box<Type>),                       // *T
+    Ref(Box<Type>, Lifetime, Mutability), // &'a T, &'a mut T
 
     // Named types (structs, enums, concepts)
     Named(String, Vec<Type>), // Name<T1, T2, ...>
@@ -74,7 +78,7 @@ impl Type {
             Type::Slice(inner) => inner.contains_vars(),
             Type::Tuple(types) => types.iter().any(|t| t.contains_vars()),
             Type::Ptr(inner) => inner.contains_vars(),
-            Type::Ref(inner, _) => inner.contains_vars(),
+            Type::Ref(inner, lifetime, _) => inner.contains_vars() || lifetime.contains_vars(),
             Type::Named(_, args) => args.iter().any(|t| t.contains_vars()),
             Type::Function(params, ret) => {
                 params.iter().any(|t| t.contains_vars()) || ret.contains_vars()
@@ -110,8 +114,12 @@ impl Type {
                 format!("({})", inner)
             }
             Type::Ptr(inner) => format!("*{}", inner.display_name()),
-            Type::Ref(inner, Mutability::Immutable) => format!("&{}", inner.display_name()),
-            Type::Ref(inner, Mutability::Mutable) => format!("&mut {}", inner.display_name()),
+            Type::Ref(inner, lifetime, Mutability::Immutable) => {
+                format!("&{} {}", lifetime.display_name(), inner.display_name())
+            }
+            Type::Ref(inner, lifetime, Mutability::Mutable) => {
+                format!("&{} mut {}", lifetime.display_name(), inner.display_name())
+            }
             Type::Named(name, args) => {
                 if args.is_empty() {
                     name.clone()
@@ -201,9 +209,14 @@ impl Type {
                 Ok(Type::Ptr(Box::new(instantiated_inner)))
             }
 
-            Type::Ref(inner, mutability) => {
+            Type::Ref(inner, lifetime, mutability) => {
                 let instantiated_inner = inner.instantiate_generic(type_args)?;
-                Ok(Type::Ref(Box::new(instantiated_inner), *mutability))
+                // For now, keep the same lifetime (lifetimes don't get instantiated from type_args)
+                Ok(Type::Ref(
+                    Box::new(instantiated_inner),
+                    lifetime.clone(),
+                    *mutability,
+                ))
             }
 
             Type::Function(params, ret) => {
@@ -321,7 +334,9 @@ impl Substitution {
             Type::Slice(inner) => Type::Slice(Box::new(self.apply(inner))),
             Type::Tuple(types) => Type::Tuple(types.iter().map(|t| self.apply(t)).collect()),
             Type::Ptr(inner) => Type::Ptr(Box::new(self.apply(inner))),
-            Type::Ref(inner, mutability) => Type::Ref(Box::new(self.apply(inner)), *mutability),
+            Type::Ref(inner, lifetime, mutability) => {
+                Type::Ref(Box::new(self.apply(inner)), lifetime.clone(), *mutability)
+            }
             Type::Named(name, args) => {
                 Type::Named(name.clone(), args.iter().map(|t| self.apply(t)).collect())
             }
@@ -342,7 +357,7 @@ impl Substitution {
             Type::Slice(inner) => self.occurs_check(var, inner),
             Type::Tuple(types) => types.iter().any(|t| self.occurs_check(var, t)),
             Type::Ptr(inner) => self.occurs_check(var, inner),
-            Type::Ref(inner, _) => self.occurs_check(var, inner),
+            Type::Ref(inner, _, _) => self.occurs_check(var, inner),
             Type::Named(_, args) => args.iter().any(|t| self.occurs_check(var, t)),
             Type::Function(params, ret) => {
                 params.iter().any(|p| self.occurs_check(var, p)) || self.occurs_check(var, ret)
@@ -442,10 +457,26 @@ impl Substitution {
             }
 
             // Reference types
-            (Type::Ref(inner1, mutability1), Type::Ref(inner2, mutability2)) => {
+            (
+                Type::Ref(inner1, lifetime1, mutability1),
+                Type::Ref(inner2, lifetime2, mutability2),
+            ) => {
                 // Mutability must match
                 if mutability1 != mutability2 {
                     return Err(UnifyError::Mismatch(t1, t2));
+                }
+                // Lifetimes must be compatible
+                // For now, we'll require exact match (simplified)
+                if lifetime1 != lifetime2 {
+                    // In a real implementation, we'd check lifetime subtyping
+                    // For now, we'll allow unification if one is a variable
+                    if let (Lifetime::Variable(_), _) | (_, Lifetime::Variable(_)) =
+                        (lifetime1, lifetime2)
+                    {
+                        // Allow unification with lifetime variables
+                    } else {
+                        return Err(UnifyError::Mismatch(t1, t2));
+                    }
                 }
                 // Inner types must unify
                 self.unify(inner1, inner2)

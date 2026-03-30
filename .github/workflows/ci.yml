@@ -1,62 +1,33 @@
-# .github/workflows/ci.yml: CI for Zeta (build/test/lint)
+# .github/workflows/ci.yml: CI for Zeta (build/test/lint) - Hybrid version
+# BASE: Father's last working CI configuration
+# ADDITIONS: Agent checks and quality gates
+# FORCE CI TEST: Added at 07:35 GMT to trigger CI after 48-minute gap
 name: CI
 on:
   push:
-    branches: [ main, dev ]
+    branches: [ main, v0.3.8, dev ]
   pull_request:
-    branches: [ main, dev ]
+    branches: [ main, v0.3.8, dev ]
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-Dwarnings"
 jobs:
-  setup:
-    runs-on: ubuntu-latest
-    outputs:
-      llvm-path: ${{ steps.set-llvm.outputs.llvm-path }}
-    steps:
-    - uses: actions/checkout@v4
-    - name: Install LLVM 21
-      id: install-llvm
-      run: |
-        # Install LLVM 21 using the official llvm.sh script
-        echo "Installing LLVM 21 for inkwell llvm21-1 feature..."
-        wget -q https://apt.llvm.org/llvm.sh
-        chmod +x llvm.sh
-        sudo ./llvm.sh 21
-        
-        # Verify installation
-        echo "Verifying LLVM 21 installation..."
-        if [ -d "/usr/lib/llvm-21" ]; then
-          echo "✓ LLVM 21 installed at /usr/lib/llvm-21"
-          ls -la /usr/lib/llvm-21/lib | head -5
-        else
-          echo "✗ LLVM 21 installation failed!"
-          exit 1
-        fi
-        
-        # Check llvm-config
-        which llvm-config-21 || echo "llvm-config-21 not found, checking alternatives..."
-        llvm-config-21 --version || llvm-config --version || echo "No llvm-config found"
-    - name: Set LLVM prefix
-      id: set-llvm
-      run: |
-        # Set LLVM environment variables
-        echo "LLVM_SYS_210_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
-        echo "LLVM_SYS_211_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
-        echo "llvm-path=/usr/lib/llvm-21" >> $GITHUB_OUTPUT
-        echo "✓ LLVM prefixes set to /usr/lib/llvm-21"
-
   check:
     runs-on: ubuntu-latest
-    needs: setup
     strategy:
       matrix:
         toolchain: [nightly] # 2024 edition requires nightly (stable post-2024)
     steps:
     - uses: actions/checkout@v4
-    - name: Use LLVM from setup
+    - name: Install LLVM 21
       run: |
-        echo "Using LLVM from setup job: ${{ needs.setup.outputs.llvm-path }}"
+        wget https://apt.llvm.org/llvm.sh
+        chmod +x llvm.sh
+        sudo ./llvm.sh 21
+        sudo apt-get update
+        sudo apt-get install -y llvm-21 llvm-21-dev llvm-21-tools libpolly-21-dev
+    - name: Set LLVM prefix
+      run: |
         echo "LLVM_SYS_210_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
         echo "LLVM_SYS_211_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
     - name: Install Rust
@@ -78,19 +49,21 @@ jobs:
       run: cargo clippy --workspace --all-features --all-targets -- -D warnings
     - name: Fmt
       run: cargo fmt --all -- --check
-    - name: Verify inkwell can find LLVM
-      run: |
-        echo "Verifying inkwell can find LLVM libraries..."
-        cargo check --lib 2>&1 | grep -i "llvm" || echo "✓ No LLVM errors found"
 
   test:
     runs-on: ubuntu-latest
-    needs: [setup, check]
+    needs: check
     steps:
     - uses: actions/checkout@v4
-    - name: Use LLVM from setup
+    - name: Install LLVM 21
       run: |
-        echo "Using LLVM from setup job: ${{ needs.setup.outputs.llvm-path }}"
+        wget https://apt.llvm.org/llvm.sh
+        chmod +x llvm.sh
+        sudo ./llvm.sh 21
+        sudo apt-get update
+        sudo apt-get install -y llvm-21 llvm-21-dev llvm-21-tools libpolly-21-dev
+    - name: Set LLVM prefix
+      run: |
         echo "LLVM_SYS_210_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
         echo "LLVM_SYS_211_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
     - name: Install Rust
@@ -110,10 +83,6 @@ jobs:
       run: cargo test --workspace --all-features
     - name: Bench (no plot)
       run: cargo bench --no-run # Stub: Run benches
-    - name: Run integration tests
-      run: |
-        echo "Running comprehensive test suite..."
-        cargo test --tests -- --test-threads=1 --nocapture 2>&1 | tail -20
 
   security:
     runs-on: ubuntu-latest
@@ -132,7 +101,8 @@ jobs:
         arguments: --no-default-features
         manifest-path: ./Cargo.toml
 
-  quality:
+  # AGENT CHECKS - Added from Zak's version
+  agent-checks:
     runs-on: ubuntu-latest
     needs: test
     if: always()
@@ -142,19 +112,234 @@ jobs:
       uses: dtolnay/rust-toolchain@master
       with:
         toolchain: nightly
-    - name: Run additional quality checks
+    - name: Run agent-specific checks
       run: |
-        echo "Running additional quality checks..."
+        echo "Running agent-specific quality checks..."
+        
         # Check for TODO comments without tracking
-        echo "Checking for untracked TODOs..."
-        grep -r "TODO:" src/ || echo "✓ No untracked TODOs found"
+        echo "🔍 Checking for untracked TODOs..."
+        find src/ -name "*.rs" -exec grep -l "TODO:" {} \; || echo "✅ No untracked TODOs found"
         
         # Check for FIXME comments
-        echo "Checking for FIXME comments..."
-        grep -r "FIXME:" src/ || echo "✓ No FIXME comments found"
+        echo "🔧 Checking for FIXME comments..."
+        find src/ -name "*.rs" -exec grep -l "FIXME:" {} \; || echo "✅ No FIXME comments found"
         
         # Check for unsafe code
-        echo "Checking for unsafe code..."
-        grep -r "unsafe" src/ | grep -v "//" || echo "✓ No unsafe code found"
+        echo "🛡️ Checking for unsafe code..."
+        find src/ -name "*.rs" -exec grep -l "unsafe" {} \; | xargs grep -h "unsafe" | grep -v "//" || echo "✅ No unsafe code found"
         
-        echo "✓ Quality checks completed"
+        # Check agent-specific patterns
+        echo "🤖 Checking agent patterns..."
+        
+        # Check for proper error handling
+        echo "📋 Checking error handling patterns..."
+        find src/ -name "*.rs" -exec grep -l "unwrap()" {} \; | head -5 || echo "✅ Minimal unwrap() usage"
+        
+        # Check for proper documentation
+        echo "📚 Checking documentation..."
+        find src/ -name "*.rs" -exec grep -l "///" {} \; | head -5 || echo "✅ Some documentation found"
+        
+        echo "🎉 Agent checks completed"
+
+  # AGENT WORKFLOW VALIDATION - Added from Zak's version
+  agent-workflow-validation:
+    runs-on: ubuntu-latest
+    needs: test
+    if: always()
+    steps:
+    - uses: actions/checkout@v4
+    - name: Validate agent workflows
+      run: |
+        echo "Validating agent workflow files..."
+        
+        # Check if agent workflow files exist
+        if [ -f ".github/workflows/agent-branches.yml" ]; then
+          echo "✅ agent-branches.yml exists"
+        else
+          echo "⚠️ agent-branches.yml missing"
+        fi
+        
+        if [ -f ".github/workflows/agent-dashboard.yml" ]; then
+          echo "✅ agent-dashboard.yml exists"
+        else
+          echo "⚠️ agent-dashboard.yml missing"
+        fi
+        
+        if [ -f ".github/workflows/agent-sync.yml" ]; then
+          echo "✅ agent-sync.yml exists"
+        else
+          echo "⚠️ agent-sync.yml missing"
+        fi
+        
+        # Check agent documentation
+        echo "📋 Checking agent documentation..."
+        if [ -f "AGENT_PATHS.md" ]; then
+          echo "✅ AGENT_PATHS.md exists"
+          wc -l AGENT_PATHS.md
+        else
+          echo "⚠️ AGENT_PATHS.md missing"
+        fi
+        
+        echo "🎉 Agent workflow validation completed"
+
+  # POLLING/HEALTH CHECKS - Added per Father's suggestion
+  polling-health-checks:
+    runs-on: ubuntu-latest
+    needs: test
+    if: always()
+    steps:
+    - uses: actions/checkout@v4
+    - name: Run system health checks
+      run: |
+        echo "🏥 SYSTEM HEALTH CHECKS"
+        echo "======================"
+        echo ""
+        
+        # Check disk space
+        echo "💾 Disk Space:"
+        df -h | grep -E "Filesystem|/dev/" || echo "⚠️ Could not check disk space"
+        
+        # Check memory
+        echo "🧠 Memory Usage:"
+        free -h || echo "⚠️ Could not check memory"
+        
+        # Check CPU
+        echo "⚡ CPU Info:"
+        nproc || echo "⚠️ Could not check CPU count"
+        
+        # Check network connectivity
+        echo "🌐 Network Connectivity:"
+        ping -c 2 github.com && echo "✅ GitHub reachable" || echo "⚠️ GitHub not reachable"
+        
+        # Check recent commits
+        echo "📝 Recent Commits:"
+        git log --oneline -n 5 || echo "⚠️ Could not check git log"
+        
+        # Check file system health
+        echo "📁 File System Check:"
+        find . -name "*.rs" -type f | head -10 | wc -l | xargs echo "✅ Found" || echo "⚠️ Could not count Rust files"
+        
+        echo "🎉 Health checks completed"
+
+  # AGENT STATUS POLLING - Added per Father's suggestion
+  agent-status-polling:
+    runs-on: ubuntu-latest
+    needs: test
+    if: always()
+    steps:
+    - uses: actions/checkout@v4
+    - name: Poll agent status
+      run: |
+        echo "🤖 AGENT STATUS POLLING"
+        echo "======================"
+        echo ""
+        
+        # Check for agent configuration files
+        echo "🔍 Agent Configuration Files:"
+        if [ -f "AGENT_PATHS.md" ]; then
+          echo "✅ AGENT_PATHS.md exists"
+          AGENT_COUNT=$(grep -c "^-" AGENT_PATHS.md || echo "0")
+          echo "📊 Configured agents: $AGENT_COUNT"
+        else
+          echo "⚠️ AGENT_PATHS.md missing"
+        fi
+        
+        # Check agent workflow files
+        echo "📋 Agent Workflow Files:"
+        AGENT_WORKFLOWS=$(find .github/workflows -name "agent-*.yml" -o -name "agent-*.yaml" | wc -l)
+        echo "📊 Agent workflows: $AGENT_WORKFLOWS"
+        find .github/workflows -name "agent-*.yml" -o -name "agent-*.yaml" | xargs -I {} echo "  - {}" || echo "  ⚠️ No agent workflows found"
+        
+        # Check agent branches (simulated)
+        echo "🌿 Agent Branches (simulated check):"
+        echo "  - dev (current)"
+        echo "  - main (production)"
+        echo "  - v0.3.8 (release)"
+        echo "  ⚠️ Note: Actual branch check would require GitHub API"
+        
+        # Check agent activity (simulated - would use GitHub API in real implementation)
+        echo "📈 Agent Activity (simulated):"
+        echo "  ✅ CI running (this job)"
+        echo "  ✅ Tests executed"
+        echo "  ✅ Security checks"
+        echo "  ⚠️ Real agent activity polling would require external monitoring"
+        
+        # Agent health recommendations
+        echo "💡 Agent Health Recommendations:"
+        echo "  1. Ensure all agents have identity files"
+        echo "  2. Monitor agent branch activity"
+        echo "  3. Regular CI runs (like this one)"
+        echo "  4. Agent synchronization checks"
+        
+        echo "🎉 Agent status polling completed"
+
+  # FINAL STATUS REPORT WITH POLLING - Enhanced version
+  status-report:
+    runs-on: ubuntu-latest
+    needs: [check, test, security, agent-checks, agent-workflow-validation, polling-health-checks, agent-status-polling]
+    if: always()
+    steps:
+    - uses: actions/checkout@v4
+    - name: Generate comprehensive status report
+      run: |
+        echo "📊 ZETA CI STATUS REPORT WITH POLLING"
+        echo "===================================="
+        echo ""
+        echo "🏗️ BUILD STATUS:"
+        echo "- check: ${{ needs.check.result }}"
+        echo "- test: ${{ needs.test.result }}"
+        echo "- security: ${{ needs.security.result }}"
+        echo ""
+        echo "🤖 AGENT STATUS:"
+        echo "- agent-checks: ${{ needs.agent-checks.result }}"
+        echo "- agent-workflow-validation: ${{ needs.agent-workflow-validation.result }}"
+        echo "- agent-status-polling: ${{ needs.agent-status-polling.result }}"
+        echo ""
+        echo "🏥 SYSTEM HEALTH:"
+        echo "- polling-health-checks: ${{ needs.polling-health-checks.result }}"
+        echo ""
+        echo "📈 OVERALL STATUS: ${{ job.status }}"
+        echo ""
+        echo "🎯 ACTION ITEMS:"
+        
+        # Build issues
+        if [ "${{ needs.check.result }}" != "success" ]; then
+          echo "❌ FIX: Compilation/linting errors in check job"
+        fi
+        
+        if [ "${{ needs.test.result }}" != "success" ]; then
+          echo "❌ FIX: Test failures (likely Type::Ref calls)"
+        fi
+        
+        if [ "${{ needs.security.result }}" != "success" ]; then
+          echo "❌ FIX: License audit issues"
+        fi
+        
+        # Agent issues
+        if [ "${{ needs.agent-checks.result }}" != "success" ]; then
+          echo "⚠️ REVIEW: Agent code quality issues"
+        fi
+        
+        if [ "${{ needs.agent-workflow-validation.result }}" != "success" ]; then
+          echo "⚠️ REVIEW: Agent workflow validation issues"
+        fi
+        
+        # System issues
+        if [ "${{ needs.polling-health-checks.result }}" != "success" ]; then
+          echo "⚠️ REVIEW: System health check issues"
+        fi
+        
+        if [ "${{ needs.agent-status-polling.result }}" != "success" ]; then
+          echo "⚠️ REVIEW: Agent status polling issues"
+        fi
+        
+        # Success case
+        if [ "${{ needs.check.result }}" = "success" ] && [ "${{ needs.test.result }}" = "success" ] && [ "${{ needs.security.result }}" = "success" ]; then
+          echo "✅ ALL SYSTEMS GO: Build, tests, and security passed"
+        else
+          echo "🔧 NEEDS ATTENTION: Some checks failed (see above)"
+        fi
+        
+        echo ""
+        echo "📅 NEXT POLL: CI will run again on next push"
+        echo "🎉 COMPREHENSIVE STATUS REPORT COMPLETE"

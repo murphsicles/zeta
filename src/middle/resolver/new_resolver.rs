@@ -68,6 +68,7 @@ impl InferContext {
             let inner_ty = self.parse_type_string(inner)?;
             return Ok(Type::Ref(
                 Box::new(inner_ty),
+                crate::middle::types::Lifetime::Static,
                 crate::middle::types::Mutability::Mutable,
             ));
         } else if s.starts_with("&") {
@@ -75,6 +76,7 @@ impl InferContext {
             let inner_ty = self.parse_type_string(inner)?;
             return Ok(Type::Ref(
                 Box::new(inner_ty),
+                crate::middle::types::Lifetime::Static,
                 crate::middle::types::Mutability::Immutable,
             ));
         }
@@ -1038,6 +1040,7 @@ mod tests {
             ctx.parse_type_string("[&str]").unwrap(),
             Type::Slice(Box::new(Type::Ref(
                 Box::new(Type::Str),
+                crate::middle::types::Lifetime::Static,
                 crate::middle::types::Mutability::Immutable
             )))
         );

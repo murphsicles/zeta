@@ -77,7 +77,11 @@ impl NewTypeCheck for Resolver {
         // Check for &mut prefix (must check before & prefix)
         if let Some(rest) = s.strip_prefix("&mut ") {
             let inner = self.string_to_type(rest);
-            return Type::Ref(Box::new(inner), crate::middle::types::Mutability::Mutable);
+            return Type::Ref(
+                Box::new(inner),
+                crate::middle::types::Lifetime::Static,
+                crate::middle::types::Mutability::Mutable,
+            );
         }
 
         // Check for & prefix
@@ -85,7 +89,11 @@ impl NewTypeCheck for Resolver {
             // Make sure we didn't match &mut (should have been caught above)
             if !rest.starts_with("mut ") {
                 let inner = self.string_to_type(rest);
-                return Type::Ref(Box::new(inner), crate::middle::types::Mutability::Immutable);
+                return Type::Ref(
+                    Box::new(inner),
+                    crate::middle::types::Lifetime::Static,
+                    crate::middle::types::Mutability::Immutable,
+                );
             }
         }
 
@@ -316,6 +324,7 @@ mod tests {
             resolver.string_to_type("&str"),
             Type::Ref(
                 Box::new(Type::Str),
+                crate::middle::types::lifetime::Lifetime::Static,
                 crate::middle::types::Mutability::Immutable
             )
         );
@@ -324,6 +333,7 @@ mod tests {
             resolver.string_to_type("&mut i64"),
             Type::Ref(
                 Box::new(Type::I64),
+                crate::middle::types::lifetime::Lifetime::Static,
                 crate::middle::types::Mutability::Mutable
             )
         );
@@ -332,6 +342,7 @@ mod tests {
             resolver.string_to_type("&bool"),
             Type::Ref(
                 Box::new(Type::Bool),
+                crate::middle::types::lifetime::Lifetime::Static,
                 crate::middle::types::Mutability::Immutable
             )
         );
@@ -357,6 +368,7 @@ mod tests {
             resolver.string_to_type("[&str]"),
             Type::Slice(Box::new(Type::Ref(
                 Box::new(Type::Str),
+                crate::middle::types::lifetime::Lifetime::Static,
                 crate::middle::types::Mutability::Immutable
             )))
         );
@@ -375,6 +387,7 @@ mod tests {
                 Type::I64,
                 Type::Ref(
                     Box::new(Type::Str),
+                    crate::middle::types::lifetime::Lifetime::Static,
                     crate::middle::types::Mutability::Immutable
                 ),
                 Type::Bool
@@ -396,15 +409,17 @@ mod tests {
         // Test reference type display
         let ref_str = Type::Ref(
             Box::new(Type::Str),
+            crate::middle::types::lifetime::Lifetime::Static,
             crate::middle::types::Mutability::Immutable,
         );
-        assert_eq!(resolver.type_to_string(&ref_str), "&str");
+        assert_eq!(resolver.type_to_string(&ref_str), "&'static str");
 
         let mut_ref_i64 = Type::Ref(
             Box::new(Type::I64),
+            crate::middle::types::lifetime::Lifetime::Static,
             crate::middle::types::Mutability::Mutable,
         );
-        assert_eq!(resolver.type_to_string(&mut_ref_i64), "&mut i64");
+        assert_eq!(resolver.type_to_string(&mut_ref_i64), "&'static mut i64");
 
         // Test array type display
         let array_i32 = Type::Array(Box::new(Type::I32), 10);
@@ -425,11 +440,15 @@ mod tests {
             Type::I64,
             Type::Ref(
                 Box::new(Type::Str),
+                crate::middle::types::lifetime::Lifetime::Static,
                 crate::middle::types::Mutability::Immutable,
             ),
             Type::Bool,
         ]);
-        assert_eq!(resolver.type_to_string(&complex_tuple), "(i64, &str, bool)");
+        assert_eq!(
+            resolver.type_to_string(&complex_tuple),
+            "(i64, &'static str, bool)"
+        );
 
         // Test generic types
         assert_eq!(
@@ -474,6 +493,7 @@ mod tests {
                 "Vec".to_string(),
                 vec![Type::Ref(
                     Box::new(Type::Str),
+                    crate::middle::types::lifetime::Lifetime::Static,
                     crate::middle::types::Mutability::Immutable
                 )]
             )
