@@ -185,10 +185,25 @@ impl LifetimeContext {
             processed_constraints.push((longer, shorter));
         }
 
+        // Debug: print constraints
+        #[cfg(test)]
+        println!("Solving {} constraints", processed_constraints.len());
+
         // Check each constraint
-        for (longer, shorter) in &processed_constraints {
+        for (i, (longer, shorter)) in processed_constraints.iter().enumerate() {
+            // Debug: print each constraint
+            #[cfg(test)]
+            println!(
+                "Constraint {}: {} outlives {}",
+                i,
+                longer.display_name(),
+                shorter.display_name()
+            );
+
             // Check if constraint is trivially satisfied
             if longer.outlives(shorter) {
+                #[cfg(test)]
+                println!("  -> trivially satisfied (outlives returns true)");
                 continue;
             }
 
@@ -198,10 +213,14 @@ impl LifetimeContext {
                 (Lifetime::Named(_), Lifetime::Named(_)) => {
                     // Different named lifetimes - we can't prove this constraint
                     // For testing purposes, we'll accept it
+                    #[cfg(test)]
+                    println!("  -> accepting named lifetime constraint (testing mode)");
                     continue;
                 }
                 _ => {
                     // Try to unify as fallback
+                    #[cfg(test)]
+                    println!("  -> attempting unification...");
                     if let Err(e) = self.substitution.unify(longer, shorter) {
                         return Err(format!(
                             "Failed to satisfy lifetime constraint: {} outlives {} - {}",
@@ -210,6 +229,8 @@ impl LifetimeContext {
                             e
                         ));
                     }
+                    #[cfg(test)]
+                    println!("  -> unification successful");
                 }
             }
         }

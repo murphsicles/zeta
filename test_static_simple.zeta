@@ -1,0 +1,17 @@
+// Test static method
+struct Point {
+    x: i64,
+    y: i64,
+}
+
+impl Point {
+    // Static constructor
+    fn new(x: i64, y: i64) -> Point {
+        Point { x, y }
+    }
+}
+
+fn main() {
+    // This should type-check as a static method call
+    let p = Point::new(10, 20);
+}

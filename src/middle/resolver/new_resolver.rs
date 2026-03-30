@@ -702,10 +702,64 @@ impl InferContext {
                 }
             }
 
-            AstNode::ImplBlock { body, .. } => {
+            AstNode::ImplBlock { concept, ty, body, .. } => {
                 // Process functions in impl block to register them
                 for func in body {
-                    self.infer(func)?;
+                    // Check if this is a Method node (signature) or FuncDef (implementation)
+                    match func {
+                        AstNode::Method { name, params, ret, .. } => {
+                            // Parse the return type
+                            let return_ty = self.parse_type_string(ret)?;
+                            
+                            // Create function type from parameters
+                            let mut param_types = Vec::new();
+                            for (_, param_type_str) in params {
+                                let param_ty = self.parse_type_string(param_type_str)?;
+                                param_types.push(param_ty);
+                            }
+                            
+                            // Create the function type
+                            let func_type = if param_types.is_empty() {
+                                return_ty
+                            } else {
+                                Type::Function(param_types, Box::new(return_ty))
+                            };
+                            
+                            // Register with qualified name: Type::method_name
+                            let qualified_name = format!("{}::{}", ty, name);
+                            self.functions.insert(qualified_name, func_type);
+                            
+                            // Also register as instance method: Type.method_name
+                            // For instance methods, the first parameter is &self or &mut self
+                            // We'll handle this distinction later
+                        }
+                        AstNode::FuncDef { name, params, ret, .. } => {
+                            // Parse the return type
+                            let return_ty = self.parse_type_string(ret)?;
+                            
+                            // Create function type from parameters
+                            let mut param_types = Vec::new();
+                            for (_, param_type_str) in params {
+                                let param_ty = self.parse_type_string(param_type_str)?;
+                                param_types.push(param_ty);
+                            }
+                            
+                            // Create the function type
+                            let func_type = if param_types.is_empty() {
+                                return_ty
+                            } else {
+                                Type::Function(param_types, Box::new(return_ty))
+                            };
+                            
+                            // Register with qualified name: Type::method_name
+                            let qualified_name = format!("{}::{}", ty, name);
+                            self.functions.insert(qualified_name, func_type);
+                        }
+                        _ => {
+                            // For other nodes, just infer them normally
+                            self.infer(func)?;
+                        }
+                    }
                 }
                 // Impl blocks don't have a type, they're declarations
                 // Return unit type
