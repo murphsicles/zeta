@@ -62,6 +62,7 @@ pub fn compile_static_method(code: &str) -> Result<(), String> {
 }
 
 /// Expected output validator for static method tests
+#[allow(dead_code)]
 pub fn validate_expected_output(_code: &str, _expected_output: &str) -> Result<(), String> {
     // This would run the code and compare output
     // For now, just a placeholder
@@ -69,6 +70,7 @@ pub fn validate_expected_output(_code: &str, _expected_output: &str) -> Result<(
 }
 
 /// Error message tester for static method edge cases
+#[allow(dead_code)]
 pub fn test_error_message(code: &str, expected_error_pattern: &str) -> Result<(), String> {
     let result = parse_zeta(code);
     match result {
@@ -100,10 +102,19 @@ pub fn test_error_message(code: &str, expected_error_pattern: &str) -> Result<()
 pub struct StaticMethodTestMatrix {
     pub simple_static: Vec<&'static str>,
     pub generic_static: Vec<&'static str>,
+    #[allow(dead_code)]
     pub impl_block_static: Vec<&'static str>,
+    #[allow(dead_code)]
     pub associated_functions: Vec<&'static str>,
+    #[allow(dead_code)]
     pub edge_cases: Vec<&'static str>,
     pub error_cases: Vec<(&'static str, &'static str)>, // (code, expected_error_pattern)
+}
+
+impl Default for StaticMethodTestMatrix {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl StaticMethodTestMatrix {

@@ -14,6 +14,7 @@
 //! Every line is optimized for speed, simplicity, and clarity.
 
 pub mod backend;
+pub mod error_codes;
 pub mod frontend;
 pub mod middle;
 pub mod runtime;

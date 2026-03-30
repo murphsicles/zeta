@@ -123,7 +123,9 @@ mod tests {
         // TODO: This should fail to parse, but parser currently accepts it
         // For now, skip this test while static method implementation is in progress
         if result.is_ok() {
-            println!("Note: Parser accepts Point::(10, 20) - known issue during static method implementation");
+            println!(
+                "Note: Parser accepts Point::(10, 20) - known issue during static method implementation"
+            );
         }
         // Temporarily disable assertion to allow push
         // assert!(result.is_err(), "Should fail to parse: {:?}", result);

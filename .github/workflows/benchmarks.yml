@@ -1,0 +1,274 @@
+# .github/workflows/benchmarks.yml
+# Dedicated benchmarking workflow for Zeta
+# Runs comprehensive benchmarks and regression tests
+
+name: Benchmarks
+
+on:
+  # Run on push to main/dev branches (but less frequently than CI)
+  push:
+    branches: [ main, dev ]
+    paths:
+      - 'benches/**'
+      - 'src/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+  
+  # Run on schedule (daily at 2 AM UTC)
+  schedule:
+    - cron: '0 2 * * *'
+  
+  # Manual trigger from GitHub UI
+  workflow_dispatch:
+    inputs:
+      benchmark_type:
+        description: 'Type of benchmarks to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+        - all
+        - compiler
+        - runtime
+        - regression
+      sample_size:
+        description: 'Sample size for benchmarks'
+        required: false
+        default: '20'
+      measurement_time:
+        description: 'Measurement time per benchmark (ms)'
+        required: false
+        default: '500'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-Dwarnings"
+
+jobs:
+  # SETUP JOB - Shared setup for all benchmarks
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      llvm_prefix: ${{ steps.set-llvm.outputs.llvm_prefix }}
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install LLVM 21
+      run: |
+        wget https://apt.llvm.org/llvm.sh
+        chmod +x llvm.sh
+        sudo ./llvm.sh 21
+        sudo apt-get update
+        sudo apt-get install -y llvm-21 llvm-21-dev llvm-21-tools libpolly-21-dev
+    - name: Set LLVM prefix
+      id: set-llvm
+      run: |
+        echo "LLVM_SYS_210_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
+        echo "LLVM_SYS_211_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
+        echo "llvm_prefix=/usr/lib/llvm-21" >> $GITHUB_OUTPUT
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: nightly
+        components: rustfmt, clippy
+    - name: Cache cargo
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-benchmarks
+
+  # COMPILER BENCHMARKS - Measures compiler performance
+  compiler-benchmarks:
+    runs-on: ubuntu-latest
+    needs: setup
+    if: ${{ github.event_name == 'schedule' || github.event.inputs.benchmark_type == 'all' || github.event.inputs.benchmark_type == 'compiler' }}
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup LLVM
+      run: |
+        echo "LLVM_SYS_210_PREFIX=${{ needs.setup.outputs.llvm_prefix }}" >> $GITHUB_ENV
+        echo "LLVM_SYS_211_PREFIX=${{ needs.setup.outputs.llvm_prefix }}" >> $GITHUB_ENV
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: nightly
+    - name: Restore cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-benchmarks
+    - name: Build compiler benchmarks
+      run: cargo build --bench compiler_bench
+    - name: Run compiler benchmarks
+      run: |
+        echo "📊 RUNNING COMPILER BENCHMARKS"
+        echo "==============================="
+        
+        # Use custom parameters if provided
+        SAMPLE_SIZE=${INPUT_SAMPLE_SIZE:-20}
+        MEASUREMENT_TIME=${INPUT_MEASUREMENT_TIME:-500}
+        
+        cargo bench --bench compiler_bench -- \
+          --warm-up-time ${MEASUREMENT_TIME}ms \
+          --measurement-time ${MEASUREMENT_TIME}ms \
+          --sample-size $SAMPLE_SIZE
+        
+        echo ""
+        echo "✅ Compiler benchmarks completed"
+
+  # RUNTIME BENCHMARKS - Measures execution performance
+  runtime-benchmarks:
+    runs-on: ubuntu-latest
+    needs: setup
+    if: ${{ github.event_name == 'schedule' || github.event.inputs.benchmark_type == 'all' || github.event.inputs.benchmark_type == 'runtime' }}
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup LLVM
+      run: |
+        echo "LLVM_SYS_210_PREFIX=${{ needs.setup.outputs.llvm_prefix }}" >> $GITHUB_ENV
+        echo "LLVM_SYS_211_PREFIX=${{ needs.setup.outputs.llvm_prefix }}" >> $GITHUB_ENV
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: nightly
+    - name: Restore cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-benchmarks
+    - name: Build runtime benchmarks
+      run: cargo build --bench runtime_bench
+    - name: Run runtime benchmarks
+      run: |
+        echo "🏃 RUNNING RUNTIME BENCHMARKS"
+        echo "============================="
+        
+        # Use custom parameters if provided
+        SAMPLE_SIZE=${INPUT_SAMPLE_SIZE:-20}
+        MEASUREMENT_TIME=${INPUT_MEASUREMENT_TIME:-500}
+        
+        cargo bench --bench runtime_bench -- \
+          --warm-up-time ${MEASUREMENT_TIME}ms \
+          --measurement-time ${MEASUREMENT_TIME}ms \
+          --sample-size $SAMPLE_SIZE
+        
+        echo ""
+        echo "✅ Runtime benchmarks completed"
+
+  # REGRESSION TESTS - Checks for performance regressions
+  regression-tests:
+    runs-on: ubuntu-latest
+    needs: setup
+    if: ${{ github.event_name == 'schedule' || github.event.inputs.benchmark_type == 'all' || github.event.inputs.benchmark_type == 'regression' }}
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup LLVM
+      run: |
+        echo "LLVM_SYS_210_PREFIX=${{ needs.setup.outputs.llvm_prefix }}" >> $GITHUB_ENV
+        echo "LLVM_SYS_211_PREFIX=${{ needs.setup.outputs.llvm_prefix }}" >> $GITHUB_ENV
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: nightly
+    - name: Restore cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-benchmarks
+    - name: Build regression test
+      run: cargo build --bin regression_test
+    - name: Run regression tests
+      run: |
+        echo "📈 RUNNING REGRESSION TESTS"
+        echo "==========================="
+        
+        # Check if baseline exists
+        if [ -f "benches/performance_baseline.json" ]; then
+          echo "📊 Baseline found, checking for regressions..."
+          cargo run --bin regression_test
+          
+          if [ $? -eq 0 ]; then
+            echo "✅ No performance regressions detected"
+          else
+            echo "⚠️ Performance regression detected"
+            echo "To update baseline, run: cargo run --bin regression_test -- update"
+          fi
+        else
+          echo "📝 No baseline found, creating initial baseline..."
+          cargo run --bin regression_test -- update
+          echo "✅ Initial baseline created"
+        fi
+        
+        echo ""
+        echo "📊 Baseline stored in: benches/performance_baseline.json"
+
+  # BENCHMARK REPORT - Aggregates and reports results
+  benchmark-report:
+    runs-on: ubuntu-latest
+    needs: [compiler-benchmarks, runtime-benchmarks, regression-tests]
+    if: always()
+    steps:
+    - uses: actions/checkout@v4
+    - name: Generate benchmark report
+      run: |
+        echo "📊 ZETA BENCHMARK REPORT"
+        echo "========================"
+        echo ""
+        echo "🏗️ COMPILER BENCHMARKS: ${{ needs.compiler-benchmarks.result }}"
+        echo "🏃 RUNTIME BENCHMARKS: ${{ needs.runtime-benchmarks.result }}"
+        echo "📈 REGRESSION TESTS: ${{ needs.regression-tests.result }}"
+        echo ""
+        echo "⏰ TRIGGER: ${{ github.event_name }}"
+        echo "📅 TIMESTAMP: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+        echo ""
+        
+        # Summary based on results
+        if [ "${{ needs.compiler-benchmarks.result }}" = "success" ] && \
+           [ "${{ needs.runtime-benchmarks.result }}" = "success" ] && \
+           [ "${{ needs.regression-tests.result }}" = "success" ]; then
+          echo "🎉 ALL BENCHMARKS PASSED"
+          echo ""
+          echo "✅ Compiler performance: Stable"
+          echo "✅ Runtime performance: Stable"
+          echo "✅ No regressions detected"
+        else
+          echo "⚠️ SOME BENCHMARKS NEED ATTENTION"
+          echo ""
+          
+          if [ "${{ needs.compiler-benchmarks.result }}" != "success" ]; then
+            echo "❌ Compiler benchmarks failed"
+          fi
+          
+          if [ "${{ needs.runtime-benchmarks.result }}" != "success" ]; then
+            echo "❌ Runtime benchmarks failed"
+          fi
+          
+          if [ "${{ needs.regression-tests.result }}" != "success" ]; then
+            echo "❌ Regression tests failed (performance regression)"
+          fi
+        fi
+        
+        echo ""
+        echo "📋 NEXT STEPS:"
+        echo "1. Review benchmark results in job logs"
+        echo "2. Check for performance regressions"
+        echo "3. Update baseline if regressions are acceptable"
+        echo "4. Investigate any benchmark failures"
+        
+        echo ""
+        echo "🔧 MANUAL TRIGGER OPTIONS:"
+        echo "- Run all benchmarks: workflow_dispatch with type=all"
+        echo "- Run compiler only: workflow_dispatch with type=compiler"
+        echo "- Run runtime only: workflow_dispatch with type=runtime"
+        echo "- Run regression only: workflow_dispatch with type=regression"

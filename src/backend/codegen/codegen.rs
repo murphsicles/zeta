@@ -617,7 +617,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         if let Some(&f) = self.fns.get(name) {
             return f;
         }
-        
+
         // Handle Type::method names (static methods)
         if name.contains("::") {
             let mangled = name.replace("::", "_");
@@ -631,7 +631,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 return f;
             }
         }
-        
+
         let mangled = if name.contains('_') {
             name.to_string()
         } else {

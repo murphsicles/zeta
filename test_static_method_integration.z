@@ -1,20 +1,21 @@
 // Integration test for static method support
+// UPDATED: Using i64 to match literal default after type system integration
 struct Point {
-    x: i32,
-    y: i32,
+    x: i64,
+    y: i64,
 }
 
 impl Point {
-    fn new(x: i32, y: i32) -> Point {
+    fn new(x: i64, y: i64) -> Point {
         Point { x, y }
     }
     
-    fn sum(&self) -> i32 {
+    fn sum(&self) -> i64 {
         self.x + self.y
     }
 }
 
-fn main() -> i32 {
+fn main() -> i64 {
     // Test static method call
     let p = Point::new(10, 20);
     p.sum()

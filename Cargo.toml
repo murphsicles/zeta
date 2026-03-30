@@ -70,6 +70,18 @@ libfuzzer-sys = "0.4.10"
 # Benchmark configurations.
 [[bench]]
 # Benchmark name.
-name = "zeta_bench"
+name = "compiler_bench"
+# Disable default harness.
+harness = false
+
+[[bench]]
+# Benchmark name.
+name = "runtime_bench"
+# Disable default harness.
+harness = false
+
+[[bench]]
+# Benchmark name.
+name = "regression_test"
 # Disable default harness.
 harness = false

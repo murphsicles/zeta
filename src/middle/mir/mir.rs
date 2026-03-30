@@ -1,6 +1,6 @@
 // src/middle/mir/mir.rs
-use std::collections::HashMap;
 use crate::middle::types::Type;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Default)]
 pub struct Mir {

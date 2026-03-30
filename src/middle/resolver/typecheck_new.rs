@@ -301,7 +301,7 @@ impl TypeCheckMigrator {
             }
         } else {
             // Use old inference
-            self.resolver.infer_type(node)
+            self.resolver.infer_type(node).display_name()
         }
     }
 }

@@ -164,7 +164,8 @@ impl MirGen {
                     });
                 }
                 self.exprs.insert(map_id, MirExpr::Var(map_id));
-                self.type_map.insert(map_id, Type::Named("map".to_string(), vec![]));
+                self.type_map
+                    .insert(map_id, Type::Named("map".to_string(), vec![]));
             }
             AstNode::Subscript { base, index } => {
                 let bid = self.lower_expr(base);
@@ -438,12 +439,7 @@ impl MirGen {
                 let receiver_ty = if let Some(r) = receiver {
                     let rid = self.lower_expr(r);
                     arg_ids.push(rid);
-                    Some(
-                        self.type_map
-                            .get(&rid)
-                            .cloned()
-                            .unwrap_or_else(|| Type::I64),
-                    )
+                    Some(self.type_map.get(&rid).cloned().unwrap_or(Type::I64))
                 } else {
                     None
                 };

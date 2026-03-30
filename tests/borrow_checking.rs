@@ -1,7 +1,9 @@
 // Test for borrow checking with reference types
 use zetac::frontend::ast::AstNode;
 use zetac::frontend::borrow::{BorrowChecker, BorrowState};
-use zetac::middle::resolver::resolver::Resolver;
+use zetac::middle::resolver::resolver::{Resolver, Type};
+use zetac::middle::types::Mutability;
+use zetac::middle::types::lifetime::Lifetime;
 
 #[test]
 fn test_borrow_checker_basics() {
@@ -11,7 +13,7 @@ fn test_borrow_checker_basics() {
     let resolver = Resolver::new();
 
     // Test 1: Declare a variable
-    checker.declare("x".to_string(), BorrowState::Owned, "i32".to_string());
+    checker.declare("x".to_string(), BorrowState::Owned, Type::I32);
     println!("✓ Variable 'x' declared as Owned");
 
     // Test 2: Check variable usage
@@ -20,7 +22,11 @@ fn test_borrow_checker_basics() {
     println!("✓ Variable 'x' can be used when Owned");
 
     // Test 3: Declare a borrowed variable
-    checker.declare("y".to_string(), BorrowState::Borrowed, "&i32".to_string());
+    checker.declare(
+        "y".to_string(),
+        BorrowState::Borrowed,
+        Type::Ref(Box::new(Type::I32), Lifetime::Static, Mutability::Immutable),
+    );
     println!("✓ Variable 'y' declared as Borrowed");
 
     let var_y = AstNode::Var("y".to_string());
@@ -28,7 +34,7 @@ fn test_borrow_checker_basics() {
     println!("✓ Borrowed variable 'y' can be used");
 
     // Test 4: Declare a consumed variable
-    checker.declare("z".to_string(), BorrowState::Consumed, "i32".to_string());
+    checker.declare("z".to_string(), BorrowState::Consumed, Type::I32);
     println!("✓ Variable 'z' declared as Consumed");
 
     let var_z = AstNode::Var("z".to_string());
@@ -49,7 +55,11 @@ fn test_reference_type_borrow_checking() {
     // specifically, but we can test the basic functionality
 
     // Test 1: &str reference can be used multiple times (immutable borrow)
-    checker.declare("s".to_string(), BorrowState::Borrowed, "&str".to_string());
+    checker.declare(
+        "s".to_string(),
+        BorrowState::Borrowed,
+        Type::Ref(Box::new(Type::Str), Lifetime::Static, Mutability::Immutable),
+    );
     println!("✓ &str reference declared as Borrowed");
 
     let var_s = AstNode::Var("s".to_string());
@@ -60,7 +70,7 @@ fn test_reference_type_borrow_checking() {
     checker.declare(
         "m".to_string(),
         BorrowState::MutBorrowed,
-        "&mut i64".to_string(),
+        Type::Ref(Box::new(Type::I64), Lifetime::Static, Mutability::Mutable),
     );
     println!("✓ &mut i64 reference declared as MutBorrowed");
 
@@ -88,8 +98,8 @@ fn test_borrow_checker_with_ast() {
     let resolver = Resolver::new();
 
     // Declare some variables
-    checker.declare("a".to_string(), BorrowState::Owned, "i32".to_string());
-    checker.declare("b".to_string(), BorrowState::Owned, "i32".to_string());
+    checker.declare("a".to_string(), BorrowState::Owned, Type::I32);
+    checker.declare("b".to_string(), BorrowState::Owned, Type::I32);
 
     // Test binary operation
     let binop = AstNode::BinaryOp {

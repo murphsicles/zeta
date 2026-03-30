@@ -9,6 +9,7 @@ use crate::frontend::borrow::BorrowChecker;
 use crate::frontend::macro_expand::MacroExpander;
 use crate::middle::mir::mir::Mir;
 use crate::middle::resolver::module_resolver::ModuleResolver;
+use crate::middle::resolver::typecheck_new::NewTypeCheck;
 use crate::middle::specialization::{
     CACHE, MonoKey, MonoValue, is_cache_safe, record_specialization,
 };
@@ -18,7 +19,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
-pub type Type = String;
+pub use crate::middle::types::Type;
 
 const SPECIALIZATION_CACHE_FILE: &str = ".zeta_specialization_cache.json";
 
@@ -42,7 +43,7 @@ pub struct Resolver {
 }
 
 // Learning: Complex type factored into type definition per clippy suggestion
-type FuncSignature = (Vec<(String, String)>, String, bool);
+type FuncSignature = (Vec<(String, Type)>, Type, bool);
 
 impl Resolver {
     pub fn new() -> Self {
@@ -185,10 +186,22 @@ impl Resolver {
             AstNode::FuncDef {
                 name, params, ret, ..
             } => {
-                self.funcs.insert(name, (params, ret, false));
+                // Convert string types to Type enum
+                let typed_params: Vec<(String, Type)> = params
+                    .iter()
+                    .map(|(name, ty_str)| (name.clone(), self.string_to_type(ty_str)))
+                    .collect();
+                let typed_ret = self.string_to_type(&ret);
+                self.funcs.insert(name, (typed_params, typed_ret, false));
             }
             AstNode::ExternFunc { name, params, ret } => {
-                self.funcs.insert(name, (params, ret, true));
+                // Convert string types to Type enum
+                let typed_params: Vec<(String, Type)> = params
+                    .iter()
+                    .map(|(name, ty_str)| (name.clone(), self.string_to_type(ty_str)))
+                    .collect();
+                let typed_ret = self.string_to_type(&ret);
+                self.funcs.insert(name, (typed_params, typed_ret, true));
             }
             AstNode::ImplBlock {
                 concept, ty, body, ..
@@ -202,8 +215,14 @@ impl Resolver {
                     {
                         // Create qualified name: Type::method
                         let qualified_name = format!("{}::{}", ty, name);
+                        // Convert string types to Type enum
+                        let typed_params: Vec<(String, Type)> = params
+                            .iter()
+                            .map(|(name, ty_str)| (name.clone(), self.string_to_type(ty_str)))
+                            .collect();
+                        let typed_ret = self.string_to_type(ret);
                         self.funcs
-                            .insert(qualified_name, (params.clone(), ret.clone(), false));
+                            .insert(qualified_name, (typed_params, typed_ret, false));
                     }
                     // Register normally (which will register with simple name)
                     self.register(b);
@@ -217,7 +236,13 @@ impl Resolver {
             AstNode::Method {
                 name, params, ret, ..
             } => {
-                self.funcs.insert(name, (params, ret, false));
+                // Convert string types to Type enum
+                let typed_params: Vec<(String, Type)> = params
+                    .iter()
+                    .map(|(name, ty_str)| (name.clone(), self.string_to_type(ty_str)))
+                    .collect();
+                let typed_ret = self.string_to_type(&ret);
+                self.funcs.insert(name, (typed_params, typed_ret, false));
             }
             AstNode::ConstDef {
                 ref name,
@@ -231,14 +256,16 @@ impl Resolver {
                     self.ctfe_consts.insert(ast.clone(), val);
                 }
                 // Also register as a function-like entity for name resolution
-                self.funcs.insert(name.clone(), (vec![], ty.clone(), false));
+                let typed_ret = self.string_to_type(ty);
+                self.funcs.insert(name.clone(), (vec![], typed_ret, false));
             }
             AstNode::EnumDef { name, variants, .. } => {
                 // Register enum and its variants
                 // For now, we'll register each variant as a function-like entity
                 for (variant_name, _) in variants {
                     let full_name = name.clone() + "::" + &variant_name;
-                    self.funcs.insert(full_name, (vec![], name.clone(), false));
+                    let typed_ret = Type::Named(name.clone(), vec![]);
+                    self.funcs.insert(full_name, (vec![], typed_ret, false));
                 }
             }
             AstNode::MacroDef { name, patterns } => {
@@ -306,7 +333,8 @@ impl Resolver {
                 if let Some(r) = receiver {
                     let ty = resolver.infer_type(r);
                     if args.is_empty() {
-                        args = vec![ty];
+                        // Convert Type to string for compatibility
+                        args = vec![ty.display_name()];
                     }
                 }
                 if !args.is_empty() {

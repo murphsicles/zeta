@@ -24,18 +24,21 @@ fn test_expr(expr: &str, expected: &str) {
 
 fn main() {
     println!("Testing expression parsing with type arguments...\n");
-    
+
     // Test cases from failing tests
     test_expr("Vec::<i32>::new()", "type_args: [\"i32\"]");
     test_expr("Option::<bool>::None", "type_args: [\"bool\"]");
-    test_expr("Result::<i32, String>::Ok(42)", "type_args: [\"i32\", \"String\"]");
-    
+    test_expr(
+        "Result::<i32, String>::Ok(42)",
+        "type_args: [\"i32\", \"String\"]",
+    );
+
     // Basic static method calls
     test_expr("Point::new(10, 20)", "PathCall");
     test_expr("Vec::new()", "PathCall");
     test_expr("Option::None", "PathCall");
     test_expr("Result::Ok(42)", "PathCall");
-    
+
     // Edge cases
     test_expr("::new()", "should fail");
     test_expr("Point::(10, 20)", "Var(\"Point\")");

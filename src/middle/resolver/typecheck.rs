@@ -103,7 +103,9 @@ impl Resolver {
                 // Check if type annotation is provided
                 if let Some(type_str) = ty {
                     let expr_type = self.infer_type(expr);
-                    if expr_type != *type_str {
+                    // Convert string type annotation to Type for comparison
+                    let annotated_type = self.string_to_type(type_str);
+                    if expr_type != annotated_type {
                         ok = false;
                     }
                 }
@@ -116,29 +118,53 @@ impl Resolver {
         ok
     }
 
+    /// Convert string type annotation to Type enum
+    fn string_to_type(&self, s: &str) -> Type {
+        match s {
+            "i8" => Type::I8,
+            "i16" => Type::I16,
+            "i32" => Type::I32,
+            "i64" => Type::I64,
+            "u8" => Type::U8,
+            "u16" => Type::U16,
+            "u32" => Type::U32,
+            "u64" => Type::U64,
+            "f32" => Type::F32,
+            "f64" => Type::F64,
+            "bool" => Type::Bool,
+            "char" => Type::Char,
+            "str" => Type::Str,
+            _ => {
+                // For complex types (generics, tuples, etc.), return a Named type
+                // This is a simplified conversion - full parsing would be in typecheck_new.rs
+                Type::Named(s.to_string(), vec![])
+            }
+        }
+    }
+
     pub fn infer_type(&self, node: &AstNode) -> Type {
         if self.ctfe_eval(node).is_some() {
-            return "i64".to_string();
+            return Type::I64;
         }
         match node {
-            AstNode::Lit(_) => "i64".to_string(),
-            AstNode::StringLit(_) => "str".to_string(),
-            AstNode::FString(_) => "str".to_string(),
-            AstNode::Var(_) => "i64".to_string(),
+            AstNode::Lit(_) => Type::I64,
+            AstNode::StringLit(_) => Type::Str,
+            AstNode::FString(_) => Type::Str,
+            AstNode::Var(_) => Type::I64,
             AstNode::BinaryOp { left, .. } => self.infer_type(left),
-            AstNode::Call { .. } => "i64".to_string(),
+            AstNode::Call { .. } => Type::I64,
             AstNode::DictLit { entries } => {
                 if entries.is_empty() {
-                    "Map_i64_i64".to_string()
+                    // For now, return a named type for Map<i64, i64>
+                    Type::Named("Map_i64_i64".to_string(), vec![])
                 } else {
-                    format!(
-                        "Map_{}_{}",
-                        self.infer_type(&entries[0].0),
-                        self.infer_type(&entries[0].1)
-                    )
+                    let key_type = self.infer_type(&entries[0].0);
+                    let value_type = self.infer_type(&entries[0].1);
+                    // Create a named type like Map<key_type, value_type>
+                    Type::Named("Map".to_string(), vec![key_type, value_type])
                 }
             }
-            _ => "i64".to_string(),
+            _ => Type::I64,
         }
     }
 
@@ -171,6 +197,6 @@ impl Resolver {
     }
 
     pub fn is_copy(&self, ty: &Type) -> bool {
-        matches!(ty.as_str(), "i64" | "i32" | "bool" | "str")
+        matches!(ty, Type::I64 | Type::I32 | Type::Bool | Type::Str)
     }
 }

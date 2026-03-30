@@ -1,7 +1,9 @@
 // Test for dereferencing operations
 use zetac::frontend::borrow::BorrowChecker;
 use zetac::frontend::parser::expr::parse_full_expr;
-use zetac::middle::resolver::resolver::Resolver;
+use zetac::middle::resolver::resolver::{Resolver, Type};
+use zetac::middle::types::Mutability;
+use zetac::middle::types::lifetime::Lifetime;
 
 #[test]
 fn test_deref_parsing() {
@@ -86,7 +88,7 @@ fn test_borrow_checker_with_deref() {
     checker.declare(
         "x".to_string(),
         zetac::frontend::borrow::BorrowState::Borrowed,
-        "&i32".to_string(),
+        Type::Ref(Box::new(Type::I32), Lifetime::Static, Mutability::Immutable),
     );
 
     // Parse a dereference expression

@@ -14,7 +14,7 @@ fn main() {
             p.x + p.y
         }
     "#;
-    
+
     println!("Testing with standalone function...");
     match parse_zeta(code) {
         Ok((remaining, ast)) => {
@@ -29,9 +29,9 @@ fn main() {
             println!("Parse error: {:?}", e);
         }
     }
-    
+
     println!("\n---\n");
-    
+
     let code2 = r#"
         struct Point { x: i64, y: i64 }
         
@@ -46,7 +46,7 @@ fn main() {
             p.x + p.y
         }
     "#;
-    
+
     println!("Testing with static method in impl block...");
     match parse_zeta(code2) {
         Ok((remaining, ast)) => {
@@ -56,7 +56,7 @@ fn main() {
             }
             println!("Parse successful!");
             println!("AST has {} nodes", ast.len());
-            
+
             // Debug: print the AST structure
             for (i, node) in ast.iter().enumerate() {
                 println!("Node {}: {:?}", i, node);
