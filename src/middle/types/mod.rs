@@ -484,14 +484,55 @@ impl Substitution {
 
             // Named types (structs, enums, concepts)
             (Type::Named(name1, args1), Type::Named(name2, args2)) => {
-                // Type names must match
+                // Type names must match OR we have a variant relationship
                 if name1 != name2 {
+                    // Check for variant relationships (e.g., Some -> Option)
+                    match (name1.as_str(), name2.as_str()) {
+                        // Option variants
+                        ("Some", "Option") | ("Option", "Some") => {
+                            // Some<T> unifies with Option<T>
+                            if args1.len() == 1 && args2.len() == 1 {
+                                return self.unify(&args1[0], &args2[0]);
+                            }
+                        }
+                        ("None", "Option") | ("Option", "None") => {
+                            // None unifies with Option<T> for any T
+                            // None has no type arguments, Option has one
+                            if name1 == "None" && args1.is_empty() && args2.len() == 1 {
+                                // None can unify with Option<T> for any T
+                                return Ok(());
+                            } else if name2 == "None" && args2.is_empty() && args1.len() == 1 {
+                                // Option<T> can unify with None
+                                return Ok(());
+                            }
+                        }
+                        // Result variants
+                        ("Ok", "Result") | ("Result", "Ok") => {
+                            // Ok<T, E> unifies with Result<T, E>
+                            if args1.len() == 2 && args2.len() == 2 {
+                                self.unify(&args1[0], &args2[0])?;
+                                return self.unify(&args1[1], &args2[1]);
+                            }
+                        }
+                        ("Err", "Result") | ("Result", "Err") => {
+                            // Err<T, E> unifies with Result<T, E>
+                            if args1.len() == 2 && args2.len() == 2 {
+                                self.unify(&args1[0], &args2[0])?;
+                                return self.unify(&args1[1], &args2[1]);
+                            }
+                        }
+                        _ => {} // No variant relationship
+                    }
+
+                    // No variant relationship found
                     return Err(UnifyError::Mismatch(t1, t2));
                 }
-                // Arity must match
+
+                // Same type name - check arity
                 if args1.len() != args2.len() {
                     return Err(UnifyError::ArityMismatch(args1.len(), args2.len()));
                 }
+
                 // Unify each type argument
                 for (arg1, arg2) in args1.iter().zip(args2) {
                     self.unify(arg1, arg2)?;

@@ -6,9 +6,9 @@ fn main() {
         "Point::new(10, 20)",
         "Vec::<i32>::new()",
         "SomeType::static_method()",
-        "foo.bar()",  // instance method for comparison
+        "foo.bar()", // instance method for comparison
     ];
-    
+
     for test in test_cases {
         println!("Testing: {}", test);
         match parse_expr(test) {

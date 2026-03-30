@@ -682,78 +682,121 @@ impl InferContext {
                 Type::Variable(TypeVar::fresh())
             }
 
-            AstNode::PathCall {
-                path,
-                method,
-                args: _,
-            } => {
+            AstNode::PathCall { path, method, args } => {
                 // Path call like Point::new(10, 20)
                 // Try qualified name first: Type::method
                 let qualified_name = format!("{}::{}", path.join("::"), method);
 
-                // Try qualified name first
-                if let Some(return_ty) = self.functions.get(&qualified_name) {
-                    return_ty.clone()
-                } else if let Some(return_ty) = self.functions.get(method.as_str()) {
-                    // Fall back to simple name
-                    return_ty.clone()
+                // Get a clone of the function type before we start mutating self
+                let func_ty = if let Some(ty) = self.functions.get(&qualified_name) {
+                    ty.clone()
+                } else if let Some(ty) = self.functions.get(method.as_str()) {
+                    ty.clone()
                 } else {
                     return Err(format!("Unknown function: {}", qualified_name));
+                };
+
+                // Check if this is a function type with parameters
+                match func_ty {
+                    Type::Function(param_types, return_ty) => {
+                        // Check that we have the right number of arguments
+                        if args.len() != param_types.len() {
+                            return Err(format!(
+                                "Wrong number of arguments: expected {}, got {}",
+                                param_types.len(),
+                                args.len()
+                            ));
+                        }
+
+                        // Type check each argument against the corresponding parameter type
+                        for (i, (arg, param_ty)) in args.iter().zip(param_types.iter()).enumerate()
+                        {
+                            let arg_ty = self.infer(arg)?;
+                            self.constrain(arg_ty, param_ty.clone());
+                        }
+
+                        // Return the function's return type
+                        *return_ty
+                    }
+                    _ => {
+                        // Not a function type, just return it (could be a constant)
+                        func_ty
+                    }
                 }
             }
 
-            AstNode::ImplBlock { concept, ty, body, .. } => {
+            AstNode::ImplBlock {
+                concept, ty, body, ..
+            } => {
                 // Process functions in impl block to register them
                 for func in body {
                     // Check if this is a Method node (signature) or FuncDef (implementation)
                     match func {
-                        AstNode::Method { name, params, ret, .. } => {
+                        AstNode::Method {
+                            name, params, ret, ..
+                        } => {
                             // Parse the return type
                             let return_ty = self.parse_type_string(ret)?;
-                            
+
                             // Create function type from parameters
                             let mut param_types = Vec::new();
                             for (_, param_type_str) in params {
                                 let param_ty = self.parse_type_string(param_type_str)?;
                                 param_types.push(param_ty);
                             }
-                            
+
+                            // Check if this is a static method (no self parameter)
+                            let is_static = params.is_empty()
+                                || !(params[0].1 == "&self"
+                                    || params[0].1 == "&mut self"
+                                    || params[0].1 == "self");
+
                             // Create the function type
                             let func_type = if param_types.is_empty() {
                                 return_ty
                             } else {
                                 Type::Function(param_types, Box::new(return_ty))
                             };
-                            
-                            // Register with qualified name: Type::method_name
-                            let qualified_name = format!("{}::{}", ty, name);
-                            self.functions.insert(qualified_name, func_type);
-                            
-                            // Also register as instance method: Type.method_name
-                            // For instance methods, the first parameter is &self or &mut self
-                            // We'll handle this distinction later
+
+                            // Register with qualified name: Type::method_name for static methods
+                            if is_static {
+                                let qualified_name = format!("{}::{}", ty, name);
+                                self.functions.insert(qualified_name, func_type);
+                            }
+                            // Instance methods will be handled differently
                         }
-                        AstNode::FuncDef { name, params, ret, .. } => {
+                        AstNode::FuncDef {
+                            name, params, ret, ..
+                        } => {
                             // Parse the return type
                             let return_ty = self.parse_type_string(ret)?;
-                            
+
                             // Create function type from parameters
                             let mut param_types = Vec::new();
                             for (_, param_type_str) in params {
                                 let param_ty = self.parse_type_string(param_type_str)?;
                                 param_types.push(param_ty);
                             }
-                            
+
+                            // Check if this is a static method (no self parameter)
+                            let is_static = params.is_empty()
+                                || !(params[0].1 == "&self"
+                                    || params[0].1 == "&mut self"
+                                    || params[0].1 == "self");
+
                             // Create the function type
                             let func_type = if param_types.is_empty() {
                                 return_ty
                             } else {
                                 Type::Function(param_types, Box::new(return_ty))
                             };
-                            
-                            // Register with qualified name: Type::method_name
-                            let qualified_name = format!("{}::{}", ty, name);
-                            self.functions.insert(qualified_name, func_type);
+
+                            // Register with qualified name: Type::method_name for static methods
+                            if is_static {
+                                let qualified_name = format!("{}::{}", ty, name);
+                                self.functions.insert(qualified_name, func_type);
+                            }
+                            // Instance methods will be handled differently
                         }
                         _ => {
                             // For other nodes, just infer them normally
@@ -1119,5 +1162,64 @@ mod tests {
         assert!(ctx.parse_type_string("[i32; not_a_number]").is_err());
         assert!(ctx.parse_type_string("[i32;").is_err());
         assert!(ctx.parse_type_string("(i32, bool").is_err());
+    }
+
+    #[test]
+    fn test_static_method_type_checking() {
+        let mut ctx = InferContext::new();
+
+        // Create a struct definition
+        let struct_def = AstNode::StructDef {
+            name: "Point".to_string(),
+            fields: vec![
+                ("x".to_string(), "i64".to_string()),
+                ("y".to_string(), "i64".to_string()),
+            ],
+            attrs: Vec::new(),
+            doc: "".to_string(),
+            pub_: false,
+        };
+
+        // Create an impl block with a static method
+        let impl_block = AstNode::ImplBlock {
+            concept: "".to_string(),
+            generics: Vec::new(),
+            ty: "Point".to_string(),
+            body: vec![AstNode::Method {
+                name: "new".to_string(),
+                params: vec![
+                    ("x".to_string(), "i64".to_string()),
+                    ("y".to_string(), "i64".to_string()),
+                ],
+                ret: "Point".to_string(),
+                generics: Vec::new(),
+                attrs: Vec::new(),
+                doc: "".to_string(),
+            }],
+            attrs: Vec::new(),
+            doc: "".to_string(),
+        };
+
+        // Process struct definition
+        ctx.infer(&struct_def).unwrap();
+
+        // Process impl block (registers the static method)
+        ctx.infer(&impl_block).unwrap();
+
+        // Create a PathCall for Point::new(10, 20)
+        let path_call = AstNode::PathCall {
+            path: vec!["Point".to_string()],
+            method: "new".to_string(),
+            args: vec![AstNode::Lit(10), AstNode::Lit(20)],
+        };
+
+        // Type check the PathCall
+        let result = ctx.infer(&path_call);
+        assert!(result.is_ok(), "Type checking failed: {:?}", result.err());
+
+        // The result should be a Point type
+        // Note: We can't easily check the exact type since we don't have
+        // a Type::Named constructor in the test, but we can verify it doesn't fail
+        println!("Static method type checking succeeded!");
     }
 }

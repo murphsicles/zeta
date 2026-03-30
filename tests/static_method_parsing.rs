@@ -2,18 +2,18 @@
 
 #[cfg(test)]
 mod tests {
-    use zetac::frontend::parser::expr::parse_expr;
     use zetac::frontend::ast::AstNode;
+    use zetac::frontend::parser::expr::parse_expr;
 
     #[test]
     fn test_basic_static_method_call() {
         let code = "Point::new(10, 20)";
         let result = parse_expr(code);
         assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
-        
+
         let (remaining, ast) = result.unwrap();
         assert!(remaining.is_empty(), "Unparsed input: {}", remaining);
-        
+
         // Should parse as PathCall
         match ast {
             AstNode::PathCall { path, method, args } => {
@@ -30,10 +30,10 @@ mod tests {
         let code = "SomeType::default()";
         let result = parse_expr(code);
         assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
-        
+
         let (remaining, ast) = result.unwrap();
         assert!(remaining.is_empty(), "Unparsed input: {}", remaining);
-        
+
         match ast {
             AstNode::PathCall { path, method, args } => {
                 assert_eq!(path, vec!["SomeType"]);
@@ -50,10 +50,10 @@ mod tests {
         let result = parse_expr(code);
         // This currently fails - should be fixed
         assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
-        
+
         let (remaining, ast) = result.unwrap();
         assert!(remaining.is_empty(), "Unparsed input: {}", remaining);
-        
+
         // Should parse as PathCall with type arguments handled
         // This test will need to be updated based on implementation
         println!("Parsed: {:?}", ast);
@@ -64,10 +64,10 @@ mod tests {
         let code = "std::collections::HashMap::new()";
         let result = parse_expr(code);
         assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
-        
+
         let (remaining, ast) = result.unwrap();
         assert!(remaining.is_empty(), "Unparsed input: {}", remaining);
-        
+
         match ast {
             AstNode::PathCall { path, method, args } => {
                 assert_eq!(path, vec!["std", "collections", "HashMap"]);
@@ -83,10 +83,10 @@ mod tests {
         let code = "Point::new(x + 1, y * 2)";
         let result = parse_expr(code);
         assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
-        
+
         let (remaining, ast) = result.unwrap();
         assert!(remaining.is_empty(), "Unparsed input: {}", remaining);
-        
+
         match ast {
             AstNode::PathCall { path, method, args } => {
                 assert_eq!(path, vec!["Point"]);
@@ -103,10 +103,10 @@ mod tests {
         let result = parse_expr(code);
         // This should parse as a path (Var), not a method call
         assert!(result.is_ok(), "Should parse as path: {:?}", result.err());
-        
+
         let (remaining, ast) = result.unwrap();
         assert!(remaining.is_empty(), "Unparsed input: {}", remaining);
-        
+
         // Should be a Var, not a PathCall
         match ast {
             AstNode::Var(name) => {
@@ -129,10 +129,10 @@ mod tests {
         let code = "Point::new(1, 2).translate(3, 4)";
         let result = parse_expr(code);
         assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
-        
+
         let (remaining, ast) = result.unwrap();
         assert!(remaining.is_empty(), "Unparsed input: {}", remaining);
-        
+
         // Should be a Call with receiver being a PathCall
         println!("Parsed: {:?}", ast);
     }
@@ -143,10 +143,10 @@ mod tests {
         let result = parse_expr(code);
         // This currently fails - should be fixed
         assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
-        
+
         let (remaining, ast) = result.unwrap();
         assert!(remaining.is_empty(), "Unparsed input: {}", remaining);
-        
+
         println!("Parsed: {:?}", ast);
     }
 
@@ -155,10 +155,10 @@ mod tests {
         let code = "Vec::new().push(1).push(2)";
         let result = parse_expr(code);
         assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
-        
+
         let (remaining, ast) = result.unwrap();
         assert!(remaining.is_empty(), "Unparsed input: {}", remaining);
-        
+
         println!("Parsed: {:?}", ast);
     }
 }

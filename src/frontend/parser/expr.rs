@@ -199,6 +199,21 @@ fn parse_path_expr(input: &str) -> IResult<&str, AstNode> {
             opt(ws(preceded(opt(tag("::")), parse_type_args))).parse(input)?;
         let type_args: Vec<String> = type_args_opt.unwrap_or_default();
 
+        // Check if there's another :: for a method call after type arguments
+        let (input, method_name) = if !type_args.is_empty() {
+            // After type arguments, we might have ::method
+            match opt(ws(tag("::"))).parse(input) {
+                Ok((i, Some(_))) => {
+                    // Parse method name after ::
+                    let (i, name) = parse_ident(i)?;
+                    (i, Some(name))
+                }
+                _ => (input, None),
+            }
+        } else {
+            (input, None)
+        };
+
         let (input, args_opt) = opt(delimited(
             ws(tag("(")),
             terminated(
@@ -210,10 +225,20 @@ fn parse_path_expr(input: &str) -> IResult<&str, AstNode> {
         .parse(input)?;
 
         if let Some(args) = args_opt {
-            // Check if this is a path call (e.g., Point::new(10, 20))
-            // Path should have at least 2 segments for a path call
-            if path.len() >= 2 {
-                // Split into path and method
+            if let Some(method_name) = method_name {
+                // This is a call with type arguments: Vec::<i32>::new(args)
+                Ok((
+                    input,
+                    AstNode::Call {
+                        receiver: None,
+                        method: method_name,
+                        args,
+                        type_args,
+                        structural: false,
+                    },
+                ))
+            } else if path.len() >= 2 {
+                // Split into path and method (no type arguments case)
                 let (method_path, method_name) = path.split_at(path.len() - 1);
                 Ok((
                     input,

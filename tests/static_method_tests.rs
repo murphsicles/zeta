@@ -18,7 +18,7 @@ mod tests {
             let p = Point::new(10, 20);
         }
         "#;
-        
+
         assert!(parse_static_method_call(code).is_ok());
     }
 
@@ -29,7 +29,7 @@ mod tests {
             let v = Vec::<i32>::new();
         }
         "#;
-        
+
         assert!(parse_static_method_call(code).is_ok());
     }
 
@@ -40,7 +40,7 @@ mod tests {
             let x = std::collections::HashMap::new();
         }
         "#;
-        
+
         assert!(parse_static_method_call(code).is_ok());
     }
 
@@ -52,7 +52,7 @@ mod tests {
             let res = Result::<i32, String>::Ok(42);
         }
         "#;
-        
+
         assert!(parse_static_method_call(code).is_ok());
     }
 
@@ -74,7 +74,7 @@ mod tests {
             let p = Point::new(10, 20);
         }
         "#;
-        
+
         assert!(parse_static_method_call(code).is_ok());
     }
 
@@ -97,18 +97,21 @@ mod tests {
             p.x + p.y
         }
         "#;
-        
+
         // First test parsing
         assert!(parse_static_method_call(code).is_ok());
-        
+
         // Then test type checking
         assert!(type_check_static_method(code).is_ok());
-        
+
         // Finally test compilation (if supported)
         // Note: compile_static_method might fail if codegen not fully implemented
         let compile_result = compile_static_method(code);
         if compile_result.is_err() {
-            println!("Compilation warning (expected for now): {:?}", compile_result.err());
+            println!(
+                "Compilation warning (expected for now): {:?}",
+                compile_result.err()
+            );
         }
     }
 
@@ -128,7 +131,7 @@ mod tests {
             0
         }
         "#;
-        
+
         assert!(parse_static_method_call(code).is_ok());
         assert!(type_check_static_method(code).is_ok());
     }
@@ -157,7 +160,7 @@ mod tests {
             p1.x + p2.x
         }
         "#;
-        
+
         assert!(parse_static_method_call(code).is_ok());
         assert!(type_check_static_method(code).is_ok());
     }
@@ -171,7 +174,7 @@ mod tests {
             let x = Vec::new().push(1).push(2);
         }
         "#;
-        
+
         assert!(parse_static_method_call(code).is_ok());
     }
 
@@ -197,7 +200,7 @@ mod tests {
             let p = Point::new(1, 2).add(Point::new(3, 4));
         }
         "#;
-        
+
         assert!(parse_static_method_call(code).is_ok());
         assert!(type_check_static_method(code).is_ok());
     }
@@ -209,7 +212,7 @@ mod tests {
             let x = HashMap::<String, Vec<i32>>::new();
         }
         "#;
-        
+
         assert!(parse_static_method_call(code).is_ok());
     }
 
@@ -238,7 +241,7 @@ mod tests {
             p3.x + p3.y
         }
         "#;
-        
+
         // This test should pass to ensure we don't break existing functionality
         assert!(parse_static_method_call(code).is_ok());
         assert!(type_check_static_method(code).is_ok());
@@ -255,7 +258,7 @@ mod tests {
             add(1, 2)
         }
         "#;
-        
+
         assert!(parse_static_method_call(code).is_ok());
         assert!(type_check_static_method(code).is_ok());
     }
@@ -269,7 +272,7 @@ mod tests {
             let x = Point::;
         }
         "#;
-        
+
         // Should fail to parse
         assert!(parse_static_method_call(code).is_err());
     }
@@ -281,7 +284,7 @@ mod tests {
             let x = ::new();
         }
         "#;
-        
+
         assert!(parse_static_method_call(code).is_err());
     }
 
@@ -292,7 +295,7 @@ mod tests {
             let x = Point::new(10, 20;
         }
         "#;
-        
+
         assert!(parse_static_method_call(code).is_err());
     }
 
@@ -301,33 +304,35 @@ mod tests {
     #[test]
     fn test_static_method_matrix() {
         let matrix = StaticMethodTestMatrix::new();
-        
+
         // Test simple static methods
         for test_case in matrix.simple_static {
             let code = format!("fn main() {{ let x = {}; }}", test_case);
             println!("Testing: {}", test_case);
             assert!(parse_static_method_call(&code).is_ok());
         }
-        
-        // Test generic static methods  
+
+        // Test generic static methods
         for test_case in matrix.generic_static {
             let code = format!("fn main() {{ let x = {}; }}", test_case);
             println!("Testing: {}", test_case);
             assert!(parse_static_method_call(&code).is_ok());
         }
-        
+
         // Test error cases
         for (test_case, expected_error) in matrix.error_cases {
             let code = format!("fn main() {{ let x = {}; }}", test_case);
             println!("Testing error case: {}", test_case);
             let result = parse_static_method_call(&code);
             assert!(result.is_err(), "Expected error for: {}", test_case);
-            
+
             // Check error message contains expected pattern
             let error_msg = result.err().unwrap();
             assert!(
                 error_msg.contains(expected_error),
-                "Error '{}' doesn't contain '{}'", error_msg, expected_error
+                "Error '{}' doesn't contain '{}'",
+                error_msg,
+                expected_error
             );
         }
     }
@@ -357,12 +362,12 @@ mod tests {
             p.sum()  // Should return 30, but currently returns 0
         }
         "#;
-        
+
         // This test should fail until the issue is fixed
         // For now, just parse and type check
         assert!(parse_static_method_call(code).is_ok());
         assert!(type_check_static_method(code).is_ok());
-        
+
         println!("KNOWN ISSUE: p.sum() returns 0 instead of 30");
         println!("Test case documented for fixing");
     }
@@ -391,9 +396,9 @@ mod tests {
             let p2 = p1.clone();
         }
         "#;
-        
+
         assert!(parse_static_method_call(code).is_ok());
-        
+
         // Type checking might fail due to Self inference issues
         let type_check_result = type_check_static_method(code);
         if type_check_result.is_err() {

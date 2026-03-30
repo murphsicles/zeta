@@ -51,7 +51,10 @@ pub fn compile_static_method(code: &str) -> Result<(), String> {
             // For now, just type check since compile_zeta might not be available
             match type_check(&ast) {
                 Ok(_) => Ok(()),
-                Err(e) => Err(format!("Type check error (as proxy for compilation): {:?}", e)),
+                Err(e) => Err(format!(
+                    "Type check error (as proxy for compilation): {:?}",
+                    e
+                )),
             }
         }
         Err(e) => Err(format!("Parse error: {:?}", e)),
@@ -73,7 +76,10 @@ pub fn test_error_message(code: &str, expected_error_pattern: &str) -> Result<()
             if remaining.is_empty() {
                 Err("Expected parse error but got success".to_string())
             } else {
-                Err(format!("Expected parse error but got partial parse with remaining: {}", remaining))
+                Err(format!(
+                    "Expected parse error but got partial parse with remaining: {}",
+                    remaining
+                ))
             }
         }
         Err(e) => {
@@ -81,7 +87,10 @@ pub fn test_error_message(code: &str, expected_error_pattern: &str) -> Result<()
             if error_str.contains(expected_error_pattern) {
                 Ok(())
             } else {
-                Err(format!("Error '{}' doesn't contain pattern '{}'", error_str, expected_error_pattern))
+                Err(format!(
+                    "Error '{}' doesn't contain pattern '{}'",
+                    error_str, expected_error_pattern
+                ))
             }
         }
     }
@@ -122,16 +131,16 @@ impl StaticMethodTestMatrix {
                 "Vec::with_capacity(10)",
             ],
             edge_cases: vec![
-                "A::B::C::method()", // Nested path
-                "Self::new()", // Self keyword
+                "A::B::C::method()",         // Nested path
+                "Self::new()",               // Self keyword
                 "super::module::function()", // Super keyword
                 "crate::module::function()", // Crate-relative path
             ],
             error_cases: vec![
-                ("Point::", "Expected method name after ::",),
-                ("::method()", "Expected path before ::",),
-                ("Point::new(10,", "Unclosed parentheses",),
-                ("Vec::<i32>", "Expected :: after type arguments",),
+                ("Point::", "Expected method name after ::"),
+                ("::method()", "Expected path before ::"),
+                ("Point::new(10,", "Unclosed parentheses"),
+                ("Vec::<i32>", "Expected :: after type arguments"),
             ],
         }
     }
