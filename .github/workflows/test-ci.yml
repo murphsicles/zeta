@@ -9,8 +9,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - run: echo "🎉 GitHub Actions is working! Current time: $(date)"
-    - run: echo "🚀 Testing CI pipeline..."
-    - run: echo "📊 System info:"
+    - run: echo "GitHub Actions is working! Current time: $(date)"
+    - run: echo "Testing CI pipeline..."
+    - run: echo "System info:"
     - run: uname -a
-    - run: echo "✅ Test workflow executed successfully at $(date)"
+    - run: echo "Test workflow executed successfully at $(date)"
