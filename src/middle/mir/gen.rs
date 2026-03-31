@@ -732,10 +732,13 @@ impl MirGen {
                 // 1. Evaluate the base expression
                 let base_id = self.lower_expr(base);
                 // 2. Create FieldAccess expression
-                self.exprs.insert(id, MirExpr::FieldAccess {
-                    base: base_id,
-                    field: field.clone(),
-                });
+                self.exprs.insert(
+                    id,
+                    MirExpr::FieldAccess {
+                        base: base_id,
+                        field: field.clone(),
+                    },
+                );
                 // 3. For now, assume field type is i64 (will need proper type inference later)
                 self.type_map.insert(id, Type::I64);
             }
@@ -748,13 +751,17 @@ impl MirGen {
                     field_ids.push((field_name.clone(), field_id));
                 }
                 // Create Struct expression
-                self.exprs.insert(id, MirExpr::Struct {
-                    variant: variant.clone(),
-                    fields: field_ids,
-                });
+                self.exprs.insert(
+                    id,
+                    MirExpr::Struct {
+                        variant: variant.clone(),
+                        fields: field_ids,
+                    },
+                );
                 // For now, assume struct type is a generic type
                 // TODO: Need proper type inference for struct literals
-                self.type_map.insert(id, Type::Named("Struct".to_string(), vec![]));
+                self.type_map
+                    .insert(id, Type::Named("Struct".to_string(), vec![]));
             }
             AstNode::PathCall {
                 path,
