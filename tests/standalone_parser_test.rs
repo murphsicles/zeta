@@ -4,30 +4,30 @@
 fn main() {
     println!("=== STANDALONE PARSER TEST ===");
     println!("Testing if parser can handle generic syntax\n");
-    
+
     // Since we can't compile the full library due to Type::from_string issue,
     // we'll just document what we've learned from previous tests
-    
+
     println!("Based on previous test runs before the compilation error:\n");
-    
+
     println!("1. identity::<i64>(42)");
     println!("   - ✓ Parser successfully parses generic function definition");
     println!("   - ✓ Parser successfully parses generic function call with type arguments");
     println!("   - ✓ AST correctly represents type arguments as strings");
     println!();
-    
+
     println!("2. Option::<i32>::None");
     println!("   - ✓ Parser successfully parses generic enum definition");
     println!("   - ✓ Parser successfully parses enum variant with type arguments");
     println!("   - ✓ AST correctly represents the generic type instantiation");
     println!();
-    
+
     println!("3. Vec::<i32>::new()");
     println!("   - ✓ Parser successfully parses generic struct definition");
     println!("   - ✓ Parser successfully parses impl block with generic type");
     println!("   - ✓ Parser successfully parses method call with type arguments");
     println!();
-    
+
     println!("{}", "=".repeat(50));
     println!("PARSER STATUS: FUNCTIONAL");
     println!("{}", "=".repeat(50));
@@ -36,7 +36,7 @@ fn main() {
     println!("• Generic enums");
     println!("• Generic structs with impl blocks");
     println!();
-    
+
     println!("{}", "=".repeat(50));
     println!("COMPILATION ISSUE IDENTIFIED");
     println!("{}", "=".repeat(50));
@@ -45,7 +45,7 @@ fn main() {
     println!("Issue: Type::from_string() method doesn't exist on Type enum");
     println!("Solution needed: Replace with proper type parsing logic");
     println!();
-    
+
     println!("{}", "=".repeat(50));
     println!("PROGRESSIVE TESTING RESULTS");
     println!("{}", "=".repeat(50));

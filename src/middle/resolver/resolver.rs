@@ -301,6 +301,11 @@ impl Resolver {
             .cloned()
     }
 
+    /// Get function signature for type checking
+    pub fn get_func_signature(&self, name: &str) -> Option<&(Vec<(String, Type)>, Type, bool)> {
+        self.funcs.get(name)
+    }
+
     pub fn is_abi_stable(&self, key: &MonoKey) -> bool {
         key.type_args.iter().all(|t| is_cache_safe(t))
     }

@@ -3,14 +3,14 @@ use zetac::middle::resolver::new_resolver::InferContext;
 
 fn main() {
     println!("Testing constraint system for Vec::<i32>::new()");
-    
+
     let code = r#"
     fn main() -> i64 {
         let v = lt(Vec, i32)::new();
         0
     }
     "#;
-    
+
     // Parse the code
     let result = parse_zeta(code);
     match result {
@@ -18,10 +18,10 @@ fn main() {
             println!("Parsed successfully");
             println!("Remaining input: '{}'", remaining);
             println!("AST: {:?}", ast);
-            
+
             // Create inference context
             let mut ctx = InferContext::new();
-            
+
             // Type check
             for node in &ast {
                 match ctx.infer(node) {
@@ -29,7 +29,7 @@ fn main() {
                     Err(e) => println!("Type error: {}", e),
                 }
             }
-            
+
             // Solve constraints
             match ctx.solve() {
                 Ok(_) => println!("Constraints solved successfully"),

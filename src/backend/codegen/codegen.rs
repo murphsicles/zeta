@@ -1567,13 +1567,103 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .unwrap()
             }
             MirExpr::Struct { variant: _, fields } => {
-                if let Some((_, first_field_id)) = fields.first() {
-                    self.gen_expr(&exprs[first_field_id], exprs)
-                } else {
-                    self.i64_type.const_int(0, true).into()
+                // For now, handle simple cases:
+                // - Empty struct: return 0
+                // - Single field: return the field value
+                // - Two fields: pack both values into a single i64 (high 32 bits for first, low 32 bits for second)
+                // This is a temporary hack until proper struct support is implemented
+                
+                match fields.len() {
+                    0 => self.i64_type.const_int(0, true).into(),
+                    1 => {
+                        let (_, field_id) = &fields[0];
+                        self.gen_expr(&exprs[field_id], exprs)
+                    }
+                    2 => {
+                        let (_, first_id) = &fields[0];
+                        let (_, second_id) = &fields[1];
+                        let first_val = self.gen_expr(&exprs[first_id], exprs).into_int_value();
+                        let second_val = self.gen_expr(&exprs[second_id], exprs).into_int_value();
+                        
+                        // Pack two i32 values into one i64
+                        // First value in high 32 bits, second value in low 32 bits
+                        let first_shifted = self.builder.build_left_shift(
+                            first_val,
+                            self.i64_type.const_int(32, false),
+                            "first_shifted"
+                        ).unwrap();
+                        let second_masked = self.builder.build_and(
+                            second_val,
+                            self.i64_type.const_int(0xFFFFFFFF, false),
+                            "second_masked"
+                        ).unwrap();
+                        let packed = self.builder.build_or(
+                            first_shifted,
+                            second_masked,
+                            "packed_struct"
+                        ).unwrap();
+                        packed.into()
+                    }
+                    _ => {
+                        // For more than 2 fields, return the first field value
+                        // This maintains backward compatibility
+                        let (_, first_field_id) = &fields[0];
+                        self.gen_expr(&exprs[first_field_id], exprs)
+                    }
                 }
             }
-            MirExpr::FieldAccess { base, field: _ } => self.gen_expr(&exprs[base], exprs),
+            MirExpr::FieldAccess { base, field } => {
+                // Handle field access for packed structs
+                // Check if the base is a struct with 2 fields
+                let base_expr = &exprs[base];
+                if let MirExpr::Struct { variant: _, fields: struct_fields } = base_expr {
+                    if struct_fields.len() == 2 {
+                        // Find the field index
+                        let field_index = struct_fields.iter()
+                            .position(|(fname, _)| fname == field)
+                            .unwrap_or(0);
+                        
+                        // Get the packed struct value
+                        let packed_val = self.gen_expr(&exprs[base], exprs).into_int_value();
+                        
+                        if field_index == 0 {
+                            // Extract first field (high 32 bits)
+                            let shifted = self.builder.build_right_shift(
+                                packed_val,
+                                self.i64_type.const_int(32, false),
+                                false, // arithmetic shift
+                                "extract_first"
+                            ).unwrap();
+                            shifted.into()
+                        } else {
+                            // Extract second field (low 32 bits)
+                            let masked = self.builder.build_and(
+                                packed_val,
+                                self.i64_type.const_int(0xFFFFFFFF, false),
+                                "extract_second"
+                            ).unwrap();
+                            masked.into()
+                        }
+                    } else {
+                        // Not a 2-field struct, use old behavior
+                        // Find the field by name
+                        for (field_name, field_id) in struct_fields {
+                            if field_name == field {
+                                return self.gen_expr(&exprs[field_id], exprs);
+                            }
+                        }
+                        // Field not found, return first field
+                        if let Some((_, first_field_id)) = struct_fields.first() {
+                            return self.gen_expr(&exprs[first_field_id], exprs);
+                        }
+                        self.i64_type.const_int(0, true).into()
+                    }
+                } else {
+                    // Base is not a struct expression, might be a variable
+                    // For now, return the value as-is (old behavior)
+                    self.gen_expr(&exprs[base], exprs)
+                }
+            },
         }
     }
 

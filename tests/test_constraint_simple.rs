@@ -1,6 +1,6 @@
 fn main() {
     println!("Testing constraint system");
-    
+
     // Create a simple test
     let code = r#"
     fn main() -> i64 {
@@ -8,6 +8,6 @@ fn main() {
         x
     }
     "#;
-    
+
     println!("Code: {}", code);
 }

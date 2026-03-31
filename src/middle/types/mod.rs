@@ -667,12 +667,27 @@ pub enum UnifyError {
 impl std::fmt::Display for UnifyError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            UnifyError::Mismatch(t1, t2) => write!(
-                f,
-                "Type mismatch: {} vs {}",
-                t1.display_name(),
-                t2.display_name()
-            ),
+            UnifyError::Mismatch(t1, t2) => {
+                // Provide more helpful error messages for common type mismatches
+                let t1_name = t1.display_name();
+                let t2_name = t2.display_name();
+                
+                // Check for common mismatches
+                match (&t1, &t2) {
+                    (Type::Str, Type::I64) | (Type::I64, Type::Str) => {
+                        write!(f, "Cannot use string as integer: expected {}, found {}", t1_name, t2_name)
+                    }
+                    (Type::Bool, Type::I64) | (Type::I64, Type::Bool) => {
+                        write!(f, "Cannot use boolean as integer: expected {}, found {}", t1_name, t2_name)
+                    }
+                    (Type::F64, Type::I64) | (Type::I64, Type::F64) => {
+                        write!(f, "Cannot mix integer and floating-point: expected {}, found {}", t1_name, t2_name)
+                    }
+                    _ => {
+                        write!(f, "Type mismatch: expected {}, found {}", t1_name, t2_name)
+                    }
+                }
+            }
             UnifyError::OccursCheck(var, ty) => write!(
                 f,
                 "Occurs check failed: T{} occurs in {}",
@@ -681,7 +696,7 @@ impl std::fmt::Display for UnifyError {
             ),
             UnifyError::ArityMismatch(expected, actual) => write!(
                 f,
-                "Arity mismatch: expected {} arguments, got {}",
+                "Arity mismatch: expected {} type arguments, got {}",
                 expected, actual
             ),
             UnifyError::MissingBound(ty, bound) => write!(
@@ -844,6 +859,44 @@ impl Substitution {
         }
     }
 
+    /// Helper function to collect type variables from a type
+    fn collect_type_vars(ty: &Type, type_vars: &mut std::collections::HashSet<TypeVar>) {
+        match ty {
+            Type::Variable(var) => {
+                type_vars.insert(var.clone());
+            }
+            Type::Array(inner, _) => {
+                Self::collect_type_vars(inner, type_vars);
+            }
+            Type::Slice(inner) => {
+                Self::collect_type_vars(inner, type_vars);
+            }
+            Type::Tuple(types) => {
+                for t in types {
+                    Self::collect_type_vars(t, type_vars);
+                }
+            }
+            Type::Ptr(inner) => {
+                Self::collect_type_vars(inner, type_vars);
+            }
+            Type::Ref(inner, _, _) => {
+                Self::collect_type_vars(inner, type_vars);
+            }
+            Type::Named(_, args) => {
+                for arg in args {
+                    Self::collect_type_vars(arg, type_vars);
+                }
+            }
+            Type::Function(params, ret) => {
+                for param in params {
+                    Self::collect_type_vars(param, type_vars);
+                }
+                Self::collect_type_vars(ret, type_vars);
+            }
+            _ => {} // Primitive types don't contain type variables
+        }
+    }
+
     /// Improved generic instantiation with bounds checking
     #[allow(clippy::only_used_in_recursion)]
     pub fn instantiate_generic_with_bounds(
@@ -924,14 +977,40 @@ impl Substitution {
             }
 
             Type::Function(params, ret) => {
-                let instantiated_params: Result<Vec<Type>, String> = params
+                // For function types, we need to handle type variables differently
+                // First, collect all unique type variables in the function type
+                let mut type_vars = std::collections::HashSet::new();
+                for param in params {
+                    Self::collect_type_vars(param, &mut type_vars);
+                }
+                Self::collect_type_vars(ret, &mut type_vars);
+                
+                // Check if we have the right number of type arguments
+                let type_vars_count = type_vars.len();
+                if type_args.len() != type_vars_count {
+                    return Err(format!(
+                        "Wrong number of type arguments for function: expected {}, got {}",
+                        type_vars_count,
+                        type_args.len()
+                    ));
+                }
+                
+                // Create a substitution mapping type variables to type arguments
+                let mut substitution = self.clone();
+                let type_vars_vec: Vec<TypeVar> = type_vars.into_iter().collect();
+                for (type_var, type_arg) in type_vars_vec.iter().zip(type_args.iter()) {
+                    substitution.mapping.insert(type_var.clone(), type_arg.clone());
+                }
+                
+                // Apply substitution to parameters and return type
+                let instantiated_params: Vec<Type> = params
                     .iter()
-                    .map(|p| self.instantiate_generic_with_bounds(p, type_args, context))
+                    .map(|p| substitution.apply(p))
                     .collect();
-                let instantiated_ret =
-                    self.instantiate_generic_with_bounds(ret, type_args, context)?;
+                let instantiated_ret = substitution.apply(ret);
+                
                 Ok(Type::Function(
-                    instantiated_params?,
+                    instantiated_params,
                     Box::new(instantiated_ret),
                 ))
             }

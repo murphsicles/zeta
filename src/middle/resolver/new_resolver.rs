@@ -589,10 +589,17 @@ impl InferContext {
                 // Parse return type in generic context
                 let return_ty = self.parse_type_string(ret)?;
 
-                // Register function signature
-                // For generic functions, we need to store a generic type
-                // For now, store the return type directly
-                self.functions.insert(name.clone(), return_ty.clone());
+                // Register function signature as a proper function type
+                // Collect parameter types
+                let mut param_types = Vec::new();
+                for (_, param_type_str) in params {
+                    let param_ty = self.parse_type_string(param_type_str)?;
+                    param_types.push(param_ty);
+                }
+                
+                // Create function type: (param_types...) -> return_ty
+                let func_type = Type::Function(param_types, Box::new(return_ty.clone()));
+                self.functions.insert(name.clone(), func_type);
 
                 // Add parameters to variable context
                 for (param_name, param_type_str) in params {

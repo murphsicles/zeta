@@ -13,7 +13,7 @@ fn main() {
 
     let result = zetac::compile_and_run_zeta(code);
     println!("Result: {:?}", result);
-    
+
     // Also test a simpler case
     let simple_code = r#"
     struct Simple {
@@ -25,7 +25,7 @@ fn main() {
         s.x
     }
     "#;
-    
+
     let simple_result = zetac::compile_and_run_zeta(simple_code);
     println!("Simple result: {:?}", simple_result);
 }

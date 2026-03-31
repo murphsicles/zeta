@@ -7,8 +7,8 @@ fn main() {
     // Test with explicit type arguments
     let x = identity::<i64>(42);
     println!("Result: {}", x);
-    
+
     // Test with Vec::new
-    let v = Vec::<i32>::new();
+    let _v = Vec::<i32>::new();
     println!("Vec created");
 }
