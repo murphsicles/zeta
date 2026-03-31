@@ -301,13 +301,16 @@ pub fn parse_trait_bounds(input: &str) -> IResult<&str, Vec<String>> {
 pub fn parse_where_clause(input: &str) -> IResult<&str, Vec<(String, Vec<String>)>> {
     let (input, _) = ws(tag("where")).parse(input)?;
 
-    separated_list0(
-        ws(tag(",")),
-        ws(|input| {
-            let (input, param) = parse_ident(input)?;
-            let (input, bounds) = parse_trait_bounds(input)?;
-            Ok((input, (param, bounds)))
-        }),
+    terminated(
+        separated_list0(
+            ws(tag(",")),
+            ws(|input| {
+                let (input, param) = parse_ident(input)?;
+                let (input, bounds) = parse_trait_bounds(input)?;
+                Ok((input, (param, bounds)))
+            }),
+        ),
+        opt(ws(tag(","))),
     )
     .parse(input)
 }

@@ -1,0 +1,4 @@
+//! Stub for serde
+// Traits are not fully supported in Zeta, using empty structs as stubs
+pub struct Deserialize {}
+pub struct Serialize {}

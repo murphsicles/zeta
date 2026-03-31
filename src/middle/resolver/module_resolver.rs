@@ -164,11 +164,55 @@ impl ModuleResolver {
             return self.create_std_stub(module_path);
         }
 
-        // Check for external crate imports: `use reqwest::blocking::Client;`, `use serde::Deserialize;`
+        // Check for external crate imports via zorb:: prefix: `use zorb::reqwest::blocking::Client;`, `use zorb::serde::Deserialize;`
+        if path.len() >= 2
+            && path[0] == "zorb"
+            && (path[1] == "reqwest" || path[1] == "serde" || path[1] == "serde_json")
+        {
+            // For external crate imports via zorb::, we need to resolve to stub_types/external/
+            // For `use zorb::reqwest::blocking::Client;`, path is ["zorb", "reqwest", "blocking", "Client"]
+            // We need to resolve ["reqwest", "blocking"] to stub_types/external/reqwest/blocking/
+            // (skip the "zorb" prefix)
+
+            let module_path = if path.len() > 2 {
+                &path[1..path.len() - 1] // Skip "zorb" and remove the last component (the item name)
+            } else if path.len() > 1 {
+                &path[1..] // Skip "zorb" only
+            } else {
+                path // Shouldn't happen for valid zorb:: imports
+            };
+
+            let mut ext_path = PathBuf::from("stub_types/external");
+
+            for component in module_path {
+                ext_path.push(component);
+            }
+
+            // Try with .z extension (we'll create Zeta stub files)
+            let mut z_path = ext_path.clone();
+            z_path.set_extension("z");
+
+            if z_path.exists() {
+                return Ok(z_path);
+            }
+
+            // For external crate imports, we don't use mod.z structure
+            // We create single .z files like stub_types/external/reqwest.z
+
+            // If not found, create a minimal stub
+            println!(
+                "[MODULE RESOLVER] Creating stub for external crate: {}",
+                module_path.join("::")
+            );
+            return self.create_external_stub(module_path);
+        }
+
+        // Check for external crate imports without zorb:: prefix (backward compatibility)
+        // `use reqwest::blocking::Client;`, `use serde::Deserialize;`
         if !path.is_empty()
             && (path[0] == "reqwest" || path[0] == "serde" || path[0] == "serde_json")
         {
-            // For external crate imports, we need to resolve to stub_types/external/
+            // For backward compatibility with existing code that uses Rust-style imports
             // For `use reqwest::blocking::Client;`, path is ["reqwest", "blocking", "Client"]
             // We need to resolve ["reqwest", "blocking"] to stub_types/external/reqwest/blocking/
 
@@ -197,7 +241,7 @@ impl ModuleResolver {
 
             // If not found, create a minimal stub
             println!(
-                "[MODULE RESOLVER] Creating stub for external crate: {}",
+                "[MODULE RESOLVER] Creating stub for external crate (no zorb:: prefix): {}",
                 module_path.join("::")
             );
             return self.create_external_stub(module_path);
@@ -766,7 +810,8 @@ impl<K, V> HashMap<K, V> {
     pub fn get(&self, key: &K) -> Option<&V> {
         None
     }
-}"#.to_string()
+}"#
+                .to_string()
             }
             "ffi" => {
                 // Create a single file with c_void definition
@@ -779,7 +824,8 @@ pub enum c_void {
     __variant1,
     /// Variant 2
     __variant2,
-}"#.to_string()
+}"#
+                .to_string()
             }
             _ => {
                 // Generic stub
@@ -795,11 +841,11 @@ pub enum c_void {
     fn create_external_stub(&mut self, module_path: &[String]) -> Result<PathBuf, String> {
         // Create directory structure
         let mut stub_path = PathBuf::from("stub_types/external");
-        
+
         // Create all parent directories first
         fs::create_dir_all(&stub_path)
             .map_err(|e| format!("Failed to create external stub base directory: {}", e))?;
-        
+
         for component in module_path {
             stub_path.push(component);
         }
@@ -835,40 +881,41 @@ pub enum c_void {
             "reqwest" => {
                 if module_path.len() > 1 && module_path[1] == "blocking" {
                     r#"//! Stub for reqwest::blocking
-pub struct Client;
+pub struct Client {}
 
 impl Client {
     pub fn new() -> Self {
-        Client
+        Client {}
     }
 }"#
                     .to_string()
                 } else {
                     // For reqwest crate, create a single file with Client
                     r#"//! Stub for reqwest::blocking::Client
-pub struct Client;
+pub struct Client {}
 
 impl Client {
     pub fn new() -> Self {
-        Client
+        Client {}
     }
 }"#
-                        .to_string()
+                    .to_string()
                 }
             }
             "serde" => r#"//! Stub for serde
-pub trait Deserialize<'de> {}
-pub trait Serialize {}
-
-// Note: Derive macros are not supported in Zeta"#.to_string(),
+// Traits are not fully supported in Zeta, using empty structs as stubs
+pub struct Deserialize {}
+pub struct Serialize {}"#
+                .to_string(),
             "serde_json" => r#"//! Stub for serde_json
 pub fn to_string<T>(_value: &T) -> Result<String, ()> {
     Ok("{}".to_string())
 }
 
-pub fn from_str<'a, T>(_s: &'a str) -> Result<T, ()> {
+pub fn from_str<T>(_s: &str) -> Result<T, ()> {
     unimplemented!()
-}"#.to_string(),
+}"#
+            .to_string(),
             _ => {
                 // Generic stub
                 format!(

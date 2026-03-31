@@ -248,22 +248,19 @@ impl Type {
                 }
 
                 // Check for pointer types: *const T, *mut T
-                if s.starts_with("*const ") {
-                    let inner = &s[7..]; // Skip "*const "
+                if let Some(inner) = s.strip_prefix("*const ") {
                     let inner_type = Type::from_string(inner);
                     return Type::Ptr(Box::new(inner_type), Mutability::Immutable);
                 }
 
-                if s.starts_with("*mut ") {
-                    let inner = &s[5..]; // Skip "*mut "
+                if let Some(inner) = s.strip_prefix("*mut ") {
                     let inner_type = Type::from_string(inner);
                     return Type::Ptr(Box::new(inner_type), Mutability::Mutable);
                 }
 
                 // Check for trait objects: dyn Trait
-                if s.starts_with("dyn ") {
-                    let trait_name = s[4..].trim().to_string();
-                    return Type::TraitObject(trait_name);
+                if let Some(trait_name) = s.strip_prefix("dyn ") {
+                    return Type::TraitObject(trait_name.trim().to_string());
                 }
 
                 // Check for generic type: Vec<i32>, Option<T>, Result<T, E>, Box<dyn Error>
@@ -300,7 +297,10 @@ impl Type {
                     if inner.trim().starts_with("dyn ") {
                         // Handle trait object inside container
                         let trait_name = inner.trim()[4..].trim().to_string();
-                        return Type::Named(type_name.trim().to_string(), vec![Type::TraitObject(trait_name)]);
+                        return Type::Named(
+                            type_name.trim().to_string(),
+                            vec![Type::TraitObject(trait_name)],
+                        );
                     }
 
                     // Parse type arguments, handling nested generics and tuples
@@ -471,7 +471,7 @@ impl Type {
                     Mutability::Mutable => "mut",
                 };
                 format!("Ptr_{}_{}", mut_str, inner.mangled_name())
-            },
+            }
             Type::Ref(inner, lifetime, mutability) => {
                 let mut_str = match mutability {
                     Mutability::Immutable => "immut",
@@ -499,7 +499,9 @@ impl Type {
                     mangled
                 }
             }
-            Type::TraitObject(trait_name) => format!("TraitObject_{}", trait_name.replace("::", "_")),
+            Type::TraitObject(trait_name) => {
+                format!("TraitObject_{}", trait_name.replace("::", "_"))
+            }
             Type::Function(params, ret) => {
                 let mut name = "Fn".to_string();
                 for param in params {
