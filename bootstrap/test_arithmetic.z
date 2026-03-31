@@ -1,0 +1,29 @@
+// Test program for bootstrap compiler - arithmetic operations
+// This should be compilable by the minimal Zeta compiler
+
+fn add(a: i64, b: i64) -> i64 {
+    return a + b;
+}
+
+fn subtract(a: i64, b: i64) -> i64 {
+    return a - b;
+}
+
+fn multiply(a: i64, b: i64) -> i64 {
+    return a * b;
+}
+
+fn divide(a: i64, b: i64) -> i64 {
+    return a / b;
+}
+
+fn main() -> i64 {
+    // Test arithmetic operations
+    let sum = add(10, 20);
+    let diff = subtract(30, 15);
+    let product = multiply(5, 6);
+    let quotient = divide(100, 4);
+    
+    // Return combined result
+    return sum + diff + product + quotient;
+}
