@@ -1,0 +1,40 @@
+// Test program for runtime functions
+// v0.3.23 - Runtime Functions Test
+
+fn test_clone_i64() -> i64 {
+    let x: i64 = 42;
+    let y = clone_i64(x);
+    y
+}
+
+fn test_is_null_i64() -> bool {
+    let x: i64 = 0;
+    let y: i64 = 42;
+    is_null_i64(x) && !is_null_i64(y)
+}
+
+fn test_to_string_str() -> str {
+    let s: str = "hello";
+    to_string_str(s)
+}
+
+fn main() -> i64 {
+    // Test clone_i64
+    let cloned = test_clone_i64();
+    if cloned != 42 {
+        return 1;
+    }
+    
+    // Test is_null_i64
+    let null_check = test_is_null_i64();
+    if !null_check {
+        return 2;
+    }
+    
+    // Test to_string_str
+    let str_result = test_to_string_str();
+    // For now, just return success if we get here
+    // String comparison would need more runtime support
+    
+    0
+}

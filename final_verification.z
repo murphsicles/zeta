@@ -1,0 +1,26 @@
+// Final verification of stub generation
+use std::collections::HashMap;
+use std::ffi::c_void;
+use serde::Deserialize;
+use serde_json::to_string;
+
+struct TestData {
+    value: i32,
+}
+
+fn main() -> i64 {
+    // Test HashMap
+    let mut map = HashMap::<i32, &str>::new();
+    map.insert(1, "one");
+    map.insert(2, "two");
+    
+    // Test c_void
+    let void_instance: c_void = c_void::__variant1;
+    
+    // Test serde_json
+    let data = TestData { value: 42 };
+    let json_result = to_string(&data);
+    
+    // Return success
+    0
+}

@@ -1,0 +1,41 @@
+// Minimal Zeta compiler in Zeta
+// Phase 1: Ultra-simple compiler that can compile itself
+
+// Basic AST types
+enum AstNode {
+    Program(Vec<AstNode>),
+    FuncDef {
+        name: String,
+        params: Vec<(String, String)>, // (name, type)
+        ret: String,
+        body: Vec<AstNode>,
+    },
+    Return(Box<AstNode>),
+    Lit(i64),
+    Ident(String),
+    Call {
+        func: String,
+        args: Vec<AstNode>,
+    },
+    VarDecl {
+        name: String,
+        value: Box<AstNode>,
+    },
+    If {
+        condition: Box<AstNode>,
+        then_body: Vec<AstNode>,
+        else_body: Vec<AstNode>,
+    },
+}
+
+// Simple parser (just enough for this compiler)
+struct Parser {
+    input: String,
+    pos: usize,
+}
+
+impl Parser {
+    fn new(input: String) -> Parser {
+        Parser { input, pos: 0 }
+    }
+}

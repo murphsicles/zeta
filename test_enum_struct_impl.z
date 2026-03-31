@@ -1,0 +1,20 @@
+enum AstNode {
+    Program(Vec<AstNode>),
+    FuncDef {
+        name: String,
+        params: Vec<(String, String)>,
+        ret: String,
+        body: Vec<AstNode>,
+    },
+}
+
+struct Parser {
+    input: String,
+    pos: usize,
+}
+
+impl Parser {
+    fn new(input: String) -> Parser {
+        Parser { input, pos: 0 }
+    }
+}

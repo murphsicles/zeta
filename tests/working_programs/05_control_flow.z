@@ -1,0 +1,13 @@
+// Control flow with if/else
+fn main() -> i64 {
+    let condition = true;
+    
+    // if is an expression in Zeta
+    let value = if condition {
+        100
+    } else {
+        200
+    };
+    
+    value
+}

@@ -1,0 +1,20 @@
+// Test stub generation
+use std::collections::HashMap;
+use std::ffi::c_void;
+use serde::Deserialize;
+use serde_json::to_string;
+
+fn main() -> i64 {
+    // Create a HashMap
+    let mut map = HashMap::new();
+    map.insert(1, "hello");
+    
+    // Use c_void (just for type checking)
+    let _void: c_void = c_void::__variant1;
+    
+    // Try to serialize something
+    let value = 42;
+    let _json = to_string(&value);
+    
+    0
+}

@@ -903,9 +903,9 @@ impl Client {
                 }
             }
             "serde" => r#"//! Stub for serde
-// Traits are not fully supported in Zeta, using empty structs as stubs
-pub struct Deserialize {}
-pub struct Serialize {}"#
+// Traits are not fully supported in Zeta, using empty concepts as stubs
+pub concept Deserialize {}
+pub concept Serialize {}"#
                 .to_string(),
             "serde_json" => r#"//! Stub for serde_json
 pub fn to_string<T>(_value: &T) -> Result<String, ()> {

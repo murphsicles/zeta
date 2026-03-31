@@ -229,3 +229,97 @@ where
         .unwrap_or("");
     if pred(hay, ndl) { 1 } else { 0 }
 }
+
+/// Clone an i64 value (identity function for i64)
+///
+/// # Safety
+/// No safety concerns as it just returns the input value.
+#[allow(unsafe_op_in_unsafe_fn)]
+pub unsafe extern "C" fn clone_i64(value: i64) -> i64 {
+    value
+}
+
+/// Check if an i64 value is null (0)
+///
+/// # Safety
+/// No safety concerns as it just compares the value to 0.
+#[allow(unsafe_op_in_unsafe_fn)]
+pub unsafe extern "C" fn is_null_i64(value: i64) -> i64 {
+    if value == 0 { 1 } else { 0 }
+}
+
+/// Convert a string to a string (identity function for strings)
+///
+/// # Safety
+/// Input must be a valid null-terminated string pointer or 0.
+/// Caller must free returned pointer if not null.
+#[allow(unsafe_op_in_unsafe_fn)]
+pub unsafe extern "C" fn to_string_str(s: i64) -> i64 {
+    if s == 0 {
+        return 0;
+    }
+    
+    // For strings, to_string is an identity operation
+    // But we need to clone the string to follow ownership semantics
+    let input = unsafe { CStr::from_ptr(s as *const c_char) }
+        .to_str()
+        .unwrap_or("");
+    
+    let cstring = CString::new(input).unwrap();
+    let len = cstring.as_bytes_with_nul().len();
+    let ptr = std_malloc(len);
+    unsafe {
+        ptr::copy_nonoverlapping(cstring.as_ptr(), ptr as *mut c_char, len);
+    }
+    ptr as i64
+}
+
+/// Clone a boolean value (identity function for bool as i64)
+///
+/// # Safety
+/// No safety concerns as it just returns the input value.
+#[allow(unsafe_op_in_unsafe_fn)]
+pub unsafe extern "C" fn clone_bool(value: i64) -> i64 {
+    value
+}
+
+/// Check if a boolean value is null (false, which is 0)
+///
+/// # Safety
+/// No safety concerns as it just checks if value is 0.
+#[allow(unsafe_op_in_unsafe_fn)]
+pub unsafe extern "C" fn is_null_bool(value: i64) -> i64 {
+    if value == 0 { 1 } else { 0 }
+}
+
+/// Convert an i64 to a string
+///
+/// # Safety
+/// Caller must free returned pointer.
+#[allow(unsafe_op_in_unsafe_fn)]
+pub unsafe extern "C" fn to_string_i64(value: i64) -> i64 {
+    let string = value.to_string();
+    let cstring = CString::new(string).unwrap();
+    let len = cstring.as_bytes_with_nul().len();
+    let ptr = std_malloc(len);
+    unsafe {
+        ptr::copy_nonoverlapping(cstring.as_ptr(), ptr as *mut c_char, len);
+    }
+    ptr as i64
+}
+
+/// Convert a boolean to a string ("true" or "false")
+///
+/// # Safety
+/// Caller must free returned pointer.
+#[allow(unsafe_op_in_unsafe_fn)]
+pub unsafe extern "C" fn to_string_bool(value: i64) -> i64 {
+    let string = if value != 0 { "true" } else { "false" };
+    let cstring = CString::new(string).unwrap();
+    let len = cstring.as_bytes_with_nul().len();
+    let ptr = std_malloc(len);
+    unsafe {
+        ptr::copy_nonoverlapping(cstring.as_ptr(), ptr as *mut c_char, len);
+    }
+    ptr as i64
+}

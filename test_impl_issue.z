@@ -1,0 +1,14 @@
+struct Parser {
+    input: String,
+    pos: usize,
+}
+
+impl Parser {
+    fn new(input: String) -> Parser {
+        Parser { input, pos: 0 }
+    }
+    
+    fn parse_program(&mut self) -> AstNode {
+        AstNode::Program(vec![])
+    }
+}

@@ -1,0 +1,4 @@
+// Simple test program
+fn main() -> i64 {
+    42
+}

@@ -1,5 +1,5 @@
-// Zorb Standard Library Prelude
-// Common imports automatically available in every Zeta module
+// Zeta Runtime Library
+// Core runtime functions required for compilation
 
 pub fn clone_i64(value: i64) -> i64 {
     value

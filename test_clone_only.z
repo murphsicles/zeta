@@ -1,0 +1,15 @@
+// Test program for clone_i64 only
+
+fn test_clone_i64() -> i64 {
+    let x: i64 = 42;
+    let y = clone_i64(x);
+    y
+}
+
+fn main() -> i64 {
+    let cloned = test_clone_i64();
+    if cloned != 42 {
+        return 1;
+    }
+    0
+}

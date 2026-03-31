@@ -212,6 +212,43 @@ impl<'ctx> LLVMCodegen<'ctx> {
             Some(Linkage::External),
         );
 
+        // === RUNTIME FUNCTIONS FOR COMPILATION (v0.3.23) ===
+        module.add_function(
+            "clone_i64",
+            i64_type.fn_type(&[i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "is_null_i64",
+            i64_type.fn_type(&[i64_type.into()], false), // Returns i64 (0 or 1) for bool
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "to_string_str",
+            i64_type.fn_type(&[i64_type.into()], false), // str is i64 pointer in runtime
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "clone_bool",
+            i64_type.fn_type(&[i64_type.into()], false), // bool is i64 in runtime
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "is_null_bool",
+            i64_type.fn_type(&[i64_type.into()], false), // Returns i64 (0 or 1) for bool
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "to_string_i64",
+            i64_type.fn_type(&[i64_type.into()], false), // Returns i64 pointer to string
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "to_string_bool",
+            i64_type.fn_type(&[i64_type.into()], false), // Returns i64 pointer to string
+            Some(Linkage::External),
+        );
+
         // === PRINTLN SUPPORT (the fix) ===
         let printf_type = context.i32_type().fn_type(&[ptr_type.into()], true); // variadic
         module.add_function("printf", printf_type, Some(Linkage::External));

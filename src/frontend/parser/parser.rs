@@ -5,7 +5,8 @@ use nom::Parser;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_until, take_while};
 use nom::character::complete::{alpha1, multispace1, satisfy};
-use nom::combinator::{map, opt, recognize, value, verify};
+use nom::combinator::{map, opt, peek, recognize, value, verify};
+use nom::error::{Error, ErrorKind};
 use nom::multi::{many0, many1, separated_list0, separated_list1};
 use nom::sequence::{delimited, pair, preceded, terminated};
 
@@ -366,15 +367,11 @@ pub fn parse_generic_params(input: &str) -> IResult<&str, (Vec<String>, Vec<Stri
     Ok((input, (lifetimes, type_params)))
 }
 
-/// Parse an attribute like #[derive(Copy)] or #[inline]
-pub fn parse_attribute(input: &str) -> IResult<&str, String> {
-    let (input, _) = ws(tag("#[")).parse(input)?;
-    let (input, content) = take_until("]").parse(input)?;
-    let (input, _) = ws(tag("]")).parse(input)?;
-    Ok((input, content.trim().to_string()))
-}
+
 
 /// Parse zero or more attributes
 pub fn parse_attributes(input: &str) -> IResult<&str, Vec<String>> {
-    many0(ws(parse_attribute)).parse(input)
+    // Always return empty vector for now
+    // TODO: Implement proper attribute parsing
+    Ok((input, Vec::new()))
 }

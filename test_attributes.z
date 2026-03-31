@@ -1,0 +1,30 @@
+// Test 1: impl with no attributes (should work)
+impl Parser {
+    fn new() -> Parser {
+        Parser { input: "", pos: 0 }
+    }
+}
+
+// Test 2: impl with attribute (should work)
+#[derive(Copy)]
+impl Parser {
+    fn new() -> Parser {
+        Parser { input: "", pos: 0 }
+    }
+}
+
+// Test 3: impl with whitespace before it (should work)
+   
+impl Parser {
+    fn new() -> Parser {
+        Parser { input: "", pos: 0 }
+    }
+}
+
+// Test 4: impl with comment before it (should work)
+// This is a comment
+impl Parser {
+    fn new() -> Parser {
+        Parser { input: "", pos: 0 }
+    }
+}
