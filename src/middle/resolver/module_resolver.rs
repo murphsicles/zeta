@@ -49,6 +49,17 @@ impl ModuleResolver {
             return Err("Empty path".to_string());
         }
 
+        // Check for Zeta compiler imports: `use zeta::frontend::ast::AstNode;`
+        // These are for self-compilation and don't correspond to .z files
+        if !path.is_empty() && path[0] == "zeta" {
+            // For self-compilation, we need to handle zeta:: imports specially
+            // These refer to the compiler's own data structures, not .z files
+            // We'll create a virtual module path for these
+            let module_name = path.join("_");
+            let virtual_path = PathBuf::from(format!("zeta_virtual/{}", module_name));
+            return Ok(virtual_path);
+        }
+
         // Check for standard library imports: `use zorb::std::option::Option;`
         if path.len() >= 2 && path[0] == "zorb" && path[1] == "std" {
             // This is a standard library import

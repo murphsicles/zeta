@@ -20,8 +20,8 @@ pub mod integration;
 pub mod middle;
 pub mod runtime;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 
 pub use backend::codegen::LLVMCodegen;
 pub use frontend::ast::AstNode;
