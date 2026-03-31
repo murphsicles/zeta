@@ -6,3 +6,4 @@ pub mod resolver;
 pub mod type_cache;
 pub mod typecheck;
 pub mod typecheck_new;
+pub mod unified_typecheck;

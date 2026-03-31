@@ -7,7 +7,7 @@ pub struct LLVMCodegen {
 
 impl LLVMCodegen {
     /// Create a new LLVMCodegen
-    pub fn new(_context: &str, _module_name: &str) -> Self {
+    pub fn new() -> Self {
         LLVMCodegen { _placeholder: () }
     }
     

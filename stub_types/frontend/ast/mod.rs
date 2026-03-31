@@ -3,6 +3,8 @@
 pub enum AstNode {
     /// Placeholder variant
     Placeholder,
+    /// Unit variant
+    Unit,
 }
 
 impl AstNode {

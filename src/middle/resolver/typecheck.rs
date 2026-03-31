@@ -5,8 +5,8 @@
 //! Runs before MIR lowering. Clean, fast, and fully documented.
 
 use super::resolver::{Resolver, Type};
+use super::unified_typecheck::{TypeCheckResult, UnifiedTypeCheck};
 use crate::frontend::ast::AstNode;
-use crate::middle::types::UnifyError;
 
 impl Resolver {
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
@@ -24,40 +24,30 @@ impl Resolver {
             }
         }
 
-        // Try using new type system if available
-        use super::typecheck_new::NewTypeCheck;
-        match self.typecheck_new(asts) {
-            Ok(_) => {
-                // New type system succeeded
+        // Use unified type checking interface
+        match self.typecheck_unified(asts) {
+            TypeCheckResult::Success(_) => {
+                // Unified type checking succeeded
                 true
             }
-            Err(errors) => {
-                // New type system failed - check if it's a type mismatch
-                eprintln!("New type system failed with errors:");
+            TypeCheckResult::Failure(errors) => {
+                // Type checking failed with errors
+                eprintln!("Type checking failed with errors:");
                 for error in &errors {
                     eprintln!("  Type error: {}", error);
                 }
-
-                // Check if any error is a type mismatch (like i64 vs str)
-                // If so, fail compilation. Otherwise fall back to old system.
-                let has_type_mismatch = errors
-                    .iter()
-                    .any(|e| matches!(e, UnifyError::Mismatch(_, _)));
-
-                if has_type_mismatch {
-                    // Type mismatch error - fail compilation
-                    false
-                } else {
-                    // Other errors - fall back to old system
-                    eprintln!("Falling back to old type system");
-                    let mut ok = true;
-                    for ast in asts {
-                        if !self.check_node(ast) {
-                            ok = false;
-                        }
+                false
+            }
+            TypeCheckResult::Fallback => {
+                // Fallback to simple type checking
+                eprintln!("Using fallback type checking");
+                let mut ok = true;
+                for ast in asts {
+                    if !self.check_node(ast) {
+                        ok = false;
                     }
-                    ok
                 }
+                ok
             }
         }
     }
@@ -178,40 +168,15 @@ impl Resolver {
     }
 
     /// Convert string type annotation to Type enum
+    /// Uses unified type parsing interface
     fn string_to_type(&self, s: &str) -> Type {
-        match s {
-            "i8" => Type::I8,
-            "i16" => Type::I16,
-            "i32" => Type::I32,
-            "i64" => Type::I64,
-            "u8" => Type::U8,
-            "u16" => Type::U16,
-            "u32" => Type::U32,
-            "u64" => Type::U64,
-            "f32" => Type::F32,
-            "f64" => Type::F64,
-            "bool" => Type::Bool,
-            "char" => Type::Char,
-            "str" => Type::Str,
-            _ => {
-                // Check if it's a single uppercase letter (type variable)
-                if s.len() == 1 && s.chars().next().unwrap().is_ascii_uppercase() {
-                    // Create a fresh type variable
-                    Type::Variable(crate::middle::types::TypeVar::fresh())
-                } else {
-                    // Check for module-qualified type names like "zeta::frontend::ast::AstNode"
-                    // or "std::option::Option<T>"
-                    if s.contains("::") {
-                        // For module-qualified names, we need to handle them specially
-                        // For now, we'll create a Named type with the full path
-                        // Later, we might want to resolve the actual type
-                        Type::Named(s.to_string(), vec![])
-                    } else {
-                        // For complex types (generics, tuples, etc.), return a Named type
-                        // This is a simplified conversion - full parsing would be in typecheck_new.rs
-                        Type::Named(s.to_string(), vec![])
-                    }
-                }
+        // Use the unified type parsing
+        match self.parse_type_string(s) {
+            Ok(ty) => ty,
+            Err(err) => {
+                eprintln!("Warning: Failed to parse type '{}': {}", s, err);
+                // Fallback to Named type
+                Type::Named(s.to_string(), vec![])
             }
         }
     }

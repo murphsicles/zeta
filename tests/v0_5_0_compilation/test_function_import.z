@@ -1,0 +1,14 @@
+﻿// tests/v0_5_0_compilation/test_function_import.z
+// Test function import and call
+
+use zeta::middle::specialization::{is_cache_safe, lookup_specialization};
+
+fn main() {
+    println!("Testing function imports");
+    
+    // These should work after SEM's module resolution fixes
+    let cache_safe = is_cache_safe("some_type");
+    let specialization = lookup_specialization("some_func");
+    
+    println!("Cache safe: {}, Specialization: {}", cache_safe, specialization);
+}

@@ -1,0 +1,8 @@
+// test_cross_module_call.z
+use zeta::frontend::parser::top_level::parse_zeta;
+
+fn main() {
+    // Test calling parse_zeta through import
+    let result = parse_zeta("fn main() { 42 }");
+    println!("Parse result: {:?}", result);
+}
