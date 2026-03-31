@@ -2,7 +2,6 @@
 // Test 1: identity::<i64>(42)
 
 use zetac::frontend::parser::top_level::parse_zeta;
-use zetac::middle::resolver::resolver::Resolver;
 
 fn main() {
     println!("=== PROGRESSIVE TEST SUITE ===");
@@ -25,11 +24,14 @@ fn main() {
     match parse_zeta(code) {
         Ok((remaining, asts)) => {
             if !remaining.trim().is_empty() {
-                println!("⚠️  Warning: Not all input consumed. Remaining: '{}'", remaining);
+                println!(
+                    "⚠️  Warning: Not all input consumed. Remaining: '{}'",
+                    remaining
+                );
             }
             println!("✓ Parse successful");
             println!("  AST count: {}", asts.len());
-            
+
             // Display ASTs
             for (i, ast) in asts.iter().enumerate() {
                 println!("  AST {}: {:?}", i, ast);

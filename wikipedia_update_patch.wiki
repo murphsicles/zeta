@@ -1,0 +1,126 @@
+== UPDATE PATCHES FOR ZETA WIKIPEDIA PAGE ==
+
+=== 1. Infobox Updates ===
+Replace:
+| latest_release_version = v0.5.0
+| latest_release_date = {{Start date|2026|3|29}}
+
+With:
+| latest_release_version = v0.3.19 (Rust implementation)
+| latest_preview_version = v0.5.0 (Pure Zeta, in development)
+| latest_release_date = {{Start date|2026|3|29}}
+
+=== 2. Introduction Update ===
+Add after first paragraph:
+
+The latest release, v0.3.19 "The Integration Release" (March 29, 2026), adds comprehensive async/await support, algebraic data types, macro system enhancements, and standard library integration. Development continues toward v0.5.0, which will be a pure Zeta self-hosted implementation with complete generic type system support.
+
+=== 3. Release History Section Restructure ===
+Current table has 27 rows and is too long. Recommend adding collapsible sections:
+
+{{Collapsible section
+| title = Release History
+| collapsed = no
+| content = 
+
+;v0.0.x series (Initial releases)
+{{Collapsible section
+| title = 
+| collapsed = yes
+| content = 
+{| class="wikitable"
+|-
+! Version !! Date !! Notes
+|-
+| v0.0.0 || November 27, 2025 || Initial prototype
+|-
+| v0.0.1 || December 4, 2025 || Pre-release
+|-
+| ... (v0.0.2 through v0.0.9) ...
+|}
+}}
+
+;v0.1.x series (Core features)
+{{Collapsible section
+| title = 
+| collapsed = yes
+| content = 
+{| class="wikitable"
+|-
+! Version !! Date !! Notes
+|-
+| v0.1.0 || December 25, 2025 || Major refactor into modular layers
+|-
+| ... (v0.1.1 through v0.1.7) ...
+|}
+}}
+
+;v0.2.x series (Self-hosting foundation)
+{{Collapsible section
+| title = 
+| collapsed = yes
+| content = 
+{| class="wikitable"
+|-
+! Version !! Date !! Notes
+|-
+| v0.2.0 || January 5, 2026 || "The Self-Hosting Dawn!"
+|-
+| ... (v0.2.1 through v0.2.3) ...
+|}
+}}
+
+;v0.3.x series (Rust implementation maturity)
+{{Collapsible section
+| title = 
+| collapsed = yes
+| content = 
+{| class="wikitable"
+|-
+! Version !! Date !! Notes
+|-
+| v0.3.0 || January 20, 2026 || "The Dawn of True Self-Hosting"
+|-
+| v0.3.1–v0.3.18 || January–March 2026 || Incremental improvements
+|-
+| '''v0.3.19''' || March 29, 2026 || Async/await, algebraic data types, macros, stdlib
+|}
+}}
+
+;v0.5.x series (Pure Zeta development)
+{{Collapsible section
+| title = 
+| collapsed = yes
+| content = 
+{| class="wikitable"
+|-
+! Version !! Status !! Target features
+|-
+| v0.5.0 || In development || Pure Zeta implementation, complete generic type system
+|}
+}}
+}}
+
+=== 4. Features Section Update ===
+Add to Features section (or create new subsection):
+
+==== Generic Type System ====
+* Type inference with constraint solving (Hindley-Milner based)
+* Monomorphization for zero-cost abstractions
+* Full compatibility with Zeta v0.5.0 generic syntax
+* Built-in generic types (Vec<T>, Option<T>, Result<T, E>)
+
+==== Concurrency Model ====
+* Async/await with thread-safe executor using RwLock
+* M:N green-thread actors (runtime < 200 LOC)
+* MPSC channels for message passing
+* Future execution with proper waker implementation
+
+=== 5. Development Model (Optional Addition) ===
+Consider adding section about innovative development approach:
+
+Zeta is developed using a multi-agent system called the "Dark Factory" which enables 24/7 autonomous progress with full public accountability through continuous integration on GitHub.
+
+=== 6. References Update ===
+Add new references for recent releases:
+<ref>{{cite web|url=https://github.com/murphsicles/zeta/releases/tag/v0.3.19|title=Zeta v0.3.19 — The Integration Release|website=github.com|access-date=March 30, 2026}}</ref>

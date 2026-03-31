@@ -1,0 +1,142 @@
+{{Infobox programming language
+| name = Zeta
+| paradigm = Multi-paradigm: [[Systems programming]], [[Functional programming]], [[Concurrent computing]], [[Imperative programming]], [[Structured programming]], [[Generic programming]]
+| designer = [[Roy Murphy]]
+| developer = Roy Murphy and contributors
+| latest release version = 0.3.19 (Rust implementation)
+| latest preview version = 0.5.0 (Pure Zeta, in development)
+| latest release date = {{Start date|2026|03|29|df=yes}}
+| typing = [[Static typing]], [[Type inference]], [[Generic programming]]
+| implementations = Self-hosting compiler (zetac)
+| operating system = [[Linux]], [[Windows]], [[macOS]]
+| license = [[MIT License]]
+| website = {{URL|https://z-lang.org}}
+}}
+
+'''Zeta''' is a [[systems programming]] language designed for maximum efficiency and performance. Inspired by the algebraic foundations of [[Alexander Stepanov]]'s ''[[Elements of Programming]]'', Zeta aims to become "the most efficient systems programming language ever created" through [[First principle|first principles]] engineering with zero tolerance for bottlenecks or complexity.
+
+== History ==
+{{Main|Zeta version history}}
+
+Zeta maintains two parallel version series:
+* '''v0.3.x series''': Rust-based compiler implementation
+* '''v0.5.x series''': Pure Zeta self-hosted implementation (in development)
+
+{{Collapsible section
+| title = Version History
+| collapsed = no
+| content = 
+;v0.3.x series (Rust implementation)
+{{Collapsible section
+| title = 
+| collapsed = yes
+| content = 
+{| class="wikitable"
+|+ 
+! Version !! Release date !! Significant changes
+|-
+| '''0.3.19''' || 2026-03-29 || Async/await runtime, algebraic data types, macro system, standard library integration, Rust 2024 edition compliance
+|-
+| '''0.3.18''' || 2026-03-28 || Static method support, enhanced type system for method resolution, integration with generic type system foundation
+|-
+| '''0.3.0''' || 2026-01-20 || Self-hosting bootstrap achieved, foundation for v0.5.0 syntax compatibility, multi-agent development system implementation
+|}
+}}
+
+;v0.5.x series (Pure Zeta self-hosted)
+{{Collapsible section
+| title = 
+| collapsed = yes
+| content = 
+{| class="wikitable"
+|+
+! Version !! Status !! Target features
+|-
+| '''0.5.0''' || In development || Pure Zeta implementation, full generic type system with monomorphization, complete self-hosting capability, enhanced standard library
+|}
+}}
+}}
+
+== Features ==
+Zeta combines several innovative features aimed at maximum performance:
+
+=== Generic Type System ===
+* Type inference with constraint solving ([[Hindley–Milner type system|Hindley-Milner]] based)
+* [[Monomorphization]] for zero-cost abstractions
+* Full compatibility with Zeta v0.5.0 generic syntax
+* Built-in generic types (Vec<T>, Option<T>, Result<T, E>)
+
+=== Concurrency Model ===
+* [[Async/await]] with thread-safe executor using [[Readers–writer lock|RwLock]]
+* [[Green threads|M:N green-thread actors]] (runtime < 200 LOC)
+* [[Channel (programming)|MPSC channels]] for message passing
+* [[Future (programming)|Future]] execution with proper waker implementation
+
+=== Type System ===
+* [[Algebraic data type]]s with variant constructors
+* [[Pattern matching]] for complex type decomposition
+* [[Affine type system|Affine borrow checking]] with speculative states
+* [[Constant function|Const function]] support for compile-time evaluation
+
+=== Performance Characteristics ===
+According to official benchmarks (Intel i9-13900K, Ubuntu 24.04):<ref name="benchmarks">{{Cite web|url=https://github.com/murphsicles/zeta#official-benchmarks--february-18-2026|title=Zeta Official Benchmarks|website=GitHub|access-date=2026-03-30}}</ref>
+* Compile time: 14ms for self-compilation (228× faster than Rust)
+* Runtime: 1.12ns for fib(40) (fastest among systems languages)
+* 100k actors ping-pong: 0.94ms (50% faster than Rust)
+
+== Development ==
+Zeta is developed using an innovative multi-agent system called the "Dark Factory":<ref name="development">{{Cite web|url=https://github.com/murphsicles/zeta/tree/dev|title=Zeta Development Repository|website=GitHub|access-date=2026-03-30}}</ref>
+* '''Father Zak''' - Central coordinator and knowledge hub
+* '''SEM''' - Type system expert specializing in inference and constraints
+* '''LEX''' - Parser specialist handling syntax and AST generation
+* '''GEN''' - Code generation and optimization expert
+* '''SYN''' - Integration and coordination between components
+* '''VER''' - Testing and verification specialist
+
+This agent-based development model enables 24/7 autonomous progress with full public accountability through [[Continuous integration|continuous integration]] on GitHub.
+
+== Syntax examples ==
+<syntaxhighlight lang="zeta">
+// Generic function with type inference
+fn identity<T>(x: T) -> T {
+    x
+}
+
+// Async function with await
+async fn fetch_data(url: String) -> Result<String, Error> {
+    let response = http_get(url).await?;
+    Ok(response)
+}
+
+// Algebraic data type with pattern matching
+enum Option<T> {
+    Some(T),
+    None
+}
+
+fn unwrap_or<T>(opt: Option<T>, default: T) -> T {
+    match opt {
+        Some(value) => value,
+        None => default
+    }
+}
+</syntaxhighlight>
+
+== See also ==
+* [[Rust (programming language)]]
+* [[Zig (programming language)]]
+* [[Systems programming]]
+* [[Generic programming]]
+
+== References ==
+{{Reflist}}
+
+== External links ==
+* {{Official website|https://z-lang.org}}
+* [https://github.com/murphsicles/zeta Zeta on GitHub]
+* [https://crates.io/crates/zetac Zeta on crates.io]
+
+[[Category:Systems programming languages]]
+[[Category:Programming languages created in 2025]]
+[[Category:MIT-licensed software]]
+[[Category:Free compilers and interpreters]]

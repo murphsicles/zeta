@@ -422,9 +422,8 @@ impl MirGen {
                             }
 
                             // Convert type arguments from strings to Type objects
-                            let mir_type_args: Vec<Type> = type_args.iter()
-                                .map(|t| Type::from_string(t))
-                                .collect();
+                            let mir_type_args: Vec<Type> =
+                                type_args.iter().map(|t| Type::from_string(t)).collect();
 
                             self.stmts.push(MirStmt::Call {
                                 func: func_name.clone(),
@@ -464,12 +463,11 @@ impl MirGen {
                     println!("[MIR GEN DEBUG] Regular function call, func: {}", method);
                     method.clone()
                 };
-                
+
                 // Convert type arguments from strings to Type objects
-                let mir_type_args: Vec<Type> = type_args.iter()
-                    .map(|t| Type::from_string(t))
-                    .collect();
-                
+                let mir_type_args: Vec<Type> =
+                    type_args.iter().map(|t| Type::from_string(t)).collect();
+
                 self.stmts.push(MirStmt::Call {
                     func,
                     args: arg_ids,
@@ -729,31 +727,41 @@ impl MirGen {
                 self.exprs.insert(id, MirExpr::Var(id));
                 self.type_map.insert(id, Type::I64);
             }
-            AstNode::FieldAccess { base: _, field: _ } => {
-                // TODO-20260327-001: Implement proper field access
-                // Temporary implementation for testing
-                // For now, return 0 for all field accesses
-                // In a real implementation, we would need to:
+            AstNode::FieldAccess { base, field } => {
+                // Implement proper field access
                 // 1. Evaluate the base expression
-                // 2. Look up the field in the struct
-                // 3. Return the field value
-                self.exprs.insert(id, MirExpr::Lit(0));
+                let base_id = self.lower_expr(base);
+                // 2. Create FieldAccess expression
+                self.exprs.insert(id, MirExpr::FieldAccess {
+                    base: base_id,
+                    field: field.clone(),
+                });
+                // 3. For now, assume field type is i64 (will need proper type inference later)
                 self.type_map.insert(id, Type::I64);
             }
-            AstNode::StructLit { variant: _, fields } => {
-                // TODO-20260327-002: Implement proper struct literal creation
-                // Temporary implementation for testing
-                let mut sum = 0;
-                for (_field_name, field_expr) in fields {
-                    // Evaluate the field expression if it's a literal
-                    if let AstNode::Lit(n) = *field_expr {
-                        sum += n;
-                    }
+            AstNode::StructLit { variant, fields } => {
+                // Implement proper struct literal creation
+                let mut field_ids = Vec::new();
+                for (field_name, field_expr) in fields {
+                    // Evaluate each field expression
+                    let field_id = self.lower_expr(field_expr);
+                    field_ids.push((field_name.clone(), field_id));
                 }
-                self.exprs.insert(id, MirExpr::Lit(sum));
-                self.type_map.insert(id, Type::I64);
+                // Create Struct expression
+                self.exprs.insert(id, MirExpr::Struct {
+                    variant: variant.clone(),
+                    fields: field_ids,
+                });
+                // For now, assume struct type is a generic type
+                // TODO: Need proper type inference for struct literals
+                self.type_map.insert(id, Type::Named("Struct".to_string(), vec![]));
             }
-            AstNode::PathCall { path, method, args, type_args } => {
+            AstNode::PathCall {
+                path,
+                method,
+                args,
+                type_args,
+            } => {
                 println!(
                     "[MIR GEN DEBUG] Processing path call: path={:?}, method={:?}, args={:?}, type_args={:?}",
                     path, method, args, type_args
@@ -778,10 +786,9 @@ impl MirGen {
                 }
 
                 // Convert type arguments from strings to Type objects
-                let mir_type_args: Vec<Type> = type_args.iter()
-                    .map(|t| Type::from_string(t))
-                    .collect();
-                
+                let mir_type_args: Vec<Type> =
+                    type_args.iter().map(|t| Type::from_string(t)).collect();
+
                 // Generate call statement
                 self.stmts.push(MirStmt::Call {
                     func: func_name,

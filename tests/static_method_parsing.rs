@@ -16,10 +16,16 @@ mod tests {
 
         // Should parse as PathCall
         match ast {
-            AstNode::PathCall { path, method, args } => {
+            AstNode::PathCall {
+                path,
+                method,
+                args,
+                type_args,
+            } => {
                 assert_eq!(path, vec!["Point"]);
                 assert_eq!(method, "new");
                 assert_eq!(args.len(), 2);
+                assert!(type_args.is_empty());
             }
             _ => panic!("Expected PathCall, got {:?}", ast),
         }
@@ -35,10 +41,16 @@ mod tests {
         assert!(remaining.is_empty(), "Unparsed input: {}", remaining);
 
         match ast {
-            AstNode::PathCall { path, method, args } => {
+            AstNode::PathCall {
+                path,
+                method,
+                args,
+                type_args,
+            } => {
                 assert_eq!(path, vec!["SomeType"]);
                 assert_eq!(method, "default");
                 assert_eq!(args.len(), 0);
+                assert!(type_args.is_empty());
             }
             _ => panic!("Expected PathCall, got {:?}", ast),
         }
@@ -69,10 +81,16 @@ mod tests {
         assert!(remaining.is_empty(), "Unparsed input: {}", remaining);
 
         match ast {
-            AstNode::PathCall { path, method, args } => {
+            AstNode::PathCall {
+                path,
+                method,
+                args,
+                type_args,
+            } => {
                 assert_eq!(path, vec!["std", "collections", "HashMap"]);
                 assert_eq!(method, "new");
                 assert_eq!(args.len(), 0);
+                assert!(type_args.is_empty());
             }
             _ => panic!("Expected PathCall, got {:?}", ast),
         }
@@ -88,10 +106,16 @@ mod tests {
         assert!(remaining.is_empty(), "Unparsed input: {}", remaining);
 
         match ast {
-            AstNode::PathCall { path, method, args } => {
+            AstNode::PathCall {
+                path,
+                method,
+                args,
+                type_args,
+            } => {
                 assert_eq!(path, vec!["Point"]);
                 assert_eq!(method, "new");
                 assert_eq!(args.len(), 2);
+                assert!(type_args.is_empty());
             }
             _ => panic!("Expected PathCall, got {:?}", ast),
         }

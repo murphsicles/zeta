@@ -14,11 +14,14 @@ fn test_parsing_only(name: &str, code: &str, test_num: usize) -> bool {
     match parse_zeta(code) {
         Ok((remaining, asts)) => {
             if !remaining.trim().is_empty() {
-                println!("⚠️  Warning: Not all input consumed. Remaining: '{}'", remaining);
+                println!(
+                    "⚠️  Warning: Not all input consumed. Remaining: '{}'",
+                    remaining
+                );
             }
             println!("✓ Parse successful");
             println!("  AST count: {}", asts.len());
-            
+
             // Show basic AST info
             for (i, ast) in asts.iter().enumerate() {
                 match ast {
@@ -40,25 +43,27 @@ fn test_parsing_only(name: &str, code: &str, test_num: usize) -> bool {
                     _ => println!("  Unknown AST node type {}", i),
                 }
             }
-            
+
             // Check for generic syntax in return expressions
             let mut has_generic_calls = false;
             for ast in &asts {
-                if let zetac::frontend::ast::AstNode::FuncDef { ret_expr, .. } = ast {
-                    if let Some(expr) = ret_expr {
-                        let expr_str = format!("{:?}", expr);
-                        if expr_str.contains("type_args") && expr_str.contains("[") {
-                            println!("  ✓ Detected generic function call with type arguments");
-                            has_generic_calls = true;
-                        }
+                if let zetac::frontend::ast::AstNode::FuncDef {
+                    ret_expr: Some(expr),
+                    ..
+                } = ast
+                {
+                    let expr_str = format!("{:?}", expr);
+                    if expr_str.contains("type_args") && expr_str.contains("[") {
+                        println!("  ✓ Detected generic function call with type arguments");
+                        has_generic_calls = true;
                     }
                 }
             }
-            
+
             if has_generic_calls {
                 println!("✓ Generic syntax correctly parsed");
             }
-            
+
             true
         }
         Err(e) => {
@@ -82,10 +87,10 @@ fn main() {
         identity::<i64>(42)
     }
     "#;
-    
+
     test_results.push(test_parsing_only("identity::<i64>(42)", test1_code, 1));
 
-    // Test 2: Medium - Option::<i32>::None  
+    // Test 2: Medium - Option::<i32>::None
     let test2_code = r#"
     enum Option<T> {
         Some(T),
@@ -96,7 +101,7 @@ fn main() {
         Option::<i32>::None
     }
     "#;
-    
+
     test_results.push(test_parsing_only("Option::<i32>::None", test2_code, 2));
 
     // Test 3: Complex - Vec::<i32>::new()
@@ -117,31 +122,43 @@ fn main() {
         Vec::<i32>::new()
     }
     "#;
-    
+
     test_results.push(test_parsing_only("Vec::<i32>::new()", test3_code, 3));
 
     // Summary
     println!("\n{}", "=".repeat(60));
     println!("TEST SUMMARY - PARSING ONLY");
     println!("{}", "=".repeat(60));
-    
-    let test_names = ["identity::<i64>(42)", "Option::<i32>::None", "Vec::<i32>::new()"];
-    
+
+    let test_names = [
+        "identity::<i64>(42)",
+        "Option::<i32>::None",
+        "Vec::<i32>::new()",
+    ];
+
     for (i, (passed, name)) in test_results.iter().zip(test_names.iter()).enumerate() {
-        println!("Test {} ({}): {}", i + 1, name, 
-            if *passed { "✓ PASSED" } else { "✗ FAILED" });
+        println!(
+            "Test {} ({}): {}",
+            i + 1,
+            name,
+            if *passed { "✓ PASSED" } else { "✗ FAILED" }
+        );
     }
-    
+
     let total_passed = test_results.iter().filter(|&&p| p).count();
-    println!("\nParsing results: {}/{} tests passed", total_passed, test_results.len());
-    
+    println!(
+        "\nParsing results: {}/{} tests passed",
+        total_passed,
+        test_results.len()
+    );
+
     // Progress report
     println!("\n{}", "=".repeat(60));
     println!("PROGRESS REPORT - PHASE 3");
     println!("{}", "=".repeat(60));
     println!("Time: {}", chrono::Local::now().format("%H:%M:%S"));
     println!("Status: Phase 3 progressive parsing tests completed");
-    
+
     if total_passed == test_results.len() {
         println!("✅ PARSER: All tests passed - parser correctly handles:");
         println!("  1. Simple generic functions (identity::<i64>(42))");
@@ -152,6 +169,6 @@ fn main() {
     } else {
         println!("⚠️  Some parsing tests failed. Issues found in parser.");
     }
-    
+
     println!("\nNext steps: Fix Type::from_string in MIR generation code");
 }

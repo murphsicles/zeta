@@ -775,7 +775,12 @@ impl InferContext {
                 Ok(Type::Variable(TypeVar::fresh()))
             }
 
-            AstNode::PathCall { path, method, args, type_args } => {
+            AstNode::PathCall {
+                path,
+                method,
+                args,
+                type_args,
+            } => {
                 // Path call like Point::new(10, 20)
                 // Try qualified name first: Type::method
                 let qualified_name = format!("{}::{}", path.join("::"), method);

@@ -141,7 +141,7 @@ impl Type {
     /// Parse a type from a string representation
     pub fn from_string(s: &str) -> Type {
         let s = s.trim();
-        
+
         // Handle primitive types
         match s {
             "i8" => Type::I8,
@@ -161,26 +161,18 @@ impl Type {
                 // Check for &mut prefix (must check before & prefix)
                 if let Some(rest) = s.strip_prefix("&mut ") {
                     let inner = Type::from_string(rest);
-                    return Type::Ref(
-                        Box::new(inner),
-                        Lifetime::Static,
-                        Mutability::Mutable,
-                    );
+                    return Type::Ref(Box::new(inner), Lifetime::Static, Mutability::Mutable);
                 }
-                
+
                 // Check for & prefix
                 if let Some(rest) = s.strip_prefix("&") {
                     // Make sure we didn't match &mut (should have been caught above)
                     if !rest.starts_with("mut ") {
                         let inner = Type::from_string(rest);
-                        return Type::Ref(
-                            Box::new(inner),
-                            Lifetime::Static,
-                            Mutability::Immutable,
-                        );
+                        return Type::Ref(Box::new(inner), Lifetime::Static, Mutability::Immutable);
                     }
                 }
-                
+
                 // Check for array type: [T; N]
                 if s.starts_with('[') && s.ends_with(']') {
                     let inner = &s[1..s.len() - 1]; // Remove brackets
@@ -195,7 +187,7 @@ impl Type {
                         return Type::Slice(Box::new(inner_type));
                     }
                 }
-                
+
                 // Check for tuple type: (T1, T2, T3)
                 if s.starts_with('(') && s.ends_with(')') {
                     let inner = &s[1..s.len() - 1]; // Remove parentheses
@@ -203,12 +195,12 @@ impl Type {
                         // Empty tuple: ()
                         return Type::Tuple(Vec::new());
                     }
-                    
+
                     // Split by commas, but be careful about nested tuples
                     let mut types = Vec::new();
                     let mut current = String::new();
                     let mut depth = 0;
-                    
+
                     for ch in inner.chars() {
                         match ch {
                             '(' => {
@@ -228,69 +220,69 @@ impl Type {
                             _ => current.push(ch),
                         }
                     }
-                    
+
                     if !current.is_empty() {
                         types.push(Type::from_string(current.trim()));
                     }
-                    
+
                     return Type::Tuple(types);
                 }
-                
+
                 // Check for Zeta's lt() syntax: lt(Result, i64)
                 if s.starts_with("lt(") && s.ends_with(')') {
                     let inner = &s[3..s.len() - 1]; // Remove "lt(" and ")"
                     let parts: Vec<&str> = inner.split(',').map(|s| s.trim()).collect();
                     if parts.len() >= 2 {
                         let type_name = parts[0];
-                        let type_args: Vec<Type> = parts[1..].iter()
+                        let type_args: Vec<Type> = parts[1..]
+                            .iter()
                             .map(|arg| Type::from_string(arg))
                             .collect();
                         return Type::Named(type_name.to_string(), type_args);
                     }
                 }
-                
+
                 // Check for generic type: Vec<i32>, Option<T>, Result<T, E>
                 // Look for < followed by > with content in between
-                if let Some(open_angle) = s.find('<') {
-                    if let Some(close_angle) = s.rfind('>') {
-                        if open_angle < close_angle {
-                            let type_name = &s[..open_angle];
-                            let inner = &s[open_angle + 1..close_angle];
-                            
-                            // Parse type arguments, handling nested generics
-                            let mut args = Vec::new();
-                            let mut current = String::new();
-                            let mut depth = 0;
-                            
-                            for ch in inner.chars() {
-                                match ch {
-                                    '<' => {
-                                        depth += 1;
-                                        current.push(ch);
-                                    }
-                                    '>' => {
-                                        depth -= 1;
-                                        current.push(ch);
-                                    }
-                                    ',' if depth == 0 => {
-                                        if !current.is_empty() {
-                                            args.push(Type::from_string(current.trim()));
-                                            current.clear();
-                                        }
-                                    }
-                                    _ => current.push(ch),
+                if let Some(open_angle) = s.find('<')
+                    && let Some(close_angle) = s.rfind('>')
+                    && open_angle < close_angle
+                {
+                    let type_name = &s[..open_angle];
+                    let inner = &s[open_angle + 1..close_angle];
+
+                    // Parse type arguments, handling nested generics
+                    let mut args = Vec::new();
+                    let mut current = String::new();
+                    let mut depth = 0;
+
+                    for ch in inner.chars() {
+                        match ch {
+                            '<' => {
+                                depth += 1;
+                                current.push(ch);
+                            }
+                            '>' => {
+                                depth -= 1;
+                                current.push(ch);
+                            }
+                            ',' if depth == 0 => {
+                                if !current.is_empty() {
+                                    args.push(Type::from_string(current.trim()));
+                                    current.clear();
                                 }
                             }
-                            
-                            if !current.is_empty() {
-                                args.push(Type::from_string(current.trim()));
-                            }
-                            
-                            return Type::Named(type_name.trim().to_string(), args);
+                            _ => current.push(ch),
                         }
                     }
+
+                    if !current.is_empty() {
+                        args.push(Type::from_string(current.trim()));
+                    }
+
+                    return Type::Named(type_name.trim().to_string(), args);
                 }
-                
+
                 // Simple named type without generics
                 Type::Named(s.to_string(), vec![])
             }
