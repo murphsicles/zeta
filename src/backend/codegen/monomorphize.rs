@@ -192,7 +192,7 @@ fn extract_type_vars_from_type(ty: &Type, type_vars: &mut HashSet<TypeVar>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::middle::mir::mir::{Mir, MirExpr, MirStmt};
+    use crate::middle::mir::mir::Mir;
     use crate::middle::types::{Substitution, Type, TypeVar};
 
     #[test]

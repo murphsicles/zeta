@@ -170,7 +170,23 @@ impl Resolver {
                                 }
                                 AstNode::FuncDef { name, .. } => {
                                     println!("[RESOLVER] Registering function from module: {}", name);
-                                    self.register(module_ast);
+                                    // Register with module-qualified name
+                                    // The module name is the last component of the path
+                                    let module_name = if path.len() > 1 {
+                                        path[path.len() - 2].clone()
+                                    } else {
+                                        "".to_string()
+                                    };
+                                    if !module_name.is_empty() {
+                                        // Create a copy of the AST with module-qualified name
+                                        let mut qualified_ast = module_ast.clone();
+                                        if let AstNode::FuncDef { ref mut name, .. } = qualified_ast {
+                                            *name = format!("{}::{}", module_name, name);
+                                        }
+                                        self.register(qualified_ast);
+                                    } else {
+                                        self.register(module_ast);
+                                    }
                                 }
                                 // Skip impl blocks for now - they cause issues
                                 _ => {
@@ -288,13 +304,53 @@ impl Resolver {
                 }
             }
             AstNode::ModDef {
-                name, items, pub_, ..
+                name: module_name, items, pub_, ..
             } => {
                 // Register module and its items
-                println!("[RESOLVER] Registering module: {} (pub: {})", name, pub_);
-                // Register all items in the module
+                println!("[RESOLVER] Registering module: {} (pub: {})", module_name, pub_);
+                // Register all items in the module with module-qualified names
                 for item in items {
-                    self.register(item);
+                    // Create a copy with module-qualified name if needed
+                    let qualified_item = match &item {
+                        AstNode::FuncDef { name: func_name, .. } => {
+                            let mut new_item = item.clone();
+                            if let AstNode::FuncDef { ref mut name, .. } = new_item {
+                                *name = format!("{}::{}", module_name, func_name);
+                            }
+                            new_item
+                        }
+                        AstNode::EnumDef { name: enum_name, .. } => {
+                            let mut new_item = item.clone();
+                            if let AstNode::EnumDef { ref mut name, .. } = new_item {
+                                // For enums, we need to register the enum itself and its variants
+                                *name = format!("{}::{}", module_name, enum_name);
+                            }
+                            new_item
+                        }
+                        AstNode::StructDef { name: struct_name, .. } => {
+                            let mut new_item = item.clone();
+                            if let AstNode::StructDef { ref mut name, .. } = new_item {
+                                *name = format!("{}::{}", module_name, struct_name);
+                            }
+                            new_item
+                        }
+                        AstNode::TypeAlias { name: alias_name, .. } => {
+                            let mut new_item = item.clone();
+                            if let AstNode::TypeAlias { ref mut name, .. } = new_item {
+                                *name = format!("{}::{}", module_name, alias_name);
+                            }
+                            new_item
+                        }
+                        AstNode::ConstDef { name: const_name, .. } => {
+                            let mut new_item = item.clone();
+                            if let AstNode::ConstDef { ref mut name, .. } = new_item {
+                                *name = format!("{}::{}", module_name, const_name);
+                            }
+                            new_item
+                        }
+                        _ => item.clone(),
+                    };
+                    self.register(qualified_item);
                 }
             }
             AstNode::MacroDef { name, patterns } => {
