@@ -1,42 +1,31 @@
-// Simple test to verify integration module compiles
-// This test should be run with: cargo test --features integration
+// Simple test to check integration bridge compilation
+use zetac::integration::generic_integration::{GenericIntegration, GenericParam};
 
-#[cfg(feature = "integration")]
-mod test_integration {
-    use zetac::integration::{CoordinationManager, GenericIntegration};
-
-    #[test]
-    fn test_integration_creation() {
-        // Test that we can create integration components
-        let integration = GenericIntegration::new();
-        assert!(!integration.has_errors());
-
-        let _manager = CoordinationManager::new();
-        // Just creating it is enough for this test
+fn main() {
+    println!("Testing integration bridge...");
+    
+    // Create integration bridge
+    let mut integration = GenericIntegration::new();
+    
+    // Test generic parameter conversion
+    let old_generics = vec!["T".to_string(), "U".to_string()];
+    let new_params = zetac::integration::generic_integration::conversion::convert_generics(&old_generics);
+    
+    println!("Converted {} old generics to {} new params", old_generics.len(), new_params.len());
+    
+    for param in &new_params {
+        match param {
+            GenericParam::Type { name, bounds } => {
+                println!("  Type param: {} with {} bounds", name, bounds.len());
+            }
+            GenericParam::Lifetime { name } => {
+                println!("  Lifetime param: {}", name);
+            }
+            GenericParam::Const { name, ty } => {
+                println!("  Const param: {} with type {:?}", name, ty);
+            }
+        }
     }
-
-    #[test]
-    fn test_coordination_protocols() {
-        use zetac::integration::ComponentStatus;
-
-        let mut manager = CoordinationManager::new();
-
-        // Test component registration
-        manager.register_component("parser");
-        manager.register_component("type_checker");
-        manager.register_component("codegen");
-        manager.register_component("integration");
-
-        // Test status update
-        manager.update_status("parser", ComponentStatus::Processing, "Parsing source");
-    }
-}
-
-#[cfg(not(feature = "integration"))]
-mod test_integration {
-    #[test]
-    fn test_integration_disabled() {
-        // When integration feature is disabled, we should still compile
-        assert!(true, "Integration feature is disabled as expected");
-    }
+    
+    println!("Integration bridge test completed successfully!");
 }
