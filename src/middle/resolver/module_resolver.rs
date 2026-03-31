@@ -69,19 +69,25 @@ impl ModuleResolver {
 
         // Check for crate-relative imports: `use crate::middle::mir::Mir;`
         if !path.is_empty() && path[0] == "crate" {
-            println!("[MODULE RESOLVER] Handling crate:: import: {}", path.join("::"));
+            println!(
+                "[MODULE RESOLVER] Handling crate:: import: {}",
+                path.join("::")
+            );
             // For crate-relative imports, we need to resolve relative to zeta_src/
             // For `use crate::middle::mir::Mir;`, path is ["crate", "middle", "mir", "Mir"]
             // We need to resolve ["middle", "mir"] to zeta_src/middle/mir.z or zeta_src/middle/mir/mod.z
-            
+
             let module_path = if path.len() > 1 {
                 &path[1..path.len() - 1] // Skip "crate" and remove the last component (the item name)
             } else {
                 &path[1..] // Skip "crate" only (shouldn't happen for valid crate:: imports)
             };
 
-            println!("[MODULE RESOLVER] Module path after removing crate:: and item: {:?}", module_path);
-            
+            println!(
+                "[MODULE RESOLVER] Module path after removing crate:: and item: {:?}",
+                module_path
+            );
+
             let mut crate_path = PathBuf::from("zeta_src");
 
             for component in module_path {
@@ -106,9 +112,12 @@ impl ModuleResolver {
                 if let Some(dir_name) = crate_path.file_name().and_then(|n| n.to_str()) {
                     let mut submodule_path = crate_path.clone();
                     submodule_path.push(format!("{}.z", dir_name));
-                    
+
                     if submodule_path.exists() {
-                        println!("[MODULE RESOLVER] Found submodule file: {}", submodule_path.display());
+                        println!(
+                            "[MODULE RESOLVER] Found submodule file: {}",
+                            submodule_path.display()
+                        );
                         return Ok(submodule_path);
                     }
                 }
@@ -136,21 +145,16 @@ impl ModuleResolver {
                 std_path.push(component);
             }
 
-            // Try with .rs extension (stub types are Rust files)
-            let mut rs_path = std_path.clone();
-            rs_path.set_extension("rs");
+            // Try with .z extension (we'll create Zeta stub files)
+            let mut z_path = std_path.clone();
+            z_path.set_extension("z");
 
-            if rs_path.exists() {
-                return Ok(rs_path);
+            if z_path.exists() {
+                return Ok(z_path);
             }
 
-            // Try as directory with mod.rs
-            let mut mod_path = std_path.clone();
-            mod_path.push("mod.rs");
-
-            if mod_path.exists() {
-                return Ok(mod_path);
-            }
+            // For std:: imports, we don't use mod.z structure
+            // We create single .z files like stub_types/std/collections.z
 
             // If not found, create a minimal stub
             println!(
@@ -180,17 +184,17 @@ impl ModuleResolver {
                 ext_path.push(component);
             }
 
-            // Try with .rs extension (stub types are Rust files)
-            let mut rs_path = ext_path.clone();
-            rs_path.set_extension("rs");
+            // Try with .z extension (we'll create Zeta stub files)
+            let mut z_path = ext_path.clone();
+            z_path.set_extension("z");
 
-            if rs_path.exists() {
-                return Ok(rs_path);
+            if z_path.exists() {
+                return Ok(z_path);
             }
 
-            // Try as directory with mod.rs
+            // Try as directory with mod.z
             let mut mod_path = ext_path.clone();
-            mod_path.push("mod.rs");
+            mod_path.push("mod.z");
 
             if mod_path.exists() {
                 return Ok(mod_path);
@@ -715,7 +719,7 @@ impl ModuleResolver {
     fn create_std_stub(&mut self, module_path: &[String]) -> Result<PathBuf, String> {
         // Create directory structure
         let mut stub_path = PathBuf::from("stub_types");
-
+        
         for component in module_path {
             stub_path.push(component);
         }
@@ -726,21 +730,20 @@ impl ModuleResolver {
                 .map_err(|e| format!("Failed to create stub directory: {}", e))?;
         }
 
-        // Create mod.rs file
-        let mut mod_path = stub_path.clone();
-        mod_path.push("mod.rs");
+        // Create .z file (not mod.z)
+        stub_path.set_extension("z");
 
         // Generate stub content based on module path
         let stub_content = self.generate_std_stub_content(module_path);
 
-        fs::write(&mod_path, stub_content)
+        fs::write(&stub_path, stub_content)
             .map_err(|e| format!("Failed to write stub file: {}", e))?;
 
         println!(
             "[MODULE RESOLVER] Created std stub at: {}",
-            mod_path.display()
+            stub_path.display()
         );
-        Ok(mod_path)
+        Ok(stub_path)
     }
 
     /// Generate stub content for a std module
@@ -749,16 +752,40 @@ impl ModuleResolver {
         let last_component = module_path.last().map(|s| s.as_str()).unwrap_or("");
 
         match last_component {
-            "collections" => r#"//! Stub for std::collections
-pub mod hash_map;
+            "collections" => {
+                // Create a single file with HashMap definition
+                r#"//! Stub for std::collections::HashMap
+pub struct HashMap<K, V> {
+    // Stub implementation
+}
 
-pub use hash_map::HashMap;"#
-                .to_string(),
-            "ffi" => r#"//! Stub for std::ffi
-pub mod c_void;
+impl<K, V> HashMap<K, V> {
+    pub fn new() -> Self {
+        HashMap {}
+    }
 
-pub use c_void::c_void;"#
-                .to_string(),
+    pub fn insert(&mut self, key: K, value: V) -> Option<V> {
+        None
+    }
+
+    pub fn get(&self, key: &K) -> Option<&V> {
+        None
+    }
+}"#.to_string()
+            }
+            "ffi" => {
+                // Create a single file with c_void definition
+                r#"//! Stub for std::ffi::c_void
+// c_void is used for raw pointers to opaque C data
+
+/// Opaque type representing a void pointer in C
+pub enum c_void {
+    /// Variant 1
+    __variant1,
+    /// Variant 2
+    __variant2,
+}"#.to_string()
+            }
             _ => {
                 // Generic stub
                 format!(
@@ -774,6 +801,10 @@ pub use c_void::c_void;"#
         // Create directory structure
         let mut stub_path = PathBuf::from("stub_types/external");
 
+        // Create all parent directories first
+        fs::create_dir_all(&stub_path)
+            .map_err(|e| format!("Failed to create external stub base directory: {}", e))?;
+
         for component in module_path {
             stub_path.push(component);
         }
@@ -784,9 +815,9 @@ pub use c_void::c_void;"#
                 .map_err(|e| format!("Failed to create external stub directory: {}", e))?;
         }
 
-        // Create mod.rs file
+        // Create mod.z file
         let mut mod_path = stub_path.clone();
-        mod_path.push("mod.rs");
+        mod_path.push("mod.z");
 
         // Generate stub content based on module path
         let stub_content = self.generate_external_stub_content(module_path);
@@ -819,6 +850,20 @@ impl Client {
 }"#
                     .to_string()
                 } else {
+                    // Create blocking.z file first
+                    let blocking_dir = PathBuf::from("stub_types/external/reqwest");
+                    fs::create_dir_all(&blocking_dir).ok();
+                    let blocking_path = blocking_dir.join("blocking.z");
+                    let blocking_content = r#"//! Stub for reqwest::blocking
+pub struct Client;
+
+impl Client {
+    pub fn new() -> Self {
+        Client
+    }
+}"#;
+                    fs::write(blocking_path, blocking_content).ok();
+
                     r#"//! Stub for reqwest
 pub mod blocking;
 pub use blocking::Client;"#
@@ -829,28 +874,15 @@ pub use blocking::Client;"#
 pub trait Deserialize<'de> {}
 pub trait Serialize {}
 
-// Derive macros (stubs)
-#[macro_export]
-macro_rules! __serde_derive_deserialize {
-    ($($tt:tt)*) => {};
-}
-#[macro_export]
-macro_rules! __serde_derive_serialize {
-    ($($tt:tt)*) => {};
-}"#
-            .to_string(),
+// Note: Derive macros are not supported in Zeta"#.to_string(),
             "serde_json" => r#"//! Stub for serde_json
 pub fn to_string<T>(_value: &T) -> Result<String, ()> {
     Ok("{}".to_string())
 }
 
-pub fn from_str<'a, T>(_s: &'a str) -> Result<T, ()>
-where
-    T: serde::Deserialize<'a>,
-{
+pub fn from_str<'a, T>(_s: &'a str) -> Result<T, ()> {
     unimplemented!()
-}"#
-            .to_string(),
+}"#.to_string(),
             _ => {
                 // Generic stub
                 format!(

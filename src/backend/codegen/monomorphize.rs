@@ -168,7 +168,7 @@ fn extract_type_vars_from_type(ty: &Type, type_vars: &mut HashSet<TypeVar>) {
                 extract_type_vars_from_type(t, type_vars);
             }
         }
-        Type::Ptr(inner) => {
+        Type::Ptr(inner, _) => {
             extract_type_vars_from_type(inner, type_vars);
         }
         Type::Ref(inner, _, _) => {

@@ -53,11 +53,14 @@ pub enum Type {
     Array(Box<Type>, usize),              // [T; N]
     Slice(Box<Type>),                     // [T]
     Tuple(Vec<Type>),                     // (T1, T2, ...)
-    Ptr(Box<Type>),                       // *T
+    Ptr(Box<Type>, Mutability),           // *const T, *mut T
     Ref(Box<Type>, Lifetime, Mutability), // &'a T, &'a mut T
 
     // Named types (structs, enums, concepts)
     Named(String, Vec<Type>), // Name<T1, T2, ...>
+
+    // Trait objects
+    TraitObject(String), // dyn Trait
 
     // Function types
     Function(Vec<Type>, Box<Type>), // (T1, T2, ...) -> R
@@ -244,56 +247,87 @@ impl Type {
                     }
                 }
 
-                // Check for module-qualified generic type: std::option::Option<T>
-                // We need to handle :: in the type name before checking for <
-                if s.contains("::") {
-                    // Check if there's a generic part after the last ::
-                    if let Some(last_colon_colon) = s.rfind("::") {
-                        let after_last_colon = &s[last_colon_colon + 2..];
-                        if after_last_colon.contains('<') {
-                            // This is a module-qualified generic type like std::option::Option<T>
-                            // Find the < after the last ::
-                            if let Some(open_angle) = after_last_colon.find('<')
-                                && let Some(close_angle) = s.rfind('>')
-                                && open_angle < close_angle
-                            {
-                                // The type name is everything up to the <
-                                let type_name = s.to_string();
-                                // For now, we'll create a Named type with the full path
-                                // Later we might want to parse the generic arguments
-                                return Type::Named(type_name, vec![]);
-                            }
-                        }
-                    }
-                    // Module-qualified non-generic type like zeta::frontend::ast::AstNode
-                    return Type::Named(s.to_string(), vec![]);
+                // Check for pointer types: *const T, *mut T
+                if s.starts_with("*const ") {
+                    let inner = &s[7..]; // Skip "*const "
+                    let inner_type = Type::from_string(inner);
+                    return Type::Ptr(Box::new(inner_type), Mutability::Immutable);
                 }
 
-                // Check for generic type: Vec<i32>, Option<T>, Result<T, E>
+                if s.starts_with("*mut ") {
+                    let inner = &s[5..]; // Skip "*mut "
+                    let inner_type = Type::from_string(inner);
+                    return Type::Ptr(Box::new(inner_type), Mutability::Mutable);
+                }
+
+                // Check for trait objects: dyn Trait
+                if s.starts_with("dyn ") {
+                    let trait_name = s[4..].trim().to_string();
+                    return Type::TraitObject(trait_name);
+                }
+
+                // Check for generic type: Vec<i32>, Option<T>, Result<T, E>, Box<dyn Error>
                 // Look for < followed by > with content in between
-                if let Some(open_angle) = s.find('<')
-                    && let Some(close_angle) = s.rfind('>')
-                    && open_angle < close_angle
-                {
+                // We need to find the matching > for the first <
+                let mut open_angle_pos = None;
+                let mut close_angle_pos = None;
+                let mut depth = 0;
+
+                for (i, ch) in s.chars().enumerate() {
+                    match ch {
+                        '<' => {
+                            if depth == 0 {
+                                open_angle_pos = Some(i);
+                            }
+                            depth += 1;
+                        }
+                        '>' => {
+                            depth -= 1;
+                            if depth == 0 && open_angle_pos.is_some() {
+                                close_angle_pos = Some(i);
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
+                if let (Some(open_angle), Some(close_angle)) = (open_angle_pos, close_angle_pos) {
                     let type_name = &s[..open_angle];
                     let inner = &s[open_angle + 1..close_angle];
 
-                    // Parse type arguments, handling nested generics
+                    // Check if this is a trait object inside a generic
+                    if inner.trim().starts_with("dyn ") {
+                        // Handle trait object inside container
+                        let trait_name = inner.trim()[4..].trim().to_string();
+                        return Type::Named(type_name.trim().to_string(), vec![Type::TraitObject(trait_name)]);
+                    }
+
+                    // Parse type arguments, handling nested generics and tuples
                     let mut args = Vec::new();
                     let mut current = String::new();
-                    let mut depth = 0;
+                    let mut bracket_depth = 0;
+                    let mut paren_depth = 0;
 
                     for ch in inner.chars() {
                         match ch {
                             '<' => {
-                                depth += 1;
+                                bracket_depth += 1;
                                 current.push(ch);
                             }
                             '>' => {
-                                depth -= 1;
+                                bracket_depth -= 1;
                                 current.push(ch);
                             }
-                            ',' if depth == 0 => {
+                            '(' => {
+                                paren_depth += 1;
+                                current.push(ch);
+                            }
+                            ')' => {
+                                paren_depth -= 1;
+                                current.push(ch);
+                            }
+                            ',' if bracket_depth == 0 && paren_depth == 0 => {
                                 if !current.is_empty() {
                                     args.push(Type::from_string(current.trim()));
                                     current.clear();
@@ -323,9 +357,10 @@ impl Type {
             Type::Array(inner, _) => inner.contains_vars(),
             Type::Slice(inner) => inner.contains_vars(),
             Type::Tuple(types) => types.iter().any(|t| t.contains_vars()),
-            Type::Ptr(inner) => inner.contains_vars(),
+            Type::Ptr(inner, _) => inner.contains_vars(),
             Type::Ref(inner, lifetime, _) => inner.contains_vars() || lifetime.contains_vars(),
             Type::Named(_, args) => args.iter().any(|t| t.contains_vars()),
+            Type::TraitObject(_) => false,
             Type::Function(params, ret) => {
                 params.iter().any(|t| t.contains_vars()) || ret.contains_vars()
             }
@@ -362,7 +397,8 @@ impl Type {
                     .join(", ");
                 format!("({})", inner)
             }
-            Type::Ptr(inner) => format!("*{}", inner.display_name()),
+            Type::Ptr(inner, Mutability::Immutable) => format!("*const {}", inner.display_name()),
+            Type::Ptr(inner, Mutability::Mutable) => format!("*mut {}", inner.display_name()),
             Type::Ref(inner, lifetime, Mutability::Immutable) => {
                 format!("&{} {}", lifetime.display_name(), inner.display_name())
             }
@@ -381,6 +417,7 @@ impl Type {
                     format!("{}<{}>", name, args_str)
                 }
             }
+            Type::TraitObject(trait_name) => format!("dyn {}", trait_name),
             Type::Function(params, ret) => {
                 let params_str = params
                     .iter()
@@ -428,7 +465,13 @@ impl Type {
                 }
                 name
             }
-            Type::Ptr(inner) => format!("Ptr_{}", inner.mangled_name()),
+            Type::Ptr(inner, mutability) => {
+                let mut_str = match mutability {
+                    Mutability::Immutable => "const",
+                    Mutability::Mutable => "mut",
+                };
+                format!("Ptr_{}_{}", mut_str, inner.mangled_name())
+            },
             Type::Ref(inner, lifetime, mutability) => {
                 let mut_str = match mutability {
                     Mutability::Immutable => "immut",
@@ -456,6 +499,7 @@ impl Type {
                     mangled
                 }
             }
+            Type::TraitObject(trait_name) => format!("TraitObject_{}", trait_name.replace("::", "_")),
             Type::Function(params, ret) => {
                 let mut name = "Fn".to_string();
                 for param in params {
@@ -538,9 +582,9 @@ impl Type {
                 Ok(Type::Tuple(instantiated_types?))
             }
 
-            Type::Ptr(inner) => {
+            Type::Ptr(inner, mutability) => {
                 let instantiated_inner = inner.instantiate_generic(type_args)?;
-                Ok(Type::Ptr(Box::new(instantiated_inner)))
+                Ok(Type::Ptr(Box::new(instantiated_inner), *mutability))
             }
 
             Type::Ref(inner, lifetime, mutability) => {
@@ -667,7 +711,7 @@ impl Substitution {
             Type::Array(inner, size) => Type::Array(Box::new(self.apply(inner)), *size),
             Type::Slice(inner) => Type::Slice(Box::new(self.apply(inner))),
             Type::Tuple(types) => Type::Tuple(types.iter().map(|t| self.apply(t)).collect()),
-            Type::Ptr(inner) => Type::Ptr(Box::new(self.apply(inner))),
+            Type::Ptr(inner, mutability) => Type::Ptr(Box::new(self.apply(inner)), *mutability),
             Type::Ref(inner, lifetime, mutability) => {
                 Type::Ref(Box::new(self.apply(inner)), lifetime.clone(), *mutability)
             }
@@ -690,7 +734,7 @@ impl Substitution {
             Type::Array(inner, _) => self.occurs_check(var, inner),
             Type::Slice(inner) => self.occurs_check(var, inner),
             Type::Tuple(types) => types.iter().any(|t| self.occurs_check(var, t)),
-            Type::Ptr(inner) => self.occurs_check(var, inner),
+            Type::Ptr(inner, _) => self.occurs_check(var, inner),
             Type::Ref(inner, _, _) => self.occurs_check(var, inner),
             Type::Named(_, args) => args.iter().any(|t| self.occurs_check(var, t)),
             Type::Function(params, ret) => {
@@ -937,7 +981,7 @@ impl Substitution {
                     Self::collect_type_vars(t, type_vars);
                 }
             }
-            Type::Ptr(inner) => {
+            Type::Ptr(inner, _) => {
                 Self::collect_type_vars(inner, type_vars);
             }
             Type::Ref(inner, _, _) => {

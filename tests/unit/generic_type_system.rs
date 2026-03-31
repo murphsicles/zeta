@@ -271,7 +271,7 @@ fn test_recursive_generic_types() {
     let list_type = Type::Named("List".to_string(), vec![t_var.clone()]);
 
     // Box<List<T>> - a common pattern for recursive types
-    let _boxed_list = Type::Ptr(Box::new(list_type.clone()));
+    let _boxed_list = Type::Ptr(Box::new(list_type.clone()), Mutability::Immutable);
 
     // Cons(T, Box<List<T>>) would be a struct/tuple containing T and Box<List<T>>
     // For now, just test that we can create the type
