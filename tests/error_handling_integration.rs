@@ -96,7 +96,7 @@ fn test_error_recovery_multiple_errors() {
 #[test]
 fn test_valid_code_compiles() {
     let code = r#"
-        fn main() -> i32 {
+        fn main() -> i64 {
             let x = 42;
             let y = 10;
             x + y
