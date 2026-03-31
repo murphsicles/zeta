@@ -48,6 +48,13 @@ impl GenericIntegration {
 }
 
 #[cfg(not(feature = "integration"))]
+impl Default for GenericIntegration {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(not(feature = "integration"))]
 pub struct CoordinationManager {
     // Dummy implementation
 }
@@ -56,5 +63,12 @@ pub struct CoordinationManager {
 impl CoordinationManager {
     pub fn new() -> Self {
         Self {}
+    }
+}
+
+#[cfg(not(feature = "integration"))]
+impl Default for CoordinationManager {
+    fn default() -> Self {
+        Self::new()
     }
 }
