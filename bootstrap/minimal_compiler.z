@@ -363,6 +363,42 @@ impl CodeGen {
                 }
                 self.output.push(')');
             }
+            AstNode::VarDecl { name, value } => {
+                self.add_indent();
+                self.output.push_str(&format!("let {} = ", name));
+                self.generate(value);
+                self.output.push_str(";\n");
+            }
+            AstNode::If { condition, then_body, else_body } => {
+                self.add_indent();
+                self.output.push_str("if (");
+                self.generate(condition);
+                self.output.push_str(") {\n");
+                self.indent += 1;
+                
+                for node in then_body {
+                    self.generate(node);
+                }
+                
+                self.indent -= 1;
+                self.add_indent();
+                self.output.push_str("}");
+                
+                if !else_body.is_empty() {
+                    self.output.push_str(" else {\n");
+                    self.indent += 1;
+                    
+                    for node in else_body {
+                        self.generate(node);
+                    }
+                    
+                    self.indent -= 1;
+                    self.add_indent();
+                    self.output.push_str("}");
+                }
+                
+                self.output.push_str("\n");
+            }
         }
     }
     
