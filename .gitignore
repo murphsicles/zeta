@@ -24,6 +24,15 @@ MEMORY.md
 memory/
 .openclaw/
 workspace/
+logs/
+agent-status.json
+agent-terminations/
+agent-knowledge/
+agent-identities/
+agent-spawn-templates/
+agent-workflows/
+mission-control/
+self-improving/
 
 # RustRover
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
