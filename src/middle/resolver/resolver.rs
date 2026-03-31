@@ -220,6 +220,7 @@ impl Resolver {
                     .map(|(name, ty_str)| (name.clone(), self.string_to_type(ty_str)))
                     .collect();
                 let typed_ret = self.string_to_type(&ret);
+                println!("[RESOLVER] Registering function: {} with {} params", name, params.len());
                 self.funcs.insert(name, (typed_params, typed_ret, async_));
             }
             AstNode::ExternFunc {
