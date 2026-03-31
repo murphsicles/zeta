@@ -1,0 +1,3 @@
+fn where_clause<T>(value: T) -> T where T: Clone + Debug {
+    value.clone()
+}

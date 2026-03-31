@@ -719,7 +719,7 @@ impl ModuleResolver {
     fn create_std_stub(&mut self, module_path: &[String]) -> Result<PathBuf, String> {
         // Create directory structure
         let mut stub_path = PathBuf::from("stub_types");
-        
+
         for component in module_path {
             stub_path.push(component);
         }
@@ -800,11 +800,11 @@ pub enum c_void {
     fn create_external_stub(&mut self, module_path: &[String]) -> Result<PathBuf, String> {
         // Create directory structure
         let mut stub_path = PathBuf::from("stub_types/external");
-
+        
         // Create all parent directories first
         fs::create_dir_all(&stub_path)
             .map_err(|e| format!("Failed to create external stub base directory: {}", e))?;
-
+        
         for component in module_path {
             stub_path.push(component);
         }
@@ -815,21 +815,20 @@ pub enum c_void {
                 .map_err(|e| format!("Failed to create external stub directory: {}", e))?;
         }
 
-        // Create mod.z file
-        let mut mod_path = stub_path.clone();
-        mod_path.push("mod.z");
+        // Create .z file (not mod.z)
+        stub_path.set_extension("z");
 
         // Generate stub content based on module path
         let stub_content = self.generate_external_stub_content(module_path);
 
-        fs::write(&mod_path, stub_content)
+        fs::write(&stub_path, stub_content)
             .map_err(|e| format!("Failed to write external stub file: {}", e))?;
 
         println!(
             "[MODULE RESOLVER] Created external stub at: {}",
-            mod_path.display()
+            stub_path.display()
         );
-        Ok(mod_path)
+        Ok(stub_path)
     }
 
     /// Generate stub content for an external crate module
@@ -850,23 +849,15 @@ impl Client {
 }"#
                     .to_string()
                 } else {
-                    // Create blocking.z file first
-                    let blocking_dir = PathBuf::from("stub_types/external/reqwest");
-                    fs::create_dir_all(&blocking_dir).ok();
-                    let blocking_path = blocking_dir.join("blocking.z");
-                    let blocking_content = r#"//! Stub for reqwest::blocking
+                    // For reqwest crate, create a single file with Client
+                    r#"//! Stub for reqwest::blocking::Client
 pub struct Client;
 
 impl Client {
     pub fn new() -> Self {
         Client
     }
-}"#;
-                    fs::write(blocking_path, blocking_content).ok();
-
-                    r#"//! Stub for reqwest
-pub mod blocking;
-pub use blocking::Client;"#
+}"#
                         .to_string()
                 }
             }
