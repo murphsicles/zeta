@@ -75,35 +75,55 @@ criterion = { version = "0.8.1", features = ["html_reports"] }
 [[bench]]
 # Benchmark name.
 name = "compiler_bench"
+# Path to benchmark file.
+path = "benches/compiler_bench.rs"
 # Disable default harness.
 harness = false
 
 [[bench]]
 # Benchmark name.
 name = "runtime_bench"
+# Path to benchmark file.
+path = "benches/runtime_bench.rs"
 # Disable default harness.
 harness = false
 
 [[bench]]
 # Benchmark name.
 name = "regression_test"
+# Path to benchmark file.
+path = "benches/regression_test.rs"
 # Disable default harness.
 harness = false
 
 [[bench]]
 # Benchmark name.
 name = "quick_wins_bench"
+# Path to benchmark file.
+path = "benches/quick_wins_bench.rs"
 # Disable default harness.
 harness = false
 
 [[bench]]
 # Benchmark name.
 name = "optimized_mir_bench"
+# Path to benchmark file.
+path = "benches/optimized_mir_bench.rs"
 # Disable default harness.
 harness = false
 
 [[bench]]
 # Benchmark name.
 name = "typecheck_bench"
+# Path to benchmark file.
+path = "benches/typecheck_bench.rs"
+# Disable default harness.
+harness = false
+
+[[bench]]
+# Benchmark name.
+name = "zeta_bench"
+# Path to benchmark file.
+path = "benches/zeta_bench.rs"
 # Disable default harness.
 harness = false
