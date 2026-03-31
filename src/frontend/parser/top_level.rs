@@ -377,6 +377,8 @@ fn parse_enum(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_struct_field(input: &str) -> IResult<&str, (String, String)> {
+    // Parse optional visibility modifier (pub) but don't store it
+    let (input, _) = opt(ws(tag("pub"))).parse(input)?;
     let (input, name) = ws(parse_ident).parse(input)?;
     let (input, _) = ws(tag(":")).parse(input)?;
     let (input, ty) = ws(parse_type).parse(input)?;
