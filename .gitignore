@@ -38,7 +38,8 @@ workspace/
 # Workspace-specific directories (not part of the Zeta project)
 .openclaw/
 agent-spawn-templates/
-benches/
+# benches/ - REMOVED: Benchmark source code SHOULD be tracked
+# Only benchmark RESULTS should be ignored, not source files
 memory/
 verification/
 
