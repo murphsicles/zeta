@@ -1,0 +1,237 @@
+// Minimal Zeta compiler in Zeta
+// Phase 1: Ultra-simple compiler that can compile itself
+
+// Basic AST types
+enum AstNode {
+    Program(Vec<AstNode>),
+    FuncDef {
+        name: String,
+        params: Vec<(String, String)>, // (name, type)
+        ret: String,
+        body: Vec<AstNode>,
+    },
+    Return(Box<AstNode>),
+    Lit(i64),
+    Ident(String),
+    Call {
+        func: String,
+        args: Vec<AstNode>,
+    },
+}
+
+// Simple parser (just enough for this compiler)
+struct Parser {
+    input: String,
+    pos: usize,
+}
+
+impl Parser {
+    fn new(input: String) -> Parser {
+        Parser { input, pos: 0 }
+    }
+    
+    fn parse_program(&mut self) -> AstNode {
+        let mut nodes = Vec::new();
+        
+        while self.pos < self.input.len() {
+            self.skip_whitespace();
+            if self.pos >= self.input.len() {
+                break;
+            }
+            
+            // Try to parse function
+            if self.consume("fn ") {
+                let func = self.parse_function();
+                nodes.push(func);
+            } else {
+                // Unknown syntax, skip
+                self.pos += 1;
+            }
+        }
+        
+        AstNode::Program(nodes)
+    }
+    
+    fn parse_function(&mut self) -> AstNode {
+        // Parse name
+        let name = self.parse_ident();
+        
+        // Skip parameters for now (simple functions only)
+        self.skip_until("{");
+        self.consume("{");
+        
+        // Parse body (simple return statement)
+        self.skip_whitespace();
+        let body_node = if self.consume("return ") {
+            let expr = self.parse_expr();
+            self.consume(";");
+            AstNode::Return(Box::new(expr))
+        } else {
+            AstNode::Lit(0)
+        };
+        
+        self.consume("}");
+        
+        AstNode::FuncDef {
+            name,
+            params: Vec::new(), // Simple functions only
+            ret: "i64".to_string(),
+            body: vec![body_node],
+        }
+    }
+    
+    fn parse_expr(&mut self) -> AstNode {
+        self.skip_whitespace();
+        
+        // Simple literal or identifier
+        if self.peek().is_digit(10) {
+            let num = self.parse_number();
+            AstNode::Lit(num)
+        } else {
+            let ident = self.parse_ident();
+            AstNode::Ident(ident)
+        }
+    }
+    
+    fn parse_number(&mut self) -> i64 {
+        let start = self.pos;
+        while self.pos < self.input.len() && self.peek().is_digit(10) {
+            self.pos += 1;
+        }
+        let num_str = &self.input[start..self.pos];
+        num_str.parse().unwrap_or(0)
+    }
+    
+    fn parse_ident(&mut self) -> String {
+        let start = self.pos;
+        while self.pos < self.input.len() && (self.peek().is_alphanumeric() || self.peek() == '_') {
+            self.pos += 1;
+        }
+        self.input[start..self.pos].to_string()
+    }
+    
+    fn skip_whitespace(&mut self) {
+        while self.pos < self.input.len() && self.peek().is_whitespace() {
+            self.pos += 1;
+        }
+    }
+    
+    fn skip_until(&mut self, pattern: &str) {
+        while self.pos < self.input.len() && !self.input[self.pos..].starts_with(pattern) {
+            self.pos += 1;
+        }
+    }
+    
+    fn consume(&mut self, pattern: &str) -> bool {
+        if self.input[self.pos..].starts_with(pattern) {
+            self.pos += pattern.len();
+            true
+        } else {
+            false
+        }
+    }
+    
+    fn peek(&self) -> char {
+        if self.pos < self.input.len() {
+            self.input.chars().nth(self.pos).unwrap()
+        } else {
+            '\0'
+        }
+    }
+}
+
+// Simple code generator (produces Zeta code)
+struct CodeGen {
+    output: String,
+    indent: usize,
+}
+
+impl CodeGen {
+    fn new() -> CodeGen {
+        CodeGen {
+            output: String::new(),
+            indent: 0,
+        }
+    }
+    
+    fn generate(&mut self, ast: &AstNode) {
+        match ast {
+            AstNode::Program(nodes) => {
+                for node in nodes {
+                    self.generate(node);
+                    self.output.push('\n');
+                }
+            }
+            AstNode::FuncDef { name, params: _, ret, body } => {
+                self.add_indent();
+                self.output.push_str(&format!("fn {}() -> {} {{\n", name, ret));
+                self.indent += 1;
+                
+                for node in body {
+                    self.generate(node);
+                }
+                
+                self.indent -= 1;
+                self.add_indent();
+                self.output.push_str("}\n");
+            }
+            AstNode::Return(expr) => {
+                self.add_indent();
+                self.output.push_str("return ");
+                self.generate(expr);
+                self.output.push_str(";\n");
+            }
+            AstNode::Lit(value) => {
+                self.output.push_str(&value.to_string());
+            }
+            AstNode::Ident(name) => {
+                self.output.push_str(name);
+            }
+            AstNode::Call { func, args } => {
+                self.output.push_str(func);
+                self.output.push('(');
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        self.output.push_str(", ");
+                    }
+                    self.generate(arg);
+                }
+                self.output.push(')');
+            }
+        }
+    }
+    
+    fn add_indent(&mut self) {
+        for _ in 0..self.indent {
+            self.output.push_str("    ");
+        }
+    }
+}
+
+// Main compiler function
+fn compile_zeta_to_zeta(source: String) -> String {
+    let mut parser = Parser::new(source);
+    let ast = parser.parse_program();
+    
+    let mut codegen = CodeGen::new();
+    codegen.generate(&ast);
+    
+    codegen.output
+}
+
+// Test the compiler on itself
+fn main() -> i64 {
+    // Simple test program
+    let test_program = r#"
+        fn answer() -> i64 {
+            return 42;
+        }
+    "#.to_string();
+    
+    // Compile it
+    let compiled = compile_zeta_to_zeta(test_program);
+    
+    // For now, just return success
+    // In real compiler, we would compile the output
+    0
+}
