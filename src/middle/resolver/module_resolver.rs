@@ -282,17 +282,20 @@ impl ModuleResolver {
         if parts.len() < 2 {
             return Err("Invalid virtual module path".to_string());
         }
-        
+
         let module_path = parts[1];
         let path_components: Vec<&str> = module_path.split('_').collect();
-        
+
         // Create a virtual module with the appropriate exports
         // For now, we'll create placeholder ASTs for common zeta:: imports
         let mut exports = HashMap::new();
         let mut asts = Vec::new();
-        
+
         // Handle common zeta::frontend::ast::AstNode import
-        if path_components.len() >= 3 && path_components[0] == "frontend" && path_components[1] == "ast" {
+        if path_components.len() >= 3
+            && path_components[0] == "frontend"
+            && path_components[1] == "ast"
+        {
             // Create a virtual enum for AstNode
             let ast_node_enum = AstNode::EnumDef {
                 name: "AstNode".to_string(),
@@ -320,13 +323,13 @@ impl ModuleResolver {
                 pub_: true,
                 where_clauses: vec![],
             };
-            
+
             asts.push(ast_node_enum.clone());
             exports.insert("AstNode".to_string(), ast_node_enum);
-            
+
             println!("[MODULE RESOLVER] Created virtual module for AstNode");
         }
-        
+
         // Create the virtual module
         let module = Module {
             name: module_path.to_string(),
@@ -334,7 +337,7 @@ impl ModuleResolver {
             asts,
             exports,
         };
-        
+
         self.modules.insert(path_str.to_string(), module);
         Ok(self.modules.get(path_str).unwrap())
     }

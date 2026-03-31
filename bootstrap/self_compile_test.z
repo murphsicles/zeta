@@ -1,0 +1,22 @@
+// Self-compilation test for bootstrap compiler
+// This program should be compilable by the minimal Zeta compiler
+
+fn simple_function() -> i64 {
+    return 42;
+}
+
+fn arithmetic_test() -> i64 {
+    return 10 + 5 * 2;
+}
+
+fn function_with_params(a: i64, b: i64) -> i64 {
+    return a + b;
+}
+
+fn main() -> i64 {
+    let x = simple_function();
+    let y = arithmetic_test();
+    let z = function_with_params(x, y);
+    
+    return z;
+}

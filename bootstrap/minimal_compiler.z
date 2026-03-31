@@ -17,6 +17,15 @@ enum AstNode {
         func: String,
         args: Vec<AstNode>,
     },
+    VarDecl {
+        name: String,
+        value: Box<AstNode>,
+    },
+    If {
+        condition: Box<AstNode>,
+        then_body: Vec<AstNode>,
+        else_body: Vec<AstNode>,
+    },
 }
 
 // Simple parser (just enough for this compiler)
@@ -99,15 +108,57 @@ impl Parser {
                 self.consume(";");
                 body.push(AstNode::Return(Box::new(expr)));
             } else if self.consume("let ") {
-                // Parse variable declaration
+                // Parse variable declaration: let name = expr;
                 let var_name = self.parse_ident();
                 self.skip_whitespace();
                 self.consume("=");
                 self.skip_whitespace();
                 let expr = self.parse_expr();
                 self.consume(";");
-                // For now, just add as a placeholder
-                body.push(AstNode::Ident(var_name));
+                // Create a variable declaration node
+                body.push(AstNode::VarDecl {
+                    name: var_name,
+                    value: Box::new(expr),
+                });
+            } else if self.consume("if ") {
+                // Parse if statement: if (condition) { body }
+                self.skip_whitespace();
+                self.consume("(");
+                let condition = self.parse_expr();
+                self.consume(")");
+                self.skip_whitespace();
+                self.consume("{");
+                
+                let mut if_body = Vec::new();
+                while !self.consume("}") {
+                    self.skip_whitespace();
+                    if self.consume("return ") {
+                        let expr = self.parse_expr();
+                        self.consume(";");
+                        if_body.push(AstNode::Return(Box::new(expr)));
+                    } else if self.consume("let ") {
+                        let var_name = self.parse_ident();
+                        self.skip_whitespace();
+                        self.consume("=");
+                        self.skip_whitespace();
+                        let expr = self.parse_expr();
+                        self.consume(";");
+                        if_body.push(AstNode::VarDecl {
+                            name: var_name,
+                            value: Box::new(expr),
+                        });
+                    } else {
+                        // Skip unknown statements
+                        self.pos += 1;
+                    }
+                    self.skip_whitespace();
+                }
+                
+                body.push(AstNode::If {
+                    condition: Box::new(condition),
+                    then_body: if_body,
+                    else_body: Vec::new(), // No else support yet
+                });
             } else {
                 // Skip unknown statements
                 self.pos += 1;

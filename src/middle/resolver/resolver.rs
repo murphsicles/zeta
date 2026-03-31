@@ -169,7 +169,10 @@ impl Resolver {
                                     self.register(module_ast);
                                 }
                                 AstNode::FuncDef { name, .. } => {
-                                    println!("[RESOLVER] Registering function from module: {}", name);
+                                    println!(
+                                        "[RESOLVER] Registering function from module: {}",
+                                        name
+                                    );
                                     // Register with module-qualified name
                                     // The module name is the last component of the path
                                     let module_name = if path.len() > 1 {
@@ -180,7 +183,8 @@ impl Resolver {
                                     if !module_name.is_empty() {
                                         // Create a copy of the AST with module-qualified name
                                         let mut qualified_ast = module_ast.clone();
-                                        if let AstNode::FuncDef { ref mut name, .. } = qualified_ast {
+                                        if let AstNode::FuncDef { ref mut name, .. } = qualified_ast
+                                        {
                                             *name = format!("{}::{}", module_name, name);
                                         }
                                         self.register(qualified_ast);
@@ -220,7 +224,11 @@ impl Resolver {
                     .map(|(name, ty_str)| (name.clone(), self.string_to_type(ty_str)))
                     .collect();
                 let typed_ret = self.string_to_type(&ret);
-                println!("[RESOLVER] Registering function: {} with {} params", name, params.len());
+                println!(
+                    "[RESOLVER] Registering function: {} with {} params",
+                    name,
+                    params.len()
+                );
                 self.funcs.insert(name, (typed_params, typed_ret, async_));
             }
             AstNode::ExternFunc {
@@ -305,22 +313,32 @@ impl Resolver {
                 }
             }
             AstNode::ModDef {
-                name: module_name, items, pub_, ..
+                name: module_name,
+                items,
+                pub_,
+                ..
             } => {
                 // Register module and its items
-                println!("[RESOLVER] Registering module: {} (pub: {})", module_name, pub_);
+                println!(
+                    "[RESOLVER] Registering module: {} (pub: {})",
+                    module_name, pub_
+                );
                 // Register all items in the module with module-qualified names
                 for item in items {
                     // Create a copy with module-qualified name if needed
                     let qualified_item = match &item {
-                        AstNode::FuncDef { name: func_name, .. } => {
+                        AstNode::FuncDef {
+                            name: func_name, ..
+                        } => {
                             let mut new_item = item.clone();
                             if let AstNode::FuncDef { ref mut name, .. } = new_item {
                                 *name = format!("{}::{}", module_name, func_name);
                             }
                             new_item
                         }
-                        AstNode::EnumDef { name: enum_name, .. } => {
+                        AstNode::EnumDef {
+                            name: enum_name, ..
+                        } => {
                             let mut new_item = item.clone();
                             if let AstNode::EnumDef { ref mut name, .. } = new_item {
                                 // For enums, we need to register the enum itself and its variants
@@ -328,21 +346,27 @@ impl Resolver {
                             }
                             new_item
                         }
-                        AstNode::StructDef { name: struct_name, .. } => {
+                        AstNode::StructDef {
+                            name: struct_name, ..
+                        } => {
                             let mut new_item = item.clone();
                             if let AstNode::StructDef { ref mut name, .. } = new_item {
                                 *name = format!("{}::{}", module_name, struct_name);
                             }
                             new_item
                         }
-                        AstNode::TypeAlias { name: alias_name, .. } => {
+                        AstNode::TypeAlias {
+                            name: alias_name, ..
+                        } => {
                             let mut new_item = item.clone();
                             if let AstNode::TypeAlias { ref mut name, .. } = new_item {
                                 *name = format!("{}::{}", module_name, alias_name);
                             }
                             new_item
                         }
-                        AstNode::ConstDef { name: const_name, .. } => {
+                        AstNode::ConstDef {
+                            name: const_name, ..
+                        } => {
                             let mut new_item = item.clone();
                             if let AstNode::ConstDef { ref mut name, .. } = new_item {
                                 *name = format!("{}::{}", module_name, const_name);
@@ -383,7 +407,10 @@ impl Resolver {
         let result = self.funcs.get(name);
         if result.is_none() {
             println!("[RESOLVER] Function not found: {}", name);
-            println!("[RESOLVER] Available functions: {:?}", self.funcs.keys().collect::<Vec<_>>());
+            println!(
+                "[RESOLVER] Available functions: {:?}",
+                self.funcs.keys().collect::<Vec<_>>()
+            );
         }
         result
     }

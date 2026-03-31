@@ -76,7 +76,7 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
 
     // Generate MIR for all function definitions, not just main
     let mut mirs = Vec::new();
-    
+
     // Simple approach: just generate MIR for main for now
     // TODO: Fix module function collection
     for ast in &const_evaluated_asts {
@@ -86,7 +86,7 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
             mirs.push(mir);
         }
     }
-    
+
     // Also try to find functions in modules (simple hack)
     for ast in &const_evaluated_asts {
         if let AstNode::ModDef { items, .. } = ast {
