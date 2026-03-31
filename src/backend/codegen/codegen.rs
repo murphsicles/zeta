@@ -1684,16 +1684,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 };
 
                 // Extract value from struct
-                let field_val = self
+                self
                     .builder
                     .build_extract_value(
                         loaded_struct.into_struct_value(),
                         field_index,
                         &format!("extract_{}", field),
                     )
-                    .unwrap();
-
-                field_val.into()
+                    .unwrap()
             }
         }
     }

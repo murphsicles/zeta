@@ -864,11 +864,11 @@ impl Substitution {
                     // Check for variant relationships (e.g., Some -> Option)
                     match (name1.as_str(), name2.as_str()) {
                         // Option variants
-                        ("Some", "Option") | ("Option", "Some") => {
+                        ("Some", "Option") | ("Option", "Some")
+                            if args1.len() == 1 && args2.len() == 1 =>
+                        {
                             // Some<T> unifies with Option<T>
-                            if args1.len() == 1 && args2.len() == 1 {
-                                return self.unify(&args1[0], &args2[0]);
-                            }
+                            return self.unify(&args1[0], &args2[0]);
                         }
                         ("None", "Option") | ("Option", "None") => {
                             // None unifies with Option<T> for any T
@@ -882,19 +882,19 @@ impl Substitution {
                             }
                         }
                         // Result variants
-                        ("Ok", "Result") | ("Result", "Ok") => {
+                        ("Ok", "Result") | ("Result", "Ok")
+                            if args1.len() == 2 && args2.len() == 2 =>
+                        {
                             // Ok<T, E> unifies with Result<T, E>
-                            if args1.len() == 2 && args2.len() == 2 {
-                                self.unify(&args1[0], &args2[0])?;
-                                return self.unify(&args1[1], &args2[1]);
-                            }
+                            self.unify(&args1[0], &args2[0])?;
+                            return self.unify(&args1[1], &args2[1]);
                         }
-                        ("Err", "Result") | ("Result", "Err") => {
+                        ("Err", "Result") | ("Result", "Err")
+                            if args1.len() == 2 && args2.len() == 2 =>
+                        {
                             // Err<T, E> unifies with Result<T, E>
-                            if args1.len() == 2 && args2.len() == 2 {
-                                self.unify(&args1[0], &args2[0])?;
-                                return self.unify(&args1[1], &args2[1]);
-                            }
+                            self.unify(&args1[0], &args2[0])?;
+                            return self.unify(&args1[1], &args2[1]);
                         }
                         _ => {} // No variant relationship
                     }
