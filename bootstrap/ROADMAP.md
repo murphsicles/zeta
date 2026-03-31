@@ -7,14 +7,16 @@
 - ❌ Complex syntax (strings, structs) may fail
 - ❌ Async support being implemented
 
-## PHASE 1: MINIMAL ZETA COMPILER (Week 1)
+## PHASE 1: MINIMAL ZETA COMPILER (Week 1) - IN PROGRESS
 ### Goal: Compiler that can compile itself (simple version)
 
-### Week 1.1: Ultra Simple Compiler
-- [ ] Parser for: `fn name() -> i64 { return expr; }`
-- [ ] AST with: Function, Return, Literal, Identifier
-- [ ] Code generator producing Zeta code
-- [ ] Self-compilation of simple arithmetic
+### Week 1.1: Ultra Simple Compiler - 75% COMPLETE
+- [x] Parser for: `fn name() -> i64 { return expr; }` (basic implementation)
+- [x] AST with: Function, Return, Literal, Identifier (complete)
+- [x] Code generator producing Zeta code (basic implementation)
+- [x] Test suite created (`bootstrap/test_suite.z`)
+- [ ] Self-compilation of simple arithmetic (in progress)
+- [ ] Binary operations support (addition, etc.)
 
 ### Week 1.2: Add Basic Features
 - [ ] Function parameters

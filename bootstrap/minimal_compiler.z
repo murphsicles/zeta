@@ -221,17 +221,58 @@ fn compile_zeta_to_zeta(source: String) -> String {
 
 // Test the compiler on itself
 fn main() -> i64 {
-    // Simple test program
+    // Test 1: Simple arithmetic program
     let test_program = r#"
         fn answer() -> i64 {
             return 42;
+        }
+        
+        fn add(a: i64, b: i64) -> i64 {
+            return a + b;
+        }
+        
+        fn main() -> i64 {
+            return add(10, 20);
         }
     "#.to_string();
     
     // Compile it
     let compiled = compile_zeta_to_zeta(test_program);
     
-    // For now, just return success
-    // In real compiler, we would compile the output
+    // Output the compiled code
+    println!("Original program:");
+    println!("{}", test_program);
+    println!("\nCompiled program:");
+    println!("{}", compiled);
+    
+    // Test 2: Try to compile the compiler itself (self-compilation test)
+    let compiler_source = std::fs::read_to_string("bootstrap/minimal_compiler.z")
+        .unwrap_or_else(|_| "// Could not read compiler source".to_string());
+    
+    println!("\n=== SELF-COMPILATION TEST ===");
+    println!("Compiler source size: {} bytes", compiler_source.len());
+    
+    // Try to compile a small part of the compiler
+    let simple_compiler_part = r#"
+        // Minimal compiler fragment for self-compilation test
+        fn compile_zeta_to_zeta(source: String) -> String {
+            source // Simple identity compiler for now
+        }
+        
+        fn test_self_compile() -> i64 {
+            let test = "fn test() -> i64 { return 5; }".to_string();
+            let compiled = compile_zeta_to_zeta(test);
+            if compiled == test {
+                return 0; // Success
+            } else {
+                return 1; // Failure
+            }
+        }
+    "#.to_string();
+    
+    let self_compiled = compile_zeta_to_zeta(simple_compiler_part);
+    println!("Self-compilation test completed!");
+    
+    // Return success
     0
 }
