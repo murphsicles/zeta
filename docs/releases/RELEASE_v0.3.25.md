@@ -1,24 +1,50 @@
-# Release v0.3.25 - PrimeZeta Compatibility
+# Zeta v0.3.25 Release Notes - "PrimeZeta Progress"
 
 ## Overview
-This release completes PrimeZeta compatibility features for v0.3.25, fixing critical issues and adding essential functionality.
+v0.3.25 is a major compatibility release focused on improving PrimeZeta v0.5.0 source compatibility. This release implements key features that significantly increase the percentage of PrimeZeta source files that can be parsed and compiled by Zeta.
 
-## Changes
+## Key Features
 
-### 🚀 New Features
-1. **Range Expression Support**
-   - Added `..` operator parsing for range expressions
-   - Support for range-based for loops: `for i in 1..10 {}`
-   - Range type added to type system (`Type::Range`)
+### 1. Dual-Syntax Array Support ✅
+- **Zeta style**: `[T; N]` (e.g., `[i64; 10]`)
+- **PrimeZeta style**: `[N]T` (e.g., `[10]i64`)
+- **Automatic conversion**: PrimeZeta style is converted to Zeta style internally
+- **Backward compatibility**: All existing Zeta code continues to work
+- **Test coverage**: Comprehensive test suite for both syntax styles
 
-2. **PrimeZeta Array Syntax**
-   - Support for PrimeZeta-style array types: `[N]T` (parsed as `[T; N]`)
-   - Maintains compatibility with Zeta-style: `[T; N]` and `[T]`
+### 2. Attribute Parsing ✅
+- **Basic attribute support**: `#[test]`, `#[derive(...)]`, `#[allow(...)]`
+- **Multiple attributes**: Support for multiple attributes per item
+- **Content extraction**: Attribute content parsed as strings
+- **Real compatibility impact**: "Clean struct with attributes" test now passes
+- **Test coverage**: Comprehensive attribute parsing test suite
 
-3. **Standard Library Stubs**
-   - Basic stdlib functions: `malloc`, `free`, `print`, `println`, `args`
-   - Stub types for: `Option<T>`, `Result<T, E>`, `Vec<T>`, `String`, `HashMap<K, V>`
-   - Module system support for `std::` imports
+### 3. Impl Block Parsing Fix ✅
+- **Generic impl blocks**: `impl<T> Option<T> { ... }`
+- **Concrete type impls**: `impl Option<i64> { ... }`
+- **Trait implementations**: `impl Clone for Point { ... }`
+- **Where clauses**: `impl<T> Option<T> where T: Clone { ... }`
+- **Comprehensive testing**: 8 new tests covering all impl block scenarios
+
+### 4. Compile-Time Function Support (`comptime fn`) ✅
+- **`comptime fn` parsing**: Functions marked for compile-time evaluation
+- **AST extension**: Added `comptime_: bool` field to `FuncDef`
+- **Const evaluation**: Functions marked as `comptime` can be evaluated at compile time
+- **PrimeZeta compatibility**: `comptime fn generate_residues()` now parses
+- **Backward compatibility**: `const fn` still works with `comptime_: false`
+
+### 5. Standard Library Stubs ✅
+- **Essential functions**: `std::malloc`, `std::free`, `std::print`, `std::println`, `std::args`
+- **Module framework**: `std` module structure in `src/std/`
+- **Runtime mappings**: Functions map to existing runtime implementations
+- **PrimeZeta imports**: `use std::malloc` (without semicolons) resolves correctly
+- **Test coverage**: Comprehensive stdlib test suite in `tests/primezeta/`
+
+### 6. Array Type Parsing Fix ✅
+- **Fixed compilation**: Lifetime errors in array type parsing resolved
+- **PrimeZeta compatibility**: `[NUM_RESIDUES]u64` array return types parse
+- **Dual support**: Both `[T; N]` and `[N]T` syntax work correctly
+- **Constant expressions**: Array sizes can be constant expressions or identifiers
 
 ### 🐛 Bug Fixes
 1. **Fixed Parser Compilation Errors**

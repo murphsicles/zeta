@@ -435,18 +435,30 @@ impl MirGen {
                 let left_id = self.lower_expr(left);
                 let right_id = self.lower_expr(right);
                 let dest = self.next_id();
-                if op == "+" {
+                
+                if op == ".." {
+                    // Range expression for for loops
+                    self.exprs.insert(dest, MirExpr::Range {
+                        start: left_id,
+                        end: right_id,
+                    });
+                    self.type_map.insert(dest, Type::Range);
+                } else if op == "+" {
                     self.stmts.push(MirStmt::SemiringFold {
                         op: SemiringOp::Add,
                         values: vec![left_id, right_id],
                         result: dest,
                     });
+                    self.exprs.insert(dest, MirExpr::Var(dest));
+                    self.type_map.insert(dest, Type::I64);
                 } else if op == "*" {
                     self.stmts.push(MirStmt::SemiringFold {
                         op: SemiringOp::Mul,
                         values: vec![left_id, right_id],
                         result: dest,
                     });
+                    self.exprs.insert(dest, MirExpr::Var(dest));
+                    self.type_map.insert(dest, Type::I64);
                 } else {
                     self.stmts.push(MirStmt::Call {
                         func: op.clone(),
@@ -454,9 +466,9 @@ impl MirGen {
                         dest,
                         type_args: vec![],
                     });
+                    self.exprs.insert(dest, MirExpr::Var(dest));
+                    self.type_map.insert(dest, Type::I64);
                 }
-                self.exprs.insert(dest, MirExpr::Var(dest));
-                self.type_map.insert(dest, Type::I64);
                 return dest;
             }
             AstNode::Call {

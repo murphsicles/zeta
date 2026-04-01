@@ -1,0 +1,25 @@
+// Final test for v0.3.25 range loop completion
+// This should compile and run with the new range loop support
+
+fn test_range_parsing() {
+    // Basic range expressions
+    let r1 = 1..10;
+    let r2 = start..end;
+    let r3 = 1 .. 10;  // With spaces
+    
+    // For loops with ranges
+    for i in 1..10 {
+        println!(i);
+    }
+    
+    for j in 0..MODULUS {
+        // PrimeZeta pattern
+        compute_residue(j);
+    }
+}
+
+fn compute_residue(x: i64) -> i64 {
+    x * x % MODULUS
+}
+
+const MODULUS: i64 = 100;
