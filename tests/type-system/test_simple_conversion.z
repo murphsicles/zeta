@@ -1,0 +1,5 @@
+// Simple test for type conversion
+fn test_simple() {
+    let i: i64 = 42;
+    let u: u64 = i as u64;
+}

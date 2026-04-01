@@ -273,6 +273,16 @@ impl Resolver {
             return true;
         }
 
+        // Allow i64 to be assigned to usize
+        if expr_type == &Type::I64 && annotated_type == &Type::Usize {
+            return true;
+        }
+
+        // Allow usize to be assigned to i64
+        if expr_type == &Type::Usize && annotated_type == &Type::I64 {
+            return true;
+        }
+
         // TODO: Add more compatibility rules as needed
         false
     }

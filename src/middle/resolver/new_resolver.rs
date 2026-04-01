@@ -313,6 +313,7 @@ impl InferContext {
             "u16" => Ok(Type::U16),
             "u32" => Ok(Type::U32),
             "u64" => Ok(Type::U64),
+            "usize" => Ok(Type::Usize),
             "String" => Ok(Type::Named("String".to_string(), Vec::new())),
             _ => {
                 // Check if it's a single uppercase letter (type variable)
@@ -451,6 +452,26 @@ impl InferContext {
             AstNode::StringLit(_) => Ok(Type::Str),
 
             AstNode::Bool(_b) => Ok(Type::Bool),
+
+            AstNode::ArrayLit(elements) => {
+                if elements.is_empty() {
+                    // Empty array - we don't know the element type
+                    // Create a type variable for the element type
+                    let elem_var = Type::Variable(TypeVar::fresh());
+                    Ok(Type::Array(Box::new(elem_var), 0))
+                } else {
+                    // Infer type of first element
+                    let first_ty = self.infer(&elements[0])?;
+                    
+                    // Constrain all elements to have the same type
+                    for element in elements.iter().skip(1) {
+                        let elem_ty = self.infer(element)?;
+                        self.constrain_eq(first_ty.clone(), elem_ty);
+                    }
+                    
+                    Ok(Type::Array(Box::new(first_ty), elements.len()))
+                }
+            },
 
             AstNode::Var(name) => Ok(self
                 .lookup(name)
@@ -873,6 +894,25 @@ impl InferContext {
                 // In a complete implementation, we would look up the field type
                 // from the struct definition
                 Ok(Type::Variable(TypeVar::fresh()))
+            }
+
+            AstNode::Subscript { base, index } => {
+                let base_ty = self.infer(base)?;
+                let index_ty = self.infer(index)?;
+                
+                // For now, assume array subscripting
+                // The base should be an array type [T; N] or slice [T]
+                // The index should be an integer type
+                // The result is T
+                
+                // Create a fresh type variable for the element type
+                let elem_var = Type::Variable(TypeVar::fresh());
+                
+                // Constrain index to be integer
+                // For now, just accept any type for index
+                
+                // Return the element type
+                Ok(elem_var)
             }
 
             AstNode::PathCall {

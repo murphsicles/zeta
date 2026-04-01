@@ -98,6 +98,11 @@ pub enum MirExpr {
         base: u32,
         field: String,
     },
+    // Type conversion expression
+    As {
+        expr: u32,
+        target_type: Type,
+    },
     // Range expression for for loops
     Range {
         start: u32,

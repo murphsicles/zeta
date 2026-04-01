@@ -19,7 +19,7 @@ fn test_for_loop_variable_range() {
 }
 
 // Test 3: Comptime function with array type
-comptime fn test_comptime_array() -> [i64; 5] {
+comptime fn test_comptime_array() -> [5]i64 {
     let mut arr = [0; 5];
     for i in 0..5 {
         arr[i] = i as i64;

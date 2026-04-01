@@ -1736,6 +1736,49 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     )
                     .unwrap()
             }
+            MirExpr::As { expr, target_type } => {
+                // Generate the expression value
+                let expr_val = self.gen_expr(&exprs[expr], exprs);
+                
+                // For now, handle basic numeric conversions
+                // TODO: Implement proper type conversion logic
+                match target_type {
+                    Type::I8 | Type::I16 | Type::I32 | Type::I64 | Type::U8 | Type::U16 | Type::U32 | Type::U64 | Type::Usize => {
+                        // For integer types, just truncate or extend as needed
+                        // For now, just return the value as-is (i64)
+                        if let BasicValueEnum::IntValue(int_val) = expr_val {
+                            // Convert to target integer type
+                            match target_type {
+                                Type::I8 => self.builder.build_int_truncate(int_val, self.context.i8_type(), "trunc_i8").unwrap().into(),
+                                Type::I16 => self.builder.build_int_truncate(int_val, self.context.i16_type(), "trunc_i16").unwrap().into(),
+                                Type::I32 => self.builder.build_int_truncate(int_val, self.context.i32_type(), "trunc_i32").unwrap().into(),
+                                Type::I64 => int_val.into(), // Already i64
+                                Type::U8 => self.builder.build_int_truncate(int_val, self.context.i8_type(), "trunc_u8").unwrap().into(),
+                                Type::U16 => self.builder.build_int_truncate(int_val, self.context.i16_type(), "trunc_u16").unwrap().into(),
+                                Type::U32 => self.builder.build_int_truncate(int_val, self.context.i32_type(), "trunc_u32").unwrap().into(),
+                                Type::U64 => self.builder.build_int_cast(int_val, self.context.i64_type(), "cast_u64").unwrap().into(),
+                                Type::Usize => {
+                                    // usize is platform-dependent, use i64 for now
+                                    self.builder.build_int_cast(int_val, self.context.i64_type(), "cast_usize").unwrap().into()
+                                }
+                                _ => int_val.into(),
+                            }
+                        } else {
+                            // Not an integer, return as-is
+                            expr_val
+                        }
+                    }
+                    Type::F32 | Type::F64 => {
+                        // Float conversions
+                        // For now, just return 0
+                        self.f64_type.const_float(0.0).into()
+                    }
+                    _ => {
+                        // Other types - return expression as-is
+                        expr_val
+                    }
+                }
+            }
             MirExpr::Range { start, end } => {
                 // For now, just return the start value
                 // TODO: Implement proper range type

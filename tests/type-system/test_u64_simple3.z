@@ -1,0 +1,17 @@
+// Simple test for u64 array syntax with literal size
+
+// Test PrimeZeta style: [10]u64
+fn test1() -> [10]u64 {
+    let arr: [10]u64 = [0; 10]
+    arr
+}
+
+// Test Zeta style: [u64; 10]
+fn test2() -> [u64; 10] {
+    let arr: [u64; 10] = [0; 10]
+    arr
+}
+
+fn main() -> i64 {
+    0
+}
