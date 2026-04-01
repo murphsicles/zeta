@@ -153,6 +153,7 @@ impl Resolver {
                                             pub_: true, // Variant constructors are always public
                                             async_: false, // Variant constructors are not async
                                             const_: false, // Variant constructors are not const
+                                            comptime_: false, // Variant constructors are not comptime
                                             where_clauses: vec![],
                                         };
 
@@ -171,7 +172,7 @@ impl Resolver {
                                     );
                                     self.register(module_ast);
                                 }
-                                AstNode::ConstDef { name, .. } => {
+                                AstNode::ConstDef { name, comptime_, .. } => {
                                     println!("[RESOLVER] Registering const from module: {}", name);
                                     self.register(module_ast);
                                 }
@@ -237,7 +238,8 @@ impl Resolver {
                     params.len()
                 );
                 let name_clone = name.clone();
-                self.funcs.insert(name_clone.clone(), (typed_params, typed_ret, *async_));
+                self.funcs
+                    .insert(name_clone.clone(), (typed_params, typed_ret, *async_));
                 self.registered_funcs.insert(name_clone, ast.clone());
             }
             AstNode::ExternFunc {
@@ -375,10 +377,12 @@ impl Resolver {
                             new_item
                         }
                         AstNode::ConstDef {
-                            name: const_name, ..
+                            name: const_name,
+                            comptime_,
+                            ..
                         } => {
                             let mut new_item = item.clone();
-                            if let AstNode::ConstDef { ref mut name, .. } = new_item {
+                            if let AstNode::ConstDef { ref mut name, comptime_, .. } = new_item {
                                 *name = format!("{}::{}", module_name, const_name);
                             }
                             new_item
@@ -622,7 +626,10 @@ impl Resolver {
 
     /// Get all registered function ASTs
     pub fn get_registered_funcs(&self) -> Vec<AstNode> {
-        println!("[RESOLVER DEBUG] Returning {} registered functions", self.registered_funcs.len());
+        println!(
+            "[RESOLVER DEBUG] Returning {} registered functions",
+            self.registered_funcs.len()
+        );
         for (name, _) in &self.registered_funcs {
             println!("[RESOLVER DEBUG] Registered function: {}", name);
         }

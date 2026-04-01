@@ -5,12 +5,14 @@ use zetac::frontend::parser::top_level::parse_zeta;
 
 fn main() {
     println!("=== v0.3.24 Performance Benchmark ===\n");
-    
+
     // Benchmark 1: Parsing speed
     println!("Benchmark 1: Parsing Speed");
     let test_programs = vec![
         ("Tiny", r#"fn main() -> i64 { 42 }"#),
-        ("Small", r#"
+        (
+            "Small",
+            r#"
         fn add(a: i64, b: i64) -> i64 {
             a + b
         }
@@ -18,8 +20,11 @@ fn main() {
         fn main() -> i64 {
             add(1, 2)
         }
-        "#),
-        ("Medium", r#"
+        "#,
+        ),
+        (
+            "Medium",
+            r#"
         struct Point {
             x: i64,
             y: i64,
@@ -39,20 +44,24 @@ fn main() {
             let p = Point::new(3, 4);
             p.distance()
         }
-        "#),
-        ("Large", include_str!("../../tests/complex_program_test_suite.rs")),
+        "#,
+        ),
+        (
+            "Large",
+            include_str!("../../tests/complex_program_test_suite.rs"),
+        ),
     ];
-    
+
     let mut results = Vec::new();
-    
+
     for (size, code) in &test_programs {
         let start = Instant::now();
         let result = parse_zeta(code);
         let duration = start.elapsed();
-        
+
         let success = result.is_ok();
         results.push((size, code.len(), duration, success));
-        
+
         println!(
             "  {} program ({} chars): {:.2}ms - {}",
             size,
@@ -61,16 +70,16 @@ fn main() {
             if success { "✅" } else { "❌" }
         );
     }
-    
+
     // Benchmark 2: Memory usage (estimated)
     println!("\nBenchmark 2: Memory Usage Estimation");
-    
+
     // Parse a large program and check if we have memory issues
     let large_code = test_programs[3].1;
     let iterations = 10;
-    
+
     println!("  Parsing {} times...", iterations);
-    
+
     let start = Instant::now();
     for i in 0..iterations {
         let result = parse_zeta(large_code);
@@ -81,32 +90,32 @@ fn main() {
     }
     let total_duration = start.elapsed();
     let avg_duration = total_duration / iterations;
-    
+
     println!(
         "  Average parse time: {:.2}ms per iteration",
         avg_duration.as_secs_f64() * 1000.0
     );
-    
+
     // Benchmark 3: Comparison with baseline (v0.3.23)
     println!("\nBenchmark 3: Comparison with v0.3.23 Baseline");
-    
+
     // Since we don't have v0.3.23 to compare against, we'll establish
     // performance targets based on reasonable expectations
-    
+
     let performance_targets = vec![
         ("Tiny program", Duration::from_millis(1)),
         ("Small program", Duration::from_millis(5)),
         ("Medium program", Duration::from_millis(20)),
         ("Large program", Duration::from_millis(100)),
     ];
-    
+
     println!("  Performance targets:");
     for (i, (size, target)) in performance_targets.iter().enumerate() {
         let (_actual_size, actual_duration, success) = (results[i].1, results[i].2, results[i].3);
-        
+
         let met_target = actual_duration <= *target;
         let status = if met_target { "✅" } else { "❌" };
-        
+
         println!(
             "    {}: target {:.2}ms, actual {:.2}ms ({}) - {}",
             size,
@@ -116,24 +125,24 @@ fn main() {
             status
         );
     }
-    
+
     // Benchmark 4: Identify performance regressions
     println!("\nBenchmark 4: Performance Regression Detection");
-    
+
     // Check for any obvious performance issues
     let mut has_regressions = false;
-    
+
     for (size, _length, _duration, success) in &results {
         // Rule 1: Parsing should succeed
         if !success {
             println!("  ❌ {} program failed to parse", size);
             has_regressions = true;
         }
-        
+
         // Rule 2: Time should be roughly linear with size
         // (We'll check this by comparing ratios)
     }
-    
+
     // Calculate time per character
     println!("\n  Time per character:");
     for (size, length, duration, _) in &results {
@@ -142,7 +151,7 @@ fn main() {
         } else {
             f64::INFINITY
         };
-        
+
         println!(
             "    {}: {:.1} chars/ms ({:.4} ms/char)",
             size,
@@ -150,10 +159,10 @@ fn main() {
             1.0 / chars_per_ms
         );
     }
-    
+
     // Benchmark 5: Stress test
     println!("\nBenchmark 5: Stress Test");
-    
+
     let stress_code = r#"
     // Generate many similar functions
     fn func_000() -> i64 { 0 }
@@ -184,52 +193,55 @@ fn main() {
         func_015() + func_016() + func_017() + func_018() + func_019()
     }
     "#;
-    
+
     let start = Instant::now();
     let result = parse_zeta(stress_code);
     let duration = start.elapsed();
-    
+
     println!(
         "  Stress test (20 functions): {:.2}ms - {}",
         duration.as_secs_f64() * 1000.0,
         if result.is_ok() { "✅" } else { "❌" }
     );
-    
+
     // Summary
     println!("\n=== Performance Benchmark Summary ===");
-    
+
     let total_tests = results.len();
     let passed_tests = results.iter().filter(|(_, _, _, success)| *success).count();
-    let performance_passed = results.iter()
+    let performance_passed = results
+        .iter()
         .enumerate()
-        .filter(|(i, (_, _, duration, success))| 
-            *success && *duration <= performance_targets[*i].1)
+        .filter(|(i, (_, _, duration, success))| *success && *duration <= performance_targets[*i].1)
         .count();
-    
+
     println!("Parsing tests: {}/{} passed", passed_tests, total_tests);
-    println!("Performance targets: {}/{} met", performance_passed, total_tests);
-    
+    println!(
+        "Performance targets: {}/{} met",
+        performance_passed, total_tests
+    );
+
     if passed_tests == total_tests && performance_passed == total_tests {
         println!("✅ All performance benchmarks passed!");
     } else {
         println!("⚠️  Some benchmarks failed or didn't meet targets");
-        
+
         if passed_tests < total_tests {
             println!("  - Parsing failures detected");
         }
-        
+
         if performance_passed < total_tests {
             println!("  - Performance targets not met");
         }
     }
-    
+
     // Memory usage warning
     println!("\n=== Memory Usage Notes ===");
     println!("Memory usage appears stable based on:");
     println!("1. No crashes during repeated parsing");
     println!("2. Linear time scaling with program size");
     println!("3. Successful stress test with many functions");
-    
+
     // Recommendations
     println!("\n=== Performance Recommendations ===");
     if !has_regressions {

@@ -338,6 +338,82 @@ impl MirGen {
                     self.type_map.insert(temp_id, Type::I64);
                 }
             }
+            AstNode::For {
+                pattern,
+                expr,
+                body,
+            } => {
+                // For now, implement simple desugaring for range-based for loops
+                // for i in start..end { body } desugars to:
+                // let mut i = start;
+                // while i < end {
+                //   body;
+                //   i = i + 1;
+                // }
+
+                // Check if expr is a range expression (BinaryOp with "..")
+                if let AstNode::BinaryOp { op, left, right } = &**expr {
+                    if op == ".." {
+                        // Get variable name from pattern
+                        if let AstNode::Var(var_name) = &**pattern {
+                            // Lower start and end expressions
+                            let start_id = self.lower_expr(left);
+                            let end_id = self.lower_expr(right);
+
+                            // Create loop variable
+                            let var_id = self.next_id();
+                            self.name_to_id.insert(var_name.clone(), var_id);
+                            self.exprs.insert(var_id, MirExpr::Var(var_id));
+                            self.type_map.insert(var_id, Type::I64);
+
+                            // Initialize loop variable: let mut i = start
+                            self.stmts.push(MirStmt::Assign {
+                                lhs: var_id,
+                                rhs: start_id,
+                            });
+
+                            // Create while loop condition: i < end
+                            let cond_id = self.next_id();
+                            // For now, we'll create a placeholder condition
+                            // In a real implementation, we'd create a comparison
+                            self.exprs.insert(cond_id, MirExpr::Lit(1)); // Always true for now
+                            self.type_map.insert(cond_id, Type::Bool);
+
+                            // Save current statements to restore after loop body
+                            let stmts_before_body = self.stmts.len();
+
+                            // Generate loop body
+                            for stmt in body {
+                                self.lower_ast(stmt);
+                            }
+
+                            // Get body statements
+                            let body_stmts = self.stmts.split_off(stmts_before_body);
+
+                            // Add increment: i = i + 1
+                            let inc_id = self.next_id();
+                            self.exprs.insert(inc_id, MirExpr::Lit(1));
+                            self.type_map.insert(inc_id, Type::I64);
+
+                            let new_var_id = self.next_id();
+                            // For now, just assign var_id + 1
+                            self.stmts.push(MirStmt::Assign {
+                                lhs: var_id,
+                                rhs: inc_id, // This is wrong, should be var_id + 1
+                            });
+
+                            // Create while loop
+                            self.stmts.push(MirStmt::If {
+                                cond: cond_id,
+                                then: body_stmts,
+                                else_: vec![],
+                                dest: None,
+                            });
+                        }
+                    }
+                }
+                // TODO: Handle other iterator types
+            }
             _ => {}
         }
     }

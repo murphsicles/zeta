@@ -6,69 +6,99 @@ use zetac::frontend::parser::top_level::parse_zeta;
 
 fn main() {
     println!("=== v0.5.0 Syntax Issue Analysis ===\n");
-    
+
     // Test specific problematic syntax patterns
     let test_cases = vec![
-        ("Rust-like attributes", r#"
+        (
+            "Rust-like attributes",
+            r#"
         #[derive(Clone, Debug, PartialEq)]
         pub struct MatchArm {
             pattern: Box<AstNode>,
         }
-        "#),
-        ("Doc comments", r#"
+        "#,
+        ),
+        (
+            "Doc comments",
+            r#"
         /// Match expression arm with pattern and body.
         pub struct MatchArm {
             /// Pattern to match against
             pattern: Box<AstNode>,
         }
-        "#),
-        ("Use statements with crate", r#"
+        "#,
+        ),
+        (
+            "Use statements with crate",
+            r#"
         use crate::middle::mir::Mir;
         use crate::backend::codegen::ir_gen::IRGen;
-        "#),
-        ("Complex generics", r#"
+        "#,
+        ),
+        (
+            "Complex generics",
+            r#"
         fn process<T: Clone + Display>(item: T) -> T {
             item.clone()
         }
-        "#),
-        ("Match with patterns", r#"
+        "#,
+        ),
+        (
+            "Match with patterns",
+            r#"
         fn test(x: i64) -> i64 {
             match x {
                 0 => 1,
                 _ => x * 2,
             }
         }
-        "#),
-        ("Impl for generic type", r#"
+        "#,
+        ),
+        (
+            "Impl for generic type",
+            r#"
         impl<T> Option<T> {
             fn unwrap(self) -> T {
                 self.value
             }
         }
-        "#),
-        ("Trait bounds in struct", r#"
+        "#,
+        ),
+        (
+            "Trait bounds in struct",
+            r#"
         struct Container<T: Display> {
             value: T,
         }
-        "#),
-        ("Where clauses", r#"
+        "#,
+        ),
+        (
+            "Where clauses",
+            r#"
         fn process<T>(item: T) -> T 
         where T: Clone + Display {
             item.clone()
         }
-        "#),
-        ("Async functions", r#"
+        "#,
+        ),
+        (
+            "Async functions",
+            r#"
         async fn fetch_data() -> Result<String, Error> {
             // async code
         }
-        "#),
-        ("Lifetime annotations", r#"
+        "#,
+        ),
+        (
+            "Lifetime annotations",
+            r#"
         fn longest<'a>(x: &'a str, y: &'a str) -> &'a str {
             if x.len() > y.len() { x } else { y }
         }
-        "#),
+        "#,
+        ),
     ];
-    
+
     for (name, code) in test_cases {
         let result = parse_zeta(code);
         match result {
@@ -76,7 +106,11 @@ fn main() {
                 if remaining.is_empty() {
                     println!("✅ {} - Parses completely", name);
                 } else {
-                    println!("⚠️  {} - Partial parse ({} chars remaining)", name, remaining.len());
+                    println!(
+                        "⚠️  {} - Partial parse ({} chars remaining)",
+                        name,
+                        remaining.len()
+                    );
                     // Show what wasn't parsed
                     let preview = if remaining.len() > 50 {
                         &remaining[..50]
@@ -91,23 +125,31 @@ fn main() {
             }
         }
     }
-    
+
     // Now test what DOES work in v0.3.23
     println!("\n=== v0.3.23 Supported Syntax ===");
-    
+
     let supported_cases = vec![
-        ("Simple function", r#"
+        (
+            "Simple function",
+            r#"
         fn main() -> i64 {
             42
         }
-        "#),
-        ("Let statement", r#"
+        "#,
+        ),
+        (
+            "Let statement",
+            r#"
         fn test() -> i64 {
             let x = 10;
             x
         }
-        "#),
-        ("If statement", r#"
+        "#,
+        ),
+        (
+            "If statement",
+            r#"
         fn test(x: i64) -> i64 {
             if x > 0 {
                 x
@@ -115,8 +157,11 @@ fn main() {
                 0
             }
         }
-        "#),
-        ("While loop", r#"
+        "#,
+        ),
+        (
+            "While loop",
+            r#"
         fn test() -> i64 {
             let mut x = 0;
             while x < 10 {
@@ -124,13 +169,19 @@ fn main() {
             }
             x
         }
-        "#),
-        ("Binary operations", r#"
+        "#,
+        ),
+        (
+            "Binary operations",
+            r#"
         fn add(a: i64, b: i64) -> i64 {
             a + b
         }
-        "#),
-        ("Function calls", r#"
+        "#,
+        ),
+        (
+            "Function calls",
+            r#"
         fn main() -> i64 {
             add(1, 2)
         }
@@ -138,26 +189,33 @@ fn main() {
         fn add(a: i64, b: i64) -> i64 {
             a + b
         }
-        "#),
-        ("Struct definition (simple)", r#"
+        "#,
+        ),
+        (
+            "Struct definition (simple)",
+            r#"
         struct Point {
             x: i64,
             y: i64,
         }
-        "#),
-        ("Match (simple)", r#"
+        "#,
+        ),
+        (
+            "Match (simple)",
+            r#"
         fn test(x: i64) -> i64 {
             match x {
                 0 => 1,
                 _ => 2,
             }
         }
-        "#),
+        "#,
+        ),
     ];
-    
+
     let mut supported = 0;
     let mut total = 0;
-    
+
     for (name, code) in supported_cases {
         total += 1;
         let result = parse_zeta(code);
@@ -175,10 +233,15 @@ fn main() {
             }
         }
     }
-    
+
     println!("\n=== Summary ===");
-    println!("Supported features: {}/{} ({:.1}%)", supported, total, (supported as f32 / total as f32) * 100.0);
-    
+    println!(
+        "Supported features: {}/{} ({:.1}%)",
+        supported,
+        total,
+        (supported as f32 / total as f32) * 100.0
+    );
+
     // Analyze gap between v0.3.23 and v0.5.0
     println!("\n=== v0.3.23 → v0.5.0 Gap Analysis ===");
     println!("Major missing features for v0.5.0 compatibility:");
@@ -192,7 +255,7 @@ fn main() {
     println!("8. Async functions");
     println!("9. Complex match patterns");
     println!("10. Advanced type system features");
-    
+
     println!("\n=== Recommendations for v0.3.24 ===");
     println!("To reach 50%+ v0.5.0 compatibility, focus on:");
     println!("1. Support basic attributes (#[test], #[derive]) - HIGH IMPACT");

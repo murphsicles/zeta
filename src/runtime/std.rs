@@ -30,3 +30,29 @@ pub unsafe fn std_free(ptr: *mut u8) {
         free(ptr as *mut c_void)
     }
 }
+
+/// Prints an integer to stdout.
+///
+/// # Safety
+/// No safety concerns.
+pub unsafe extern "C" fn std_print(value: i64) {
+    print!("{}", value);
+}
+
+/// Prints an integer to stdout with newline.
+///
+/// # Safety
+/// No safety concerns.
+pub unsafe extern "C" fn std_println(value: i64) {
+    println!("{}", value);
+}
+
+/// Gets command line arguments.
+/// Returns a pointer to an array of string pointers.
+/// For now, returns 0 (null) as a stub.
+///
+/// # Safety
+/// No safety concerns.
+pub unsafe extern "C" fn std_args() -> i64 {
+    0
+}

@@ -65,7 +65,7 @@ fn parse_use_statement(input: &str) -> IResult<&str, Vec<AstNode>> {
         ),
     ))
     .parse(input)?;
-    let (input, _) = ws(tag(";")).parse(input)?;
+    let (input, _) = opt(ws(tag(";"))).parse(input)?;
     let nodes = if let Some(items) = group_opt {
         let mut ns = vec![];
         for item in items {
@@ -441,8 +441,9 @@ fn parse_const(input: &str) -> IResult<&str, AstNode> {
     let (input, comptime_) = alt((
         ws(tag("comptime")).map(|_| true),
         ws(tag("const")).map(|_| false),
-    )).parse(input)?;
-    
+    ))
+    .parse(input)?;
+
     let (input, name) = ws(parse_ident).parse(input)?;
     let (input, _) = ws(tag(":")).parse(input)?;
     let (input, ty) = ws(parse_type).parse(input)?;

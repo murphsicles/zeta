@@ -20,6 +20,7 @@ pub mod frontend;
 pub mod integration;
 pub mod middle;
 pub mod runtime;
+pub mod std;
 pub mod zeta;
 
 // #[cfg(test)]
@@ -78,11 +79,14 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
 
     // Generate MIR for all registered functions
     let mut mirs = Vec::new();
-    
+
     // Get all registered function ASTs (including module functions)
     let registered_funcs = resolver.get_registered_funcs();
-    println!("[LIB DEBUG] Got {} registered functions", registered_funcs.len());
-    
+    println!(
+        "[LIB DEBUG] Got {} registered functions",
+        registered_funcs.len()
+    );
+
     for ast in registered_funcs {
         if let AstNode::FuncDef { name, .. } = &ast {
             println!("[LIB] Generating MIR for registered function: {}", name);
@@ -106,9 +110,25 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
     let ee = codegen.finalize_and_jit().map_err(|e| e.to_string())?;
 
     // Map required runtime functions
+    if let Some(f) = codegen.module.get_function("malloc") {
+        let malloc_fn = crate::runtime::std::std_malloc as *const () as usize;
+        ee.add_global_mapping(&f, malloc_fn);
+    }
     if let Some(f) = codegen.module.get_function("free") {
         let free_fn = crate::runtime::std::std_free as *const () as usize;
         ee.add_global_mapping(&f, free_fn);
+    }
+    if let Some(f) = codegen.module.get_function("print") {
+        let print_fn = crate::runtime::std::std_print as *const () as usize;
+        ee.add_global_mapping(&f, print_fn);
+    }
+    if let Some(f) = codegen.module.get_function("println") {
+        let println_fn = crate::runtime::std::std_println as *const () as usize;
+        ee.add_global_mapping(&f, println_fn);
+    }
+    if let Some(f) = codegen.module.get_function("args") {
+        let args_fn = crate::runtime::std::std_args as *const () as usize;
+        ee.add_global_mapping(&f, args_fn);
     }
     // Map Option runtime functions
     if let Some(f) = codegen.module.get_function("option_make_some") {
@@ -219,17 +239,17 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
 }
 
 /// Compiles Zeta source with enhanced error reporting
-/// 
+///
 /// Returns either the execution result or formatted diagnostics
 pub fn compile_with_diagnostics(code: &str, filename: &'static str) -> Result<i64, String> {
     use crate::diagnostics::{DiagnosticReporter, SourceLocation, SourceSpan};
     use crate::error_codes::diagnostic_from_code;
-    
+
     let mut reporter = DiagnosticReporter::new();
     reporter.add_source(filename, code.to_string());
-    
+
     init_runtime();
-    
+
     // Parse with location tracking
     let (remaining, asts) = parse_zeta(code).map_err(|e| {
         // Create a diagnostic for parse error
@@ -238,55 +258,63 @@ pub fn compile_with_diagnostics(code: &str, filename: &'static str) -> Result<i6
         reporter.report(diag);
         reporter.format_all()
     })?;
-    
+
     // Check for incomplete parse
     let trimmed_remaining = remaining.trim();
     if !trimmed_remaining.is_empty() {
         // Estimate location (simplified - would need actual parser tracking)
         let lines_parsed = code.lines().count() - remaining.lines().count();
         let span = SourceSpan::single(SourceLocation::new(
-            filename, 
-            lines_parsed + 1, 
-            1, 
-            code.len() - remaining.len()
+            filename,
+            lines_parsed + 1,
+            1,
+            code.len() - remaining.len(),
         ));
-        
+
         let diag = diagnostic_from_code(
-            "E1001", 
-            format!("Syntax error: incomplete parse. Remaining: '{}'", trimmed_remaining),
-            Some(span)
+            "E1001",
+            format!(
+                "Syntax error: incomplete parse. Remaining: '{}'",
+                trimmed_remaining
+            ),
+            Some(span),
         );
         reporter.report(diag);
     }
-    
+
     if reporter.has_errors() {
         return Err(reporter.format_all());
     }
-    
+
     let mut resolver = Resolver::new();
-    
+
     // Expand macros
     let expanded_asts = resolver.expand_macros(&asts).map_err(|e| {
         let span = SourceSpan::single(SourceLocation::new(filename, 1, 1, 0));
-        let diag = diagnostic_from_code("E3001", format!("Macro expansion error: {}", e), Some(span));
+        let diag =
+            diagnostic_from_code("E3001", format!("Macro expansion error: {}", e), Some(span));
         reporter.report(diag);
         reporter.format_all()
     })?;
-    
+
     // Evaluate constants
     let const_evaluated_asts = crate::middle::const_eval::evaluate_constants(&expanded_asts)
         .map_err(|e| {
             let span = SourceSpan::single(SourceLocation::new(filename, 1, 1, 0));
-            let diag = diagnostic_from_code("E2003", format!("Const evaluation error: {}", e), Some(span));
+            let diag = diagnostic_from_code(
+                "E2003",
+                format!("Const evaluation error: {}", e),
+                Some(span),
+            );
             reporter.report(diag);
             reporter.format_all()
         })?;
-    
+
     // Register and typecheck
     for ast in &const_evaluated_asts {
         resolver.register(ast.clone());
     }
-    
+
     if !resolver.typecheck(&const_evaluated_asts) {
         // TODO: Collect type errors from resolver
         let span = SourceSpan::single(SourceLocation::new(filename, 1, 1, 0));
@@ -294,7 +322,7 @@ pub fn compile_with_diagnostics(code: &str, filename: &'static str) -> Result<i6
         reporter.report(diag);
         return Err(reporter.format_all());
     }
-    
+
     // Check for main function
     let has_main = const_evaluated_asts
         .iter()
@@ -305,11 +333,11 @@ pub fn compile_with_diagnostics(code: &str, filename: &'static str) -> Result<i6
         reporter.report(diag);
         return Err(reporter.format_all());
     }
-    
+
     // Generate code
     let context = Context::create();
     let mut codegen = LLVMCodegen::new(&context, "zeta");
-    
+
     let mut mirs = Vec::new();
     for ast in &const_evaluated_asts {
         if let AstNode::FuncDef { name, .. } = ast {
@@ -317,28 +345,35 @@ pub fn compile_with_diagnostics(code: &str, filename: &'static str) -> Result<i6
             mirs.push(mir);
         }
     }
-    
+
     codegen.gen_mirs(&mirs);
-    
+
     let ee = codegen.finalize_and_jit().map_err(|e| {
         let span = SourceSpan::single(SourceLocation::new(filename, 1, 1, 0));
-        let diag = diagnostic_from_code("E4002", format!("Code generation failed: {}", e), Some(span));
+        let diag = diagnostic_from_code(
+            "E4002",
+            format!("Code generation failed: {}", e),
+            Some(span),
+        );
         reporter.report(diag);
         reporter.format_all()
     })?;
-    
+
     // Map runtime functions (same as before)
     // ... (runtime function mapping code would go here)
-    
+
     type MainFn = unsafe extern "C" fn() -> i64;
     unsafe {
-        let main = ee.get_function::<MainFn>("main")
-            .map_err(|_| {
-                let span = SourceSpan::single(SourceLocation::new(filename, 1, 1, 0));
-                let diag = diagnostic_from_code("E4001", "Main function not found in generated code".to_string(), Some(span));
-                reporter.report(diag);
-                reporter.format_all()
-            })?;
+        let main = ee.get_function::<MainFn>("main").map_err(|_| {
+            let span = SourceSpan::single(SourceLocation::new(filename, 1, 1, 0));
+            let diag = diagnostic_from_code(
+                "E4001",
+                "Main function not found in generated code".to_string(),
+                Some(span),
+            );
+            reporter.report(diag);
+            reporter.format_all()
+        })?;
         Ok(main.call())
     }
 }

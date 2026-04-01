@@ -1,5 +1,5 @@
 //! Enhanced diagnostic reporting for Zeta compiler
-//! 
+//!
 //! Provides file:line:column location tracking, context snippets,
 //! and multiple error reporting.
 
@@ -9,10 +9,10 @@ use std::fmt;
 /// Source location with file, line, and column
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SourceLocation {
-    pub file: &'static str,  // For now, static string; could be PathBuf later
+    pub file: &'static str, // For now, static string; could be PathBuf later
     pub line: usize,
     pub column: usize,
-    pub offset: usize,  // Byte offset in source
+    pub offset: usize, // Byte offset in source
 }
 
 impl SourceLocation {
@@ -53,12 +53,15 @@ impl SourceSpan {
         if self.start.line == self.end.line && self.start.column == self.end.column {
             self.start.format()
         } else if self.start.line == self.end.line {
-            format!("{}:{}-{}", self.start.file, self.start.line, self.start.column)
+            format!(
+                "{}:{}-{}",
+                self.start.file, self.start.line, self.start.column
+            )
         } else {
-            format!("{}:{}.{}-{}.{}", 
-                self.start.file, 
-                self.start.line, self.start.column,
-                self.end.line, self.end.column)
+            format!(
+                "{}:{}.{}-{}.{}",
+                self.start.file, self.start.line, self.start.column, self.end.line, self.end.column
+            )
         }
     }
 }
@@ -92,10 +95,10 @@ pub struct Diagnostic {
     pub code: Option<String>,
     pub message: String,
     pub span: Option<SourceSpan>,
-    pub context: Option<String>,  // Context snippet showing problematic code
+    pub context: Option<String>, // Context snippet showing problematic code
     pub help: Option<String>,
     pub note: Option<String>,
-    pub suggestions: Vec<String>,  // Suggested fixes
+    pub suggestions: Vec<String>, // Suggested fixes
 }
 
 impl Diagnostic {
@@ -153,43 +156,46 @@ impl Diagnostic {
     /// Extract context snippet from source code
     pub fn extract_context(source: &str, span: SourceSpan) -> String {
         let lines: Vec<&str> = source.lines().collect();
-        
+
         if span.start.line == 0 || span.start.line > lines.len() {
             return String::new();
         }
 
         let line_idx = span.start.line - 1;
         let line = lines[line_idx];
-        
+
         // Show the line with a caret pointing to the error
         let mut result = String::new();
         result.push_str(line);
         result.push('\n');
-        
+
         // Add caret indicator
         if span.start.column > 0 && span.start.column <= line.len() + 1 {
             let spaces = " ".repeat(span.start.column - 1);
-            let carets = "^".repeat(std::cmp::max(1, span.end.column.saturating_sub(span.start.column)));
+            let carets = "^".repeat(std::cmp::max(
+                1,
+                span.end.column.saturating_sub(span.start.column),
+            ));
             result.push_str(&format!("{}{}", spaces, carets));
         }
-        
+
         result
     }
 
     pub fn format(&self, source: Option<&str>) -> String {
         let mut output = String::new();
-        
+
         // Severity and code
         if let Some(code) = &self.code {
             output.push_str(&format!("{}[{}]: {}\n", self.severity, code, self.message));
         } else {
             output.push_str(&format!("{}: {}\n", self.severity, self.message));
         }
-        
+
         // Location
         if let Some(span) = &self.span {
             output.push_str(&format!("  --> {}\n", span.format()));
-            
+
             // Context snippet
             if let Some(src) = source {
                 let context = Self::extract_context(src, *span);
@@ -201,17 +207,17 @@ impl Diagnostic {
                 }
             }
         }
-        
+
         // Help message
         if let Some(help) = &self.help {
             output.push_str(&format!("  help: {}\n", help));
         }
-        
+
         // Note
         if let Some(note) = &self.note {
             output.push_str(&format!("  note: {}\n", note));
         }
-        
+
         // Suggestions
         if !self.suggestions.is_empty() {
             output.push_str("  suggestions:\n");
@@ -219,7 +225,7 @@ impl Diagnostic {
                 output.push_str(&format!("    {}. {}\n", i + 1, suggestion));
             }
         }
-        
+
         output
     }
 }
@@ -228,7 +234,7 @@ impl Diagnostic {
 #[derive(Debug, Default)]
 pub struct DiagnosticReporter {
     diagnostics: Vec<Diagnostic>,
-    source_map: HashMap<String, String>,  // filename -> source code
+    source_map: HashMap<String, String>, // filename -> source code
 }
 
 impl DiagnosticReporter {
@@ -248,13 +254,15 @@ impl DiagnosticReporter {
     }
 
     pub fn has_errors(&self) -> bool {
-        self.diagnostics.iter().any(|d| 
-            d.severity == Severity::Error || d.severity == Severity::Fatal
-        )
+        self.diagnostics
+            .iter()
+            .any(|d| d.severity == Severity::Error || d.severity == Severity::Fatal)
     }
 
     pub fn has_warnings(&self) -> bool {
-        self.diagnostics.iter().any(|d| d.severity == Severity::Warning)
+        self.diagnostics
+            .iter()
+            .any(|d| d.severity == Severity::Warning)
     }
 
     pub fn clear(&mut self) {
@@ -263,24 +271,29 @@ impl DiagnosticReporter {
 
     pub fn format_all(&self) -> String {
         let mut output = String::new();
-        
+
         for diagnostic in &self.diagnostics {
-            let source = diagnostic.span.as_ref().and_then(|span| {
-                self.source_map.get(span.start.file)
-            });
-            
+            let source = diagnostic
+                .span
+                .as_ref()
+                .and_then(|span| self.source_map.get(span.start.file));
+
             output.push_str(&diagnostic.format(source.map(|s| s.as_str())));
             output.push('\n');
         }
-        
+
         // Summary
-        let error_count = self.diagnostics.iter()
+        let error_count = self
+            .diagnostics
+            .iter()
             .filter(|d| d.severity == Severity::Error || d.severity == Severity::Fatal)
             .count();
-        let warning_count = self.diagnostics.iter()
+        let warning_count = self
+            .diagnostics
+            .iter()
             .filter(|d| d.severity == Severity::Warning)
             .count();
-        
+
         if error_count > 0 || warning_count > 0 {
             output.push_str(&format!(
                 "\n{} error{}, {} warning{}",
@@ -290,7 +303,7 @@ impl DiagnosticReporter {
                 if warning_count == 1 { "" } else { "s" }
             ));
         }
-        
+
         output
     }
 
@@ -323,9 +336,12 @@ pub mod errors {
     }
 
     pub fn unexpected_token(expected: &str, found: &str, span: SourceSpan) -> Diagnostic {
-        Diagnostic::error("E1001", format!("expected `{}`, found `{}`", expected, found))
-            .with_span(span)
-            .with_suggestion(format!("Replace `{}` with `{}`", found, expected))
+        Diagnostic::error(
+            "E1001",
+            format!("expected `{}`, found `{}`", expected, found),
+        )
+        .with_span(span)
+        .with_suggestion(format!("Replace `{}` with `{}`", found, expected))
     }
 
     pub fn unterminated_string(span: SourceSpan) -> Diagnostic {

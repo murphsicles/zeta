@@ -9,9 +9,9 @@ use std::ops::Range;
 /// Tracks position in source code
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Position {
-    pub offset: usize,    // Byte offset from start
-    pub line: usize,      // 1-indexed line number
-    pub column: usize,    // 1-indexed column number
+    pub offset: usize, // Byte offset from start
+    pub line: usize,   // 1-indexed line number
+    pub column: usize, // 1-indexed column number
 }
 
 impl Position {
@@ -120,7 +120,8 @@ impl<'a> LocatedInput<'a> {
 }
 
 /// Parser result with span information
-pub type LocatedResult<'a, O> = IResult<LocatedInput<'a>, (O, Span), nom::error::Error<LocatedInput<'a>>>;
+pub type LocatedResult<'a, O> =
+    IResult<LocatedInput<'a>, (O, Span), nom::error::Error<LocatedInput<'a>>>;
 
 /// Convert a regular parser to one that tracks location
 pub fn with_location<'a, P, O>(
@@ -135,13 +136,13 @@ where
             Ok((remaining, output)) => {
                 let consumed_len = input.remaining.len() - remaining.len();
                 let consumed = &input.remaining[..consumed_len];
-                
+
                 let span = Span::new(start_pos, {
                     let mut end_pos = start_pos;
                     end_pos.advance_str(consumed);
                     end_pos
                 });
-                
+
                 input.advance(consumed);
                 Ok((input, (output, span)))
             }
@@ -165,21 +166,16 @@ pub fn parse_error_diagnostic(
     filename: &'static str,
 ) -> crate::diagnostics::Diagnostic {
     use crate::diagnostics::{SourceLocation, SourceSpan as DiagSpan};
-    
+
     let start_loc = SourceLocation::new(
         filename,
         span.start.line,
         span.start.column,
         span.start.offset,
     );
-    let end_loc = SourceLocation::new(
-        filename,
-        span.end.line,
-        span.end.column,
-        span.end.offset,
-    );
+    let end_loc = SourceLocation::new(filename, span.end.line, span.end.column, span.end.offset);
     let diag_span = DiagSpan::new(start_loc, end_loc);
-    
+
     crate::diagnostics::Diagnostic::error(code, message.to_string())
         .with_span(diag_span)
         .with_context(format!("at {}", diag_span.format()))
@@ -189,7 +185,7 @@ pub fn parse_error_diagnostic(
 pub fn position_from_offset(source: &str, offset: usize) -> Position {
     let mut pos = Position::new();
     let mut current_offset = 0;
-    
+
     for ch in source.chars() {
         if current_offset >= offset {
             break;
@@ -197,7 +193,7 @@ pub fn position_from_offset(source: &str, offset: usize) -> Position {
         pos.advance(ch);
         current_offset += ch.len_utf8();
     }
-    
+
     pos
 }
 
@@ -211,27 +207,25 @@ pub fn create_context(source: &str, span: Span) -> String {
     if span.start.line == 0 || span.end.line == 0 {
         return String::new();
     }
-    
+
     let mut context = String::new();
-    
+
     // Show the line with error
     if let Some(line) = extract_line(source, span.start.line) {
         context.push_str(line);
         context.push('\n');
-        
+
         // Add caret indicator
         if span.start.column > 0 && span.start.column <= line.len() + 1 {
             let spaces = " ".repeat(span.start.column - 1);
-            let carets = "^".repeat(
-                if span.start.line == span.end.line {
-                    std::cmp::max(1, span.end.column.saturating_sub(span.start.column))
-                } else {
-                    1
-                }
-            );
+            let carets = "^".repeat(if span.start.line == span.end.line {
+                std::cmp::max(1, span.end.column.saturating_sub(span.start.column))
+            } else {
+                1
+            });
             context.push_str(&format!("{}{}", spaces, carets));
         }
     }
-    
+
     context
 }

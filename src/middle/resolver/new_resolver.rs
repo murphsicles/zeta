@@ -1056,11 +1056,7 @@ impl InferContext {
                 Ok(then_ty)
             }
 
-            AstNode::If {
-                cond,
-                then,
-                else_,
-            } => {
+            AstNode::If { cond, then, else_ } => {
                 // Type check the condition - must be boolean
                 let cond_ty = self.infer(cond)?;
                 self.constrain_eq(cond_ty, Type::Bool);

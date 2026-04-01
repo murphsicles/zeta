@@ -73,6 +73,12 @@ pub enum MirStmt {
         fields: Vec<(String, u32)>,
         dest: u32,
     },
+    // For loop
+    For {
+        iterator: u32,   // Iterator expression
+        pattern: String, // Variable name to bind to
+        body: Vec<MirStmt>,
+    },
 }
 
 #[derive(Debug, Clone)]

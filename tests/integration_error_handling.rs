@@ -10,13 +10,13 @@ fn test_basic_parse_error() {
     let x = 42;
     let y = x + ;
 }"#;
-    
+
     let result = compile_with_diagnostics(code, "test.z");
     assert!(result.is_err());
-    
+
     let error = result.unwrap_err();
     println!("Error output:\n{}", error);
-    
+
     // Should have file:line:column information
     assert!(error.contains("test.z"));
     assert!(error.contains("error["));
@@ -30,7 +30,7 @@ fn test_type_error() {
     let x = y;  // y is undefined
     println!("{}", x);
 }"#;
-    
+
     let result = compile_with_diagnostics(code, "test.z");
     // This might or might not fail depending on type checking
     // For now, just check it compiles or gives reasonable error
@@ -48,13 +48,13 @@ fn test_multiple_errors() {
     let y = x + z;
     println!("{}", y)
 }"#;
-    
+
     let result = compile_with_diagnostics(code, "test.z");
     assert!(result.is_err());
-    
+
     let error = result.unwrap_err();
     println!("Error output:\n{}", error);
-    
+
     // Should report multiple errors
     assert!(error.contains("error["));
 }
@@ -64,13 +64,13 @@ fn test_missing_main() {
     let code = r#"fn foo() {
     println!("Hello");
 }"#;
-    
+
     let result = compile_with_diagnostics(code, "test.z");
     assert!(result.is_err());
-    
+
     let error = result.unwrap_err();
     println!("Error output:\n{}", error);
-    
+
     // Should mention missing main function
     assert!(error.contains("main") || error.contains("Main"));
 }
@@ -81,13 +81,13 @@ fn test_syntax_error_with_context() {
     let s = "unterminated string;
     println!("{}", s);
 }"#;
-    
+
     let result = compile_with_diagnostics(code, "test.z");
     assert!(result.is_err());
-    
+
     let error = result.unwrap_err();
     println!("Error output:\n{}", error);
-    
+
     // Should show context with caret
     assert!(error.contains("unterminated"));
     assert!(error.contains("\""));

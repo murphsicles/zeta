@@ -107,6 +107,19 @@ pub fn dead_code_elimination(mir: &mut Mir) {
             MirStmt::MapNew { dest: _ } => {
                 // Nothing to mark
             }
+            MirStmt::For {
+                iterator,
+                pattern: _,
+                body,
+            } => {
+                mark_expr_used(*iterator, &mut used, &mir.exprs);
+                // Recursively process nested statements in the loop body
+                let mut nested_mir = Mir {
+                    stmts: body.clone(),
+                    ..Default::default()
+                };
+                dead_code_elimination(&mut nested_mir);
+            }
         }
     }
 

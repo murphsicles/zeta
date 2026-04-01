@@ -18,7 +18,7 @@ fn test_simple_impl_block() {
 
     let result = parse_zeta(code);
     assert!(result.is_ok(), "Should parse simple impl block");
-    
+
     let (remaining, ast) = result.unwrap();
     assert!(remaining.is_empty(), "Should parse entire input");
     assert!(!ast.is_empty(), "Should have AST nodes");
@@ -40,7 +40,7 @@ fn test_impl_generic_type_concrete() {
 
     let result = parse_zeta(code);
     assert!(result.is_ok(), "Should parse impl Option<i64>");
-    
+
     let (remaining, _) = result.unwrap();
     assert!(remaining.is_empty(), "Should parse entire input");
 }
@@ -61,7 +61,7 @@ fn test_generic_impl_block() {
 
     let result = parse_zeta(code);
     assert!(result.is_ok(), "Should parse generic impl<T> Option<T>");
-    
+
     let (remaining, _) = result.unwrap();
     assert!(remaining.is_empty(), "Should parse entire input");
 }
@@ -79,7 +79,7 @@ fn test_impl_with_where_clause() {
 
     let result = parse_zeta(code);
     assert!(result.is_ok(), "Should parse impl with where clause");
-    
+
     let (remaining, _) = result.unwrap();
     assert!(remaining.is_empty(), "Should parse entire input");
 }
@@ -97,7 +97,7 @@ fn test_trait_impl() {
 
     let result = parse_zeta(code);
     assert!(result.is_ok(), "Should parse trait impl Clone for Point");
-    
+
     let (remaining, _) = result.unwrap();
     assert!(remaining.is_empty(), "Should parse entire input");
 }
@@ -129,10 +129,10 @@ fn test_impl_with_multiple_methods() {
 
     let result = parse_zeta(code);
     assert!(result.is_ok(), "Should parse impl with multiple methods");
-    
+
     let (remaining, ast) = result.unwrap();
     assert!(remaining.is_empty(), "Should parse entire input");
-    
+
     // Should have 3 method definitions
     if let Some(first_node) = ast.first() {
         match first_node {
@@ -159,7 +159,7 @@ fn test_backward_compatibility() {
 
     let result = parse_zeta(code);
     assert!(result.is_ok(), "Non-generic code should still work");
-    
+
     let (remaining, _) = result.unwrap();
     assert!(remaining.is_empty(), "Should parse entire input");
 }

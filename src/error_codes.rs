@@ -370,18 +370,16 @@ pub fn diagnostic_from_code(code: &str, message: String, span: Option<SourceSpan
     if let Some(span) = span {
         diag = diag.with_span(span);
     }
-    
+
     // Add suggestions from error code registry if available
     if let Some(error_code) = ERROR_CODES.get(code) {
         if let Some(suggestion) = &error_code.suggestion {
             diag = diag.with_suggestion(suggestion.clone());
         }
     }
-    
+
     diag
 }
-
-
 
 /// Common error codes for easy reference
 pub mod common {

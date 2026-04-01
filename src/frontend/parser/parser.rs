@@ -117,21 +117,21 @@ pub fn parse_tuple_type(input: &str) -> IResult<&str, String> {
 }
 
 /// Parse array type with dual syntax support
-/// 
+///
 /// Supports both:
 /// 1. Zeta style: [T; N] (type before size) or [T] (unsized)
 /// 2. PrimeZeta style: [N]T (size before type)
-/// 
+///
 /// Returns: "[T; N]" format for consistency, or "[T]" for unsized
 pub fn parse_array_type(input: &str) -> IResult<&str, String> {
     // Temporarily simplified for PrimeZeta compatibility
     let (input, _) = ws(tag("[")).parse(input)?;
     let (input, elem_type) = ws(parse_type).parse(input)?;
     let (input, _) = ws(tag("]")).parse(input)?;
-    
+
     // Return as unsized array for now
     Ok((input, format!("[{}]", elem_type)))
-    
+
     /* Original code with PrimeZeta support (causing compilation issues)
     // First, try to parse as PrimeZeta style: [N]T
     // This is important because [10]i64 could be ambiguous
@@ -147,7 +147,7 @@ pub fn parse_array_type(input: &str) -> IResult<&str, String> {
         // Parse element type
         ws(parse_type),
     )).parse(input);
-    
+
     match primezeta_result {
         Ok((remaining, (size, _, elem_type))) => {
             // Successfully parsed PrimeZeta style: [N]T
@@ -157,10 +157,10 @@ pub fn parse_array_type(input: &str) -> IResult<&str, String> {
             // Not PrimeZeta style, try Zeta style
         }
     }
-    
+
     // Try Zeta style: [T] or [T; N]
     let (input, elem_type) = ws(parse_type).parse(input)?;
-    
+
     // Check for optional size
     let (input, size_opt) = opt(preceded(
         ws(tag(";")),
@@ -171,9 +171,9 @@ pub fn parse_array_type(input: &str) -> IResult<&str, String> {
             parse_ident.map(|s| s),
         )))
     )).parse(input)?;
-    
+
     let (input, _) = ws(tag("]")).parse(input)?;
-    
+
     let result = if let Some(size) = size_opt {
         format!("[{}; {}]", elem_type, size)
     } else {
@@ -422,7 +422,7 @@ pub fn parse_attribute(input: &str) -> IResult<&str, String> {
     let (input, _) = tag("#[")(input)?;
     let (input, content) = take_until("]")(input)?;
     let (input, _) = tag("]")(input)?;
-    
+
     // Trim whitespace from the content
     let trimmed_content = content.trim();
     Ok((input, trimmed_content.to_string()))
@@ -432,11 +432,11 @@ pub fn parse_attribute(input: &str) -> IResult<&str, String> {
 pub fn parse_attributes(input: &str) -> IResult<&str, Vec<String>> {
     let mut attributes = Vec::new();
     let mut current_input = input;
-    
+
     loop {
         // Skip whitespace and comments before checking for attribute
         let (input_after_ws, _) = skip_ws_and_comments0(current_input)?;
-        
+
         // Check if we have an attribute
         if input_after_ws.starts_with("#[") {
             let (input_after_attr, attr) = parse_attribute(input_after_ws)?;
@@ -447,6 +447,6 @@ pub fn parse_attributes(input: &str) -> IResult<&str, Vec<String>> {
             break;
         }
     }
-    
+
     Ok((current_input, attributes))
 }

@@ -6,40 +6,57 @@ use zetac::frontend::parser::top_level::parse_zeta;
 
 fn main() {
     println!("=== Real v0.5.0 Compatibility Assessment ===\n");
-    
+
     // Clean versions of v0.5.0 files (without problematic characters)
     let clean_test_cases = vec![
-        ("Clean struct with attributes", r#"
+        (
+            "Clean struct with attributes",
+            r#"
         #[derive(Clone, Debug)]
         pub struct MatchArm {
             pattern: Box<AstNode>,
         }
-        "#),
-        ("Clean use statements", r#"
+        "#,
+        ),
+        (
+            "Clean use statements",
+            r#"
         use crate::middle::mir::Mir;
         use std::collections::HashMap;
-        "#),
-        ("Clean generic function", r#"
+        "#,
+        ),
+        (
+            "Clean generic function",
+            r#"
         fn identity<T>(x: T) -> T {
             x
         }
-        "#),
-        ("Clean match expression", r#"
+        "#,
+        ),
+        (
+            "Clean match expression",
+            r#"
         fn test(x: i64) -> i64 {
             match x {
                 0 => 1,
                 _ => x * 2,
             }
         }
-        "#),
-        ("Clean impl block", r#"
+        "#,
+        ),
+        (
+            "Clean impl block",
+            r#"
         impl Option<i64> {
             fn unwrap(self) -> i64 {
                 self.value
             }
         }
-        "#),
-        ("Multiple functions", r#"
+        "#,
+        ),
+        (
+            "Multiple functions",
+            r#"
         fn add(a: i64, b: i64) -> i64 {
             a + b
         }
@@ -47,8 +64,11 @@ fn main() {
         fn main() -> i64 {
             add(1, 2)
         }
-        "#),
-        ("Struct with methods", r#"
+        "#,
+        ),
+        (
+            "Struct with methods",
+            r#"
         struct Point {
             x: i64,
             y: i64,
@@ -59,8 +79,11 @@ fn main() {
                 Point { x, y }
             }
         }
-        "#),
-        ("Module declaration", r#"
+        "#,
+        ),
+        (
+            "Module declaration",
+            r#"
         mod frontend {
             pub mod parser {
                 pub fn parse() -> i64 {
@@ -68,12 +91,13 @@ fn main() {
                 }
             }
         }
-        "#),
+        "#,
+        ),
     ];
-    
+
     let mut passed = 0;
     let total = clean_test_cases.len();
-    
+
     for (name, code) in clean_test_cases {
         let result = parse_zeta(code);
         match result {
@@ -82,7 +106,11 @@ fn main() {
                     println!("✅ {} - Parses completely", name);
                     passed += 1;
                 } else {
-                    println!("⚠️  {} - Partial parse ({} chars remaining)", name, remaining.len());
+                    println!(
+                        "⚠️  {} - Partial parse ({} chars remaining)",
+                        name,
+                        remaining.len()
+                    );
                     // Show first 50 chars of unparsed content
                     let preview = if remaining.len() > 50 {
                         &remaining[..50]
@@ -97,24 +125,24 @@ fn main() {
             }
         }
     }
-    
+
     let compatibility = (passed as f32 / total as f32) * 100.0;
     println!("\n=== Real Compatibility Estimate ===");
     println!("Test cases: {}", total);
     println!("Passed: {} ({:.1}%)", passed, compatibility);
-    
+
     if compatibility >= 50.0 {
         println!("✅ MEETS v0.3.24 target of 50%+ compatibility!");
     } else {
         println!("❌ DOES NOT MEET v0.3.24 target");
-        
+
         println!("\n=== Immediate Actions Needed ===");
         println!("1. Fix attribute parsing (#[derive(...)])");
         println!("2. Fix generic impl blocks (impl<T>)");
         println!("3. Handle special characters in source files");
         println!("4. Test with cleaned v0.5.0 source files");
     }
-    
+
     // Test what percentage of ACTUAL v0.5.0 files would parse if we clean them
     println!("\n=== Cleaning Strategy ===");
     println!("If we clean v0.5.0 files by:");
@@ -123,7 +151,7 @@ fn main() {
     println!("3. Fixing special characters");
     println!("4. Simplifying complex syntax");
     println!("Estimated achievable compatibility: 60-70%");
-    
+
     println!("\n=== v0.3.24 Release Strategy ===");
     println!("Option 1: Clean v0.5.0 files and claim compatibility");
     println!("Option 2: Implement missing features (attributes, generic impls)");

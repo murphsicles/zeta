@@ -120,7 +120,7 @@ impl ConstEvaluator {
                     _ => return Err(format!("Unsupported const function: {}", method)),
                 }
             }
-            AstNode::ConstDef { value, .. } => {
+            AstNode::ConstDef { value, comptime_, .. } => {
                 // Evaluate the constant's value
                 self.eval_const_expr(value)?
             }

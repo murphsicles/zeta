@@ -11,10 +11,12 @@ use zetac::frontend::parser::top_level::parse_zeta;
 #[test]
 fn test_multi_file_program() {
     println!("=== Test 1: Multi-file Program ===");
-    
+
     // Simulate a multi-file program by combining multiple modules
     let modules = vec![
-        ("math module", r#"
+        (
+            "math module",
+            r#"
         pub fn add(a: i64, b: i64) -> i64 {
             a + b
         }
@@ -37,9 +39,11 @@ fn test_multi_file_program() {
                 self.x * self.x + self.y * self.y
             }
         }
-        "#),
-        
-        ("main module", r#"
+        "#,
+        ),
+        (
+            "main module",
+            r#"
         use math::{add, multiply, Point};
         
         fn main() -> i64 {
@@ -51,11 +55,12 @@ fn test_multi_file_program() {
             
             sum + product + dist
         }
-        "#),
+        "#,
+        ),
     ];
-    
+
     let mut all_passed = true;
-    
+
     for (name, code) in modules {
         let result = parse_zeta(code);
         match result {
@@ -73,7 +78,7 @@ fn test_multi_file_program() {
             }
         }
     }
-    
+
     assert!(all_passed, "Multi-file program test failed");
 }
 
@@ -81,7 +86,7 @@ fn test_multi_file_program() {
 #[test]
 fn test_control_flow_complexity() {
     println!("\n=== Test 2: Control Flow Complexity ===");
-    
+
     let code = r#"
     fn complex_control_flow(x: i64) -> i64 {
         let mut result = 0;
@@ -125,14 +130,17 @@ fn test_control_flow_complexity() {
         complex_control_flow(42)
     }
     "#;
-    
+
     let result = parse_zeta(code);
     match result {
         Ok((remaining, _)) => {
             if remaining.is_empty() {
                 println!("✅ Complex control flow - Parses completely");
             } else {
-                println!("⚠️  Complex control flow - Partial parse ({} chars) - Acceptable for now", remaining.len());
+                println!(
+                    "⚠️  Complex control flow - Partial parse ({} chars) - Acceptable for now",
+                    remaining.len()
+                );
                 // Don't panic for partial parse - this is acceptable during development
                 // panic!("Control flow test failed");
             }
@@ -148,7 +156,7 @@ fn test_control_flow_complexity() {
 #[test]
 fn test_module_system_integration() {
     println!("\n=== Test 3: Module System Integration ===");
-    
+
     let code = r#"
     // Main module with imports
     mod math {
@@ -206,14 +214,17 @@ fn test_module_system_integration() {
         }
     }
     "#;
-    
+
     let result = parse_zeta(code);
     match result {
         Ok((remaining, _)) => {
             if remaining.is_empty() {
                 println!("✅ Module system - Parses completely");
             } else {
-                println!("⚠️  Module system - Partial parse ({} chars)", remaining.len());
+                println!(
+                    "⚠️  Module system - Partial parse ({} chars)",
+                    remaining.len()
+                );
                 // Module system might not be fully implemented
                 println!("Note: Module system integration test shows partial support");
             }
@@ -229,9 +240,11 @@ fn test_module_system_integration() {
 #[test]
 fn test_error_handling_scenarios() {
     println!("\n=== Test 4: Error Handling Scenarios ===");
-    
+
     let test_cases = vec![
-        ("Division by zero guard", r#"
+        (
+            "Division by zero guard",
+            r#"
         fn safe_divide(a: i64, b: i64) -> i64 {
             if b == 0 {
                 0
@@ -239,18 +252,22 @@ fn test_error_handling_scenarios() {
                 a / b
             }
         }
-        "#),
-        
-        ("Option type handling", r#"
+        "#,
+        ),
+        (
+            "Option type handling",
+            r#"
         fn get_value(maybe_value: Option<i64>) -> i64 {
             match maybe_value {
                 Some(value) => value,
                 None => 0,
             }
         }
-        "#),
-        
-        ("Result type handling", r#"
+        "#,
+        ),
+        (
+            "Result type handling",
+            r#"
         fn process_result(result: Result<i64, String>) -> i64 {
             match result {
                 Ok(value) => value,
@@ -260,9 +277,11 @@ fn test_error_handling_scenarios() {
                 }
             }
         }
-        "#),
-        
-        ("Array bounds check", r#"
+        "#,
+        ),
+        (
+            "Array bounds check",
+            r#"
         fn safe_array_access(arr: [i64; 10], index: i64) -> i64 {
             if index >= 0 && index < 10 {
                 arr[index]
@@ -270,12 +289,13 @@ fn test_error_handling_scenarios() {
                 0
             }
         }
-        "#),
+        "#,
+        ),
     ];
-    
+
     let mut passed = 0;
     let total = test_cases.len();
-    
+
     for (name, code) in test_cases {
         let result = parse_zeta(code);
         match result {
@@ -292,9 +312,9 @@ fn test_error_handling_scenarios() {
             }
         }
     }
-    
+
     println!("Error handling tests: {}/{} passed", passed, total);
-    
+
     // We want at least 75% of error handling patterns to parse
     let success_rate = (passed as f32 / total as f32) * 100.0;
     assert!(
@@ -308,9 +328,9 @@ fn test_error_handling_scenarios() {
 #[test]
 fn test_performance_complex_programs() {
     println!("\n=== Test 5: Performance with Complex Programs ===");
-    
+
     use std::time::Instant;
-    
+
     // Create a complex program
     let complex_program = r#"
     // Large program with many functions and control flow
@@ -384,48 +404,63 @@ fn test_performance_complex_programs() {
         total
     }
     "#;
-    
+
     let start = Instant::now();
     let result = parse_zeta(complex_program);
     let duration = start.elapsed();
-    
+
     println!("Parsing complex program took: {:?}", duration);
-    
+
     // Should parse (at least partially)
     assert!(
         result.is_ok(),
         "Complex program should parse (at least partially)"
     );
-    
+
     // Should complete in reasonable time (under 500ms)
     assert!(
         duration.as_millis() < 500,
         "Parsing complex program took too long: {:?}",
         duration
     );
-    
-    println!("✅ Performance test passed - {:.2}ms", duration.as_secs_f64() * 1000.0);
+
+    println!(
+        "✅ Performance test passed - {:.2}ms",
+        duration.as_secs_f64() * 1000.0
+    );
 }
 
 /// Test 6: Regression test suite
 #[test]
 fn test_regression_suite() {
     println!("\n=== Test 6: Regression Test Suite ===");
-    
+
     // Test that previously working features still work
     let regression_tests = vec![
         ("Simple function", r#"fn main() -> i64 { 42 }"#),
         ("Let statement", r#"fn test() -> i64 { let x = 10; x }"#),
-        ("If statement", r#"fn test(x: i64) -> i64 { if x > 0 { x } else { 0 } }"#),
-        ("While loop", r#"fn test() -> i64 { let mut x = 0; while x < 10 { x = x + 1; } x }"#),
+        (
+            "If statement",
+            r#"fn test(x: i64) -> i64 { if x > 0 { x } else { 0 } }"#,
+        ),
+        (
+            "While loop",
+            r#"fn test() -> i64 { let mut x = 0; while x < 10 { x = x + 1; } x }"#,
+        ),
         ("Binary ops", r#"fn add(a: i64, b: i64) -> i64 { a + b }"#),
-        ("Function call", r#"fn main() -> i64 { add(1, 2) } fn add(a: i64, b: i64) -> i64 { a + b }"#),
+        (
+            "Function call",
+            r#"fn main() -> i64 { add(1, 2) } fn add(a: i64, b: i64) -> i64 { a + b }"#,
+        ),
         ("Struct", r#"struct Point { x: i64, y: i64 }"#),
-        ("Match", r#"fn test(x: i64) -> i64 { match x { 0 => 1, _ => 2 } }"#),
+        (
+            "Match",
+            r#"fn test(x: i64) -> i64 { match x { 0 => 1, _ => 2 } }"#,
+        ),
     ];
-    
+
     let mut passed = 0;
-    
+
     for (name, code) in &regression_tests {
         let result = parse_zeta(code);
         if result.is_ok() {
@@ -435,12 +470,14 @@ fn test_regression_suite() {
             println!("❌ {} - REGRESSION!", name);
         }
     }
-    
+
     assert_eq!(
-        passed, regression_tests.len(),
+        passed,
+        regression_tests.len(),
         "Regression test failed: {}/{} passed",
-        passed, regression_tests.len()
+        passed,
+        regression_tests.len()
     );
-    
+
     println!("✅ All regression tests passed");
 }

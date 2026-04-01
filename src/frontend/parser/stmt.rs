@@ -100,10 +100,13 @@ fn parse_while(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("while")).parse(input)?;
     let (input, cond) = ws(parse_full_expr).parse(input)?;
     let (input, body) = delimited(ws(tag("{")), parse_block_body, ws(tag("}"))).parse(input)?;
-    Ok((input, AstNode::While {
-        cond: Box::new(cond),
-        body,
-    }))
+    Ok((
+        input,
+        AstNode::While {
+            cond: Box::new(cond),
+            body,
+        },
+    ))
 }
 
 fn parse_unsafe(input: &str) -> IResult<&str, AstNode> {
@@ -140,7 +143,7 @@ fn parse_if(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("if")).parse(input)?;
     let (input, cond) = ws(parse_full_expr).parse(input)?;
     let (input, then) = delimited(ws(tag("{")), parse_block_body, ws(tag("}"))).parse(input)?;
-    
+
     // Parse else clause: either `else { ... }` or `else if ...`
     let (input, else_opt) = opt(preceded(
         ws(tag("else")),
@@ -151,14 +154,11 @@ fn parse_if(input: &str) -> IResult<&str, AstNode> {
                 |body| body,
             ),
             // else if ... (parse as another if statement)
-            map(
-                parse_if,
-                |if_node| vec![if_node],
-            ),
+            map(parse_if, |if_node| vec![if_node]),
         )),
     ))
     .parse(input)?;
-    
+
     let else_: Vec<AstNode> = else_opt.unwrap_or(vec![]);
     Ok((
         input,

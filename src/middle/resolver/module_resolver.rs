@@ -351,7 +351,7 @@ impl ModuleResolver {
             println!("[MODULE RESOLVER] Loading virtual module for zeta:: import");
             return self.load_virtual_module(&path_str);
         }
-        
+
         // Check if this is a std module (handle specially for PrimeZeta)
         if path_str.contains("stub_types\\std") || path_str.contains("stub_types/std") {
             println!("[MODULE RESOLVER] Loading std module for PrimeZeta");
@@ -433,7 +433,7 @@ impl ModuleResolver {
                         );
                     }
                 }
-                AstNode::ConstDef { name, pub_, .. } => {
+                AstNode::ConstDef { name, pub_, comptime_, .. } => {
                     if *pub_ {
                         println!("[MODULE RESOLVER] Found public const export: {}", name);
                         exports.insert(name.clone(), ast.clone());
@@ -470,17 +470,17 @@ impl ModuleResolver {
     /// Load a virtual module for std:: imports (PrimeZeta compatibility)
     fn load_std_module(&mut self) -> Result<&Module, String> {
         let path_str = "std_virtual/std";
-        
+
         // Check cache first
         if self.modules.contains_key(path_str) {
             println!("[MODULE RESOLVER] std module already cached");
             return Ok(self.modules.get(path_str).unwrap());
         }
-        
+
         // Create a virtual module with PrimeZeta functions
         let mut exports = HashMap::new();
         let mut asts = Vec::new();
-        
+
         // Create malloc function
         let malloc_func = AstNode::FuncDef {
             name: "malloc".to_string(),
@@ -501,7 +501,7 @@ impl ModuleResolver {
         };
         asts.push(malloc_func.clone());
         exports.insert("malloc".to_string(), malloc_func);
-        
+
         // Create free function
         let free_func = AstNode::FuncDef {
             name: "free".to_string(),
@@ -522,7 +522,7 @@ impl ModuleResolver {
         };
         asts.push(free_func.clone());
         exports.insert("free".to_string(), free_func);
-        
+
         // Create print function
         let print_func = AstNode::FuncDef {
             name: "print".to_string(),
@@ -538,11 +538,12 @@ impl ModuleResolver {
             pub_: true,
             async_: false,
             const_: false,
-        comptime_: false,            where_clauses: vec![],
+            comptime_: false,
+            where_clauses: vec![],
         };
         asts.push(print_func.clone());
         exports.insert("print".to_string(), print_func);
-        
+
         // Create println function
         let println_func = AstNode::FuncDef {
             name: "println".to_string(),
@@ -558,11 +559,12 @@ impl ModuleResolver {
             pub_: true,
             async_: false,
             const_: false,
-        comptime_: false,            where_clauses: vec![],
+            comptime_: false,
+            where_clauses: vec![],
         };
         asts.push(println_func.clone());
         exports.insert("println".to_string(), println_func);
-        
+
         // Create args function
         let args_func = AstNode::FuncDef {
             name: "args".to_string(),
@@ -578,11 +580,12 @@ impl ModuleResolver {
             pub_: true,
             async_: false,
             const_: false,
-        comptime_: false,            where_clauses: vec![],
+            comptime_: false,
+            where_clauses: vec![],
         };
         asts.push(args_func.clone());
         exports.insert("args".to_string(), args_func);
-        
+
         // Create the module
         let module = Module {
             name: "std".to_string(),
@@ -590,7 +593,7 @@ impl ModuleResolver {
             asts,
             exports,
         };
-        
+
         self.modules.insert(path_str.to_string(), module);
         println!("[MODULE RESOLVER] Created virtual std module for PrimeZeta");
         Ok(self.modules.get(path_str).unwrap())
@@ -667,7 +670,8 @@ impl ModuleResolver {
                         pub_: true,
                         async_: false,
                         const_: false,
-        comptime_: false,                        where_clauses: vec![],
+                        comptime_: false,
+                        where_clauses: vec![],
                     };
                     asts.push(parse_zeta_func.clone());
                     exports.insert("parse_zeta".to_string(), parse_zeta_func);
@@ -725,7 +729,8 @@ impl ModuleResolver {
                         pub_: true,
                         async_: false,
                         const_: false,
-        comptime_: false,                        where_clauses: vec![],
+                        comptime_: false,
+                        where_clauses: vec![],
                     };
                     asts.push(is_cache_safe_func.clone());
                     exports.insert("is_cache_safe".to_string(), is_cache_safe_func);
@@ -744,7 +749,8 @@ impl ModuleResolver {
                         pub_: true,
                         async_: false,
                         const_: false,
-        comptime_: false,                        where_clauses: vec![],
+                        comptime_: false,
+                        where_clauses: vec![],
                     };
                     asts.push(lookup_specialization_func.clone());
                     exports.insert(
@@ -769,7 +775,8 @@ impl ModuleResolver {
                         pub_: true,
                         async_: false,
                         const_: false,
-        comptime_: false,                        where_clauses: vec![],
+                        comptime_: false,
+                        where_clauses: vec![],
                     };
                     asts.push(record_specialization_func.clone());
                     exports.insert(
@@ -1061,4 +1068,3 @@ pub fn from_str<T>(_s: &str) -> Result<T, ()> {
         }
     }
 }
-
