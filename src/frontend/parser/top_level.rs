@@ -280,8 +280,8 @@ fn parse_impl(input: &str) -> IResult<&str, AstNode> {
             |(concept, _, ty)| (concept, ty),
         ),
         // Inherent impl: impl<Generics> Type
-        // FIX: Use parse_ident for simple type names, parse_type for complex types
-        map(ws(parse_ident), |ident| ("".to_string(), ident)),
+        // FIXED: Use parse_type instead of parse_ident to handle complex types like Option<i64>
+        map(ws(parse_type), |ty| ("".to_string(), ty)),
     ))
     .parse(input);
 
