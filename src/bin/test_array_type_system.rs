@@ -101,7 +101,7 @@ fn main() {
         ("[&mut u64; 8]", "Array(Ref(U64, Static, Mutable), 8)"),
     ];
     
-    for (input, expected_debug) in ref_cases {
+    for (input, _expected_debug) in ref_cases {
         let ty = Type::from_string(input);
         let debug_str = format!("{:?}", ty);
         // Note: The actual debug output might be different due to formatting
