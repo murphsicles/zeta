@@ -72,12 +72,12 @@
 - [x] Self-compilation test framework ✅
 - [x] Complete self-compilation validation (compile simplified compiler with itself) ✅
 
-#### Week 1.2: Add Basic Features - IN PROGRESS
+#### Week 1.2: Add Basic Features - NEARLY COMPLETE!
 - [x] Variable declarations (let statements) ✅
 - [x] If statements (basic) ✅
-- [ ] Else clauses
-- [ ] Variable assignments (reassignment)
-- [ ] While loops
+- [x] Else clauses ✅
+- [x] Variable assignments (reassignment) ✅
+- [x] While loops ✅
 - [ ] Enhanced expressions
 
 #### Week 1.3: Bootstrap Validation
@@ -135,23 +135,23 @@
 
 ## 🔧 IMMEDIATE NEXT STEPS
 
-### 1. v0.5.0 Phase 1.2 Development - IN PROGRESS
+### 1. v0.5.0 Phase 1.2 Development - NEARLY COMPLETE!
 **Goal:** Complete basic control flow features for bootstrap compiler
 - [x] Variable declarations (let statements) ✅
 - [x] If statements (basic) ✅
 - [x] Else clause support to if statements (test_if_else.z created) ✅
-- [ ] Variable reassignment support
-- [ ] While loop support
+- [x] Variable reassignment support (implemented in parser and codegen) ✅
+- [x] While loop support (implemented in parser and codegen) ✅
 - [ ] Enhanced expression parsing
 - [ ] Create comprehensive test suite for Phase 1.2
 
-### 2. Bootstrap Compiler Enhancement - NEXT
+### 2. Bootstrap Compiler Enhancement - COMPLETED!
 - [x] Add else clause parsing to parser (test_if_else.z created) ✅
 - [x] Update AST to support else branches (minimal_compiler.z updated) ✅
-- [ ] Enhance code generator for else clauses
-- [ ] Add variable reassignment parsing and codegen
-- [ ] Implement while loop parsing and codegen
-- [x] Create test programs for new features (test_if_else.z created) ✅
+- [x] Enhance code generator for else clauses ✅
+- [x] Add variable reassignment parsing and codegen ✅
+- [x] Implement while loop parsing and codegen ✅
+- [x] Create test programs for new features (test_if_else.z, test_variable_reassignment.z, test_while_loops.z created) ✅
 - [ ] Update self-compilation test framework
 
 ### 3. v0.5.0 Infrastructure - READY & STABLE
@@ -169,11 +169,11 @@
 - [ ] Establish testing framework
 - [ ] Document bootstrap process
 
-## 📈 PROGRESS METRICS (Updated: 2026-04-01 01:39 GMT)
+## 📈 PROGRESS METRICS (Updated: 2026-04-01 02:39 GMT)
 
 - **v0.3.23 Stability:** 100% (All tests passing, historic compilation milestone)
-- **v0.5.0 Development:** 80% (Phase 1.1 complete, Phase 1.2 progressing well)
-- **Bootstrap Prototype:** 75% (variables, if/else statements, arithmetic, parameters)
+- **v0.5.0 Development:** 85% (Phase 1.1 complete, Phase 1.2 nearly complete)
+- **Bootstrap Prototype:** 85% (variables, if/else, reassignment, while loops, arithmetic, parameters)
 - **v0.5.0 Infrastructure:** 95% (zeta module, stub types, import resolver, type unification)
 - **Test Coverage:** 100% (all 30 unit tests passing)
 - **v0.5.0 Compatibility:** 83% (34/41 source files parse successfully)
@@ -252,14 +252,15 @@
 ## 📅 NEXT CRON CHECK FOCUS
 
 **Next cron check should focus on:**
-1. Complete Phase 1.2: Add variable reassignment and while loops (else clauses already implemented)
+1. Complete Phase 1.2: Enhanced expressions (arithmetic, comparisons, logical ops)
 2. Enhance test suite with comprehensive control flow tests
-3. Begin Phase 1.3: Enhanced expressions and type checking
+3. Begin Phase 1.3: Type checking and validation
 4. Improve error handling and reporting in bootstrap compiler
 5. Work toward 90%+ v0.5.0 source file parsing compatibility
 6. Test bootstrap compiler with v0.3.23 compilation capabilities
+7. Update test suite to validate new features
 
 ---
-*Last updated: 2026-04-01 01:39 GMT*
-*Status: v0.3.23 ACTIVE WITH HISTORIC COMPILATION MILESTONE, v0.5.0 Phase 1.1 COMPLETE, Phase 1.2 progressing well (else clauses implemented), infrastructure excellent*
-*Next review: Complete Phase 1.2 (variable reassignment, while loops), begin Phase 1.3*
+*Last updated: 2026-04-01 02:39 GMT*
+*Status: v0.3.23 ACTIVE WITH HISTORIC COMPILATION MILESTONE, v0.5.0 Phase 1.1 COMPLETE, Phase 1.2 NEARLY COMPLETE (else clauses, reassignment, while loops implemented), infrastructure excellent*
+*Next review: Complete Phase 1.2 (enhanced expressions), begin Phase 1.3*
