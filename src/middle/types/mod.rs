@@ -185,11 +185,32 @@ impl Type {
                 // Check for array type: [T; N]
                 if s.starts_with('[') && s.ends_with(']') {
                     let inner = &s[1..s.len() - 1]; // Remove brackets
-                    if let Some((type_part, size_part)) = inner.split_once(';') {
+                    
+                    // Find the semicolon that separates type from size, handling nested brackets
+                    let mut bracket_count = 0;
+                    let mut split_pos = None;
+                    
+                    for (i, ch) in inner.chars().enumerate() {
+                        match ch {
+                            '[' => bracket_count += 1,
+                            ']' => bracket_count -= 1,
+                            ';' if bracket_count == 0 => {
+                                split_pos = Some(i);
+                                break;
+                            }
+                            _ => {}
+                        }
+                    }
+                    
+                    if let Some(pos) = split_pos {
+                        // Array with size: [T; N]
+                        let type_part = &inner[..pos];
+                        let size_part = &inner[pos + 1..];
                         let inner_type = Type::from_string(type_part.trim());
                         if let Ok(size) = size_part.trim().parse::<usize>() {
                             return Type::Array(Box::new(inner_type), size);
                         }
+                        // If size doesn't parse as usize, fall through to Named type
                     } else {
                         // Slice type: [T]
                         let inner_type = Type::from_string(inner.trim());

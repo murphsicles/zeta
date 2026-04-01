@@ -1,0 +1,38 @@
+// Integration test for module resolver
+// Tests that imports are resolved correctly
+
+// Test various import patterns
+use std::malloc
+use crate::middle::mir::Mir
+
+// Simple test functions
+fn test_std_import() -> i64 {
+    // malloc should be available
+    let ptr = malloc(100)
+    
+    // Return 0 for success
+    0
+}
+
+fn test_crate_import() -> i64 {
+    // Mir should be available
+    let _mir: Mir = Mir::new()
+    
+    // Return 0 for success
+    0
+}
+
+fn main() -> i64 {
+    let result1 = test_std_import()
+    if result1 != 0 {
+        return 1
+    }
+    
+    let result2 = test_crate_import()
+    if result2 != 0 {
+        return 2
+    }
+    
+    // All tests passed
+    0
+}

@@ -84,6 +84,10 @@ path = "tests/integration_error_handling.rs"
 name = "comptime_eval"
 path = "tests/comptime/test_runner.rs"
 
+[[test]]
+name = "primezeta_comptime"
+path = "tests/primezeta/test_comptime_residues.rs"
+
 # Benchmark configurations.
 [[bench]]
 # Benchmark name.

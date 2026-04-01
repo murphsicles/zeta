@@ -1,0 +1,45 @@
+// Basic import pattern tests for module system
+
+// Test 1: std:: imports (PrimeZeta pattern)
+use std::malloc
+use std::free
+use std::print
+use std::println
+
+// Test 2: crate:: imports
+use crate::middle::mir::Mir
+
+// Test 3: Direct function calls with std imports
+fn test_std_functions() -> i64 {
+    // These should resolve to the virtual std module
+    let ptr = malloc(100)
+    free(ptr)
+    
+    // Return success
+    0
+}
+
+// Test 4: crate type usage
+fn test_crate_type() -> i64 {
+    // Create a Mir instance (using default constructor)
+    let _mir: Mir = Mir::new()
+    0
+}
+
+// Main test function
+fn main() -> i64 {
+    let mut result: i64 = 0
+    
+    result = test_std_functions()
+    if result != 0 {
+        return 1
+    }
+    
+    result = test_crate_type()
+    if result != 0 {
+        return 2
+    }
+    
+    // All tests passed
+    0
+}

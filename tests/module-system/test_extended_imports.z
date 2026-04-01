@@ -1,0 +1,101 @@
+// Test extended import patterns for v0.3.27
+
+// Test 1: zeta:: as regular crate import (not self-compilation)
+// This tests the new handling for zeta:: prefix
+use zeta::frontend::ast::AstNode
+use zeta::middle::resolver::Resolver
+
+// Test 2: zorb:: package manager imports
+// This tests the new handling for zorb:: package manager modules
+use zorb::package::Package
+use zorb::manifest::Manifest
+
+// Test 3: std:: collections (nested imports)
+use std::collections::HashMap
+use std::ffi::c_void
+
+// Test 4: External crates (via zorb:: prefix)
+use zorb::reqwest::blocking::Client
+use zorb::serde::Deserialize
+
+// Test functions
+
+fn test_zeta_imports() -> i64 {
+    // Test zeta:: imports work
+    // These should resolve to virtual modules or actual .z files
+    let _node: AstNode = AstNode::Unit
+    let _resolver: Resolver = Resolver::new()
+    
+    0
+}
+
+fn test_zorb_package_imports() -> i64 {
+    // Test zorb:: package manager imports
+    let package = Package::new("test_package")
+    
+    // Check package name
+    if package.name() != "test_package" {
+        return 1
+    }
+    
+    // Check version (default should be "0.1.0")
+    if package.version() != "0.1.0" {
+        return 2
+    }
+    
+    // Test manifest
+    let mut manifest = Manifest::new(package)
+    manifest.add_dependency("zeta", "0.3.27")
+    
+    0
+}
+
+fn test_std_collections() -> i64 {
+    // Test HashMap
+    let mut map: HashMap<i64, i64> = HashMap::new()
+    map.insert(1, 100)
+    map.insert(2, 200)
+    
+    // Test c_void (opaque type)
+    let _void: c_void = c_void::__variant1
+    
+    0
+}
+
+fn test_external_crates() -> i64 {
+    // Test external crate imports
+    let _client: Client = Client::new()
+    
+    // Deserialize is a concept/trait stub
+    // Just test that the name resolves
+    
+    0
+}
+
+// Main test
+fn main() -> i64 {
+    let mut result: i64 = 0
+    
+    result = test_zeta_imports()
+    if result != 0 {
+        return 100 + result
+    }
+    
+    result = test_zorb_package_imports()
+    if result != 0 {
+        return 200 + result
+    }
+    
+    result = test_std_collections()
+    if result != 0 {
+        return 300 + result
+    }
+    
+    result = test_external_crates()
+    if result != 0 {
+        return 400 + result
+    }
+    
+    // All tests passed
+    0
+}

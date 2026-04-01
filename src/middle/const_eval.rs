@@ -233,7 +233,7 @@ impl ConstEvaluator {
         &mut self,
         func: &AstNode,
         args: &[AstNode],
-    ) -> Result<Option<i64>, String> {
+    ) -> Result<Option<ConstValue>, String> {
         match func {
             AstNode::FuncDef {
                 const_,
@@ -250,11 +250,11 @@ impl ConstEvaluator {
                 if let Some(expr) = ret_expr {
                     // Evaluate the return expression with argument substitution
                     // This is a simplified implementation
-                    self.eval_const_expr(expr).map(|v| v.as_i64())
+                    self.eval_const_expr(expr).map(Some)
                 } else if !body.is_empty() {
                     // Try to evaluate the last expression in the body
                     if let Some(AstNode::ExprStmt { expr }) = body.last() {
-                        self.eval_const_expr(expr).map(|v| v.as_i64())
+                        self.eval_const_expr(expr).map(Some)
                     } else {
                         Ok(None)
                     }
