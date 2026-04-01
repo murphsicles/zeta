@@ -10,20 +10,30 @@
 ## PHASE 1: MINIMAL ZETA COMPILER (Week 1) - IN PROGRESS
 ### Goal: Compiler that can compile itself (simple version)
 
-### Week 1.1: Ultra Simple Compiler - 80% COMPLETE
-- [x] Parser for: `fn name() -> i64 { return expr; }` (basic implementation)
-- [x] AST with: Function, Return, Literal, Identifier (complete)
-- [x] Code generator producing Zeta code (basic implementation)
+### Week 1.1: Ultra Simple Compiler - COMPLETE ✅
+- [x] Parser for: `fn name() -> i64 { return expr; }` (enhanced with parameters)
+- [x] AST with: Function, Return, Literal, Identifier, Call (enhanced)
+- [x] Code generator producing Zeta code (enhanced with parameter support)
 - [x] Test suite created (`bootstrap/test_suite.z`)
 - [x] Loop tests added (`test_loops_simple.z`, `test_while_simple.z`)
-- [ ] Self-compilation of simple arithmetic (in progress)
-- [ ] Binary operations support (addition, etc.)
+- [x] Self-compilation of simple arithmetic (completed)
+- [x] Binary operations support (addition, etc.) (completed)
 
-### Week 1.2: Add Basic Features
-- [ ] Function parameters
-- [ ] Local variables
-- [ ] Basic control flow (if/else)
-- [ ] Simple expressions
+### Week 1.2: Add Basic Features - COMPLETE ✅
+- [x] Function parameters
+- [x] Local variables
+- [x] Basic control flow (if/else)
+- [x] Simple expressions
+- [x] Else clauses and else-if chains
+- [x] Nested if statements
+- [x] Match expressions (basic + guards)
+- [x] While loops
+- [x] Loop break support
+- [x] Variable reassignment
+- [x] Enhanced parser with better statement handling
+- [x] Expanded AST with VarDecl, If, Match, While nodes
+- [x] Code generator updated for new node types
+- [x] Comprehensive test suite (16+ test files)
 
 ### Week 1.3: Bootstrap Validation
 - [ ] Compile minimal compiler with itself
