@@ -68,7 +68,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if let Some(file) = input {
         let code = fs::read_to_string(&file)?;
-        let result = parse_zeta(&code);
+        // Strip UTF-8 BOM if present
+        let code = if code.starts_with('\u{FEFF}') {
+            &code[1..]
+        } else {
+            &code
+        };
+        let result = parse_zeta(code);
         match result {
             Ok((remaining, asts)) => {
                 if !remaining.is_empty() {
