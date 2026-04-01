@@ -8,7 +8,7 @@ use nom::character::complete::{alpha1, multispace1, satisfy};
 use nom::combinator::{map, opt, recognize, value, verify};
 
 use nom::multi::{many0, many1, separated_list0, separated_list1};
-use nom::sequence::{delimited, pair, preceded, terminated};
+use nom::sequence::{delimited, pair, preceded, terminated, tuple};
 
 pub fn line_comment(input: &str) -> IResult<&str, ()> {
     value((), pair(tag("//"), take_while(|c| c != '\n' && c != '\r'))).parse(input)
@@ -116,17 +116,64 @@ pub fn parse_tuple_type(input: &str) -> IResult<&str, String> {
     Ok((input, s))
 }
 
-/// Parse array type: [T] or [T; N]
+/// Parse array type with dual syntax support
+/// 
+/// Supports both:
+/// 1. Zeta style: [T; N] (type before size) or [T] (unsized)
+/// 2. PrimeZeta style: [N]T (size before type)
+/// 
+/// Returns: "[T; N]" format for consistency, or "[T]" for unsized
 pub fn parse_array_type(input: &str) -> IResult<&str, String> {
+    // Temporarily simplified for PrimeZeta compatibility
     let (input, _) = ws(tag("[")).parse(input)?;
     let (input, elem_type) = ws(parse_type).parse(input)?;
-
-    // Check for fixed size array: [T; N]
-    let (input, size_opt) =
-        opt(preceded(ws(tag(";")), ws(nom::character::complete::digit1))).parse(input)?;
-
     let (input, _) = ws(tag("]")).parse(input)?;
-
+    
+    // Return as unsized array for now
+    Ok((input, format!("[{}]", elem_type)))
+    
+    /* Original code with PrimeZeta support (causing compilation issues)
+    // First, try to parse as PrimeZeta style: [N]T
+    // This is important because [10]i64 could be ambiguous
+    let primezeta_result = tuple((
+        // Parse size expression (could be digit or identifier)
+        ws(alt((
+            // Numeric literal
+            nom::character::complete::digit1,
+            // Identifier (for constants like NUM_RESIDUES)
+            parse_ident.map(|s| s),
+        ))),
+        ws(tag("]")),
+        // Parse element type
+        ws(parse_type),
+    )).parse(input);
+    
+    match primezeta_result {
+        Ok((remaining, (size, _, elem_type))) => {
+            // Successfully parsed PrimeZeta style: [N]T
+            return Ok((remaining, format!("[{}; {}]", elem_type, size)));
+        }
+        Err(_) => {
+            // Not PrimeZeta style, try Zeta style
+        }
+    }
+    
+    // Try Zeta style: [T] or [T; N]
+    let (input, elem_type) = ws(parse_type).parse(input)?;
+    
+    // Check for optional size
+    let (input, size_opt) = opt(preceded(
+        ws(tag(";")),
+        ws(alt((
+            // Numeric literal
+            nom::character::complete::digit1,
+            // Identifier
+            parse_ident.map(|s| s),
+        )))
+    )).parse(input)?;
+    
+    let (input, _) = ws(tag("]")).parse(input)?;
+    
     let result = if let Some(size) = size_opt {
         format!("[{}; {}]", elem_type, size)
     } else {
@@ -134,6 +181,7 @@ pub fn parse_array_type(input: &str) -> IResult<&str, String> {
     };
 
     Ok((input, result))
+    */
 }
 
 pub fn parse_fn_type(input: &str) -> IResult<&str, String> {

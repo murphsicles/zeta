@@ -1,2 +1,8 @@
-//! Stub for std::std
-pub struct Stub;
+// Stub for std module with PrimeZeta functions
+
+// PrimeZeta required functions
+pub fn malloc(size: i64) -> i64 { 0 }
+pub fn free(ptr: i64) { }
+pub fn print(msg: i64) { }
+pub fn println(msg: i64) { }
+pub fn args() -> i64 { 0 }

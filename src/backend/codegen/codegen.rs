@@ -720,6 +720,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
             if let Some(&f) = self.fns.get(method_name) {
                 return f;
             }
+        } else {
+            // Try with std:: prefix (for imported stdlib functions)
+            let std_name = format!("std::{}", name);
+            if let Some(&f) = self.fns.get(&std_name) {
+                println!("[CODEGEN DEBUG] Found {} as {}", name, std_name);
+                return f;
+            }
         }
 
         let mangled = if name.contains('_') {

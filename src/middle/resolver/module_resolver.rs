@@ -351,6 +351,12 @@ impl ModuleResolver {
             println!("[MODULE RESOLVER] Loading virtual module for zeta:: import");
             return self.load_virtual_module(&path_str);
         }
+        
+        // Check if this is a std module (handle specially for PrimeZeta)
+        if path_str.contains("stub_types\\std") || path_str.contains("stub_types/std") {
+            println!("[MODULE RESOLVER] Loading std module for PrimeZeta");
+            return self.load_std_module();
+        }
 
         // Read and parse file
         let content = fs::read_to_string(path)
@@ -459,6 +465,133 @@ impl ModuleResolver {
         self.modules.insert(path_str.clone(), module);
         println!("[MODULE RESOLVER] Module loaded successfully: {}", name);
         Ok(self.modules.get(&path_str).unwrap())
+    }
+
+    /// Load a virtual module for std:: imports (PrimeZeta compatibility)
+    fn load_std_module(&mut self) -> Result<&Module, String> {
+        let path_str = "std_virtual/std";
+        
+        // Check cache first
+        if self.modules.contains_key(path_str) {
+            println!("[MODULE RESOLVER] std module already cached");
+            return Ok(self.modules.get(path_str).unwrap());
+        }
+        
+        // Create a virtual module with PrimeZeta functions
+        let mut exports = HashMap::new();
+        let mut asts = Vec::new();
+        
+        // Create malloc function
+        let malloc_func = AstNode::FuncDef {
+            name: "malloc".to_string(),
+            generics: vec![],
+            lifetimes: vec![],
+            params: vec![("size".to_string(), "i64".to_string())],
+            ret: "i64".to_string(),
+            body: vec![],
+            attrs: vec![],
+            ret_expr: None,
+            single_line: false,
+            doc: "Allocate memory".to_string(),
+            pub_: true,
+            async_: false,
+            const_: false,
+            where_clauses: vec![],
+        };
+        asts.push(malloc_func.clone());
+        exports.insert("malloc".to_string(), malloc_func);
+        
+        // Create free function
+        let free_func = AstNode::FuncDef {
+            name: "free".to_string(),
+            generics: vec![],
+            lifetimes: vec![],
+            params: vec![("ptr".to_string(), "i64".to_string())],
+            ret: "()".to_string(),
+            body: vec![],
+            attrs: vec![],
+            ret_expr: None,
+            single_line: false,
+            doc: "Free memory".to_string(),
+            pub_: true,
+            async_: false,
+            const_: false,
+            where_clauses: vec![],
+        };
+        asts.push(free_func.clone());
+        exports.insert("free".to_string(), free_func);
+        
+        // Create print function
+        let print_func = AstNode::FuncDef {
+            name: "print".to_string(),
+            generics: vec![],
+            lifetimes: vec![],
+            params: vec![("msg".to_string(), "i64".to_string())],
+            ret: "()".to_string(),
+            body: vec![],
+            attrs: vec![],
+            ret_expr: None,
+            single_line: false,
+            doc: "Print message".to_string(),
+            pub_: true,
+            async_: false,
+            const_: false,
+            where_clauses: vec![],
+        };
+        asts.push(print_func.clone());
+        exports.insert("print".to_string(), print_func);
+        
+        // Create println function
+        let println_func = AstNode::FuncDef {
+            name: "println".to_string(),
+            generics: vec![],
+            lifetimes: vec![],
+            params: vec![("msg".to_string(), "i64".to_string())],
+            ret: "()".to_string(),
+            body: vec![],
+            attrs: vec![],
+            ret_expr: None,
+            single_line: false,
+            doc: "Print message with newline".to_string(),
+            pub_: true,
+            async_: false,
+            const_: false,
+            where_clauses: vec![],
+        };
+        asts.push(println_func.clone());
+        exports.insert("println".to_string(), println_func);
+        
+        // Create args function
+        let args_func = AstNode::FuncDef {
+            name: "args".to_string(),
+            generics: vec![],
+            lifetimes: vec![],
+            params: vec![],
+            ret: "i64".to_string(),
+            body: vec![],
+            attrs: vec![],
+            ret_expr: None,
+            single_line: false,
+            doc: "Get command line arguments".to_string(),
+            pub_: true,
+            async_: false,
+            const_: false,
+            where_clauses: vec![],
+        };
+        asts.push(args_func.clone());
+        exports.insert("args".to_string(), args_func);
+        
+        // Create the module
+        let module = Module {
+            name: "std".to_string(),
+            path: PathBuf::from("stub_types/std.z"),
+            asts,
+            exports,
+        };
+        
+        self.modules.insert(path_str.to_string(), module);
+        println!("[MODULE RESOLVER] Created virtual std module for PrimeZeta");
+        Ok(self.modules.get(path_str).unwrap())
     }
 
     /// Load a virtual module for zeta:: imports (self-compilation)
