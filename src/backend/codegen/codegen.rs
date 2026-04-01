@@ -1736,6 +1736,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     )
                     .unwrap()
             }
+            MirExpr::Range { start, end } => {
+                // For now, just return the start value
+                // TODO: Implement proper range type
+                self.gen_expr(&exprs[start], exprs)
+            }
         }
     }
 

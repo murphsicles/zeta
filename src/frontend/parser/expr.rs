@@ -526,6 +526,34 @@ fn parse_primary(input: &str) -> IResult<&str, AstNode> {
 fn parse_postfix(input: &str) -> IResult<&str, AstNode> {
     let (mut input, mut expr) = parse_unary(input)?;
     loop {
+        // Check if this is a range operator ".." or "..=" before parsing as field access
+        // We need to look ahead to see if the dot is followed by another dot or equals
+        let bytes = input.as_bytes();
+        let mut is_range_operator = false;
+        
+        // Skip whitespace
+        let mut pos = 0;
+        while pos < bytes.len() && (bytes[pos] as char).is_whitespace() {
+            pos += 1;
+        }
+        
+        // Check if we have a dot
+        if pos < bytes.len() && bytes[pos] == b'.' {
+            // Check if next character is also dot or equals
+            if pos + 1 < bytes.len() {
+                if bytes[pos + 1] == b'.' {
+                    // This is ".." or "..="
+                    is_range_operator = true;
+                }
+            }
+        }
+        
+        // Check if this is a range operator
+        if is_range_operator {
+            // It's a range operator, break and let binary operator parsing handle it
+            break;
+        }
+        
         let dot_result = ws(tag(".")).parse(input);
         if let Ok((i, _)) = dot_result {
             let (j, field_or_method) = parse_ident(i)?;

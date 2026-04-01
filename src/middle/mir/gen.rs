@@ -372,13 +372,16 @@ impl MirGen {
                                 rhs: start_id,
                             });
 
-                            // Create while loop condition: i < end
-                            let cond_id = self.next_id();
-                            // For now, we'll create a placeholder condition
-                            // In a real implementation, we'd create a comparison
-                            self.exprs.insert(cond_id, MirExpr::Lit(1)); // Always true for now
-                            self.type_map.insert(cond_id, Type::Bool);
-
+                            // Create a range iterator expression
+                            // For range start..end, we need to create an iterator
+                            // For now, we'll create a simple representation
+                            let range_id = self.next_id();
+                            self.exprs.insert(range_id, MirExpr::Range {
+                                start: start_id,
+                                end: end_id,
+                            });
+                            self.type_map.insert(range_id, Type::Range);
+                            
                             // Save current statements to restore after loop body
                             let stmts_before_body = self.stmts.len();
 
@@ -389,25 +392,12 @@ impl MirGen {
 
                             // Get body statements
                             let body_stmts = self.stmts.split_off(stmts_before_body);
-
-                            // Add increment: i = i + 1
-                            let inc_id = self.next_id();
-                            self.exprs.insert(inc_id, MirExpr::Lit(1));
-                            self.type_map.insert(inc_id, Type::I64);
-
-                            let new_var_id = self.next_id();
-                            // For now, just assign var_id + 1
-                            self.stmts.push(MirStmt::Assign {
-                                lhs: var_id,
-                                rhs: inc_id, // This is wrong, should be var_id + 1
-                            });
-
-                            // Create while loop
-                            self.stmts.push(MirStmt::If {
-                                cond: cond_id,
-                                then: body_stmts,
-                                else_: vec![],
-                                dest: None,
+                            
+                            // Create For statement in MIR
+                            self.stmts.push(MirStmt::For {
+                                iterator: range_id,
+                                pattern: var_name.clone(),
+                                body: body_stmts,
                             });
                         }
                     }

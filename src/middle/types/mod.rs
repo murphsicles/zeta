@@ -48,6 +48,8 @@ pub enum Type {
     Bool,
     Char,
     Str,
+    // Range type for for loops
+    Range,
 
     // Compound types
     Array(Box<Type>, usize),              // [T; N]
@@ -387,6 +389,7 @@ impl Type {
             Type::Bool => "bool".to_string(),
             Type::Char => "char".to_string(),
             Type::Str => "str".to_string(),
+            Type::Range => "Range".to_string(),
             Type::Array(inner, size) => format!("[{}; {}]", inner.display_name(), size),
             Type::Slice(inner) => format!("[{}]", inner.display_name()),
             Type::Tuple(types) => {
@@ -455,6 +458,7 @@ impl Type {
             Type::Bool => "bool".to_string(),
             Type::Char => "char".to_string(),
             Type::Str => "str".to_string(),
+            Type::Range => "Range".to_string(),
             Type::Array(inner, size) => format!("Array_{}_{}", inner.mangled_name(), size),
             Type::Slice(inner) => format!("Slice_{}", inner.mangled_name()),
             Type::Tuple(types) => {

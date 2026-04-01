@@ -98,6 +98,11 @@ pub enum MirExpr {
         base: u32,
         field: String,
     },
+    // Range expression for for loops
+    Range {
+        start: u32,
+        end: u32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

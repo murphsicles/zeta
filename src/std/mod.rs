@@ -20,11 +20,11 @@ pub fn get_std_functions() -> ::std::collections::HashMap<&'static str, usize> {
     use crate::runtime::std;
     
     let mut map = ::std::collections::HashMap::new();
-    map.insert("malloc", std::std_malloc as usize);
-    map.insert("free", std::std_free as usize);
-    map.insert("print", std::std_print as usize);
-    map.insert("println", std::std_println as usize);
-    map.insert("args", std::std_args as usize);
+    map.insert("malloc", std::std_malloc as *const () as usize);
+    map.insert("free", std::std_free as *const () as usize);
+    map.insert("print", std::std_print as *const () as usize);
+    map.insert("println", std::std_println as *const () as usize);
+    map.insert("args", std::std_args as *const () as usize);
     
     map
 }
