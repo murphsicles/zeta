@@ -10,11 +10,12 @@
 ## PHASE 1: MINIMAL ZETA COMPILER (Week 1) - IN PROGRESS
 ### Goal: Compiler that can compile itself (simple version)
 
-### Week 1.1: Ultra Simple Compiler - 75% COMPLETE
+### Week 1.1: Ultra Simple Compiler - 80% COMPLETE
 - [x] Parser for: `fn name() -> i64 { return expr; }` (basic implementation)
 - [x] AST with: Function, Return, Literal, Identifier (complete)
 - [x] Code generator producing Zeta code (basic implementation)
 - [x] Test suite created (`bootstrap/test_suite.z`)
+- [x] Loop tests added (`test_loops_simple.z`, `test_while_simple.z`)
 - [ ] Self-compilation of simple arithmetic (in progress)
 - [ ] Binary operations support (addition, etc.)
 
@@ -168,6 +169,7 @@
 5. **Iterate based on results**
 
 ---
-*Last updated: 2026-03-31 12:53 GMT*
-*Status: Preparation phase*
-*Next review: After async implementation completes*
+*Last updated: 2026-04-01 05:00 GMT*
+*Status: Week 1.1 - 80% complete*
+*Progress: Loop tests added, array syntax compatibility work completed*
+*Next review: Continue with self-compilation work*
