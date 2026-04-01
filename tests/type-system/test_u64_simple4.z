@@ -1,8 +1,0 @@
-// Simple test without array types
-fn test1() -> u64 {
-    42
-}
-
-fn main() -> i64 {
-    0
-}

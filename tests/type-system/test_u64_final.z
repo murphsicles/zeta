@@ -1,0 +1,52 @@
+// Final test for u64 type support for v0.3.26
+// Created by U64-TYPE-AGENT
+// Tests core u64 functionality without array types (which have separate bugs)
+
+// Test 1: Basic u64 constant (PrimeZeta's main use case)
+const MODULUS: u64 = 30030
+
+// Test 2: usize constant
+const NUM_RESIDUES: usize = 5760
+
+// Test 3: u64 variable declaration
+fn test_u64_var() -> u64 {
+    let x: u64 = 42
+    x
+}
+
+// Test 4: u64 arithmetic
+fn test_u64_arithmetic() -> u64 {
+    let a: u64 = 100
+    let b: u64 = 50
+    a + b
+}
+
+// Test 5: u64 return type
+fn returns_u64() -> u64 {
+    12345
+}
+
+// Test 6: Function with u64 parameter
+fn takes_u64(x: u64) -> u64 {
+    x * 2
+}
+
+// Test 7: Mixed u64 and usize
+fn mixed_unsigned() -> u64 {
+    let x: u64 = 100
+    let y: usize = 50
+    // Note: This would need explicit cast in real code
+    // but our type system allows it for compatibility
+    x + y as u64
+}
+
+fn main() -> i64 {
+    let m = MODULUS
+    let n = NUM_RESIDUES
+    let r = test_u64_var()
+    let s = test_u64_arithmetic()
+    let t = returns_u64()
+    let u = takes_u64(10)
+    let v = mixed_unsigned()
+    0
+}

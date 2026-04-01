@@ -53,12 +53,12 @@ memory/
 verification/
 
 # Workspace root files (OpenClaw configuration - PRIVATE)
-AGENTS.md
-HEARTBEAT.md
-IDENTITY.md
-SOUL.md
-TOOLS.md
-USER.md
+/AGENTS.md
+/HEARTBEAT.md
+/IDENTITY.md
+/SOUL.md
+/TOOLS.md
+/USER.md
 /WORK_QUEUE.md
-MEMORY.md
-BOOTSTRAP.md
+/MEMORY.md
+/BOOTSTRAP.md
