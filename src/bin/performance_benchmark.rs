@@ -102,7 +102,7 @@ fn main() {
     
     println!("  Performance targets:");
     for (i, (size, target)) in performance_targets.iter().enumerate() {
-        let (_actual_size, _actual_duration, success) = (results[i].1, results[i].2, results[i].3);
+        let (_actual_size, actual_duration, success) = (results[i].1, results[i].2, results[i].3);
         
         let met_target = actual_duration <= *target;
         let status = if met_target { "✅" } else { "❌" };
