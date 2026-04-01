@@ -4,7 +4,7 @@
 # Package name.
 name = "zetac"
 # Current version.
-version = "0.3.26"
+version = "0.3.27"
 # Rust edition.
 edition = "2024"
 # Minimum Rust version.
@@ -79,6 +79,10 @@ path = "tests/error_handling.rs"
 [[test]]
 name = "integration_error_handling"
 path = "tests/integration_error_handling.rs"
+
+[[test]]
+name = "comptime_eval"
+path = "tests/comptime/test_runner.rs"
 
 # Benchmark configurations.
 [[bench]]

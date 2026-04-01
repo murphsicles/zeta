@@ -49,22 +49,81 @@ impl ModuleResolver {
             return Err("Empty path".to_string());
         }
 
-        // Check for Zeta compiler imports: `use zeta::frontend::ast::AstNode;`
-        // These are for self-compilation and don't correspond to .z files
+        // Check for Zeta imports: `use zeta::frontend::ast::AstNode;`
+        // These can be for self-compilation (virtual modules) or regular crate imports
         if !path.is_empty() && path[0] == "zeta" {
-            // For self-compilation, we need to handle zeta:: imports specially
-            // These refer to the compiler's own data structures, not .z files
-            // We'll create a virtual module path for the module (without item name)
-            // For `use zeta::frontend::ast::AstNode;`, path is ["zeta", "frontend", "ast", "AstNode"]
-            // We need to resolve ["zeta", "frontend", "ast"] to a virtual module
+            // First check if this is a self-compilation import (zeta crate importing itself)
+            // For self-compilation, we create virtual modules
+            // For regular crate imports, we need to resolve to actual .z files
+            
+            // Get the module path without the item name
             let module_path = if path.len() > 1 {
                 &path[..path.len() - 1] // Remove the last component (the item name)
             } else {
-                path // Keep all if only 1 component (shouldn't happen for zeta::)
+                path // Keep all if only 1 component (shouldn't happen for valid imports)
             };
-            let module_name = module_path.join("::");
-            let virtual_path = PathBuf::from(format!("zeta_virtual/{}", module_name));
-            return Ok(virtual_path);
+            
+            // Check if this is a self-compilation pattern (zeta importing its own modules)
+            // These are typically internal compiler modules
+            let is_self_compilation = match &module_path[..] {
+                [a, b, c] if a == "zeta" && b == "frontend" && c == "ast" => true,
+                [a, b, c, d] if a == "zeta" && b == "frontend" && c == "parser" && d == "top_level" => true,
+                [a, b, c, d] if a == "zeta" && b == "middle" && c == "resolver" && d == "resolver" => true,
+                [a, b, c, d] if a == "zeta" && b == "middle" && c == "mir" && d == "mir" => true,
+                [a, b, c] if a == "zeta" && b == "middle" && c == "specialization" => true,
+                [a, b, c, d] if a == "zeta" && b == "backend" && c == "codegen" && d == "codegen" => true,
+                [a, b, c, d] if a == "zeta" && b == "runtime" && c == "actor" && d == "channel" => true,
+                [a, b, c, d] if a == "zeta" && b == "runtime" && c == "actor" && d == "scheduler" => true,
+                _ => false,
+            };
+            
+            if is_self_compilation {
+                // For self-compilation, create virtual module
+                let module_name = module_path.join("::");
+                let virtual_path = PathBuf::from(format!("zeta_virtual/{}", module_name));
+                return Ok(virtual_path);
+            } else {
+                // For regular zeta crate imports, treat like crate:: imports
+                // but relative to zeta_src/ directory
+                println!(
+                    "[MODULE RESOLVER] Handling zeta:: crate import: {}",
+                    path.join("::")
+                );
+                
+                // Skip "zeta" prefix and remove item name
+                let module_path = if path.len() > 1 {
+                    &path[1..path.len() - 1] // Skip "zeta" and remove the last component
+                } else {
+                    &path[1..] // Skip "zeta" only
+                };
+                
+                let mut zeta_path = PathBuf::from("zeta_src");
+                
+                for component in module_path {
+                    zeta_path.push(component);
+                }
+                
+                // Try with .z extension first
+                let mut z_path = zeta_path.clone();
+                z_path.set_extension("z");
+                
+                if z_path.exists() {
+                    return Ok(z_path);
+                }
+                
+                // Try as directory with mod.z
+                let mut mod_path = zeta_path.clone();
+                mod_path.push("mod.z");
+                
+                if mod_path.exists() {
+                    return Ok(mod_path);
+                }
+                
+                // If not found, create a virtual module for common zeta crate items
+                let module_name = module_path.join("::");
+                let virtual_path = PathBuf::from(format!("zeta_virtual/{}", module_name));
+                return Ok(virtual_path);
+            }
         }
 
         // Check for crate-relative imports: `use crate::middle::mir::Mir;`
@@ -286,6 +345,58 @@ impl ModuleResolver {
                 "Standard library module not found: {}",
                 path.join("::")
             ));
+        }
+
+        // Check for zorb package manager imports: `use zorb::package::Package;`, `use zorb::manifest::Manifest;`
+        if path.len() >= 2 && path[0] == "zorb" {
+            // Check if this is a package manager module (not std or external crate)
+            let is_package_manager_module = match path[1].as_str() {
+                "package" | "manifest" | "registry" | "dependency" | "lockfile" | "config" => true,
+                _ => false,
+            };
+            
+            if is_package_manager_module {
+                println!(
+                    "[MODULE RESOLVER] Handling zorb package manager import: {}",
+                    path.join("::")
+                );
+                
+                // For zorb package manager imports, we need to resolve to zorb/ directory
+                // For `use zorb::package::Package;`, path is ["zorb", "package", "Package"]
+                // We need to resolve ["zorb", "package"] to zorb/package.z or zorb/package/mod.z
+                
+                let module_path = if path.len() > 2 {
+                    &path[..path.len() - 1] // Remove the last component (the item name)
+                } else {
+                    path // Keep all if only 2 components
+                };
+                
+                let mut zorb_path = PathBuf::from("zorb");
+                
+                // Add all components (including "zorb" prefix)
+                for component in module_path {
+                    zorb_path.push(component);
+                }
+                
+                // Try with .z extension
+                let mut z_path = zorb_path.clone();
+                z_path.set_extension("z");
+                
+                if z_path.exists() {
+                    return Ok(z_path);
+                }
+                
+                // Try as directory with mod.z
+                let mut mod_path = zorb_path.clone();
+                mod_path.push("mod.z");
+                
+                if mod_path.exists() {
+                    return Ok(mod_path);
+                }
+                
+                // If not found, create a virtual module for common package manager items
+                return self.create_zorb_package_stub(&module_path);
+            }
         }
 
         // Try to resolve the path without the last component
@@ -619,7 +730,7 @@ impl ModuleResolver {
         if !path_components.is_empty() && path_components[0] == "zeta" {
             // Handle different zeta:: imports based on path components
             // We create virtual modules that export all items from that module
-            match path_components.as_slice() {
+            match &path_components[..] {
                 ["zeta", "frontend", "ast"] => {
                     // Create a virtual enum for AstNode
                     let ast_node_enum = AstNode::EnumDef {
@@ -1058,6 +1169,122 @@ pub fn from_str<T>(_s: &str) -> Result<T, ()> {
     unimplemented!()
 }"#
             .to_string(),
+            _ => {
+                // Generic stub
+                format!(
+                    "//! Stub for {}\npub struct Stub;\n",
+                    module_path.join("::")
+                )
+            }
+        }
+    }
+
+    /// Create a minimal stub for a zorb package manager module that doesn't exist yet
+    fn create_zorb_package_stub(&mut self, module_path: &[String]) -> Result<PathBuf, String> {
+        // Create directory structure
+        let mut stub_path = PathBuf::from("zorb");
+
+        for component in module_path {
+            stub_path.push(component);
+        }
+
+        // Create parent directories
+        if let Some(parent) = stub_path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create zorb stub directory: {}", e))?;
+        }
+
+        // Create .z file (not mod.z)
+        stub_path.set_extension("z");
+
+        // Generate stub content based on module path
+        let stub_content = self.generate_zorb_package_stub_content(module_path);
+
+        fs::write(&stub_path, stub_content)
+            .map_err(|e| format!("Failed to write zorb stub file: {}", e))?;
+
+        println!(
+            "[MODULE RESOLVER] Created zorb package stub at: {}",
+            stub_path.display()
+        );
+        Ok(stub_path)
+    }
+
+    /// Generate stub content for a zorb package manager module
+    fn generate_zorb_package_stub_content(&self, module_path: &[String]) -> String {
+        // Generate different stubs based on what's being imported
+        let last_component = module_path.last().map(|s| s.as_str()).unwrap_or("");
+
+        match last_component {
+            "package" => {
+                r#"//! Stub for zorb::package::Package
+pub struct Package {
+    name: String,
+    version: String,
+}
+
+impl Package {
+    pub fn new(name: &str) -> Self {
+        Package {
+            name: name.to_string(),
+            version: "0.1.0".to_string(),
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn version(&self) -> &str {
+        &self.version
+    }
+}"#
+                .to_string()
+            }
+            "manifest" => {
+                r#"//! Stub for zorb::manifest::Manifest
+pub struct Manifest {
+    package: Package,
+    dependencies: Vec<Dependency>,
+}
+
+pub struct Dependency {
+    name: String,
+    version: String,
+}
+
+impl Manifest {
+    pub fn new(package: Package) -> Self {
+        Manifest {
+            package,
+            dependencies: Vec::new(),
+        }
+    }
+
+    pub fn add_dependency(&mut self, name: &str, version: &str) {
+        self.dependencies.push(Dependency {
+            name: name.to_string(),
+            version: version.to_string(),
+        });
+    }
+}"#
+                .to_string()
+            }
+            "registry" => {
+                r#"//! Stub for zorb::registry::Registry
+pub struct Registry {}
+
+impl Registry {
+    pub fn new() -> Self {
+        Registry {}
+    }
+
+    pub fn publish(&self, _package: &Package) -> Result<(), String> {
+        Ok(())
+    }
+}"#
+                .to_string()
+            }
             _ => {
                 // Generic stub
                 format!(
