@@ -154,7 +154,7 @@ impl Resolver {
                     let expr_type = self.infer_type(expr);
                     // Convert string type annotation to Type for comparison
                     let annotated_type = self.string_to_type(type_str);
-                    if expr_type != annotated_type {
+                    if !self.types_compatible(&expr_type, &annotated_type, expr) {
                         ok = false;
                     }
                 }
@@ -190,7 +190,14 @@ impl Resolver {
             AstNode::StringLit(_) => Type::Str,
             AstNode::FString(_) => Type::Str,
             AstNode::Var(_) => Type::I64,
-            AstNode::BinaryOp { left, .. } => self.infer_type(left),
+            AstNode::BinaryOp { op, left, .. } => {
+                // Handle range operator specially
+                if op == ".." {
+                    Type::Range
+                } else {
+                    self.infer_type(left)
+                }
+            },
             AstNode::Call { .. } => Type::I64,
             AstNode::DictLit { entries } => {
                 if entries.is_empty() {
@@ -202,6 +209,10 @@ impl Resolver {
                     // Create a named type like Map<key_type, value_type>
                     Type::Named("Map".to_string(), vec![key_type, value_type])
                 }
+            }
+            AstNode::For { .. } => {
+                // For loops have unit type (they don't produce a value)
+                Type::Tuple(vec![])
             }
             _ => Type::I64,
         }
@@ -237,5 +248,32 @@ impl Resolver {
 
     pub fn is_copy(&self, ty: &Type) -> bool {
         matches!(ty, Type::I64 | Type::I32 | Type::Bool | Type::Str)
+    }
+
+    /// Check if two types are compatible, allowing some implicit conversions
+    pub fn types_compatible(&self, expr_type: &Type, annotated_type: &Type, expr: &AstNode) -> bool {
+        // Exact match is always compatible
+        if expr_type == annotated_type {
+            return true;
+        }
+
+        // Allow i64 to be assigned to u64 (common in PrimeZeta code)
+        // This is unsafe for negative values but matches common practice
+        if expr_type == &Type::I64 && annotated_type == &Type::U64 {
+            return true;
+        }
+
+        // Allow i64 to be assigned to i32 (with potential truncation)
+        if expr_type == &Type::I64 && annotated_type == &Type::I32 {
+            return true;
+        }
+
+        // Allow u64 to be assigned to i64 (with potential overflow)
+        if expr_type == &Type::U64 && annotated_type == &Type::I64 {
+            return true;
+        }
+
+        // TODO: Add more compatibility rules as needed
+        false
     }
 }
