@@ -1,7 +1,7 @@
 //! Real v0.5.0 compatibility assessment
 
-use std::fs;
-use std::path::Path;
+// use std::fs;
+// use std::path::Path;
 use zetac::frontend::parser::top_level::parse_zeta;
 
 fn main() {

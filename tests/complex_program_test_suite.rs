@@ -3,8 +3,8 @@
 //! Tests multi-file programs, control flow complexity, module system integration,
 //! and error handling scenarios.
 
-use std::fs;
-use std::path::Path;
+// use std::fs;
+// use std::path::Path;
 use zetac::frontend::parser::top_level::parse_zeta;
 
 /// Test 1: Multi-file program simulation
@@ -425,7 +425,7 @@ fn test_regression_suite() {
     
     let mut passed = 0;
     
-    for (name, code) in regression_tests {
+    for (name, code) in &regression_tests {
         let result = parse_zeta(code);
         if result.is_ok() {
             println!("✅ {} - Still works", name);

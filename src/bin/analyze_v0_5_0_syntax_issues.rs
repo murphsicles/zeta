@@ -1,7 +1,7 @@
 //! Analyze v0.5.0 syntax issues
 
-use std::fs;
-use std::path::Path;
+// use std::fs;
+// use std::path::Path;
 use zetac::frontend::parser::top_level::parse_zeta;
 
 fn main() {

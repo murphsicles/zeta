@@ -45,7 +45,7 @@ fn main() {
     
     let mut results = Vec::new();
     
-    for (size, code) in test_programs {
+    for (size, code) in &test_programs {
         let start = Instant::now();
         let result = parse_zeta(code);
         let duration = start.elapsed();
@@ -102,7 +102,7 @@ fn main() {
     
     println!("  Performance targets:");
     for (i, (size, target)) in performance_targets.iter().enumerate() {
-        let (actual_size, actual_duration, success) = (results[i].1, results[i].2, results[i].3);
+        let (_actual_size, _actual_duration, success) = (results[i].1, results[i].2, results[i].3);
         
         let met_target = actual_duration <= *target;
         let status = if met_target { "✅" } else { "❌" };
@@ -123,7 +123,7 @@ fn main() {
     // Check for any obvious performance issues
     let mut has_regressions = false;
     
-    for (size, length, duration, success) in &results {
+    for (size, _length, _duration, success) in &results {
         // Rule 1: Parsing should succeed
         if !success {
             println!("  ❌ {} program failed to parse", size);

@@ -1137,6 +1137,48 @@ impl InferContext {
                 Ok(Type::Tuple(vec![]))
             }
 
+            AstNode::While { cond, body } => {
+                // Type check the condition - must be boolean
+                let cond_ty = self.infer(cond)?;
+                self.constrain_eq(cond_ty, Type::Bool);
+
+                // Type check the body
+                for stmt in body {
+                    self.infer(stmt)?;
+                }
+
+                // While loops have unit type
+                Ok(Type::Tuple(vec![]))
+            }
+
+            AstNode::Loop { body } => {
+                // Type check the body
+                for stmt in body {
+                    self.infer(stmt)?;
+                }
+
+                // Loops have unit type
+                Ok(Type::Tuple(vec![]))
+            }
+
+            AstNode::Break(expr_opt) => {
+                // Type check the break expression if present
+                if let Some(expr) = expr_opt {
+                    self.infer(expr)?;
+                }
+                // Break statements have unit type (they don't produce a value)
+                Ok(Type::Tuple(vec![]))
+            }
+
+            AstNode::Continue(expr_opt) => {
+                // Type check the continue expression if present
+                if let Some(expr) = expr_opt {
+                    self.infer(expr)?;
+                }
+                // Continue statements have unit type (they don't produce a value)
+                Ok(Type::Tuple(vec![]))
+            }
+
             _ => {
                 // Default to error for unimplemented nodes
                 return Err(format!("Type inference not implemented for: {:?}", node));
