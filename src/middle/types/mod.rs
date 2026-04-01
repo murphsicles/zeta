@@ -41,6 +41,7 @@ pub enum Type {
     U16,
     U32,
     U64,
+    Usize,  // Platform-dependent unsigned integer (size of pointer)
     F32,
     F64,
 
@@ -159,6 +160,7 @@ impl Type {
             "u16" => Type::U16,
             "u32" => Type::U32,
             "u64" => Type::U64,
+            "usize" => Type::Usize,
             "f32" => Type::F32,
             "f64" => Type::F64,
             "bool" => Type::Bool,
@@ -384,6 +386,7 @@ impl Type {
             Type::U16 => "u16".to_string(),
             Type::U32 => "u32".to_string(),
             Type::U64 => "u64".to_string(),
+            Type::Usize => "usize".to_string(),
             Type::F32 => "f32".to_string(),
             Type::F64 => "f64".to_string(),
             Type::Bool => "bool".to_string(),
@@ -453,6 +456,7 @@ impl Type {
             Type::U16 => "u16".to_string(),
             Type::U32 => "u32".to_string(),
             Type::U64 => "u64".to_string(),
+            Type::Usize => "usize".to_string(),
             Type::F32 => "f32".to_string(),
             Type::F64 => "f64".to_string(),
             Type::Bool => "bool".to_string(),
