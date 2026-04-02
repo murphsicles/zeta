@@ -1,0 +1,8 @@
+﻿// Type error test
+fn returns_bool() -> bool {
+    return 42  // Should fail: returning i64 instead of bool
+}
+
+fn main() -> u64 {
+    return 0
+}

@@ -1,0 +1,30 @@
+﻿// Boolean type checking test
+fn test1() -> bool {
+    return true
+}
+
+fn test2() -> bool {
+    return false
+}
+
+fn test3(x: u64) -> bool {
+    return x > 10
+}
+
+fn test4(x: u64) -> bool {
+    if x < 2 {
+        return false
+    }
+    return true
+}
+
+fn test5() -> bool {
+    let x: u64 = 5
+    let y: u64 = 10
+    return x < y
+}
+
+fn main() -> u64 {
+    // All should compile
+    return 0
+}

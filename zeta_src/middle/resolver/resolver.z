@@ -140,8 +140,11 @@ impl Resolver {
     fn check_node(&mut self, node: &AstNode) -> bool {
         let mut ok = true;
         match node {
-            AstNode::Call { .. } => {} // receiver methods always OK after monomorphization
-            AstNode::BinaryOp { left, right, .. } => {
+            AstNode::Call { .. } => {
+                // receiver methods always OK after monomorphization
+                ok
+            }
+            AstNode::BinaryOp { op, left, right, .. } => {
                 let lty = self.infer_type(left);
                 let rty = self.infer_type(right);
                 if lty != rty {
@@ -153,10 +156,23 @@ impl Resolver {
                 if !self.check_node(right) {
                     ok = false;
                 }
+                
+                // For comparison operators, check that they're used appropriately
+                // Comparison operators return bool
+                let is_comparison = matches!(op.as_str(), "<" | ">" | "<=" | ">=" | "==" | "!=");
+                if is_comparison {
+                    // The type of a comparison expression is bool
+                    // This is handled in infer_type
+                }
+                ok
             }
-            AstNode::FuncDef { params, body, .. } => {
+            AstNode::FuncDef { params, body, ret, .. } => {
                 // Push new scope for function body
                 self.push_scope();
+                
+                // Set current function return type for return statement checking
+                let prev_return_type = self.current_function_return_type.take();
+                self.current_function_return_type = Some(ret.clone());
                 
                 // Declare function parameters in the new scope
                 for param in params {
@@ -173,23 +189,45 @@ impl Resolver {
                     }
                 }
                 
+                // Restore previous return type
+                self.current_function_return_type = prev_return_type;
+                
                 // Pop function scope
                 self.pop_scope();
+                ok
             }
             AstNode::Return(inner) => {
                 if !self.check_node(inner) {
                     ok = false;
                 }
+                
+                // Check return type matches function return type
+                if let Some(expected_type) = &self.current_function_return_type {
+                    let actual_type = self.infer_type(inner);
+                    if &actual_type != expected_type {
+                        // Debug: print type mismatch
+                        println!("[TYPECHECK] Return type mismatch: expected {}, got {}", expected_type, actual_type);
+                        ok = false;
+                    }
+                }
+                ok
             }
             AstNode::ExprStmt { expr } => {
                 if !self.check_node(expr) {
                     ok = false;
                 }
+                ok
             }
             AstNode::If {
                 cond, then_, else_, ..
             } => {
                 if !self.check_node(cond) {
+                    ok = false;
+                }
+                
+                // Check that condition is boolean
+                let cond_type = self.infer_type(cond);
+                if cond_type != "bool" {
                     ok = false;
                 }
                 
@@ -210,6 +248,7 @@ impl Resolver {
                     }
                 }
                 self.pop_scope();
+                ok
             }
             AstNode::Let { name, ty, value } => {
                 // Check the value expression first
@@ -237,14 +276,18 @@ impl Resolver {
                         ok = false;
                     }
                 }
+                ok
             }
             AstNode::Var(name) => {
                 // Check if variable is defined
                 if self.lookup_var(name).is_none() {
                     ok = false;
                 }
+                ok
             }
-            _ => {}
+            _ => {
+                ok
+            }
         }
         ok
     }
@@ -258,9 +301,21 @@ impl Resolver {
             AstNode::StringLit(_) => "str".to_string(),
             AstNode::FString(_) => "str".to_string(),
             AstNode::Var(name) => {
+                // Check if it's a boolean literal
+                if name == "true" || name == "false" {
+                    return "bool".to_string();
+                }
                 self.lookup_var(name).unwrap_or_else(|| "i64".to_string())
             }
-            AstNode::BinaryOp { left, .. } => self.infer_type(left),
+            AstNode::BinaryOp { op, left, .. } => {
+                // Check if it's a comparison operator
+                let is_comparison = matches!(op.as_str(), "<" | ">" | "<=" | ">=" | "==" | "!=");
+                if is_comparison {
+                    "bool".to_string()
+                } else {
+                    self.infer_type(left)
+                }
+            },
             AstNode::Call { .. } => "i64".to_string(),
             AstNode::DictLit { entries } => {
                 if entries.is_empty() {

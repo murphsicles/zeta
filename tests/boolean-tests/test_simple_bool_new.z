@@ -1,0 +1,8 @@
+﻿// Simple test
+fn returns_true() -> bool {
+    return true
+}
+
+fn main() -> u64 {
+    return 42
+}
