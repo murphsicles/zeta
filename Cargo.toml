@@ -4,7 +4,7 @@
 # Package name.
 name = "zetac"
 # Current version.
-version = "0.3.28"
+version = "0.3.50"  # Major blockchain integration release
 # Rust edition.
 edition = "2024"
 # Minimum Rust version.
@@ -12,13 +12,13 @@ rust-version = "1.92.0"
 # License type.
 license = "MIT"
 # Brief description.
-description = "The final systems language"
+description = "The final systems language with blockchain support"
 # Repository URL.
 repository = "https://github.com/murphsicles/zeta"
 # Search keywords.
-keywords = ["programming", "language", "code", "compiler", "lang"]
+keywords = ["programming", "language", "code", "compiler", "lang", "blockchain", "bitcoin", "solana"]
 # Categories for classification.
-categories = ["compilers", "development-tools"]
+categories = ["compilers", "development-tools", "cryptography"]
 # README file.
 readme = "README.md"
 
@@ -52,6 +52,12 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 # TOML parsing and serialization.
 toml = "0.8.0"
+# Random number generation.
+rand = "0.8.5"
+# Random distributions.
+rand_distr = "0.4.3"
+# CSV parsing.
+csv = "1.3.0"
 # Find executables in PATH.
 which = "6.0.0"
 # Platform-specific directories.
@@ -60,10 +66,26 @@ dirs = "5.0.0"
 tokio = { version = "1.40.0", features = ["full"] }
 # Environment-based logging
 env_logger = "0.11.5"
+# Logging facade
+log = "0.4.25"
 # Parallel trait solver components.
 chalk-ir = "0.104.0"
 chalk-solve = "0.104.0"
 chalk-recursive = "0.104.0"
+
+# Blockchain-specific dependencies
+nour = { path = "nour" }  # Father's Bitcoin SV library
+solana-sdk = { version = "2.0.0", optional = true }
+solana-client = { version = "2.0.0", optional = true }
+solana-program = { version = "2.0.0", optional = true }
+bs58 = "0.5.0"  # Base58 encoding
+sha2 = "0.10.8"  # SHA256 hashing
+ripemd160 = "0.10.0"  # RIPEMD160 hashing
+ed25519-dalek = { version = "2.1.1", features = ["serde"] }  # Ed25519 for Solana
+bip39 = { version = "1.1.0", features = ["chinese-simplified", "chinese-traditional", "french", "italian", "japanese", "korean", "spanish"] }  # BIP-39 mnemonics
+tiny-bip39 = "2.0.0"  # Lightweight BIP-39
+aes-gcm = "0.10.3"  # Encryption for wallet storage
+argon2 = "0.5.3"  # Password hashing
 
 # Features
 [features]
@@ -138,6 +160,31 @@ path = "tests/memory-management/memory_safety_tests.rs"
 [[test]]
 name = "memory_management_integration"
 path = "tests/memory-management/integration_test.rs"
+
+# Tooling & Ecosystem Tests for v0.3.44
+[[test]]
+name = "tooling_ecosystem"
+path = "tests/tooling-ecosystem/test_runner.rs"
+
+# Type System Advanced Tests for v0.3.43
+[[test]]
+name = "type_system_advanced"
+path = "tests/type-system-advanced/test_runner.rs"
+
+# Advanced Concurrency Tests for v0.3.42
+[[test]]
+name = "concurrency_advanced"
+path = "tests/concurrency-advanced/test_runner.rs"
+
+# Quantum Computing Integration Tests for v0.3.46
+[[test]]
+name = "quantum_computing_integration"
+path = "tests/quantum-computing/test_runner.rs"
+
+# Distributed Systems Tests for v0.3.47
+[[test]]
+name = "distributed_systems"
+path = "tests/distributed-systems/test_runner.rs"
 
 # Benchmark configurations.
 [[bench]]
