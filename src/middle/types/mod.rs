@@ -1516,6 +1516,7 @@ mod tests {
         let type_param = TypeParam {
             name: "T".to_string(),
             bounds: vec![TraitBound::Clone, TraitBound::Debug],
+            kind: Kind::Star,
         };
         context.add_type_param(type_param);
 
