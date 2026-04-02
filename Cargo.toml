@@ -4,7 +4,7 @@
 # Package name.
 name = "zetac"
 # Current version.
-version = "0.3.50"  # Major blockchain integration release
+version = "0.3.51"  # Bootstrap self-compilation testing release
 # Rust edition.
 edition = "2024"
 # Minimum Rust version.
