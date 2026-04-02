@@ -41,7 +41,10 @@
 - [x] Array parsing enhancement with nested bracket support ✅
 - [x] PrimeZeta comptime test added ✅
 - [x] Bootstrap validation test framework created ✅
-- [ ] Compile minimal compiler with itself
+- [x] Minimal compiler implementation in Zeta (`tests/minimal_compiler.z`) ✅
+- [x] Self-compilation test program (`tests/self_compile_test.z`) ✅
+- [ ] Create self-compilation test runner
+- [ ] Run first self-compilation test
 - [ ] Verify output matches input
 - [ ] Test with increasingly complex programs
 
