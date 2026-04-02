@@ -4,7 +4,7 @@
 # Package name.
 name = "zetac"
 # Current version.
-version = "0.3.27"
+version = "0.3.28"
 # Rust edition.
 edition = "2024"
 # Minimum Rust version.

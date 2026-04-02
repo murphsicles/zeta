@@ -67,6 +67,10 @@ impl fmt::Display for ConstValue {
 pub struct ConstEvaluator {
     /// Cache of evaluated constants
     cache: HashMap<AstNode, ConstValue>,
+    /// Symbol table for variables in current scope
+    symbols: HashMap<String, ConstValue>,
+    /// Stack of symbol tables for nested scopes
+    symbol_stack: Vec<HashMap<String, ConstValue>>,
 }
 
 impl Default for ConstEvaluator {
@@ -79,7 +83,56 @@ impl ConstEvaluator {
     pub fn new() -> Self {
         Self {
             cache: HashMap::new(),
+            symbols: HashMap::new(),
+            symbol_stack: Vec::new(),
         }
+    }
+
+    /// Enter a new scope
+    fn enter_scope(&mut self) {
+        let current_symbols = std::mem::take(&mut self.symbols);
+        self.symbol_stack.push(current_symbols);
+        self.symbols = HashMap::new();
+    }
+
+    /// Exit current scope
+    fn exit_scope(&mut self) {
+        if let Some(prev_symbols) = self.symbol_stack.pop() {
+            self.symbols = prev_symbols;
+        }
+    }
+
+    /// Look up a variable in current or parent scopes
+    fn lookup_variable(&self, name: &str) -> Option<ConstValue> {
+        // Check current scope first
+        if let Some(value) = self.symbols.get(name) {
+            return Some(value.clone());
+        }
+        
+        // Check parent scopes
+        for scope in self.symbol_stack.iter().rev() {
+            if let Some(value) = scope.get(name) {
+                return Some(value.clone());
+            }
+        }
+        
+        None
+    }
+
+    /// Define a variable in current scope
+    fn define_variable(&mut self, name: String, value: ConstValue) {
+        self.symbols.insert(name, value);
+    }
+
+    /// Evaluate a block of statements
+    fn eval_block(&mut self, statements: &[AstNode]) -> Result<ConstValue, String> {
+        let mut last_value = ConstValue::Int(0);
+        
+        for stmt in statements {
+            last_value = self.eval_const_expr(stmt)?;
+        }
+        
+        Ok(last_value)
     }
 
     /// Evaluate a const expression to a ConstValue
@@ -207,6 +260,109 @@ impl ConstEvaluator {
                 ConstValue::Array(const_elements)
             }
             AstNode::Bool(b) => ConstValue::Bool(*b),
+            AstNode::Var(name) => {
+                // Look up variable in symbol table
+                self.lookup_variable(name)
+                    .ok_or_else(|| format!("Undefined variable in const context: {}", name))?
+            }
+            AstNode::Let { mut_, pattern, ty: _, expr } => {
+                // Evaluate the expression
+                let value = self.eval_const_expr(expr)?;
+                
+                // For now, only support simple variable patterns
+                match &**pattern {
+                    AstNode::Var(var_name) => {
+                        // Define the variable in current scope
+                        self.define_variable(var_name.clone(), value.clone());
+                        value
+                    }
+                    _ => return Err("Complex patterns not supported in const let bindings".to_string()),
+                }
+            }
+            AstNode::Assign(target, value_expr) => {
+                // Evaluate the value
+                let value = self.eval_const_expr(value_expr)?;
+                
+                // For now, only support simple variable assignment
+                match &**target {
+                    AstNode::Var(var_name) => {
+                        // Update variable in symbol table
+                        if self.lookup_variable(var_name).is_none() {
+                            return Err(format!("Cannot assign to undefined variable: {}", var_name));
+                        }
+                        self.define_variable(var_name.clone(), value.clone());
+                        value
+                    }
+                    AstNode::Subscript { base, index } => {
+                        // Array element assignment
+                        let array_val = self.eval_const_expr(base)?;
+                        let index_val = self.eval_const_expr(index)?;
+                        
+                        match (array_val, index_val) {
+                            (ConstValue::Array(mut arr), ConstValue::Int(idx)) => {
+                                let idx = idx as usize;
+                                if idx >= arr.len() {
+                                    return Err(format!("Array index out of bounds: {} >= {}", idx, arr.len()));
+                                }
+                                arr[idx] = value.clone();
+                                ConstValue::Array(arr)
+                            }
+                            _ => return Err("Array subscript assignment requires array and integer index".to_string()),
+                        }
+                    }
+                    _ => return Err("Complex assignment targets not supported in const context".to_string()),
+                }
+            }
+            AstNode::Subscript { base, index } => {
+                // Array indexing
+                let array_val = self.eval_const_expr(base)?;
+                let index_val = self.eval_const_expr(index)?;
+                
+                match (array_val, index_val) {
+                    (ConstValue::Array(arr), ConstValue::Int(idx)) => {
+                        let idx = idx as usize;
+                        if idx >= arr.len() {
+                            return Err(format!("Array index out of bounds: {} >= {}", idx, arr.len()));
+                        }
+                        arr[idx].clone()
+                    }
+                    _ => return Err("Array subscript requires array and integer index".to_string()),
+                }
+            }
+            AstNode::If { cond, then, else_ } => {
+                // Evaluate condition
+                let cond_val = self.eval_const_expr(cond)?;
+                let cond_bool = cond_val.as_bool()
+                    .ok_or_else(|| "If condition must evaluate to boolean".to_string())?;
+                
+                if cond_bool {
+                    // Evaluate then branch
+                    self.enter_scope();
+                    let result = self.eval_block(then)?;
+                    self.exit_scope();
+                    result
+                } else {
+                    // Evaluate else branch
+                    self.enter_scope();
+                    let result = self.eval_block(else_)?;
+                    self.exit_scope();
+                    result
+                }
+            }
+            AstNode::Block { body } => {
+                self.enter_scope();
+                let result = self.eval_block(body)?;
+                self.exit_scope();
+                result
+            }
+            AstNode::ExprStmt { expr } => {
+                // Evaluate the expression
+                self.eval_const_expr(expr)?
+            }
+            AstNode::Return(expr) => {
+                // Evaluate the return expression
+                self.eval_const_expr(expr)?
+            }
             _ => {
                 return Err(format!(
                     "Unsupported expression in const context: {:?}",
@@ -246,21 +402,35 @@ impl ConstEvaluator {
                     return Ok(None);
                 }
 
-                // For now, only evaluate simple const functions with literal returns
-                if let Some(expr) = ret_expr {
-                    // Evaluate the return expression with argument substitution
-                    // This is a simplified implementation
+                // Enter function scope
+                self.enter_scope();
+                
+                // TODO: Handle function parameters
+                
+                let result = if let Some(expr) = ret_expr {
+                    // Function with explicit return expression
                     self.eval_const_expr(expr).map(Some)
                 } else if !body.is_empty() {
-                    // Try to evaluate the last expression in the body
-                    if let Some(AstNode::ExprStmt { expr }) = body.last() {
-                        self.eval_const_expr(expr).map(Some)
-                    } else {
-                        Ok(None)
+                    // Evaluate the function body
+                    let mut last_value = ConstValue::Int(0);
+                    for stmt in body {
+                        last_value = self.eval_const_expr(stmt)?;
+                        
+                        // Check for return statement
+                        if let AstNode::Return(expr) = stmt {
+                            last_value = self.eval_const_expr(expr)?;
+                            break;
+                        }
                     }
+                    Ok(Some(last_value))
                 } else {
-                    Ok(None)
-                }
+                    Ok(Some(ConstValue::Int(0)))
+                };
+                
+                // Exit function scope
+                self.exit_scope();
+                
+                result
             }
             _ => Ok(None),
         }

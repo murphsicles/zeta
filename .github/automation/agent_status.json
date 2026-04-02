@@ -1,0 +1,38 @@
+{
+    "factory":  {
+                    "current_release_target":  "v0.3.28",
+                    "uptime_24h_percentage":  0,
+                    "release_behind_schedule_hours":  10,
+                    "alerts":  [
+
+                               ],
+                    "last_successful_release":  null,
+                    "status":  "operational"
+                },
+    "heartbeat_config":  {
+                             "idle_alert_threshold_minutes":  60,
+                             "max_spawn_attempts":  3,
+                             "check_interval_minutes":  15,
+                             "auto_respawn_threshold_minutes":  120
+                         },
+    "agents":  {
+                   "release_agent":  {
+                                         "spawn_count":  0,
+                                         "last_heartbeat":  null,
+                                         "idle_time_minutes":  null,
+                                         "current_release":  null,
+                                         "status":  "unknown",
+                                         "last_activity":  null
+                                     },
+                   "autonomy_fixer_agent":  {
+                                                "spawn_count":  1,
+                                                "last_heartbeat":  "2026-04-02T00:44:06Z",
+                                                "idle_time_minutes":  -59.94,
+                                                "current_release":  "v0.3.28",
+                                                "status":  "active",
+                                                "last_activity":  "Implementing heartbeat system"
+                                            }
+               },
+    "version":  "1.0.0",
+    "last_updated":  "2026-04-02T00:44:09Z"
+}
