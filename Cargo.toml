@@ -124,6 +124,10 @@ name = "primezeta_comptime"
 path = "tests/primezeta/test_comptime_residues.rs"
 
 [[test]]
+name = "primezeta_gcd"
+path = "tests/primezeta_gcd_test.rs"
+
+[[test]]
 name = "concurrency_parse"
 path = "tests/concurrency/parse_test.rs"
 
