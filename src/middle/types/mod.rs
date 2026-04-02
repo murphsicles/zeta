@@ -73,6 +73,7 @@ pub enum Type {
     // Compound types
     Array(Box<Type>, usize),              // [T; N]
     Slice(Box<Type>),                     // [T]
+    DynamicArray(Box<Type>),              // [dynamic]T
     Tuple(Vec<Type>),                     // (T1, T2, ...)
     Ptr(Box<Type>, Mutability),           // *const T, *mut T
     Ref(Box<Type>, Lifetime, Mutability), // &'a T, &'a mut T
@@ -234,9 +235,15 @@ impl Type {
                     }
                 }
 
-                // Check for array type: [T; N]
+                // Check for array type: [T; N] or [dynamic]T
                 if s.starts_with('[') && s.ends_with(']') {
                     let inner = &s[1..s.len() - 1]; // Remove brackets
+                    
+                    // Check for dynamic array: [dynamic]T
+                    if let Some(type_part) = inner.strip_prefix("dynamic]") {
+                        let inner_type = Type::from_string(type_part.trim());
+                        return Type::DynamicArray(Box::new(inner_type));
+                    }
                     
                     // Find the semicolon that separates type from size, handling nested brackets
                     let mut bracket_count = 0;
@@ -472,6 +479,7 @@ impl Type {
             Type::Range => "Range".to_string(),
             Type::Array(inner, size) => format!("[{}; {}]", inner.display_name(), size),
             Type::Slice(inner) => format!("[{}]", inner.display_name()),
+            Type::DynamicArray(inner) => format!("[dynamic]{}", inner.display_name()),
             Type::Tuple(types) => {
                 let inner = types
                     .iter()
@@ -563,6 +571,7 @@ impl Type {
             Type::Range => "Range".to_string(),
             Type::Array(inner, size) => format!("Array_{}_{}", inner.mangled_name(), size),
             Type::Slice(inner) => format!("Slice_{}", inner.mangled_name()),
+            Type::DynamicArray(inner) => format!("DynamicArray_{}", inner.mangled_name()),
             Type::Tuple(types) => {
                 let mut name = "Tuple".to_string();
                 for ty in types {

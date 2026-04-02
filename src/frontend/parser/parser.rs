@@ -149,7 +149,7 @@ pub fn parse_array_type(input: &str) -> IResult<&str, String> {
         let (input, _) = ws(tag("dynamic")).parse(input)?;
         let (input, _) = ws(tag("]")).parse(input)?;
         let (input, elem_type) = ws(parse_type).parse(input)?;
-        Ok((input, format!("[{}]", elem_type))) // Return as unsized array
+        Ok((input, format!("[dynamic]{}", elem_type))) // Return as dynamic array
     }
     
     // Helper function for Zeta style parsing
@@ -183,15 +183,15 @@ pub fn parse_array_type(input: &str) -> IResult<&str, String> {
     // Save the original input position
     let original_input = input;
     
-    // First, try Zeta style
-    match parse_zeta_array(original_input) {
+    // First, try dynamic array (special case: [dynamic]T)
+    match parse_dynamic_array(original_input) {
         Ok(result) => return Ok(result),
         Err(_) => {
-            // Zeta style failed, try dynamic array
-            match parse_dynamic_array(original_input) {
+            // Dynamic array failed, try Zeta style
+            match parse_zeta_array(original_input) {
                 Ok(result) => return Ok(result),
                 Err(_) => {
-                    // Dynamic array failed, try PrimeZeta style
+                    // Zeta style failed, try PrimeZeta style
                     match parse_primezeta_array(original_input) {
                         Ok((remaining, (size, elem_type))) => {
                             return Ok((remaining, format!("[{}; {}]", elem_type, size)));

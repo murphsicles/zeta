@@ -1,0 +1,9 @@
+// Test program to verify println fix
+fn main() -> i64 {
+    // Test println with different numbers of arguments
+    println("Hello")  // 1 argument
+    println("Value: {}", 42)  // 2 arguments  
+    println("Values: {}, {}", 1, 2)  // 3 arguments
+    
+    return 0
+}

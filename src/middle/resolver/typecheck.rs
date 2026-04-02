@@ -100,12 +100,26 @@ impl Resolver {
                     }
                 }
             }
-            AstNode::BinaryOp { left, right, .. } => {
+            AstNode::BinaryOp { op, left, right, .. } => {
                 let lty = self.infer_type(left);
                 let rty = self.infer_type(right);
-                if lty != rty {
+                
+                // For logical operators (&&, ||), both operands must be bool
+                if op == "&&" || op == "||" {
+                    if lty != Type::Bool {
+                        eprintln!("Error: Left operand of '{}' must be bool, got {}", op, lty.display_name());
+                        ok = false;
+                    }
+                    if rty != Type::Bool {
+                        eprintln!("Error: Right operand of '{}' must be bool, got {}", op, rty.display_name());
+                        ok = false;
+                    }
+                } else if lty != rty {
+                    // For other binary operators, types must match
+                    eprintln!("Error: Type mismatch in binary operation '{}': {} vs {}", op, lty.display_name(), rty.display_name());
                     ok = false;
                 }
+                
                 if !self.check_node(left) {
                     ok = false;
                 }
@@ -143,6 +157,22 @@ impl Resolver {
                     }
                 }
             }
+            AstNode::While { cond, body } => {
+                // Check condition - should be bool
+                let cond_type = self.infer_type(&cond);
+                if cond_type != Type::Bool {
+                    eprintln!("Error: While condition must be bool, got {}", cond_type.display_name());
+                    ok = false;
+                }
+                if !self.check_node(&cond) {
+                    ok = false;
+                }
+                for s in body {
+                    if !self.check_node(s) {
+                        ok = false;
+                    }
+                }
+            }
             AstNode::Let {
                 pattern: _,
                 ty,
@@ -161,6 +191,17 @@ impl Resolver {
                 if !self.check_node(expr) {
                     ok = false;
                 }
+            }
+            AstNode::Subscript { base, index } => {
+                // Check base and index expressions
+                if !self.check_node(base) {
+                    ok = false;
+                }
+                if !self.check_node(index) {
+                    ok = false;
+                }
+                // For now, we don't check the types of subscript operations
+                // This would require knowing if base is an array/slice and index is integer
             }
             _ => {}
         }
@@ -190,11 +231,19 @@ impl Resolver {
             AstNode::StringLit(_) => Type::Str,
             AstNode::FString(_) => Type::Str,
             AstNode::Var(_) => Type::I64,
+            AstNode::Bool(_) => Type::Bool,
             AstNode::BinaryOp { op, left, .. } => {
                 // Handle range operator specially
                 if op == ".." {
                     Type::Range
+                } else if op == "&&" || op == "||" {
+                    // Logical operators return bool
+                    Type::Bool
+                } else if op == "==" || op == "!=" || op == "<" || op == ">" || op == "<=" || op == ">=" {
+                    // Comparison operators return bool
+                    Type::Bool
                 } else {
+                    // For other operators, return type of left operand
                     self.infer_type(left)
                 }
             },
@@ -213,6 +262,16 @@ impl Resolver {
             AstNode::For { .. } => {
                 // For loops have unit type (they don't produce a value)
                 Type::Tuple(vec![])
+            }
+            AstNode::While { .. } => {
+                // While loops have unit type (they don't produce a value)
+                Type::Tuple(vec![])
+            }
+            AstNode::Subscript { base, .. } => {
+                // For array subscript a[i], return the element type
+                // For now, we assume arrays of i64
+                // TODO: Actually infer the element type from the base
+                Type::I64
             }
             _ => Type::I64,
         }

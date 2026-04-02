@@ -254,7 +254,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         module.add_function("printf", printf_type, Some(Linkage::External));
         module.add_function(
             "println",
-            i64_type.fn_type(&[i64_type.into()], false),
+            i64_type.fn_type(&[ptr_type.into()], true), // variadic, takes string pointer first
             Some(Linkage::External),
         );
 

@@ -117,11 +117,20 @@ impl InferContext {
 
         // Check for array/slice type
         if s.starts_with('[') {
+            // Check for dynamic array: [dynamic]T (special case, doesn't end with ])
+            if s.starts_with("[dynamic]") {
+                let type_part = &s["[dynamic]".len()..];
+                let inner_type = self.parse_type_string(type_part.trim())?;
+                return Ok(Type::DynamicArray(Box::new(inner_type)));
+            }
+            
+            // Regular array/slice must end with ]
             if !s.ends_with(']') {
                 return Err("Array/slice type missing closing ']'".to_string());
             }
 
             let inner = &s[1..s.len() - 1]; // Remove brackets
+            
             if let Some((type_part, size_part)) = inner.split_once(';') {
                 let inner_type = self.parse_type_string(type_part.trim())?;
                 let size = size_part

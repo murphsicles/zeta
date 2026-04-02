@@ -1,0 +1,2 @@
+// Test just the type syntax
+type MyArray = [dynamic]u64
