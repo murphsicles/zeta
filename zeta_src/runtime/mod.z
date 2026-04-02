@@ -4,3 +4,4 @@ pub mod host;
 pub mod std;
 pub mod actor;
 pub mod xai;
+pub mod array;

@@ -170,6 +170,13 @@ impl Resolver {
                     )
                 }
             }
+            AstNode::ArrayLit { elem_type, dynamic, .. } => {
+                if *dynamic {
+                    format!("[dynamic]{}", elem_type)
+                } else {
+                    format!("[{}]", elem_type)
+                }
+            }
             AstNode::Let { ty, value, .. } => {
                 // If a type annotation is provided, use it
                 // Otherwise, infer the type from the value expression

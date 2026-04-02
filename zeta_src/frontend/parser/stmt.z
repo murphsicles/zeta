@@ -68,10 +68,27 @@ impl Parser {
         
         // Check for optional type annotation
         let ty = if self.consume(Token::Colon) {
-            // Parse type identifier
-            match self.advance() {
-                Token::Ident(type_ident) => Some(type_ident),
-                _ => None,
+            // Parse type - could be simple identifier or array type [dynamic]T
+            if self.consume(Token::LBracket) {
+                // Array type syntax: [dynamic]T
+                if let Token::Ident(type_qual) = self.advance() {
+                    if type_qual == "dynamic" {
+                        self.expect(Token::RBracket);
+                        let elem_type = self.expect_ident();
+                        Some(format!("[dynamic]{}", elem_type))
+                    } else {
+                        // Not dynamic array, handle other array types if needed
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                // Simple identifier type
+                match self.advance() {
+                    Token::Ident(type_ident) => Some(type_ident),
+                    _ => None,
+                }
             }
         } else {
             None

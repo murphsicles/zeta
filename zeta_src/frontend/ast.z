@@ -91,6 +91,11 @@ pub enum AstNode {
         base: Box<AstNode>,
         index: Box<AstNode>,
     },
+    ArrayLit {
+        elem_type: String,
+        dynamic: bool,
+        elements: Vec<AstNode>,
+    },
     Return(Box<AstNode>),
     If {
         cond: Box<AstNode>,

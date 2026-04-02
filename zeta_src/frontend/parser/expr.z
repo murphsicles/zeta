@@ -110,6 +110,42 @@ impl Parser {
                 expr
             }
             Token::LBrace => self.parse_dict_lit(),
+            Token::LBracket => {
+                // Check for [dynamic]T{} array literal
+                let start_pos = self.pos;
+                self.advance(); // consume '['
+                if let Token::Ident(type_qual) = self.peek() {
+                    if type_qual == "dynamic" {
+                        self.advance(); // consume 'dynamic'
+                        if self.peek() == Token::RBracket {
+                            self.advance(); // consume ']'
+                            if let Token::Ident(elem_type) = self.peek() {
+                                self.advance(); // consume type like 'i64'
+                                if self.peek() == Token::LBrace {
+                                    self.advance(); // consume '{'
+                                    if self.peek() == Token::RBrace {
+                                        self.advance(); // consume '}'
+                                        // Return array literal AST node
+                                        return AstNode::ArrayLit {
+                                            elem_type,
+                                            dynamic: true,
+                                            elements: vec![],
+                                        };
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                // If not [dynamic]T{}, backtrack and try to parse as something else
+                // Reset position and let the caller handle it
+                self.pos = start_pos;
+                // Try to parse as subscript expression
+                self.advance(); // consume '['
+                let expr = self.parse_expr();
+                self.expect(Token::RBracket);
+                expr
+            }
             Token::KeywordDefer => {
                 self.advance();
                 let inner = self.parse_expr();

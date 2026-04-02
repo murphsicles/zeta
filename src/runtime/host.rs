@@ -323,3 +323,109 @@ pub unsafe extern "C" fn to_string_bool(value: i64) -> i64 {
     }
     ptr
 }
+
+// ===== Dynamic Array Runtime Functions =====
+
+/// Dynamic array structure
+struct DynamicArray {
+    capacity: i64,
+    length: i64,
+    data: *mut i64,
+}
+
+/// Creates a new dynamic array
+///
+/// # Safety
+/// Returns a pointer to a heap-allocated DynamicArray
+#[allow(unsafe_op_in_unsafe_fn)]
+pub unsafe extern "C" fn array_new() -> i64 {
+    let arr = Box::new(DynamicArray {
+        capacity: 0,
+        length: 0,
+        data: ptr::null_mut(),
+    });
+    Box::into_raw(arr) as i64
+}
+
+/// Pushes a value to a dynamic array
+///
+/// # Safety
+/// arr_ptr must be a valid pointer to a DynamicArray
+#[allow(unsafe_op_in_unsafe_fn)]
+pub unsafe extern "C" fn array_push(arr_ptr: i64, value: i64) {
+    if arr_ptr == 0 {
+        return;
+    }
+    let arr = &mut *(arr_ptr as *mut DynamicArray);
+    
+    // Resize if needed
+    if arr.length >= arr.capacity {
+        let new_capacity = if arr.capacity == 0 { 4 } else { arr.capacity * 2 };
+        let new_size = (new_capacity as usize) * std::mem::size_of::<i64>();
+        let new_data = std_malloc(new_size) as *mut i64;
+        
+        if !arr.data.is_null() {
+            // Copy existing data
+            ptr::copy_nonoverlapping(arr.data, new_data, arr.length as usize);
+            // Free old data
+            std_free(arr.data as usize);
+        }
+        
+        arr.data = new_data;
+        arr.capacity = new_capacity;
+    }
+    
+    // Add new element
+    unsafe {
+        *arr.data.offset(arr.length as isize) = value;
+    }
+    arr.length += 1;
+}
+
+/// Gets the length of a dynamic array
+///
+/// # Safety
+/// arr_ptr must be a valid pointer to a DynamicArray or 0
+#[allow(unsafe_op_in_unsafe_fn)]
+pub unsafe extern "C" fn array_len(arr_ptr: i64) -> i64 {
+    if arr_ptr == 0 {
+        return 0;
+    }
+    let arr = &*(arr_ptr as *const DynamicArray);
+    arr.length
+}
+
+/// Gets an element from a dynamic array by index
+///
+/// # Safety
+/// arr_ptr must be a valid pointer to a DynamicArray
+/// Returns 0 if index is out of bounds
+#[allow(unsafe_op_in_unsafe_fn)]
+pub unsafe extern "C" fn array_get(arr_ptr: i64, index: i64) -> i64 {
+    if arr_ptr == 0 {
+        return 0;
+    }
+    let arr = &*(arr_ptr as *const DynamicArray);
+    if index < 0 || index >= arr.length {
+        return 0;
+    }
+    unsafe {
+        *arr.data.offset(index as isize)
+    }
+}
+
+/// Frees a dynamic array
+///
+/// # Safety
+/// arr_ptr must be a valid pointer to a DynamicArray or 0
+#[allow(unsafe_op_in_unsafe_fn)]
+pub unsafe extern "C" fn array_free(arr_ptr: i64) {
+    if arr_ptr == 0 {
+        return;
+    }
+    let arr = Box::from_raw(arr_ptr as *mut DynamicArray);
+    if !arr.data.is_null() {
+        std_free(arr.data as usize);
+    }
+    // Box is dropped here, freeing the DynamicArray struct
+}

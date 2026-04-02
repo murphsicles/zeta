@@ -37,6 +37,12 @@ impl LLVMCodegen {
             "declare i64 @host_str_contains(i64, i64)",
             "declare i64 @host_str_trim(i64)",
             "declare i64 @host_str_replace(i64, i64, i64)",
+            // Array runtime functions
+            "declare i64 @array_new()",
+            "declare void @array_push(i64, i64)",
+            "declare i64 @array_len(i64)",
+            "declare i64 @array_get(i64, i64)",
+            "declare void @array_free(i64)",
         ];
         for ext in externs {
             ir.push_str(&format!("{}\n", ext));

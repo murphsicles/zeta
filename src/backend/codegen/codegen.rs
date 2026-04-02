@@ -206,6 +206,32 @@ impl<'ctx> LLVMCodegen<'ctx> {
             i64_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into()], false),
             Some(Linkage::External),
         );
+        // Array runtime functions
+        module.add_function(
+            "array_new",
+            i64_type.fn_type(&[], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "array_push",
+            void_type.fn_type(&[i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "array_len",
+            i64_type.fn_type(&[i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "array_get",
+            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "array_free",
+            void_type.fn_type(&[i64_type.into()], false),
+            Some(Linkage::External),
+        );
         module.add_function(
             "scheduler::init_runtime",
             void_type.fn_type(&[], false),
