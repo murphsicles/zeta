@@ -171,9 +171,10 @@ fn parse_if(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_assign(input: &str) -> IResult<&str, AstNode> {
-    use super::expr::parse_primary;
+    use super::expr::parse_postfix;
     
-    let (input, lhs) = ws(parse_primary).parse(input)?;
+    // First try to parse as a postfix expression (which includes primary)
+    let (input, lhs) = ws(parse_postfix).parse(input)?;
     
     // Try to parse compound assignment operators first, then simple assignment
     let (input, op) = alt((

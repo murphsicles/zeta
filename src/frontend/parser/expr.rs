@@ -463,6 +463,35 @@ fn parse_tuple_or_paren(input: &str) -> IResult<&str, AstNode> {
 fn parse_array_lit(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("[")).parse(input)?;
     
+    // First, check if this is a dynamic array literal: [dynamic]T{}
+    let dynamic_array_parser = |input| {
+        // Check for "dynamic]"
+        let (input, _) = ws(tag("dynamic")).parse(input)?;
+        let (input, _) = ws(tag("]")).parse(input)?;
+        
+        // Parse the element type
+        let (input, elem_type) = ws(parse_type).parse(input)?;
+        
+        // Parse the opening brace
+        let (input, _) = ws(tag("{")).parse(input)?;
+        
+        // Parse optional initializer values
+        let (input, items) = terminated(
+            separated_list0(ws(tag(",")), ws(parse_expr)),
+            opt(ws(tag(","))),
+        )
+        .parse(input)?;
+        
+        // Parse the closing brace
+        let (input, _) = ws(tag("}")).parse(input)?;
+        
+        // Create a dynamic array literal node
+        Ok((input, AstNode::DynamicArrayLit {
+            elem_type,
+            elements: items,
+        }))
+    };
+    
     // Try to parse as repeat syntax: [value; size]
     let repeat_parser = |input| {
         let (input, value) = ws(parse_expr).parse(input)?;
@@ -486,8 +515,8 @@ fn parse_array_lit(input: &str) -> IResult<&str, AstNode> {
         Ok((input, AstNode::ArrayLit(items)))
     };
     
-    // Try repeat syntax first, then regular syntax
-    alt((repeat_parser, regular_parser)).parse(input)
+    // Try dynamic array first, then repeat syntax, then regular syntax
+    alt((dynamic_array_parser, repeat_parser, regular_parser)).parse(input)
 }
 
 fn parse_bool(input: &str) -> IResult<&str, AstNode> {
@@ -553,7 +582,7 @@ pub fn parse_primary(input: &str) -> IResult<&str, AstNode> {
     .parse(input)
 }
 
-fn parse_postfix(input: &str) -> IResult<&str, AstNode> {
+pub(crate) fn parse_postfix(input: &str) -> IResult<&str, AstNode> {
     let (mut input, mut expr) = parse_unary(input)?;
     loop {
         // Check if this is a range operator ".." or "..=" before parsing as field access

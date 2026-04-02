@@ -495,6 +495,20 @@ impl InferContext {
                 }
             },
 
+            AstNode::DynamicArrayLit { elem_type, elements } => {
+                // Parse the element type string into a Type
+                let parsed_type = self.parse_type_string(elem_type)
+                    .map_err(|e| format!("Failed to parse type '{}': {}", elem_type, e))?;
+                
+                // Check that all elements have the correct type
+                for element in elements {
+                    let elem_ty = self.infer(element)?;
+                    self.constrain_eq(parsed_type.clone(), elem_ty);
+                }
+                
+                Ok(Type::DynamicArray(Box::new(parsed_type)))
+            },
+
             AstNode::Var(name) => Ok(self
                 .lookup(name)
                 .ok_or_else(|| format!("Undefined variable: {}", name))?),

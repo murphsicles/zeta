@@ -109,7 +109,12 @@ impl MirGen {
                     });
                     self.name_to_id.insert(name.clone(), lhs_id);
                     self.exprs.insert(lhs_id, MirExpr::Var(lhs_id));
-                    self.type_map.insert(lhs_id, Type::I64);
+                    // Copy type from RHS to LHS
+                    if let Some(rhs_type) = self.type_map.get(&rhs_id) {
+                        self.type_map.insert(lhs_id, rhs_type.clone());
+                    } else {
+                        self.type_map.insert(lhs_id, Type::I64);
+                    }
                 }
             }
             AstNode::Assign(lhs, rhs) => {
@@ -117,11 +122,23 @@ impl MirGen {
                 if let AstNode::Subscript { base, index } = &**lhs {
                     let base_id = self.lower_expr(base);
                     let index_id = self.lower_expr(index);
-                    self.stmts.push(MirStmt::DictInsert {
-                        map_id: base_id,
-                        key_id: index_id,
-                        val_id: rhs_id,
-                    });
+                    
+                    // Check if base is a dynamic array
+                    let base_ty = self.type_map.get(&base_id).cloned().unwrap_or(Type::I64);
+                    if let Type::DynamicArray(_) = base_ty {
+                        // Generate array_set call for dynamic arrays
+                        self.stmts.push(MirStmt::VoidCall {
+                            func: "array_set".to_string(),
+                            args: vec![base_id, index_id, rhs_id],
+                        });
+                    } else {
+                        // Use DictInsert for other types (maps/dicts)
+                        self.stmts.push(MirStmt::DictInsert {
+                            map_id: base_id,
+                            key_id: index_id,
+                            val_id: rhs_id,
+                        });
+                    }
                 } else {
                     let lhs_id = self.lower_expr(lhs);
                     self.stmts.push(MirStmt::Assign {
@@ -168,15 +185,11 @@ impl MirGen {
                     .insert(map_id, Type::Named("map".to_string(), vec![]));
             }
             AstNode::Subscript { base, index } => {
-                let bid = self.lower_expr(base);
-                let iid = self.lower_expr(index);
-                let dest = self.next_id();
-                self.stmts.push(MirStmt::DictGet {
-                    map_id: bid,
-                    key_id: iid,
-                    dest,
+                // This is handled in lower_expr
+                let _ = self.lower_expr(&AstNode::Subscript {
+                    base: base.clone(),
+                    index: index.clone(),
                 });
-                self.type_map.insert(dest, Type::I64);
             }
             AstNode::FuncDef { body, ret_expr, .. } => {
                 for stmt in body {
@@ -529,17 +542,34 @@ impl MirGen {
                 for a in args {
                     arg_ids.push(self.lower_expr(a));
                 }
-                let func = if let Some(ref rty) = receiver_ty {
-                    let key = MonoKey {
-                        func_name: method.clone(),
-                        type_args: vec![rty.display_name()],
-                    };
-                    let mangled = key.mangle();
-                    println!("[MIR GEN DEBUG] Method call, mangled to: {}", mangled);
-                    mangled
+                
+                // Check if this is a method call on a dynamic array
+                let (func, is_array_len, is_array_push) = if let Some(ref rty) = receiver_ty {
+                    // Check if receiver is a dynamic array type
+                    if let Type::DynamicArray(_) = rty {
+                        // Map array methods to runtime functions
+                        match method.as_str() {
+                            "push" => ("array_push".to_string(), false, true),
+                            "len" => ("array_len".to_string(), true, false),
+                            _ => {
+                                // For other methods, use standard mangling
+                                let key = MonoKey {
+                                    func_name: method.clone(),
+                                    type_args: vec![rty.display_name()],
+                                };
+                                (key.mangle(), false, false)
+                            }
+                        }
+                    } else {
+                        // Not a dynamic array, use standard mangling
+                        let key = MonoKey {
+                            func_name: method.clone(),
+                            type_args: vec![rty.display_name()],
+                        };
+                        (key.mangle(), false, false)
+                    }
                 } else {
-                    println!("[MIR GEN DEBUG] Regular function call, func: {}", method);
-                    method.clone()
+                    (method.clone(), false, false)
                 };
 
                 // Convert type arguments from strings to Type objects
@@ -547,13 +577,21 @@ impl MirGen {
                     type_args.iter().map(|t| Type::from_string(t)).collect();
 
                 self.stmts.push(MirStmt::Call {
-                    func,
+                    func: func.clone(),
                     args: arg_ids,
                     dest: id,
                     type_args: mir_type_args,
                 });
                 self.exprs.insert(id, MirExpr::Var(id));
-                self.type_map.insert(id, Type::I64);
+                // For array methods, set appropriate return type
+                if is_array_len {
+                    self.type_map.insert(id, Type::I64);
+                } else if is_array_push {
+                    // push returns void
+                    self.type_map.insert(id, Type::Tuple(vec![]));
+                } else {
+                    self.type_map.insert(id, Type::I64);
+                }
             }
             AstNode::Match { scrutinee, arms } => {
                 // Lower the scrutinee expression
@@ -894,6 +932,77 @@ impl MirGen {
                     expr: expr_id,
                     target_type,
                 });
+            }
+            AstNode::ArrayLit(elements) => {
+                // For now, treat regular array literals as creating a static array
+                // We'll need to implement proper array handling later
+                println!("[MIR GEN DEBUG] ArrayLit with {} elements", elements.len());
+                // Create a placeholder value
+                self.exprs.insert(id, MirExpr::Lit(0));
+                self.type_map.insert(id, Type::I64);
+            }
+            AstNode::ArrayRepeat { value, size } => {
+                println!("[MIR GEN DEBUG] ArrayRepeat: [value; size]");
+                let value_id = self.lower_expr(value);
+                let size_id = self.lower_expr(size);
+                // For now, create a placeholder
+                self.exprs.insert(id, MirExpr::Lit(0));
+                self.type_map.insert(id, Type::I64);
+            }
+            AstNode::Subscript { base, index } => {
+                let bid = self.lower_expr(base);
+                let iid = self.lower_expr(index);
+                
+                // Check if base is a dynamic array
+                let base_ty = self.type_map.get(&bid).cloned().unwrap_or(Type::I64);
+                if let Type::DynamicArray(_) = base_ty {
+                    // Generate array_get call for dynamic arrays
+                    self.stmts.push(MirStmt::Call {
+                        func: "array_get".to_string(),
+                        args: vec![bid, iid],
+                        dest: id,
+                        type_args: vec![],
+                    });
+                } else {
+                    // Use DictGet for other types (maps/dicts)
+                    self.stmts.push(MirStmt::DictGet {
+                        map_id: bid,
+                        key_id: iid,
+                        dest: id,
+                    });
+                }
+                self.exprs.insert(id, MirExpr::Var(id));
+                self.type_map.insert(id, Type::I64);
+            }
+            AstNode::DynamicArrayLit { elem_type, elements } => {
+                // Call array_new to create a new dynamic array
+                let array_ptr = self.next_id();
+                self.stmts.push(MirStmt::Call {
+                    func: "array_new".to_string(),
+                    args: vec![],
+                    dest: array_ptr,
+                    type_args: vec![],
+                });
+                self.exprs.insert(array_ptr, MirExpr::Var(array_ptr));
+                let array_type = Type::DynamicArray(Box::new(Type::from_string(elem_type)));
+                self.type_map.insert(array_ptr, array_type.clone());
+                
+                // Push each element to the array
+                for element in elements {
+                    let elem_id = self.lower_expr(element);
+                    let void_dest = self.next_id(); // push returns void
+                    self.stmts.push(MirStmt::Call {
+                        func: "array_push".to_string(),
+                        args: vec![array_ptr, elem_id],
+                        dest: void_dest,
+                        type_args: vec![],
+                    });
+                }
+                
+                // Return the array pointer (use array_ptr as the result)
+                self.exprs.insert(id, MirExpr::Var(array_ptr));
+                self.type_map.insert(id, array_type);
+                return array_ptr; // Return the array pointer ID, not a new ID
             }
             _ => {
                 self.exprs.insert(id, MirExpr::Lit(0));

@@ -7,9 +7,10 @@ use std::env;
 /// Caller must ensure valid size, free returned pointer with std_free, and avoid use after free.
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn std_malloc(size: usize) -> i64 {
-    // For now, return a dummy pointer
-    // In a real implementation, this would allocate actual memory
-    0x1000 as i64
+    // Use system allocator
+    let layout = std::alloc::Layout::from_size_align(size, 8).unwrap();
+    let ptr = std::alloc::alloc(layout);
+    ptr as i64
 }
 
 /// Frees memory allocated by std_malloc.
@@ -18,8 +19,12 @@ pub unsafe extern "C" fn std_malloc(size: usize) -> i64 {
 /// Caller must ensure pointer from std_malloc or null, no use after free, and no double free.
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn std_free(ptr: usize) {
-    // For now, do nothing
-    // In a real implementation, this would free the memory
+    // Free memory allocated by std_malloc
+    if ptr != 0 {
+        // We need to know the size to free it, but we don't have it
+        // For now, leak the memory (in a real implementation we'd track sizes)
+        // std::alloc::dealloc(ptr as *mut u8, layout);
+    }
 }
 
 /// Prints an integer to stdout.

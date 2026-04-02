@@ -9,9 +9,10 @@ use crate::runtime::actor::map::{host_map_get, host_map_insert, host_map_new};
 use crate::runtime::actor::result::{host_result_get_data, host_result_is_ok};
 use crate::runtime::actor::scheduler::host_spawn;
 use crate::runtime::host::{
-    host_http_get, host_str_concat, host_str_contains, host_str_ends_with, host_str_len,
-    host_str_replace, host_str_starts_with, host_str_to_lowercase, host_str_to_uppercase,
-    host_str_trim, host_tls_handshake,
+    array_free, array_get, array_len, array_new, array_push, array_set, host_http_get,
+    host_str_concat, host_str_contains, host_str_ends_with, host_str_len, host_str_replace,
+    host_str_starts_with, host_str_to_lowercase, host_str_to_uppercase, host_str_trim,
+    host_tls_handshake,
 };
 use crate::runtime::std::std_free;
 use inkwell::OptimizationLevel;
@@ -121,6 +122,26 @@ impl<'ctx> crate::backend::codegen::LLVMCodegen<'ctx> {
                 &f,
                 crate::runtime::actor::scheduler::init_runtime as *const () as usize,
             );
+        }
+        
+        // Array runtime functions
+        if let Some(f) = self.module.get_function("array_new") {
+            ee.add_global_mapping(&f, array_new as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("array_push") {
+            ee.add_global_mapping(&f, array_push as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("array_len") {
+            ee.add_global_mapping(&f, array_len as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("array_get") {
+            ee.add_global_mapping(&f, array_get as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("array_set") {
+            ee.add_global_mapping(&f, array_set as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("array_free") {
+            ee.add_global_mapping(&f, array_free as *const () as usize);
         }
 
         Ok(ee)

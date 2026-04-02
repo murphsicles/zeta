@@ -228,6 +228,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
             Some(Linkage::External),
         );
         module.add_function(
+            "array_set",
+            void_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
             "array_free",
             void_type.fn_type(&[i64_type.into()], false),
             Some(Linkage::External),

@@ -368,7 +368,8 @@ pub unsafe extern "C" fn array_push(arr_ptr: i64, value: i64) {
             // Copy existing data
             ptr::copy_nonoverlapping(arr.data, new_data, arr.length as usize);
             // Free old data
-            std_free(arr.data as usize);
+            // TODO: Need to track allocation size to free properly
+            // std_free(arr.data as usize);
         }
         
         arr.data = new_data;
@@ -411,6 +412,25 @@ pub unsafe extern "C" fn array_get(arr_ptr: i64, index: i64) -> i64 {
     }
     unsafe {
         *arr.data.offset(index as isize)
+    }
+}
+
+/// Sets an element in a dynamic array by index
+///
+/// # Safety
+/// arr_ptr must be a valid pointer to a DynamicArray
+/// Index must be within bounds (0 <= index < length)
+#[allow(unsafe_op_in_unsafe_fn)]
+pub unsafe extern "C" fn array_set(arr_ptr: i64, index: i64, value: i64) {
+    if arr_ptr == 0 {
+        return;
+    }
+    let arr = &mut *(arr_ptr as *mut DynamicArray);
+    if index < 0 || index >= arr.length {
+        return;
+    }
+    unsafe {
+        *arr.data.offset(index as isize) = value;
     }
 }
 

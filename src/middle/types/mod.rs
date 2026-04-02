@@ -1017,6 +1017,11 @@ impl Substitution {
                 self.unify(inner1, inner2)
             }
 
+            // Dynamic array types
+            (Type::DynamicArray(inner1), Type::DynamicArray(inner2)) => {
+                self.unify(inner1, inner2)
+            }
+
             // Tuple types
             (Type::Tuple(types1), Type::Tuple(types2)) => {
                 if types1.len() != types2.len() {
@@ -1138,6 +1143,9 @@ impl Substitution {
                 Self::collect_type_vars(inner, type_vars);
             }
             Type::Slice(inner) => {
+                Self::collect_type_vars(inner, type_vars);
+            }
+            Type::DynamicArray(inner) => {
                 Self::collect_type_vars(inner, type_vars);
             }
             Type::Tuple(types) => {

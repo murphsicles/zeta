@@ -272,6 +272,11 @@ pub enum AstNode {
         value: Box<AstNode>,
         size: Box<AstNode>,
     },
+    /// Dynamic array literal: [dynamic]T{...}
+    DynamicArrayLit {
+        elem_type: String,
+        elements: Vec<AstNode>,
+    },
     /// Boolean literal.
     Bool(bool),
     /// Constant definition.

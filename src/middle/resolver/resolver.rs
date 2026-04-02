@@ -654,8 +654,69 @@ impl Resolver {
             ),
         );
 
+        // Array runtime functions
+        // array_new() -> i64 (pointer to array)
+        self.funcs.insert(
+            "array_new".to_string(),
+            (
+                vec![],
+                Type::I64,
+                false, // not async
+            ),
+        );
+        
+        // array_push(arr: i64, value: i64) -> void
+        self.funcs.insert(
+            "array_push".to_string(),
+            (
+                vec![("arr".to_string(), Type::I64), ("value".to_string(), Type::I64)],
+                Type::Tuple(vec![]), // void
+                false, // not async
+            ),
+        );
+        
+        // array_len(arr: i64) -> i64
+        self.funcs.insert(
+            "array_len".to_string(),
+            (
+                vec![("arr".to_string(), Type::I64)],
+                Type::I64,
+                false, // not async
+            ),
+        );
+        
+        // array_get(arr: i64, index: i64) -> i64
+        self.funcs.insert(
+            "array_get".to_string(),
+            (
+                vec![("arr".to_string(), Type::I64), ("index".to_string(), Type::I64)],
+                Type::I64,
+                false, // not async
+            ),
+        );
+        
+        // array_set(arr: i64, index: i64, value: i64) -> void
+        self.funcs.insert(
+            "array_set".to_string(),
+            (
+                vec![("arr".to_string(), Type::I64), ("index".to_string(), Type::I64), ("value".to_string(), Type::I64)],
+                Type::Tuple(vec![]), // void
+                false, // not async
+            ),
+        );
+        
+        // array_free(arr: i64) -> void
+        self.funcs.insert(
+            "array_free".to_string(),
+            (
+                vec![("arr".to_string(), Type::I64)],
+                Type::Tuple(vec![]), // void
+                false, // not async
+            ),
+        );
+
         println!(
-            "[RESOLVER] Registered built-in runtime functions: clone_i64, is_null_i64, to_string_str"
+            "[RESOLVER] Registered built-in runtime functions: clone_i64, is_null_i64, to_string_str, array_new, array_push, array_len, array_get, array_set, array_free"
         );
     }
 }
