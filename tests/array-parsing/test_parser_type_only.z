@@ -1,0 +1,13 @@
+// Test just the type annotation without initialization
+// This might work even if array literals don't
+
+fn test_type() -> [dynamic]u8 {
+    // Return type uses [dynamic]u8 syntax
+    // This tests type parsing only
+    // (Will fail at runtime but that's OK for parser test)
+    return [dynamic]u8{}
+}
+
+fn main() -> u64 {
+    return 42
+}

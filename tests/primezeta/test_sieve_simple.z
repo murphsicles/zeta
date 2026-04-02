@@ -1,0 +1,12 @@
+fn sieve(limit: u64) -> u64 {
+    let bits: [dynamic]u8 = [dynamic]u8{}
+    // Initialize array with 3 elements
+    bits.push(0)
+    bits.push(0)
+    bits.push(0)
+    return bits.len()
+}
+
+fn main() -> u64 {
+    return sieve(10)
+}
