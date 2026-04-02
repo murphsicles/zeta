@@ -1,0 +1,19 @@
+// Simple test to check Zeta compiler capabilities
+const MODULUS: u64 = 30030
+const NUM_RESIDUES: usize = 5760
+
+fn gcd(a: u64, b: u64) -> u64 {
+    var x = a
+    var y = b
+    while y != 0 {
+        let t = y
+        y = x % y
+        x = t
+    }
+    return x
+}
+
+fn main() -> u64 {
+    let result = gcd(42, 56)
+    result
+}

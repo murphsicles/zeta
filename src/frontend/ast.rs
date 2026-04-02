@@ -250,6 +250,8 @@ pub enum AstNode {
     },
     /// Unsafe block.
     Unsafe { body: Vec<AstNode> },
+    /// Comptime block (compile-time evaluated block).
+    ComptimeBlock { body: Vec<AstNode> },
     /// Macro call.
     MacroCall { name: String, args: Vec<AstNode> },
     /// Macro definition (macro_rules!).

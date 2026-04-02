@@ -1,0 +1,25 @@
+// Test attribute syntax for PrimeZeta compatibility
+
+#[test]
+fn test_function() -> i64 {
+    42
+}
+
+#[derive(Clone, Debug)]
+struct Point {
+    x: i64,
+    y: i64,
+}
+
+#[cfg(feature = "ai_optimization")]
+#[ai_opt]
+comptime fn optimized_function() -> i64 {
+    // This should be optimized by AI
+    100
+}
+
+#[allow(unused_variables)]
+fn main() -> i64 {
+    let x = 10;
+    x
+}

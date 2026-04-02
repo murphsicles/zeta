@@ -389,6 +389,16 @@ fn parse_unsafe_expr(input: &str) -> IResult<&str, AstNode> {
     }
 }
 
+fn parse_comptime_block(input: &str) -> IResult<&str, AstNode> {
+    let (input, _) = ws(tag("comptime")).parse(input)?;
+    let (input, block) = parse_block(input)?;
+    if let AstNode::Block { body } = block {
+        Ok((input, AstNode::ComptimeBlock { body }))
+    } else {
+        Ok((input, block))
+    }
+}
+
 fn parse_condition(input: &str) -> IResult<&str, AstNode> {
     // Parse condition for if/while - stops at '{' or other block delimiters
     parse_expr_no_if(input)
@@ -523,7 +533,7 @@ fn parse_simple_ident(input: &str) -> IResult<&str, AstNode> {
     Ok((input, AstNode::Var(ident)))
 }
 
-fn parse_primary(input: &str) -> IResult<&str, AstNode> {
+pub fn parse_primary(input: &str) -> IResult<&str, AstNode> {
     alt((
         parse_tuple_or_paren,
         parse_lit,
@@ -536,6 +546,7 @@ fn parse_primary(input: &str) -> IResult<&str, AstNode> {
         parse_closure,
         parse_block,
         parse_unsafe_expr,
+        parse_comptime_block,
         // parse_if_let and parse_if removed - they're not primary expressions
         // They should be parsed at a higher level
     ))
@@ -677,66 +688,292 @@ fn parse_postfix(input: &str) -> IResult<&str, AstNode> {
     Ok((input, expr))
 }
 
-// Parse expression without if (for use in if conditions to avoid left recursion)
-fn parse_expr_no_if(input: &str) -> IResult<&str, AstNode> {
-    let (mut input, mut term) = parse_postfix(input)?;
+// Parse logical OR (lowest precedence)
+fn parse_logical_or(input: &str) -> IResult<&str, AstNode> {
+    let (mut input, mut term) = parse_logical_and(input)?;
     loop {
-        // Try to parse operator
-        let mut found_op = None;
+        // Try to parse "||" operator
+        let mut found_op = false;
         let mut remaining_input = input;
-
-        let operators = [
-            "!=", "==", "<=", ">=", "<", ">", "+", "-", "*", "/", "%", "&&", "||", "..", "..=",
-        ];
-
-        // Try operators without whitespace first
-        for &op in &operators {
-            if remaining_input.starts_with(op) {
-                found_op = Some(op);
-                remaining_input = &remaining_input[op.len()..];
-                break;
-            }
+        
+        // Try without whitespace first
+        if remaining_input.starts_with("||") {
+            found_op = true;
+            remaining_input = &remaining_input[2..];
         }
-
-        // If no operator, try with whitespace
-        if found_op.is_none() {
+        
+        // Try with whitespace
+        if !found_op {
             let (i, _) = skip_ws_and_comments0(remaining_input).unwrap_or((remaining_input, ()));
-            if i != remaining_input {
-                for &op in &operators {
-                    if let Some(stripped) = i.strip_prefix(op) {
-                        found_op = Some(op);
-                        remaining_input = stripped;
-                        break;
-                    }
-                }
+            if i != remaining_input && i.starts_with("||") {
+                found_op = true;
+                remaining_input = &i[2..];
             }
         }
-
-        if let Some(op) = found_op {
+        
+        if found_op {
             // Skip whitespace after operator
             let (j, _) = skip_ws_and_comments0(remaining_input).unwrap_or((remaining_input, ()));
-            let (j, right) = parse_postfix(j)?;
+            let (j, right) = parse_logical_and(j)?;
             
-            // Check if this is a range operator
-            if op == ".." || op == "..=" {
-                term = AstNode::Range {
-                    start: Box::new(term),
-                    end: Box::new(right),
-                    inclusive: op == "..=",
-                };
-            } else {
-                term = AstNode::BinaryOp {
-                    op: op.to_string(),
-                    left: Box::new(term),
-                    right: Box::new(right),
-                };
-            }
+            term = AstNode::BinaryOp {
+                op: "||".to_string(),
+                left: Box::new(term),
+                right: Box::new(right),
+            };
             input = j;
         } else {
             break;
         }
     }
     Ok((input, term))
+}
+
+// Parse logical AND
+fn parse_logical_and(input: &str) -> IResult<&str, AstNode> {
+    let (mut input, mut term) = parse_comparison(input)?;
+    loop {
+        // Try to parse "&&" operator
+        let mut found_op = false;
+        let mut remaining_input = input;
+        
+        // Try without whitespace first
+        if remaining_input.starts_with("&&") {
+            found_op = true;
+            remaining_input = &remaining_input[2..];
+        }
+        
+        // Try with whitespace
+        if !found_op {
+            let (i, _) = skip_ws_and_comments0(remaining_input).unwrap_or((remaining_input, ()));
+            if i != remaining_input && i.starts_with("&&") {
+                found_op = true;
+                remaining_input = &i[2..];
+            }
+        }
+        
+        if found_op {
+            // Skip whitespace after operator
+            let (j, _) = skip_ws_and_comments0(remaining_input).unwrap_or((remaining_input, ()));
+            let (j, right) = parse_comparison(j)?;
+            
+            term = AstNode::BinaryOp {
+                op: "&&".to_string(),
+                left: Box::new(term),
+                right: Box::new(right),
+            };
+            input = j;
+        } else {
+            break;
+        }
+    }
+    Ok((input, term))
+}
+
+// Parse comparison (==, !=, <, >, <=, >=)
+fn parse_comparison(input: &str) -> IResult<&str, AstNode> {
+    let (mut input, mut term) = parse_additive(input)?;
+    loop {
+        // Try to parse comparison operator
+        let mut found_op = None;
+        let mut remaining_input = input;
+        
+        let comparison_ops = ["!=", "==", "<=", ">=", "<", ">"];
+        
+        // Try without whitespace first
+        for &op in &comparison_ops {
+            if remaining_input.starts_with(op) {
+                found_op = Some(op);
+                remaining_input = &remaining_input[op.len()..];
+                break;
+            }
+        }
+        
+        // Try with whitespace
+        if found_op.is_none() {
+            let (i, _) = skip_ws_and_comments0(remaining_input).unwrap_or((remaining_input, ()));
+            if i != remaining_input {
+                for &op in &comparison_ops {
+                    if i.starts_with(op) {
+                        found_op = Some(op);
+                        remaining_input = &i[op.len()..];
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if let Some(op) = found_op {
+            // Skip whitespace after operator
+            let (j, _) = skip_ws_and_comments0(remaining_input).unwrap_or((remaining_input, ()));
+            let (j, right) = parse_additive(j)?;
+            
+            term = AstNode::BinaryOp {
+                op: op.to_string(),
+                left: Box::new(term),
+                right: Box::new(right),
+            };
+            input = j;
+        } else {
+            break;
+        }
+    }
+    Ok((input, term))
+}
+
+// Parse additive (+, -)
+fn parse_additive(input: &str) -> IResult<&str, AstNode> {
+    let (mut input, mut term) = parse_multiplicative(input)?;
+    loop {
+        // Try to parse additive operator
+        let mut found_op = None;
+        let mut remaining_input = input;
+        
+        let additive_ops = ["+", "-"];
+        
+        // Try without whitespace first
+        for &op in &additive_ops {
+            if remaining_input.starts_with(op) {
+                found_op = Some(op);
+                remaining_input = &remaining_input[op.len()..];
+                break;
+            }
+        }
+        
+        // Try with whitespace
+        if found_op.is_none() {
+            let (i, _) = skip_ws_and_comments0(remaining_input).unwrap_or((remaining_input, ()));
+            if i != remaining_input {
+                for &op in &additive_ops {
+                    if i.starts_with(op) {
+                        found_op = Some(op);
+                        remaining_input = &i[op.len()..];
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if let Some(op) = found_op {
+            // Skip whitespace after operator
+            let (j, _) = skip_ws_and_comments0(remaining_input).unwrap_or((remaining_input, ()));
+            let (j, right) = parse_multiplicative(j)?;
+            
+            term = AstNode::BinaryOp {
+                op: op.to_string(),
+                left: Box::new(term),
+                right: Box::new(right),
+            };
+            input = j;
+        } else {
+            break;
+        }
+    }
+    Ok((input, term))
+}
+
+// Parse multiplicative (*, /, %)
+fn parse_multiplicative(input: &str) -> IResult<&str, AstNode> {
+    let (mut input, mut term) = parse_range(input)?;
+    loop {
+        // Try to parse multiplicative operator
+        let mut found_op = None;
+        let mut remaining_input = input;
+        
+        let multiplicative_ops = ["*", "/", "%"];
+        
+        // Try without whitespace first
+        for &op in &multiplicative_ops {
+            if remaining_input.starts_with(op) {
+                found_op = Some(op);
+                remaining_input = &remaining_input[op.len()..];
+                break;
+            }
+        }
+        
+        // Try with whitespace
+        if found_op.is_none() {
+            let (i, _) = skip_ws_and_comments0(remaining_input).unwrap_or((remaining_input, ()));
+            if i != remaining_input {
+                for &op in &multiplicative_ops {
+                    if i.starts_with(op) {
+                        found_op = Some(op);
+                        remaining_input = &i[op.len()..];
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if let Some(op) = found_op {
+            // Skip whitespace after operator
+            let (j, _) = skip_ws_and_comments0(remaining_input).unwrap_or((remaining_input, ()));
+            let (j, right) = parse_range(j)?;
+            
+            term = AstNode::BinaryOp {
+                op: op.to_string(),
+                left: Box::new(term),
+                right: Box::new(right),
+            };
+            input = j;
+        } else {
+            break;
+        }
+    }
+    Ok((input, term))
+}
+
+// Parse range (.., ..=) - higher precedence than other binary ops
+fn parse_range(input: &str) -> IResult<&str, AstNode> {
+    let (input, term) = parse_postfix(input)?;
+    
+    // Check for range operators
+    let mut current_input = input;
+    let mut current_term = term;
+    
+    // Try to parse range operators
+    let range_ops = ["..=", ".."];
+    
+    for &op in &range_ops {
+        let mut found_op = false;
+        let mut remaining_input = current_input;
+        
+        // Try without whitespace first
+        if remaining_input.starts_with(op) {
+            found_op = true;
+            remaining_input = &remaining_input[op.len()..];
+        }
+        
+        // Try with whitespace
+        if !found_op {
+            let (i, _) = skip_ws_and_comments0(remaining_input).unwrap_or((remaining_input, ()));
+            if i != remaining_input && i.starts_with(op) {
+                found_op = true;
+                remaining_input = &i[op.len()..];
+            }
+        }
+        
+        if found_op {
+            // Skip whitespace after operator
+            let (j, _) = skip_ws_and_comments0(remaining_input).unwrap_or((remaining_input, ()));
+            let (j, right) = parse_postfix(j)?;
+            
+            current_term = AstNode::Range {
+                start: Box::new(current_term),
+                end: Box::new(right),
+                inclusive: op == "..=",
+            };
+            current_input = j;
+            break;
+        }
+    }
+    
+    Ok((current_input, current_term))
+}
+
+// Parse expression without if (for use in if conditions to avoid left recursion)
+fn parse_expr_no_if(input: &str) -> IResult<&str, AstNode> {
+    parse_logical_or(input)
 }
 
 /// Parse a match expression: `match expr { pattern => expr, ... }`

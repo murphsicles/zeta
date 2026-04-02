@@ -1,0 +1,21 @@
+// Simple PrimeZeta compatibility test
+// Testing the critical features we implemented
+
+// Test 1: comptime keyword (line 1 blocker)
+comptime test_value: u64 = 42
+
+// Test 2: #[ai_opt] attribute (line 108 blocker)
+#[ai_opt]
+comptime fn generate_test() -> u64 {
+    return 100
+}
+
+// Test 3: Array syntax with size
+const ARRAY_SIZE: usize = 10
+comptime test_array: [ARRAY_SIZE]u64 = [0; ARRAY_SIZE]
+
+// Test 4: Simple main function
+fn main() -> u64 {
+    let result = test_value + generate_test()
+    return result
+}

@@ -1,0 +1,6 @@
+use std::print
+use std::println
+
+fn main() {
+    println("Hello from Zeta!")
+}

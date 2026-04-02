@@ -1,0 +1,19 @@
+// Test parse_type directly in different contexts
+
+// Context 1: Variable declaration (should work)
+let x: [u64; 10] = [0; 10]
+
+// Context 2: Function parameter (should work)
+fn test_param(arr: [u64; 10]) -> u64 {
+    return arr[0]
+}
+
+// Context 3: Function return (currently fails)
+fn test_return() -> [u64; 10] {
+    var arr: [u64; 10] = [0; 10]
+    return arr
+}
+
+fn main() -> u64 {
+    return 0
+}

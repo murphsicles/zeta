@@ -1,0 +1,7 @@
+fn test(x: i64, min: i64) -> bool {
+    return x >= min
+}
+
+fn main() {
+    let result = test(10, 0)
+}

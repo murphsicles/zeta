@@ -171,11 +171,41 @@ fn parse_if(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_assign(input: &str) -> IResult<&str, AstNode> {
-    let (input, lhs) = ws(parse_full_expr).parse(input)?;
-    let (input, _) = ws(tag("=")).parse(input)?;
+    use super::expr::parse_primary;
+    
+    let (input, lhs) = ws(parse_primary).parse(input)?;
+    
+    // Try to parse compound assignment operators first, then simple assignment
+    let (input, op) = alt((
+        ws(tag("+=")),
+        ws(tag("-=")),
+        ws(tag("*=")),
+        ws(tag("/=")),
+        ws(tag("%=")),
+        ws(tag("&=")),
+        ws(tag("|=")),
+        ws(tag("^=")),
+        ws(tag("<<=")),
+        ws(tag(">>=")),
+        ws(tag("=")),
+    )).parse(input)?;
+    
     let (input, rhs) = ws(parse_full_expr).parse(input)?;
     let (input, _) = opt(ws(tag(";"))).parse(input)?;
-    Ok((input, AstNode::Assign(Box::new(lhs), Box::new(rhs))))
+    
+    if op == "=" {
+        Ok((input, AstNode::Assign(Box::new(lhs), Box::new(rhs))))
+    } else {
+        // For compound assignment, create x = x op rhs
+        // Remove the = from the operator
+        let bin_op = op.trim_end_matches('=').to_string();
+        let new_rhs = AstNode::BinaryOp {
+            op: bin_op,
+            left: Box::new(lhs.clone()),
+            right: Box::new(rhs),
+        };
+        Ok((input, AstNode::Assign(Box::new(lhs), Box::new(new_rhs))))
+    }
 }
 
 fn parse_return(input: &str) -> IResult<&str, AstNode> {

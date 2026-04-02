@@ -64,6 +64,8 @@ pub fn parse_ident(input: &str) -> IResult<&str, String> {
                 "let", "mut", "if", "else", "for", "in", "loop", "unsafe", "return", "break",
                 "continue", "fn", "concept", "impl", "enum", "struct", "type", "use", "extern",
                 "dyn", "box", "as", "true", "false", "comptime", "const", "async", "pub",
+                // Built-in types that shouldn't be parsed as identifiers
+                "i64", "u64", "usize", "f64", "bool", "String",
                 // TODO: re-add these when we implement logical operators
                 // or when the self-hosted parser (parser.z) becomes the default
                 // "and", "or", "not"
@@ -120,6 +122,7 @@ pub fn parse_tuple_type(input: &str) -> IResult<&str, String> {
 /// Supports both:
 /// 1. Zeta style: [T; N] (type before size) or [T] (unsized)
 /// 2. PrimeZeta style: [N]T (size before type)
+/// 3. Dynamic array: [dynamic]T (dynamic size array)
 ///
 /// Returns: "[T; N]" format for consistency, or "[T]" for unsized
 pub fn parse_array_type(input: &str) -> IResult<&str, String> {
@@ -140,43 +143,68 @@ pub fn parse_array_type(input: &str) -> IResult<&str, String> {
         Ok((input, (size, elem_type)))
     }
     
-    // First, try to parse as PrimeZeta style: [N]T
-    // This is important because [10]i64 could be ambiguous
-    match parse_primezeta_array(input) {
-        Ok((remaining, (size, elem_type))) => {
-            // Successfully parsed PrimeZeta style: [N]T
-            return Ok((remaining, format!("[{}; {}]", elem_type, size)));
-        }
+    // Helper function for dynamic array parsing: [dynamic]T
+    fn parse_dynamic_array(input: &str) -> IResult<&str, String> {
+        let (input, _) = ws(tag("[")).parse(input)?;
+        let (input, _) = ws(tag("dynamic")).parse(input)?;
+        let (input, _) = ws(tag("]")).parse(input)?;
+        let (input, elem_type) = ws(parse_type).parse(input)?;
+        Ok((input, format!("[{}]", elem_type))) // Return as unsized array
+    }
+    
+    // Helper function for Zeta style parsing
+    fn parse_zeta_array(input: &str) -> IResult<&str, String> {
+        let (input, _) = ws(tag("[")).parse(input)?;
+        let (input, elem_type) = ws(parse_type).parse(input)?;
+
+        // Check for optional size
+        let (input, size_opt) = opt(preceded(
+            ws(tag(";")),
+            ws(alt((
+                // Numeric literal
+                nom::character::complete::digit1.map(|s: &str| s.to_string()),
+                // Identifier
+                parse_ident,
+            ))),
+        ))
+        .parse(input)?;
+
+        let (input, _) = ws(tag("]")).parse(input)?;
+
+        let result = if let Some(size) = size_opt {
+            format!("[{}; {}]", elem_type, size)
+        } else {
+            format!("[{}]", elem_type)
+        };
+
+        Ok((input, result))
+    }
+    
+    // Save the original input position
+    let original_input = input;
+    
+    // First, try Zeta style
+    match parse_zeta_array(original_input) {
+        Ok(result) => return Ok(result),
         Err(_) => {
-            // Not PrimeZeta style, try Zeta style
+            // Zeta style failed, try dynamic array
+            match parse_dynamic_array(original_input) {
+                Ok(result) => return Ok(result),
+                Err(_) => {
+                    // Dynamic array failed, try PrimeZeta style
+                    match parse_primezeta_array(original_input) {
+                        Ok((remaining, (size, elem_type))) => {
+                            return Ok((remaining, format!("[{}; {}]", elem_type, size)));
+                        }
+                        Err(e) => {
+                            // All failed, return the error
+                            return Err(e);
+                        }
+                    }
+                }
+            }
         }
     }
-
-    // Try Zeta style: [T] or [T; N]
-    let (input, _) = ws(tag("[")).parse(input)?;
-    let (input, elem_type) = ws(parse_type).parse(input)?;
-
-    // Check for optional size
-    let (input, size_opt) = opt(preceded(
-        ws(tag(";")),
-        ws(alt((
-            // Numeric literal
-            nom::character::complete::digit1.map(|s: &str| s.to_string()),
-            // Identifier
-            parse_ident,
-        ))),
-    ))
-    .parse(input)?;
-
-    let (input, _) = ws(tag("]")).parse(input)?;
-
-    let result = if let Some(size) = size_opt {
-        format!("[{}; {}]", elem_type, size)
-    } else {
-        format!("[{}]", elem_type)
-    };
-
-    Ok((input, result))
 }
 
 pub fn parse_fn_type(input: &str) -> IResult<&str, String> {
