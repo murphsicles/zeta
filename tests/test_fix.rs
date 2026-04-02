@@ -30,7 +30,7 @@ comptime fn test() -> i64 {
                     ..
                 } = *node {
                     if const_ || comptime_ {
-                        if let Some(ref name) = name {
+                        if let Some(name) = name {
                             println!("Registering function: {}", name);
                             evaluator.register_function(name.clone(), node.clone());
                         }
@@ -41,7 +41,7 @@ comptime fn test() -> i64 {
             // Find the test function
             let test_func = ast.iter().find(|node| {
                 match node {
-                    &zetac::frontend::ast::AstNode::FuncDef { ref name, .. } => {
+                    zetac::frontend::ast::AstNode::FuncDef { name, .. } => {
                         name.as_ref().map(|n| n.as_str()) == Some("test")
                     }
                     _ => false,

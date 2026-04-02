@@ -613,6 +613,7 @@ pub fn evaluate_constants(asts: &[AstNode]) -> Result<Vec<AstNode>, String> {
                 name,
                 ty,
                 value,
+                attrs,
                 pub_,
                 comptime_,
             } => {
@@ -624,6 +625,7 @@ pub fn evaluate_constants(asts: &[AstNode]) -> Result<Vec<AstNode>, String> {
                             name: name.clone(),
                             ty: ty.clone(),
                             value: Box::new(AstNode::Lit(val)),
+                            attrs: attrs.clone(),
                             pub_: *pub_,
                             comptime_: *comptime_,
                         });

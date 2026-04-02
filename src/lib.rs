@@ -122,9 +122,25 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
         let malloc_fn = crate::runtime::std::std_malloc as *const () as usize;
         ee.add_global_mapping(&f, malloc_fn);
     }
+    // Map monomorphized malloc functions (e.g., malloc_u64, malloc_bool, etc.)
+    for func_name in codegen.module.get_functions() {
+        let name = func_name.get_name().to_str().unwrap();
+        if name.starts_with("malloc_") {
+            let malloc_fn = crate::runtime::std::std_malloc as *const () as usize;
+            ee.add_global_mapping(&func_name, malloc_fn);
+        }
+    }
     if let Some(f) = codegen.module.get_function("free") {
         let free_fn = crate::runtime::std::std_free as *const () as usize;
         ee.add_global_mapping(&f, free_fn);
+    }
+    // Map monomorphized free functions
+    for func_name in codegen.module.get_functions() {
+        let name = func_name.get_name().to_str().unwrap();
+        if name.starts_with("free_") {
+            let free_fn = crate::runtime::std::std_free as *const () as usize;
+            ee.add_global_mapping(&func_name, free_fn);
+        }
     }
     if let Some(f) = codegen.module.get_function("print") {
         let print_fn = crate::runtime::std::std_print as *const () as usize;

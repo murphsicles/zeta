@@ -452,13 +452,32 @@ fn parse_tuple_or_paren(input: &str) -> IResult<&str, AstNode> {
 
 fn parse_array_lit(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("[")).parse(input)?;
-    let (input, items) = terminated(
-        separated_list0(ws(tag(",")), ws(parse_expr)),
-        opt(ws(tag(","))),
-    )
-    .parse(input)?;
-    let (input, _) = ws(tag("]")).parse(input)?;
-    Ok((input, AstNode::ArrayLit(items)))
+    
+    // Try to parse as repeat syntax: [value; size]
+    let repeat_parser = |input| {
+        let (input, value) = ws(parse_expr).parse(input)?;
+        let (input, _) = ws(tag(";")).parse(input)?;
+        let (input, size) = ws(parse_expr).parse(input)?;
+        let (input, _) = ws(tag("]")).parse(input)?;
+        Ok((input, AstNode::ArrayRepeat {
+            value: Box::new(value),
+            size: Box::new(size),
+        }))
+    };
+    
+    // Try to parse as regular array literal: [item1, item2, ...]
+    let regular_parser = |input| {
+        let (input, items) = terminated(
+            separated_list0(ws(tag(",")), ws(parse_expr)),
+            opt(ws(tag(","))),
+        )
+        .parse(input)?;
+        let (input, _) = ws(tag("]")).parse(input)?;
+        Ok((input, AstNode::ArrayLit(items)))
+    };
+    
+    // Try repeat syntax first, then regular syntax
+    alt((repeat_parser, regular_parser)).parse(input)
 }
 
 fn parse_bool(input: &str) -> IResult<&str, AstNode> {
@@ -667,7 +686,7 @@ fn parse_expr_no_if(input: &str) -> IResult<&str, AstNode> {
         let mut remaining_input = input;
 
         let operators = [
-            "!=", "==", "<=", ">=", "<", ">", "+", "-", "*", "/", "%", "&&", "||", "..",
+            "!=", "==", "<=", ">=", "<", ">", "+", "-", "*", "/", "%", "&&", "||", "..", "..=",
         ];
 
         // Try operators without whitespace first
@@ -697,11 +716,21 @@ fn parse_expr_no_if(input: &str) -> IResult<&str, AstNode> {
             // Skip whitespace after operator
             let (j, _) = skip_ws_and_comments0(remaining_input).unwrap_or((remaining_input, ()));
             let (j, right) = parse_postfix(j)?;
-            term = AstNode::BinaryOp {
-                op: op.to_string(),
-                left: Box::new(term),
-                right: Box::new(right),
-            };
+            
+            // Check if this is a range operator
+            if op == ".." || op == "..=" {
+                term = AstNode::Range {
+                    start: Box::new(term),
+                    end: Box::new(right),
+                    inclusive: op == "..=",
+                };
+            } else {
+                term = AstNode::BinaryOp {
+                    op: op.to_string(),
+                    left: Box::new(term),
+                    right: Box::new(right),
+                };
+            }
             input = j;
         } else {
             break;

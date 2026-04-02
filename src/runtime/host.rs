@@ -25,7 +25,7 @@ pub unsafe extern "C" fn host_datetime_now() -> i64 {
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn host_free(ptr: *mut c_void) {
     if !ptr.is_null() {
-        std_free(ptr as *mut u8);
+        std_free(ptr as usize);
     }
 }
 
@@ -94,7 +94,7 @@ pub unsafe extern "C" fn host_str_concat(a: i64, b: i64) -> i64 {
     unsafe {
         ptr::copy_nonoverlapping(cstring.as_ptr(), ptr as *mut c_char, len);
     }
-    ptr as i64
+    ptr
 }
 
 /// Returns string length.
@@ -189,7 +189,7 @@ pub unsafe extern "C" fn host_str_replace(s: i64, old: i64, new: i64) -> i64 {
     unsafe {
         ptr::copy_nonoverlapping(cstring.as_ptr(), ptr as *mut c_char, len);
     }
-    ptr as i64
+    ptr
 }
 
 #[allow(unsafe_op_in_unsafe_fn)]
@@ -210,7 +210,7 @@ where
     unsafe {
         ptr::copy_nonoverlapping(cstring.as_ptr(), ptr as *mut c_char, len);
     }
-    ptr as i64
+    ptr
 }
 
 #[allow(unsafe_op_in_unsafe_fn)]
@@ -271,7 +271,7 @@ pub unsafe extern "C" fn to_string_str(s: i64) -> i64 {
     unsafe {
         ptr::copy_nonoverlapping(cstring.as_ptr(), ptr as *mut c_char, len);
     }
-    ptr as i64
+    ptr
 }
 
 /// Clone a boolean value (identity function for bool as i64)
@@ -305,7 +305,7 @@ pub unsafe extern "C" fn to_string_i64(value: i64) -> i64 {
     unsafe {
         ptr::copy_nonoverlapping(cstring.as_ptr(), ptr as *mut c_char, len);
     }
-    ptr as i64
+    ptr
 }
 
 /// Convert a boolean to a string ("true" or "false")
@@ -321,5 +321,5 @@ pub unsafe extern "C" fn to_string_bool(value: i64) -> i64 {
     unsafe {
         ptr::copy_nonoverlapping(cstring.as_ptr(), ptr as *mut c_char, len);
     }
-    ptr as i64
+    ptr
 }

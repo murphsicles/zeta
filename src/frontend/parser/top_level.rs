@@ -501,7 +501,7 @@ fn parse_struct(input: &str) -> IResult<&str, AstNode> {
 
 fn parse_const(input: &str) -> IResult<&str, AstNode> {
     // Parse attributes
-    let (input, _attrs) = parse_attributes(input)?;
+    let (input, attrs) = parse_attributes(input)?;
 
     // Parse visibility
     let (input, pub_) = parse_visibility(input)?;
@@ -526,6 +526,7 @@ fn parse_const(input: &str) -> IResult<&str, AstNode> {
             name,
             ty,
             value: Box::new(value),
+            attrs,
             pub_,
             comptime_,
         },

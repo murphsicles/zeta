@@ -63,8 +63,7 @@ pub fn parse_ident(input: &str) -> IResult<&str, String> {
             ![
                 "let", "mut", "if", "else", "for", "in", "loop", "unsafe", "return", "break",
                 "continue", "fn", "concept", "impl", "enum", "struct", "type", "use", "extern",
-                "dyn", "box", "as", "true",
-                "false",
+                "dyn", "box", "as", "true", "false", "comptime", "const", "async", "pub",
                 // TODO: re-add these when we implement logical operators
                 // or when the self-hosted parser (parser.z) becomes the default
                 // "and", "or", "not"
@@ -416,12 +415,54 @@ pub fn parse_generic_params(input: &str) -> IResult<&str, (Vec<String>, Vec<Stri
 /// Parse a single attribute (e.g., #[test] or #[derive(Clone, Debug)])
 pub fn parse_attribute(input: &str) -> IResult<&str, String> {
     let (input, _) = tag("#[")(input)?;
-    let (input, content) = take_until("]")(input)?;
+    
+    // Use a custom parser to handle nested brackets and strings
+    let (input, content) = parse_attribute_content(input)?;
+    
     let (input, _) = tag("]")(input)?;
 
     // Trim whitespace from the content
     let trimmed_content = content.trim();
     Ok((input, trimmed_content.to_string()))
+}
+
+/// Helper to parse attribute content, handling nested brackets and strings
+fn parse_attribute_content(input: &str) -> IResult<&str, String> {
+    let mut depth = 0;
+    let mut in_string = false;
+    let mut escape_next = false;
+    let mut result = String::new();
+    let mut chars = input.char_indices();
+    
+    while let Some((i, c)) = chars.next() {
+        match c {
+            '[' if !in_string => {
+                depth += 1;
+                result.push(c);
+            }
+            ']' if !in_string => {
+                if depth == 0 {
+                    return Ok((&input[i..], result));
+                }
+                depth -= 1;
+                result.push(c);
+            }
+            '"' if !escape_next => {
+                in_string = !in_string;
+                result.push(c);
+            }
+            '\\' if in_string => {
+                escape_next = true;
+                result.push(c);
+            }
+            _ => {
+                escape_next = false;
+                result.push(c);
+            }
+        }
+    }
+    
+    Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::TakeUntil)))
 }
 
 /// Parse zero or more attributes

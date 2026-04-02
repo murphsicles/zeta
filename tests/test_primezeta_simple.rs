@@ -50,7 +50,7 @@ fn test_parsing(code: &str) {
             let comptime_funcs: Vec<_> = ast.iter()
                 .filter(|node| {
                     match node {
-                        &zetac::frontend::ast::AstNode::FuncDef { ref comptime_, .. } => *comptime_,
+                        zetac::frontend::ast::AstNode::FuncDef { comptime_, .. } => *comptime_,
                         _ => false,
                     }
                 })

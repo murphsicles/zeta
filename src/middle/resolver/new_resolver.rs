@@ -616,6 +616,7 @@ impl InferContext {
                 name,
                 ty,
                 value,
+                attrs: _,
                 pub_: _,
                 comptime_: _,
             } => {

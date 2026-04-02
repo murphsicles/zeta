@@ -288,6 +288,7 @@ impl Resolver {
                 ref name,
                 ref ty,
                 ref value,
+                attrs: _,
                 pub_: _,
                 comptime_: _,
             } => {
@@ -367,7 +368,7 @@ impl Resolver {
                             ..
                         } => {
                             let mut new_item = item.clone();
-                            if let AstNode::ConstDef { ref mut name, comptime_, .. } = new_item {
+                            if let AstNode::ConstDef { ref mut name, .. } = new_item {
                                 *name = format!("{}::{}", module_name, const_name);
                             }
                             new_item

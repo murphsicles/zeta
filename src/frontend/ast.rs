@@ -152,6 +152,12 @@ pub enum AstNode {
         left: Box<AstNode>,
         right: Box<AstNode>,
     },
+    /// Range expression (exclusive): start..end
+    Range {
+        start: Box<AstNode>,
+        end: Box<AstNode>,
+        inclusive: bool,
+    },
     /// Timing-owned value abstraction for constant-time operations.
     TimingOwned { ty: String, inner: Box<AstNode> },
     /// Defer statement for cleanup actions.
@@ -259,6 +265,11 @@ pub enum AstNode {
     Continue(Option<Box<AstNode>>),
     /// Array literal.
     ArrayLit(Vec<AstNode>),
+    /// Array repeat literal: [value; size]
+    ArrayRepeat {
+        value: Box<AstNode>,
+        size: Box<AstNode>,
+    },
     /// Boolean literal.
     Bool(bool),
     /// Constant definition.
@@ -266,6 +277,8 @@ pub enum AstNode {
         name: String,
         ty: String,
         value: Box<AstNode>,
+        /// Attributes (e.g., #[ai_opt], #[inline])
+        attrs: Vec<String>,
         /// Visibility: true for public, false for private (default)
         pub_: bool,
         /// Compile-time flag: true for comptime variables

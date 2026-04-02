@@ -283,5 +283,9 @@ pub unsafe extern "C" fn env_arch() -> *mut u8 {
 /// Gets the number of CPU cores.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn env_cpu_count() -> usize {
-    num_cpus::get()
+    // Use std::thread::available_parallelism for CPU count
+    match std::thread::available_parallelism() {
+        Ok(parallelism) => parallelism.get(),
+        Err(_) => 1, // Fallback to 1 core
+    }
 }

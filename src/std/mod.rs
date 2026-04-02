@@ -4,20 +4,24 @@
 //! functions for PrimeZeta compatibility.
 
 // Re-export standard library modules
+pub mod alloc;
 pub mod collections;
 pub mod io;
 pub mod fmt;
 pub mod time;
 pub mod env;
+pub mod math;
 
 /// Initializes the standard library module system.
 pub fn init() {
     // Initialize all std modules
+    alloc::init();
     collections::init();
     io::init();
     fmt::init();
     time::init();
     env::init();
+    math::init();
 }
 
 /// Checks if a path is a standard library import.
@@ -32,7 +36,7 @@ pub fn get_std_functions() -> ::std::collections::HashMap<&'static str, usize> {
     
     let mut map = ::std::collections::HashMap::new();
     
-    // Core memory management
+    // Core memory management (non-generic versions)
     map.insert("malloc", std::std_malloc as *const () as usize);
     map.insert("free", std::std_free as *const () as usize);
     
@@ -40,6 +44,9 @@ pub fn get_std_functions() -> ::std::collections::HashMap<&'static str, usize> {
     map.insert("print", std::std_print as *const () as usize);
     map.insert("println", std::std_println as *const () as usize);
     map.insert("args", std::std_args as *const () as usize);
+    
+    // Allocation functions
+    alloc::register_functions(&mut map);
     
     // Collections functions
     collections::register_functions(&mut map);
@@ -55,6 +62,9 @@ pub fn get_std_functions() -> ::std::collections::HashMap<&'static str, usize> {
     
     // Environment functions
     env::register_functions(&mut map);
+    
+    // Math functions
+    math::register_functions(&mut map);
     
     map
 }
