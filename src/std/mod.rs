@@ -3,10 +3,21 @@
 //! This module handles `std::` imports and provides the standard library
 //! functions for PrimeZeta compatibility.
 
+// Re-export standard library modules
+pub mod collections;
+pub mod io;
+pub mod fmt;
+pub mod time;
+pub mod env;
+
 /// Initializes the standard library module system.
 pub fn init() {
-    // Nothing to do for now, but this could register built-in std functions
-    // with the resolver in the future.
+    // Initialize all std modules
+    collections::init();
+    io::init();
+    fmt::init();
+    time::init();
+    env::init();
 }
 
 /// Checks if a path is a standard library import.
@@ -20,11 +31,30 @@ pub fn get_std_functions() -> ::std::collections::HashMap<&'static str, usize> {
     use crate::runtime::std;
     
     let mut map = ::std::collections::HashMap::new();
+    
+    // Core memory management
     map.insert("malloc", std::std_malloc as *const () as usize);
     map.insert("free", std::std_free as *const () as usize);
+    
+    // Basic I/O
     map.insert("print", std::std_print as *const () as usize);
     map.insert("println", std::std_println as *const () as usize);
     map.insert("args", std::std_args as *const () as usize);
+    
+    // Collections functions
+    collections::register_functions(&mut map);
+    
+    // I/O functions
+    io::register_functions(&mut map);
+    
+    // Formatting functions
+    fmt::register_functions(&mut map);
+    
+    // Time functions
+    time::register_functions(&mut map);
+    
+    // Environment functions
+    env::register_functions(&mut map);
     
     map
 }

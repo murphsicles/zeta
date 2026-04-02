@@ -1397,7 +1397,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let is_ok = self
                     .builder
                     .build_call(
-                        self.get_function("result_is_ok"),
+                        self.get_function("host_result_is_ok"),
                         &[expr_val.into()],
                         "is_ok",
                     )
@@ -1430,7 +1430,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let data = self
                     .builder
                     .build_call(
-                        self.get_function("result_get_data"),
+                        self.get_function("host_result_get_data"),
                         &[expr_val.into()],
                         "get_data",
                     )

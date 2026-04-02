@@ -1,0 +1,97 @@
+// Basic macro syntax tests for Zeta v0.3.34
+
+// Test 1: Simple macro_rules! definition
+macro_rules! say_hello {
+    () => {
+        println!("Hello, world!")
+    };
+}
+
+// Test 2: Macro with parameters
+macro_rules! add {
+    ($a:expr, $b:expr) => {
+        $a + $b
+    };
+}
+
+// Test 3: Macro invocation
+fn test_macro_invocation() -> i64 {
+    say_hello!();
+    let result = add!(5, 3);
+    result
+}
+
+// Test 4: vec! macro (built-in)
+fn test_vec_macro() {
+    let v = vec![1, 2, 3, 4, 5];
+    println!("Vector: {:?}", v);
+}
+
+// Test 5: println! macro with formatting
+fn test_println_macro() {
+    let name = "Zeta";
+    let version = 0.3;
+    println!("Welcome to {} v{}!", name, version);
+}
+
+// Test 6: Attribute macro #[test]
+#[test]
+fn test_attribute_macro() -> bool {
+    true
+}
+
+// Test 7: #[derive] attribute on struct
+#[derive(Debug, Clone)]
+struct Point {
+    x: i64,
+    y: i64,
+}
+
+// Test 8: Macro with repetition
+macro_rules! sum {
+    ($($x:expr),*) => {
+        0 $(+ $x)*
+    };
+}
+
+fn test_repetition_macro() -> i64 {
+    sum!(1, 2, 3, 4, 5)
+}
+
+// Test 9: Nested macro calls
+macro_rules! double {
+    ($x:expr) => {
+        add!($x, $x)
+    };
+}
+
+// Test 10: Macro hygiene test
+fn test_macro_hygiene() -> i64 {
+    let x = 10;
+    // Macro should not capture outer x
+    macro_rules! get_x {
+        () => {
+            x  // This should refer to a different x
+        };
+    }
+    let x = 20; // Different x
+    get_x!()
+}
+
+// Main function to run all tests
+fn main() -> i64 {
+    println!("Testing macro system...");
+    
+    test_macro_invocation();
+    test_vec_macro();
+    test_println_macro();
+    
+    let sum_result = test_repetition_macro();
+    println!("Sum result: {}", sum_result);
+    
+    let double_result = double!(7);
+    println!("Double of 7: {}", double_result);
+    
+    // Return success code
+    0
+}

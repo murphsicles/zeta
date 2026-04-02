@@ -50,8 +50,16 @@ rustls = "0.23.36"
 serde = { version = "1.0.228", features = ["derive"] }
 # JSON handling.
 serde_json = "1.0.149"
+# TOML parsing and serialization.
+toml = "0.8.0"
+# Find executables in PATH.
+which = "6.0.0"
+# Platform-specific directories.
+dirs = "5.0.0"
 # Asynchronous runtime.
 tokio = { version = "1.40.0", features = ["full"] }
+# Environment-based logging
+env_logger = "0.11.5"
 # Parallel trait solver components.
 chalk-ir = "0.104.0"
 chalk-solve = "0.104.0"
@@ -70,6 +78,8 @@ proptest = "1.5.0"
 libfuzzer-sys = "0.4.10"
 # Benchmarking framework.
 criterion = { version = "0.8.1", features = ["html_reports"] }
+# Temporary directory creation for tests
+tempfile = "3.10.0"
 
 # Test configurations
 [[test]]
@@ -87,6 +97,47 @@ path = "tests/comptime/test_runner.rs"
 [[test]]
 name = "primezeta_comptime"
 path = "tests/primezeta/test_comptime_residues.rs"
+
+[[test]]
+name = "concurrency_parse"
+path = "tests/concurrency/parse_test.rs"
+
+[[test]]
+name = "package_ecosystem_basic"
+path = "tests/package-ecosystem/basic_tests.rs"
+
+[[test]]
+name = "package_ecosystem_integration"
+path = "tests/package-ecosystem/integration_test.rs"
+
+[[test]]
+name = "package_ecosystem_real_world"
+path = "tests/package-ecosystem/real_world_workflow.rs"
+
+[[test]]
+name = "stdlib_foundation"
+path = "tests/stdlib-foundation/test_runner.rs"
+
+# Memory Management Tests for v0.3.35
+[[test]]
+name = "memory_management_ownership"
+path = "tests/memory-management/ownership_tests.rs"
+
+[[test]]
+name = "memory_management_borrowing"
+path = "tests/memory-management/borrowing_tests.rs"
+
+[[test]]
+name = "memory_management_lifetimes"
+path = "tests/memory-management/lifetime_tests.rs"
+
+[[test]]
+name = "memory_management_safety"
+path = "tests/memory-management/memory_safety_tests.rs"
+
+[[test]]
+name = "memory_management_integration"
+path = "tests/memory-management/integration_test.rs"
 
 # Benchmark configurations.
 [[bench]]

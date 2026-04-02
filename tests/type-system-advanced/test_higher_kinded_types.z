@@ -1,0 +1,102 @@
+// Test higher-kinded types for v0.3.43
+// Created by TYPE-SYSTEM-ADVANCED-AGENT
+
+// Test 1: Kind system foundation
+// Type constructors have kinds: * (concrete type), * -> * (type constructor), etc.
+kind * = Type
+kind (* -> *) = TypeConstructor
+
+// Test 2: Higher-kinded type parameters
+// Functor trait with higher-kinded type parameter
+trait Functor<F: * -> *> {
+    // Map function that works on any functor
+    fn map<A, B>(self: F<A>, f: fn(A) -> B) -> F<B>
+}
+
+// Test 3: Implementing Functor for Option
+impl Functor<Option> for Option {
+    fn map<A, B>(self: Option<A>, f: fn(A) -> B) -> Option<B> {
+        match self {
+            Some(x) => Some(f(x)),
+            None => None,
+        }
+    }
+}
+
+// Test 4: Implementing Functor for Result
+impl Functor<Result<E>> for Result<E> {
+    fn map<A, B>(self: Result<A, E>, f: fn(A) -> B) -> Result<B, E> {
+        match self {
+            Ok(x) => Ok(f(x)),
+            Err(e) => Err(e),
+        }
+    }
+}
+
+// Test 5: Using higher-kinded types
+fn test_hkt() {
+    // Option is a type constructor: * -> *
+    let opt: Option<i32> = Some(42)
+    
+    // Use map with Option
+    let doubled: Option<i64> = opt.map(|x| x as i64 * 2)
+    
+    // Result is a type constructor: * -> * -> * (or (*, *) -> * with currying)
+    let res: Result<i32, String> = Ok(42)
+    let res_doubled: Result<i64, String> = res.map(|x| x as i64 * 2)
+}
+
+// Test 6: Monad trait (requires higher-kinded types)
+trait Monad<M: * -> *>: Functor<M> {
+    // Unit/return operation
+    fn unit<A>(value: A) -> M<A>
+    
+    // Bind operation
+    fn bind<A, B>(self: M<A>, f: fn(A) -> M<B>) -> M<B>
+}
+
+// Test 7: Implementing Monad for Option
+impl Monad<Option> for Option {
+    fn unit<A>(value: A) -> Option<A> {
+        Some(value)
+    }
+    
+    fn bind<A, B>(self: Option<A>, f: fn(A) -> Option<B>) -> Option<B> {
+        match self {
+            Some(x) => f(x),
+            None => None,
+        }
+    }
+}
+
+// Test 8: Type-level computation with kind polymorphism
+// A type-level function that takes a type constructor and applies it twice
+type ApplyTwice<F: * -> *, A> = F<F<A>>
+
+// Test 9: Using ApplyTwice
+type OptionOptionInt = ApplyTwice<Option, i32>  // Option<Option<i32>>
+
+// Test 10: Higher-kinded trait bounds in functions
+fn process_functor<F: * -> *, A, B>(
+    fa: F<A>,
+    f: fn(A) -> B,
+) -> F<B>
+where F: Functor<F> {
+    fa.map(f)
+}
+
+// Test 11: Complex higher-kinded pattern
+// Natural transformations between functors
+trait NaturalTransformation<F: * -> *, G: * -> *> {
+    fn transform<A>(fa: F<A>) -> G<A>
+}
+
+// Test 12: Example natural transformation: Option -> Vec
+impl NaturalTransformation<Option, Vec> for OptionToVec {
+    fn transform<A>(fa: Option<A>) -> Vec<A> {
+        match fa {
+            Some(x) => vec![x],
+            None => vec![],
+        }
+    }
+}

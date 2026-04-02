@@ -334,8 +334,14 @@ impl InferContext {
                         Ok(Type::Named(s.to_string(), Vec::new()))
                     }
                 } else {
-                    // Named type
-                    Ok(Type::Named(s.to_string(), Vec::new()))
+                    // Check if it's a type alias
+                    if let Some(aliased_ty) = self.types.get(s) {
+                        // Return the underlying type
+                        Ok(aliased_ty.clone())
+                    } else {
+                        // Named type
+                        Ok(Type::Named(s.to_string(), Vec::new()))
+                    }
                 }
             }
         }
@@ -542,6 +548,20 @@ impl InferContext {
                 }
             }
 
+            AstNode::Await(expr) => {
+                // Await expression: expr.await where expr must be a Future
+                let expr_ty = self.infer(expr)?;
+                
+                // Check if the expression type is a Future
+                // For now, we'll assume any async function returns a Future
+                // In a complete implementation, we would check if expr_ty implements Future trait
+                
+                // The await expression returns the inner type of the Future
+                // For simplicity, we'll return the expression type itself for now
+                // TODO: Implement proper Future trait checking
+                Ok(expr_ty)
+            }
+
             AstNode::Cast { expr, ty } => {
                 let expr_ty = self.infer(expr)?;
                 let target_ty = self.parse_type_string(ty)?;
@@ -622,6 +642,7 @@ impl InferContext {
                 ret,
                 body,
                 ret_expr,
+                async_,
                 comptime_,
                 ..
             } => {
@@ -657,7 +678,12 @@ impl InferContext {
                 }
 
                 // Create function type: (param_types...) -> return_ty
-                let func_type = Type::Function(param_types, Box::new(return_ty.clone()));
+                // Use AsyncFunction for async functions
+                let func_type = if *async_ {
+                    Type::AsyncFunction(param_types, Box::new(return_ty.clone()))
+                } else {
+                    Type::Function(param_types, Box::new(return_ty.clone()))
+                };
                 self.functions.insert(name.clone(), func_type);
 
                 // Add parameters to variable context
@@ -1011,7 +1037,7 @@ impl InferContext {
                             // Instance methods will be handled differently
                         }
                         AstNode::FuncDef {
-                            name, params, ret, ..
+                            name, params, ret, async_, ..
                         } => {
                             // Parse the return type
                             let return_ty = self.parse_type_string(ret)?;
@@ -1030,8 +1056,11 @@ impl InferContext {
                                     || params[0].1 == "self");
 
                             // Create the function type
+                            // Use AsyncFunction for async functions
                             let func_type = if param_types.is_empty() {
                                 return_ty
+                            } else if *async_ {
+                                Type::AsyncFunction(param_types, Box::new(return_ty))
                             } else {
                                 Type::Function(param_types, Box::new(return_ty))
                             };
@@ -1190,6 +1219,15 @@ impl InferContext {
                 // Use statements are processed by the resolver before type inference
                 // They don't have a type themselves
                 Ok(Type::Tuple(vec![])) // Unit type
+            }
+
+            AstNode::TypeAlias { name, ty, .. } => {
+                // Parse the underlying type
+                let underlying_ty = self.parse_type_string(ty)?;
+                // Store the alias mapping
+                self.types.insert(name.clone(), underlying_ty);
+                // Type aliases themselves have unit type
+                Ok(Type::Tuple(vec![]))
             }
 
             AstNode::Return(expr) => {
@@ -1414,6 +1452,7 @@ impl InferContext {
                         "PartialOrd" => bounds.push(TraitBound::PartialOrd),
                         "Ord" => bounds.push(TraitBound::Ord),
                         "Hash" => bounds.push(TraitBound::Hash),
+                        "Future" => bounds.push(TraitBound::Future),
                         _ => return Err(format!("Unknown trait bound: {}", bound_str)),
                     }
                 }

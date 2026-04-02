@@ -1,0 +1,25 @@
+// Test where clauses
+concept Clone {
+    fn clone(&self) -> Self;
+}
+
+fn duplicate<T>(x: T) -> (T, T) 
+where T: Clone {
+    let c = x.clone();
+    (x, c)
+}
+
+struct Box {
+    value: i64
+}
+
+impl Clone for Box {
+    fn clone(&self) -> Self {
+        Box { value: self.value }
+    }
+}
+
+fn main() -> (Box, Box) {
+    let b = Box { value: 42 };
+    duplicate(b)
+}

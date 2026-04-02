@@ -1,0 +1,134 @@
+// Collections Test for Standard Library Foundation
+// Tests for Vec<T>, HashMap<K, V>, and String types
+
+// Test Vec<T> - dynamic array
+fn test_vec_basic() {
+    // Create a vector
+    let mut v: Vec<i32> = Vec::new();
+    
+    // Push elements
+    v.push(1);
+    v.push(2);
+    v.push(3);
+    
+    // Check length
+    assert(v.len() == 3, "Vec length should be 3");
+    
+    // Access elements
+    assert(v[0] == 1, "First element should be 1");
+    assert(v[1] == 2, "Second element should be 2");
+    assert(v[2] == 3, "Third element should be 3");
+    
+    // Pop element
+    let last = v.pop();
+    assert(last == Some(3), "Popped element should be 3");
+    assert(v.len() == 2, "Vec length should be 2 after pop");
+    
+    // Iterate
+    let mut sum = 0;
+    for elem in v.iter() {
+        sum += elem;
+    }
+    assert(sum == 3, "Sum of elements should be 3");
+    
+    println!("Vec test passed");
+}
+
+// Test HashMap<K, V> - hash table
+fn test_hashmap_basic() {
+    // Create a hashmap
+    let mut map: HashMap<String, i32> = HashMap::new();
+    
+    // Insert key-value pairs
+    map.insert("one".to_string(), 1);
+    map.insert("two".to_string(), 2);
+    map.insert("three".to_string(), 3);
+    
+    // Check size
+    assert(map.len() == 3, "HashMap size should be 3");
+    
+    // Get values
+    assert(map.get("one") == Some(&1), "Key 'one' should map to 1");
+    assert(map.get("two") == Some(&2), "Key 'two' should map to 2");
+    assert(map.get("three") == Some(&3), "Key 'three' should map to 3");
+    
+    // Check non-existent key
+    assert(map.get("four") == None, "Key 'four' should not exist");
+    
+    // Remove key
+    map.remove("two");
+    assert(map.len() == 2, "HashMap size should be 2 after removal");
+    assert(map.get("two") == None, "Key 'two' should be removed");
+    
+    println!("HashMap test passed");
+}
+
+// Test String type
+fn test_string_basic() {
+    // Create strings
+    let s1 = String::new();
+    let s2 = String::from("Hello");
+    let s3 = "World".to_string();
+    
+    // Check empty string
+    assert(s1.is_empty(), "New string should be empty");
+    assert(s1.len() == 0, "Empty string length should be 0");
+    
+    // Check non-empty strings
+    assert(!s2.is_empty(), "String 'Hello' should not be empty");
+    assert(s2.len() == 5, "String 'Hello' length should be 5");
+    assert(s3.len() == 5, "String 'World' length should be 5");
+    
+    // Concatenation
+    let s4 = s2 + " " + &s3;
+    assert(s4 == "Hello World", "Concatenated string should be 'Hello World'");
+    
+    // Substring
+    let hello = &s4[0..5];
+    assert(hello == "Hello", "Substring should be 'Hello'");
+    
+    // Iteration
+    let mut chars = Vec::new();
+    for c in s3.chars() {
+        chars.push(c);
+    }
+    assert(chars.len() == 5, "Should have 5 characters");
+    assert(chars[0] == 'W', "First character should be 'W'");
+    
+    println!("String test passed");
+}
+
+// Test collections integration
+fn test_collections_integration() {
+    // Vec of Strings
+    let mut words: Vec<String> = Vec::new();
+    words.push("apple".to_string());
+    words.push("banana".to_string());
+    words.push("cherry".to_string());
+    
+    assert(words.len() == 3, "Should have 3 words");
+    assert(words[0] == "apple", "First word should be 'apple'");
+    
+    // HashMap with Vec values
+    let mut data: HashMap<String, Vec<i32>> = HashMap::new();
+    data.insert("scores".to_string(), vec![100, 95, 87]);
+    data.insert("ages".to_string(), vec![25, 30, 35]);
+    
+    let scores = data.get("scores").unwrap();
+    assert(scores.len() == 3, "Should have 3 scores");
+    assert(scores[0] == 100, "First score should be 100");
+    
+    println!("Collections integration test passed");
+}
+
+// Main test runner
+fn main() {
+    println!("Running collections tests...");
+    
+    test_vec_basic();
+    test_hashmap_basic();
+    test_string_basic();
+    test_collections_integration();
+    
+    println!("All collections tests passed!");
+}

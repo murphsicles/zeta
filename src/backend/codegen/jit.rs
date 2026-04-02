@@ -101,10 +101,10 @@ impl<'ctx> crate::backend::codegen::LLVMCodegen<'ctx> {
         if let Some(f) = self.module.get_function("tls_handshake") {
             ee.add_global_mapping(&f, host_tls_handshake as *const () as usize);
         }
-        if let Some(f) = self.module.get_function("result_is_ok") {
+        if let Some(f) = self.module.get_function("host_result_is_ok") {
             ee.add_global_mapping(&f, host_result_is_ok as *const () as usize);
         }
-        if let Some(f) = self.module.get_function("result_get_data") {
+        if let Some(f) = self.module.get_function("host_result_get_data") {
             ee.add_global_mapping(&f, host_result_get_data as *const () as usize);
         }
         if let Some(f) = self.module.get_function("map_new") {

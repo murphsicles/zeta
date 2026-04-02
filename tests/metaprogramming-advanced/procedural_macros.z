@@ -1,0 +1,162 @@
+// Procedural Macros Test File
+// Tests for advanced metaprogramming features in Zeta v0.3.41
+
+// 1. Attribute Procedural Macros
+#[my_attribute]
+fn annotated_function() {
+    println!("This function has a custom attribute");
+}
+
+#[derive(MyDerive)]
+struct MyStruct {
+    field: i32,
+}
+
+#[my_attribute_with_args(name = "test", value = 42)]
+struct AnotherStruct {
+    data: String,
+}
+
+// 2. Function-like Procedural Macros
+my_macro!(some_code_here);
+
+my_macro_with_args!(arg1, arg2, arg3);
+
+// Complex macro with pattern matching
+complex_macro! {
+    pattern1 => { expansion1 },
+    pattern2 => { expansion2 },
+    _ => { default_expansion }
+}
+
+// 3. Derive Procedural Macros
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct DataStruct {
+    id: u64,
+    name: String,
+    metadata: HashMap<String, Value>,
+}
+
+#[derive(MyTrait)]
+enum MyEnum {
+    Variant1,
+    Variant2(i32),
+    Variant3 { field: String },
+}
+
+// 4. Compile-time attribute inspection
+#[inspect_type]
+struct InspectedType {
+    #[inspect_field]
+    field1: i32,
+    
+    #[inspect_field(metadata = "important")]
+    field2: String,
+}
+
+// 5. Macro hygiene tests
+macro_rules! hygienic_macro {
+    ($x:expr) => {
+        {
+            let result = $x * 2;
+            result
+        }
+    }
+}
+
+fn test_hygiene() {
+    let x = 5;
+    let y = hygienic_macro!(x + 1); // Should not capture x from outer scope
+    println!("Result: {}", y);
+}
+
+// 6. Advanced code generation
+#[generate_builder]
+struct Config {
+    host: String,
+    port: u16,
+    timeout: u64,
+    retries: u8,
+}
+
+fn test_builder() {
+    let config = Config::builder()
+        .host("localhost")
+        .port(8080)
+        .timeout(5000)
+        .retries(3)
+        .build();
+}
+
+// 7. Compile-time reflection
+#[reflect]
+struct ReflectedStruct {
+    #[field_info(type = "i32", offset = 0)]
+    field_a: i32,
+    
+    #[field_info(type = "String", offset = 8)]
+    field_b: String,
+}
+
+fn test_reflection() {
+    let info = ReflectedStruct::type_info();
+    println!("Struct name: {}", info.name);
+    println!("Field count: {}", info.fields.len());
+    for field in info.fields {
+        println!("  Field: {} (type: {})", field.name, field.type_name);
+    }
+}
+
+// 8. AST manipulation at compile time
+#[transform_ast]
+fn original_function(x: i32) -> i32 {
+    x * 2
+}
+
+// Should be transformed to:
+// fn transformed_function(x: i32) -> i32 {
+//     let result = x * 2;
+//     println!("Result: {}", result);
+//     result
+// }
+
+// 9. Template-based code generation
+#[template(path = "templates/entity.template.z")]
+struct UserEntity {
+    id: u64,
+    username: String,
+    email: String,
+}
+
+// 10. Compile-time validation
+#[validate]
+struct ValidatedStruct {
+    #[range(min = 0, max = 100)]
+    percentage: i32,
+    
+    #[regex(pattern = r"^[a-zA-Z0-9_]+$")]
+    identifier: String,
+    
+    #[length(min = 1, max = 100)]
+    description: String,
+}
+
+// Main function to test all features
+fn main() {
+    println!("Testing Procedural Macros and Advanced Metaprogramming");
+    
+    // Test attribute macros
+    annotated_function();
+    
+    // Test function-like macros
+    let result = hygienic_macro!(10);
+    println!("Hygienic macro result: {}", result);
+    
+    // Test builder pattern
+    test_builder();
+    
+    // Test reflection
+    test_reflection();
+    
+    println!("All tests completed!");
+}

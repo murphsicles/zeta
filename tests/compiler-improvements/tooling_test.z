@@ -1,0 +1,202 @@
+// Test file for compiler tooling improvements
+// This file tests IDE integration, incremental compilation, and compiler flags
+
+// Test 1: Documentation comments for IDE hover
+/// Calculates the factorial of a number
+/// 
+/// # Arguments
+/// * `n` - The number to calculate factorial for (must be non-negative)
+/// 
+/// # Returns
+/// The factorial of n (n!)
+/// 
+/// # Examples
+/// ```
+/// let result = factorial(5);
+/// assert_eq!(result, 120);
+/// ```
+fn factorial(n: i32) -> i32 {
+    if n <= 1 {
+        1
+    } else {
+        n * factorial(n - 1)
+    }
+}
+
+// Test 2: Type aliases for better documentation
+type UserId = i64;
+type Timestamp = i64;
+
+struct User {
+    id: UserId,
+    name: String,
+    created_at: Timestamp,
+}
+
+// Test 3: Generic function with constraints
+trait Display {
+    fn display(&self) -> String;
+}
+
+impl Display for i32 {
+    fn display(&self) -> String {
+        format!("{}", self)
+    }
+}
+
+impl Display for String {
+    fn display(&self) -> String {
+        self.clone()
+    }
+}
+
+fn print_item<T: Display>(item: T) {
+    println!("{}", item.display());
+}
+
+// Test 4: Module system test
+mod math {
+    pub const PI: f64 = 3.141592653589793;
+    
+    pub fn circle_area(radius: f64) -> f64 {
+        PI * radius * radius
+    }
+    
+    pub mod advanced {
+        pub fn sphere_volume(radius: f64) -> f64 {
+            (4.0 / 3.0) * super::PI * radius * radius * radius
+        }
+    }
+}
+
+// Test 5: Attribute parsing
+#[derive(Debug, Clone)]
+struct Point {
+    x: f64,
+    y: f64,
+}
+
+#[allow(unused_variables)]
+fn attribute_test() {
+    let p = Point { x: 1.0, y: 2.0 };
+    // The unused variable warning should be suppressed by the attribute
+}
+
+// Test 6: Compile-time computation
+const COMPILE_TIME_CONST: i32 = {
+    let mut sum = 0;
+    for i in 1..=10 {
+        sum += i;
+    }
+    sum // Should be computed at compile time: 55
+};
+
+// Test 7: Conditional compilation
+#[cfg(target_os = "linux")]
+fn linux_specific() -> String {
+    "Running on Linux".to_string()
+}
+
+#[cfg(target_os = "windows")]
+fn windows_specific() -> String {
+    "Running on Windows".to_string()
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "windows")))]
+fn other_os() -> String {
+    "Running on other OS".to_string()
+}
+
+// Test 8: Build script integration
+// This would normally be in build.rs
+const BUILD_VERSION: &str = env!("CARGO_PKG_VERSION");
+const BUILD_TIMESTAMP: &str = env!("BUILD_TIMESTAMP");
+
+// Test 9: Lint-like warnings
+fn lint_warnings_test() {
+    let x = 10;
+    let y = 20;
+    
+    // Should warn: comparison is always true
+    if x < y && y > x {
+        println!("Always true");
+    }
+    
+    // Should warn: redundant clone
+    let s = String::from("hello");
+    let t = s.clone().clone();
+    
+    // Should warn: unused result
+    "hello".to_string();
+}
+
+// Test 10: IDE completion test
+struct CompletionTest {
+    field1: i32,
+    field2: String,
+    field3: bool,
+}
+
+impl CompletionTest {
+    fn new() -> Self {
+        Self {
+            field1: 0,
+            field2: String::new(),
+            field3: false,
+        }
+    }
+    
+    fn method1(&self) -> i32 {
+        self.field1
+    }
+    
+    fn method2(&mut self, value: i32) {
+        self.field1 = value;
+    }
+}
+
+// Main function
+fn main() {
+    // Test documentation comments
+    println!("Factorial of 5: {}", factorial(5));
+    
+    // Test type aliases
+    let user = User {
+        id: 12345,
+        name: "Alice".to_string(),
+        created_at: 1672531200,
+    };
+    println!("User: {} (ID: {})", user.name, user.id);
+    
+    // Test generic function
+    print_item(42);
+    print_item("Hello".to_string());
+    
+    // Test module system
+    println!("Circle area: {}", math::circle_area(2.0));
+    println!("Sphere volume: {}", math::advanced::sphere_volume(2.0));
+    
+    // Test compile-time computation
+    println!("Compile-time constant: {}", COMPILE_TIME_CONST);
+    
+    // Test conditional compilation
+    #[cfg(target_os = "linux")]
+    println!("{}", linux_specific());
+    
+    #[cfg(target_os = "windows")]
+    println!("{}", windows_specific());
+    
+    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+    println!("{}", other_os());
+    
+    // Test build info
+    println!("Build version: {}", BUILD_VERSION);
+    
+    // Test lint warnings
+    lint_warnings_test();
+    
+    // Test IDE completion
+    let mut test = CompletionTest::new();
+    test.method2(100);
+    println!("Field1: {}", test.method1());
+}

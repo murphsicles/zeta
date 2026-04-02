@@ -76,6 +76,25 @@ pub enum Severity {
     Fatal,
 }
 
+/// Warning level configuration
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WarningLevel {
+    Allow,    // Don't emit warning
+    Warn,     // Emit warning but continue
+    Deny,     // Treat warning as error
+    Forbid,   // Same as deny but cannot be overridden
+}
+
+impl WarningLevel {
+    pub fn should_emit(&self) -> bool {
+        matches!(self, WarningLevel::Warn | WarningLevel::Deny | WarningLevel::Forbid)
+    }
+    
+    pub fn is_error(&self) -> bool {
+        matches!(self, WarningLevel::Deny | WarningLevel::Forbid)
+    }
+}
+
 impl fmt::Display for Severity {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -230,19 +249,58 @@ impl Diagnostic {
     }
 }
 
+/// Warning configuration for specific warning codes
+#[derive(Debug, Clone)]
+pub struct WarningConfig {
+    pub level: WarningLevel,
+    pub description: String,
+}
+
 /// Collection of diagnostics for multiple error reporting
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct DiagnosticReporter {
     diagnostics: Vec<Diagnostic>,
     source_map: HashMap<String, String>, // filename -> source code
+    warning_config: HashMap<String, WarningConfig>, // warning code -> configuration
+    default_warning_level: WarningLevel,
+}
+
+impl Default for DiagnosticReporter {
+    fn default() -> Self {
+        Self {
+            diagnostics: Vec::new(),
+            source_map: HashMap::new(),
+            warning_config: HashMap::new(),
+            default_warning_level: WarningLevel::Warn,
+        }
+    }
 }
 
 impl DiagnosticReporter {
     pub fn new() -> Self {
-        Self {
-            diagnostics: Vec::new(),
-            source_map: HashMap::new(),
-        }
+        Self::default()
+    }
+    
+    pub fn with_warning_level(mut self, level: WarningLevel) -> Self {
+        self.default_warning_level = level;
+        self
+    }
+    
+    pub fn configure_warning(&mut self, code: &str, level: WarningLevel, description: &str) {
+        self.warning_config.insert(
+            code.to_string(),
+            WarningConfig {
+                level,
+                description: description.to_string(),
+            },
+        );
+    }
+    
+    pub fn get_warning_level(&self, code: &str) -> WarningLevel {
+        self.warning_config
+            .get(code)
+            .map(|config| config.level)
+            .unwrap_or(self.default_warning_level)
     }
 
     pub fn add_source(&mut self, filename: &str, source: String) {
@@ -250,7 +308,41 @@ impl DiagnosticReporter {
     }
 
     pub fn report(&mut self, diagnostic: Diagnostic) {
-        self.diagnostics.push(diagnostic);
+        // Check if this is a warning and handle warning levels
+        if diagnostic.severity == Severity::Warning {
+            if let Some(code) = &diagnostic.code {
+                let warning_level = self.get_warning_level(code);
+                
+                match warning_level {
+                    WarningLevel::Allow => {
+                        // Don't add the warning
+                        return;
+                    }
+                    WarningLevel::Warn => {
+                        // Add as warning
+                        self.diagnostics.push(diagnostic);
+                    }
+                    WarningLevel::Deny | WarningLevel::Forbid => {
+                        // Upgrade to error
+                        let mut error_diagnostic = diagnostic;
+                        error_diagnostic.severity = Severity::Error;
+                        error_diagnostic.message = format!(
+                            "[deny] {}",
+                            error_diagnostic.message
+                        );
+                        self.diagnostics.push(error_diagnostic);
+                    }
+                }
+            } else {
+                // Warning without code uses default level
+                if self.default_warning_level.should_emit() {
+                    self.diagnostics.push(diagnostic);
+                }
+            }
+        } else {
+            // Not a warning, just add it
+            self.diagnostics.push(diagnostic);
+        }
     }
 
     pub fn has_errors(&self) -> bool {

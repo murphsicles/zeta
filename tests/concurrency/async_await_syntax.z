@@ -1,0 +1,38 @@
+// tests/concurrency/async_await_syntax.z
+// Test async/await syntax parsing and basic functionality
+
+// Basic async function
+async fn fetch_data() -> i32 {
+    // Simulate async work
+    42
+}
+
+// Async function with parameters
+async fn add_async(x: i32, y: i32) -> i32 {
+    x + y
+}
+
+// Main function using async/await
+fn main() -> i32 {
+    // Call async function and await result
+    let result = fetch_data().await;
+    
+    // Chain async calls
+    let sum = add_async(10, 20).await;
+    
+    // Return combined result
+    result + sum
+}
+
+// Async function returning a future
+async fn delayed_computation() -> i32 {
+    // This would be where async I/O or timers would go
+    100
+}
+
+// Test async function composition
+async fn composed_async() -> i32 {
+    let a = fetch_data().await;
+    let b = delayed_computation().await;
+    a + b
+}

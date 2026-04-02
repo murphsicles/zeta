@@ -141,10 +141,10 @@ Write-Host "Created verification test at $verificationPath" -ForegroundColor Gre
 # Step 8: Summary
 Write-Host ""
 Write-Host "=== TEST SUMMARY ===" -ForegroundColor Cyan
-Write-Host "✅ Infrastructure check: PASSED" -ForegroundColor Green
-Write-Host "✅ File availability: PASSED" -ForegroundColor Green
-Write-Host "✅ Compiler binary: PASSED" -ForegroundColor Green
-Write-Host "🚧 Self-compilation: PENDING (requires minimal compiler implementation)" -ForegroundColor Yellow
+Write-Host "[OK] Infrastructure check: PASSED" -ForegroundColor Green
+Write-Host "[OK] File availability: PASSED" -ForegroundColor Green
+Write-Host "[OK] Compiler binary: PASSED" -ForegroundColor Green
+Write-Host "[IN PROGRESS] Self-compilation: PENDING (requires minimal compiler implementation)" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "Next steps for bootstrap validation:" -ForegroundColor Yellow
 Write-Host "1. Complete the minimal Zeta compiler implementation in tests/minimal_compiler.z"

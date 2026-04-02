@@ -217,6 +217,158 @@ pub fn constant_folding(mir: &mut Mir) {
     }
 }
 
+/// Common subexpression elimination
+pub fn common_subexpression_elimination(mir: &mut Mir) {
+    let mut expression_map = HashMap::new(); // expression hash -> expression id
+    let mut to_remove = Vec::new();
+    
+    // First pass: identify duplicate expressions
+    for (id, expr) in &mir.exprs {
+        // Create a hashable representation of the expression
+        let expr_hash = match expr {
+            MirExpr::Lit(value) => format!("Lit({})", value),
+            MirExpr::Var(var_id) => format!("Var({})", var_id),
+            MirExpr::ConstEval(value) => format!("ConstEval({})", value),
+            MirExpr::FString(parts) => {
+                let parts_str = parts.iter()
+                    .map(|p| p.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",");
+                format!("FString([{}])", parts_str)
+            }
+            MirExpr::TimingOwned(inner_id) => format!("TimingOwned({})", inner_id),
+            MirExpr::StringLit(s) => format!("StringLit({})", s),
+            MirExpr::Struct { variant, fields, .. } => {
+                let fields_str = fields.iter()
+                    .map(|(name, id)| format!("{}:{}", name, id))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                format!("Struct{} {{{}}}", variant, fields_str)
+            }
+            MirExpr::FieldAccess { base, field } => format!("FieldAccess({}.{})", base, field),
+            MirExpr::As { expr, target_type } => format!("As({} as {:?})", expr, target_type),
+            MirExpr::Range { start, end } => {
+                format!("Range({}-{})", start, end)
+            }
+        };
+        
+        // Check if we've seen this expression before
+        if let Some(&existing_id) = expression_map.get(&expr_hash) {
+            // Replace all uses of this expression with the existing one
+            for stmt in &mut mir.stmts {
+                match stmt {
+                    MirStmt::Assign { lhs: _, rhs } if *rhs == *id => {
+                        *rhs = existing_id;
+                    }
+                    MirStmt::Call { args, dest: _, .. } => {
+                        for arg in args {
+                            if *arg == *id {
+                                *arg = existing_id;
+                            }
+                        }
+                    }
+                    MirStmt::VoidCall { args, .. } => {
+                        for arg in args {
+                            if *arg == *id {
+                                *arg = existing_id;
+                            }
+                        }
+                    }
+                    MirStmt::Return { val } if *val == *id => {
+                        *val = existing_id;
+                    }
+                    MirStmt::SemiringFold { values, result: _, .. } => {
+                        for val in values {
+                            if *val == *id {
+                                *val = existing_id;
+                            }
+                        }
+                    }
+                    MirStmt::Consume { id: expr_id } if *expr_id == *id => {
+                        *expr_id = existing_id;
+                    }
+                    MirStmt::StructNew { fields, dest: _, .. } => {
+                        for (_, expr_id) in fields {
+                            if *expr_id == *id {
+                                *expr_id = existing_id;
+                            }
+                        }
+                    }
+                    MirStmt::If { cond, then: _, else_: _, dest: _ } if *cond == *id => {
+                        *cond = existing_id;
+                    }
+                    MirStmt::TryProp { expr_id, ok_dest: _, err_dest: _ } if *expr_id == *id => {
+                        *expr_id = existing_id;
+                    }
+                    MirStmt::DictInsert { map_id, key_id, val_id } => {
+                        if *map_id == *id {
+                            *map_id = existing_id;
+                        }
+                        if *key_id == *id {
+                            *key_id = existing_id;
+                        }
+                        if *val_id == *id {
+                            *val_id = existing_id;
+                        }
+                    }
+                    MirStmt::DictGet { map_id, key_id, dest: _ } => {
+                        if *map_id == *id {
+                            *map_id = existing_id;
+                        }
+                        if *key_id == *id {
+                            *key_id = existing_id;
+                        }
+                    }
+                    MirStmt::For { iterator, pattern: _, body: _ } if *iterator == *id => {
+                        *iterator = existing_id;
+                    }
+                    _ => {}
+                }
+            }
+            
+            // Mark for removal
+            to_remove.push(*id);
+        } else {
+            // First time seeing this expression
+            expression_map.insert(expr_hash, *id);
+        }
+    }
+    
+    // Remove duplicate expressions
+    for id in to_remove {
+        mir.exprs.remove(&id);
+    }
+}
+
+/// Strength reduction optimization
+pub fn strength_reduction(mir: &mut Mir) {
+    // Look for multiplication/division by powers of two
+    for (id, expr) in mir.exprs.iter_mut() {
+        // This would be more comprehensive in a real implementation
+        // For now, we'll just mark where strength reduction could be applied
+        match expr {
+            MirExpr::Lit(value) => {
+                // Check if this is used in multiplication/division
+                // In a full implementation, we'd track uses and replace
+                // x * 2 with x << 1, x / 4 with x >> 2, etc.
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Algebraic simplification
+pub fn algebraic_simplification(mir: &mut Mir) {
+    for (id, expr) in mir.exprs.iter_mut() {
+        match expr {
+            // x * 0 = 0, x * 1 = x, 0 * x = 0, 1 * x = x
+            // x + 0 = x, 0 + x = x
+            // These would be implemented when we have binary operations in MIR
+            _ => {}
+        }
+    }
+}
+
 /// Run all optimizations at the specified level
 pub fn optimize(mir: &mut Mir, level: OptLevel) {
     match level {
@@ -227,24 +379,29 @@ pub fn optimize(mir: &mut Mir, level: OptLevel) {
             // Basic optimizations
             dead_code_elimination(mir);
             constant_folding(mir);
+            algebraic_simplification(mir);
             dead_code_elimination(mir); // Clean up after constant folding
         }
         OptLevel::O2 => {
             // Aggressive optimizations (O1 plus more)
             dead_code_elimination(mir);
             constant_folding(mir);
-            // Add more passes here as needed
-            dead_code_elimination(mir);
+            algebraic_simplification(mir);
+            common_subexpression_elimination(mir);
+            strength_reduction(mir);
+            dead_code_elimination(mir); // Clean up
         }
         OptLevel::O3 => {
             // Maximum optimizations (O2 plus even more)
-            dead_code_elimination(mir);
-            constant_folding(mir);
             // Run multiple iterations for maximum effect
             for _ in 0..3 {
                 dead_code_elimination(mir);
                 constant_folding(mir);
+                algebraic_simplification(mir);
+                common_subexpression_elimination(mir);
+                strength_reduction(mir);
             }
+            dead_code_elimination(mir); // Final cleanup
         }
     }
 }

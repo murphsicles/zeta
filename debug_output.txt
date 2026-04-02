@@ -1,0 +1,102 @@
+﻿cargo : warning: unused import: `parse_type_path`
+At line:1 char:40
++ ... ummy\.openclaw\workspace; cargo run --bin test_basic_for 2>&1 | Out-F ...
++                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warning: unused...arse_type_path`:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ --> src\frontend\parser\top_level.rs:9:5
+  |
+9 |     parse_type_path, parse_trait_bounds, parse_where_clause, skip_ws_and_comments, ws,
+  |     ^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `parse_associated_type` is never used
+   --> src\frontend\parser\top_level.rs:261:4
+    |
+261 | fn parse_associated_type(input: &str) -> IResult<&str, AstNode> {
+    |    ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `zetac` (lib) generated 2 warnings (run `cargo fix --lib -p zetac` to apply 1 suggestion)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.13s
+     Running `target\debug\test_basic_for.exe`
+=== Basic For Loop Test ===
+
+
+=== Testing tests/comptime-completion/test_var_create.z ===
+Ô£à Parses successfully
+  Found main function
+[DEBUG] set_variable: name=x, value=5, current_scope_keys=[], stack_depth=1
+  [DEBUG] Checking parent scope 0: keys=[]
+  [DEBUG] Variable not found anywhere
+[DEBUG] lookup_variable: name=x, current_scope_keys=["x"], stack_depth=1
+  [DEBUG] Found in current scope: value=5
+Ô£à Main evaluates to: 5
+Ô£à PASS: tests/comptime-completion/test_var_create.z
+
+=== Testing tests/comptime-completion/test_trace.z ===
+Ô£à Parses successfully
+  Found main function
+[DEBUG] set_variable: name=x, value=0, current_scope_keys=[], stack_depth=1
+  [DEBUG] Checking parent scope 0: keys=[]
+  [DEBUG] Variable not found anywhere
+[DEBUG] set_variable: name=x, value=1, current_scope_keys=["x"], stack_depth=1
+  [DEBUG] Found in current scope
+[DEBUG] lookup_variable: name=x, current_scope_keys=["x"], stack_depth=1
+  [DEBUG] Found in current scope: value=1
+Ô£à Main evaluates to: 1
+Ô£à PASS: tests/comptime-completion/test_trace.z
+
+=== Testing tests/comptime-completion/test_one_iteration.z ===
+Ô£à Parses successfully
+  Found main function
+[DEBUG] set_variable: name=sum, value=0, current_scope_keys=[], stack_depth=1
+  [DEBUG] Checking parent scope 0: keys=[]
+  [DEBUG] Variable not found anywhere
+[DEBUG] lookup_variable: name=sum, current_scope_keys=["i"], stack_depth=2
+  [DEBUG] Checking parent scope 0: keys=["sum"]
+  [DEBUG] Found in parent scope 0: value=0
+[DEBUG] lookup_variable: name=i, current_scope_keys=["i"], stack_depth=2
+  [DEBUG] Found in current scope: value=0
+[DEBUG] set_variable: name=sum, value=0, current_scope_keys=["i"], stack_depth=2
+  [DEBUG] Checking parent scope 0: keys=["sum"]
+  [DEBUG] Found in parent scope 0
+Ô£à Main evaluates to: 0
+Ô£à PASS: tests/comptime-completion/test_one_iteration.z
+
+=== Testing tests/comptime-completion/test_one_iteration_i1.z ===
+Ô£à Parses successfully
+  Found main function
+[DEBUG] set_variable: name=sum, value=0, current_scope_keys=[], stack_depth=1
+  [DEBUG] Checking parent scope 0: keys=[]
+  [DEBUG] Variable not found anywhere
+[DEBUG] lookup_variable: name=sum, current_scope_keys=["i"], stack_depth=2
+  [DEBUG] Checking parent scope 0: keys=["sum"]
+  [DEBUG] Found in parent scope 0: value=0
+[DEBUG] lookup_variable: name=i, current_scope_keys=["i"], stack_depth=2
+  [DEBUG] Found in current scope: value=1
+[DEBUG] set_variable: name=sum, value=1, current_scope_keys=["i"], stack_depth=2
+  [DEBUG] Checking parent scope 0: keys=["sum"]
+  [DEBUG] Found in parent scope 0
+Ô£à Main evaluates to: 0
+Ô£à PASS: tests/comptime-completion/test_one_iteration_i1.z
+
+=== Testing tests/comptime-completion/test_direct_for.z ===
+[DEBUG] set_variable: name=sum, value=0, current_scope_keys=[], stack_depth=1
+  [DEBUG] Checking parent scope 0: keys=[]
+  [DEBUG] Variable not found anywhere
+[DEBUG] lookup_variable: name=sum, current_scope_keys=["i"], stack_depth=2
+  [DEBUG] Checking parent scope 0: keys=["sum"]
+  [DEBUG] Found in parent scope 0: value=0
+[DEBUG] lookup_variable: name=i, current_scope_keys=["i"], stack_depth=2
+  [DEBUG] Found in current scope: value=0
+Ô£à Parses successfully
+  Found main function
+[DEBUG] set_variable: name=sum, value=0, current_scope_keys=["i"], stack_depth=2
+  [DEBUG] Checking parent scope 0: keys=["sum"]
+  [DEBUG] Found in parent scope 0
+Ô£à Main evaluates to: 0
+Ô£à PASS: tests/comptime-completion/test_direct_for.z

@@ -1,0 +1,12 @@
+// Simple for loop test
+comptime fn simple_for() -> i64 {
+    var sum = 0
+    for i in 0..10 {
+        sum = sum + i
+    }
+    sum
+}
+
+fn main() -> i64 {
+    simple_for()
+}

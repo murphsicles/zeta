@@ -10,6 +10,10 @@ use std::sync::atomic::{AtomicU32, Ordering};
 pub mod lifetime;
 pub use lifetime::{Lifetime, LifetimeContext, LifetimeSubstitution, LifetimeVar};
 
+// Re-export kind types
+pub mod kind;
+pub use kind::{Kind, KindContext, KindSubstitution, KindVar, TypeExpr};
+
 /// Type variable for inference
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeVar(pub u32);
@@ -73,6 +77,12 @@ pub enum Type {
     // Type variables (for inference)
     Variable(TypeVar),
 
+    // Type constructor (higher-kinded type)
+    Constructor(String, Vec<Type>, Kind), // Name, type arguments, kind
+
+    // Partially applied type constructor
+    PartialApplication(Box<Type>, Vec<Type>), // Constructor, applied arguments
+
     // Error type (when inference fails)
     Error,
 }
@@ -89,14 +99,42 @@ pub enum TraitBound {
     PartialOrd,
     Ord,
     Hash,
+    Future,
     // Add more as needed
 }
 
-/// Generic type parameter with optional trait bounds
+/// Generic type parameter with optional trait bounds and kind
 #[derive(Debug, Clone)]
 pub struct TypeParam {
     pub name: String,
     pub bounds: Vec<TraitBound>,
+    pub kind: Kind, // Kind of this type parameter (default: *)
+}
+
+impl TypeParam {
+    /// Create a new type parameter with default kind (*)
+    pub fn new(name: String) -> Self {
+        TypeParam {
+            name,
+            bounds: Vec::new(),
+            kind: Kind::Star,
+        }
+    }
+    
+    /// Create a type parameter with specific kind
+    pub fn with_kind(name: String, kind: Kind) -> Self {
+        TypeParam {
+            name,
+            bounds: Vec::new(),
+            kind,
+        }
+    }
+    
+    /// Add a trait bound
+    pub fn with_bound(mut self, bound: TraitBound) -> Self {
+        self.bounds.push(bound);
+        self
+    }
 }
 
 /// Context for generic type parameters (scoping)
@@ -392,6 +430,10 @@ impl Type {
             Type::AsyncFunction(params, ret) => {
                 params.iter().any(|t| t.contains_vars()) || ret.contains_vars()
             }
+            Type::Constructor(_, args, _) => args.iter().any(|t| t.contains_vars()),
+            Type::PartialApplication(constructor, args) => {
+                constructor.contains_vars() || args.iter().any(|t| t.contains_vars())
+            }
             _ => false,
         }
     }
@@ -462,6 +504,27 @@ impl Type {
                 format!("async ({}) -> {}", params_str, ret.display_name())
             }
             Type::Variable(var) => format!("T{}", var.0),
+            Type::Constructor(name, args, kind) => {
+                if args.is_empty() {
+                    format!("{} : {}", name, kind.display_name())
+                } else {
+                    let args_str = args
+                        .iter()
+                        .map(|t| t.display_name())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    format!("{}<{}> : {}", name, args_str, kind.display_name())
+                }
+            }
+            Type::PartialApplication(constructor, args) => {
+                let constructor_str = constructor.display_name();
+                let args_str = args
+                    .iter()
+                    .map(|t| t.display_name())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("{}<{}>", constructor_str, args_str)
+            }
             Type::Error => "<?>".to_string(),
         }
     }
@@ -551,6 +614,34 @@ impl Type {
                     .join("_");
                 format!("AsyncFunction_{}_{}", param_str, ret.mangled_name())
             }
+            Type::Variable(var) => format!("Var_{}", var.0),
+            Type::Constructor(name, args, kind) => {
+                let mut mangled = format!("Constructor_{}_kind_{}", name, kind.mangled_name());
+                if !args.is_empty() {
+                    mangled.push('_');
+                    for (i, arg) in args.iter().enumerate() {
+                        if i > 0 {
+                            mangled.push('_');
+                        }
+                        mangled.push_str(&arg.mangled_name());
+                    }
+                }
+                mangled
+            }
+            Type::PartialApplication(constructor, args) => {
+                let mut mangled = format!("PartialApp_{}", constructor.mangled_name());
+                if !args.is_empty() {
+                    mangled.push('_');
+                    for (i, arg) in args.iter().enumerate() {
+                        if i > 0 {
+                            mangled.push('_');
+                        }
+                        mangled.push_str(&arg.mangled_name());
+                    }
+                }
+                mangled
+            }
+            Type::Error => "Error".to_string(),
         }
     }
 
@@ -1201,6 +1292,7 @@ impl Substitution {
             TraitBound::PartialOrd => self.is_partial_ord(&ty),
             TraitBound::Ord => self.is_ord(&ty),
             TraitBound::Hash => self.is_hash(&ty),
+            TraitBound::Future => false, // TODO: Implement Future trait check
         }
     }
 

@@ -1,0 +1,17 @@
+// tests/concurrency/simple_async_test.z
+// Simple test for async function parsing
+
+// Basic async function
+async fn simple_async() -> i32 {
+    42
+}
+
+// Regular function calling async function
+fn main() -> i32 {
+    // This should work once async/await is implemented
+    // let result = simple_async().await;
+    // result
+    
+    // For now, just return a constant
+    42
+}

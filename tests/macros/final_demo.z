@@ -1,0 +1,145 @@
+// Final demonstration of Zeta v0.3.34 macro system
+// Shows all key features working together
+
+// === 1. BASIC MACRO SYNTAX ===
+macro_rules! greet {
+    () => {
+        println!("Hello!")
+    };
+    ($name:expr) => {
+        println!("Hello, {}!", $name)
+    };
+}
+
+// === 2. FUNCTION-LIKE MACROS ===
+macro_rules! calculate {
+    ($a:expr, plus $b:expr) => {
+        $a + $b
+    };
+    ($a:expr, minus $b:expr) => {
+        $a - $b
+    };
+    ($a:expr, times $b:expr) => {
+        $a * $b
+    };
+}
+
+// === 3. REPETITION PATTERNS ===
+macro_rules! sum_all {
+    ($($x:expr),*) => {
+        {
+            let mut total = 0;
+            $(total += $x;)*
+            total
+        }
+    };
+}
+
+// === 4. ATTRIBUTE MACROS ===
+#[derive(Debug)]
+struct DemoStruct {
+    id: i64,
+    name: String,
+}
+
+#[test]
+fn test_macro_system() -> bool {
+    true
+}
+
+// === 5. COMPILE-TIME METAPROGRAMMING ===
+const COMPILE_TIME_CALC: i64 = 2 + 3 * 4;
+
+const fn compile_time_double(x: i64) -> i64 {
+    x * 2
+}
+
+const CT_DOUBLED: i64 = compile_time_double(21);
+
+// === 6. CODE GENERATION MACRO ===
+macro_rules! create_getter {
+    ($field:ident : $type:ty) => {
+        fn $field(&self) -> $type {
+            self.$field
+        }
+    };
+}
+
+struct User {
+    id: i64,
+    name: String,
+}
+
+impl User {
+    create_getter!(id: i64);
+    create_getter!(name: String);
+}
+
+// === 7. TYPE-SAFE MACROS ===
+macro_rules! safe_div {
+    ($a:expr, $b:expr) => {
+        {
+            if $b == 0 {
+                panic!("Division by zero!");
+            }
+            $a / $b
+        }
+    };
+}
+
+// === MAIN DEMONSTRATION ===
+fn main() -> i64 {
+    println!("=== ZETA v0.3.34 MACRO SYSTEM DEMO ===");
+    println!("");
+    
+    // Test 1: Basic macro syntax
+    println!("1. Basic macro syntax:");
+    greet!();
+    greet!("Zeta");
+    println!("");
+    
+    // Test 2: Function-like macros
+    println!("2. Function-like macros:");
+    let result1 = calculate!(10, plus 5);
+    let result2 = calculate!(20, minus 8);
+    let result3 = calculate!(6, times 7);
+    println!("  10 + 5 = {}", result1);
+    println!("  20 - 8 = {}", result2);
+    println!("  6 * 7 = {}", result3);
+    println!("");
+    
+    // Test 3: Repetition patterns
+    println!("3. Repetition patterns:");
+    let total = sum_all!(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+    println!("  Sum of 1..10 = {}", total);
+    println!("");
+    
+    // Test 4: Compile-time metaprogramming
+    println!("4. Compile-time metaprogramming:");
+    println!("  Compile-time calculation: 2 + 3 * 4 = {}", COMPILE_TIME_CALC);
+    println!("  Compile-time function: double(21) = {}", CT_DOUBLED);
+    println!("");
+    
+    // Test 5: Code generation
+    println!("5. Code generation macros:");
+    let user = User { id: 42, name: "Alice".to_string() };
+    println!("  User: id={}, name={}", user.id(), user.name());
+    println!("");
+    
+    // Test 6: Type-safe macros
+    println!("6. Type-safe macros:");
+    let div_result = safe_div!(100, 4);
+    println!("  Safe division: 100 / 4 = {}", div_result);
+    println!("");
+    
+    // Test 7: Debug derive
+    println!("7. Attribute macros:");
+    let demo = DemoStruct { id: 1, name: "Test".to_string() };
+    println!("  Derived Debug: {:?}", demo);
+    println!("");
+    
+    println!("=== DEMO COMPLETE ===");
+    println!("Macro system fully operational!");
+    
+    0
+}

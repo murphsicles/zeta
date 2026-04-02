@@ -314,6 +314,178 @@ impl ErrorCodeRegistry {
             },
         );
 
+        // W1XXX - Parse Warnings
+        codes.insert(
+            "W1001".to_string(),
+            ErrorCode {
+                code: "W1001".to_string(),
+                category: ErrorCategory::Parse,
+                description: "Unused import".to_string(),
+                example: Some("`use std::collections::HashMap;` never used".to_string()),
+                suggestion: Some("Remove unused import or use the imported item".to_string()),
+            },
+        );
+
+        codes.insert(
+            "W1002".to_string(),
+            ErrorCode {
+                code: "W1002".to_string(),
+                category: ErrorCategory::Parse,
+                description: "Unnecessary parentheses".to_string(),
+                example: Some("`let x = (10 + 5);`".to_string()),
+                suggestion: Some("Remove unnecessary parentheses".to_string()),
+            },
+        );
+
+        // W2XXX - Type Warnings
+        codes.insert(
+            "W2001".to_string(),
+            ErrorCode {
+                code: "W2001".to_string(),
+                category: ErrorCategory::Type,
+                description: "Type could be inferred".to_string(),
+                example: Some("`let x: i32 = 10;` where type could be inferred".to_string()),
+                suggestion: Some("Remove explicit type annotation".to_string()),
+            },
+        );
+
+        codes.insert(
+            "W2002".to_string(),
+            ErrorCode {
+                code: "W2002".to_string(),
+                category: ErrorCategory::Type,
+                description: "Redundant type cast".to_string(),
+                example: Some("`let x = 10 as i32;` where 10 is already i32".to_string()),
+                suggestion: Some("Remove redundant type cast".to_string()),
+            },
+        );
+
+        // W3XXX - Semantic Warnings
+        codes.insert(
+            "W3001".to_string(),
+            ErrorCode {
+                code: "W3001".to_string(),
+                category: ErrorCategory::Semantic,
+                description: "Unused variable".to_string(),
+                example: Some("`let x = 10;` never used".to_string()),
+                suggestion: Some("Use the variable or prefix with underscore".to_string()),
+            },
+        );
+
+        codes.insert(
+            "W3002".to_string(),
+            ErrorCode {
+                code: "W3002".to_string(),
+                category: ErrorCategory::Semantic,
+                description: "Unused function parameter".to_string(),
+                example: Some("`fn foo(x: i32) {}` where x is never used".to_string()),
+                suggestion: Some("Use the parameter or prefix with underscore".to_string()),
+            },
+        );
+
+        codes.insert(
+            "W3003".to_string(),
+            ErrorCode {
+                code: "W3003".to_string(),
+                category: ErrorCategory::Semantic,
+                description: "Dead code".to_string(),
+                example: Some("Code after `return` statement".to_string()),
+                suggestion: Some("Remove dead code or restructure logic".to_string()),
+            },
+        );
+
+        codes.insert(
+            "W3004".to_string(),
+            ErrorCode {
+                code: "W3004".to_string(),
+                category: ErrorCategory::Semantic,
+                description: "Unreachable pattern".to_string(),
+                example: Some("`match x { 1 => ..., 2 => ..., 1 => ... }`".to_string()),
+                suggestion: Some("Remove unreachable pattern".to_string()),
+            },
+        );
+
+        // W4XXX - Code Generation Warnings
+        codes.insert(
+            "W4001".to_string(),
+            ErrorCode {
+                code: "W4001".to_string(),
+                category: ErrorCategory::Codegen,
+                description: "Inefficient code pattern".to_string(),
+                example: Some("`String::new() + \"text\"` instead of `\"text\".to_string()`".to_string()),
+                suggestion: Some("Use more efficient alternative".to_string()),
+            },
+        );
+
+        // W5XXX - Runtime Warnings
+        codes.insert(
+            "W5001".to_string(),
+            ErrorCode {
+                code: "W5001".to_string(),
+                category: ErrorCategory::Runtime,
+                description: "Possible division by zero".to_string(),
+                example: Some("`x / y` where y might be zero".to_string()),
+                suggestion: Some("Add zero check before division".to_string()),
+            },
+        );
+
+        codes.insert(
+            "W5002".to_string(),
+            ErrorCode {
+                code: "W5002".to_string(),
+                category: ErrorCategory::Runtime,
+                description: "Possible array index out of bounds".to_string(),
+                example: Some("`arr[i]` where i might be >= arr.len()".to_string()),
+                suggestion: Some("Add bounds check before access".to_string()),
+            },
+        );
+
+        // W8XXX - Optimization Warnings
+        codes.insert(
+            "W8001".to_string(),
+            ErrorCode {
+                code: "W8001".to_string(),
+                category: ErrorCategory::Optimization,
+                description: "Missed optimization opportunity".to_string(),
+                example: Some("`x * 2` could be `x << 1`".to_string()),
+                suggestion: Some("Use more efficient operation".to_string()),
+            },
+        );
+
+        codes.insert(
+            "W8002".to_string(),
+            ErrorCode {
+                code: "W8002".to_string(),
+                category: ErrorCategory::Optimization,
+                description: "Inefficient loop".to_string(),
+                example: Some("Loop with expensive operation in invariant position".to_string()),
+                suggestion: Some("Move invariant computation outside loop".to_string()),
+            },
+        );
+
+        // W9XXX - Tooling Warnings
+        codes.insert(
+            "W9001".to_string(),
+            ErrorCode {
+                code: "W9001".to_string(),
+                category: ErrorCategory::Tooling,
+                description: "Deprecated feature used".to_string(),
+                example: Some("Using deprecated function or syntax".to_string()),
+                suggestion: Some("Use recommended alternative".to_string()),
+            },
+        );
+
+        codes.insert(
+            "W9002".to_string(),
+            ErrorCode {
+                code: "W9002".to_string(),
+                category: ErrorCategory::Tooling,
+                description: "Missing documentation".to_string(),
+                example: Some("Public function without doc comment".to_string()),
+                suggestion: Some("Add documentation comment".to_string()),
+            },
+        );
+
         Self { codes }
     }
 
@@ -414,4 +586,21 @@ pub mod common {
     // Tooling errors
     pub const INVALID_COMPILER_FLAG: &str = "E9001";
     pub const FILE_NOT_FOUND: &str = "E9002";
+
+    // Warning codes
+    pub const UNUSED_IMPORT: &str = "W1001";
+    pub const UNNECESSARY_PARENTHESES: &str = "W1002";
+    pub const TYPE_COULD_BE_INFERRED: &str = "W2001";
+    pub const REDUNDANT_TYPE_CAST: &str = "W2002";
+    pub const UNUSED_VARIABLE: &str = "W3001";
+    pub const UNUSED_PARAMETER: &str = "W3002";
+    pub const DEAD_CODE: &str = "W3003";
+    pub const UNREACHABLE_PATTERN: &str = "W3004";
+    pub const INEFFICIENT_CODE_PATTERN: &str = "W4001";
+    pub const POSSIBLE_DIVISION_BY_ZERO: &str = "W5001";
+    pub const POSSIBLE_ARRAY_INDEX_OOB: &str = "W5002";
+    pub const MISSED_OPTIMIZATION: &str = "W8001";
+    pub const INEFFICIENT_LOOP: &str = "W8002";
+    pub const DEPRECATED_FEATURE: &str = "W9001";
+    pub const MISSING_DOCUMENTATION: &str = "W9002";
 }

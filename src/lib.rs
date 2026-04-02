@@ -14,11 +14,14 @@
 //! Every line is optimized for speed, simplicity, and clarity.
 
 pub mod backend;
+pub mod compiler_config;
 pub mod diagnostics;
 pub mod error_codes;
 pub mod frontend;
 pub mod integration;
+pub mod lsp;
 pub mod middle;
+pub mod package;
 pub mod runtime;
 pub mod std;
 pub mod zeta;

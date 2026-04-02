@@ -1,0 +1,101 @@
+// Advanced pattern matching tests for v0.3.40
+
+// Test 1: @ patterns (binding subpatterns)
+fn test_at_patterns() {
+    // Basic @ pattern
+    match value {
+        x @ 1..=10 => println!("x is between 1 and 10: {}", x),
+        y @ Some(z) => println!("y is Some with value: {}", z),
+        _ => println!("other"),
+    }
+    
+    // Nested @ pattern
+    match nested {
+        Point { x: px @ 0..=10, y: py @ 0..=10 } => {
+            println!("Point in first quadrant: ({}, {})", px, py);
+        }
+        _ => println!("other point"),
+    }
+}
+
+// Test 2: Range patterns
+fn test_range_patterns() {
+    match value {
+        1..=10 => println("1 to 10"),
+        11..=20 => println("11 to 20"),
+        21..=30 => println("21 to 30"),
+        _ => println("other"),
+    }
+    
+    // Char ranges
+    match c {
+        'a'..='z' => println("lowercase"),
+        'A'..='Z' => println("uppercase"),
+        '0'..='9' => println("digit"),
+        _ => println("other char"),
+    }
+}
+
+// Test 3: Multiple pattern alternatives
+fn test_multiple_patterns() {
+    match value {
+        1 | 2 | 3 => println("small number"),
+        4 | 5 | 6 => println("medium number"),
+        7 | 8 | 9 => println("large number"),
+        _ => println("other"),
+    }
+    
+    // With @ patterns
+    match opt {
+        Some(x @ 1) | Some(x @ 2) | Some(x @ 3) => println("small: {}", x),
+        Some(x @ 4..=6) => println("medium: {}", x),
+        Some(_) => println("other some"),
+        None => println("none"),
+    }
+}
+
+// Test 4: Complex destructuring
+struct Point { x: i32, y: i32 }
+struct Line { start: Point, end: Point }
+
+fn test_complex_destructuring() {
+    let line = Line { start: Point { x: 0, y: 0 }, end: Point { x: 10, y: 10 } };
+    
+    match line {
+        Line { 
+            start: Point { x: sx @ 0..=5, y: sy @ 0..=5 },
+            end: Point { x: ex @ 6..=10, y: ey @ 6..=10 }
+        } => {
+            println!("Line from ({},{}) to ({},{})", sx, sy, ex, ey);
+        }
+        Line { start: Point { x: 0, y: 0 }, end } => {
+            println!("Line from origin to ({},{})", end.x, end.y);
+        }
+        _ => println!("other line"),
+    }
+}
+
+// Test 5: Pattern guards with complex expressions
+fn test_complex_guards() {
+    match (x, y) {
+        (a, b) if a > 0 && b > 0 => println("both positive"),
+        (a, b) if a < 0 && b < 0 => println("both negative"),
+        (a, b) if a == 0 || b == 0 => println("at least one zero"),
+        (a, b) if a * b < 0 => println("different signs"),
+        _ => println("other"),
+    }
+}
+
+// Test 6: Exhaustiveness checking examples
+enum Color { Red, Green, Blue, RGB(u8, u8, u8) }
+
+fn test_exhaustiveness() {
+    match color {
+        Color::Red => println("red"),
+        Color::Green => println("green"),
+        Color::Blue => println("blue"),
+        Color::RGB(r, g, b) => println("rgb({},{},{})", r, g, b),
+    }
+    
+    // Should be exhaustive for Color enum
+}

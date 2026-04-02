@@ -1,0 +1,62 @@
+// Test where clauses for generic functions
+fn clone_all<T>(items: Vec<T>) -> Vec<T> 
+where T: Clone {
+    let mut cloned = Vec::new();
+    for item in items {
+        cloned.push(item.clone());
+    }
+    cloned
+}
+
+// Test where clauses for generic structs
+struct Container<T> 
+where T: Debug {
+    value: T
+}
+
+impl<T> Container<T> 
+where T: Debug {
+    fn new(value: T) -> Self {
+        Container { value }
+    }
+    
+    fn show(&self) {
+        println!("{:?}", self.value);
+    }
+}
+
+// Test concept inheritance
+concept Read: Clone + Debug {
+    fn read(&self) -> String;
+}
+
+// Test associated types
+concept Iterator {
+    type Item;
+    
+    fn next(&mut self) -> Option<Self::Item>;
+}
+
+// Test default method implementations
+concept Default {
+    fn default() -> Self;
+    
+    fn is_default(&self) -> bool {
+        // Default implementation
+        false
+    }
+}
+
+// Test trait objects
+fn print_debug(value: &dyn Debug) {
+    println!("{:?}", value);
+}
+
+// Test complex where clauses with multiple bounds
+fn process<T, U>(t: T, u: U) -> String
+where 
+    T: Clone + Debug,
+    U: Iterator<Item = T> + Send {
+    let cloned = t.clone();
+    format!("Processing: {:?}", cloned)
+}

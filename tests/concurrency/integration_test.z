@@ -1,0 +1,14 @@
+// tests/concurrency/integration_test.z
+// Integration test for concurrency features
+
+// Simple async function
+async fn get_value() -> i32 {
+    42
+}
+
+// Main function using async/await
+fn main() -> i32 {
+    // Call async function
+    let result = get_value().await;
+    result
+}

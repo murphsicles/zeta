@@ -1,0 +1,131 @@
+// Metaprogramming tests for Zeta v0.3.34
+// Testing compile-time code generation and AST manipulation
+
+// 1. Compile-time function evaluation (CTFE)
+const COMPILE_TIME_CONST: i64 = 2 + 3 * 4;  // Should be evaluated at compile time
+
+fn test_ctfe() -> i64 {
+    const ANOTHER_CONST: i64 = COMPILE_TIME_CONST * 2;
+    ANOTHER_CONST
+}
+
+// 2. Const functions that can be evaluated at compile time
+const fn const_add(a: i64, b: i64) -> i64 {
+    a + b
+}
+
+const CONST_SUM: i64 = const_add(10, 20);
+
+// 3. Compile-time array initialization
+const COMPILE_TIME_ARRAY: [i64; 5] = [1, 2, 3, 4, 5];
+
+// 4. Macro-based code generation
+macro_rules! generate_getters {
+    ($struct_name:ident { $($field_name:ident : $field_type:ty),* }) => {
+        impl $struct_name {
+            $(
+                fn $field_name(&self) -> $field_type {
+                    self.$field_name
+                }
+            )*
+        }
+    };
+}
+
+struct Point {
+    x: i64,
+    y: i64,
+}
+
+// Use macro to generate getter methods
+generate_getters!(Point { x: i64, y: i64 });
+
+// 5. Compile-time type checking with macros
+macro_rules! type_assert {
+    ($expr:expr, $type:ty) => {
+        {
+            let _: $type = $expr;
+            $expr
+        }
+    };
+}
+
+fn test_type_assertions() {
+    let x = type_assert!(42, i64);
+    println!("Type-asserted value: {}", x);
+}
+
+// 6. Compile-time string concatenation
+const HELLO: &str = "Hello";
+const WORLD: &str = "World";
+const HELLO_WORLD: &str = concat!(HELLO, ", ", WORLD, "!");
+
+// 7. Generic programming with macros
+macro_rules! make_tuple {
+    ($($element:expr),*) => {
+        ($($element),*)
+    };
+}
+
+fn test_tuple_generation() {
+    let t = make_tuple!(1, "hello", 3.14);
+    println!("Generated tuple: {:?}", t);
+}
+
+// 8. Compile-time computation of Fibonacci sequence
+const fn const_fib(n: i64) -> i64 {
+    if n <= 1 {
+        n
+    } else {
+        const_fib(n - 1) + const_fib(n - 2)
+    }
+}
+
+const FIB_10: i64 = const_fib(10);
+
+// 9. Attribute-based metaprogramming
+#[derive(Debug, Clone)]
+struct MetaprogrammedStruct {
+    value: i64,
+}
+
+// 10. Compile-time reflection simulation
+macro_rules! struct_info {
+    ($struct_name:ident) => {
+        println!("Struct: {}", stringify!($struct_name));
+        println!("Size: {}", std::mem::size_of::<$struct_name>());
+    };
+}
+
+fn main() -> i64 {
+    println!("=== Metaprogramming Tests ===");
+    
+    // Test CTFE
+    println!("CTFE result: {}", test_ctfe());
+    println!("Const sum: {}", CONST_SUM);
+    
+    // Test compile-time array
+    println!("Compile-time array: {:?}", COMPILE_TIME_ARRAY);
+    
+    // Test generated getters
+    let p = Point { x: 10, y: 20 };
+    println!("Point getters: x={}, y={}", p.x(), p.y());
+    
+    // Test type assertions
+    test_type_assertions();
+    
+    // Test compile-time string concatenation
+    println!("Compile-time string: {}", HELLO_WORLD);
+    
+    // Test tuple generation
+    test_tuple_generation();
+    
+    // Test compile-time Fibonacci
+    println!("Fibonacci(10) computed at compile time: {}", FIB_10);
+    
+    // Test struct info
+    struct_info!(Point);
+    
+    println!("=== All metaprogramming tests completed ===");
+    0
+}

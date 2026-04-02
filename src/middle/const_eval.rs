@@ -69,6 +69,8 @@ pub struct ConstEvaluator {
     symbols: HashMap<String, ConstValue>,
     /// Stack of symbol tables for nested scopes
     symbol_stack: Vec<HashMap<String, ConstValue>>,
+    /// Function definitions for const/comptime functions
+    functions: HashMap<String, AstNode>,
 }
 
 impl Default for ConstEvaluator {
@@ -82,7 +84,13 @@ impl ConstEvaluator {
         Self {
             symbols: HashMap::new(),
             symbol_stack: Vec::new(),
+            functions: HashMap::new(),
         }
+    }
+    
+    /// Register a function definition
+    pub fn register_function(&mut self, name: String, func: AstNode) {
+        self.functions.insert(name, func);
     }
 
     /// Enter a new scope
@@ -162,7 +170,7 @@ impl ConstEvaluator {
         // }
 
         let value = match expr {
-            AstNode::Lit(n) => ConstValue::Int(*n),
+            AstNode::Lit(n) => Ok(ConstValue::Int(*n)),
             AstNode::BinaryOp { op, left, right } => {
                 let left_val = self.eval_const_expr(left)?;
                 let right_val = self.eval_const_expr(right)?;
@@ -176,32 +184,32 @@ impl ConstEvaluator {
                 })?;
 
                 match op.as_str() {
-                    "+" => ConstValue::Int(left_int + right_int),
-                    "-" => ConstValue::Int(left_int - right_int),
-                    "*" => ConstValue::Int(left_int * right_int),
+                    "+" => Ok(ConstValue::Int(left_int + right_int)),
+                    "-" => Ok(ConstValue::Int(left_int - right_int)),
+                    "*" => Ok(ConstValue::Int(left_int * right_int)),
                     "/" => {
                         if right_int == 0 {
                             return Err("Division by zero in const expression".to_string());
                         }
-                        ConstValue::Int(left_int / right_int)
+                        Ok(ConstValue::Int(left_int / right_int))
                     }
                     "%" => {
                         if right_int == 0 {
                             return Err("Modulo by zero in const expression".to_string());
                         }
-                        ConstValue::Int(left_int % right_int)
+                        Ok(ConstValue::Int(left_int % right_int))
                     }
-                    "<<" => ConstValue::Int(left_int << right_int),
-                    ">>" => ConstValue::Int(left_int >> right_int),
-                    "&" => ConstValue::Int(left_int & right_int),
-                    "|" => ConstValue::Int(left_int | right_int),
-                    "^" => ConstValue::Int(left_int ^ right_int),
-                    "<" => ConstValue::Bool(left_int < right_int),
-                    "<=" => ConstValue::Bool(left_int <= right_int),
-                    ">" => ConstValue::Bool(left_int > right_int),
-                    ">=" => ConstValue::Bool(left_int >= right_int),
-                    "==" => ConstValue::Bool(left_int == right_int),
-                    "!=" => ConstValue::Bool(left_int != right_int),
+                    "<<" => Ok(ConstValue::Int(left_int << right_int)),
+                    ">>" => Ok(ConstValue::Int(left_int >> right_int)),
+                    "&" => Ok(ConstValue::Int(left_int & right_int)),
+                    "|" => Ok(ConstValue::Int(left_int | right_int)),
+                    "^" => Ok(ConstValue::Int(left_int ^ right_int)),
+                    "<" => Ok(ConstValue::Bool(left_int < right_int)),
+                    "<=" => Ok(ConstValue::Bool(left_int <= right_int)),
+                    ">" => Ok(ConstValue::Bool(left_int > right_int)),
+                    ">=" => Ok(ConstValue::Bool(left_int >= right_int)),
+                    "==" => Ok(ConstValue::Bool(left_int == right_int)),
+                    "!=" => Ok(ConstValue::Bool(left_int != right_int)),
                     _ => {
                         return Err(format!(
                             "Unsupported binary operator in const expression: {}",
@@ -216,7 +224,7 @@ impl ConstEvaluator {
                     format!("Operand must be integer for unary operator {}, got {:?}", op, val)
                 })?;
                 
-                match op.as_str() {
+                Ok(match op.as_str() {
                     "-" => ConstValue::Int(-int_val),
                     "!" => ConstValue::Int(!int_val),
                     "~" => ConstValue::Int(!int_val),
@@ -226,7 +234,7 @@ impl ConstEvaluator {
                             op
                         ));
                     }
-                }
+                })
             }
             AstNode::Call {
                 receiver,
@@ -249,7 +257,7 @@ impl ConstEvaluator {
                             .ok_or_else(|| "min() requires integer arguments".to_string())?;
                         let b = self.eval_const_expr(&args[1])?.as_i64()
                             .ok_or_else(|| "min() requires integer arguments".to_string())?;
-                        ConstValue::Int(a.min(b))
+                        Ok(ConstValue::Int(a.min(b)))
                     }
                     "max" => {
                         if args.len() != 2 {
@@ -259,7 +267,7 @@ impl ConstEvaluator {
                             .ok_or_else(|| "max() requires integer arguments".to_string())?;
                         let b = self.eval_const_expr(&args[1])?.as_i64()
                             .ok_or_else(|| "max() requires integer arguments".to_string())?;
-                        ConstValue::Int(a.max(b))
+                        Ok(ConstValue::Int(a.max(b)))
                     }
                     "abs" => {
                         if args.len() != 1 {
@@ -267,19 +275,59 @@ impl ConstEvaluator {
                         }
                         let a = self.eval_const_expr(&args[0])?.as_i64()
                             .ok_or_else(|| "abs() requires integer argument".to_string())?;
-                        ConstValue::Int(a.abs())
+                        Ok(ConstValue::Int(a.abs()))
                     }
                     _ => {
                         // Try to find and call a const function
-                        // This is a simplified implementation
-                        // In a real compiler, we'd look up the function in a symbol table
-                        return Err(format!("Function calls not fully supported in const context: {}", method));
+                        if let Some(func_node) = self.functions.get(method) {
+                            // Clone the function node so we can release the borrow
+                            let func_node_clone = func_node.clone();
+                            
+                            // Evaluate all arguments
+                            let mut arg_values = Vec::new();
+                            for arg in args {
+                                arg_values.push(self.eval_const_expr(arg)?);
+                            }
+                            
+                            // Convert arg values to AST nodes (simplified - just literals for now)
+                            let mut arg_ast_nodes = Vec::new();
+                            for arg_val in &arg_values {
+                                match arg_val {
+                                    ConstValue::Int(n) => arg_ast_nodes.push(AstNode::Lit(*n)),
+                                    ConstValue::Bool(b) => arg_ast_nodes.push(AstNode::Bool(*b)),
+                                    ConstValue::Array(arr) => {
+                                        // Convert array elements to AST nodes
+                                        let mut elements = Vec::new();
+                                        for elem in arr {
+                                            match elem {
+                                                ConstValue::Int(n) => elements.push(AstNode::Lit(*n)),
+                                                ConstValue::Bool(b) => elements.push(AstNode::Bool(*b)),
+                                                ConstValue::Array(_) => {
+                                                    // Nested arrays not supported yet
+                                                    return Err("Nested arrays in function arguments not supported".to_string());
+                                                }
+                                            }
+                                        }
+                                        arg_ast_nodes.push(AstNode::ArrayLit(elements));
+                                    }
+                                }
+                            }
+                            
+                            // Call the function
+                            match self.try_eval_const_call(&func_node_clone, &arg_ast_nodes) {
+                                Ok(Some(value)) => Ok(value),
+                                Ok(None) => Err(format!("Function {} cannot be evaluated at compile time", method)),
+                                Err(e) => Err(e),
+                            }
+                        } else {
+                            Err(format!("Function not found or not const/comptime: {}", method))
+                        }
                     }
                 }
             }
             AstNode::ConstDef { value, comptime_, .. } => {
                 // Evaluate the constant's value
-                self.eval_const_expr(value)?
+                Ok(self.eval_const_expr(value)?)
             }
             AstNode::ArrayLit(elements) => {
                 // Evaluate all array elements
@@ -287,13 +335,13 @@ impl ConstEvaluator {
                 for elem in elements {
                     const_elements.push(self.eval_const_expr(elem)?);
                 }
-                ConstValue::Array(const_elements)
+                Ok(ConstValue::Array(const_elements))
             }
-            AstNode::Bool(b) => ConstValue::Bool(*b),
+            AstNode::Bool(b) => Ok(ConstValue::Bool(*b)),
             AstNode::Var(name) => {
                 // Look up variable in symbol table
-                self.lookup_variable(name)
-                    .ok_or_else(|| format!("Undefined variable in const context: {}", name))?
+                Ok(self.lookup_variable(name)
+                    .ok_or_else(|| format!("Undefined variable in const context: {}", name))?)
             }
             AstNode::Let { mut_, pattern, ty: _, expr } => {
                 // Evaluate the expression
@@ -304,7 +352,7 @@ impl ConstEvaluator {
                     AstNode::Var(var_name) => {
                         // Define the variable in current scope
                         self.define_variable(var_name.clone(), value.clone());
-                        value
+                        Ok(value)
                     }
                     _ => return Err("Complex patterns not supported in const let bindings".to_string()),
                 }
@@ -321,7 +369,7 @@ impl ConstEvaluator {
                             // Variable doesn't exist, create it in current scope
                             self.define_variable(var_name.clone(), value.clone());
                         }
-                        value
+                        Ok(value)
                     }
                     AstNode::Subscript { base, index } => {
                         // Array element assignment
@@ -335,7 +383,7 @@ impl ConstEvaluator {
                                     return Err(format!("Array index out of bounds: {} >= {}", idx, arr.len()));
                                 }
                                 arr[idx] = value.clone();
-                                ConstValue::Array(arr)
+                                Ok(ConstValue::Array(arr))
                             }
                             _ => return Err("Array subscript assignment requires array and integer index".to_string()),
                         }
@@ -354,7 +402,7 @@ impl ConstEvaluator {
                         if idx >= arr.len() {
                             return Err(format!("Array index out of bounds: {} >= {}", idx, arr.len()));
                         }
-                        arr[idx].clone()
+                        Ok(arr[idx].clone())
                     }
                     _ => return Err("Array subscript requires array and integer index".to_string()),
                 }
@@ -365,7 +413,7 @@ impl ConstEvaluator {
                 let cond_bool = cond_val.as_bool()
                     .ok_or_else(|| "If condition must evaluate to boolean".to_string())?;
                 
-                if cond_bool {
+                Ok(if cond_bool {
                     // Evaluate then branch
                     self.enter_scope();
                     let result = self.eval_block(then)?;
@@ -377,13 +425,13 @@ impl ConstEvaluator {
                     let result = self.eval_block(else_)?;
                     self.exit_scope();
                     result
-                }
+                })
             }
             AstNode::Block { body } => {
                 self.enter_scope();
                 let result = self.eval_block(body)?;
                 self.exit_scope();
-                result
+                Ok(result)
             }
             AstNode::ExprStmt { expr } => {
                 // Evaluate the expression
@@ -393,11 +441,11 @@ impl ConstEvaluator {
                         return Ok(ConstValue::Int(0));
                     }
                 }
-                self.eval_const_expr(expr)?
+                Ok(self.eval_const_expr(expr)?)
             }
             AstNode::Return(expr) => {
                 // Evaluate the return expression
-                self.eval_const_expr(expr)?
+                Ok(self.eval_const_expr(expr)?)
             }
             AstNode::For { pattern, expr, body } => {
                 // Simple for loop implementation for range expressions
@@ -405,8 +453,8 @@ impl ConstEvaluator {
                 
                 // Try to get range bounds
                 // This is a simplification - real implementation would parse range syntax
-                if let AstNode::BinaryOp { op, left, right } = &**expr {
-                    if op == ".." {
+                match &**expr {
+                    AstNode::BinaryOp { op, left, right } if op == ".." => {
                         let start_val = self.eval_const_expr(left)?.as_i64()
                             .ok_or_else(|| "Range start must be integer".to_string())?;
                         let end_val = self.eval_const_expr(right)?.as_i64()
@@ -418,33 +466,31 @@ impl ConstEvaluator {
                         let mut last_value = ConstValue::Int(0);
                         
                         // Simple pattern: for i in start..end
-                        if let AstNode::Var(var_name) = &**pattern {
-                            for i in start_val..end_val {
-                                // Set loop variable
-                                self.define_variable(var_name.clone(), ConstValue::Int(i));
-                                
-                                // Evaluate loop body
-                                for stmt in body {
-                                    last_value = self.eval_const_expr(stmt)?;
+                        match &**pattern {
+                            AstNode::Var(var_name) => {
+                                for i in start_val..end_val {
+                                    // Set loop variable
+                                    self.define_variable(var_name.clone(), ConstValue::Int(i));
                                     
-                                    // Check for break/continue
-                                    // For now, just ignore
+                                    // Evaluate loop body
+                                    for stmt in body {
+                                        last_value = self.eval_const_expr(stmt)?;
+                                        
+                                        // Check for break/continue
+                                        // For now, just ignore
+                                    }
                                 }
+                                
+                                // Exit loop scope
+                                self.exit_scope();
+                                
+                                Ok(last_value)
                             }
-                        } else {
-                            return Err("Complex for loop patterns not supported".to_string());
+                            _ => Err("Complex for loop patterns not supported".to_string()),
                         }
-                        
-                        // Exit loop scope
-                        self.exit_scope();
-                        
-                        Ok(last_value)
-                    } else {
-                        Err("Only simple range for loops supported in const context".to_string())
                     }
-                } else {
-                    Err("Only simple range for loops supported in const context".to_string())
-                }?
+                    _ => Err("Only simple range for loops supported in const context".to_string()),
+                }
             }
             _ => {
                 return Err(format!(
@@ -459,7 +505,7 @@ impl ConstEvaluator {
         // if !matches!(expr, AstNode::Var(_)) {
         //     self.cache.insert(expr.clone(), value.clone());
         // }
-        Ok(value)
+        value
     }
 
     /// Check if a function can be evaluated at compile time
@@ -480,6 +526,7 @@ impl ConstEvaluator {
             AstNode::FuncDef {
                 const_,
                 comptime_,
+                params,
                 body,
                 ret_expr,
                 ..
@@ -491,7 +538,20 @@ impl ConstEvaluator {
                 // Enter function scope
                 self.enter_scope();
                 
-                // TODO: Handle function parameters
+                // Handle function parameters
+                if params.len() != args.len() {
+                    return Err(format!(
+                        "Function expects {} arguments, but {} were provided",
+                        params.len(),
+                        args.len()
+                    ));
+                }
+                
+                // Bind arguments to parameters
+                for (i, (param_name, _param_type)) in params.iter().enumerate() {
+                    let arg_value = self.eval_const_expr(&args[i])?;
+                    self.define_variable(param_name.clone(), arg_value);
+                }
                 
                 let result = if let Some(expr) = ret_expr {
                     // Function with explicit return expression - still need to evaluate body for side effects
@@ -532,6 +592,20 @@ impl ConstEvaluator {
 pub fn evaluate_constants(asts: &[AstNode]) -> Result<Vec<AstNode>, String> {
     let mut evaluator = ConstEvaluator::new();
     let mut result = Vec::new();
+
+    // First, register all const/comptime functions
+    for ast in asts {
+        if let AstNode::FuncDef {
+            name,
+            const_,
+            comptime_,
+            ..
+        } = ast {
+            if *const_ || *comptime_ {
+                evaluator.register_function(name.clone(), ast.clone());
+            }
+        }
+    }
 
     for ast in asts {
         match ast {

@@ -1,0 +1,127 @@
+// Comprehensive test for advanced trait features
+// v0.3.31 - Traits & Generics Advanced
+
+// 1. Basic concepts
+concept Clone {
+    fn clone(&self) -> Self;
+}
+
+concept Debug {
+    fn debug(&self) -> String;
+}
+
+// 2. Concept inheritance
+concept Printable: Clone + Debug {
+    fn print(&self);
+    
+    // Default implementation
+    fn print_debug(&self) {
+        let debug_str = self.debug();
+        println!("Debug: {}", debug_str);
+    }
+}
+
+// 3. Generic struct with trait bounds
+struct Container<T: Clone + Debug> {
+    value: T
+}
+
+impl<T: Clone + Debug> Container<T> {
+    fn new(value: T) -> Self {
+        Container { value }
+    }
+    
+    fn get(&self) -> &T {
+        &self.value
+    }
+    
+    fn duplicate(&self) -> Self {
+        Container { value: self.value.clone() }
+    }
+}
+
+// 4. Generic function with where clause
+fn process_items<T, U>(items: Vec<T>, processor: U) -> Vec<String>
+where
+    T: Clone + Debug,
+    U: Fn(T) -> String {
+    let mut results = Vec::new();
+    for item in items {
+        results.push(processor(item.clone()));
+    }
+    results
+}
+
+// 5. Trait objects
+fn print_any(printable: &dyn Printable) {
+    printable.print();
+}
+
+// 6. Associated types (simulated - using type alias)
+concept Iterator {
+    // In real Rust: type Item;
+    // For now, we'll use a generic parameter
+    fn next(&mut self) -> Option<i64>;  // Simplified for now
+}
+
+// 7. Implementation for a concrete type
+struct Counter {
+    count: i64,
+    max: i64
+}
+
+impl Clone for Counter {
+    fn clone(&self) -> Self {
+        Counter { count: self.count, max: self.max }
+    }
+}
+
+impl Debug for Counter {
+    fn debug(&self) -> String {
+        format!("Counter(count={}, max={})", self.count, self.max)
+    }
+}
+
+impl Printable for Counter {
+    fn print(&self) {
+        println!("Counter: {} of {}", self.count, self.max);
+    }
+}
+
+impl Iterator for Counter {
+    fn next(&mut self) -> Option<i64> {
+        if self.count < self.max {
+            self.count += 1;
+            Some(self.count)
+        } else {
+            None
+        }
+    }
+}
+
+// 8. Main function using all features
+fn main() -> i64 {
+    // Create a container
+    let counter = Counter { count: 0, max: 5 };
+    let container = Container::new(counter);
+    
+    // Use trait object
+    print_any(container.get());
+    
+    // Process items
+    let items = vec![
+        container.duplicate(),
+        container.duplicate(),
+    ];
+    
+    let results = process_items(items, |c| c.debug());
+    
+    // Use iterator
+    let mut iter = Counter { count: 0, max: 3 };
+    let mut sum = 0;
+    while let Some(n) = iter.next() {
+        sum += n;
+    }
+    
+    sum
+}

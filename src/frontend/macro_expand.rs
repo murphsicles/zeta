@@ -62,6 +62,15 @@ impl MacroExpander {
         match name {
             "println" => self.expand_println(args),
             "vec" => self.expand_vec(args),
+            "format" => self.expand_format(args),
+            "assert_eq" => self.expand_assert_eq(args),
+            "assert" => {
+                // assert!(condition) is similar to assert_eq! but with one argument
+                if args.len() != 1 {
+                    return Err("assert! requires exactly 1 argument".to_string());
+                }
+                self.expand_assert_eq(&[args[0].clone(), AstNode::Bool(true)])
+            }
             _ => {
                 // Check for registered declarative macros
                 if let Some(macro_def) = self.declarative_macros.get(name) {
@@ -77,6 +86,21 @@ impl MacroExpander {
     fn expand_println(&self, args: &[AstNode]) -> Result<Vec<AstNode>, String> {
         if args.is_empty() {
             return Err("println! requires at least one argument".to_string());
+        }
+
+        // Check if first argument is a format string
+        if let Some(AstNode::StringLit(format_str)) = args.first() {
+            // Simple format string handling
+            // Count placeholders
+            let placeholder_count = format_str.matches("{}").count();
+            
+            if args.len() - 1 != placeholder_count {
+                return Err(format!(
+                    "println! format string expects {} arguments, got {}",
+                    placeholder_count,
+                    args.len() - 1
+                ));
+            }
         }
 
         // For now, simple expansion to a function call
@@ -101,6 +125,50 @@ impl MacroExpander {
         // In a full implementation, this would create a Vec<T>
         Ok(vec![AstNode::ArrayLit(args.to_vec())])
     }
+    
+    /// Expand format! macro
+    fn expand_format(&self, args: &[AstNode]) -> Result<Vec<AstNode>, String> {
+        if args.is_empty() {
+            return Err("format! requires at least a format string".to_string());
+        }
+        
+        // Simple expansion: format!("Hello {}", name) -> String concatenation
+        // For now, just create a string literal with placeholder
+        let result = AstNode::StringLit("formatted string".to_string());
+        Ok(vec![result])
+    }
+    
+    /// Expand assert_eq! macro
+    fn expand_assert_eq(&self, args: &[AstNode]) -> Result<Vec<AstNode>, String> {
+        if args.len() != 2 {
+            return Err("assert_eq! requires exactly 2 arguments".to_string());
+        }
+        
+        // Create an if statement that panics if the values are not equal
+        let condition = AstNode::BinaryOp {
+            op: "!=".to_string(),
+            left: Box::new(args[0].clone()),
+            right: Box::new(args[1].clone()),
+        };
+        
+        let panic_call = AstNode::Call {
+            receiver: None,
+            method: "panic".to_string(),
+            args: vec![AstNode::StringLit("Assertion failed".to_string())],
+            type_args: Vec::new(),
+            structural: false,
+        };
+        
+        let if_stmt = AstNode::If {
+            cond: Box::new(condition),
+            then: vec![AstNode::ExprStmt {
+                expr: Box::new(panic_call),
+            }],
+            else_: Vec::new(),
+        };
+        
+        Ok(vec![if_stmt])
+    }
 
     /// Expand a declarative macro
     fn expand_declarative_macro(
@@ -108,12 +176,160 @@ impl MacroExpander {
         macro_def: &DeclarativeMacro,
         args: &[AstNode],
     ) -> Result<Vec<AstNode>, String> {
-        // TODO: Implement pattern matching and expansion
-        // For now, return a placeholder
+        // Try to match each pattern
+        for pattern in &macro_def.patterns {
+            if let Some(bindings) = self.match_pattern(&pattern.matcher, args) {
+                return self.expand_with_bindings(&pattern.expansion, &bindings);
+            }
+        }
+        
         Err(format!(
-            "Declarative macro expansion not yet implemented for: {}",
-            macro_def.name
+            "No matching pattern found for macro: {} with {} arguments",
+            macro_def.name,
+            args.len()
         ))
+    }
+    
+    /// Match macro pattern against arguments
+    fn match_pattern(
+        &self,
+        pattern: &[MacroToken],
+        args: &[AstNode],
+    ) -> Option<HashMap<String, Vec<AstNode>>> {
+        let mut bindings = HashMap::new();
+        let mut pattern_idx = 0;
+        let mut args_idx = 0;
+        
+        while pattern_idx < pattern.len() && args_idx < args.len() {
+            match &pattern[pattern_idx] {
+                MacroToken::Ident(name) => {
+                    // Check if it's a pattern variable like $x:expr
+                    if name.starts_with('$') {
+                        let var_name = &name[1..]; // Remove $
+                        
+                        // Check for fragment specifier
+                        let specifier = if let Some(colon_idx) = var_name.find(':') {
+                            let spec = &var_name[colon_idx + 1..];
+                            &var_name[..colon_idx]
+                        } else {
+                            var_name
+                        };
+                        
+                        // For now, bind the next argument
+                        if args_idx < args.len() {
+                            bindings.insert(specifier.to_string(), vec![args[args_idx].clone()]);
+                            args_idx += 1;
+                            pattern_idx += 1;
+                        } else {
+                            return None;
+                        }
+                    } else {
+                        // Literal identifier - must match exactly
+                        // For now, skip as we don't have identifier AST nodes
+                        pattern_idx += 1;
+                    }
+                }
+                MacroToken::Punct(',') => {
+                    // Skip commas in pattern
+                    pattern_idx += 1;
+                }
+                MacroToken::Repetition(rep_pattern, separator, min, max) => {
+                    // Handle repetition
+                    let mut matched_args = Vec::new();
+                    
+                    while args_idx < args.len() {
+                        // Try to match one instance of the repetition pattern
+                        // For now, just take one argument
+                        matched_args.push(args[args_idx].clone());
+                        args_idx += 1;
+                        
+                        // Check for separator
+                        if args_idx < args.len() {
+                            // Skip separator in args
+                            args_idx += 1;
+                        }
+                    }
+                    
+                    // Check repetition bounds
+                    let count = matched_args.len();
+                    if let Some(min_count) = min {
+                        if count < *min_count {
+                            return None;
+                        }
+                    }
+                    if let Some(max_count) = max {
+                        if count > *max_count {
+                            return None;
+                        }
+                    }
+                    
+                    // Store the matched arguments
+                    // For now, use a placeholder name
+                    bindings.insert("repetition".to_string(), matched_args);
+                    pattern_idx += 1;
+                }
+                _ => {
+                    // Skip other tokens for now
+                    pattern_idx += 1;
+                }
+            }
+        }
+        
+        // Check if we consumed all pattern tokens and arguments
+        if pattern_idx == pattern.len() && args_idx == args.len() {
+            Some(bindings)
+        } else {
+            None
+        }
+    }
+    
+    /// Expand macro expansion with bindings
+    fn expand_with_bindings(
+        &self,
+        expansion: &[MacroToken],
+        bindings: &HashMap<String, Vec<AstNode>>,
+    ) -> Result<Vec<AstNode>, String> {
+        let mut result = Vec::new();
+        
+        for token in expansion {
+            match token {
+                MacroToken::Ident(name) => {
+                    if name.starts_with('$') {
+                        let var_name = &name[1..];
+                        if let Some(bound_args) = bindings.get(var_name) {
+                            result.extend(bound_args.clone());
+                        } else {
+                            return Err(format!("Unbound variable in macro expansion: ${}", var_name));
+                        }
+                    } else {
+                        // TODO: Handle literal identifiers in expansion
+                        // For now, create a variable reference
+                        result.push(AstNode::Var(name.clone()));
+                    }
+                }
+                MacroToken::Literal(lit) => {
+                    // TODO: Parse literal value
+                    // For now, create a string literal
+                    result.push(AstNode::StringLit(lit.clone()));
+                }
+                MacroToken::Group(tokens, _) => {
+                    // Recursively expand group
+                    let group_result = self.expand_with_bindings(tokens, bindings)?;
+                    result.extend(group_result);
+                }
+                MacroToken::Repetition(rep_pattern, separator, _, _) => {
+                    // Handle repetition in expansion
+                    // For now, just expand the pattern once
+                    let rep_result = self.expand_with_bindings(rep_pattern, bindings)?;
+                    result.extend(rep_result);
+                }
+                MacroToken::Punct(_) => {
+                    // Skip punctuation in expansion for now
+                }
+            }
+        }
+        
+        Ok(result)
     }
 }
 
@@ -383,6 +599,28 @@ pub fn process_attributes(attrs: &[String], node: &AstNode) -> Result<Vec<AstNod
         } else if attr.starts_with("test(") {
             // Handle #[test(name = "test_name")] with arguments
             expansions.push(create_test_function_with_args(attr, node)?);
+        } else if attr == "must_use" {
+            // Handle #[must_use] attribute
+            // No expansion needed, just metadata for the compiler
+        } else if attr.starts_with("cfg(") {
+            // Handle #[cfg(...)] conditional compilation
+            // For now, just pass through - would be handled by conditional compilation system
+        } else if attr.starts_with("allow(") {
+            // Handle #[allow(...)] to suppress warnings
+            // No expansion needed
+        } else if attr.starts_with("deny(") {
+            // Handle #[deny(...)] to enforce warnings as errors
+            // No expansion needed
+        } else if attr.starts_with("warn(") {
+            // Handle #[warn(...)] to configure warnings
+            // No expansion needed
+        } else if attr.starts_with("repr(") {
+            // Handle #[repr(...)] for type representation
+            // No expansion needed, affects code generation
+        } else {
+            // Unknown attribute - could be a custom attribute macro
+            // For now, just warn and continue
+            eprintln!("Warning: Unknown attribute: {}", attr);
         }
     }
 
