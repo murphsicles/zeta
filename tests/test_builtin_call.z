@@ -1,0 +1,15 @@
+// Test calling built-in function to_string_str
+// This is the key test for v0.3.55 implementation
+
+fn main() -> i64 {
+    // Create a string
+    let s = "hello";
+    
+    // Try to call built-in function
+    // According to analysis, to_string_str is a built-in function
+    // that should convert something to a string
+    let result = to_string_str(42);
+    
+    // Return success if we get here
+    return 0;
+}
