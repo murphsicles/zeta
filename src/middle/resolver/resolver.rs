@@ -415,6 +415,11 @@ impl Resolver {
         result
     }
 
+    /// Get all function signatures (for type inference)
+    pub fn get_all_func_signatures(&self) -> &HashMap<String, (Vec<(String, Type)>, Type, bool)> {
+        &self.funcs
+    }
+
     pub fn is_abi_stable(&self, key: &MonoKey) -> bool {
         key.type_args.iter().all(|t| is_cache_safe(t))
     }

@@ -21,12 +21,30 @@ impl NewTypeCheck for Resolver {
     fn typecheck_new(&mut self, asts: &[AstNode]) -> Result<Substitution, Vec<UnifyError>> {
         use crate::middle::resolver::new_resolver;
 
+        eprintln!("[TYPECHECK_NEW] Starting typecheck_new with {} AST nodes", asts.len());
+        
         let mut context = new_resolver::InferContext::new();
 
         // Convert existing variable types from old system to new system
         // Note: This is a simplified conversion - in a full implementation,
         // we would need to convert the entire resolver state
         // For now, we start with a clean context
+
+        // Add built-in functions from resolver to the inference context
+        eprintln!("[TYPECHECK_NEW] Adding built-in functions to inference context");
+        let funcs = self.get_all_func_signatures();
+        eprintln!("[TYPECHECK_NEW] Found {} built-in functions", funcs.len());
+        for (name, (params, ret_ty, _is_async)) in funcs {
+            eprintln!("[TYPECHECK_NEW] Adding function: {} with {} params", name, params.len());
+            // Convert parameter types to a vector of Types
+            let param_types: Vec<Type> = params.iter().map(|(_, ty)| ty.clone()).collect();
+            
+            // Create function type: (param_types) -> ret_ty
+            let func_type = Type::Function(param_types, Box::new(ret_ty.clone()));
+            
+            // Add to inference context
+            context.add_function(name.clone(), func_type);
+        }
 
         // Infer types for all AST nodes
         let mut any_success = false;

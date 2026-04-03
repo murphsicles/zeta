@@ -75,6 +75,11 @@ impl InferContext {
         self.variables.insert(name, ty);
     }
 
+    /// Add a function signature
+    pub fn add_function(&mut self, name: String, ty: Type) {
+        self.functions.insert(name, ty);
+    }
+
     /// Add type constraint
     pub fn constrain(&mut self, constraint: Constraint) {
         self.constraints.push(constraint);
