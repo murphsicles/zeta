@@ -1,0 +1,22 @@
+// Debug while loop with print equivalent
+// Use return values to trace execution
+
+fn main() -> u64 {
+    let mut i: u64 = 0
+    let mut loop_count: u64 = 0
+    
+    // Track loop iterations via return value
+    while i < 2 {
+        i += 1
+        loop_count += 1
+        
+        // If loop executes more than 10 times, break
+        if loop_count > 10 {
+            return 9999  // Infinite loop detected
+        }
+    }
+    
+    // Return combination showing execution
+    // loop_count * 1000 + i
+    return loop_count * 1000 + i
+}

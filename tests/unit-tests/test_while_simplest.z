@@ -1,0 +1,9 @@
+// Absolute simplest while loop test
+fn main() -> u64 {
+    let mut i: u64 = 0
+    // Try with false condition first
+    while i < 0 {
+        i += 1
+    }
+    return i  // Should return 0 (loop never executes)
+}
