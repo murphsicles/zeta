@@ -659,6 +659,26 @@ impl Resolver {
             ),
         );
 
+        // to_string_i64(value: i64) -> str
+        self.funcs.insert(
+            "to_string_i64".to_string(),
+            (
+                vec![("value".to_string(), Type::I64)],
+                Type::Str,
+                false, // not async
+            ),
+        );
+
+        // to_string_bool(value: bool) -> str
+        self.funcs.insert(
+            "to_string_bool".to_string(),
+            (
+                vec![("value".to_string(), Type::Bool)],
+                Type::Str,
+                false, // not async
+            ),
+        );
+
         // Array runtime functions
         // array_new() -> i64 (pointer to array)
         self.funcs.insert(
@@ -721,7 +741,7 @@ impl Resolver {
         );
 
         println!(
-            "[RESOLVER] Registered built-in runtime functions: clone_i64, is_null_i64, to_string_str, array_new, array_push, array_len, array_get, array_set, array_free"
+            "[RESOLVER] Registered built-in runtime functions: clone_i64, is_null_i64, to_string_str, to_string_i64, to_string_bool, array_new, array_push, array_len, array_get, array_set, array_free"
         );
     }
 }

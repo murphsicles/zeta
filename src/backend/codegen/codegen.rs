@@ -1058,6 +1058,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
     fn gen_stmt(&mut self, stmt: &MirStmt, exprs: &HashMap<u32, MirExpr>) {
         match stmt {
             MirStmt::Assign { lhs, rhs } => {
+                println!("[DEBUG] Assign: lhs={}, rhs={}", lhs, rhs);
                 let val = self.gen_expr_safe(rhs, exprs);
                 let alloca = *self.locals.get(lhs).unwrap();
                 self.builder.build_store(alloca, val).unwrap();
@@ -1621,6 +1622,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 
                 // Generate condition block
                 self.builder.position_at_end(loop_cond_bb);
+                println!("[DEBUG] Evaluating while condition id={}", cond);
                 let cond_i64 = self.gen_expr_safe(cond, exprs).into_int_value();
                 let cond_i1 = self
                     .builder
@@ -1884,6 +1886,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
     }
 
     fn load_local(&self, id: u32) -> BasicValueEnum<'ctx> {
+        println!("[DEBUG] load_local called for id={}", id);
         let ptr = *self.locals.get(&id).unwrap();
         self.builder
             .build_load(self.i64_type, ptr, &format!("load_{id}"))
