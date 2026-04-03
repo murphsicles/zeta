@@ -1,0 +1,8 @@
+// Critical test: while loop infinite loop bug
+fn main() -> u64 {
+    let mut i: u64 = 0
+    while i < 3 {
+        i += 1
+    }
+    return i  // Should return 3 if fixed
+}
