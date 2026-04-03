@@ -73,6 +73,30 @@ impl NewTypeCheck for Resolver {
 
         // Debug: print what we're parsing
         eprintln!("[DEBUG] string_to_type parsing: '{}'", s);
+        
+        // Safety check: prevent infinite recursion
+        if s.is_empty() {
+            return Type::Named("".to_string(), Vec::new());
+        }
+        
+        // Simple types should not recurse
+        match s {
+            "i64" => return Type::I64,
+            "i32" => return Type::I32,
+            "bool" => return Type::Bool,
+            "str" => return Type::Str,
+            "String" => return Type::Named("String".to_string(), Vec::new()),
+            "i8" => return Type::I8,
+            "i16" => return Type::I16,
+            "u8" => return Type::U8,
+            "u16" => return Type::U16,
+            "u32" => return Type::U32,
+            "u64" => return Type::U64,
+            "f32" => return Type::F32,
+            "f64" => return Type::F64,
+            "char" => return Type::Char,
+            _ => {}
+        }
 
         // Check for &mut prefix (must check before & prefix)
         if let Some(rest) = s.strip_prefix("&mut ") {
@@ -187,6 +211,13 @@ impl NewTypeCheck for Resolver {
             && open_angle < close_angle
         {
             let type_name = &s[..open_angle];
+            
+            // Safety check: type_name must not be empty and must not be a primitive type
+            if type_name.is_empty() || matches!(type_name, "i64" | "i32" | "bool" | "str" | "i8" | "i16" | "u8" | "u16" | "u32" | "u64" | "f32" | "f64" | "char") {
+                // This is not a valid generic type, fall back to named type
+                return Type::Named(s.to_string(), Vec::new());
+            }
+            
             let inner = &s[open_angle + 1..close_angle];
 
             // Parse type arguments, handling nested generics
