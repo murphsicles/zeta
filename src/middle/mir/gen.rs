@@ -418,7 +418,9 @@ impl MirGen {
                 // TODO: Handle other iterator types
             }
             AstNode::While { cond, body } => {
+                println!("[MIR GEN DEBUG] Processing while loop");
                 let cond_id = self.lower_expr(cond);
+                println!("[MIR GEN DEBUG] While condition id: {}", cond_id);
                 
                 // Save current statements to restore after loop body
                 let stmts_before_body = self.stmts.len();
@@ -430,12 +432,14 @@ impl MirGen {
                 
                 // Get body statements
                 let body_stmts = self.stmts.split_off(stmts_before_body);
+                println!("[MIR GEN DEBUG] While body has {} statements", body_stmts.len());
                 
                 // Create While statement in MIR
                 self.stmts.push(MirStmt::While {
                     cond: cond_id,
                     body: body_stmts,
                 });
+                println!("[MIR GEN DEBUG] Added While statement to MIR");
             }
             _ => {}
         }

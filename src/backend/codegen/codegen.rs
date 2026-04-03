@@ -1604,6 +1604,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 // dest is handled by assignments in the branches
             }
             MirStmt::While { cond, body } => {
+                println!("[CODEGEN DEBUG] Generating while loop, cond id: {}, body len: {}", cond, body.len());
                 let parent_fn = self
                     .builder
                     .get_insert_block()
@@ -1617,10 +1618,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let loop_exit_bb = self.context.append_basic_block(parent_fn, "while.exit");
                 
                 // Branch to condition block
+                println!("[CODEGEN DEBUG] Branching to condition block");
                 self.builder.build_unconditional_branch(loop_cond_bb).unwrap();
                 
                 // Generate condition block
                 self.builder.position_at_end(loop_cond_bb);
+                println!("[CODEGEN DEBUG] Generating condition expression");
                 let cond_i64 = self.gen_expr_safe(cond, exprs).into_int_value();
                 let cond_i1 = self
                     .builder
@@ -1631,22 +1634,26 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         "while.cond",
                     )
                     .unwrap();
+                println!("[CODEGEN DEBUG] Condition value: {:?}", cond_i64);
                 self.builder
                     .build_conditional_branch(cond_i1, loop_body_bb, loop_exit_bb)
                     .unwrap();
                 
                 // Generate loop body
                 self.builder.position_at_end(loop_body_bb);
+                println!("[CODEGEN DEBUG] Generating loop body");
                 for s in body {
                     self.gen_stmt(s, exprs);
                 }
                 // Branch back to condition (unless body ends with return)
                 if !body.iter().any(|s| matches!(s, MirStmt::Return { .. })) {
+                    println!("[CODEGEN DEBUG] Branching back to condition");
                     self.builder.build_unconditional_branch(loop_cond_bb).unwrap();
                 }
                 
                 // Continue at exit block
                 self.builder.position_at_end(loop_exit_bb);
+                println!("[CODEGEN DEBUG] While loop generation complete");
             }
             MirStmt::ParamInit { .. } => {} // handled at entry
             _ => {}
