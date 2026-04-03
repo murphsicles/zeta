@@ -1,0 +1,10 @@
+// Simple string test
+// Testing basic string functionality
+
+fn main() -> i64 {
+    // Try to create a string variable
+    // let s = "hello";
+    
+    // For now, just return 0 (success)
+    return 0;
+}

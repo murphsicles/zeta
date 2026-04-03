@@ -1,0 +1,13 @@
+// Test string literal assignment
+// Trying to see if string literals work
+
+fn main() -> i64 {
+    // Try to assign a string literal to a variable
+    // This is the key test - can we actually use string literals?
+    let s = "hello";
+    
+    // If this compiles, string literals work
+    // If not, we need to understand what syntax is supported
+    
+    return 0;
+}

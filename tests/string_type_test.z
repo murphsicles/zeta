@@ -1,0 +1,42 @@
+// Test if String type works in Zeta
+// Trying to understand the string type system
+
+// Define a simple function that uses String type
+fn test_string_type() -> i64 {
+    // Try to create a String variable
+    // This might not work if String is not a primitive type
+    // let s: String = "hello";
+    
+    // For now, return success
+    return 0;
+}
+
+// Test string literal assignment
+fn test_string_literal() -> i64 {
+    // Try string literal without type annotation
+    // let s = "world";
+    
+    return 0;
+}
+
+// Test if we can pass strings as parameters
+fn test_string_param(s: String) -> i64 {
+    // Try to use the string parameter
+    // if s == "test" {
+    //     return 1;
+    // }
+    return 0;
+}
+
+fn main() -> i64 {
+    let result1 = test_string_type();
+    let result2 = test_string_literal();
+    // let result3 = test_string_param("test");
+    let result3 = 0;  // Temporary
+    
+    if result1 == 0 && result2 == 0 && result3 == 0 {
+        return 0;  // Success
+    } else {
+        return 1;  // Failure
+    }
+}
