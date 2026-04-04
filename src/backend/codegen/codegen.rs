@@ -150,6 +150,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
             i64_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into(), i64_type.into()], false),
             Some(Linkage::External),
         );
+        // Vector splat (create vector with all elements equal)
+        module.add_function(
+            "vector_splat",
+            i64_type.fn_type(&[i64_type.into()], false),
+            Some(Linkage::External),
+        );
         module.add_function(
             "map_new",
             ptr_type.fn_type(&[], false),
@@ -925,6 +931,25 @@ impl<'ctx> LLVMCodegen<'ctx> {
             );
             return dummy_fn;
         }
+        // Handle Vector::splat
+        if name == "Vector::splat" {
+            eprintln!("[DEBUG get_function] Handling Vector::splat");
+            // Try to find vector_splat function
+            if let Some(f) = self.module.get_function("vector_splat") {
+                eprintln!("[DEBUG get_function] Found vector_splat");
+                return f;
+            }
+            eprintln!("[DEBUG get_function] vector_splat not found, creating dummy");
+            // Create a dummy function
+            let dummy_fn = self.module.add_function(
+                "vector_splat_dummy",
+                self.i64_type.fn_type(&[self.i64_type.into()], false),
+                Some(Linkage::External),
+            );
+            return dummy_fn;
+        }
+        // Handle Vector::extract (method call, not static method)
+        // Note: This is handled differently - as a method call on a vector value
         // Check if it's an external function declared in the module
         if let Some(f) = self.module.get_function(name) {
             return f;

@@ -756,6 +756,15 @@ impl Resolver {
                 false, // not async
             ),
         );
+        // Vector splat (create vector with all elements equal)
+        self.funcs.insert(
+            "Vector::splat".to_string(),
+            (
+                vec![("value".to_string(), Type::I64)],
+                Type::I64, // TODO: Should return Vector<T, N>
+                false, // not async
+            ),
+        );
         
         println!(
             "[RESOLVER] Registered built-in runtime functions: clone_i64, is_null_i64, to_string_str, to_string_i64, to_string_bool, array_new, array_push, array_len, array_get, array_set, array_free, Vector::new"
