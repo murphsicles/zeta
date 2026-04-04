@@ -26,10 +26,12 @@ pub mod lsp;
 pub mod middle;
 pub mod ml;
 pub mod package;
+pub mod memory;
 pub mod runtime;
 pub mod std;
 pub mod workflows;
 pub mod zeta;
+// pub mod distributed; // Temporarily disabled due to compilation errors
 
 // #[cfg(test)]
 // mod tests;
