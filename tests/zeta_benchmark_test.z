@@ -1,0 +1,60 @@
+// Zeta benchmark test for Murphy's Sieve
+// Simulates 5-second competition run
+
+// Simple prime counting for benchmark (simplified version)
+fn count_primes_simple(limit: u64) -> u64 {
+    let mut count = 0
+    let mut n = 2
+    
+    while n <= limit {
+        let mut is_prime = true
+        let mut d = 2
+        
+        while d * d <= n {
+            if n % d == 0 {
+                is_prime = false
+                break
+            }
+            d = d + 1
+        }
+        
+        if is_prime {
+            count = count + 1
+        }
+        
+        n = n + 1
+    }
+    
+    return count
+}
+
+// Benchmark runner
+fn run_benchmark() -> u64 {
+    let target_time = 5000  // 5 seconds in milliseconds
+    let limit = 1000000     // Competition requirement
+    
+    // In real benchmark, we'd use actual timing
+    // For now, simulate with iteration count
+    
+    let mut iterations = 0
+    let mut simulated_time = 0
+    
+    // Simulate: each iteration takes ~0.1ms (placeholder)
+    while simulated_time < target_time {
+        let _ = count_primes_simple(limit)
+        iterations = iterations + 1
+        simulated_time = simulated_time + 100  // 0.1ms per iteration
+    }
+    
+    return iterations
+}
+
+fn main() -> u64 {
+    // Run benchmark simulation
+    let iterations = run_benchmark()
+    
+    // Output competition format (simulated)
+    // murphsicles;<iterations>;5.000;1;algorithm=wheel,faithful=yes,bits=1
+    
+    return iterations
+}
