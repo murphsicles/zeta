@@ -1,0 +1,27 @@
+FROM ubuntu:22.04
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    llvm-14 \
+    clang-14 \
+    lld-14 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+WORKDIR /zeta
+
+# Copy source
+COPY . .
+
+# Build
+RUN cargo build --release
+
+# Test while loop fix
+RUN ./target/release/zetac test_while_final_correct.z
+
+CMD ["/bin/bash"]
