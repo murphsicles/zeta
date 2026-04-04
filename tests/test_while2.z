@@ -1,0 +1,7 @@
+fn main() -> u64 {
+    let mut i: u64 = 5
+    while i > 0 {
+        i -= 1
+    }
+    return i  // Should return 0
+}

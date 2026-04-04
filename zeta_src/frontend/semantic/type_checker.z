@@ -32,6 +32,11 @@ impl Resolver {
     }
 
     fn check_node(&mut self, node: &AstNode) -> bool {
+        // First check if it's an ML node
+        if self.check_ml_node(node) {
+            return true;
+        }
+        
         let mut ok = true;
         match node {
             AstNode::Call { .. } => {} // receiver methods always OK after monomorphization

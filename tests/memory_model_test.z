@@ -1,0 +1,124 @@
+// Test program for capability-based memory model with Murphy's Sieve
+// This demonstrates the novel memory model for Zeta
+
+import std::memory;
+
+fn test_dynamic_array() -> i64 {
+    // Create a dynamic array using our new memory model
+    let mut array = memory::DynamicArray::new(4);
+    
+    // Push some values
+    array.push(1);
+    array.push(2);
+    array.push(3);
+    array.push(4);
+    
+    // Test resizing
+    array.push(5);  // Should trigger resize
+    
+    // Verify values
+    let mut sum = 0;
+    for i in 0..array.len() {
+        sum += array.get(i);
+    }
+    
+    // Should be 1+2+3+4+5 = 15
+    return sum;
+}
+
+fn test_bit_array() -> i64 {
+    // Create a bit array for testing
+    let mut bits = memory::BitArray::new(1000);
+    
+    // Set some bits
+    for i in 0..1000 {
+        if i % 7 == 0 {
+            bits.set_bit(i, true);
+        }
+    }
+    
+    // Count set bits
+    let mut count = 0;
+    for i in 0..1000 {
+        if bits.get_bit(i) {
+            count += 1;
+        }
+    }
+    
+    // Should be floor(1000/7) + 1 = 142 + 1 = 143
+    return count;
+}
+
+fn test_murphy_sieve_small() -> i64 {
+    // Test Murphy's Sieve with small limit
+    let mut sieve = memory::Sieve::new(1000);
+    sieve.run();
+    
+    let count = sieve.count_primes();
+    
+    // There are 168 primes <= 1000
+    return count;
+}
+
+fn test_murphy_sieve_large() -> i64 {
+    // Test with larger limit (performance test)
+    let mut sieve = memory::Sieve::new(1_000_000);
+    sieve.run();
+    
+    let count = sieve.count_primes();
+    
+    // There are 78,498 primes <= 1,000,000
+    return count;
+}
+
+fn benchmark_murphy_sieve() -> i64 {
+    // Benchmark the sieve for 5 seconds
+    let start_time = std::time::now();
+    let mut iterations = 0;
+    
+    while std::time::now() - start_time < 5_000_000_000 { // 5 seconds in nanoseconds
+        let mut sieve = memory::Sieve::new(1_000_000);
+        sieve.run();
+        iterations += 1;
+    }
+    
+    return iterations;
+}
+
+fn main() -> i64 {
+    println("Testing capability-based memory model for Zeta");
+    println("==============================================");
+    
+    // Test 1: Dynamic Array
+    println("\nTest 1: Dynamic Array");
+    let array_sum = test_dynamic_array();
+    println("Dynamic array sum: {}", array_sum);
+    assert(array_sum == 15, "Dynamic array test failed");
+    
+    // Test 2: Bit Array
+    println("\nTest 2: Bit Array");
+    let bit_count = test_bit_array();
+    println("Bit array count: {}", bit_count);
+    // floor(1000/7) = 142, plus bit 0 = 143
+    assert(bit_count == 143, "Bit array test failed");
+    
+    // Test 3: Small Sieve
+    println("\nTest 3: Murphy's Sieve (small)");
+    let small_prime_count = test_murphy_sieve_small();
+    println("Primes <= 1000: {}", small_prime_count);
+    assert(small_prime_count == 168, "Small sieve test failed");
+    
+    // Test 4: Large Sieve
+    println("\nTest 4: Murphy's Sieve (large)");
+    let large_prime_count = test_murphy_sieve_large();
+    println("Primes <= 1,000,000: {}", large_prime_count);
+    assert(large_prime_count == 78498, "Large sieve test failed");
+    
+    // Test 5: Benchmark
+    println("\nTest 5: Benchmark");
+    let iterations = benchmark_murphy_sieve();
+    println("Iterations in 5 seconds: {}", iterations);
+    
+    println("\nAll tests passed!");
+    return 0;
+}

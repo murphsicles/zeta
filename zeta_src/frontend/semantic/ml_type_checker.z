@@ -1,0 +1,469 @@
+// zeta_src/frontend/semantic/ml_type_checker.z
+// ML-specific type checking for Zeta
+
+use crate::frontend::ast::AstNode;
+use crate::middle::resolver::resolver::{Resolver, Type};
+use std::collections::HashMap;
+
+impl Resolver {
+    /// Type check ML-specific AST nodes
+    pub fn check_ml_node(&mut self, node: &AstNode) -> bool {
+        match node {
+            AstNode::TensorType { elem_type, shape, requires_grad } => {
+                self.check_tensor_type(elem_type, shape, *requires_grad)
+            }
+            AstNode::TensorLit { data, shape, dtype } => {
+                self.check_tensor_literal(data, shape, dtype)
+            }
+            AstNode::TensorOp { op, inputs, attrs } => {
+                self.check_tensor_operation(op, inputs, attrs)
+            }
+            AstNode::DiffFuncDef { name, generics, params, ret, body, attrs, doc } => {
+                self.check_diff_function(name, generics, params, ret, body, attrs, doc)
+            }
+            AstNode::LayerDef { name, params, fields, forward, doc } => {
+                self.check_layer_definition(name, params, fields, forward, doc)
+            }
+            AstNode::ModelDef { name, layers, forward, doc } => {
+                self.check_model_definition(name, layers, forward, doc)
+            }
+            AstNode::TrainStmt { model, config, body } => {
+                self.check_train_statement(model, config, body)
+            }
+            AstNode::GradientCall { func, wrt } => {
+                self.check_gradient_call(func, wrt)
+            }
+            AstNode::BackwardStmt { loss } => {
+                self.check_backward_statement(loss)
+            }
+            AstNode::StepStmt { optimizer } => {
+                self.check_step_statement(optimizer)
+            }
+            _ => true, // Other nodes handled by regular type checker
+        }
+    }
+    
+    /// Check tensor type definition
+    fn check_tensor_type(&mut self, elem_type: &str, shape: &[AstNode], requires_grad: bool) -> bool {
+        // Check element type is valid
+        if !self.is_valid_type(elem_type) {
+            self.error(format!("Invalid tensor element type: {}", elem_type));
+            return false;
+        }
+        
+        // Check shape dimensions are valid
+        for dim in shape {
+            match dim {
+                AstNode::Var(s) if s == "?" => {
+                    // Dynamic dimension - always valid
+                }
+                AstNode::Lit(n) if *n > 0 => {
+                    // Positive static dimension - valid
+                }
+                _ => {
+                    self.error(format!("Invalid tensor dimension: {:?}", dim));
+                    return false;
+                }
+            }
+        }
+        
+        // Register tensor type in type table
+        let type_name = format!("Tensor<{}, {:?}>", elem_type, shape);
+        self.register_type(&type_name, Type::Tensor {
+            elem_type: elem_type.to_string(),
+            shape: shape.to_vec(),
+            requires_grad,
+        });
+        
+        true
+    }
+    
+    /// Check tensor literal
+    fn check_tensor_literal(&mut self, data: &[AstNode], shape: &[i64], dtype: &str) -> bool {
+        // Check dtype is valid
+        if !self.is_valid_type(dtype) {
+            self.error(format!("Invalid tensor dtype: {}", dtype));
+            return false;
+        }
+        
+        // Calculate expected number of elements
+        let expected_elements: i64 = shape.iter().product();
+        if data.len() as i64 != expected_elements {
+            self.error(format!("Tensor literal has {} elements but shape {:?} expects {}", 
+                data.len(), shape, expected_elements));
+            return false;
+        }
+        
+        // Check all elements have correct type
+        for elem in data {
+            let elem_type = self.infer_type(elem);
+            if elem_type != dtype {
+                self.error(format!("Tensor element type mismatch: expected {}, got {}", 
+                    dtype, elem_type));
+                return false;
+            }
+        }
+        
+        true
+    }
+    
+    /// Check tensor operation
+    fn check_tensor_operation(&mut self, op: &str, inputs: &[AstNode], attrs: &[(String, AstNode)]) -> bool {
+        // Infer types of all inputs
+        let input_types: Vec<String> = inputs.iter()
+            .map(|input| self.infer_type(input))
+            .collect();
+        
+        match op {
+            "matmul" => {
+                // Matrix multiplication: (n,m) @ (m,p) -> (n,p)
+                if input_types.len() != 2 {
+                    self.error("matmul requires exactly 2 inputs");
+                    return false;
+                }
+                
+                // Check both inputs are tensors
+                if !self.is_tensor_type(&input_types[0]) || !self.is_tensor_type(&input_types[1]) {
+                    self.error("matmul inputs must be tensors");
+                    return false;
+                }
+                
+                // TODO: Check shape compatibility
+                true
+            }
+            "add" | "sub" | "mul" | "div" => {
+                // Element-wise operations
+                if input_types.is_empty() {
+                    self.error(format!("{} requires at least 1 input", op));
+                    return false;
+                }
+                
+                // Check all inputs have same type
+                let first_type = &input_types[0];
+                for (i, ty) in input_types.iter().enumerate() {
+                    if ty != first_type {
+                        self.error(format!("{} input {} type mismatch: expected {}, got {}", 
+                            op, i, first_type, ty));
+                        return false;
+                    }
+                }
+                
+                // Check type supports the operation
+                if !self.type_supports_operation(first_type, op) {
+                    self.error(format!("Type {} does not support {}", first_type, op));
+                    return false;
+                }
+                
+                true
+            }
+            "relu" | "sigmoid" | "tanh" | "softmax" => {
+                // Activation functions
+                if input_types.len() != 1 {
+                    self.error(format!("{} requires exactly 1 input", op));
+                    return false;
+                }
+                
+                // Check input is a tensor
+                if !self.is_tensor_type(&input_types[0]) {
+                    self.error(format!("{} input must be a tensor", op));
+                    return false;
+                }
+                
+                true
+            }
+            "conv1d" | "conv2d" | "conv3d" => {
+                // Convolution operations
+                if input_types.len() < 2 {
+                    self.error(format!("{} requires at least 2 inputs (input, weight)", op));
+                    return false;
+                }
+                
+                // TODO: Check convolution-specific constraints
+                true
+            }
+            _ => {
+                self.error(format!("Unknown tensor operation: {}", op));
+                false
+            }
+        }
+    }
+    
+    /// Check differentiable function
+    fn check_diff_function(&mut self, name: &str, generics: &[String], params: &[(String, String)], 
+                          ret: &str, body: &[AstNode], attrs: &[String], doc: &str) -> bool {
+        // Push new scope for function
+        self.push_scope();
+        
+        // Register generic parameters
+        for generic in generics {
+            self.register_type(generic, Type::Generic(generic.to_string()));
+        }
+        
+        // Register parameters in scope
+        for (param_name, param_type) in params {
+            self.register_variable(param_name, param_type);
+        }
+        
+        // Set current function as differentiable
+        self.current_function_is_diff = true;
+        let previous_return_type = self.current_function_return_type.take();
+        self.current_function_return_type = Some(ret.to_string());
+        
+        // Check function body
+        let mut ok = true;
+        for stmt in body {
+            if !self.check_node(stmt) {
+                ok = false;
+            }
+        }
+        
+        // Restore state
+        self.current_function_is_diff = false;
+        self.current_function_return_type = previous_return_type;
+        self.pop_scope();
+        
+        // Register differentiable function
+        if ok {
+            self.register_diff_function(name, params, ret);
+        }
+        
+        ok
+    }
+    
+    /// Check layer definition
+    fn check_layer_definition(&mut self, name: &str, params: &[(String, String)], 
+                             fields: &[(String, String)], forward: &AstNode, doc: &str) -> bool {
+        // Register layer type
+        self.register_type(name, Type::Layer {
+            name: name.to_string(),
+            params: params.to_vec(),
+            fields: fields.to_vec(),
+        });
+        
+        // Check forward method
+        if let AstNode::FuncDef { params: forward_params, ret, body, .. } = forward.as_ref() {
+            // Push scope for forward method
+            self.push_scope();
+            
+            // Register self parameter
+            self.register_variable("self", name);
+            
+            // Register forward parameters
+            for (param_name, param_type) in forward_params {
+                self.register_variable(param_name, param_type);
+            }
+            
+            // Check forward body
+            let mut ok = true;
+            for stmt in body {
+                if !self.check_node(stmt) {
+                    ok = false;
+                }
+            }
+            
+            self.pop_scope();
+            ok
+        } else {
+            self.error("Layer must have a forward method");
+            false
+        }
+    }
+    
+    /// Check model definition
+    fn check_model_definition(&mut self, name: &str, layers: &[AstNode], 
+                             forward: &AstNode, doc: &str) -> bool {
+        // Check all layers are valid
+        for layer in layers {
+            if !self.check_node(layer) {
+                return false;
+            }
+        }
+        
+        // Register model type
+        self.register_type(name, Type::Model {
+            name: name.to_string(),
+            layers: layers.to_vec(),
+        });
+        
+        // Check forward method (similar to layer)
+        if let AstNode::FuncDef { params, ret, body, .. } = forward.as_ref() {
+            // Push scope for forward method
+            self.push_scope();
+            
+            // Register self parameter
+            self.register_variable("self", name);
+            
+            // Register forward parameters
+            for (param_name, param_type) in params {
+                self.register_variable(param_name, param_type);
+            }
+            
+            // Check forward body
+            let mut ok = true;
+            for stmt in body {
+                if !self.check_node(stmt) {
+                    ok = false;
+                }
+            }
+            
+            self.pop_scope();
+            ok
+        } else {
+            self.error("Model must have a forward method");
+            false
+        }
+    }
+    
+    /// Check training statement
+    fn check_train_statement(&mut self, model: &AstNode, config: &[(String, AstNode)], 
+                            body: &[AstNode]) -> bool {
+        // Check model expression is valid
+        let model_type = self.infer_type(model);
+        if !self.is_model_type(&model_type) {
+            self.error("train statement requires a model");
+            return false;
+        }
+        
+        // Check configuration options
+        for (key, value) in config {
+            match key.as_str() {
+                "optimizer" => {
+                    let opt_type = self.infer_type(value);
+                    if !self.is_optimizer_type(&opt_type) {
+                        self.error("Invalid optimizer type");
+                        return false;
+                    }
+                }
+                "loss" => {
+                    let loss_type = self.infer_type(value);
+                    if !self.is_loss_type(&loss_type) {
+                        self.error("Invalid loss function type");
+                        return false;
+                    }
+                }
+                "epochs" | "batch_size" => {
+                    let val_type = self.infer_type(value);
+                    if val_type != "i64" {
+                        self.error(format!("{} must be i64", key));
+                        return false;
+                    }
+                }
+                _ => {
+                    self.error(format!("Unknown training configuration: {}", key));
+                    return false;
+                }
+            }
+        }
+        
+        // Check training loop body
+        let mut ok = true;
+        for stmt in body {
+            if !self.check_node(stmt) {
+                ok = false;
+            }
+        }
+        
+        ok
+    }
+    
+    /// Check gradient call
+    fn check_gradient_call(&mut self, func: &AstNode, wrt: &[AstNode]) -> bool {
+        // Check function is differentiable
+        let func_type = self.infer_type(func);
+        if !self.is_diff_function_type(&func_type) {
+            self.error("gradient can only be called on differentiable functions");
+            return false;
+        }
+        
+        // Check wrt arguments are valid
+        for arg in wrt {
+            let arg_type = self.infer_type(arg);
+            if !self.type_has_gradient(&arg_type) {
+                self.error(format!("Type {} does not support gradients", arg_type));
+                return false;
+            }
+        }
+        
+        true
+    }
+    
+    /// Check backward statement
+    fn check_backward_statement(&mut self, loss: &AstNode) -> bool {
+        // Check loss is a scalar tensor with requires_grad = true
+        let loss_type = self.infer_type(loss);
+        if !self.is_tensor_type(&loss_type) {
+            self.error("backward requires a tensor loss");
+            return false;
+        }
+        
+        // TODO: Check loss is scalar and requires_grad
+        true
+    }
+    
+    /// Check step statement
+    fn check_step_statement(&mut self, optimizer: &AstNode) -> bool {
+        // Check optimizer is valid
+        let opt_type = self.infer_type(optimizer);
+        if !self.is_optimizer_type(&opt_type) {
+            self.error("step requires an optimizer");
+            return false;
+        }
+        
+        true
+    }
+    
+    // Helper methods
+    
+    fn is_valid_type(&self, ty: &str) -> bool {
+        // Check if type is valid (built-in or user-defined)
+        matches!(ty, "i64" | "f32" | "f64" | "bool" | "string") || 
+        self.type_table.contains_key(ty)
+    }
+    
+    fn is_tensor_type(&self, ty: &str) -> bool {
+        // Check if type is a tensor type
+        ty.starts_with("Tensor<")
+    }
+    
+    fn is_model_type(&self, ty: &str) -> bool {
+        // Check if type is a model
+        self.type_table.get(ty)
+            .map(|t| matches!(t, Type::Model { .. }))
+            .unwrap_or(false)
+    }
+    
+    fn is_optimizer_type(&self, ty: &str) -> bool {
+        // Check if type is an optimizer
+        ty.ends_with("Optimizer") || matches!(ty, "Adam" | "SGD" | "RMSprop")
+    }
+    
+    fn is_loss_type(&self, ty: &str) -> bool {
+        // Check if type is a loss function
+        ty.ends_with("Loss") || matches!(ty, "CrossEntropyLoss" | "MSELoss" | "L1Loss")
+    }
+    
+    fn is_diff_function_type(&self, ty: &str) -> bool {
+        // Check if type represents a differentiable function
+        ty.starts_with("diff fn ")
+    }
+    
+    fn type_supports_operation(&self, ty: &str, op: &str) -> bool {
+        // Check if type supports the given operation
+        match op {
+            "add" | "sub" | "mul" | "div" => {
+                matches!(ty, "i64" | "f32" | "f64") || self.is_tensor_type(ty)
+            }
+            _ => true,
+        }
+    }
+    
+    fn type_has_gradient(&self, ty: &str) -> bool {
+        // Check if type supports gradient computation
+        self.is_tensor_type(ty) || ty == "f32" || ty == "f64"
+    }
+    
+    fn error(&self, msg: String) {
+        // Simplified error reporting
+        println!("Type error: {}", msg);
+    }
+}

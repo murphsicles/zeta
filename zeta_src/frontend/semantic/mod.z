@@ -3,6 +3,7 @@
 // Created by SEM, Semantic Child of Dark Factory
 
 pub mod type_checker;
+pub mod ml_type_checker;
 pub mod name_resolver;
 pub mod scope_analyzer;
 pub mod validator;

@@ -13,7 +13,18 @@ impl Parser {
 
     fn parse_top_level(&mut self) -> AstNode {
         match self.peek() {
-            Token::KeywordFn => self.parse_func_def(),
+            Token::KeywordFn => {
+                // Check if it's a differentiable function
+                let next = self.peek_ahead(1);
+                if next == Token::KeywordDiff {
+                    self.parse_diff_func_def()
+                } else {
+                    self.parse_func_def()
+                }
+            }
+            Token::KeywordDiff => self.parse_diff_func_def(),
+            Token::KeywordLayer => self.parse_layer_def(),
+            Token::KeywordModel => self.parse_model_def(),
             Token::KeywordConcept => self.parse_concept_def(),
             Token::KeywordImpl => self.parse_impl_block(),
             Token::KeywordStruct => self.parse_struct_def(),
