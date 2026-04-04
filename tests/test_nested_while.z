@@ -1,0 +1,20 @@
+fn test_nested_while() -> u64 {
+    let mut i: u64 = 0
+    let mut j: u64 = 0
+    let mut count: u64 = 0
+    
+    while i < 3 {
+        j = 0
+        while j < 3 {
+            count += 1
+            j += 1
+        }
+        i += 1
+    }
+    
+    return count  // Should return 9 (3 * 3)
+}
+
+fn main() -> u64 {
+    return test_nested_while()
+}
