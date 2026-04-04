@@ -48,6 +48,8 @@ reqwest = { version = "0.13.1", features = ["blocking", "json", "rustls"], defau
 rustls = "0.23.36"
 # Serialization framework.
 serde = { version = "1.0.228", features = ["derive"] }
+# Formal verification system
+zeta-verification = { path = "verification" }
 # JSON handling.
 serde_json = "1.0.149"
 # TOML parsing and serialization.

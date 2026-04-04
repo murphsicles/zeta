@@ -7453,6 +7453,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "zeta-verification"
+version = "0.1.0"
+
+[[package]]
 name = "zetac"
 version = "0.3.54"
 dependencies = [
@@ -7498,6 +7502,7 @@ dependencies = [
  "tokio",
  "toml 0.8.23",
  "which",
+ "zeta-verification",
 ]
 
 [[package]]

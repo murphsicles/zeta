@@ -1,0 +1,23 @@
+
+// Test program using all features
+import std::memory;
+import std::quantum;
+import distributed;
+import ml;
+
+fn main() {
+    // Memory capability test
+    let cap = memory::capability::new(1024);
+    
+    // Quantum circuit test
+    let mut circuit = quantum::Circuit::new(2);
+    circuit.h(0);
+    
+    // Distributed actor test
+    let actor = distributed::actor::spawn(|| 42);
+    
+    // ML model test  
+    let model = ml::neural::Network::new(&[2, 3, 1]);
+    
+    println!("All features available!");
+}

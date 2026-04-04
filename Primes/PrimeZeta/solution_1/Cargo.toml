@@ -1,0 +1,17 @@
+[package]
+name = "primezeta-solution"
+version = "1.0.0"
+edition = "2021"
+description = "Murphy's Sieve implementation in Zeta for Plummers Prime Drag Race"
+license = "MIT"
+authors = ["murphsicles"]
+
+[[bin]]
+name = "prime_benchmark"
+path = "src/prime_benchmark.rs"
+
+[features]
+default = []
+
+[dependencies]
+# No external dependencies - pure Zeta implementation

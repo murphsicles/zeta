@@ -11,7 +11,7 @@ pub mod fmt;
 pub mod time;
 pub mod env;
 pub mod math;
-// pub mod quantum; // Temporarily disabled due to potential compilation issues
+pub mod quantum;
 
 /// Initializes the standard library module system.
 pub fn init() {
@@ -23,7 +23,7 @@ pub fn init() {
     time::init();
     env::init();
     math::init();
-    // quantum::init(); // Temporarily disabled
+    quantum::init();
 }
 
 /// Checks if a path is a standard library import.
@@ -69,7 +69,7 @@ pub fn get_std_functions() -> ::std::collections::HashMap<&'static str, usize> {
     math::register_functions(&mut map);
     
     // Quantum computing functions
-    // quantum::register_functions(&mut map); // Temporarily disabled
+    quantum::register_functions(&mut map);
     
     map
 }

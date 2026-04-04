@@ -145,7 +145,7 @@ impl TwoPhaseCommitCoordinator {
     /// Get transaction state
     pub fn get_state(&self, tx_id: TransactionId) -> Option<TransactionState> {
         let transactions = self.transactions.read().unwrap();
-        transactions.get(&tx_id).copied()
+        transactions.get(&tx_id).cloned()
     }
 }
 

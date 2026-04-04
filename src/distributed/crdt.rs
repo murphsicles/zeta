@@ -11,7 +11,7 @@ use serde::{Serialize, Deserialize};
 pub type NodeId = u64;
 
 /// Vector clock for causal ordering
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct VectorClock {
     entries: HashMap<NodeId, u64>,
 }
@@ -48,7 +48,7 @@ impl VectorClock {
         let mut less = false;
         let mut greater = false;
         
-        let all_nodes: HashSet<NodeId> = self.entries.keys()
+        let all_nodes: std::collections::HashSet<NodeId> = self.entries.keys()
             .chain(other.entries.keys())
             .copied()
             .collect();
@@ -253,7 +253,7 @@ impl<T: Clone + Eq + std::hash::Hash> TwoPSet<T> {
 /// Observed-remove set (OR-Set)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ORSet<T: Clone + Eq + std::hash::Hash> {
-    elements: HashMap<T, HashSet<VectorClock>>,
+    elements: HashMap<T, Vec<VectorClock>>,
 }
 
 impl<T: Clone + Eq + std::hash::Hash> ORSet<T> {
@@ -268,8 +268,8 @@ impl<T: Clone + Eq + std::hash::Hash> ORSet<T> {
     pub fn add(&mut self, element: T, node: NodeId, clock: &mut VectorClock) {
         clock.increment(node);
         
-        let entry = self.elements.entry(element).or_insert_with(HashSet::new);
-        entry.insert(clock.clone());
+        let entry = self.elements.entry(element).or_insert_with(Vec::new);
+        entry.push(clock.clone());
     }
     
     /// Remove element from set
@@ -280,7 +280,7 @@ impl<T: Clone + Eq + std::hash::Hash> ORSet<T> {
             new_clock.increment(node); // Different event
             
             // Tag removal with new vector clock
-            clocks.insert(new_clock);
+            clocks.push(new_clock);
         }
     }
     
@@ -305,7 +305,7 @@ impl<T: Clone + Eq + std::hash::Hash> ORSet<T> {
     /// Merge with another OR-Set
     pub fn merge(&mut self, other: &ORSet<T>) {
         for (element, other_clocks) in &other.elements {
-            let entry = self.elements.entry(element.clone()).or_insert_with(HashSet::new);
+            let entry = self.elements.entry(element.clone()).or_insert_with(Vec::new);
             entry.extend(other_clocks.iter().cloned());
         }
     }

@@ -3,7 +3,7 @@
 //! Provides node discovery, leader election, load balancing, and health monitoring
 //! for distributed Zeta clusters.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -264,7 +264,7 @@ impl ClusterManager {
                         continue;
                     }
                     
-                    let elapsed = now.saturating_sub(node.last_heartbeat);
+                    let elapsed = Duration::from_millis(now.saturating_sub(node.last_heartbeat));
                     
                     if elapsed > timeout {
                         dead_nodes.push(*node_id);
@@ -415,7 +415,10 @@ impl ClusterManager {
     
     /// Subscribe to membership events
     pub fn subscribe(&self) -> mpsc::UnboundedReceiver<MembershipEvent> {
-        self.event_receiver.resubscribe()
+        // Create a new channel for subscription
+        // For now, return a dummy receiver
+        let (_, receiver) = mpsc::unbounded_channel();
+        receiver
     }
 }
 

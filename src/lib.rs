@@ -31,7 +31,7 @@ pub mod runtime;
 pub mod std;
 pub mod workflows;
 pub mod zeta;
-// pub mod distributed; // Temporarily disabled due to compilation errors
+pub mod distributed;
 
 // #[cfg(test)]
 // mod tests;

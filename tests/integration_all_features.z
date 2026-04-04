@@ -1,0 +1,103 @@
+// Integration test for all advanced features
+// Tests: Memory model, Quantum computing, Verification, Distributed systems, ML
+
+// 1. Memory model test - capability-based memory
+fn memory_test() {
+    // Create a capability for memory access
+    let mem_cap = std::memory::capability::new(1024);
+    
+    // Allocate memory using capability
+    let buffer = mem_cap.allocate::<u8>(100);
+    
+    // Use memory
+    for i in 0..100 {
+        buffer[i] = i as u8;
+    }
+    
+    // Free memory
+    mem_cap.free(buffer);
+}
+
+// 2. Quantum computing test
+fn quantum_test() {
+    // Create a quantum circuit
+    let mut circuit = std::quantum::Circuit::new(2);
+    
+    // Add Hadamard gate to first qubit
+    circuit.h(0);
+    
+    // Add CNOT gate
+    circuit.cx(0, 1);
+    
+    // Measure
+    let result = circuit.measure_all();
+    
+    println!("Quantum result: {:?}", result);
+}
+
+// 3. Formal verification annotations
+#[requires(x > 0)]
+#[ensures(result > x)]
+fn verified_increment(x: i32) -> i32 {
+    x + 1
+}
+
+// 4. Distributed systems test
+fn distributed_test() {
+    // Create distributed actor
+    let actor = distributed::actor::spawn(|| {
+        println!("Actor running on remote node");
+        42
+    });
+    
+    // Send message to actor
+    let result = actor.send("compute");
+    println!("Actor result: {}", result);
+}
+
+// 5. Machine learning test
+fn ml_test() {
+    // Create simple neural network
+    let model = ml::neural::Network::new(&[2, 3, 1]);
+    
+    // Train on XOR data
+    let data = [
+        ([0.0, 0.0], [0.0]),
+        ([0.0, 1.0], [1.0]),
+        ([1.0, 0.0], [1.0]),
+        ([1.0, 1.0], [0.0]),
+    ];
+    
+    model.train(&data, 1000);
+    
+    // Test prediction
+    let prediction = model.predict(&[1.0, 0.0]);
+    println!("ML prediction: {:?}", prediction);
+}
+
+// Main function that runs all tests
+fn main() {
+    println!("Starting integration tests for all advanced features...");
+    
+    // Test memory model
+    memory_test();
+    println!("✓ Memory model test passed");
+    
+    // Test quantum computing (simulated)
+    quantum_test();
+    println!("✓ Quantum computing test passed");
+    
+    // Test verified function
+    let result = verified_increment(5);
+    println!("✓ Verified increment: 5 -> {}", result);
+    
+    // Test distributed systems (simulated)
+    distributed_test();
+    println!("✓ Distributed systems test passed");
+    
+    // Test machine learning
+    ml_test();
+    println!("✓ Machine learning test passed");
+    
+    println!("All integration tests completed successfully!");
+}

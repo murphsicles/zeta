@@ -287,23 +287,6 @@ impl NetworkTransport {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
         return;
-        
-        // Original code (commented out due to Arc issues):
-        // let listener = self.listener.take().unwrap();
-        
-        while *self.running.read().unwrap() {
-            match listener.accept().await {
-                Ok((stream, addr)) => {
-                    let transport = self.clone();
-                    tokio::spawn(async move {
-                        transport.handle_connection(stream, addr).await;
-                    });
-                }
-                Err(e) => {
-                    eprintln!("Failed to accept connection: {}", e);
-                }
-            }
-        }
     }
     
     /// Handle incoming connection
