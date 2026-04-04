@@ -17,7 +17,7 @@ use inkwell::IntPredicate;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::{Linkage, Module};
-use inkwell::types::{IntType, PointerType, VectorType};
+use inkwell::types::{BasicMetadataTypeEnum, BasicType, IntType, PointerType, VectorType};
 use inkwell::values::{
     BasicMetadataValueEnum, BasicValueEnum, CallSiteValue, FunctionValue, PointerValue,
 };
@@ -431,6 +431,65 @@ impl<'ctx> LLVMCodegen<'ctx> {
         // Note: These functions are declared as external but will be handled inline
         // by the code generator (see is_operator and MirStmt::Call handling)
 
+        // === SIMD INTRINSIC DECLARATIONS ===
+        // Vector splat operations
+        module.add_function(
+            "simd_splat_i32x4",
+            vec4_i64_type.fn_type(&[i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "simd_splat_i64x2",
+            i64_type.vec_type(2).fn_type(&[i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "simd_splat_f32x4",
+            f64_type.vec_type(4).fn_type(&[f64_type.into()], false),
+            Some(Linkage::External),
+        );
+
+        // Vector arithmetic operations
+        module.add_function(
+            "simd_add_i32x4",
+            vec4_i64_type.fn_type(&[vec4_i64_type.into(), vec4_i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "simd_mul_i32x4",
+            vec4_i64_type.fn_type(&[vec4_i64_type.into(), vec4_i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "simd_sub_i32x4",
+            vec4_i64_type.fn_type(&[vec4_i64_type.into(), vec4_i64_type.into()], false),
+            Some(Linkage::External),
+        );
+
+        // Vector load/store operations
+        module.add_function(
+            "simd_load_i32x4",
+            vec4_i64_type.fn_type(&[ptr_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "simd_store_i32x4",
+            void_type.fn_type(&[ptr_type.into(), vec4_i64_type.into()], false),
+            Some(Linkage::External),
+        );
+
+        // Vector extract/insert operations
+        module.add_function(
+            "simd_extract_i32x4",
+            i64_type.fn_type(&[vec4_i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "simd_insert_i32x4",
+            vec4_i64_type.fn_type(&[vec4_i64_type.into(), i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+
         Self {
             context,
             module,
@@ -743,6 +802,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 | "or_i64"
                 | "not_i64"
         )
+    }
+
+    /// Check if a function name is a SIMD operation
+    fn is_simd_operation(&self, name: &str) -> bool {
+        name.starts_with("simd_") || name.contains("x") // e.g., i32x4, f32x4
     }
 
     fn get_function(&self, name: &str) -> FunctionValue<'ctx> {
@@ -1325,6 +1389,21 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             let alloca = *self.locals.get(dest).unwrap();
                             self.builder.build_store(alloca, val).unwrap();
                         }
+                    }
+                } else if self.is_simd_operation(func) {
+                    // Handle SIMD operations
+                    let callee = self.get_function_with_types(func, type_args);
+                    let arg_vals: Vec<BasicMetadataValueEnum> = args
+                        .iter()
+                        .map(|&id| self.gen_expr_safe(&id, exprs).into())
+                        .collect();
+                    let call = self
+                        .builder
+                        .build_call(callee, &arg_vals, &format!("simd_call_{dest}"))
+                        .unwrap();
+                    if let Some(val) = Self::call_site_to_basic_value(call) {
+                        let alloca = *self.locals.get(dest).unwrap();
+                        self.builder.build_store(alloca, val).unwrap();
                     }
                 } else {
                     // Regular function call
@@ -1967,5 +2046,163 @@ impl<'ctx> LLVMCodegen<'ctx> {
         values.push(self.context.i8_type().const_int(0, false));
         global.set_initializer(&self.context.i8_type().const_array(&values));
         global.as_pointer_value()
+    }
+
+    /// Convert a Zeta type to an LLVM type
+    pub fn type_to_llvm_type(&self, ty: &Type) -> inkwell::types::BasicTypeEnum<'ctx> {
+        match ty {
+            Type::I8 => self.context.i8_type().into(),
+            Type::I16 => self.context.i16_type().into(),
+            Type::I32 => self.context.i32_type().into(),
+            Type::I64 => self.context.i64_type().into(),
+            Type::U8 => self.context.i8_type().into(),
+            Type::U16 => self.context.i16_type().into(),
+            Type::U32 => self.context.i32_type().into(),
+            Type::U64 => self.context.i64_type().into(),
+            Type::Usize => self.context.i64_type().into(), // Platform-dependent, assume 64-bit
+            Type::F32 => self.context.f32_type().into(),
+            Type::F64 => self.context.f64_type().into(),
+            Type::Bool => self.context.bool_type().into(),
+            Type::Char => self.context.i32_type().into(), // Unicode scalar value
+            Type::Str => self.context.ptr_type(AddressSpace::default()).into(),
+            Type::Range => self.context.struct_type(&[self.context.i64_type().into(), self.context.i64_type().into()], false).into(),
+            Type::Array(element_type, size) => {
+                let element_llvm_type = self.type_to_llvm_type(element_type);
+                match element_llvm_type {
+                    inkwell::types::BasicTypeEnum::IntType(int_type) => {
+                        int_type.array_type(*size as u32).into()
+                    }
+                    inkwell::types::BasicTypeEnum::FloatType(float_type) => {
+                        float_type.array_type(*size as u32).into()
+                    }
+                    inkwell::types::BasicTypeEnum::StructType(struct_type) => {
+                        struct_type.array_type(*size as u32).into()
+                    }
+                    inkwell::types::BasicTypeEnum::PointerType(ptr_type) => {
+                        ptr_type.array_type(*size as u32).into()
+                    }
+                    inkwell::types::BasicTypeEnum::VectorType(vec_type) => {
+                        vec_type.array_type(*size as u32).into()
+                    }
+                    inkwell::types::BasicTypeEnum::ArrayType(array_type) => {
+                        array_type.array_type(*size as u32).into()
+                    }
+                    inkwell::types::BasicTypeEnum::ScalableVectorType(scalable_vec_type) => {
+                        // For now, treat scalable vectors as regular vectors
+                        // This might need to be adjusted based on actual usage
+                        scalable_vec_type.array_type(*size as u32).into()
+                    }
+                }
+            }
+            Type::Slice(element_type) => {
+                let element_llvm_type = self.type_to_llvm_type(element_type);
+                // Slice is (pointer, length)
+                self.context.struct_type(&[
+                    self.context.ptr_type(AddressSpace::default()).into(),
+                    self.context.i64_type().into()
+                ], false).into()
+            }
+            Type::DynamicArray(element_type) => {
+                let element_llvm_type = self.type_to_llvm_type(element_type);
+                // Dynamic array is similar to slice
+                self.context.struct_type(&[
+                    self.context.ptr_type(AddressSpace::default()).into(),
+                    self.context.i64_type().into(),
+                    self.context.i64_type().into() // capacity
+                ], false).into()
+            }
+            Type::Tuple(element_types) => {
+                let llvm_element_types: Vec<inkwell::types::BasicTypeEnum> = 
+                    element_types.iter().map(|t| self.type_to_llvm_type(t)).collect();
+                self.context.struct_type(&llvm_element_types, false).into()
+            }
+            Type::Ptr(element_type, _) => {
+                let _element_llvm_type = self.type_to_llvm_type(element_type);
+                self.context.ptr_type(AddressSpace::default()).into()
+            }
+            Type::Ref(element_type, _, _) => {
+                let _element_llvm_type = self.type_to_llvm_type(element_type);
+                self.context.ptr_type(AddressSpace::default()).into()
+            }
+            Type::Vector(element_type, size) => {
+                let element_llvm_type = self.type_to_llvm_type(element_type);
+                // Create SIMD vector type
+                match element_llvm_type {
+                    inkwell::types::BasicTypeEnum::IntType(int_type) => {
+                        int_type.vec_type(*size as u32).into()
+                    }
+                    inkwell::types::BasicTypeEnum::FloatType(float_type) => {
+                        float_type.vec_type(*size as u32).into()
+                    }
+                    inkwell::types::BasicTypeEnum::ScalableVectorType(_) => {
+                        // For scalable vectors, use regular vector for now
+                        self.context.i64_type().vec_type(*size as u32).into()
+                    }
+                    _ => {
+                        // Fallback: treat as array for unsupported element types
+                        // Use i64 array as fallback
+                        self.context.i64_type().array_type(*size as u32).into()
+                    }
+                }
+            }
+            Type::Named(name, type_args) => {
+                // For named types, check if we have a cached specialized type
+                let type_key = self.mangle_type_name(name, type_args);
+                if let Some(&cached_type) = self.specialized_types.get(&type_key) {
+                    return cached_type.into();
+                }
+                
+                // Default to i64 for unknown named types
+                self.context.i64_type().into()
+            }
+            Type::TraitObject(_) => {
+                // Trait object is (data pointer, vtable pointer)
+                self.context.struct_type(&[
+                    self.context.ptr_type(AddressSpace::default()).into(),
+                    self.context.ptr_type(AddressSpace::default()).into()
+                ], false).into()
+            }
+            Type::Function(param_types, return_type) => {
+                // Function types are represented as function pointers
+                self.context.ptr_type(AddressSpace::default()).into()
+            }
+            Type::AsyncFunction(param_types, return_type) => {
+                // Async function returns a future, represented as function pointer
+                self.context.ptr_type(AddressSpace::default()).into()
+            }
+            Type::Variable(_) => {
+                // Type variable - use i64 as placeholder
+                self.context.i64_type().into()
+            }
+            Type::Constructor(_, _, _) => {
+                // Type constructor - use i64 as placeholder
+                self.context.i64_type().into()
+            }
+            Type::PartialApplication(_, _) => {
+                // Partial application - use i64 as placeholder
+                self.context.i64_type().into()
+            }
+            Type::Error => {
+                // Error type - use i64 as placeholder
+                self.context.i64_type().into()
+            }
+        }
+    }
+
+    /// Mangle a type name with type arguments
+    fn mangle_type_name(&self, base_name: &str, type_args: &[Type]) -> String {
+        if type_args.is_empty() {
+            return base_name.to_string();
+        }
+
+        let mut mangled = base_name.to_string();
+        mangled.push_str("_inst");
+
+        for ty in type_args {
+            mangled.push('_');
+            mangled.push_str(&ty.mangled_name());
+        }
+
+        mangled
     }
 }

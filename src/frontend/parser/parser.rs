@@ -65,7 +65,10 @@ pub fn parse_ident(input: &str) -> IResult<&str, String> {
                 "continue", "fn", "concept", "impl", "enum", "struct", "type", "use", "extern",
                 "dyn", "box", "as", "true", "false", "comptime", "const", "async", "pub",
                 // Built-in types that shouldn't be parsed as identifiers
-                "i64", "u64", "usize", "f64", "bool", "String",
+                "i8", "i16", "i32", "i64",
+                "u8", "u16", "u32", "u64", "usize",
+                "f32", "f64",
+                "bool", "char", "str", "String",
                 // TODO: re-add these when we implement logical operators
                 // or when the self-hosted parser (parser.z) becomes the default
                 // "and", "or", "not"
@@ -250,6 +253,65 @@ pub fn parse_pointer_type(input: &str) -> IResult<&str, String> {
     Ok((input, format!("{} {}", pointer_type, inner_type)))
 }
 
+/// Parse SIMD vector types: u64x8, f32x4, Vector<u64, 8>
+pub fn parse_simd_type<'a>(input: &'a str) -> IResult<&'a str, String> {
+    // Try shorthand syntax first: u64x8, f32x4, etc.
+    let shorthand_parser = move |input: &'a str| -> IResult<&'a str, String> {
+        // Parse base type: i8, i16, i32, i64, u8, u16, u32, u64, f32, f64
+        let mut base_type_parser = alt((
+            tag("i8"), tag("i16"), tag("i32"), tag("i64"),
+            tag("u8"), tag("u16"), tag("u32"), tag("u64"),
+            tag("f32"), tag("f64"),
+        ));
+        let (input, base_type) = base_type_parser.parse(input)?;
+        
+        // Parse 'x' separator
+        let (input, _) = tag("x")(input)?;
+        
+        // Parse size (positive integer)
+        let (input, size_str) = nom::character::complete::digit1(input)?;
+        
+        // Convert size to usize
+        let size = size_str.parse::<usize>().unwrap_or(0);
+        if size == 0 {
+            return Err(nom::Err::Error(nom::error::Error::new(
+                input,
+                nom::error::ErrorKind::Digit,
+            )));
+        }
+        
+        Ok((input, format!("Vector<{}, {}>", base_type, size)))
+    };
+    
+    // Try Vector<T, N> syntax
+    let generic_parser = move |input: &'a str| -> IResult<&'a str, String> {
+        let (input, _) = ws(tag("Vector")).parse(input)?;
+        let (input, _) = ws(tag("<")).parse(input)?;
+        
+        // Parse element type
+        let (input, elem_type) = ws(parse_type).parse(input)?;
+        
+        let (input, _) = ws(tag(",")).parse(input)?;
+        
+        // Parse size
+        let (input, size_str) = ws(nom::character::complete::digit1).parse(input)?;
+        let size = size_str.parse::<usize>().unwrap_or(0);
+        if size == 0 {
+            return Err(nom::Err::Error(nom::error::Error::new(
+                input,
+                nom::error::ErrorKind::Digit,
+            )));
+        }
+        
+        let (input, _) = ws(tag(">")).parse(input)?;
+        
+        Ok((input, format!("Vector<{}, {}>", elem_type, size)))
+    };
+    
+    // Try shorthand first, then generic
+    alt((shorthand_parser, generic_parser)).parse(input)
+}
+
 pub fn parse_type(input: &str) -> IResult<&str, String> {
     let (mut input, mut s) = (input, String::new());
 
@@ -283,24 +345,43 @@ pub fn parse_type(input: &str) -> IResult<&str, String> {
         }
     }
 
-    let (input, base) = alt((
+    // First try special types
+    let special_types = alt((
         tag("_").map(|_| "_".to_string()),
         parse_tuple_type,
         parse_fn_type,
         parse_array_type,
         parse_pointer_type,
         preceded(ws(tag("dyn")), ws(parse_type_path)).map(|p| format!("dyn {}", p)),
-        // Built-in types
+        parse_simd_type,
+        parse_lt_type,
+    ));
+    
+    // Then try built-in types
+    let builtin_types = alt((
+        tag("i8").map(|_| "i8".to_string()),
+        tag("i16").map(|_| "i16".to_string()),
+        tag("i32").map(|_| "i32".to_string()),
         tag("i64").map(|_| "i64".to_string()),
+        tag("u8").map(|_| "u8".to_string()),
+        tag("u16").map(|_| "u16".to_string()),
+        tag("u32").map(|_| "u32".to_string()),
         tag("u64").map(|_| "u64".to_string()),
         tag("usize").map(|_| "usize".to_string()),
+        tag("f32").map(|_| "f32".to_string()),
         tag("f64").map(|_| "f64".to_string()),
         tag("bool").map(|_| "bool".to_string()),
+        tag("char").map(|_| "char".to_string()),
+        tag("str").map(|_| "str".to_string()),
         tag("String").map(|_| "String".to_string()),
-        parse_lt_type,
+    ));
+    
+    // Try special types first, then built-in types, then type paths
+    let (input, base) = alt((
+        special_types,
+        builtin_types,
         parse_type_path,
-    ))
-    .parse(input)?;
+    )).parse(input)?;
     s += &base;
     Ok((input, s))
 }

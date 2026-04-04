@@ -375,6 +375,13 @@ impl TypeFamilyContext {
                 )
             }
             
+            Type::Vector(inner, size) => {
+                Type::Vector(
+                    Box::new(self.apply_substitution(inner, substitution)),
+                    *size,
+                )
+            }
+            
             Type::Function(params, ret) => {
                 Type::Function(
                     params
@@ -444,6 +451,10 @@ impl TypeFamilyContext {
                     simplified_params?,
                     Box::new(self.simplify(ret)?),
                 ))
+            }
+            
+            Type::Vector(inner, size) => {
+                Ok(Type::Vector(Box::new(self.simplify(inner)?), *size))
             }
             
             // Other types remain unchanged

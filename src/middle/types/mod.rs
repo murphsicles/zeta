@@ -92,6 +92,9 @@ pub enum Type {
     // Type variables (for inference)
     Variable(TypeVar),
 
+    // SIMD vector types
+    Vector(Box<Type>, usize), // Vector<T, N> - SIMD vector of N elements of type T
+
     // Type constructor (higher-kinded type)
     Constructor(String, Vec<Type>, Kind), // Name, type arguments, kind
 
@@ -440,6 +443,8 @@ impl Type {
             Type::Variable(_) => true,
             Type::Array(inner, _) => inner.contains_vars(),
             Type::Slice(inner) => inner.contains_vars(),
+            Type::DynamicArray(inner) => inner.contains_vars(),
+            Type::Vector(inner, _) => inner.contains_vars(),
             Type::Tuple(types) => types.iter().any(|t| t.contains_vars()),
             Type::Ptr(inner, _) => inner.contains_vars(),
             Type::Ref(inner, lifetime, _) => inner.contains_vars() || lifetime.contains_vars(),
@@ -480,6 +485,7 @@ impl Type {
             Type::Array(inner, size) => format!("[{}; {}]", inner.display_name(), size),
             Type::Slice(inner) => format!("[{}]", inner.display_name()),
             Type::DynamicArray(inner) => format!("[dynamic]{}", inner.display_name()),
+            Type::Vector(inner, size) => format!("Vector<{}, {}>", inner.display_name(), size),
             Type::Tuple(types) => {
                 let inner = types
                     .iter()
@@ -572,6 +578,7 @@ impl Type {
             Type::Array(inner, size) => format!("Array_{}_{}", inner.mangled_name(), size),
             Type::Slice(inner) => format!("Slice_{}", inner.mangled_name()),
             Type::DynamicArray(inner) => format!("DynamicArray_{}", inner.mangled_name()),
+            Type::Vector(inner, size) => format!("Vector_{}_{}", inner.mangled_name(), size),
             Type::Tuple(types) => {
                 let mut name = "Tuple".to_string();
                 for ty in types {
@@ -767,6 +774,19 @@ impl Type {
             _ => Ok(self.clone()),
         }
     }
+
+    /// Check if this type is a SIMD vector
+    pub fn is_vector(&self) -> bool {
+        matches!(self, Type::Vector(_, _))
+    }
+
+    /// Get the element type and size of a vector if this is a vector type
+    pub fn as_vector(&self) -> Option<(&Type, usize)> {
+        match self {
+            Type::Vector(inner, size) => Some((inner, *size)),
+            _ => None,
+        }
+    }
 }
 
 /// Simple derive attribute handler
@@ -853,6 +873,8 @@ impl Substitution {
                 .unwrap_or(Type::Variable(var.clone())),
             Type::Array(inner, size) => Type::Array(Box::new(self.apply(inner)), *size),
             Type::Slice(inner) => Type::Slice(Box::new(self.apply(inner))),
+            Type::DynamicArray(inner) => Type::DynamicArray(Box::new(self.apply(inner))),
+            Type::Vector(inner, size) => Type::Vector(Box::new(self.apply(inner)), *size),
             Type::Tuple(types) => Type::Tuple(types.iter().map(|t| self.apply(t)).collect()),
             Type::Ptr(inner, mutability) => Type::Ptr(Box::new(self.apply(inner)), *mutability),
             Type::Ref(inner, lifetime, mutability) => {
@@ -876,6 +898,8 @@ impl Substitution {
             Type::Variable(v) => v == var,
             Type::Array(inner, _) => self.occurs_check(var, inner),
             Type::Slice(inner) => self.occurs_check(var, inner),
+            Type::DynamicArray(inner) => self.occurs_check(var, inner),
+            Type::Vector(inner, _) => self.occurs_check(var, inner),
             Type::Tuple(types) => types.iter().any(|t| self.occurs_check(var, t)),
             Type::Ptr(inner, _) => self.occurs_check(var, inner),
             Type::Ref(inner, _, _) => self.occurs_check(var, inner),
@@ -1034,6 +1058,14 @@ impl Substitution {
                 self.unify(inner1, inner2)
             }
 
+            // Vector types
+            (Type::Vector(inner1, size1), Type::Vector(inner2, size2)) => {
+                if size1 != size2 {
+                    return Err(UnifyError::Mismatch(t1, t2));
+                }
+                self.unify(inner1, inner2)
+            }
+
             // Tuple types
             (Type::Tuple(types1), Type::Tuple(types2)) => {
                 if types1.len() != types2.len() {
@@ -1160,6 +1192,9 @@ impl Substitution {
             Type::DynamicArray(inner) => {
                 Self::collect_type_vars(inner, type_vars);
             }
+            Type::Vector(inner, _) => {
+                Self::collect_type_vars(inner, type_vars);
+            }
             Type::Tuple(types) => {
                 for t in types {
                     Self::collect_type_vars(t, type_vars);
@@ -1245,6 +1280,18 @@ impl Substitution {
                 let instantiated_inner =
                     self.instantiate_generic_with_bounds(inner, type_args, context)?;
                 Ok(Type::Slice(Box::new(instantiated_inner)))
+            }
+
+            Type::DynamicArray(inner) => {
+                let instantiated_inner =
+                    self.instantiate_generic_with_bounds(inner, type_args, context)?;
+                Ok(Type::DynamicArray(Box::new(instantiated_inner)))
+            }
+
+            Type::Vector(inner, size) => {
+                let instantiated_inner =
+                    self.instantiate_generic_with_bounds(inner, type_args, context)?;
+                Ok(Type::Vector(Box::new(instantiated_inner), *size))
             }
 
             Type::Tuple(types) => {
@@ -1357,6 +1404,7 @@ impl Substitution {
             Type::Ref(_, _, Mutability::Immutable) => true, // Shared references are Copy
 
             Type::Tuple(types) => types.iter().all(|t| self.is_copy(t)),
+            Type::Vector(inner, _) => self.is_copy(inner),
 
             Type::Named(name, args) => {
                 // Check if this is a known Copy type
@@ -1399,6 +1447,7 @@ impl Substitution {
             | Type::Char => true,
 
             Type::Tuple(types) => types.iter().all(|t| self.is_default(t)),
+            Type::Vector(inner, _) => self.is_default(inner),
 
             Type::Named(name, args) => match name.as_str() {
                 "Option" if args.len() == 1 => self.is_default(&args[0]),

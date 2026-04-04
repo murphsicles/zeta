@@ -212,6 +212,50 @@ impl InferContext {
             return Ok(Type::Named(type_name.to_string(), args));
         }
 
+        // Check for Vector<T, N> type (special case - second argument is a number)
+        if s.starts_with("Vector<") && s.ends_with('>') {
+            let inner = &s[7..s.len() - 1]; // Remove "Vector<" and ">"
+            
+            // Parse element type and size
+            let mut parts = Vec::new();
+            let mut current = String::new();
+            let mut depth = 0;
+            
+            for ch in inner.chars() {
+                match ch {
+                    '<' => {
+                        depth += 1;
+                        current.push(ch);
+                    }
+                    '>' => {
+                        depth -= 1;
+                        current.push(ch);
+                    }
+                    ',' if depth == 0 => {
+                        if !current.is_empty() {
+                            parts.push(current.trim().to_string());
+                            current.clear();
+                        }
+                    }
+                    _ => current.push(ch),
+                }
+            }
+            
+            if !current.is_empty() {
+                parts.push(current.trim().to_string());
+            }
+            
+            if parts.len() != 2 {
+                return Err(format!("Vector type expects 2 arguments (element type and size), got {}", parts.len()));
+            }
+            
+            let elem_type = self.parse_type_string(&parts[0])?;
+            let size = parts[1].parse::<usize>()
+                .map_err(|e| format!("Invalid vector size '{}': {}", parts[1], e))?;
+            
+            return Ok(Type::Vector(Box::new(elem_type), size));
+        }
+        
         // Check for generic type: Vec<i32>, Option<T>, Result<T, E>
         // Look for < followed by > with content in between
         if let Some(open_angle) = s.find('<')

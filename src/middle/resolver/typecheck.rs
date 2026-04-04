@@ -116,8 +116,24 @@ impl Resolver {
                     }
                 } else if lty != rty {
                     // For other binary operators, types must match
-                    eprintln!("Error: Type mismatch in binary operation '{}': {} vs {}", op, lty.display_name(), rty.display_name());
-                    ok = false;
+                    // Check for SIMD vector operations
+                    if lty.is_vector() && rty.is_vector() {
+                        // Both are vectors, check if they have same element type and size
+                        if let (Some((l_inner, l_size)), Some((r_inner, r_size))) = (lty.as_vector(), rty.as_vector()) {
+                            if l_inner != r_inner {
+                                eprintln!("Error: SIMD vector element type mismatch in '{}': {} vs {}", op, l_inner.display_name(), r_inner.display_name());
+                                ok = false;
+                            } else if l_size != r_size {
+                                eprintln!("Error: SIMD vector size mismatch in '{}': {} vs {}", op, l_size, r_size);
+                                ok = false;
+                            }
+                            // If types match, operation is valid
+                        }
+                    } else {
+                        // Not both vectors, types must match exactly
+                        eprintln!("Error: Type mismatch in binary operation '{}': {} vs {}", op, lty.display_name(), rty.display_name());
+                        ok = false;
+                    }
                 }
                 
                 if !self.check_node(left) {
@@ -244,7 +260,13 @@ impl Resolver {
                     Type::Bool
                 } else {
                     // For other operators, return type of left operand
-                    self.infer_type(left)
+                    // For SIMD vectors, return vector type
+                    let lty = self.infer_type(left);
+                    if lty.is_vector() {
+                        lty
+                    } else {
+                        lty
+                    }
                 }
             },
             AstNode::Call { .. } => Type::I64,
