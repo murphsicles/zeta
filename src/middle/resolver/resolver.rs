@@ -740,8 +740,25 @@ impl Resolver {
             ),
         );
 
+        // Vector constructor (placeholder)
+        // Note: Vector::new is generic and takes N arguments of type T
+        // For now, we register it with 4 parameters for Vector<f32, 4>
+        // This is a hack - in a real implementation, we would handle
+        // different vector sizes and element types
+        self.funcs.insert(
+            "Vector::new".to_string(),
+            (
+                vec![("a".to_string(), Type::I64), 
+                     ("b".to_string(), Type::I64),
+                     ("c".to_string(), Type::I64),
+                     ("d".to_string(), Type::I64)],
+                Type::I64, // TODO: Should return Vector<T, N>
+                false, // not async
+            ),
+        );
+        
         println!(
-            "[RESOLVER] Registered built-in runtime functions: clone_i64, is_null_i64, to_string_str, to_string_i64, to_string_bool, array_new, array_push, array_len, array_get, array_set, array_free"
+            "[RESOLVER] Registered built-in runtime functions: clone_i64, is_null_i64, to_string_str, to_string_i64, to_string_bool, array_new, array_push, array_len, array_get, array_set, array_free, Vector::new"
         );
     }
 }
