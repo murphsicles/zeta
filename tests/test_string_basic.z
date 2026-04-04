@@ -1,0 +1,19 @@
+// Test basic string functionality for v0.3.55
+// This tests the current string capabilities before implementing enhancements
+
+fn main() -> i32 {
+    // Test string literal
+    let s = "Hello, Zeta!";
+    
+    // Test string concatenation (if supported)
+    // let s2 = s + " World!";
+    
+    // Test string length (if supported)
+    // let len = s.length();
+    
+    // Test string comparison (if supported)
+    // let eq = s == "Hello, Zeta!";
+    
+    // Return success code
+    return 0;
+}
