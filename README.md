@@ -200,7 +200,7 @@ Zeta is licensed under the MIT License. See [LICENSE](LICENSE) for details.
 
 - **GitHub Issues**: [Report bugs or request features](https://github.com/murphsicles/zeta/issues)
 - **Discussions**: [Join the conversation](https://github.com/murphsicles/zeta/discussions)
-- **Email**: roycoins@gmail.com
+- **Email**: hi@z-lang.org
 
 ---
 
