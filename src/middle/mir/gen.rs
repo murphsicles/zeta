@@ -421,6 +421,7 @@ impl MirGen {
                     self.stmts.push(MirStmt::For {
                         iterator: range_id,
                         pattern: var_name.clone(),
+                        var_id: var_id,
                         body: body_stmts,
                     });
                 }

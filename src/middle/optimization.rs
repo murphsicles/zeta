@@ -111,6 +111,7 @@ pub fn dead_code_elimination(mir: &mut Mir) {
                 iterator,
                 pattern: _,
                 body,
+                var_id: _,
             } => {
                 mark_expr_used(*iterator, &mut used, &mir.exprs);
                 // Recursively process nested statements in the loop body
@@ -334,7 +335,7 @@ pub fn common_subexpression_elimination(mir: &mut Mir) {
                             *key_id = existing_id;
                         }
                     }
-                    MirStmt::For { iterator, pattern: _, body: _ } if *iterator == *id => {
+                    MirStmt::For { iterator, pattern: _, body: _, var_id: _ } if *iterator == *id => {
                         *iterator = existing_id;
                     }
                     _ => {}

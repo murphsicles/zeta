@@ -1974,7 +1974,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.builder.position_at_end(loop_exit_bb);
             }
             
-            MirStmt::For { iterator, pattern, body } => {
+            MirStmt::For { iterator, pattern, var_id, body } => {
                 // For now, implement simple range-based for loop: for i in start..end
                 // We need to get the range expression
                 if let Some(MirExpr::Range { start, end }) = exprs.get(iterator) {
@@ -1994,11 +1994,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let start_val = self.gen_expr_safe(start, exprs).into_int_value();
                     let end_val = self.gen_expr_safe(end, exprs).into_int_value();
                     
-                    // Allocate loop variable
-                    let loop_var_ptr = self.builder.build_alloca(
-                        self.i64_type,
-                        &format!("{}_ptr", pattern)
-                    ).unwrap();
+                    // Get loop variable pointer from locals map
+                    let loop_var_ptr = *self.locals.get(var_id).unwrap();
                     
                     // Initialize loop variable to start
                     self.builder.build_store(loop_var_ptr, start_val).unwrap();
