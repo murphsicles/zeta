@@ -1,0 +1,327 @@
+// Zeta Benchmark Comparison Framework
+// Provides standardized benchmarking infrastructure for performance analysis
+
+// ============================================================================
+// BENCHMARK CONFIGURATION
+// ============================================================================
+
+struct BenchmarkConfig {
+    name: string,
+    description: string,
+    iterations: u32,
+    warmup_iterations: u32,
+    timeout_ms: u64,
+    memory_limit_mb: u32,
+}
+
+const DEFAULT_CONFIG: BenchmarkConfig = {
+    name: "default",
+    description: "Standard benchmark configuration",
+    iterations: 100,
+    warmup_iterations: 10,
+    timeout_ms: 30000,
+    memory_limit_mb: 1024,
+};
+
+// ============================================================================
+// PERFORMANCE METRICS
+// ============================================================================
+
+struct PerformanceMetrics {
+    min_time_ns: u64,
+    max_time_ns: u64,
+    avg_time_ns: u64,
+    median_time_ns: u64,
+    p95_time_ns: u64,
+    p99_time_ns: u64,
+    throughput: f64,
+    memory_usage_bytes: u64,
+    cpu_usage_percent: f32,
+    iterations_completed: u32,
+    errors: u32,
+}
+
+struct BenchmarkResult {
+    config: BenchmarkConfig,
+    metrics: PerformanceMetrics,
+    timestamp: u64,
+    version: string,
+    environment: string,
+}
+
+// ============================================================================
+// TIMING UTILITIES
+// ============================================================================
+
+// High-resolution timer (platform-specific implementation)
+fn high_res_time() -> u64 {
+    // TODO: Implement platform-specific high-resolution timer
+    // For now, return milliseconds
+    return 0;
+}
+
+fn measure_execution_time(fn_ptr: fn() -> u64, iterations: u32) -> [u64] {
+    let mut times: [u64] = [];
+    
+    for i in 0..iterations {
+        let start = high_res_time();
+        let result = fn_ptr();
+        let end = high_res_time();
+        
+        if result > 0 {  // Valid result
+            times.push(end - start);
+        }
+    }
+    
+    return times;
+}
+
+// ============================================================================
+// STATISTICAL ANALYSIS
+// ============================================================================
+
+fn calculate_statistics(times: [u64]) -> PerformanceMetrics {
+    if times.len() == 0 {
+        return {
+            min_time_ns: 0,
+            max_time_ns: 0,
+            avg_time_ns: 0,
+            median_time_ns: 0,
+            p95_time_ns: 0,
+            p99_time_ns: 0,
+            throughput: 0.0,
+            memory_usage_bytes: 0,
+            cpu_usage_percent: 0.0,
+            iterations_completed: 0,
+            errors: 0,
+        };
+    }
+    
+    // Sort times for percentiles
+    let mut sorted_times = times;
+    sorted_times.sort();
+    
+    let sum = sorted_times.reduce(|acc, val| acc + val, 0);
+    let avg = sum / sorted_times.len() as u64;
+    
+    // Calculate percentiles
+    let p95_index = (sorted_times.len() as f64 * 0.95) as usize;
+    let p99_index = (sorted_times.len() as f64 * 0.99) as usize;
+    
+    let median = if sorted_times.len() % 2 == 0 {
+        (sorted_times[sorted_times.len() / 2 - 1] + sorted_times[sorted_times.len() / 2]) / 2
+    } else {
+        sorted_times[sorted_times.len() / 2]
+    };
+    
+    return {
+        min_time_ns: sorted_times[0],
+        max_time_ns: sorted_times[sorted_times.len() - 1],
+        avg_time_ns: avg,
+        median_time_ns: median,
+        p95_time_ns: sorted_times[p95_index],
+        p99_time_ns: sorted_times[p99_index],
+        throughput: 1_000_000_000.0 / avg as f64,  // operations per second
+        memory_usage_bytes: 0,  // TODO: Implement memory tracking
+        cpu_usage_percent: 0.0, // TODO: Implement CPU tracking
+        iterations_completed: sorted_times.len() as u32,
+        errors: 0,
+    };
+}
+
+// ============================================================================
+// BENCHMARK RUNNER
+// ============================================================================
+
+struct BenchmarkSuite {
+    name: string,
+    benchmarks: [fn() -> u64],
+    benchmark_names: [string],
+    config: BenchmarkConfig,
+}
+
+impl BenchmarkSuite {
+    fn new(name: string, config: BenchmarkConfig) -> BenchmarkSuite {
+        return {
+            name: name,
+            benchmarks: [],
+            benchmark_names: [],
+            config: config,
+        };
+    }
+    
+    fn add_benchmark(&mut self, name: string, benchmark_fn: fn() -> u64) {
+        self.benchmark_names.push(name);
+        self.benchmarks.push(benchmark_fn);
+    }
+    
+    fn run_all(&self) -> [BenchmarkResult] {
+        let mut results: [BenchmarkResult] = [];
+        
+        for i in 0..self.benchmarks.len() {
+            let result = self.run_single(i);
+            results.push(result);
+        }
+        
+        return results;
+    }
+    
+    fn run_single(&self, index: usize) -> BenchmarkResult {
+        let benchmark_fn = self.benchmarks[index];
+        let benchmark_name = self.benchmark_names[index];
+        
+        // Warmup phase
+        let warmup_times = measure_execution_time(benchmark_fn, self.config.warmup_iterations);
+        
+        // Measurement phase
+        let measurement_times = measure_execution_time(benchmark_fn, self.config.iterations);
+        
+        // Calculate statistics
+        let metrics = calculate_statistics(measurement_times);
+        
+        return {
+            config: {
+                name: benchmark_name,
+                description: self.config.description,
+                iterations: self.config.iterations,
+                warmup_iterations: self.config.warmup_iterations,
+                timeout_ms: self.config.timeout_ms,
+                memory_limit_mb: self.config.memory_limit_mb,
+            },
+            metrics: metrics,
+            timestamp: high_res_time(),
+            version: "1.0.0",
+            environment: "zeta-benchmark-framework",
+        };
+    }
+}
+
+// ============================================================================
+// COMPARISON UTILITIES
+// ============================================================================
+
+struct ComparisonResult {
+    benchmark_a: string,
+    benchmark_b: string,
+    speedup_factor: f64,
+    relative_performance: f64,
+    confidence_interval: [f64; 2],
+    is_significant: bool,
+}
+
+fn compare_benchmarks(result_a: BenchmarkResult, result_b: BenchmarkResult) -> ComparisonResult {
+    let speedup = result_a.metrics.avg_time_ns as f64 / result_b.metrics.avg_time_ns as f64;
+    let relative_perf = (result_b.metrics.throughput - result_a.metrics.throughput) / result_a.metrics.throughput * 100.0;
+    
+    // Simple significance test (t-test approximation)
+    let variance_a = (result_a.metrics.max_time_ns - result_a.metrics.min_time_ns) as f64;
+    let variance_b = (result_b.metrics.max_time_ns - result_b.metrics.min_time_ns) as f64;
+    let pooled_variance = (variance_a + variance_b) / 2.0;
+    let standard_error = pooled_variance / (result_a.metrics.iterations_completed as f64).sqrt();
+    
+    let confidence_low = speedup - 1.96 * standard_error;
+    let confidence_high = speedup + 1.96 * standard_error;
+    
+    let is_significant = confidence_low > 1.0 || confidence_high < 1.0;
+    
+    return {
+        benchmark_a: result_a.config.name,
+        benchmark_b: result_b.config.name,
+        speedup_factor: speedup,
+        relative_performance: relative_perf,
+        confidence_interval: [confidence_low, confidence_high],
+        is_significant: is_significant,
+    };
+}
+
+// ============================================================================
+// REPORT GENERATION
+// ============================================================================
+
+fn generate_report(results: [BenchmarkResult], comparisons: [ComparisonResult]) -> string {
+    let mut report = "# Benchmark Performance Report\n\n";
+    
+    report += "## Summary\n";
+    report += "Generated by Zeta Benchmark Comparison Framework\n\n";
+    
+    report += "## Individual Benchmarks\n";
+    for result in results {
+        report += format!("### {}\n", result.config.name);
+        report += format!("- **Average Time**: {} ns\n", result.metrics.avg_time_ns);
+        report += format!("- **Throughput**: {:.2} ops/sec\n", result.metrics.throughput);
+        report += format!("- **Min/Max**: {} ns / {} ns\n", result.metrics.min_time_ns, result.metrics.max_time_ns);
+        report += format!("- **Iterations**: {}\n", result.metrics.iterations_completed);
+        report += "\n";
+    }
+    
+    report += "## Comparisons\n";
+    for comparison in comparisons {
+        report += format!("### {} vs {}\n", comparison.benchmark_a, comparison.benchmark_b);
+        report += format!("- **Speedup Factor**: {:.2f}x\n", comparison.speedup_factor);
+        report += format!("- **Relative Performance**: {:.1f}%\n", comparison.relative_performance);
+        report += format!("- **Confidence Interval**: [{:.2f}, {:.2f}]\n", 
+                         comparison.confidence_interval[0], comparison.confidence_interval[1]);
+        report += format!("- **Statistically Significant**: {}\n", comparison.is_significant);
+        report += "\n";
+    }
+    
+    report += "## Environment\n";
+    report += "- Framework Version: 1.0.0\n";
+    report += "- Timestamp: " + high_res_time().to_string() + "\n";
+    
+    return report;
+}
+
+// ============================================================================
+// EXAMPLE USAGE
+// ============================================================================
+
+fn example_benchmark_1() -> u64 {
+    // Simulate some work
+    let mut sum: u64 = 0;
+    for i in 0..1000 {
+        sum += i as u64;
+    }
+    return sum;
+}
+
+fn example_benchmark_2() -> u64 {
+    // Simulate different work pattern
+    let mut product: u64 = 1;
+    for i in 1..100 {
+        product *= i as u64;
+    }
+    return product;
+}
+
+fn main() -> u64 {
+    // Create benchmark suite
+    let config = {
+        name: "example-suite",
+        description: "Example benchmark comparison",
+        iterations: 50,
+        warmup_iterations: 5,
+        timeout_ms: 10000,
+        memory_limit_mb: 512,
+    };
+    
+    let mut suite = BenchmarkSuite::new("Example Suite", config);
+    suite.add_benchmark("Summation Benchmark", example_benchmark_1);
+    suite.add_benchmark("Multiplication Benchmark", example_benchmark_2);
+    
+    // Run benchmarks
+    let results = suite.run_all();
+    
+    // Compare results
+    let mut comparisons: [ComparisonResult] = [];
+    if results.len() >= 2 {
+        comparisons.push(compare_benchmarks(results[0], results[1]));
+    }
+    
+    // Generate report
+    let report = generate_report(results, comparisons);
+    
+    // TODO: Save report to file or output
+    // For now, return success code
+    return 1;
+}

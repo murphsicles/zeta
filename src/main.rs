@@ -148,23 +148,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     finalize_and_aot(&codegen, Path::new(&obj_path))?;
 
                     // WINDOWS-FRIENDLY LINKING (works with LLVM 18.1.8 on Windows)
-                    let mut cmd = std::process::Command::new("clang");
-                    cmd.arg(&obj_path)
+                    let status = std::process::Command::new("clang")
+                        .arg(&obj_path)
                         .arg("-o")
                         .arg(&out)
                         .arg("-lmsvcrt") // Microsoft C runtime
-                        .arg("-lkernel32"); // Core Windows API
-                    
-                    // Add runtime.o if it exists in current directory
-                    let runtime_o = "runtime.o";
-                    if std::path::Path::new(runtime_o).exists() {
-                        cmd.arg(runtime_o);
-                        println!("Linking with runtime.o");
-                    } else {
-                        println!("Warning: runtime.o not found, linking may fail");
-                    }
-                    
-                    let status = cmd.status()?;
+                        .arg("-lkernel32") // Core Windows API
+                        .status()?;
 
                     if !status.success() {
                         return Err("Linking failed".into());

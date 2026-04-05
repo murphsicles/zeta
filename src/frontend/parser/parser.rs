@@ -11,6 +11,7 @@ use nom::multi::{many0, many1, separated_list0, separated_list1};
 use nom::sequence::{delimited, pair, preceded, terminated};
 
 use crate::frontend::ast::GenericParam;
+use crate::frontend::parser::expr::parse_expr;
 
 pub fn line_comment(input: &str) -> IResult<&str, ()> {
     value((), pair(tag("//"), take_while(|c| c != '\n' && c != '\r'))).parse(input)
@@ -392,12 +393,19 @@ pub fn parse_type_args(input: &str) -> IResult<&str, Vec<String>> {
     delimited(
         ws(tag("<")),
         terminated(
-            separated_list0(ws(tag(",")), ws(parse_type)),
+            separated_list0(ws(tag(",")), ws(parse_generic_arg_text)),
             opt(ws(tag(","))),
         ),
         ws(tag(">")),
     )
     .parse(input)
+}
+
+/// Parse generic argument text (simple version that just captures text)
+pub fn parse_generic_arg_text(input: &str) -> IResult<&str, String> {
+    // Parse until we hit a comma, >, or whitespace
+    let (input, text) = take_while(|c: char| c != ',' && c != '>' && !c.is_whitespace())(input)?;
+    Ok((input, text.to_string()))
 }
 
 /// Parse Zeta's lt() syntax for generic types: lt(Result, i64)
