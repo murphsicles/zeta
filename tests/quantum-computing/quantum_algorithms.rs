@@ -529,3 +529,13 @@ mod tests {
         let marked_item = 3;
         
         let oracle = Box::new(move |x: usize| x == marked_item);
+        
+        let grover = GroversAlgorithm::new(database_size, oracle);
+        let result = grover.search();
+        
+        assert_eq!(result, Some(marked_item));
+        println!("Grover's algorithm found item: {:?}", result);
+    }
+}
+
+

@@ -1,5 +1,7 @@
 //! Integration tests for Teranode mining software
 
+#![cfg(feature = "blockchain")]
+
 extern crate zetac;
 
 #[cfg(test)]

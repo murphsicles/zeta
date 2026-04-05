@@ -18,7 +18,7 @@ fn main() {
                     println!("  remaining: '{}'", remaining2);
                     
                     // Then check for '('
-                    match tag("(")(remaining2) {
+                    match tag::<&str, &str, nom::error::Error<&str>>("(")(remaining2) {
                         Ok((remaining3, _)) => {
                             println!("tag('(') success");
                             println!("  remaining: '{}'", remaining3);

@@ -40,11 +40,7 @@ comptime fn test() -> i64 {
             let test_func = ast.iter().find(|node| {
                 match node {
                     zetac::frontend::ast::AstNode::FuncDef { name, .. } => {
-                        if let Some(ref n) = name {
-                            n.as_str() == "test"
-                        } else {
-                            false
-                        }
+                        name.as_ref().map(|n: &String| n.as_str()) == Some("test")
                     }
                     _ => false,
                 }
