@@ -1032,6 +1032,19 @@ impl Substitution {
                 // Allow unification between i64 and usize
                 Ok(())
             }
+            // Special case for array compatibility: allow i64 to unify with signed integers
+            (Type::I64, Type::I8) | (Type::I8, Type::I64) => {
+                // Allow unification between i64 and i8 (for array literals)
+                Ok(())
+            }
+            (Type::I64, Type::I16) | (Type::I16, Type::I64) => {
+                // Allow unification between i64 and i16 (for array literals)
+                Ok(())
+            }
+            (Type::I64, Type::I32) | (Type::I32, Type::I64) => {
+                // Allow unification between i64 and i32 (for array literals)
+                Ok(())
+            }
 
             // Type variable cases
             (Type::Variable(a), Type::Variable(b)) if a == b => Ok(()),

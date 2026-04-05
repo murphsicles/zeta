@@ -544,6 +544,29 @@ impl InferContext {
                 }
             },
 
+            AstNode::ArrayRepeat { value, size } => {
+                // Infer type of the value
+                let value_ty = self.infer(value)?;
+                
+                // Infer type of the size (should be integer)
+                let size_ty = self.infer(size)?;
+                
+                // Size should be an integer type
+                self.constrain_eq(size_ty, Type::I64);
+                
+                // Try to get the size value if it's a literal
+                let array_size = if let AstNode::Lit(size_val) = size.as_ref() {
+                    // Convert i64 to usize
+                    *size_val as usize
+                } else {
+                    // Not a literal, use 0 as placeholder
+                    0
+                };
+                
+                // Return array type with repeated value
+                Ok(Type::Array(Box::new(value_ty), array_size))
+            },
+
             AstNode::DynamicArrayLit { elem_type, elements } => {
                 // Parse the element type string into a Type
                 let parsed_type = self.parse_type_string(elem_type)
