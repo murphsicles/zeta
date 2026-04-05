@@ -3,7 +3,7 @@
 
 #[cfg(test)]
 mod tests {
-    use zetac::frontend::parser::top_level::parse_top_level;
+    use zetac::frontend::parser::top_level::parse_zeta;
     
     #[test]
     fn test_const_generic_function() {
@@ -26,10 +26,10 @@ mod tests {
         }
         "#;
         
-        let result = parse_top_level(code);
+        let result = parse_zeta(code);
         assert!(result.is_ok(), "Failed to parse const generic function: {:?}", result.err());
         
-        let (remaining, asts) = result.unwrap();
+        let (remaining, asts): (&str, Vec<_>) = result.unwrap();
         assert!(remaining.is_empty() || remaining.trim().is_empty(), "Didn't parse entire input: '{}'", remaining);
         assert!(!asts.is_empty(), "No AST nodes parsed");
     }
@@ -43,7 +43,7 @@ mod tests {
         }
         "#;
         
-        let result = parse_top_level(code);
+        let result = parse_zeta(code);
         // Note: Struct const generics not fully implemented yet
         // This test should pass once implemented
         if let Err(e) = result {
@@ -62,7 +62,7 @@ mod tests {
         }
         "#;
         
-        let result = parse_top_level(code);
+        let result = parse_zeta(code);
         // Note: Impl const generics not fully implemented yet
         if let Err(e) = result {
             println!("Impl const generics not yet implemented: {:?}", e);
@@ -81,7 +81,7 @@ mod tests {
         }
         "#;
         
-        let result = parse_top_level(code);
+        let result = parse_zeta(code);
         assert!(result.is_ok(), "Failed to parse const expression in array size: {:?}", result.err());
     }
     
@@ -94,7 +94,7 @@ mod tests {
         }
         "#;
         
-        let result = parse_top_level(code);
+        let result = parse_zeta(code);
         assert!(result.is_ok(), "Failed to parse multiple const generic parameters: {:?}", result.err());
     }
     
@@ -111,7 +111,7 @@ mod tests {
         }
         "#;
         
-        let result = parse_top_level(code);
+        let result = parse_zeta(code);
         // Note: Const generic bounds not fully implemented yet
         if let Err(e) = result {
             println!("Const generic bounds not yet implemented: {:?}", e);

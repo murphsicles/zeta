@@ -22,13 +22,16 @@ pub type LegacyConstEvaluator = ConstEvaluator;
 pub struct ConstContext;
 
 #[derive(Debug, Clone)]
-pub struct ConstEvaluator;
+pub struct ConstEvaluator {
+    functions: std::collections::HashMap<String, crate::frontend::ast::AstNode>,
+}
 
 #[derive(Debug, Clone)]
 pub enum ConstValue {
     Int(i64),
     UInt(u64),
     Bool(bool),
+    Array(Vec<ConstValue>),
 }
 
 #[derive(Debug)]
@@ -54,7 +57,22 @@ pub type CtfeResult<T> = Result<T, CtfeError>;
 
 impl ConstEvaluator {
     pub fn new() -> Self {
-        Self
+        Self {
+            functions: std::collections::HashMap::new(),
+        }
+    }
+    
+    pub fn register_function(&mut self, name: String, node: crate::frontend::ast::AstNode) {
+        self.functions.insert(name, node);
+    }
+    
+    pub fn try_eval_const_call(
+        &mut self,
+        _func: &crate::frontend::ast::AstNode,
+        _args: &[crate::frontend::ast::AstNode],
+    ) -> Result<Option<ConstValue>, String> {
+        // Simplified implementation for backward compatibility
+        Ok(None)
     }
     
     pub fn eval_const_expr(&mut self, _expr: &crate::frontend::ast::AstNode) -> CtfeResult<ConstValue> {

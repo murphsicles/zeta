@@ -29,7 +29,7 @@ comptime fn test_gcd() -> i64 {
             let test_func = ast.iter().find(|node| {
                 match node {
                     zetac::frontend::ast::AstNode::FuncDef { name, .. } => {
-                        name.as_ref().map(|s| s.as_str()) == Some("test_gcd")
+                        name.as_ref().map(|s: &String| s.as_str()) == Some("test_gcd")
                     }
                     _ => false,
                 }

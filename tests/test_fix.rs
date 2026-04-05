@@ -30,10 +30,8 @@ comptime fn test() -> i64 {
                     ..
                 } = *node {
                     if const_ || comptime_ {
-                        if let Some(name) = name {
-                            println!("Registering function: {}", name);
-                            evaluator.register_function(name.clone(), node.clone());
-                        }
+                        println!("Registering function: {}", name);
+                        evaluator.register_function(name.clone(), node.clone());
                     }
                 }
             }

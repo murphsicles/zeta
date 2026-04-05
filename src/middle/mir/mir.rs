@@ -77,6 +77,7 @@ pub enum MirStmt {
     For {
         iterator: u32,   // Iterator expression
         pattern: String, // Variable name to bind to
+        var_id: u32,     // Variable ID for the loop variable
         body: Vec<MirStmt>,
     },
     // While loop

@@ -364,58 +364,66 @@ impl MirGen {
                 //   i = i + 1;
                 // }
 
-                // Check if expr is a range expression (BinaryOp with "..")
-                if let AstNode::BinaryOp { op, left, right } = &**expr {
-                    if op == ".." {
-                        // Get variable name from pattern
-                        if let AstNode::Var(var_name) = &**pattern {
-                            // Lower start and end expressions
-                            let start_id = self.lower_expr(left);
-                            let end_id = self.lower_expr(right);
-
-                            // Create loop variable
-                            let var_id = self.next_id();
-                            self.name_to_id.insert(var_name.clone(), var_id);
-                            self.exprs.insert(var_id, MirExpr::Var(var_id));
-                            self.type_map.insert(var_id, Type::I64);
-
-                            // Initialize loop variable: let mut i = start
-                            self.stmts.push(MirStmt::Assign {
-                                lhs: var_id,
-                                rhs: start_id,
-                            });
-
-                            // Create a range iterator expression
-                            // For range start..end, we need to create an iterator
-                            // For now, we'll create a simple representation
-                            let range_id = self.next_id();
-                            self.exprs.insert(range_id, MirExpr::Range {
-                                start: start_id,
-                                end: end_id,
-                            });
-                            self.type_map.insert(range_id, Type::Range);
-                            
-                            // Save current statements to restore after loop body
-                            let stmts_before_body = self.stmts.len();
-
-                            // Generate loop body
-                            for stmt in body {
-                                self.lower_ast(stmt);
-                            }
-
-                            // Get body statements
-                            let body_stmts = self.stmts.split_off(stmts_before_body);
-                            
-                            // Create For statement in MIR
-                            self.stmts.push(MirStmt::For {
-                                iterator: range_id,
-                                pattern: var_name.clone(),
-                                body: body_stmts,
-                            });
-                        }
+                // Check if expr is a range expression (BinaryOp with ".." or AstNode::Range)
+                let (start_expr, end_expr) = match &**expr {
+                    AstNode::BinaryOp { op, left, right } if op == ".." => {
+                        (left, right)
                     }
+                    AstNode::Range { start, end, inclusive: _ } => {
+                        (start, end)
+                    }
+                    _ => {
+                        // TODO: Handle other iterator types
+                        return;
+                    }
+                };
+                
+                // Get variable name from pattern
+                if let AstNode::Var(var_name) = &**pattern {
+                    // Lower start and end expressions
+                    let start_id = self.lower_expr(start_expr);
+                    let end_id = self.lower_expr(end_expr);
+
+                    // Create loop variable
+                    let var_id = self.next_id();
+                    self.name_to_id.insert(var_name.clone(), var_id);
+                    self.exprs.insert(var_id, MirExpr::Var(var_id));
+                    self.type_map.insert(var_id, Type::I64);
+
+                    // Initialize loop variable: let mut i = start
+                    self.stmts.push(MirStmt::Assign {
+                        lhs: var_id,
+                        rhs: start_id,
+                    });
+
+                    // Create a range iterator expression
+                    // For range start..end, we need to create an iterator
+                    // For now, we'll create a simple representation
+                    let range_id = self.next_id();
+                    self.exprs.insert(range_id, MirExpr::Range {
+                        start: start_id,
+                        end: end_id,
+                    });
+                    self.type_map.insert(range_id, Type::Range);
+                    
+                    // Save current statements to restore after loop body
+                    let stmts_before_body = self.stmts.len();
+
+                    // Generate loop body
+                    for stmt in body {
+                        self.lower_ast(stmt);
+                    }
+
+                    // Get body statements
+                    let body_stmts = self.stmts.split_off(stmts_before_body);
+                    
+                    // Create For statement in MIR
+                    self.stmts.push(MirStmt::For {
+                        iterator: range_id,
+                        pattern: var_name.clone(),
+                        body: body_stmts,
+                    });
                 }
-                // TODO: Handle other iterator types
             }
             AstNode::While { cond, body } => {
                 let cond_id = self.lower_expr(cond);
@@ -512,6 +520,20 @@ impl MirGen {
                     }
                     self.type_map.insert(dest, Type::I64);
                 }
+                return dest;
+            }
+            
+            AstNode::Range { start, end, inclusive: _ } => {
+                let start_id = self.lower_expr(start);
+                let end_id = self.lower_expr(end);
+                let dest = self.next_id();
+                
+                // Range expression for for loops
+                self.exprs.insert(dest, MirExpr::Range {
+                    start: start_id,
+                    end: end_id,
+                });
+                self.type_map.insert(dest, Type::Range);
                 return dest;
             }
             AstNode::Call {

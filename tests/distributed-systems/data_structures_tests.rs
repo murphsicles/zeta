@@ -529,4 +529,14 @@ mod tests {
         lock.release_lock(node_addresses[1]);
         
         // Now node 2 should have lock
-        assert!(lock.has_lock(node_address
+        assert!(lock.has_lock(node_addresses[2]));
+        
+        // Release lock from node 2
+        lock.release_lock(node_addresses[2]);
+        
+        // No node should have lock now
+        assert!(!lock.has_lock(node_addresses[0]));
+        assert!(!lock.has_lock(node_addresses[1]));
+        assert!(!lock.has_lock(node_addresses[2]));
+    }
+}

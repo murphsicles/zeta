@@ -1442,9 +1442,8 @@ impl InferContext {
                 // Type check the expression - it should be a range
                 let expr_ty = self.infer(expr)?;
                 
-                // For now, we'll accept any type for the expression
-                // In the future, we should check it's a Range type
-                // self.constrain_eq(expr_ty, Type::Range);
+                // Check that the expression is actually a Range type
+                self.constrain_eq(expr_ty, Type::Range);
                 
                 // Check the pattern (loop variable)
                 // For simple variable patterns, we need to infer the type from the range
@@ -1465,6 +1464,17 @@ impl InferContext {
                 
                 // For loops have unit type
                 Ok(Type::Tuple(vec![]))
+            }
+
+            AstNode::Range { start, end, inclusive } => {
+                // Type check the start and end expressions
+                let start_ty = self.infer(start)?;
+                let end_ty = self.infer(end)?;
+                
+                // Both start and end should be numeric types
+                // For now, we'll accept any type and return Range
+                // In the future, we should constrain them to be the same numeric type
+                Ok(Type::Range)
             }
 
             _ => {

@@ -5,6 +5,7 @@ use tokio::sync::Mutex;
 use reqwest::Client;
 use serde_json::Value;
 use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine;
 
 /// Simplified Teranode client for testing
 struct SimpleTeranodeClient {

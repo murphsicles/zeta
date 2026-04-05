@@ -891,6 +891,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     self.collect_ids_from_stmt_safe(s, ids, exprs);
                 }
             }
+            MirStmt::For { iterator, body, .. } => {
+                if let Some(e) = exprs.get(iterator) {
+                    self.collect_ids_from_expr_safe(e, ids, exprs);
+                }
+                for s in body {
+                    self.collect_ids_from_stmt_safe(s, ids, exprs);
+                }
+            }
             MirStmt::ParamInit { param_id, .. } => {
                 ids.insert(*param_id);
             }
@@ -1964,6 +1972,97 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 
                 // Continue at exit block
                 self.builder.position_at_end(loop_exit_bb);
+            }
+            
+            MirStmt::For { iterator, pattern, body } => {
+                // For now, implement simple range-based for loop: for i in start..end
+                // We need to get the range expression
+                if let Some(MirExpr::Range { start, end }) = exprs.get(iterator) {
+                    let parent_fn = self
+                        .builder
+                        .get_insert_block()
+                        .unwrap()
+                        .get_parent()
+                        .unwrap();
+                    
+                    // Create basic blocks for loop
+                    let loop_cond_bb = self.context.append_basic_block(parent_fn, "for.cond");
+                    let loop_body_bb = self.context.append_basic_block(parent_fn, "for.body");
+                    let loop_exit_bb = self.context.append_basic_block(parent_fn, "for.exit");
+                    
+                    // Get start and end values
+                    let start_val = self.gen_expr_safe(start, exprs).into_int_value();
+                    let end_val = self.gen_expr_safe(end, exprs).into_int_value();
+                    
+                    // Allocate loop variable
+                    let loop_var_ptr = self.builder.build_alloca(
+                        self.i64_type,
+                        &format!("{}_ptr", pattern)
+                    ).unwrap();
+                    
+                    // Initialize loop variable to start
+                    self.builder.build_store(loop_var_ptr, start_val).unwrap();
+                    
+                    // Branch to condition block
+                    self.builder.build_unconditional_branch(loop_cond_bb).unwrap();
+                    
+                    // Generate condition block
+                    self.builder.position_at_end(loop_cond_bb);
+                    
+                    // Load current loop variable value
+                    let current_val = self.builder.build_load(
+                        self.i64_type,
+                        loop_var_ptr,
+                        &format!("current_{}", pattern)
+                    ).unwrap().into_int_value();
+                    
+                    // Check if current_val < end_val
+                    let cond = self.builder.build_int_compare(
+                        IntPredicate::SLT, // Signed less than
+                        current_val,
+                        end_val,
+                        "for.cond"
+                    ).unwrap();
+                    
+                    self.builder
+                        .build_conditional_branch(cond, loop_body_bb, loop_exit_bb)
+                        .unwrap();
+                    
+                    // Generate loop body
+                    self.builder.position_at_end(loop_body_bb);
+                    
+                    // Store loop variable in local variables map for use in body
+                    // We need to find the variable ID for this pattern
+                    // For now, we'll just use the pointer directly
+                    
+                    for s in body {
+                        self.gen_stmt(s, exprs);
+                    }
+                    
+                    // Increment loop variable: i = i + 1
+                    let current_val_after = self.builder.build_load(
+                        self.i64_type,
+                        loop_var_ptr,
+                        &format!("current_{}_after", pattern)
+                    ).unwrap().into_int_value();
+                    
+                    let next_val = self.builder.build_int_add(
+                        current_val_after,
+                        self.i64_type.const_int(1, false),
+                        &format!("next_{}", pattern)
+                    ).unwrap();
+                    
+                    self.builder.build_store(loop_var_ptr, next_val).unwrap();
+                    
+                    // Branch back to condition
+                    self.builder.build_unconditional_branch(loop_cond_bb).unwrap();
+                    
+                    // Continue at exit block
+                    self.builder.position_at_end(loop_exit_bb);
+                } else {
+                    // Not a range iterator - for now, just skip
+                    eprintln!("[CODEGEN WARNING] For loop with non-range iterator not implemented");
+                }
             }
             MirStmt::ParamInit { .. } => {} // handled at entry
             _ => {}
