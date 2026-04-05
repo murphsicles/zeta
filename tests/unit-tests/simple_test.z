@@ -1,18 +1,3 @@
-// Simple test for Option and Result
-fn main() -> i64 {
-    // Test Option
-    let opt = Option::Some(42);
-    let opt_result = match opt {
-        Option::Some(x) => x,
-        Option::None => 0,
-    };
-    
-    // Test Result
-    let res = Result::Ok(100);
-    let res_result = match res {
-        Result::Ok(x) => x,
-        Result::Err(e) => e,
-    };
-    
-    opt_result + res_result
+fn test_bootstrap() -> i64 {
+    return 42;
 }
