@@ -1839,6 +1839,35 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     return;
                 }
 
+                // Handle array_set specially for stack arrays
+                if func == "array_set" && args.len() == 3 {
+                    // Get array pointer, index, and value
+                    let array_ptr_val = self.gen_expr_safe(&args[0], exprs).into_int_value();
+                    let index_val = self.gen_expr_safe(&args[1], exprs).into_int_value();
+                    let value_val = self.gen_expr_safe(&args[2], exprs).into_int_value();
+                    
+                    // Convert array pointer (i64) to LLVM pointer
+                    let array_ptr = self.builder.build_int_to_ptr(
+                        array_ptr_val,
+                        self.i64_type.ptr_type(AddressSpace::default()),
+                        "array_ptr"
+                    ).unwrap();
+                    
+                    // Generate GEP to get element pointer
+                    let elem_ptr = unsafe {
+                        self.builder.build_gep(
+                            self.i64_type,
+                            array_ptr,
+                            &[index_val],
+                            "elem_ptr"
+                        ).unwrap()
+                    };
+                    
+                    // Store the value
+                    self.builder.build_store(elem_ptr, value_val).unwrap();
+                    return;
+                }
+
                 // original code for other VoidCalls
                 let callee = self.get_function(func);
                 let arg_vals: Vec<BasicMetadataValueEnum> = args

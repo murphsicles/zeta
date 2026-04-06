@@ -123,10 +123,16 @@ impl MirGen {
                     let base_id = self.lower_expr(base);
                     let index_id = self.lower_expr(index);
                     
-                    // Check if base is a dynamic array
+                    // Check if base is an array type
                     let base_ty = self.type_map.get(&base_id).cloned().unwrap_or(Type::I64);
                     if let Type::DynamicArray(_) = base_ty {
                         // Generate array_set call for dynamic arrays
+                        self.stmts.push(MirStmt::VoidCall {
+                            func: "array_set".to_string(),
+                            args: vec![base_id, index_id, rhs_id],
+                        });
+                    } else if let Type::Array(_, size) = base_ty {
+                        // Generate array_set for array types (both stack and heap)
                         self.stmts.push(MirStmt::VoidCall {
                             func: "array_set".to_string(),
                             args: vec![base_id, index_id, rhs_id],
