@@ -152,4 +152,124 @@ mod tests {
         str1.replace("world", "Zeta");
         assert_eq!(str1.get(), "hello Zeta");
     }
+    
+    #[test]
+    fn test_substring_operation() {
+        // Test substring operation
+        let str1 = read_write_string("Hello World".to_string());
+        
+        // Get substring
+        let substring = str1.substring(0, 5);
+        assert_eq!(substring.get(), "Hello");
+        
+        // Substring should have same capabilities
+        assert!(substring.has_capability(CapabilityLevel::Read));
+        assert!(substring.has_capability(CapabilityLevel::Write));
+        
+        // Test with read-only string
+        let read_only_str = read_only_string("ReadOnlyString".to_string());
+        let read_only_substring = read_only_str.substring(0, 8);
+        assert_eq!(read_only_substring.get(), "ReadOnly");
+        assert!(read_only_substring.has_capability(CapabilityLevel::Read));
+        assert!(!read_only_substring.has_capability(CapabilityLevel::Write));
+    }
+    
+    #[test]
+    fn test_concat_operation() {
+        // Test concat operation with capability intersection
+        let str1 = read_write_string("Hello ".to_string());
+        let str2 = read_write_string("World".to_string());
+        
+        // Both have Read+Write, result should have Read+Write
+        let concatenated = str1.concat(&str2);
+        assert_eq!(concatenated.get(), "Hello World");
+        assert!(concatenated.has_capability(CapabilityLevel::Read));
+        assert!(concatenated.has_capability(CapabilityLevel::Write));
+        
+        // Test with read-only string (intersection should be Read only)
+        let read_only_str = read_only_string("ReadOnly ".to_string());
+        let read_write_str = read_write_string("ReadWrite".to_string());
+        
+        let mixed_concat = read_only_str.concat(&read_write_str);
+        assert_eq!(mixed_concat.get(), "ReadOnly ReadWrite");
+        assert!(mixed_concat.has_capability(CapabilityLevel::Read));
+        assert!(!mixed_concat.has_capability(CapabilityLevel::Write)); // Write not in intersection
+    }
+    
+    #[test]
+    fn test_split_operation() {
+        // Test split operation
+        let str1 = read_write_string("Hello,World,Zeta".to_string());
+        
+        let parts = str1.split(",");
+        assert_eq!(parts.len(), 3);
+        assert_eq!(parts[0].get(), "Hello");
+        assert_eq!(parts[1].get(), "World");
+        assert_eq!(parts[2].get(), "Zeta");
+        
+        // All parts should have same capabilities
+        for part in &parts {
+            assert!(part.has_capability(CapabilityLevel::Read));
+            assert!(part.has_capability(CapabilityLevel::Write));
+        }
+    }
+    
+    #[test]
+    fn test_find_operation() {
+        // Test find operation
+        let str1 = read_only_string("Hello World".to_string());
+        
+        assert_eq!(str1.find("World"), Some(6));
+        assert_eq!(str1.find("Zeta"), None);
+        assert_eq!(str1.find("o"), Some(4)); // First 'o' in "Hello"
+    }
+    
+    #[test]
+    #[should_panic(expected = "String requires Read capability for substring()")]
+    fn test_substring_without_read_capability() {
+        // This test should panic because we're trying to create a string without Read capability
+        // and then call substring on it
+        // Note: We can't actually create a StringWithIdentity without Read capability
+        // using the public API, so this test is more conceptual
+        // For now, we'll test with a string that has no capabilities (not possible with public API)
+        // Instead, we'll test the capability checking function
+        let no_cap_string = StringWithIdentity::new("test".to_string(), vec![]);
+        let _ = no_cap_string.substring(0, 2);
+    }
+    
+    #[test]
+    fn test_capability_propagation_rules() {
+        // Test capability propagation rules for string operations
+        
+        // Rule 1: substring preserves all capabilities
+        let str1 = owned_string("Hello World".to_string());
+        let substring = str1.substring(0, 5);
+        assert!(substring.has_capability(CapabilityLevel::Read));
+        assert!(substring.has_capability(CapabilityLevel::Write));
+        assert!(substring.has_capability(CapabilityLevel::Owned));
+        
+        // Rule 2: concat results in intersection of capabilities
+        let read_only = read_only_string("ReadOnly".to_string());
+        let read_write = read_write_string("ReadWrite".to_string());
+        let owned = owned_string("Owned".to_string());
+        
+        // read_only ∩ read_write = read_only
+        let concat1 = read_only.concat(&read_write);
+        assert!(concat1.has_capability(CapabilityLevel::Read));
+        assert!(!concat1.has_capability(CapabilityLevel::Write));
+        
+        // read_write ∩ owned = read_write (owned is not in read_write)
+        let concat2 = read_write.concat(&owned);
+        assert!(concat2.has_capability(CapabilityLevel::Read));
+        assert!(concat2.has_capability(CapabilityLevel::Write));
+        assert!(!concat2.has_capability(CapabilityLevel::Owned));
+        
+        // Rule 3: split preserves all capabilities
+        let csv = read_write_string("a,b,c".to_string());
+        let parts = csv.split(",");
+        for part in parts {
+            assert!(part.has_capability(CapabilityLevel::Read));
+            assert!(part.has_capability(CapabilityLevel::Write));
+        }
+    }
 }

@@ -160,6 +160,71 @@ impl StringWithIdentity {
         }
         self.value = self.value.replace(from, to);
     }
+    
+    /// Get a substring (requires Read capability)
+    /// Returns a new string with the same capabilities as the original
+    pub fn substring(&self, start: usize, end: usize) -> Self {
+        if !self.identity.has_capability(CapabilityLevel::Read) {
+            panic!("String requires Read capability for substring()");
+        }
+        if start > end || end > self.value.len() {
+            panic!("Invalid substring range");
+        }
+        let substring = self.value[start..end].to_string();
+        Self {
+            value: substring,
+            identity: self.identity.clone(),
+        }
+    }
+    
+    /// Concatenate with another string (requires Read capability on both)
+    /// The resulting string has the intersection of capabilities from both strings
+    pub fn concat(&self, other: &Self) -> Self {
+        if !self.identity.has_capability(CapabilityLevel::Read) {
+            panic!("First string requires Read capability for concat()");
+        }
+        if !other.identity.has_capability(CapabilityLevel::Read) {
+            panic!("Second string requires Read capability for concat()");
+        }
+        
+        // Get intersection of capabilities
+        let self_caps: std::collections::HashSet<_> = self.identity.capabilities().iter().collect();
+        let other_caps: std::collections::HashSet<_> = other.identity.capabilities().iter().collect();
+        let intersection: Vec<CapabilityLevel> = self_caps
+            .intersection(&other_caps)
+            .cloned()
+            .copied()
+            .collect();
+        
+        let concatenated = format!("{}{}", self.value, other.value);
+        Self::new(concatenated, intersection)
+    }
+    
+    /// Split the string by a delimiter (requires Read capability)
+    /// Returns a vector of strings with the same capabilities as the original
+    pub fn split(&self, delimiter: &str) -> Vec<Self> {
+        if !self.identity.has_capability(CapabilityLevel::Read) {
+            panic!("String requires Read capability for split()");
+        }
+        
+        self.value
+            .split(delimiter)
+            .map(|part| {
+                Self {
+                    value: part.to_string(),
+                    identity: self.identity.clone(),
+                }
+            })
+            .collect()
+    }
+    
+    /// Find the index of a substring (requires Read capability)
+    pub fn find(&self, needle: &str) -> Option<usize> {
+        if !self.identity.has_capability(CapabilityLevel::Read) {
+            panic!("String requires Read capability for find()");
+        }
+        self.value.find(needle)
+    }
 }
 
 /// Create a string with read-only capabilities
@@ -184,7 +249,7 @@ pub fn owned_string(value: String) -> StringWithIdentity {
 /// Infer required capabilities for a string operation
 pub fn infer_string_op_capabilities(op: &str) -> Vec<CapabilityLevel> {
     match op {
-        "len" | "is_empty" | "starts_with" | "ends_with" | "contains" => {
+        "len" | "is_empty" | "starts_with" | "ends_with" | "contains" | "find" => {
             vec![CapabilityLevel::Read]
         }
         "append" => vec![CapabilityLevel::Write],
@@ -192,6 +257,8 @@ pub fn infer_string_op_capabilities(op: &str) -> Vec<CapabilityLevel> {
         "to_uppercase" | "to_lowercase" | "trim" | "replace" => {
             vec![CapabilityLevel::Read, CapabilityLevel::Write]
         }
+        "substring" | "split" => vec![CapabilityLevel::Read],
+        "concat" => vec![CapabilityLevel::Read], // Both strings need Read capability
         _ => vec![],
     }
 }
