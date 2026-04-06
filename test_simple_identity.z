@@ -1,6 +1,0 @@
-// Simple test for identity type parsing
-fn main() {
-    // Just a simple program to test compilation
-    let x = 42;
-    print_i64(x);
-}
