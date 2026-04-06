@@ -324,7 +324,17 @@ impl<'ctx> LLVMCodegen<'ctx> {
             Some(Linkage::External),
         );
         module.add_function(
+            "stack_array_get",
+            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
             "array_set",
+            void_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "stack_array_set",
             void_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into()], false),
             Some(Linkage::External),
         );
@@ -466,7 +476,17 @@ impl<'ctx> LLVMCodegen<'ctx> {
             Some(Linkage::External),
         );
         module.add_function(
+            "stack_array_get",
+            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
             "array_set",
+            void_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "stack_array_set",
             void_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into()], false),
             Some(Linkage::External),
         );
