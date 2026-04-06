@@ -2,7 +2,7 @@
 
 extern crate zetac;
 
-use zetac::frontend::parser::parser::parse_zeta;
+use zetac::frontend::parser::top_level::parse_zeta;
 
 #[test]
 fn test_type_annotated_pattern_parsing() {
