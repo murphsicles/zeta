@@ -1,4 +1,0 @@
-fn main() -> bool {
-    let arr: [bool; 3] = [true, false, true];
-    arr[0]  // Should return 1 (true)
-}

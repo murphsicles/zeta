@@ -1,7 +1,0 @@
-fn main() -> i64 {
-    let b: bool = false;
-    let not_b: bool = !b;
-    
-    // Return not_b as i64
-    not_b as i64  // Should be 1
-}

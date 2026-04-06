@@ -1,8 +1,0 @@
-// Test bool array repeat pattern only (no subscript)
-fn main() -> i64 {
-    // This should create [false; 3]
-    let arr: [bool; 3] = [false; 3];
-    
-    // Just return 0 to test if it compiles
-    0
-}

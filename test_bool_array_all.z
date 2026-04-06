@@ -1,9 +1,0 @@
-// Test all bool array elements
-fn main() -> i64 {
-    let arr: [bool; 3] = [true, false, true];
-    // Return a combination to check all values
-    // arr[0] should be 1, arr[1] should be 0, arr[2] should be 1
-    // Return (arr[0] * 100) + (arr[1] * 10) + arr[2]
-    // Should be 101 if all values are correct
-    (arr[0] * 100) + (arr[1] * 10) + arr[2]
-}

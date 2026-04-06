@@ -1,8 +1,0 @@
-// Simple array test - minimal
-fn main() -> i64 {
-    // Simple array - should be stack allocated
-    let arr: [i64; 3] = [10, 20, 30];
-    
-    // Return first element
-    arr[0]
-}

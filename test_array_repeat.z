@@ -1,5 +1,0 @@
-// Test array repeat syntax
-fn main() -> i64 {
-    let arr: [i64; 3] = [0; 3];
-    arr[0]
-}

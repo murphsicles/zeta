@@ -1,7 +1,0 @@
-// Test bool array with debug output
-fn main() -> bool {
-    let arr: [bool; 3] = [true, false, true];
-    // Print the array elements
-    // arr[0] should be 1 (true)
-    arr[0]
-}

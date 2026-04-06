@@ -1,7 +1,0 @@
-// Test bool logic operations
-fn main() -> bool {
-    let a = true;
-    let b = false;
-    let c = a && !b;  // true && true = true
-    c
-}
