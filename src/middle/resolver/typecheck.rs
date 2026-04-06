@@ -8,6 +8,7 @@ use super::resolver::{Resolver, Type};
 use super::unified_typecheck::{TypeCheckResult, UnifiedTypeCheck};
 use crate::frontend::ast::AstNode;
 use crate::middle::passes::identity_verification::verify_identities;
+use crate::middle::types::identity::{CapabilityLevel, IdentityType};
 
 impl Resolver {
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
@@ -278,7 +279,15 @@ impl Resolver {
                     }
                 }
             },
-            AstNode::Call { .. } => Type::I64,
+            AstNode::Call { method, .. } => {
+                // Get the return type from the function signature
+                if let Some((_, ret_type, _)) = self.get_func_signature(method) {
+                    ret_type.clone()
+                } else {
+                    // Default to i64 for unknown functions
+                    Type::I64
+                }
+            },
             AstNode::DictLit { entries } => {
                 if entries.is_empty() {
                     // For now, return a named type for Map<i64, i64>
@@ -413,5 +422,41 @@ impl Resolver {
         }
         
         all_ok
+    }
+    
+    /// Infer identity type for an expression based on usage context
+    fn infer_identity_type(&self, node: &AstNode, context_capabilities: &[CapabilityLevel]) -> Option<Type> {
+        match node {
+            AstNode::StringLit(s) => {
+                // Create an identity type with the required capabilities
+                let identity_type = IdentityType {
+                    value: Some(s.clone()),
+                    capabilities: context_capabilities.to_vec(),
+                    delegatable: false,
+                    constraints: Vec::new(),
+                    type_params: vec![],
+                };
+                Some(Type::Identity(Box::new(identity_type)))
+            }
+            AstNode::Var(_name) => {
+                // For now, don't infer identity types for variables
+                // TODO: Implement variable type tracking for identity inference
+                None
+            }
+            _ => None,
+        }
+    }
+    
+    /// Get required capabilities for a function argument
+    fn get_required_capabilities(&self, func_name: &str, arg_index: usize) -> Vec<CapabilityLevel> {
+        // Check if this is an identity-aware function
+        match func_name {
+            "str_len" | "str_concat" | "str_split" => vec![CapabilityLevel::Read],
+            "str_replace" | "str_to_uppercase" | "str_to_lowercase" => vec![CapabilityLevel::Write],
+            "read_only_string" => vec![CapabilityLevel::Read],
+            "read_write_string" => vec![CapabilityLevel::Read, CapabilityLevel::Write],
+            "owned_string" => vec![CapabilityLevel::Owned],
+            _ => vec![],
+        }
     }
 }

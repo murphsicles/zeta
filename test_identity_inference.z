@@ -1,0 +1,21 @@
+// Test identity-aware type inference
+// This should infer that s needs read capability
+
+fn test_read_only() {
+    let s = "hello";
+    // This should infer that s needs read capability
+    let len = s.len();
+    print(len);
+}
+
+fn test_read_write() {
+    let s = "hello";
+    // This should infer that s needs write capability
+    let new_s = s.replace("h", "H");
+    print(new_s);
+}
+
+fn main() {
+    test_read_only();
+    test_read_write();
+}

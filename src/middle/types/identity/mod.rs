@@ -9,6 +9,9 @@ use std::fmt;
 pub mod string_ops;
 pub mod inference;
 
+#[cfg(test)]
+mod inference_test;
+
 /// Identity capability level
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum CapabilityLevel {
