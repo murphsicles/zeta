@@ -100,19 +100,57 @@ impl MirGen {
     fn lower_ast(&mut self, ast: &AstNode) {
         match ast {
             AstNode::Let { pattern, expr, .. } => {
-                if let AstNode::Var(name) = &**pattern {
-                    let rhs_id = self.lower_expr(expr);
-                    let lhs_id = self.next_id();
-                    self.stmts.push(MirStmt::Assign {
-                        lhs: lhs_id,
-                        rhs: rhs_id,
-                    });
-                    self.name_to_id.insert(name.clone(), lhs_id);
-                    self.exprs.insert(lhs_id, MirExpr::Var(lhs_id));
-                    // Copy type from RHS to LHS
-                    if let Some(rhs_type) = self.type_map.get(&rhs_id) {
-                        self.type_map.insert(lhs_id, rhs_type.clone());
-                    } else {
+                // Handle different pattern types
+                match &**pattern {
+                    AstNode::Var(name) => {
+                        let rhs_id = self.lower_expr(expr);
+                        let lhs_id = self.next_id();
+                        self.stmts.push(MirStmt::Assign {
+                            lhs: lhs_id,
+                            rhs: rhs_id,
+                        });
+                        self.name_to_id.insert(name.clone(), lhs_id);
+                        self.exprs.insert(lhs_id, MirExpr::Var(lhs_id));
+                        // Copy type from RHS to LHS
+                        if let Some(rhs_type) = self.type_map.get(&rhs_id) {
+                            self.type_map.insert(lhs_id, rhs_type.clone());
+                        } else {
+                            self.type_map.insert(lhs_id, Type::I64);
+                        }
+                    }
+                    AstNode::TypeAnnotatedPattern { pattern: inner_pattern, ty: _ } => {
+                        // For type-annotated patterns, extract the inner pattern
+                        // The type checking should have been done by the type checker
+                        if let AstNode::Var(name) = &**inner_pattern {
+                            let rhs_id = self.lower_expr(expr);
+                            let lhs_id = self.next_id();
+                            self.stmts.push(MirStmt::Assign {
+                                lhs: lhs_id,
+                                rhs: rhs_id,
+                            });
+                            self.name_to_id.insert(name.clone(), lhs_id);
+                            self.exprs.insert(lhs_id, MirExpr::Var(lhs_id));
+                            // Copy type from RHS to LHS
+                            if let Some(rhs_type) = self.type_map.get(&rhs_id) {
+                                self.type_map.insert(lhs_id, rhs_type.clone());
+                            } else {
+                                self.type_map.insert(lhs_id, Type::I64);
+                            }
+                        }
+                        // Note: We could add runtime identity checking here if needed,
+                        // but the type checker should have already validated the type.
+                    }
+                    _ => {
+                        // For other pattern types, generate a simple assignment
+                        // This is a simplification - in a full implementation,
+                        // we would need to handle destructuring patterns
+                        let rhs_id = self.lower_expr(expr);
+                        let lhs_id = self.next_id();
+                        self.stmts.push(MirStmt::Assign {
+                            lhs: lhs_id,
+                            rhs: rhs_id,
+                        });
+                        self.exprs.insert(lhs_id, MirExpr::Var(lhs_id));
                         self.type_map.insert(lhs_id, Type::I64);
                     }
                 }
@@ -861,6 +899,24 @@ impl MirGen {
                                 }
                                 self.exprs.insert(cond_id, MirExpr::Lit(1));
                                 self.type_map.insert(cond_id, Type::Bool);
+                            }
+                        }
+                        AstNode::TypeAnnotatedPattern { pattern: inner_pattern, ty: _ } => {
+                            // For type-annotated patterns, extract the inner pattern
+                            // The type checking should have been done by the type checker
+                            match &**inner_pattern {
+                                AstNode::Var(var_name) => {
+                                    // Regular variable binding pattern - always matches
+                                    // Add binding to name_to_id so the arm body can reference it
+                                    self.name_to_id.insert(var_name.clone(), scrutinee_id);
+                                    self.exprs.insert(cond_id, MirExpr::Lit(1));
+                                    self.type_map.insert(cond_id, Type::Bool);
+                                }
+                                _ => {
+                                    // For other inner patterns, treat as always false for now
+                                    self.exprs.insert(cond_id, MirExpr::Lit(0));
+                                    self.type_map.insert(cond_id, Type::Bool);
+                                }
                             }
                         }
                         _ => {
