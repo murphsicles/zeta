@@ -17,15 +17,19 @@
   - ✅ Pattern parser supports type annotations (`TypeAnnotatedPattern`)
   - ✅ Identity type parsing is integrated (`parse_string_with_identity`)
   - ✅ Type system has Identity variant (`Type::Identity(Box<IdentityType>)`)
-  - ⚠️ **Issue identified**: `parse_type_string` in `new_resolver.rs` doesn't handle identity types
+  - ✅ **Fixed**: Added `string` type to parser (`builtin_types` in `parser.rs`)
+  - ✅ **Fixed**: Updated `string_to_type` in `typecheck_new.rs` to handle identity types
+  - ⚠️ **Issue identified**: Parser requires whitespace between `string` and `[identity:read]`
+  - ⚠️ **Issue identified**: Type checker not finding `main` function in test programs
   - ⚠️ **Issue identified**: Identity constraint checking not implemented for patterns
   - ✅ All 118 tests passing - Compiler is stable
 - 🎯 **Next steps for Phase 4.3.3**:
-  1. **Fix `parse_type_string` to handle identity types** - Update method to parse strings like `string[identity:read]`
-  2. **Implement identity constraint checking for patterns** - Add capability checking when matching identity types
-  3. **Extend MIR generation for identity patterns** - Ensure codegen handles identity-aware patterns
-  4. **Create test suite** - Add comprehensive tests for identity-aware pattern matching
-- 📊 **Progress**: Foundation complete, implementation needed for identity type parsing in type checker
+  1. **Fix parser to handle `string[identity:read]` without whitespace** - Update `parse_string_with_identity`
+  2. **Fix type checker to find `main` function** - Investigate why AST nodes not being passed to `typecheck_new`
+  3. **Implement identity constraint checking for patterns** - Add capability checking when matching identity types
+  4. **Extend MIR generation for identity patterns** - Ensure codegen handles identity-aware patterns
+  5. **Create test suite** - Add comprehensive tests for identity-aware pattern matching
+- 📊 **Progress**: Parser improvements made, type checker updated, ready for pattern constraint checking
 
 ## ✅ BOOTSTRAP ACCOUNTABILITY CHECK COMPLETED (April 6, 2026 - 15:46 UTC) - BOOLEAN LITERAL SUPPORT ADDED & PUSHED TO GITHUB ✅
 - ✅ **Cron accountability check completed** - Bootstrap progress verified, compiler status checked

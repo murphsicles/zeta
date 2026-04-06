@@ -3,7 +3,7 @@
 
 use super::resolver::Resolver;
 use crate::frontend::ast::AstNode;
-use crate::middle::types::{ArraySize, Substitution, Type, UnifyError};
+use crate::middle::types::{ArraySize, Substitution, Type, UnifyError, IdentityType, CapabilityLevel};
 
 /// Extended resolver with new type checking
 pub trait NewTypeCheck {
@@ -136,6 +136,41 @@ impl NewTypeCheck for Resolver {
                     crate::middle::types::Lifetime::Static,
                     crate::middle::types::Mutability::Immutable,
                 );
+            }
+        }
+
+        // Check for identity type: string[identity:read], string[identity:read+write], etc.
+        if s.starts_with("string[identity:") && s.ends_with(']') {
+            let inner = &s["string[".len()..s.len() - 1]; // Remove "string[" and "]"
+            if let Some(capabilities_str) = inner.strip_prefix("identity:") {
+                // Parse capabilities
+                let capabilities: Vec<CapabilityLevel> = capabilities_str
+                    .split('+')
+                    .filter_map(|cap| match cap.trim() {
+                        "read" => Some(CapabilityLevel::Read),
+                        "write" => Some(CapabilityLevel::Write),
+                        "immutable" => Some(CapabilityLevel::Immutable),
+                        "owned" => Some(CapabilityLevel::Owned),
+                        "execute" => Some(CapabilityLevel::Execute),
+                        _ => None,
+                    })
+                    .collect();
+                
+                if capabilities.is_empty() {
+                    // No valid capabilities found, treat as named type
+                    return Type::Named(s.to_string(), Vec::new());
+                }
+                
+                // Create identity type
+                let identity_type = IdentityType {
+                    value: None,
+                    capabilities,
+                    delegatable: false,
+                    constraints: Vec::new(),
+                    type_params: Vec::new(),
+                };
+                
+                return Type::Identity(Box::new(identity_type));
             }
         }
 

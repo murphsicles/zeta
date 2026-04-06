@@ -378,6 +378,7 @@ pub fn parse_type(input: &str) -> IResult<&str, String> {
         tag("char").map(|_| "char".to_string()),
         tag("str").map(|_| "str".to_string()),
         tag("String").map(|_| "String".to_string()),
+        tag("string").map(|_| "string".to_string()),
         parse_string_with_identity,
     ));
     
