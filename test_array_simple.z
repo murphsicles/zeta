@@ -1,0 +1,6 @@
+fn main() -> i64 {
+    // Simple test: create array with 3 elements
+    let arr: [i64; 3] = [10, 20, 30];
+    // Return second element
+    arr[1]
+}

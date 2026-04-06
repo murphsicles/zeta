@@ -1,0 +1,984 @@
+﻿cargo : warning: unused import: `Expr`
+At line:1 char:42
++ cd "C:\Users\mummy\.openclaw\workspace"; cargo check 2>&1 | Out-File  ...
++                                          ~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warning: unused import: `Expr`:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ --> verification\src\vcgen.rs:6:52
+  |
+6 | use crate::refinement::{RefinementType, Predicate, Expr};
+  |                                                    ^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `Read`
+ --> verification\src\solver.rs:7:22
+  |
+7 | use std::io::{Write, Read};
+  |                      ^^^^
+
+warning: unused variable: `line_num`
+   --> verification\src\annotations.rs:127:40
+    |
+127 | fn parse_function_contract(line: &str, line_num: usize) -> Result<Option<Annotation>, String> {
+    |                                        ^^^^^^^^ help: if this is intentional, prefix it with an underscore: 
+`_line_num`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `zeta-verification` (lib) generated 3 warnings (run `cargo fix --lib -p zeta-verification` to apply 2 
+suggestions)
+warning: unused import: `BasicMetadataTypeEnum`
+  --> src\backend\codegen\codegen.rs:20:22
+   |
+20 | use inkwell::types::{BasicMetadataTypeEnum, BasicType, IntType, PointerType, VectorType};
+   |                      ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `crate::frontend::ast::AstNode`
+ --> src\frontend\identity_ownership.rs:7:5
+  |
+7 | use crate::frontend::ast::AstNode;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Resolver`
+ --> src\frontend\identity_ownership.rs:8:41
+  |
+8 | use crate::middle::resolver::resolver::{Resolver, Type};
+  |                                         ^^^^^^^^
+
+warning: unused import: `IdentityConstraint`
+ --> src\frontend\identity_ownership.rs:9:69
+  |
+9 | use crate::middle::types::identity::{IdentityType, CapabilityLevel, IdentityConstraint};
+  |                                                                     ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `take_while`
+  --> src\frontend\parser\expr.rs:12:33
+   |
+12 | use nom::bytes::complete::{tag, take_while};
+   |                                 ^^^^^^^^^^
+
+warning: unused import: `multispace0`
+  --> src\frontend\parser\identity_type.rs:11:55
+   |
+11 | use nom::character::complete::{alpha1, alphanumeric1, multispace0, digit1};
+   |                                                       ^^^^^^^^^^^
+
+warning: unused import: `crate::frontend::parser::expr::parse_expr`
+  --> src\frontend\parser\parser.rs:14:5
+   |
+14 | use crate::frontend::parser::expr::parse_expr;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `parse_generic_params`
+ --> src\frontend\parser\top_level.rs:8:23
+  |
+8 |     parse_attributes, parse_generic_params, parse_generic_params_as_enum, parse_ident, parse_path, parse_type, 
+parse_trait_bounds, parse_...
+  |                       ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `CapabilityLevel`, `IdentityConstraint`, and `IdentityType`
+ --> src\middle\passes\identity_verification.rs:6:38
+  |
+6 | use crate::middle::types::identity::{IdentityType, CapabilityLevel, IdentityConstraint};
+  |                                      ^^^^^^^^^^^^  ^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::middle::types::Type`
+ --> src\middle\types\identity\string_ops.rs:7:5
+  |
+7 | use crate::middle::types::Type;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `HashSet`
+ --> src\middle\types\identity\inference.rs:6:33
+  |
+6 | use std::collections::{HashMap, HashSet};
+  |                                 ^^^^^^^
+
+warning: unused import: `alloc`
+ --> src\runtime\memory.rs:6:18
+  |
+6 | use std::alloc::{alloc, dealloc, Layout};
+  |                  ^^^^^
+
+warning: unused import: `Ordering`
+ --> src\runtime\memory.rs:7:36
+  |
+7 | use std::sync::atomic::{AtomicU64, Ordering};
+  |                                    ^^^^^^^^
+
+warning: unused import: `super::*`
+   --> src\distributed\cluster.rs:651:9
+    |
+651 |     use super::*;
+    |         ^^^^^^^^
+
+warning: unused import: `rand::prelude::*`
+   --> src\paradigm_simple.rs:173:9
+    |
+173 |     use rand::prelude::*;
+    |         ^^^^^^^^^^^^^^^^
+
+warning: use of deprecated function `nom::sequence::tuple`: `Parser` is directly implemented for tuples
+  --> src\frontend\parser\identity_type.rs:14:48
+   |
+14 | use nom::sequence::{delimited, pair, preceded, tuple};
+   |                                                ^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated function `nom::sequence::tuple`: `Parser` is directly implemented for tuples
+  --> src\frontend\parser\identity_type.rs:61:9
+   |
+61 |         tuple((
+   |         ^^^^^
+
+warning: use of deprecated function `nom::sequence::tuple`: `Parser` is directly implemented for tuples
+  --> src\frontend\parser\identity_type.rs:78:9
+   |
+78 |         tuple((
+   |         ^^^^^
+
+warning: unused import: `BasicType`
+  --> src\backend\codegen\codegen.rs:20:45
+   |
+20 | use inkwell::types::{BasicMetadataTypeEnum, BasicType, IntType, PointerType, VectorType};
+   |                                             ^^^^^^^^^
+
+warning[E0133]: call to unsafe function `std::alloc::alloc` is unsafe and requires unsafe block
+  --> src\runtime\memory_bulletproof.rs:80:15
+   |
+80 |     let ptr = alloc(layout);
+   |               ^^^^^^^^^^^^^ call to unsafe function
+   |
+   = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/unsafe-op-in-unsafe-fn.html>
+   = note: consult the function's documentation for information on how to avoid undefined behavior
+note: an unsafe function restricts its caller, but its body is safe by default
+  --> src\runtime\memory_bulletproof.rs:62:1
+   |
+62 | pub unsafe extern "C" fn runtime_malloc_bulletproof(size: usize) -> i64 {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = note: `#[warn(unsafe_op_in_unsafe_fn)]` (part of `#[warn(rust_2024_compatibility)]`) on by default
+
+warning[E0133]: call to unsafe function `runtime::memory_bulletproof::validate_header` is unsafe and requires unsafe 
+block
+   --> src\runtime\memory_bulletproof.rs:125:9
+    |
+125 |     if !validate_header(header_ptr) {
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^ call to unsafe function
+    |
+    = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/unsafe-op-in-unsafe-fn.html>
+    = note: consult the function's documentation for information on how to avoid undefined behavior
+note: an unsafe function restricts its caller, but its body is safe by default
+   --> src\runtime\memory_bulletproof.rs:116:1
+    |
+116 | pub unsafe extern "C" fn runtime_free_bulletproof(ptr: i64) {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning[E0133]: call to unsafe function `runtime::memory_bulletproof::validate_header` is unsafe and requires unsafe 
+block
+   --> src\runtime\memory_bulletproof.rs:193:9
+    |
+193 |     if !validate_header(header_ptr) {
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^ call to unsafe function
+    |
+    = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/unsafe-op-in-unsafe-fn.html>
+    = note: consult the function's documentation for information on how to avoid undefined behavior
+note: an unsafe function restricts its caller, but its body is safe by default
+   --> src\runtime\memory_bulletproof.rs:179:1
+    |
+179 | pub unsafe extern "C" fn runtime_realloc_bulletproof(ptr: i64, new_size: usize) -> i64 {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning[E0133]: call to unsafe function `runtime::memory_bulletproof::validate_header` is unsafe and requires unsafe 
+block
+   --> src\runtime\memory_bulletproof.rs:231:9
+    |
+231 |     if !validate_header(header_ptr) {
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^ call to unsafe function
+    |
+    = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/unsafe-op-in-unsafe-fn.html>
+    = note: consult the function's documentation for information on how to avoid undefined behavior
+note: an unsafe function restricts its caller, but its body is safe by default
+   --> src\runtime\memory_bulletproof.rs:222:1
+    |
+222 | pub unsafe extern "C" fn runtime_array_bounds_check(ptr: i64, index: i64, element_size: usize) -> i64 {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning[E0133]: dereference of raw pointer is unsafe and requires unsafe block
+   --> src\runtime\memory_bulletproof.rs:261:19
+    |
+261 |     let header = &*header_ptr;
+    |                   ^^^^^^^^^^^ dereference of raw pointer
+    |
+    = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/unsafe-op-in-unsafe-fn.html>
+    = note: raw pointers may be null, dangling or unaligned; they can violate aliasing rules and cause data races: all 
+of these are undefined behavior
+note: an unsafe function restricts its caller, but its body is safe by default
+   --> src\runtime\memory_bulletproof.rs:256:1
+    |
+256 | unsafe fn validate_header(header_ptr: *mut AllocationHeader) -> bool {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning[E0133]: call to unsafe function `runtime::memory_bulletproof::runtime_malloc_bulletproof` is unsafe and 
+requires unsafe block
+   --> src\runtime\memory_bulletproof.rs:323:15
+    |
+323 |     let ptr = runtime_malloc_bulletproof(100);
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ call to unsafe function
+    |
+    = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/unsafe-op-in-unsafe-fn.html>
+    = note: consult the function's documentation for information on how to avoid undefined behavior
+note: an unsafe function restricts its caller, but its body is safe by default
+   --> src\runtime\memory_bulletproof.rs:321:1
+    |
+321 | pub unsafe extern "C" fn test_bulletproof_memory() -> i64 {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning[E0133]: call to unsafe function `std::slice::from_raw_parts_mut` is unsafe and requires unsafe block
+   --> src\runtime\memory_bulletproof.rs:329:17
+    |
+329 |     let slice = std::slice::from_raw_parts_mut(ptr as *mut u8, 100);
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ call to unsafe function
+    |
+    = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/unsafe-op-in-unsafe-fn.html>
+    = note: consult the function's documentation for information on how to avoid undefined behavior
+
+warning[E0133]: call to unsafe function `runtime::memory_bulletproof::runtime_array_bounds_check` is unsafe and 
+requires unsafe block
+   --> src\runtime\memory_bulletproof.rs:335:23
+    |
+335 |     let checked_ptr = runtime_array_bounds_check(ptr, 50, 1);
+    |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ call to unsafe function
+    |
+    = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/unsafe-op-in-unsafe-fn.html>
+    = note: consult the function's documentation for information on how to avoid undefined behavior
+
+warning[E0133]: call to unsafe function `runtime::memory_bulletproof::runtime_free_bulletproof` is unsafe and requires 
+unsafe block
+   --> src\runtime\memory_bulletproof.rs:337:9
+    |
+337 |         runtime_free_bulletproof(ptr);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ call to unsafe function
+    |
+    = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/unsafe-op-in-unsafe-fn.html>
+    = note: consult the function's documentation for information on how to avoid undefined behavior
+
+warning[E0133]: call to unsafe function `runtime::memory_bulletproof::runtime_array_bounds_check` is unsafe and 
+requires unsafe block
+   --> src\runtime\memory_bulletproof.rs:342:21
+    |
+342 |     let bad_check = runtime_array_bounds_check(ptr, 150, 1);
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ call to unsafe function
+    |
+    = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/unsafe-op-in-unsafe-fn.html>
+    = note: consult the function's documentation for information on how to avoid undefined behavior
+
+warning[E0133]: call to unsafe function `runtime::memory_bulletproof::runtime_free_bulletproof` is unsafe and requires 
+unsafe block
+   --> src\runtime\memory_bulletproof.rs:344:9
+    |
+344 |         runtime_free_bulletproof(ptr);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ call to unsafe function
+    |
+    = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/unsafe-op-in-unsafe-fn.html>
+    = note: consult the function's documentation for information on how to avoid undefined behavior
+
+warning[E0133]: call to unsafe function `runtime::memory_bulletproof::runtime_free_bulletproof` is unsafe and requires 
+unsafe block
+   --> src\runtime\memory_bulletproof.rs:349:5
+    |
+349 |     runtime_free_bulletproof(ptr);
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ call to unsafe function
+    |
+    = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/unsafe-op-in-unsafe-fn.html>
+    = note: consult the function's documentation for information on how to avoid undefined behavior
+
+warning[E0133]: call to unsafe function `runtime::memory_bulletproof::runtime_free_bulletproof` is unsafe and requires 
+unsafe block
+   --> src\runtime\memory_bulletproof.rs:352:5
+    |
+352 |     runtime_free_bulletproof(ptr);
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ call to unsafe function
+    |
+    = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/unsafe-op-in-unsafe-fn.html>
+    = note: consult the function's documentation for information on how to avoid undefined behavior
+
+warning: variable does not need to be mutable
+   --> src\std\quantum\mod.rs:595:13
+    |
+595 |         let mut new_gates = circuit.gates.clone();
+    |             ----^^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: type `AllocationInfo` is more private than the item `memory_bulletproof::detect_memory_leaks`
+   --> src\runtime\memory_bulletproof.rs:284:1
+    |
+284 | pub fn detect_memory_leaks() -> Vec<AllocationInfo> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ function `memory_bulletproof::detect_memory_leaks` is 
+reachable at visibility `pub`
+    |
+note: but type `AllocationInfo` is only usable at visibility `pub(self)`
+   --> src\runtime\memory_bulletproof.rs:50:1
+    |
+ 50 | struct AllocationInfo {
+    | ^^^^^^^^^^^^^^^^^^^^^
+    = note: `#[warn(private_interfaces)]` on by default
+
+warning: field `lifetime_context` is never read
+   --> src\frontend\identity_ownership.rs:119:5
+    |
+111 | pub struct IdentityAwareBorrowChecker {
+    |            -------------------------- field in this struct
+...
+119 |     lifetime_context: LifetimeContext,
+    |     ^^^^^^^^^^^^^^^^
+    |
+    = note: `IdentityAwareBorrowChecker` has derived impls for the traits `Clone` and `Debug`, but these are 
+intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `compile_time_info` is never read
+  --> src\frontend\macro_expand_advanced.rs:83:5
+   |
+79 | pub struct AdvancedMacroExpander {
+   |            --------------------- field in this struct
+...
+83 |     compile_time_info: CompileTimeInfo,
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: function `parse_associated_type` is never used
+   --> src\frontend\parser\top_level.rs:289:4
+    |
+289 | fn parse_associated_type(input: &str) -> IResult<&str, AstNode> {
+    |    ^^^^^^^^^^^^^^^^^^^^^
+
+warning: fields `capabilities` and `root_path` are never read
+  --> src\lsp\server.rs:18:9
+   |
+14 | pub struct ServerState {
+   |            ----------- fields in this struct
+...
+18 |     pub capabilities: ServerCapabilities,
+   |         ^^^^^^^^^^^^
+19 |     /// Workspace root path
+20 |     pub root_path: Option<String>,
+   |         ^^^^^^^^^
+   |
+   = note: `ServerState` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code 
+analysis
+
+warning: struct `Position` is never constructed
+   --> src\lsp\protocol.rs:102:12
+    |
+102 | pub struct Position {
+    |            ^^^^^^^^
+
+warning: struct `Range` is never constructed
+   --> src\lsp\protocol.rs:111:12
+    |
+111 | pub struct Range {
+    |            ^^^^^
+
+warning: struct `Location` is never constructed
+   --> src\lsp\protocol.rs:120:12
+    |
+120 | pub struct Location {
+    |            ^^^^^^^^
+
+warning: struct `Hover` is never constructed
+   --> src\lsp\protocol.rs:176:12
+    |
+176 | pub struct Hover {
+    |            ^^^^^
+
+warning: enum `HoverContents` is never used
+   --> src\lsp\protocol.rs:187:10
+    |
+187 | pub enum HoverContents {
+    |          ^^^^^^^^^^^^^
+
+warning: struct `MarkupContent` is never constructed
+   --> src\lsp\protocol.rs:194:12
+    |
+194 | pub struct MarkupContent {
+    |            ^^^^^^^^^^^^^
+
+warning: enum `MarkupKind` is never used
+   --> src\lsp\protocol.rs:203:10
+    |
+203 | pub enum MarkupKind {
+    |          ^^^^^^^^^^
+
+warning: method `unify_array_size` is never used
+    --> src\middle\types\mod.rs:1056:8
+     |
+ 996 | impl Substitution {
+     | ----------------- method in this implementation
+...
+1056 |     fn unify_array_size(&mut self, size1: &ArraySize, size2: &ArraySize) -> Result<(), UnifyError> {
+     |        ^^^^^^^^^^^^^^^^
+
+warning: fields `running_mean`, `running_var`, `eps`, and `momentum` are never read
+   --> src\ml\nn.rs:230:5
+    |
+227 | pub struct BatchNorm2d {
+    |            ----------- fields in this struct
+...
+230 |     running_mean: Tensor,
+    |     ^^^^^^^^^^^^
+231 |     running_var: Tensor,
+    |     ^^^^^^^^^^^
+232 |     num_features: usize,
+233 |     eps: f32,
+    |     ^^^
+234 |     momentum: f32,
+    |     ^^^^^^^^
+    |
+    = note: `BatchNorm2d` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code 
+analysis
+
+warning: fields `num_layers` and `nonlinearity` are never read
+   --> src\ml\nn.rs:341:5
+    |
+338 | pub struct RNN {
+    |            --- fields in this struct
+...
+341 |     num_layers: usize,
+    |     ^^^^^^^^^^
+342 |     nonlinearity: String,  // "tanh" or "relu"
+    |     ^^^^^^^^^^^^
+    |
+    = note: `RNN` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: field `num_layers` is never read
+   --> src\ml\nn.rs:395:5
+    |
+392 | pub struct LSTM {
+    |            ---- field in this struct
+...
+395 |     num_layers: usize,
+    |     ^^^^^^^^^^
+    |
+    = note: `LSTM` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code 
+analysis
+
+warning: field `dampening` is never read
+  --> src\ml\optim.rs:38:5
+   |
+34 | pub struct SGD {
+   |            --- field in this struct
+...
+38 |     dampening: f32,
+   |     ^^^^^^^^^
+   |
+   = note: `SGD` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: fields `betas`, `eps`, and `weight_decay` are never read
+   --> src\ml\optim.rs:130:5
+    |
+127 | pub struct Adam {
+    |            ---- fields in this struct
+...
+130 |     betas: (f32, f32),
+    |     ^^^^^
+131 |     eps: f32,
+    |     ^^^
+132 |     weight_decay: f32,
+    |     ^^^^^^^^^^^^
+    |
+    = note: `Adam` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code 
+analysis
+
+warning: fields `alpha`, `eps`, and `weight_decay` are never read
+   --> src\ml\optim.rs:225:5
+    |
+222 | pub struct RMSprop {
+    |            ------- fields in this struct
+...
+225 |     alpha: f32,
+    |     ^^^^^
+226 |     eps: f32,
+    |     ^^^
+227 |     weight_decay: f32,
+    |     ^^^^^^^^^^^^
+    |
+    = note: `RMSprop` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code 
+analysis
+
+warning: fields `lr_decay`, `weight_decay`, and `eps` are never read
+   --> src\ml\optim.rs:317:5
+    |
+314 | pub struct Adagrad {
+    |            ------- fields in this struct
+...
+317 |     lr_decay: f32,
+    |     ^^^^^^^^
+318 |     weight_decay: f32,
+    |     ^^^^^^^^^^^^
+319 |     eps: f32,
+    |     ^^^
+    |
+    = note: `Adagrad` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code 
+analysis
+
+warning: fields `rho`, `eps`, and `weight_decay` are never read
+   --> src\ml\optim.rs:383:5
+    |
+380 | pub struct Adadelta {
+    |            -------- fields in this struct
+...
+383 |     rho: f32,
+    |     ^^^
+384 |     eps: f32,
+    |     ^^^
+385 |     weight_decay: f32,
+    |     ^^^^^^^^^^^^
+    |
+    = note: `Adadelta` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code 
+analysis
+
+warning: field `feature_range` is never read
+   --> src\ml\data.rs:209:5
+    |
+204 | pub struct Preprocessor {
+    |            ------------ field in this struct
+...
+209 |     feature_range: Option<(f32, f32)>,
+    |     ^^^^^^^^^^^^^
+
+warning: fields `feature_names` and `label_name` are never read
+   --> src\ml\data.rs:411:5
+    |
+408 | pub struct CSVDataset {
+    |            ---------- fields in this struct
+...
+411 |     feature_names: Vec<String>,
+    |     ^^^^^^^^^^^^^
+412 |     label_name: String,
+    |     ^^^^^^^^^^
+
+warning: field `per_channel` is never read
+   --> src\ml\inference.rs:188:5
+    |
+185 | pub struct Quantizer {
+    |            --------- field in this struct
+...
+188 |     per_channel: bool,
+    |     ^^^^^^^^^^^
+
+warning: fields `input_size`, `hidden_sizes`, `output_size`, `dropout_rate`, and `use_batch_norm` are never read
+  --> src\ml\models.rs:18:5
+   |
+16 | pub struct MLP {
+   |            --- fields in this struct
+17 |     layers: Sequential,
+18 |     input_size: usize,
+   |     ^^^^^^^^^^
+19 |     hidden_sizes: Vec<usize>,
+   |     ^^^^^^^^^^^^
+20 |     output_size: usize,
+   |     ^^^^^^^^^^^
+21 |     dropout_rate: f32,
+   |     ^^^^^^^^^^^^
+22 |     use_batch_norm: bool,
+   |     ^^^^^^^^^^^^^^
+   |
+   = note: `MLP` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: fields `input_channels`, `conv_channels`, `fc_sizes`, `output_size`, `dropout_rate`, and `use_batch_norm` are 
+never read
+   --> src\ml\models.rs:106:5
+    |
+104 | pub struct CNN {
+    |            --- fields in this struct
+105 |     layers: Sequential,
+106 |     input_channels: usize,
+    |     ^^^^^^^^^^^^^^
+107 |     conv_channels: Vec<usize>,
+    |     ^^^^^^^^^^^^^
+108 |     fc_sizes: Vec<usize>,
+    |     ^^^^^^^^
+109 |     output_size: usize,
+    |     ^^^^^^^^^^^
+110 |     dropout_rate: f32,
+    |     ^^^^^^^^^^^^
+111 |     use_batch_norm: bool,
+    |     ^^^^^^^^^^^^^^
+    |
+    = note: `CNN` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: fields `input_size`, `hidden_size`, `num_layers`, `output_size`, `bidirectional`, and `dropout_rate` are 
+never read
+   --> src\ml\models.rs:249:5
+    |
+247 | pub struct RNNModel {
+    |            -------- fields in this struct
+248 |     layers: Sequential,
+249 |     input_size: usize,
+    |     ^^^^^^^^^^
+250 |     hidden_size: usize,
+    |     ^^^^^^^^^^^
+251 |     num_layers: usize,
+    |     ^^^^^^^^^^
+252 |     output_size: usize,
+    |     ^^^^^^^^^^^
+253 |     bidirectional: bool,
+    |     ^^^^^^^^^^^^^
+254 |     dropout_rate: f32,
+    |     ^^^^^^^^^^^^
+    |
+    = note: `RNNModel` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code 
+analysis
+
+warning: fields `latent_dim` and `input_size` are never read
+   --> src\ml\models.rs:382:5
+    |
+379 | pub struct Autoencoder {
+    |            ----------- fields in this struct
+...
+382 |     latent_dim: usize,
+    |     ^^^^^^^^^^
+383 |     input_size: usize,
+    |     ^^^^^^^^^^
+    |
+    = note: `Autoencoder` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code 
+analysis
+
+warning: fields `latent_dim` and `output_size` are never read
+   --> src\ml\models.rs:484:5
+    |
+481 | pub struct GAN {
+    |            --- fields in this struct
+...
+484 |     latent_dim: usize,
+    |     ^^^^^^^^^^
+485 |     output_size: usize,
+    |     ^^^^^^^^^^^
+    |
+    = note: `GAN` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: fields `d_model`, `nhead`, `num_layers`, `dim_feedforward`, and `dropout` are never read
+   --> src\ml\models.rs:592:5
+    |
+589 | pub struct Transformer {
+    |            ----------- fields in this struct
+...
+592 |     d_model: usize,
+    |     ^^^^^^^
+593 |     nhead: usize,
+    |     ^^^^^
+594 |     num_layers: usize,
+    |     ^^^^^^^^^^
+595 |     dim_feedforward: usize,
+    |     ^^^^^^^^^^^^^^^
+596 |     dropout: f32,
+    |     ^^^^^^^
+    |
+    = note: `Transformer` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code 
+analysis
+
+warning: function `init` is never used
+   --> src\memory\capability.rs:287:8
+    |
+287 | pub fn init() {
+    |        ^^^^
+
+warning: field `sender` is never read
+  --> src\runtime\actor\advanced.rs:43:5
+   |
+40 | pub struct ActorContext {
+   |            ------------ field in this struct
+...
+43 |     sender: mpsc::UnboundedSender<ActorMessage>,
+   |     ^^^^^^
+   |
+   = note: `ActorContext` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code 
+analysis
+
+warning: field `priority` is never read
+  --> src\runtime\async_advanced.rs:47:5
+   |
+44 | struct Task {
+   |        ---- field in this struct
+...
+47 |     priority: Priority,
+   |     ^^^^^^^^
+
+warning: method `is_completed` is never used
+  --> src\runtime\async_advanced.rs:94:8
+   |
+52 | impl Task {
+   | --------- method in this implementation
+...
+94 |     fn is_completed(&self) -> bool {
+   |        ^^^^^^^^^^^^
+
+warning: field `id` is never read
+   --> src\runtime\async_advanced.rs:105:5
+    |
+104 | struct TaskWaker {
+    |        --------- field in this struct
+105 |     id: TaskId,
+    |     ^^
+
+warning: methods `len` and `is_empty` are never used
+   --> src\runtime\async_advanced.rs:146:8
+    |
+124 | impl WorkStealingDeque {
+    | ---------------------- methods in this implementation
+...
+146 |     fn len(&self) -> usize {
+    |        ^^^
+...
+151 |     fn is_empty(&self) -> bool {
+    |        ^^^^^^^^
+
+warning: field `global_queue` is never read
+   --> src\runtime\async_advanced.rs:212:5
+    |
+210 | pub struct AsyncRuntime {
+    |            ------------ field in this struct
+211 |     workers: Arc<Mutex<Vec<Arc<Worker>>>>,
+212 |     global_queue: Arc<WorkStealingDeque>,
+    |     ^^^^^^^^^^^^
+
+warning: fields `future` and `mapper` are never read
+   --> src\runtime\async_advanced.rs:335:9
+    |
+334 |     pub struct Map<Fut, F> {
+    |                --- fields in this struct
+335 |         future: Fut,
+    |         ^^^^^^
+336 |         mapper: Option<F>,
+    |         ^^^^^^
+
+warning: fields `future` and `transformer` are never read
+   --> src\runtime\async_advanced.rs:354:9
+    |
+353 |     pub struct Then<Fut, F> {
+    |                ---- fields in this struct
+354 |         future: Fut,
+    |         ^^^^^^
+355 |         transformer: Option<F>,
+    |         ^^^^^^^^^^^
+
+warning: fields `future1`, `future2`, `completed1`, `completed2`, `result1`, and `result2` are never read
+   --> src\runtime\async_advanced.rs:374:9
+    |
+373 |     pub struct Join<Fut1, Fut2> {
+    |                ---- fields in this struct
+374 |         future1: Fut1,
+    |         ^^^^^^^
+375 |         future2: Fut2,
+    |         ^^^^^^^
+376 |         completed1: bool,
+    |         ^^^^^^^^^^
+377 |         completed2: bool,
+    |         ^^^^^^^^^^
+378 |         result1: Option<i64>,
+    |         ^^^^^^^
+379 |         result2: Option<i64>,
+    |         ^^^^^^^
+
+warning: field `receiver` is never read
+  --> src\runtime\channel_advanced.rs:36:5
+   |
+34 | pub struct UnboundedChannel<T> {
+   |            ---------------- field in this struct
+35 |     sender: mpsc::UnboundedSender<T>,
+36 |     receiver: mpsc::UnboundedReceiver<T>,
+   |     ^^^^^^^^
+
+warning: field `id` is never read
+   --> src\runtime\channel_advanced.rs:367:5
+    |
+366 | struct SelectorEntry {
+    |        ------------- field in this struct
+367 |     id: usize,
+    |     ^^
+
+warning: constant `UNINIT_PATTERN` is never used
+  --> src\runtime\memory.rs:17:7
+   |
+17 | const UNINIT_PATTERN: u8 = 0xCD;
+   |       ^^^^^^^^^^^^^^
+
+warning: static `ALLOCATION_COUNTER` is never used
+  --> src\runtime\memory.rs:29:8
+   |
+29 | static ALLOCATION_COUNTER: AtomicU64 = AtomicU64::new(1);
+   |        ^^^^^^^^^^^^^^^^^^
+
+warning: constant `GUARD_PAGE_SIZE` is never used
+  --> src\runtime\memory_bulletproof.rs:24:7
+   |
+24 | const GUARD_PAGE_SIZE: usize = 4096; // Typical page size
+   |       ^^^^^^^^^^^^^^^
+
+warning: field `timestamp` is never read
+  --> src\runtime\memory_bulletproof.rs:52:5
+   |
+50 | struct AllocationInfo {
+   |        -------------- field in this struct
+51 |     size: usize,
+52 |     timestamp: std::time::Instant,
+   |     ^^^^^^^^^
+   |
+   = note: `AllocationInfo` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead 
+code analysis
+
+warning: function `create_c_string` is never used
+   --> src\runtime\identity\integration.rs:314:4
+    |
+314 | fn create_c_string(s: &str) -> i64 {
+    |    ^^^^^^^^^^^^^^^
+
+warning: field `data` is never read
+  --> src\std\collections\mod.rs:46:5
+   |
+45 | pub struct Vec<T> {
+   |            --- field in this struct
+46 |     data: *mut T,
+   |     ^^^^
+
+warning: field `receiver` is never read
+   --> src\distributed\actor.rs:113:5
+    |
+107 | pub struct DistributedActorSystem {
+    |            ---------------------- field in this struct
+...
+113 |     receiver: mpsc::UnboundedReceiver<(ActorRef, ActorMessage)>,
+    |     ^^^^^^^^
+
+warning: method `handle_message` is never used
+   --> src\distributed\actor.rs:148:14
+    |
+118 | impl DistributedActorSystem {
+    | --------------------------- method in this implementation
+...
+148 |     async fn handle_message(&self, actor_ref: ActorRef, message: ActorMessage) {
+    |              ^^^^^^^^^^^^^^
+
+warning: field `actor` is never read
+   --> src\distributed\actor.rs:252:5
+    |
+251 | struct LocalActorHandle {
+    |        ---------------- field in this struct
+252 |     actor: Box<dyn DistributedActor>,
+    |     ^^^^^
+
+warning: field `saga_id` is never read
+   --> src\distributed\transaction.rs:347:5
+    |
+346 | struct SagaExecution {
+    |        ------------- field in this struct
+347 |     saga_id: u64,
+    |     ^^^^^^^
+
+warning: field `event_receiver` is never read
+   --> src\distributed\cluster.rs:105:5
+    |
+ 95 | pub struct ClusterManager {
+    |            -------------- field in this struct
+...
+105 |     event_receiver: mpsc::UnboundedReceiver<MembershipEvent>,
+    |     ^^^^^^^^^^^^^^
+
+warning: field `check_interval` is never read
+   --> src\distributed\cluster.rs:596:5
+    |
+594 | pub struct HealthChecker {
+    |            ------------- field in this struct
+595 |     /// Check interval
+596 |     check_interval: Duration,
+    |     ^^^^^^^^^^^^^^
+
+warning: variants `Connecting` and `Closing` are never constructed
+  --> src\distributed\transport.rs:52:5
+   |
+50 | enum ConnectionState {
+   |      --------------- variants in this enum
+51 |     /// Connection is connecting
+52 |     Connecting,
+   |     ^^^^^^^^^^
+...
+56 |     Closing,
+   |     ^^^^^^^
+   |
+   = note: `ConnectionState` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored 
+during dead code analysis
+
+warning: field `remote_addr` is never read
+  --> src\distributed\transport.rs:68:5
+   |
+62 | struct Connection {
+   |        ---------- field in this struct
+...
+68 |     remote_addr: SocketAddr,
+   |     ^^^^^^^^^^^
+
+warning: associated function `receive_message` is never used
+   --> src\distributed\transport.rs:143:14
+    |
+ 75 | impl Connection {
+    | --------------- associated function in this implementation
+...
+143 |     async fn receive_message(stream: &mut TcpStream) -> Result<NetworkMessage, String> {
+    |              ^^^^^^^^^^^^^^^
+
+warning: field `listener` is never read
+   --> src\distributed\transport.rs:244:5
+    |
+240 | pub struct NetworkTransport {
+    |            ---------------- field in this struct
+...
+244 |     listener: Option<TcpListener>,
+    |     ^^^^^^^^
+
+warning: method `handle_connection` is never used
+   --> src\distributed\transport.rs:293:14
+    |
+251 | impl NetworkTransport {
+    | --------------------- method in this implementation
+...
+293 |     async fn handle_connection(&self, mut stream: TcpStream, addr: SocketAddr) {
+    |              ^^^^^^^^^^^^^^^^^
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+   --> src\middle\types\identity\string_ops.rs:230:18
+    |
+230 |     pub fn chars(&self) -> std::str::Chars {
+    |                  ^^^^^     ^^^^^^^^^^^^^^^ the same lifetime is hidden here
+    |                  |
+    |                  the lifetime is elided here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+    = note: `#[warn(mismatched_lifetime_syntaxes)]` on by default
+help: use `'_` for type paths
+    |
+230 |     pub fn chars(&self) -> std::str::Chars<'_> {
+    |                                           ++++
+
+warning: unused return value of `Box::<T>::from_raw` that must be used
+   --> src\memory\allocator.rs:312:22
+    |
+312 |             unsafe { Box::from_raw(cap_ptr) };
+    |                      ^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: call `drop(Box::from_raw(ptr))` if you intend to drop the `Box`
+    = note: `#[warn(unused_must_use)]` (part of `#[warn(unused)]`) on by default
+help: use `let _ = ...` to ignore the resulting value
+    |
+312 |             unsafe { let _ = Box::from_raw(cap_ptr); };
+    |                      +++++++                       +
+
+For more information about this error, try `rustc --explain E0133`.
+warning: `zetac` (lib) generated 94 warnings (run `cargo fix --lib -p zetac` to apply 23 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.30s

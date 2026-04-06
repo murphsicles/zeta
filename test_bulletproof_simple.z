@@ -1,0 +1,17 @@
+// Test bulletproof memory system - simple array
+fn main() -> i64 {
+    // Simple array test
+    let arr: [i64; 5] = [1, 2, 3, 4, 5];
+    let mut sum: i64 = 0;
+    let mut i: i64 = 0;
+    
+    // Safe loop with bounds
+    while i < 5 {
+        // This should work with bulletproof bounds checking
+        sum += arr[i as usize];
+        i += 1;
+    }
+    
+    // Return sum (should be 15)
+    sum
+}

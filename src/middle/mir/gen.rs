@@ -987,39 +987,34 @@ impl MirGen {
                 });
             }
             AstNode::ArrayLit(elements) => {
-                // Create a static array on the heap
+                // Create an array using ArrayHeader API
                 println!("[MIR GEN DEBUG] ArrayLit with {} elements", elements.len());
                 
-
-                
-                // Allocate memory for the array
-                let array_ptr = self.next_id();
                 let size = elements.len();
-                let size_id = self.next_id();
-                self.exprs.insert(size_id, MirExpr::Lit(size as i64 * 8)); // 8 bytes per i64
+                
+                // Call array_new with capacity = size
+                let array_data_ptr = self.next_id();
+                let capacity_id = self.next_id();
+                self.exprs.insert(capacity_id, MirExpr::Lit(size as i64));
                 self.stmts.push(MirStmt::Call {
-                    func: "runtime_malloc".to_string(),
-                    args: vec![size_id],
-                    dest: array_ptr,
+                    func: "array_new".to_string(),
+                    args: vec![capacity_id],
+                    dest: array_data_ptr,
                     type_args: vec![],
                 });
                 
-                // Initialize each element
-                for (i, element) in elements.iter().enumerate() {
+                // Push each element (array_push handles length updates)
+                for element in elements.iter() {
                     let elem_id = self.lower_expr(element);
-                    let index_id = self.next_id();
-                    self.exprs.insert(index_id, MirExpr::Lit(i as i64));
-                    // array_set returns void
                     self.stmts.push(MirStmt::VoidCall {
-                        func: "array_set".to_string(),
-                        args: vec![array_ptr, index_id, elem_id],
+                        func: "array_push".to_string(),
+                        args: vec![array_data_ptr, elem_id],
                     });
                 }
                 
-                // Return the array pointer
-                self.exprs.insert(id, MirExpr::Var(array_ptr));
+                // Return the data pointer (after header)
+                self.exprs.insert(id, MirExpr::Var(array_data_ptr));
                 // Set the type to Array(u64, size) for subscript access
-                // Note: We assume all elements are u64 for now
                 self.type_map.insert(id, Type::Array(Box::new(Type::I64), ArraySize::Literal(size)));
             }
             AstNode::ArrayRepeat { value, size } => {
@@ -1033,25 +1028,22 @@ impl MirGen {
                         let size_val = *size_lit as usize;
                         println!("[MIR GEN DEBUG] ArrayRepeat with constant size: {}", size_val);
                         
-                        // Allocate memory for the array
+                        // Allocate array using array_new with capacity = size
                         let array_ptr = self.next_id();
-                        let size_bytes_id = self.next_id();
-                        self.exprs.insert(size_bytes_id, MirExpr::Lit(size_val as i64 * 8)); // 8 bytes per i64
+                        let capacity_id = self.next_id();
+                        self.exprs.insert(capacity_id, MirExpr::Lit(size_val as i64));
                         self.stmts.push(MirStmt::Call {
-                            func: "runtime_malloc".to_string(),
-                            args: vec![size_bytes_id],
+                            func: "array_new".to_string(),
+                            args: vec![capacity_id],
                             dest: array_ptr,
                             type_args: vec![],
                         });
                         
-                        // Initialize all elements to the same value
-                        for i in 0..size_val {
-                            let index_id = self.next_id();
-                            self.exprs.insert(index_id, MirExpr::Lit(i as i64));
-                            // array_set returns void
+                        // Push the value size_val times
+                        for _ in 0..size_val {
                             self.stmts.push(MirStmt::VoidCall {
-                                func: "array_set".to_string(),
-                                args: vec![array_ptr, index_id, value_id],
+                                func: "array_push".to_string(),
+                                args: vec![array_ptr, value_id],
                             });
                         }
                         
@@ -1105,11 +1097,13 @@ impl MirGen {
                 self.type_map.insert(id, Type::I64);
             }
             AstNode::DynamicArrayLit { elem_type, elements } => {
-                // Call array_new to create a new dynamic array
+                // Call array_new with capacity = number of elements
                 let array_ptr = self.next_id();
+                let capacity_id = self.next_id();
+                self.exprs.insert(capacity_id, MirExpr::Lit(elements.len() as i64));
                 self.stmts.push(MirStmt::Call {
                     func: "array_new".to_string(),
-                    args: vec![],
+                    args: vec![capacity_id],
                     dest: array_ptr,
                     type_args: vec![],
                 });

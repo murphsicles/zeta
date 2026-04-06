@@ -439,7 +439,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         // Array runtime functions
         module.add_function(
             "array_new",
-            i64_type.fn_type(&[], false),
+            i64_type.fn_type(&[i64_type.into()], false),
             Some(Linkage::External),
         );
         module.add_function(
