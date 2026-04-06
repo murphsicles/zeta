@@ -248,6 +248,7 @@ impl Resolver {
             AstNode::FString(_) => Type::Str,
             AstNode::Var(_) => Type::I64,
             AstNode::Bool(_) => Type::Bool,
+            AstNode::Range { .. } => Type::Range,
             AstNode::BinaryOp { op, left, .. } => {
                 // Handle range operator specially
                 if op == ".." {
