@@ -161,9 +161,9 @@
 
 #### **Phase 4.3: Identity Integration with Other Language Features - IN PROGRESS**
 1. **Integrate identity with ownership system** - Identity-aware borrowing and ownership
-   - ⏳ **Extend ownership system with identity capabilities** - Add identity metadata to ownership tracking
-   - ⏳ **Create identity-aware borrow checker** - Extend borrow checker to consider identity capabilities
-   - ⏳ **Test identity-ownership integration** - Create test cases for identity-aware ownership
+   - ✅ **Extend ownership system with identity capabilities** - Added identity metadata to ownership tracking
+   - ✅ **Create identity-aware borrow checker** - Extended borrow checker to consider identity capabilities
+   - ✅ **Test identity-ownership integration** - Created comprehensive test cases for identity-aware ownership
 
 2. **Add identity to type inference** - Automatic identity type inference
    - ⏳ **Enhance type inference with identity** - Extend inference algorithm to infer identity types
