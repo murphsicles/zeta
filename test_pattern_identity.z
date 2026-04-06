@@ -1,0 +1,16 @@
+// Test identity-aware pattern matching
+fn test_identity_pattern() -> i64 {
+    let x: string[identity:read] = "hello";
+    
+    match x {
+        s: string[identity:read] => {
+            // s should have read capability
+            s.len()
+        }
+        _ => 0
+    }
+}
+
+fn main() -> i64 {
+    test_identity_pattern()
+}
