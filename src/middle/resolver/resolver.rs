@@ -819,11 +819,11 @@ impl Resolver {
         );
 
         // Array runtime functions
-        // array_new() -> i64 (pointer to array)
+        // array_new(capacity: i64) -> i64 (pointer to array)
         self.funcs.insert(
             "array_new".to_string(),
             (
-                vec![],
+                vec![("capacity".to_string(), Type::I64)],
                 Type::I64,
                 false, // not async
             ),
@@ -878,6 +878,18 @@ impl Resolver {
                 false, // not async
             ),
         );
+        
+        // Memory allocation functions
+        // runtime_malloc(size: i64) -> i64 (pointer to allocated memory)
+        self.funcs.insert(
+            "runtime_malloc".to_string(),
+            (
+                vec![("size".to_string(), Type::I64)],
+                Type::I64,
+                false, // not async
+            ),
+        );
+        println!("[RESOLVER] Registered runtime_malloc");
         
         // map_get(map: i64, key: i64) -> i64
         self.funcs.insert(
@@ -1079,7 +1091,7 @@ impl Resolver {
         );
         
         println!(
-            "[RESOLVER] Registered built-in runtime functions: clone_i64, is_null_i64, to_string_str, to_string_i64, to_string_bool, array_new, array_push, array_len, array_get, array_set, array_free, map_get, print_i64, println, Vector::new, vector_make_u64x8, vector_add_i32x4, etc."
+            "[RESOLVER] Registered built-in runtime functions: clone_i64, is_null_i64, to_string_str, to_string_i64, to_string_bool, array_new, array_push, array_len, array_get, array_set, array_free, runtime_malloc, map_get, print_i64, println, Vector::new, vector_make_u64x8, vector_add_i32x4, etc."
         );
     }
 }

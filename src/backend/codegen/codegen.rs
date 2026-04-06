@@ -1131,12 +1131,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
         }
 
-        // Handle Vector::extract (method call, not static method)
-        // Note: This is handled differently - as a method call on a vector value
         // Check if it's an external function declared in the module
+        eprintln!("[DEBUG get_function] Checking module for function: {}", name);
         if let Some(f) = self.module.get_function(name) {
+            eprintln!("[DEBUG get_function] Found {} in module", name);
             return f;
         }
+        
+        // Handle Vector::extract (method call, not static method)
+        // Note: This is handled differently - as a method call on a vector value
         panic!("CRITICAL: Missing function '{}'", name);
     }
 

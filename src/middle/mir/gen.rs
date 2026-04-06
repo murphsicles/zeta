@@ -8,7 +8,7 @@
 use crate::frontend::ast::AstNode;
 use crate::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use crate::middle::specialization::MonoKey;
-use crate::middle::types::Type;
+use crate::middle::types::{Type, ArraySize};
 use std::collections::HashMap;
 
 pub struct MirGen {
@@ -987,12 +987,40 @@ impl MirGen {
                 });
             }
             AstNode::ArrayLit(elements) => {
-                // For now, treat regular array literals as creating a static array
-                // We'll need to implement proper array handling later
+                // Create a static array on the heap
                 println!("[MIR GEN DEBUG] ArrayLit with {} elements", elements.len());
-                // Create a placeholder value
-                self.exprs.insert(id, MirExpr::Lit(0));
-                self.type_map.insert(id, Type::I64);
+                
+
+                
+                // Allocate memory for the array
+                let array_ptr = self.next_id();
+                let size = elements.len();
+                let size_id = self.next_id();
+                self.exprs.insert(size_id, MirExpr::Lit(size as i64 * 8)); // 8 bytes per i64
+                self.stmts.push(MirStmt::Call {
+                    func: "runtime_malloc".to_string(),
+                    args: vec![size_id],
+                    dest: array_ptr,
+                    type_args: vec![],
+                });
+                
+                // Initialize each element
+                for (i, element) in elements.iter().enumerate() {
+                    let elem_id = self.lower_expr(element);
+                    let index_id = self.next_id();
+                    self.exprs.insert(index_id, MirExpr::Lit(i as i64));
+                    // array_set returns void
+                    self.stmts.push(MirStmt::VoidCall {
+                        func: "array_set".to_string(),
+                        args: vec![array_ptr, index_id, elem_id],
+                    });
+                }
+                
+                // Return the array pointer
+                self.exprs.insert(id, MirExpr::Var(array_ptr));
+                // Set the type to Array(u64, size) for subscript access
+                // Note: We assume all elements are u64 for now
+                self.type_map.insert(id, Type::Array(Box::new(Type::I64), ArraySize::Literal(size)));
             }
             AstNode::ArrayRepeat { value, size } => {
                 println!("[MIR GEN DEBUG] ArrayRepeat: [value; size]");
@@ -1006,10 +1034,19 @@ impl MirGen {
                 let bid = self.lower_expr(base);
                 let iid = self.lower_expr(index);
                 
-                // Check if base is a dynamic array
+                // Check if base is an array type (dynamic or static)
                 let base_ty = self.type_map.get(&bid).cloned().unwrap_or(Type::I64);
                 if let Type::DynamicArray(_) = base_ty {
                     // Generate array_get call for dynamic arrays
+                    self.stmts.push(MirStmt::Call {
+                        func: "array_get".to_string(),
+                        args: vec![bid, iid],
+                        dest: id,
+                        type_args: vec![],
+                    });
+                } else if let Type::Array(_, _) = base_ty {
+                    // Generate array_get call for static arrays too
+                    println!("[MIR GEN DEBUG] Using array_get for static array subscript");
                     self.stmts.push(MirStmt::Call {
                         func: "array_get".to_string(),
                         args: vec![bid, iid],
