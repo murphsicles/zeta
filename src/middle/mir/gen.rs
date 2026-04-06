@@ -1025,10 +1025,50 @@ impl MirGen {
             AstNode::ArrayRepeat { value, size } => {
                 println!("[MIR GEN DEBUG] ArrayRepeat: [value; size]");
                 let value_id = self.lower_expr(value);
-                let size_id = self.lower_expr(size);
-                // For now, create a placeholder
-                self.exprs.insert(id, MirExpr::Lit(0));
-                self.type_map.insert(id, Type::I64);
+                
+                // Check if size is a literal by examining the AST node directly
+                // We need to pattern match on the boxed value
+                match size.as_ref() {
+                    AstNode::Lit(size_lit) => {
+                        let size_val = *size_lit as usize;
+                        println!("[MIR GEN DEBUG] ArrayRepeat with constant size: {}", size_val);
+                        
+                        // Allocate memory for the array
+                        let array_ptr = self.next_id();
+                        let size_bytes_id = self.next_id();
+                        self.exprs.insert(size_bytes_id, MirExpr::Lit(size_val as i64 * 8)); // 8 bytes per i64
+                        self.stmts.push(MirStmt::Call {
+                            func: "runtime_malloc".to_string(),
+                            args: vec![size_bytes_id],
+                            dest: array_ptr,
+                            type_args: vec![],
+                        });
+                        
+                        // Initialize all elements to the same value
+                        for i in 0..size_val {
+                            let index_id = self.next_id();
+                            self.exprs.insert(index_id, MirExpr::Lit(i as i64));
+                            // array_set returns void
+                            self.stmts.push(MirStmt::VoidCall {
+                                func: "array_set".to_string(),
+                                args: vec![array_ptr, index_id, value_id],
+                            });
+                        }
+                        
+                        // Return the array pointer
+                        self.exprs.insert(id, MirExpr::Var(array_ptr));
+                        // Set the type to Array(u64, size) for subscript access
+                        // Note: We assume all elements are u64 for now
+                        self.type_map.insert(id, Type::Array(Box::new(Type::I64), ArraySize::Literal(size_val)));
+                    }
+                    _ => {
+                        // Size is not a literal constant
+                        println!("[MIR GEN DEBUG] ArrayRepeat with non-constant size, using placeholder");
+                        // For now, create a placeholder
+                        self.exprs.insert(id, MirExpr::Lit(0));
+                        self.type_map.insert(id, Type::I64);
+                    }
+                }
             }
             AstNode::Subscript { base, index } => {
                 let bid = self.lower_expr(base);

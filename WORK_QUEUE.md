@@ -159,12 +159,39 @@
 - ✅ **Constraint inference integration** - Constraints integrated with type inference system
 - ✅ **Capability constraint validation** - Runtime and compile-time capability checking
 
-#### **Next Phase: Phase 4.3 - Identity Integration with Other Language Features**
+#### **Phase 4.3: Identity Integration with Other Language Features - IN PROGRESS**
 1. **Integrate identity with ownership system** - Identity-aware borrowing and ownership
+   - ⏳ **Extend ownership system with identity capabilities** - Add identity metadata to ownership tracking
+   - ⏳ **Create identity-aware borrow checker** - Extend borrow checker to consider identity capabilities
+   - ⏳ **Test identity-ownership integration** - Create test cases for identity-aware ownership
+
 2. **Add identity to type inference** - Automatic identity type inference
+   - ⏳ **Enhance type inference with identity** - Extend inference algorithm to infer identity types
+   - ⏳ **Create identity inference rules** - Define rules for inferring capabilities from operations
+   - ⏳ **Test identity inference system** - Create comprehensive inference test suite
+
 3. **Implement identity-aware pattern matching** - Pattern matching with identity constraints
+   - ⏳ **Extend pattern matching with identity** - Add identity patterns to match syntax
+   - ⏳ **Implement identity pattern compilation** - Extend MIR generation for identity patterns
+   - ⏳ **Test identity pattern matching** - Create test cases for identity patterns
+
 4. **Add identity to generics** - Generic types with identity constraints
+   - ⏳ **Add identity constraints to generics** - Extend generic type parameters with identity constraints
+   - ⏳ **Implement identity-generic compilation** - Extend monomorphization for identity-generic types
+   - ⏳ **Test identity generics** - Create test cases for identity-constrained generics
+
 5. **Create identity-aware standard library** - Identity-aware collections and utilities
+   - ⏳ **Update collections with identity** - Add identity-aware versions of standard collections
+   - ⏳ **Create identity utilities** - Helper functions for identity manipulation
+   - ⏳ **Test identity-aware stdlib** - Comprehensive testing of identity-aware standard library
+
+### **Current Status (April 6, 2026 - 12:00 UTC):**
+- ✅ **Phase 4.2 COMPLETED** - Identity type constraints fully implemented
+- ✅ **All 112 tests passing** - Compiler stability verified
+- ⚠️ **Uncommitted changes** - MIR generator improvements and test updates ready for commit
+- 🎯 **Phase 4.3 STARTING** - Identity integration with other language features
+- ✅ **MIR generator enhanced** - Array repeat expressions with constant sizes now supported
+- ✅ **Test program updated** - `test_prime_simple.z` now uses proper Sieve of Eratosthenes
 
 ### **Ready for Implementation:**
 
