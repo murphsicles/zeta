@@ -1,0 +1,8 @@
+// Simple test for stack array access
+fn main() -> i64 {
+    let mut arr: [i64; 3] = [0; 3];
+    arr[0] = 1;
+    arr[1] = 2;
+    arr[2] = 3;
+    arr[0] + arr[1] + arr[2]
+}

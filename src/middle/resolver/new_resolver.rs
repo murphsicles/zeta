@@ -506,6 +506,19 @@ impl InferContext {
                 self.constrain_eq(expected_ty.clone(), Type::Bool);
                 Ok(())
             }
+            AstNode::TypeAnnotatedPattern { pattern, ty } => {
+                // Type-annotated pattern: check that the pattern matches the annotated type,
+                // and that the annotated type is compatible with the expected type
+                
+                // First, parse the type string to get a Type
+                let annotated_ty = self.parse_type_string(ty)?;
+                
+                // Check that the annotated type is compatible with the expected type
+                self.constrain_eq(expected_ty.clone(), annotated_ty.clone());
+                
+                // Check the pattern against the annotated type
+                self.check_pattern(pattern, &annotated_ty)
+            }
             _ => Err(format!("Pattern type not supported yet: {:?}", pattern)),
         }
     }

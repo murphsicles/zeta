@@ -1,0 +1,15 @@
+// Test identity-aware pattern matching with string identity
+
+fn test_identity() -> i64 {
+    let s = "hello";
+    
+    // Test identity type annotation in pattern
+    match s {
+        t: string => 1,
+        _ => 0
+    }
+}
+
+fn main() {
+    test_identity()
+}

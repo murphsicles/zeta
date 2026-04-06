@@ -338,4 +338,9 @@ pub enum AstNode {
     },
     /// Or pattern for multiple alternatives (e.g., 1 | 2 | 3)
     OrPattern(Vec<AstNode>),
+    /// Type-annotated pattern (e.g., x: i32, s: string[identity:read])
+    TypeAnnotatedPattern {
+        pattern: Box<AstNode>,
+        ty: String,
+    },
 }

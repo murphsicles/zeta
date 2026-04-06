@@ -1,0 +1,10 @@
+// Test simple pattern matching with type annotation
+
+fn main() -> i64 {
+    let x = 42;
+    
+    // This should work with our new type-annotated pattern support
+    let y: i64 = x;
+    
+    y
+}
