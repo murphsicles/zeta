@@ -819,11 +819,11 @@ impl Resolver {
         );
 
         // Array runtime functions
-        // array_new(capacity: i64) -> i64 (pointer to array)
+        // array_new(capacity: usize) -> i64 (pointer to array)
         self.funcs.insert(
             "array_new".to_string(),
             (
-                vec![("capacity".to_string(), Type::I64)],
+                vec![("capacity".to_string(), Type::Usize)],
                 Type::I64,
                 false, // not async
             ),
@@ -880,11 +880,11 @@ impl Resolver {
         );
         
         // Memory allocation functions
-        // runtime_malloc(size: i64) -> i64 (pointer to allocated memory)
+        // runtime_malloc(size: usize) -> i64 (pointer to allocated memory)
         self.funcs.insert(
             "runtime_malloc".to_string(),
             (
-                vec![("size".to_string(), Type::I64)],
+                vec![("size".to_string(), Type::Usize)],
                 Type::I64,
                 false, // not async
             ),
