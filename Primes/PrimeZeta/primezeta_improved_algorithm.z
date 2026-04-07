@@ -1,6 +1,6 @@
 // Murphy's Sieve with Full Wheel Factorization (size 30030)
 // Pure Zeta implementation for Plummers Prime Drag Race
-// algorithm=wheel, faithful=yes, bits=1, parallel=no
+// algorithm=wheel, faithful=yes, bits=8, parallel=no
 
 // Wheel primes: 2, 3, 5, 7, 11, 13
 // Wheel size: 30030 (2*3*5*7*11*13)
