@@ -477,13 +477,30 @@ impl MirGen {
                     });
                     self.type_map.insert(dest, Type::Range);
                 } else if op == "+" {
-                    self.stmts.push(MirStmt::SemiringFold {
-                        op: SemiringOp::Add,
-                        values: vec![left_id, right_id],
-                        result: dest,
-                    });
-                    self.exprs.insert(dest, MirExpr::Var(dest));
-                    self.type_map.insert(dest, Type::I64);
+                    // Check if either operand is a string
+                    let left_ty = self.type_map.get(&left_id);
+                    let right_ty = self.type_map.get(&right_id);
+                    
+                    if left_ty == Some(&Type::Str) || right_ty == Some(&Type::Str) {
+                        // String concatenation
+                        self.stmts.push(MirStmt::Call {
+                            func: "host_str_concat".to_string(),
+                            args: vec![left_id, right_id],
+                            dest,
+                            type_args: vec![],
+                        });
+                        self.exprs.insert(dest, MirExpr::Var(dest));
+                        self.type_map.insert(dest, Type::I64); // String handle is i64
+                    } else {
+                        // Numeric addition
+                        self.stmts.push(MirStmt::SemiringFold {
+                            op: SemiringOp::Add,
+                            values: vec![left_id, right_id],
+                            result: dest,
+                        });
+                        self.exprs.insert(dest, MirExpr::Var(dest));
+                        self.type_map.insert(dest, Type::I64);
+                    }
                 } else if op == "*" {
                     self.stmts.push(MirStmt::SemiringFold {
                         op: SemiringOp::Mul,
@@ -563,33 +580,53 @@ impl MirGen {
                     arg_ids.push(self.lower_expr(a));
                 }
                 
-                // Check if this is a method call on a dynamic array
-                let (func, is_array_len, is_array_push) = if let Some(ref rty) = receiver_ty {
-                    // Check if receiver is a dynamic array type
-                    if let Type::DynamicArray(_) = rty {
-                        // Map array methods to runtime functions
-                        match method.as_str() {
-                            "push" => ("array_push".to_string(), false, true),
-                            "len" => ("array_len".to_string(), true, false),
-                            _ => {
-                                // For other methods, use standard mangling
-                                let key = MonoKey {
-                                    func_name: method.clone(),
-                                    type_args: vec![rty.display_name()],
-                                };
-                                (key.mangle(), false, false)
+                // Check if this is a method call on a dynamic array or string
+                let (func, is_array_len, is_array_push, is_string_len) = if let Some(ref rty) = receiver_ty {
+                    match rty {
+                        // Check if receiver is a dynamic array type
+                        Type::DynamicArray(_) => {
+                            // Map array methods to runtime functions
+                            match method.as_str() {
+                                "push" => ("array_push".to_string(), false, true, false),
+                                "len" => ("array_len".to_string(), true, false, false),
+                                _ => {
+                                    // For other methods, use standard mangling
+                                    let key = MonoKey {
+                                        func_name: method.clone(),
+                                        type_args: vec![rty.display_name()],
+                                    };
+                                    (key.mangle(), false, false, false)
+                                }
                             }
                         }
-                    } else {
-                        // Not a dynamic array, use standard mangling
-                        let key = MonoKey {
-                            func_name: method.clone(),
-                            type_args: vec![rty.display_name()],
-                        };
-                        (key.mangle(), false, false)
+                        // Check if receiver is a string type
+                        Type::Str => {
+                            // Map string methods to runtime functions
+                            match method.as_str() {
+                                "len" => ("host_str_len".to_string(), false, false, true),
+                                "contains" => ("host_str_contains".to_string(), false, false, false),
+                                "concat" => ("host_str_concat".to_string(), false, false, false),
+                                _ => {
+                                    // For other methods, use standard mangling
+                                    let key = MonoKey {
+                                        func_name: method.clone(),
+                                        type_args: vec![rty.display_name()],
+                                    };
+                                    (key.mangle(), false, false, false)
+                                }
+                            }
+                        }
+                        _ => {
+                            // Not a dynamic array or string, use standard mangling
+                            let key = MonoKey {
+                                func_name: method.clone(),
+                                type_args: vec![rty.display_name()],
+                            };
+                            (key.mangle(), false, false, false)
+                        }
                     }
                 } else {
-                    (method.clone(), false, false)
+                    (method.clone(), false, false, false)
                 };
 
                 // Convert type arguments from strings to Type objects
@@ -603,8 +640,8 @@ impl MirGen {
                     type_args: mir_type_args,
                 });
                 self.exprs.insert(id, MirExpr::Var(id));
-                // For array methods, set appropriate return type
-                if is_array_len {
+                // For array and string methods, set appropriate return type
+                if is_array_len || is_string_len {
                     self.type_map.insert(id, Type::I64);
                 } else if is_array_push {
                     // push returns void

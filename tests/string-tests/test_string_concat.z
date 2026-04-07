@@ -1,0 +1,6 @@
+fn main() -> i64 {
+    let s1 = "hello";
+    let s2 = " world";
+    let s3 = s1.concat(s2);
+    s3.len()
+}

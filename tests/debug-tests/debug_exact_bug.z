@@ -1,0 +1,20 @@
+fn test_bug() -> u64 {
+    let mut is_prime = true
+    let n: u64 = 17
+    
+    let mut i: u64 = 5
+    while i * i <= n {
+        // THIS LINE CAUSES BUG:
+        if n % i == 0 {
+            is_prime = false
+            // break  // Removing break fixes it?
+        }
+        i += 6
+    }
+    
+    return if is_prime { 1 } else { 0 }
+}
+
+fn main() -> u64 {
+    return test_bug()
+}

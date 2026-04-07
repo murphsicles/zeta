@@ -237,6 +237,22 @@ impl<'ctx> LLVMCodegen<'ctx> {
             void_type.fn_type(&[i64_type.into()], false),
             Some(Linkage::External),
         );
+        // String runtime functions
+        module.add_function(
+            "host_str_len",
+            i64_type.fn_type(&[i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "host_str_contains",
+            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "host_str_concat",
+            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
         module.add_function(
             "scheduler::init_runtime",
             void_type.fn_type(&[], false),

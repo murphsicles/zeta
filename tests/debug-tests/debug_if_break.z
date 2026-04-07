@@ -1,0 +1,14 @@
+fn test() -> u64 {
+    let mut i: u64 = 0
+    while i < 10 {
+        if i == 5 {
+            break
+        }
+        i += 1
+    }
+    return i
+}
+
+fn main() -> u64 {
+    return test()
+}
