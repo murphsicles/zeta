@@ -449,3 +449,35 @@ pub unsafe extern "C" fn array_free(arr_ptr: i64) {
     }
     // Box is dropped here, freeing the DynamicArray struct
 }
+
+/// Append method for dynamic arrays (alias for array_push)
+/// Needed because codegen looks for append_i64
+///
+/// # Safety
+/// arr_ptr must be a valid pointer to a DynamicArray
+#[allow(unsafe_op_in_unsafe_fn)]
+pub unsafe extern "C" fn append_i64(arr_ptr: i64, value: i64) {
+    array_push(arr_ptr, value)
+}
+
+/// Append method for u8 arrays
+///
+/// # Safety
+/// arr_ptr must be a valid pointer to a DynamicArray
+#[allow(unsafe_op_in_unsafe_fn)]
+pub unsafe extern "C" fn append_u8(arr_ptr: i64, value: i64) {
+    // Convert i64 to u8
+    let u8_value = (value & 0xFF) as u8;
+    // array_push expects i64, so we need to convert back
+    array_push(arr_ptr, u8_value as i64)
+}
+
+/// Map get function (alias for array_get)
+/// Codegen uses map_get for array indexing
+///
+/// # Safety
+/// arr_ptr must be a valid pointer to a DynamicArray
+#[allow(unsafe_op_in_unsafe_fn)]
+pub unsafe extern "C" fn map_get(arr_ptr: i64, index: i64) -> i64 {
+    array_get(arr_ptr, index)
+}

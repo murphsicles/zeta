@@ -289,6 +289,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
             i64_type.fn_type(&[ptr_type.into()], true), // variadic, takes string pointer first
             Some(Linkage::External),
         );
+        module.add_function(
+            "std_println",
+            i64_type.fn_type(&[ptr_type.into()], true), // variadic, takes string pointer first
+            Some(Linkage::External),
+        );
 
         // === OPERATOR FUNCTION DECLARATIONS ===
         // Integer comparison operators (return i64: 1 for true, 0 for false)

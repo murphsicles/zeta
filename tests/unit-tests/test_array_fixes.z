@@ -1,0 +1,22 @@
+// Test array fixes
+fn test() -> u64 {
+    // Test 1: [u8] array
+    let mut arr1: [u8] = []
+    // Should work now with our type checker fix
+    
+    // Test 2: if statement
+    let mut count: u64 = 0
+    let mut i: u64 = 0
+    while i < 10 {
+        if i % 2 == 0 {
+            count = count + 1
+        }
+        i = i + 1
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    return test()
+}

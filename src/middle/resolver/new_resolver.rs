@@ -479,8 +479,9 @@ impl InferContext {
                 if elements.is_empty() {
                     // Empty array - we don't know the element type
                     // Create a type variable for the element type
+                    // For Zeta, empty array is a slice [] not [T; 0]
                     let elem_var = Type::Variable(TypeVar::fresh());
-                    Ok(Type::Array(Box::new(elem_var), 0))
+                    Ok(Type::Slice(Box::new(elem_var)))
                 } else {
                     // Infer type of first element
                     let first_ty = self.infer(&elements[0])?;
@@ -1199,11 +1200,16 @@ impl InferContext {
                     else_ty = self.infer(stmt)?;
                 }
 
-                // Both branches must have the same type
-                self.constrain_eq(then_ty.clone(), else_ty.clone());
-
-                // The if expression has the type of its branches
-                Ok(then_ty)
+                // If there's no else branch, if statement has unit type
+                if else_.is_empty() {
+                    // if without else is a statement, returns unit
+                    Ok(Type::Tuple(vec![]))
+                } else {
+                    // Both branches must have the same type
+                    self.constrain_eq(then_ty.clone(), else_ty.clone());
+                    // The if expression has the type of its branches
+                    Ok(then_ty)
+                }
             }
 
             AstNode::Match { scrutinee, arms } => {

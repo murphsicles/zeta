@@ -745,8 +745,18 @@ impl Resolver {
             ),
         );
 
+        // std_println(fmt: str) -> void
+        self.funcs.insert(
+            "std_println".to_string(),
+            (
+                vec![("fmt".to_string(), Type::Str)],
+                Type::Tuple(vec![]), // void
+                false, // not async
+            ),
+        );
+
         println!(
-            "[RESOLVER] Registered built-in runtime functions: clone_i64, is_null_i64, to_string_str, host_str_len, host_str_contains, host_str_concat, array_new, array_push, array_len, array_get, array_set, array_free"
+            "[RESOLVER] Registered built-in runtime functions: clone_i64, is_null_i64, to_string_str, host_str_len, host_str_contains, host_str_concat, array_new, array_push, array_len, array_get, array_set, array_free, std_println"
         );
     }
 }

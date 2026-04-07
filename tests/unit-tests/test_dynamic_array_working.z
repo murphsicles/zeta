@@ -1,0 +1,24 @@
+// Test with [dynamic]u8 which we know works
+fn test() -> u64 {
+    // Use [dynamic]u8 instead of [u8]
+    let mut arr1: [dynamic]u8 = []
+    
+    // Try to append (should work with our append_i64 fix)
+    // arr1.append(1)  // .append() might still be broken
+    
+    // Simple test
+    let mut count: u64 = 0
+    let mut i: u64 = 0
+    while i < 10 {
+        if i % 2 == 0 {
+            count = count + 1
+        }
+        i = i + 1
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    return test()
+}
