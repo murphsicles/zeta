@@ -1026,6 +1026,7 @@ impl Substitution {
                 params.iter().map(|p| self.apply(p)).collect(),
                 Box::new(self.apply(ret)),
             ),
+            Type::Identity(inner) => Type::Identity(inner.clone()),
             _ => ty.clone(),
         }
     }
@@ -1049,6 +1050,7 @@ impl Substitution {
             Type::AsyncFunction(params, ret) => {
                 params.iter().any(|p| self.occurs_check(var, p)) || self.occurs_check(var, ret)
             }
+            Type::Identity(_) => false,
             _ => false,
         }
     }

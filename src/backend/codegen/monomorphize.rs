@@ -188,6 +188,9 @@ fn extract_type_vars_from_type(ty: &Type, type_vars: &mut HashSet<TypeVar>) {
         Type::Vector(inner, _) => {
             extract_type_vars_from_type(inner, type_vars);
         }
+        Type::Identity(_) => {
+            // Identity types don't contain type variables directly
+        }
         _ => {} // Primitive types don't contain type variables
     }
 }
