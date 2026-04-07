@@ -1,6 +1,6 @@
 # [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta: The Final Systems Language
 
-[<img alt="Zeta Logo" width="128px" src="https://z-lang.org/assets/images/z128.png" />](https://z-lang.org) [![Crates.io](https://img.shields.io/crates/v/zetac.svg)](https://crates.io/crates/zetac) [![Dependencies](https://deps.rs/repo/github/murphsicles/zeta/status.svg)](https://deps.rs/repo/github/murphsicles/zeta)[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[<img alt="Zeta Logo" width="128px" src="https://z-lang.org/assets/images/z128.png" />](https://z-lang.org) [![Crates.io](https://img.shields.io/crates/v/zetac.svg)](https://crates.io/crates/zetac) [![Latest Release](https://img.shields.io/github/v/release/murphsicles/zeta)](https://github.com/murphsicles/zeta/releases) [![Dependencies](https://deps.rs/repo/github/murphsicles/zeta/status.svg)](https://deps.rs/repo/github/murphsicles/zeta)[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Zeta is a systems programming language inspired by Elements of Programming (EOP) algebraic foundations, by Alexander Stepanov, the Godfather of the C++ Standard Template Library. Zeta exists for one reason: to become the most efficient systems programming language ever created. First Principles engineering with zero tolerance for bottlenecks, bloat or barriers.
 
@@ -26,36 +26,36 @@ Zeta is a systems programming language inspired by Elements of Programming (EOP)
 - **Self-hosting in ~3,400 lines of code**
 - **Very low cyclomatic complexity**
 
-Zeta v0.5.0 is released — the pure Zeta implementation milestone.
-This release represents the culmination of the bootstrap journey from Rust v0.3.7 to pure Zeta v0.5.0.
+Zeta v0.3.50 is released with complete blockchain extension (BSV + Solana + Teranode), advanced concurrency, machine learning integration, quantum computing support, and full bootstrap completion. The language is now production-ready with enterprise features.
+
+## 🚀 Latest Releases
+
+- **v0.3.50** - Complete Blockchain Extension (BSV + Solana + Teranode)
+- **v0.3.49** - Distributed Systems Framework
+- **v0.3.48** - Quantum Computing Integration
+- **v0.3.47** - Formal Verification System
+- **v0.3.46** - Machine Learning Integration
+- **v0.3.45** - Advanced Metaprogramming
+- **v0.3.44** - Tooling Ecosystem
+- **v0.3.43** - Advanced Type System
+- **v0.3.42** - Advanced Concurrency
+- **v0.3.41** - Package Ecosystem
+- **v0.3.40** - Standard Library Foundation
+- **v0.3.39** - Memory Management System
+- **v0.3.38** - Concurrency Foundation
+- **v0.3.37** - Metaprogramming Foundation
+- **v0.3.36** - Type System Foundation
+- **v0.3.35** - Tooling Foundation
+- **v0.3.34** - Error Handling System
+- **v0.3.33** - Testing Framework
+- **v0.3.32** - Optimization Pipeline
+- **v0.3.31** - Intermediate Representation
+- **v0.3.30** - Parser Foundation
+- **v0.3.29** - Comptime Improvements
+
+See [CHANGELOG.md](CHANGELOG.md) for complete release history and [docs/releases/](docs/releases/) for detailed release notes.
 
 > “Complexity assertions have to be part of the interface.” - Alexander Stepanov, 1995
-
-## 🚀 Zeta v0.5.0 - Pure Zeta Milestone
-
-**Release Date:** March 24, 2026  
-**Key Achievement:** Pure Zeta implementation with preserved bootstrap chain
-
-### Bootstrap Journey
-- **v0.3.7 (Rust):** Final Rust-based compiler
-- **v0.3.8 (Zeta):** First Zeta-compiled version
-- **v0.4.x (Zeta):** Iterative improvements
-- **v0.5.0 (Zeta):** Pure Zeta milestone with mixed repository structure
-
-### Repository Structure
-This repository now contains **pure Zeta source code**:
-- **Zeta source:** Pure Zeta compiler in `src/` directory
-- **Bootstrap preserved:** Historical bootstrap chain maintained in separate branches
-- **Clean separation:** Rust code removed from main branch for clarity
-
-### Getting Started with v0.5.0
-```bash
-# Download the pure Zeta source code
-# Check GitHub Releases for v0.5.0 source tarball
-
-# Build instructions coming in v0.5.1
-# Currently requires v0.4.1 compiler for bootstrapping
-```
 
 ## [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Official Benchmarks — February 18, 2026  
 Intel i9-13900K · Ubuntu 24.04

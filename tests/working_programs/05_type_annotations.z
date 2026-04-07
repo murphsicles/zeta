@@ -1,0 +1,15 @@
+// Type annotations and explicit types
+fn add_explicit(a: i64, b: i64) -> i64 {
+    a + b
+}
+
+fn main() -> i64 {
+    // Explicit type annotations
+    let x: i64 = 100;
+    let y: i64 = 200;
+    
+    // Function call with explicit types
+    let result: i64 = add_explicit(x, y);
+    
+    result
+}

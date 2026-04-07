@@ -1,0 +1,6 @@
+// Test comparison without loop
+fn main() -> i64 {
+    let i: i64 = 0
+    let result: i64 = i < 5  // Should be 1 (true)
+    return result
+}

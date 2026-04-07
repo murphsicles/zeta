@@ -1,0 +1,159 @@
+// Formatting, Time, and Environment Tests for Standard Library Foundation
+// Tests for std::fmt, std::time, and std::env modules
+
+// Test formatting operations
+fn test_formatting() {
+    // Basic formatting
+    let formatted = format!("Hello, {}!", "World");
+    assert(formatted == "Hello, World!", "Basic formatting should work");
+    
+    // Number formatting
+    let num = 42;
+    assert(format!("{}", num) == "42", "Integer formatting should work");
+    assert(format!("{:04}", num) == "0042", "Zero-padded formatting should work");
+    assert(format!("{:#x}", num) == "0x2a", "Hex formatting should work");
+    assert(format!("{:#o}", num) == "0o52", "Octal formatting should work");
+    assert(format!("{:#b}", num) == "0b101010", "Binary formatting should work");
+    
+    // Float formatting
+    let pi = 3.14159;
+    assert(format!("{:.2}", pi) == "3.14", "Float precision formatting should work");
+    
+    // Debug formatting
+    let value = vec![1, 2, 3];
+    let debug_output = format!("{:?}", value);
+    assert(debug_output.contains("1") && debug_output.contains("2") && debug_output.contains("3"),
+           "Debug formatting should work");
+    
+    println!("Formatting tests passed");
+}
+
+// Test time operations
+fn test_time_operations() {
+    // Get current time
+    let now = std::time::SystemTime::now();
+    
+    // Create duration
+    let one_second = std::time::Duration::from_secs(1);
+    let one_millisecond = std::time::Duration::from_millis(1);
+    
+    // Verify duration values
+    assert(one_second.as_secs() == 1, "Duration seconds should be correct");
+    assert(one_second.as_millis() == 1000, "Duration milliseconds should be correct");
+    assert(one_millisecond.as_micros() == 1000, "Duration microseconds should be correct");
+    
+    // Test elapsed time (basic smoke test)
+    let start = std::time::Instant::now();
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    let elapsed = start.elapsed();
+    assert(elapsed.as_millis() >= 10, "Elapsed time should be at least 10ms");
+    
+    // Test system time operations
+    let system_now = std::time::SystemTime::now();
+    let since_epoch = system_now.duration_since(std::time::UNIX_EPOCH);
+    assert(since_epoch.is_ok(), "Should be able to get time since epoch");
+    
+    println!("Time operations tests passed");
+}
+
+// Test environment operations
+fn test_environment_operations() {
+    // Test environment variables
+    let test_key = "ZETA_TEST_ENV_VAR";
+    let test_value = "test_value_123";
+    
+    // Set environment variable
+    std::env::set_var(test_key, test_value);
+    
+    // Get environment variable
+    let retrieved = std::env::var(test_key).expect("Should retrieve environment variable");
+    assert(retrieved == test_value, "Retrieved value should match");
+    
+    // Check if environment variable exists
+    assert(std::env::var(test_key).is_ok(), "Environment variable should exist");
+    
+    // Clean up
+    std::env::remove_var(test_key);
+    
+    // Test command line arguments
+    let args: Vec<String> = std::env::args().collect();
+    assert(!args.is_empty(), "Should have at least one argument (program name)");
+    
+    // Test current directory
+    let current_dir = std::env::current_dir().expect("Should get current directory");
+    assert(current_dir.exists(), "Current directory should exist");
+    
+    // Test home directory
+    let home_dir = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE"));
+    assert(home_dir.is_ok(), "Should get home directory");
+    
+    // Test temp directory
+    let temp_dir = std::env::temp_dir();
+    assert(temp_dir.exists(), "Temp directory should exist");
+    
+    // Test OS detection
+    let os = if cfg!(windows) {
+        "windows"
+    } else if cfg!(unix) {
+        "unix"
+    } else {
+        "unknown"
+    };
+    println!("Detected OS: {}", os);
+    
+    // Test CPU count
+    let cpu_count = num_cpus::get();
+    assert(cpu_count >= 1, "Should have at least one CPU core");
+    println!("CPU cores: {}", cpu_count);
+    
+    println!("Environment operations tests passed");
+}
+
+// Test date/time formatting
+fn test_datetime_formatting() {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    
+    // Get current timestamp
+    let now = SystemTime::now();
+    let since_epoch = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
+    
+    // Test basic timestamp
+    let timestamp = since_epoch.as_secs();
+    println!("Current timestamp: {}", timestamp);
+    
+    // Note: Actual date/time formatting would require a proper date/time library
+    // For now, we just verify the timestamp is reasonable (after 2020)
+    assert(timestamp > 1609459200, "Timestamp should be after 2020");
+    
+    println!("Date/time formatting tests passed");
+}
+
+// Test error handling in utilities
+fn test_utility_error_handling() {
+    // Test getting non-existent environment variable
+    match std::env::var("NON_EXISTENT_ENV_VAR_XYZ") {
+        Ok(_) => panic!("Should not find non-existent environment variable"),
+        Err(e) => {
+            println!("Expected error for non-existent env var: {}", e);
+            assert(e == std::env::VarError::NotPresent, "Should be NotPresent error");
+        }
+    }
+    
+    // Test invalid Unicode in environment variable
+    // Note: This is platform-specific and hard to test portably
+    
+    println!("Utility error handling tests passed");
+}
+
+// Main test runner
+fn main() {
+    println!("Running formatting, time, and environment tests...");
+    
+    test_formatting();
+    test_time_operations();
+    test_environment_operations();
+    test_datetime_formatting();
+    test_utility_error_handling();
+    
+    println!("All formatting, time, and environment tests passed!");
+}

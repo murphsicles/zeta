@@ -1,0 +1,9 @@
+// Simple control flow - if as expression
+fn main() -> i64 {
+    // Simple if expression
+    if true {
+        100
+    } else {
+        200
+    }
+}

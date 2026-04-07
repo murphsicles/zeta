@@ -1,0 +1,148 @@
+// I/O Test for Standard Library Foundation
+// Tests for file I/O, console I/O, and streams
+
+// Test file operations
+fn test_file_operations() {
+    // Create a test file
+    let test_content = "Hello, World!\nThis is a test file.\n";
+    let filename = "test_io_file.txt";
+    
+    // Write to file
+    let mut file = File::open(filename, "w").expect("Failed to open file for writing");
+    file.write_all(test_content.as_bytes()).expect("Failed to write to file");
+    file.close();
+    
+    // Read from file
+    let mut file = File::open(filename, "r").expect("Failed to open file for reading");
+    let mut content = String::new();
+    file.read_to_string(&mut content).expect("Failed to read from file");
+    file.close();
+    
+    // Verify content
+    assert(content == test_content, "File content should match");
+    
+    // Clean up
+    std::fs::remove_file(filename).expect("Failed to remove test file");
+    
+    println!("File operations test passed");
+}
+
+// Test console I/O
+fn test_console_io() {
+    // Test print functions
+    print!("Testing print without newline... ");
+    println!("Testing println with newline");
+    
+    // Note: We can't easily test stdin in automated tests
+    // but we can verify the functions exist and work
+    
+    println!("Console I/O test passed (output verified manually)");
+}
+
+// Test buffered streams
+fn test_stream_operations() {
+    // Create a stream
+    let mut stream = BufStream::new();
+    
+    // Write to stream
+    let data = "Stream test data\n";
+    stream.write_all(data.as_bytes()).expect("Failed to write to stream");
+    
+    // Read from stream
+    let mut buffer = [0u8; 100];
+    let bytes_read = stream.read(&mut buffer).expect("Failed to read from stream");
+    
+    // Verify data
+    let read_data = std::str::from_utf8(&buffer[..bytes_read]).expect("Invalid UTF-8");
+    assert(read_data == data, "Stream data should match");
+    
+    // Test seeking (if supported)
+    stream.seek(SeekFrom::Start(0)).expect("Failed to seek");
+    
+    println!("Stream operations test passed");
+}
+
+// Test error handling in I/O
+fn test_io_error_handling() {
+    // Test opening non-existent file for reading
+    match File::open("non_existent_file.txt", "r") {
+        Ok(_) => panic!("Should not be able to open non-existent file"),
+        Err(e) => {
+            println!("Expected error: {}", e);
+            assert(e.kind() == ErrorKind::NotFound, "Error should be NotFound");
+        }
+    }
+    
+    // Test invalid file mode
+    match File::open("test.txt", "x") {
+        Ok(_) => panic!("Should not accept invalid mode"),
+        Err(e) => {
+            println!("Expected error for invalid mode: {}", e);
+        }
+    }
+    
+    println!("I/O error handling test passed");
+}
+
+// Test I/O with different data types
+fn test_io_data_types() {
+    let filename = "test_data_types.bin";
+    
+    // Write different data types
+    let mut file = File::open(filename, "wb").expect("Failed to open binary file");
+    
+    // Write integers
+    let int_value: i32 = 42;
+    file.write(&int_value.to_le_bytes()).expect("Failed to write integer");
+    
+    // Write float
+    let float_value: f64 = 3.14159;
+    file.write(&float_value.to_le_bytes()).expect("Failed to write float");
+    
+    // Write boolean
+    let bool_value = true;
+    file.write(&[bool_value as u8]).expect("Failed to write boolean");
+    
+    file.close();
+    
+    // Read back
+    let mut file = File::open(filename, "rb").expect("Failed to open binary file for reading");
+    
+    // Read integer
+    let mut int_buffer = [0u8; 4];
+    file.read_exact(&mut int_buffer).expect("Failed to read integer");
+    let read_int = i32::from_le_bytes(int_buffer);
+    assert(read_int == int_value, "Integer should match");
+    
+    // Read float
+    let mut float_buffer = [0u8; 8];
+    file.read_exact(&mut float_buffer).expect("Failed to read float");
+    let read_float = f64::from_le_bytes(float_buffer);
+    assert((read_float - float_value).abs() < 0.00001, "Float should match");
+    
+    // Read boolean
+    let mut bool_buffer = [0u8; 1];
+    file.read_exact(&mut bool_buffer).expect("Failed to read boolean");
+    let read_bool = bool_buffer[0] != 0;
+    assert(read_bool == bool_value, "Boolean should match");
+    
+    file.close();
+    
+    // Clean up
+    std::fs::remove_file(filename).expect("Failed to remove test file");
+    
+    println!("I/O with different data types test passed");
+}
+
+// Main test runner
+fn main() {
+    println!("Running I/O tests...");
+    
+    test_file_operations();
+    test_console_io();
+    test_stream_operations();
+    test_io_error_handling();
+    test_io_data_types();
+    
+    println!("All I/O tests passed!");
+}

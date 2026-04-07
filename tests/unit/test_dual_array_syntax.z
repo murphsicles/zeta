@@ -1,0 +1,24 @@
+// Test dual-syntax array parsing
+const TEST_SIZE: i64 = 10
+
+// Zeta style
+fn test_zeta_style() -> [i64; 10] {
+    let arr: [i64; 10] = [0; 10]
+    arr
+}
+
+// PrimeZeta style (what we're adding)
+fn test_primezeta_style() -> [10]i64 {
+    let arr: [10]i64 = [0; 10]
+    arr
+}
+
+// With constant
+fn test_with_const() -> [TEST_SIZE]i64 {
+    let arr: [TEST_SIZE]i64 = [0; TEST_SIZE]
+    arr
+}
+
+fn main() -> i64 {
+    42
+}

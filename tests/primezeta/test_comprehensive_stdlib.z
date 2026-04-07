@@ -1,0 +1,46 @@
+// Comprehensive test for v0.3.25 stdlib compatibility
+// Tests all PrimeZeta required imports and basic functionality
+
+use std::malloc
+use std::free
+use std::print
+use std::println
+use std::args
+
+// Test other std modules that should be available
+use std::option::Option
+use std::result::Result
+use std::collections::Vec
+use std::string::String
+
+fn main() -> i64 {
+    // Test basic std functions
+    let ptr = malloc(100);
+    print(42);
+    println(123);
+    free(ptr);
+    let _args = args();
+    
+    // Test Option
+    let opt: Option<i64> = Option::Some(42);
+    let opt_value = opt.unwrap_or(0);
+    println(opt_value);
+    
+    // Test Result
+    let res: Result<i64, String> = Result::Ok(100);
+    let res_value = res.unwrap_or(0);
+    println(res_value);
+    
+    // Test Vec (stub)
+    let vec = Vec::<i64>::new();
+    let vec_len = vec.len() as i64;
+    println(vec_len);
+    
+    // Test String (stub)
+    let s = String::from("hello");
+    let str_len = s.len() as i64;
+    println(str_len);
+    
+    // Return success
+    0
+}

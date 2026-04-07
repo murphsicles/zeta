@@ -1,0 +1,271 @@
+// TEST SUITE: Type Comparison Fixes
+// Tests all type comparison scenarios to verify compiler fixes work
+
+// Test 1: u8 == 0 comparison (critical for sieve)
+fn test_u8_equals_zero() -> u64 {
+    let x: u8 = 0
+    let y: u8 = 1
+    let z: u8 = 0
+    
+    let mut result: u64 = 0
+    
+    if x == 0 {
+        result += 1  // Should execute
+    }
+    
+    if y == 0 {
+        result += 10  // Should NOT execute
+    }
+    
+    if z == 0 {
+        result += 100  // Should execute
+    }
+    
+    return result  // Expected: 101 (1 + 100)
+}
+
+// Test 2: u8 != 0 comparison
+fn test_u8_not_equals_zero() -> u64 {
+    let x: u8 = 0
+    let y: u8 = 1
+    let z: u8 = 255
+    
+    let mut result: u64 = 0
+    
+    if x != 0 {
+        result += 1  // Should NOT execute
+    }
+    
+    if y != 0 {
+        result += 10  // Should execute
+    }
+    
+    if z != 0 {
+        result += 100  // Should execute
+    }
+    
+    return result  // Expected: 110 (10 + 100)
+}
+
+// Test 3: Array element comparisons
+fn test_array_comparisons() -> u64 {
+    let arr: [dynamic]u8 = [dynamic]u8{}
+    arr.push(0)
+    arr.push(1)
+    arr.push(0)
+    arr.push(2)
+    
+    let mut count_zeros: u64 = 0
+    let mut count_ones: u64 = 0
+    
+    let mut i: u64 = 0
+    while i < arr.len() {
+        if arr[i] == 0 {
+            count_zeros += 1
+        }
+        if arr[i] == 1 {
+            count_ones += 1
+        }
+        i += 1
+    }
+    
+    return count_zeros * 10 + count_ones  // Expected: 2 zeros, 1 one = 21
+}
+
+// Test 4: Mixed type comparisons (u8 vs u64)
+fn test_mixed_type_comparisons() -> u64 {
+    let x: u8 = 10
+    let y: u64 = 10
+    let z: u8 = 5
+    
+    let mut result: u64 = 0
+    
+    // These should work with proper type coercion
+    if x == 10 {
+        result += 1
+    }
+    
+    if (x as u64) == y {
+        result += 10
+    }
+    
+    if z < 10 {
+        result += 100
+    }
+    
+    if x > z {
+        result += 1000
+    }
+    
+    return result  // Expected: 1111 (1 + 10 + 100 + 1000)
+}
+
+// Test 5: Complex boolean expressions with comparisons
+fn test_complex_boolean() -> u64 {
+    let a: u8 = 0
+    let b: u8 = 1
+    let c: u8 = 2
+    
+    let mut result: u64 = 0
+    
+    if a == 0 && b == 1 {
+        result += 1  // Should execute
+    }
+    
+    if a == 0 || c == 0 {
+        result += 10  // Should execute (a == 0 is true)
+    }
+    
+    if !(a == 1) {
+        result += 100  // Should execute
+    }
+    
+    if b == 1 && c == 3 {
+        result += 1000  // Should NOT execute
+    }
+    
+    return result  // Expected: 111 (1 + 10 + 100)
+}
+
+// Test 6: Comparison in while loop condition
+fn test_comparison_in_while() -> u64 {
+    let mut arr: [dynamic]u8 = [dynamic]u8{}
+    let mut i: u8 = 0
+    
+    while i < 5 {
+        arr.push(i)
+        i += 1
+    }
+    
+    // Count elements equal to 2
+    let mut count: u64 = 0
+    let mut j: u64 = 0
+    while j < arr.len() {
+        if arr[j] == 2 {
+            count += 1
+        }
+        j += 1
+    }
+    
+    return count  // Expected: 1 (only arr[2] == 2)
+}
+
+// Test 7: Nested comparisons
+fn test_nested_comparisons() -> u64 {
+    let values: [dynamic]u8 = [dynamic]u8{0, 1, 2, 3, 4, 5}
+    
+    let mut less_than_three: u64 = 0
+    let mut greater_than_two: u64 = 0
+    let mut equal_to_five: u64 = 0
+    
+    let mut i: u64 = 0
+    while i < values.len() {
+        if values[i] < 3 {
+            less_than_three += 1
+        }
+        
+        if values[i] > 2 {
+            greater_than_two += 1
+        }
+        
+        if values[i] == 5 {
+            equal_to_five += 1
+        }
+        
+        i += 1
+    }
+    
+    return less_than_three * 100 + greater_than_two * 10 + equal_to_five
+    // Expected: 3*100 + 3*10 + 1 = 331
+}
+
+// Test 8: Edge case comparisons
+fn test_edge_cases() -> u64 {
+    let mut result: u64 = 0
+    
+    // Test with u8 max value
+    let max_u8: u8 = 255
+    if max_u8 == 255 {
+        result += 1
+    }
+    if max_u8 > 254 {
+        result += 10
+    }
+    if max_u8 < 256 {  // 256 is outside u8 range, but should compare as u64
+        result += 100
+    }
+    
+    // Test with zero in different contexts
+    let zero_u8: u8 = 0
+    let zero_u64: u64 = 0
+    
+    if zero_u8 == zero_u64 {
+        result += 1000
+    }
+    
+    // Test inequality
+    if zero_u8 != 1 {
+        result += 10000
+    }
+    
+    return result  // Expected: 11111 (1 + 10 + 100 + 1000 + 10000)
+}
+
+// Main test runner
+fn main() -> u64 {
+    let mut test_results: [dynamic]u64 = [dynamic]u64{}
+    
+    // Run all tests
+    let test1 = test_u8_equals_zero()
+    test_results.push(test1)
+    print("Test 1 (u8 == 0): ", test1, " expected: 101")
+    
+    let test2 = test_u8_not_equals_zero()
+    test_results.push(test2)
+    print("Test 2 (u8 != 0): ", test2, " expected: 110")
+    
+    let test3 = test_array_comparisons()
+    test_results.push(test3)
+    print("Test 3 (array comparisons): ", test3, " expected: 21")
+    
+    let test4 = test_mixed_type_comparisons()
+    test_results.push(test4)
+    print("Test 4 (mixed types): ", test4, " expected: 1111")
+    
+    let test5 = test_complex_boolean()
+    test_results.push(test5)
+    print("Test 5 (complex boolean): ", test5, " expected: 111")
+    
+    let test6 = test_comparison_in_while()
+    test_results.push(test6)
+    print("Test 6 (comparison in while): ", test6, " expected: 1")
+    
+    let test7 = test_nested_comparisons()
+    test_results.push(test7)
+    print("Test 7 (nested comparisons): ", test7, " expected: 331")
+    
+    let test8 = test_edge_cases()
+    test_results.push(test8)
+    print("Test 8 (edge cases): ", test8, " expected: 11111")
+    
+    // Check all results
+    let expected_results: [dynamic]u64 = [101, 110, 21, 1111, 111, 1, 331, 11111]
+    let mut all_passed: u64 = 1
+    
+    let mut i: u64 = 0
+    while i < test_results.len() {
+        if test_results[i] != expected_results[i] {
+            print("FAIL: Test ", i + 1, " got ", test_results[i], " expected ", expected_results[i])
+            all_passed = 0
+        }
+        i += 1
+    }
+    
+    if all_passed == 1 {
+        print("✅ ALL TYPE COMPARISON TESTS PASSED")
+        return 0
+    } else {
+        print("❌ SOME TYPE COMPARISON TESTS FAILED")
+        return 1
+    }
+}

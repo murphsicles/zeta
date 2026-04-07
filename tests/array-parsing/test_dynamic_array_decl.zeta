@@ -1,0 +1,7 @@
+// Simple test for dynamic arrays - just declaration
+fn main() -> u64 {
+    // Test 1: Create dynamic array (just declaration)
+    let arr: [dynamic]u64
+    
+    return 0
+}

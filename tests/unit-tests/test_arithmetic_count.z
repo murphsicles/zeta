@@ -1,0 +1,26 @@
+// Test arithmetic counting instead of comparison
+
+fn test_arithmetic_count() -> u64 {
+    let arr: [dynamic]i64 = [dynamic]i64{}
+    
+    // Create array [1, 1, 0]
+    arr.push(1)
+    arr.push(1)
+    arr.push(0)
+    
+    // Count zeros using arithmetic: count += 1 - arr[n]
+    let mut count: u64 = 0
+    let mut n: u64 = 0
+    while n < 3 {
+        // If arr[n] is 0, then 1 - arr[n] = 1
+        // If arr[n] is 1, then 1 - arr[n] = 0
+        count += 1 - arr[n]
+        n += 1
+    }
+    
+    return count  // Should be 1
+}
+
+fn main() -> u64 {
+    return test_arithmetic_count()
+}

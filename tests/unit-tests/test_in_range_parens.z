@@ -1,0 +1,7 @@
+fn in_range(x: i64, min: i64, max: i64) -> bool {
+    (x >= min) && (x <= max)
+}
+
+fn main() {
+    let result = in_range(10, 0, 20)
+}

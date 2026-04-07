@@ -1,0 +1,6 @@
+// Test type alias
+type MyInt = u64
+
+fn main() -> MyInt {
+    return 42
+}

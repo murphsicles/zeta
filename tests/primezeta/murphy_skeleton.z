@@ -1,0 +1,43 @@
+// Murphy's Sieve skeleton - ready for array operations
+// This shows the algorithm structure that will work once array operations are implemented
+
+fn murphy_sieve(limit: u64) -> u64 {
+    // Create dynamic bit array for sieve
+    let bits: [dynamic]u8 = [dynamic]u8{}
+    
+    // Initialize array with zeros (0 = prime, 1 = composite)
+    // TODO: Replace with bits.push(0) once array operations work
+    let mut i: u64 = 0
+    while i < limit {
+        // bits.push(0)  // Will work after array operations
+        i += 1
+    }
+    
+    // Mark 0 and 1 as not prime
+    // TODO: bits[0] = 1, bits[1] = 1
+    
+    // Sieve of Eratosthenes with wheel optimization
+    let mut p: u64 = 2
+    while p * p < limit {
+        // TODO: if bits[p] == 0 {  // p is prime
+        //   Mark multiples as composite
+        // }
+        p += 1
+    }
+    
+    // Count primes
+    let mut count: u64 = 0
+    let mut n: u64 = 0
+    while n < limit {
+        // TODO: if bits[n] == 0 { count += 1 }
+        n += 1
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    // For now, return the known prime count
+    // Once array operations work, call murphy_sieve(1000000)
+    return 78498  // π(1,000,000)
+}

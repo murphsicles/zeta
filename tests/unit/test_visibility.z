@@ -1,0 +1,20 @@
+mod math {
+    pub fn add(a: i64, b: i64) -> i64 {
+        a + b
+    }
+    
+    // Private function (not pub)
+    fn internal() -> i64 {
+        42
+    }
+}
+
+fn main() -> i64 {
+    // This should work
+    let x = math::add(1, 2);
+    
+    // This should fail - private function
+    // let y = math::internal();
+    
+    x
+}

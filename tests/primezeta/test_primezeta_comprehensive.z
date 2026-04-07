@@ -1,0 +1,31 @@
+// Comprehensive PrimeZeta compatibility test
+use std::malloc;
+use std::free;
+use std::print;
+use std::println;
+use std::args;
+
+// Test that all imported functions work
+fn test_malloc_free() -> i64 {
+    let ptr = malloc(100);
+    free(ptr);
+    0
+}
+
+fn test_print_functions() -> i64 {
+    print(1);
+    println(2);
+    0
+}
+
+fn test_args() -> i64 {
+    let args_ptr = args();
+    0
+}
+
+fn main() -> i64 {
+    test_malloc_free();
+    test_print_functions();
+    test_args();
+    0  // Success
+}

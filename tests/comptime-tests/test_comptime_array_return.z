@@ -1,0 +1,12 @@
+// Test comptime function with array return
+const SIZE: usize = 10
+
+comptime fn make_array() -> [u64; SIZE] {
+    var arr: [u64; SIZE] = [0; SIZE]
+    return arr
+}
+
+fn main() -> u64 {
+    let arr = make_array()
+    return arr[0]
+}

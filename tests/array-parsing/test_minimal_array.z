@@ -1,0 +1,6 @@
+// Minimal array test - just declaration
+
+fn main() -> u64 {
+    let arr: [dynamic]u8 = [dynamic]u8{}
+    return 42
+}

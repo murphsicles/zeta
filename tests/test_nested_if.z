@@ -1,0 +1,35 @@
+fn test_nested_if() -> i64 {
+    let value = 42;
+    
+    if (value > 50) {
+        return 100;
+    } else {
+        if (value > 30) {
+            return 50;
+        } else {
+            return 10;
+        }
+    }
+}
+
+fn test_else_if() -> i64 {
+    let score = 85;
+    
+    if (score >= 90) {
+        return 4; // A
+    } else if (score >= 80) {
+        return 3; // B
+    } else if (score >= 70) {
+        return 2; // C
+    } else if (score >= 60) {
+        return 1; // D
+    } else {
+        return 0; // F
+    }
+}
+
+fn main() -> i64 {
+    let result1 = test_nested_if();
+    let result2 = test_else_if();
+    return result1 + result2; // Should be 50 + 3 = 53
+}

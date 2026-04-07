@@ -1,0 +1,6 @@
+// Test comparison without loop
+fn main() -> bool {
+    let i: i64 = 0
+    let result: bool = i < 5  // Should be true
+    return result
+}

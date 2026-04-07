@@ -1,0 +1,258 @@
+// Compile-time Reflection Test File
+// Tests for compile-time type information and reflection in Zeta v0.3.41
+
+// 1. Type information at compile time
+#[reflect]
+struct User {
+    id: u64,
+    username: String,
+    email: String,
+    active: bool,
+}
+
+#[reflect]
+enum Status {
+    Pending,
+    Active,
+    Suspended,
+    Banned,
+}
+
+// 2. Trait introspection
+#[introspect]
+trait Serializable {
+    fn serialize(&self) -> String;
+    fn deserialize(data: &str) -> Self;
+}
+
+// 3. Compile-time attribute inspection
+#[inspect]
+#[derive(Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+struct Config {
+    #[field(description = "Server hostname")]
+    host: String,
+    
+    #[field(description = "Server port", default = "8080")]
+    port: u16,
+    
+    #[field(description = "Enable SSL", default = "true")]
+    ssl_enabled: bool,
+}
+
+// 4. Compile-time validation
+#[validate]
+struct ValidatedUser {
+    #[validate(length(min = 3, max = 20))]
+    username: String,
+    
+    #[validate(email)]
+    email: String,
+    
+    #[validate(range(min = 0, max = 150))]
+    age: u8,
+}
+
+// 5. Type information queries at compile time
+fn type_info_example() {
+    // Get type information at compile time
+    let user_info = type_of::<User>();
+    println!("Type name: {}", user_info.name);
+    println!("Kind: {:?}", user_info.kind);
+    println!("Field count: {}", user_info.fields.len());
+    
+    for field in &user_info.fields {
+        println!("  Field: {} (type: {})", field.name, field.type_name);
+        if let Some(offset) = field.offset {
+            println!("    Offset: {}", offset);
+        }
+    }
+    
+    // Check if a type implements a trait
+    if implements::<User, Debug>() {
+        println!("User implements Debug");
+    }
+    
+    if implements::<User, Clone>() {
+        println!("User implements Clone");
+    }
+}
+
+// 6. Compile-time field iteration
+fn iterate_fields<T: Reflect>() {
+    let type_info = T::type_info();
+    
+    for field in type_info.fields {
+        println!("Field: {}", field.name);
+        
+        // Access field attributes
+        for attr in field.attributes {
+            println!("  Attribute: {} = {:?}", attr.name, attr.args);
+        }
+    }
+}
+
+// 7. Attribute-based code generation
+#[generate_accessors]
+struct Data {
+    private_field: i32,
+    another_field: String,
+}
+
+// Should generate:
+// impl Data {
+//     pub fn private_field(&self) -> i32 { self.private_field }
+//     pub fn set_private_field(&mut self, value: i32) { self.private_field = value; }
+//     pub fn another_field(&self) -> &String { &self.another_field }
+//     pub fn set_another_field(&mut self, value: String) { self.another_field = value; }
+// }
+
+// 8. Compile-time serialization schema generation
+#[generate_schema]
+struct DatabaseRecord {
+    id: u64,
+    created_at: DateTime,
+    updated_at: DateTime,
+    data: JsonValue,
+}
+
+// Should generate:
+// const DATABASE_RECORD_SCHEMA: Schema = Schema {
+//     name: "DatabaseRecord",
+//     fields: vec![
+//         FieldSchema { name: "id", type: "u64", nullable: false },
+//         FieldSchema { name: "created_at", type: "DateTime", nullable: false },
+//         FieldSchema { name: "updated_at", type: "DateTime", nullable: false },
+//         FieldSchema { name: "data", type: "JsonValue", nullable: false },
+//     ],
+// };
+
+// 9. Compile-time dependency injection
+#[injectable]
+struct Service {
+    repository: Repository,
+    cache: Cache,
+    config: Config,
+}
+
+// 10. Compile-time routing generation
+#[route(path = "/api/users", method = "GET")]
+fn get_users() -> Vec<User> {
+    // ...
+}
+
+#[route(path = "/api/users/:id", method = "GET")]
+fn get_user(id: u64) -> Option<User> {
+    // ...
+}
+
+#[route(path = "/api/users", method = "POST")]
+fn create_user(user: User) -> Result<User, Error> {
+    // ...
+}
+
+// Should generate routing table at compile time
+
+// 11. Reflection-based serialization
+fn serialize_reflective<T: Reflect>(value: &T) -> String {
+    let mut result = String::new();
+    let type_info = T::type_info();
+    
+    result.push_str(&format!("{{\"type\":\"{}\",\"fields\":{{", type_info.name));
+    
+    for (i, field) in type_info.fields.iter().enumerate() {
+        if i > 0 {
+            result.push(',');
+        }
+        
+        let field_value = value.get_field(&field.name).unwrap();
+        result.push_str(&format!("\"{}\":{}", field.name, field_value));
+    }
+    
+    result.push_str("}}");
+    result
+}
+
+// 12. Compile-time enum variant information
+fn enum_info_example() {
+    let status_info = type_of::<Status>();
+    
+    match status_info.kind {
+        TypeKind::Enum => {
+            println!("Enum variants:");
+            for variant in status_info.variants {
+                println!("  Variant: {}", variant.name);
+                if !variant.fields.is_empty() {
+                    println!("    Fields: {:?}", variant.fields);
+                }
+            }
+        }
+        _ => println!("Not an enum"),
+    }
+}
+
+// 13. Attribute-based validation generation
+#[auto_validate]
+fn create_user(user: ValidatedUser) -> Result<(), ValidationError> {
+    // Function parameters are automatically validated
+    Ok(())
+}
+
+// 14. Compile-time SQL schema generation
+#[sql_table(name = "users")]
+struct SqlUser {
+    #[sql_column(primary_key = true, auto_increment = true)]
+    id: u64,
+    
+    #[sql_column(unique = true, max_length = 50)]
+    username: String,
+    
+    #[sql_column(unique = true)]
+    email: String,
+    
+    #[sql_column(default = "true")]
+    active: bool,
+    
+    #[sql_column(name = "created_at", default = "CURRENT_TIMESTAMP")]
+    created: DateTime,
+}
+
+// Should generate:
+// CREATE TABLE users (
+//     id BIGINT PRIMARY KEY AUTO_INCREMENT,
+//     username VARCHAR(50) UNIQUE,
+//     email VARCHAR(255) UNIQUE,
+//     active BOOLEAN DEFAULT TRUE,
+//     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+// );
+
+// Main function to test compile-time reflection
+fn main() {
+    println!("Testing Compile-time Reflection");
+    
+    type_info_example();
+    enum_info_example();
+    
+    // Test reflection-based serialization
+    let user = User {
+        id: 1,
+        username: "testuser".to_string(),
+        email: "test@example.com".to_string(),
+        active: true,
+    };
+    
+    let json = serialize_reflective(&user);
+    println!("Serialized user: {}", json);
+    
+    // Test generated accessors
+    let mut data = Data {
+        private_field: 42,
+        another_field: "hello".to_string(),
+    };
+    
+    println!("Data field: {}", data.private_field());
+    data.set_private_field(100);
+    println!("Updated field: {}", data.private_field());
+    
+    println!("All reflection tests completed!");
+}

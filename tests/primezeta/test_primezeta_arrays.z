@@ -1,0 +1,17 @@
+// Test PrimeZeta array syntax
+const MODULUS: u64 = 30030
+const NUM_RESIDUES: usize = 5760
+
+// Test Zeta-style array syntax: [SIZE]TYPE
+comptime residues: [NUM_RESIDUES]u64 = [0; NUM_RESIDUES]
+comptime residue_to_index: [MODULUS]u8 = [0; MODULUS]
+
+fn main() -> i64 {
+    // Test malloc with type parameter
+    let ptr = malloc<u64>(10)
+    if ptr != 0 {
+        free(ptr)
+        return 0
+    }
+    return 1
+}

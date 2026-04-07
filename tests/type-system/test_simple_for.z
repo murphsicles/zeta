@@ -1,0 +1,16 @@
+// Simple test for for loop type inference
+fn main() {
+    // Test 1: Basic for loop
+    for i in 1..10 {
+        // i should be inferred as i64
+    }
+    
+    // Test 2: For loop with usize
+    for j in 0..10 as usize {
+        // j should be inferred as usize
+    }
+    
+    // Test 3: Range operator
+    let range = 1..10;
+    // range should have type Range
+}

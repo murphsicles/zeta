@@ -1,0 +1,64 @@
+// Murphy's Sieve implementation in PURE ZETA - FIXED VERSION
+// Using i64 array instead of u8 to avoid type comparison issues
+
+fn murphy_sieve(limit: u64) -> u64 {
+    // Create dynamic bit array for sieve
+    // 0 = prime, 1 = composite
+    let bits: [dynamic]i64 = [dynamic]i64{}
+    
+    // Initialize array with zeros (all prime initially)
+    let mut i: u64 = 0
+    while i < limit {
+        bits.push(0)
+        i += 1
+    }
+    
+    // Mark 0 and 1 as not prime (if within bounds)
+    if limit > 0 {
+        bits[0] = 1
+    }
+    if limit > 1 {
+        bits[1] = 1
+    }
+    
+    // Sieve of Eratosthenes
+    let mut p: u64 = 2
+    while p * p < limit {
+        // If p is prime (bits[p] == 0)
+        if bits[p] == 0 {
+            // Mark all multiples of p as composite
+            let mut multiple: u64 = p * p
+            while multiple < limit {
+                bits[multiple] = 1
+                multiple += p
+            }
+        }
+        p += 1
+    }
+    
+    // Count primes (bits[i] == 0)
+    let mut count: u64 = 0
+    let mut n: u64 = 0
+    while n < limit {
+        if bits[n] == 0 {
+            count += 1
+        }
+        n += 1
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    // Test with limit=3 (should return 1)
+    // Test with limit=10 (should return 4)
+    // Test with limit=100 (should return 25)
+    let result3 = murphy_sieve(3)
+    let result10 = murphy_sieve(10)
+    let result100 = murphy_sieve(100)
+    
+    // Return a combined result to verify all tests
+    // If result3=1, result10=4, result100=25, then:
+    // result3 * 10000 + result10 * 100 + result100 = 1*10000 + 4*100 + 25 = 10425
+    return result3 * 10000 + result10 * 100 + result100
+}

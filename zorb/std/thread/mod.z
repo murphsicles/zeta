@@ -1,0 +1,182 @@
+// Zorb Standard Library - Thread module
+// v0.5.0 Standard Library
+
+use super::time::Duration;
+use super::result::Result;
+
+/// A handle to a thread.
+pub struct Thread {
+    // Thread identifier
+    _id: u64,
+    // Thread name
+    _name: Option<String>,
+}
+
+/// Thread factory which can be used to configure the properties of a new thread.
+pub struct Builder {
+    _name: Option<String>,
+    _stack_size: Option<usize>,
+}
+
+impl Thread {
+    /// Spawns a new thread, returning a handle for it.
+    pub fn spawn<F, T>(f: F) -> Result<JoinHandle<T>>
+    where
+        F: FnOnce() -> T,
+        F: Send + 'static,
+        T: Send + 'static,
+    {
+        // Stub implementation
+        Ok(JoinHandle {
+            _thread: Thread {
+                _id: 0,
+                _name: None,
+            },
+            _result: None,
+        })
+    }
+    
+    /// Gets the thread's current name.
+    pub fn name(&self) -> Option<String> {
+        self._name.clone()
+    }
+    
+    /// Gets the thread's unique identifier.
+    pub fn id(&self) -> ThreadId {
+        ThreadId(self._id)
+    }
+    
+    /// Puts the current thread to sleep for at least the specified duration.
+    pub fn sleep(duration: Duration) {
+        // Stub implementation
+    }
+    
+    /// Cooperatively gives up a timeslice to the OS scheduler.
+    pub fn yield_now() {
+        // Stub implementation
+    }
+    
+    /// Returns a handle to the current thread.
+    pub fn current() -> Thread {
+        Thread {
+            _id: 0,
+            _name: None,
+        }
+    }
+}
+
+impl Builder {
+    /// Creates a new thread builder with default configuration.
+    pub fn new() -> Builder {
+        Builder {
+            _name: None,
+            _stack_size: None,
+        }
+    }
+    
+    /// Sets the name for the new thread.
+    pub fn name(mut self, name: String) -> Builder {
+        self._name = Some(name);
+        self
+    }
+    
+    /// Sets the stack size for the new thread.
+    pub fn stack_size(mut self, size: usize) -> Builder {
+        self._stack_size = Some(size);
+        self
+    }
+    
+    /// Spawns a new thread with the configuration set by this builder.
+    pub fn spawn<F, T>(self, f: F) -> Result<JoinHandle<T>>
+    where
+        F: FnOnce() -> T,
+        F: Send + 'static,
+        T: Send + 'static,
+    {
+        // Stub implementation
+        Ok(JoinHandle {
+            _thread: Thread {
+                _id: 0,
+                _name: self._name,
+            },
+            _result: None,
+        })
+    }
+}
+
+/// An owned permission to join on a thread (block on its termination).
+pub struct JoinHandle<T> {
+    _thread: Thread,
+    _result: Option<T>,
+}
+
+impl<T> JoinHandle<T> {
+    /// Waits for the associated thread to finish.
+    pub fn join(self) -> Result<T> {
+        // Stub implementation
+        match self._result {
+            Some(result) => Ok(result),
+            None => Err(Box::new(ThreadError::new("Thread panicked"))),
+        }
+    }
+    
+    /// Gets the thread associated with this join handle.
+    pub fn thread(&self) -> &Thread {
+        &self._thread
+    }
+}
+
+/// A unique identifier for a running thread.
+pub struct ThreadId(u64);
+
+impl ThreadId {
+    /// Returns a numeric identifier for this thread.
+    pub fn as_u64(&self) -> u64 {
+        self.0
+    }
+}
+
+/// Thread-local storage key which owns its contents.
+pub struct LocalKey<T> {
+    _key: u32,
+    _phantom: std::marker::PhantomData<T>,
+}
+
+impl<T> LocalKey<T> {
+    /// Accesses the value in this thread-local storage key.
+    pub fn with<F, R>(&'static self, f: F) -> R
+    where
+        F: FnOnce(&T) -> R,
+    {
+        // Stub implementation
+        panic!("Thread-local storage not implemented")
+    }
+}
+
+/// An error returned from thread operations.
+pub struct ThreadError {
+    _message: String,
+}
+
+impl ThreadError {
+    /// Creates a new thread error.
+    pub fn new(message: &str) -> ThreadError {
+        ThreadError {
+            _message: message.to_string(),
+        }
+    }
+}
+
+impl std::error::Error for ThreadError {}
+
+impl std::fmt::Display for ThreadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "Thread error: {}", self._message)
+    }
+}
+
+impl std::fmt::Debug for ThreadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "ThreadError {{ _message: {} }}", self._message)
+    }
+}

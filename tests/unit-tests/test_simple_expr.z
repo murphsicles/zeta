@@ -1,0 +1,7 @@
+fn test() -> bool {
+    return true && false
+}
+
+fn main() {
+    let result = test()
+}

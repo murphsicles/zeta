@@ -1,0 +1,18 @@
+// Minimal enum test
+enum MyOption {
+    Some(i64),
+    None,
+}
+
+fn make_some(x: i64) -> MyOption {
+    MyOption::Some(x)
+}
+
+fn main() -> i64 {
+    let x = make_some(42);
+    
+    match x {
+        MyOption::Some(val) => val,
+        MyOption::None => 0,
+    }
+}

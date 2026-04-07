@@ -1,0 +1,11 @@
+﻿// Simple bool test
+fn test_bool() -> bool {
+    return true
+}
+
+fn main() -> u64 {
+    if test_bool() {
+        return 1
+    }
+    return 0
+}

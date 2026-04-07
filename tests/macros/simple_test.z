@@ -1,0 +1,14 @@
+// Simple macro test for Zeta
+
+// Define a simple macro
+macro_rules! say_hello {
+    () => {
+        println!("Hello from macro!")
+    };
+}
+
+// Main function
+fn main() -> i64 {
+    say_hello!();
+    0
+}

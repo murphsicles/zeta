@@ -1,0 +1,8 @@
+// Variable declarations with different types
+fn main() -> i64 {
+    let x: i64 = 100;
+    let y = 200;
+    let z = x + y;
+    
+    z
+}

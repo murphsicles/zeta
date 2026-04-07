@@ -1,0 +1,16 @@
+// Test u8 literal
+
+fn test_u8_literal() -> u64 {
+    let x: u8 = 0u8
+    
+    // Test if u8 comparison works with u8 literal
+    if x == 0u8 {
+        return 1
+    } else {
+        return 0
+    }
+}
+
+fn main() -> u64 {
+    return test_u8_literal()
+}

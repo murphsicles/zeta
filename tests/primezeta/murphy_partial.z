@@ -1,0 +1,50 @@
+// Murphy's Sieve using only current array capabilities
+// Can initialize array and check values, but cannot set values yet
+
+fn sieve_without_set(limit: u64) -> u64 {
+    // Create and initialize array (all zeros = all prime initially)
+    let bits: [dynamic]u8 = [dynamic]u8{}
+    
+    // Fill array with zeros using push
+    let mut i: u64 = 0
+    while i < limit {
+        bits.push(0)
+        i += 1
+    }
+    
+    // We can READ values but cannot SET them yet
+    // So we can't actually mark composites
+    
+    // For now, use trial division to count primes
+    // This is inefficient but works with current capabilities
+    
+    let mut prime_count: u64 = 0
+    let mut n: u64 = 2
+    
+    while n <= limit {
+        let mut is_prime: u64 = 1
+        
+        // Trial division
+        let mut d: u64 = 2
+        while d * d <= n {
+            if n % d == 0 {
+                is_prime = 0
+                break
+            }
+            d += 1
+        }
+        
+        if is_prime == 1 {
+            prime_count += 1
+        }
+        
+        n += 1
+    }
+    
+    return prime_count
+}
+
+fn main() -> u64 {
+    // Test with small limit
+    return sieve_without_set(100)  // Should return 25 primes
+}

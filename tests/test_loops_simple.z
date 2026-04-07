@@ -1,0 +1,31 @@
+fn test_while_loop() -> i64 {
+    let mut i = 0;
+    let mut sum = 0;
+    
+    while (i < 10) {
+        sum = sum + i;
+        i = i + 1;
+    }
+    
+    return sum;  // Should return 45 (0+1+2+...+9)
+}
+
+fn test_infinite_loop() -> i64 {
+    let mut i = 0;
+    
+    loop {
+        i = i + 1;
+        if (i >= 10) {
+            break;
+        }
+    }
+    
+    return i;  // Should return 10
+}
+
+fn main() -> i64 {
+    let sum1 = test_while_loop();  // 45
+    let sum2 = test_infinite_loop();  // 10
+    
+    return sum1 + sum2;  // 45 + 10 = 55
+}

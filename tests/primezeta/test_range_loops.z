@@ -1,0 +1,57 @@
+// Test range loops for PrimeZeta compatibility
+// Protocol compliant: test file in tests/primezeta/
+
+use std::print;
+
+// Test 1: Simple range expression
+fn test_range_expr() {
+    let r = 1..10;
+    // Should parse as BinaryOp with ".." operator
+}
+
+// Test 2: For loop with range
+fn test_for_range() {
+    for i in 1..10 {
+        print(i);
+    }
+}
+
+// Test 3: For loop with variable in range
+fn test_for_range_var() {
+    let n = 10;
+    for i in 1..n {
+        print(i);
+    }
+}
+
+// Test 4: For loop with constant (PrimeZeta use case)
+const MODULUS: i64 = 100;
+
+fn test_primezeta_range() {
+    for i in 1..MODULUS {
+        // PrimeZeta needs this to work
+        compute_zeta(i);
+    }
+}
+
+fn compute_zeta(i: i64) {
+    // dummy function
+    print(i * i);
+}
+
+// Test 5: Exclusive range syntax
+fn test_exclusive_range() {
+    for i in 1..=10 {
+        // Should include 10
+        print(i);
+    }
+}
+
+// Test 6: Range with expressions
+fn test_range_expr_complex() {
+    let start = 5;
+    let end = 15;
+    for i in start..end+5 {
+        print(i);
+    }
+}

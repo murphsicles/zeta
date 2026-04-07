@@ -1,0 +1,99 @@
+// Comprehensive type system integration test for v0.3.26
+// Tests: usize, u64, as operator, type inference
+
+// Test 1: usize type (USIZE-TYPE-AGENT)
+const ARRAY_SIZE: usize = 100
+
+// Test 2: u64 type (U64-TYPE-AGENT)
+const MODULUS: u64 = 30030
+
+// Test 3: as operator (TYPE-CONVERSION-AGENT)
+fn test_as_operator() -> i64 {
+    let x: u64 = 42
+    let y: i64 = x as i64
+    y
+}
+
+// Test 4: Type inference with arrays (TYPE-INFERENCE-FIXER)
+fn test_array_inference() -> i64 {
+    let arr = [1, 2, 3, 4, 5]  // Should infer [i64; 5]
+    arr[2]  // Should return 3
+}
+
+// Test 5: Mixed type usage
+fn test_mixed_types() -> i64 {
+    let usize_val: usize = 100
+    let u64_val: u64 = 200
+    let i64_val: i64 = usize_val as i64 + u64_val as i64
+    i64_val
+}
+
+// Test 6: Range loop with usize
+fn test_range_loop() -> i64 {
+    var sum: i64 = 0
+    for i: usize in 0..10 {
+        sum = sum + i as i64
+    }
+    sum
+}
+
+// Test 7: PrimeZeta-like function
+fn generate_residues_like() -> i64 {
+    const NUM_RESIDUES: usize = 5760
+    var count: usize = 0
+    
+    for i: u64 in 0..MODULUS {
+        if i % 2 != 0 {
+            count = count + 1
+        }
+    }
+    
+    count as i64
+}
+
+// Main test runner
+fn main() -> i64 {
+    // Test 1: usize constant
+    if ARRAY_SIZE != 100 {
+        return 1
+    }
+    
+    // Test 2: u64 constant  
+    if MODULUS != 30030 {
+        return 2
+    }
+    
+    // Test 3: as operator
+    let as_result = test_as_operator()
+    if as_result != 42 {
+        return 3
+    }
+    
+    // Test 4: Array inference
+    let array_result = test_array_inference()
+    if array_result != 3 {
+        return 4
+    }
+    
+    // Test 5: Mixed types
+    let mixed_result = test_mixed_types()
+    if mixed_result != 300 {
+        return 5
+    }
+    
+    // Test 6: Range loop
+    let loop_result = test_range_loop()
+    if loop_result != 45 { // 0+1+...+9 = 45
+        return 6
+    }
+    
+    // Test 7: PrimeZeta-like
+    let primezeta_result = generate_residues_like()
+    // For modulus 30030, half are odd = 15015
+    if primezeta_result != 15015 {
+        return 7
+    }
+    
+    // All tests passed
+    0
+}

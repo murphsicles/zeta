@@ -1,0 +1,26 @@
+fn test_match_basic() -> i64 {
+    let x = 42;
+    
+    match x {
+        0 => return 0,
+        1 => return 1,
+        42 => return 100,
+        _ => return -1,
+    }
+}
+
+fn test_match_with_guard() -> i64 {
+    let x = 10;
+    
+    match x {
+        n if n < 5 => return 1,
+        n if n < 15 => return 2,
+        _ => return 3,
+    }
+}
+
+fn main() -> i64 {
+    let result1 = test_match_basic();  // Should return 100
+    let result2 = test_match_with_guard();  // Should return 2
+    return result1 + result2;  // 100 + 2 = 102
+}

@@ -1,0 +1,10 @@
+// Test let as first statement in function
+
+fn test() -> u64 {
+    let x: u64 = 42
+    return x
+}
+
+fn main() -> u64 {
+    return test()
+}

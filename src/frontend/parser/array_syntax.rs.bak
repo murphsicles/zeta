@@ -1,0 +1,250 @@
+//! Dual-syntax array type parser for Zeta
+//! 
+//! Supports both:
+//! 1. Zeta's current syntax: `[T; N]` (type before size)
+//! 2. PrimeZeta's syntax: `[N]T` (size before type)
+//! 
+//! This provides maximum compatibility during the bootstrap transition.
+
+use nom::{
+    IResult,
+    branch::alt,
+    bytes::complete::tag,
+    character::complete::{digit1, multispace0},
+    combinator::{map, opt, recognize},
+    sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
+};
+
+use crate::frontend::ast::{ArrayType, Type};
+use crate::frontend::parser::parser::{parse_ident, parse_type};
+use crate::frontend::parser::expr::parse_expr;
+
+/// Parse array type with dual syntax support
+/// 
+/// Supports:
+/// - `[T; N]` (Zeta style - type before size)
+/// - `[N]T` (PrimeZeta style - size before type)
+pub fn parse_array_type(input: &str) -> IResult<&str, Type> {
+    alt((
+        // Style 1: [T; N] (Zeta current)
+        parse_zeta_array_style,
+        // Style 2: [N]T (PrimeZeta)
+        parse_primezeta_array_style,
+    ))(input)
+}
+
+/// Parse Zeta-style array: `[T; N]`
+/// 
+/// Example: `[i64; 10]`, `[u64; NUM_RESIDUES]`
+fn parse_zeta_array_style(input: &str) -> IResult<&str, Type> {
+    map(
+        delimited(
+            tag("["),
+            separated_pair(
+                parse_type,
+                preceded(multispace0, tag(";")),
+                preceded(multispace0, parse_expr),
+            ),
+            tag("]"),
+        ),
+        |(element_type, size_expr)| {
+            Type::Array(ArrayType {
+                element_type: Box::new(element_type),
+                size: Some(size_expr),
+            })
+        },
+    )(input)
+}
+
+/// Parse PrimeZeta-style array: `[N]T`
+/// 
+/// Example: `[10]i64`, `[NUM_RESIDUES]u64`
+fn parse_primezeta_array_style(input: &str) -> IResult<&str, Type> {
+    map(
+        delimited(
+            tag("["),
+            tuple((
+                preceded(multispace0, parse_expr),
+                preceded(multispace0, tag("]")),
+                preceded(multispace0, parse_type),
+            )),
+            tag(""),
+        ),
+        |(size_expr, _, element_type)| {
+            Type::Array(ArrayType {
+                element_type: Box::new(element_type),
+                size: Some(size_expr),
+            })
+        },
+    )(input)
+}
+
+/// Parse array type with optional size (for backward compatibility)
+/// 
+/// Supports:
+/// - `[T]` (unsized array)
+/// - `[T; N]` (Zeta style)
+/// - `[N]T` (PrimeZeta style)
+pub fn parse_array_type_with_optional_size(input: &str) -> IResult<&str, Type> {
+    alt((
+        // Sized arrays (both styles)
+        parse_array_type,
+        // Unsized arrays: [T]
+        parse_unsized_array,
+    ))(input)
+}
+
+/// Parse unsized array: `[T]`
+fn parse_unsized_array(input: &str) -> IResult<&str, Type> {
+    map(
+        delimited(
+            tag("["),
+            parse_type,
+            tag("]"),
+        ),
+        |element_type| {
+            Type::Array(ArrayType {
+                element_type: Box::new(element_type),
+                size: None,
+            })
+        },
+    )(input)
+}
+
+/// Parse array literal (for initialization)
+/// 
+/// Examples:
+/// - `[1, 2, 3]`
+/// - `[0; 10]`
+/// - `[]` (empty array)
+pub fn parse_array_literal(input: &str) -> IResult<&str, Vec<crate::frontend::ast::AstNode>> {
+    delimited(
+        tag("["),
+        alt((
+            // Repeated value: [0; 10]
+            map(
+                separated_pair(
+                    parse_expr,
+                    preceded(multispace0, tag(";")),
+                    preceded(multispace0, parse_expr),
+                ),
+                |(value, count)| {
+                    // For now, return single value - expansion happens later
+                    vec![value]
+                },
+            ),
+            // List of values: [1, 2, 3]
+            map(
+                separated_pair(
+                    parse_expr,
+                    preceded(multispace0, tag(",")),
+                    parse_expr,
+                ),
+                |(first, second)| vec![first, second],
+            ),
+            // Single value: [42]
+            map(parse_expr, |expr| vec![expr]),
+            // Empty array: []
+            map(tag(""), |_| vec![]),
+        )),
+        tag("]"),
+    )(input)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::frontend::ast::{Expr, Literal};
+
+    #[test]
+    fn test_parse_zeta_array_style() {
+        let input = "[i64; 10]";
+        let result = parse_zeta_array_style(input);
+        assert!(result.is_ok());
+        
+        let (remaining, array_type) = result.unwrap();
+        assert_eq!(remaining, "");
+        
+        match array_type {
+            Type::Array(arr) => {
+                assert!(matches!(*arr.element_type, Type::Named(_)));
+                assert!(arr.size.is_some());
+            }
+            _ => panic!("Expected Array type"),
+        }
+    }
+
+    #[test]
+    fn test_parse_primezeta_array_style() {
+        let input = "[10]i64";
+        let result = parse_primezeta_array_style(input);
+        assert!(result.is_ok());
+        
+        let (remaining, array_type) = result.unwrap();
+        assert_eq!(remaining, "");
+        
+        match array_type {
+            Type::Array(arr) => {
+                assert!(matches!(*arr.element_type, Type::Named(_)));
+                assert!(arr.size.is_some());
+            }
+            _ => panic!("Expected Array type"),
+        }
+    }
+
+    #[test]
+    fn test_parse_array_type_dual_syntax() {
+        // Test Zeta style
+        let input1 = "[u64; NUM_RESIDUES]";
+        let result1 = parse_array_type(input1);
+        assert!(result1.is_ok(), "Failed to parse Zeta style: {:?}", result1);
+
+        // Test PrimeZeta style
+        let input2 = "[NUM_RESIDUES]u64";
+        let result2 = parse_array_type(input2);
+        assert!(result2.is_ok(), "Failed to parse PrimeZeta style: {:?}", result2);
+    }
+
+    #[test]
+    fn test_parse_unsized_array() {
+        let input = "[i64]";
+        let result = parse_unsized_array(input);
+        assert!(result.is_ok());
+        
+        let (remaining, array_type) = result.unwrap();
+        assert_eq!(remaining, "");
+        
+        match array_type {
+            Type::Array(arr) => {
+                assert!(matches!(*arr.element_type, Type::Named(_)));
+                assert!(arr.size.is_none());
+            }
+            _ => panic!("Expected Array type"),
+        }
+    }
+
+    #[test]
+    fn test_parse_array_literal() {
+        // Test repeated value
+        let input1 = "[0; 10]";
+        let result1 = parse_array_literal(input1);
+        assert!(result1.is_ok());
+
+        // Test list of values
+        let input2 = "[1, 2, 3]";
+        let result2 = parse_array_literal(input2);
+        assert!(result2.is_ok());
+
+        // Test single value
+        let input3 = "[42]";
+        let result3 = parse_array_literal(input3);
+        assert!(result3.is_ok());
+
+        // Test empty array
+        let input4 = "[]";
+        let result4 = parse_array_literal(input4);
+        assert!(result4.is_ok());
+        let (_, values) = result4.unwrap();
+        assert!(values.is_empty());
+    }
+}

@@ -1,0 +1,70 @@
+// Simplified comprehensive test for advanced trait features
+
+// 1. Basic concepts
+concept Clone {
+    fn clone(&self) -> Self;
+}
+
+concept Debug {
+    fn debug(&self) -> String;
+}
+
+// 2. Concept inheritance
+concept Printable: Clone + Debug {
+    fn print(&self);
+}
+
+// 3. Generic struct with trait bounds (simplified)
+struct Container<T> where T: Clone {
+    value: T
+}
+
+impl<T> Container<T> where T: Clone {
+    fn new(value: T) -> Self {
+        Container { value }
+    }
+}
+
+// 4. Generic function with where clause (simplified)
+fn duplicate<T>(x: T) -> (T, T) where T: Clone {
+    let c = x.clone();
+    (x, c)
+}
+
+// 5. Trait objects
+fn print_any(printable: &dyn Printable) {
+    printable.print();
+}
+
+// 6. Implementation for a concrete type
+struct Point {
+    x: i64,
+    y: i64
+}
+
+impl Clone for Point {
+    fn clone(&self) -> Self {
+        Point { x: self.x, y: self.y }
+    }
+}
+
+impl Debug for Point {
+    fn debug(&self) -> String {
+        format!("Point({}, {})", self.x, self.y)
+    }
+}
+
+impl Printable for Point {
+    fn print(&self) {
+        println!("{}", self.debug());
+    }
+}
+
+// 7. Main function
+fn main() -> i64 {
+    let p = Point { x: 10, y: 20 };
+    let container = Container::new(p);
+    let (p1, p2) = duplicate(container.value);
+    print_any(&p1);
+    0
+}

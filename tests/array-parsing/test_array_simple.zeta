@@ -1,0 +1,5 @@
+fn main() -> u64 {
+    // Try without type annotation
+    let arr = []
+    return 0
+}

@@ -1,0 +1,35 @@
+// Test array initialization and basic operations
+
+fn test_array() -> u64 {
+    let arr: [dynamic]u8 = [dynamic]u8{}
+    
+    // Initialize array with 3 zeros
+    let mut i: u64 = 0
+    while i < 3 {
+        arr.push(0)
+        i += 1
+    }
+    
+    // Set values
+    arr[0] = 1
+    arr[1] = 1
+    
+    // Check if arr[2] is still 0
+    let value_at_2 = arr[2]
+    
+    // Count zeros
+    let mut count: u64 = 0
+    let mut n: u64 = 0
+    while n < 3 {
+        if arr[n] == 0 {
+            count += 1
+        }
+        n += 1
+    }
+    
+    return count  // Should be 1 (only arr[2] is 0)
+}
+
+fn main() -> u64 {
+    return test_array()
+}

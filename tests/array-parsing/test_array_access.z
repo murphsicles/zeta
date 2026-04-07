@@ -1,0 +1,17 @@
+// Test array access directly
+
+fn test_array_access() -> u64 {
+    let arr: [dynamic]u8 = [dynamic]u8{}
+    
+    // Push three values
+    arr.push(10)
+    arr.push(20)
+    arr.push(30)
+    
+    // Read arr[2]
+    return arr[2]  // Should return 30
+}
+
+fn main() -> u64 {
+    return test_array_access()
+}

@@ -1,0 +1,17 @@
+// Test equality comparison
+
+fn test_equality() -> u64 {
+    let x: u64 = 5
+    let y: u64 = 5
+    
+    // Test if equality works
+    if x == y {
+        return 1
+    } else {
+        return 0
+    }
+}
+
+fn main() -> u64 {
+    return test_equality()
+}

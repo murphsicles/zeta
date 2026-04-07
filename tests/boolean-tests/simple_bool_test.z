@@ -1,0 +1,12 @@
+// Test bool return type
+fn is_even(x: u64) -> bool {
+    return x % 2 == 0
+}
+
+fn main() -> u64 {
+    if is_even(42) {
+        return 1
+    } else {
+        return 0
+    }
+}

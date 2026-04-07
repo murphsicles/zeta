@@ -1,0 +1,10 @@
+// Test simplest possible Zeta function
+// To verify basic compilation works
+
+fn simple_test() -> u64 {
+    return 78498  // Prime count for 1,000,000
+}
+
+fn main() -> u64 {
+    return simple_test()
+}

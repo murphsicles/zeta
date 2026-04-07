@@ -1,0 +1,361 @@
+// TEST SUITE: Murphy's Sieve Integration Test
+// Full integration test of all compiler fixes working together
+
+// ============================================================================
+// MURPHY'S SIEVE IMPLEMENTATION (PURE ZETA)
+// ============================================================================
+
+fn murphy_sieve(limit: u64) -> u64 {
+    // Create dynamic bit array for sieve
+    // 0 = prime, 1 = composite
+    let bits: [dynamic]u8 = [dynamic]u8{}
+    
+    // Initialize array with zeros (all prime initially)
+    let mut i: u64 = 0
+    while i < limit {
+        bits.push(0)
+        i += 1
+    }
+    
+    // Mark 0 and 1 as not prime (if within bounds)
+    if limit > 0 {
+        bits[0] = 1
+    }
+    if limit > 1 {
+        bits[1] = 1
+    }
+    
+    // Sieve of Eratosthenes
+    let mut p: u64 = 2
+    while p * p < limit {
+        // If p is prime (bits[p] == 0) - CRITICAL TYPE COMPARISON
+        if bits[p] == 0 {
+            // Mark all multiples of p as composite
+            let mut multiple: u64 = p * p
+            while multiple < limit {
+                bits[multiple] = 1
+                multiple += p
+            }
+        }
+        p += 1
+    }
+    
+    // Count primes (bits[i] == 0)
+    let mut count: u64 = 0
+    let mut n: u64 = 0
+    while n < limit {
+        if bits[n] == 0 {
+            count += 1
+        }
+        n += 1
+    }
+    
+    return count
+}
+
+// ============================================================================
+// VALIDATION TESTS
+// ============================================================================
+
+// Test 1: Small limits (basic functionality)
+fn test_small_limits() -> u64 {
+    let mut all_pass: u64 = 1
+    
+    // Test known values
+    if murphy_sieve(0) != 0 {
+        print("FAIL: sieve(0) should be 0")
+        all_pass = 0
+    }
+    
+    if murphy_sieve(1) != 0 {
+        print("FAIL: sieve(1) should be 0")
+        all_pass = 0
+    }
+    
+    if murphy_sieve(2) != 1 {  // 2 is prime
+        print("FAIL: sieve(2) should be 1")
+        all_pass = 0
+    }
+    
+    if murphy_sieve(10) != 4 {  // 2,3,5,7
+        print("FAIL: sieve(10) should be 4")
+        all_pass = 0
+    }
+    
+    if murphy_sieve(20) != 8 {  // 2,3,5,7,11,13,17,19
+        print("FAIL: sieve(20) should be 8")
+        all_pass = 0
+    }
+    
+    if all_pass == 1 {
+        print("✅ Small limits test passed")
+        return 1
+    } else {
+        return 0
+    }
+}
+
+// Test 2: Medium limits (stress test control flow)
+fn test_medium_limits() -> u64 {
+    let mut all_pass: u64 = 1
+    
+    // Known prime counts from literature
+    if murphy_sieve(100) != 25 {
+        print("FAIL: sieve(100) should be 25")
+        all_pass = 0
+    }
+    
+    if murphy_sieve(1000) != 168 {
+        print("FAIL: sieve(1000) should be 168")
+        all_pass = 0
+    }
+    
+    if all_pass == 1 {
+        print("✅ Medium limits test passed")
+        return 1
+    } else {
+        return 0
+    }
+}
+
+// Test 3: Verify specific primes
+fn test_specific_primes() -> u64 {
+    // Test by checking if specific numbers are prime
+    // We'll implement a simple verification
+    
+    let limit: u64 = 50
+    let prime_count = murphy_sieve(limit)
+    
+    // Manually verify some primes under 50
+    let known_primes_under_50: u64 = 15  // 2,3,5,7,11,13,17,19,23,29,31,37,41,43,47
+    
+    if prime_count != known_primes_under_50 {
+        print("FAIL: sieve(50) should be ", known_primes_under_50, " got ", prime_count)
+        return 0
+    }
+    
+    print("✅ Specific primes test passed")
+    return 1
+}
+
+// Test 4: Edge cases
+fn test_edge_cases() -> u64 {
+    let mut all_pass: u64 = 1
+    
+    // Test with limit=3 (boundary case)
+    if murphy_sieve(3) != 2 {  // 2 and 3 are prime
+        print("FAIL: sieve(3) should be 2")
+        all_pass = 0
+    }
+    
+    // Test with limit just above square boundary
+    if murphy_sieve(121) != 30 {  // 121 = 11^2, primes under 121 = 30
+        print("FAIL: sieve(121) should be 30")
+        all_pass = 0
+    }
+    
+    if all_pass == 1 {
+        print("✅ Edge cases test passed")
+        return 1
+    } else {
+        return 0
+    }
+}
+
+// Test 5: Performance stress test (not too large)
+fn test_stress_small() -> u64 {
+    // Test with a moderately sized limit to stress loops
+    let limit: u64 = 1000
+    let start_time = time()  // Assuming time() function exists
+    
+    let prime_count = murphy_sieve(limit)
+    
+    let end_time = time()
+    let elapsed = end_time - start_time
+    
+    if prime_count != 168 {
+        print("FAIL: Stress test sieve(1000) should be 168")
+        return 0
+    }
+    
+    print("✅ Stress test passed (", elapsed, " ms, count: ", prime_count, ")")
+    return 1
+}
+
+// Test 6: Algorithm correctness verification
+fn test_algorithm_correctness() -> u64 {
+    // Compare with simple prime checking for small range
+    let limit: u64 = 30
+    
+    // Simple prime checking algorithm
+    fn is_prime_simple(n: u64) -> u64 {
+        if n < 2 {
+            return 0
+        }
+        let mut i: u64 = 2
+        while i * i <= n {
+            if n % i == 0 {
+                return 0
+            }
+            i += 1
+        }
+        return 1
+    }
+    
+    // Count primes using simple method
+    let mut simple_count: u64 = 0
+    let mut i: u64 = 0
+    while i < limit {
+        if is_prime_simple(i) == 1 {
+            simple_count += 1
+        }
+        i += 1
+    }
+    
+    // Count using sieve
+    let sieve_count = murphy_sieve(limit)
+    
+    if simple_count != sieve_count {
+        print("FAIL: Algorithm mismatch. Simple: ", simple_count, " Sieve: ", sieve_count)
+        return 0
+    }
+    
+    print("✅ Algorithm correctness verified")
+    return 1
+}
+
+// Test 7: Array bounds and memory
+fn test_array_bounds() -> u64 {
+    // Test that array operations don't crash
+    let mut all_pass: u64 = 1
+    
+    // Test various sizes
+    let sizes: [dynamic]u64 = [dynamic]u64{0, 1, 2, 10, 100}
+    
+    let mut idx: u64 = 0
+    while idx < sizes.len() {
+        let size = sizes[idx]
+        let result = murphy_sieve(size)
+        
+        // Just ensure no crash - result validation done in other tests
+        print("Size ", size, ": ", result, " primes")
+        
+        idx += 1
+    }
+    
+    print("✅ Array bounds test passed (no crashes)")
+    return 1
+}
+
+// Test 8: Integration with other control flow
+fn test_integration() -> u64 {
+    // Test sieve as part of larger computation
+    let mut total: u64 = 0
+    
+    // Use sieve results in calculations
+    let prime_count_100 = murphy_sieve(100)
+    let prime_count_200 = murphy_sieve(200)
+    
+    // Do some calculations with results
+    total += prime_count_100 * 10
+    total += prime_count_200 * 20
+    
+    // Expected: 25*10 + 46*20 = 250 + 920 = 1170
+    let expected: u64 = 1170
+    
+    if total != expected {
+        print("FAIL: Integration test got ", total, " expected ", expected)
+        return 0
+    }
+    
+    print("✅ Integration with other computations passed")
+    return 1
+}
+
+// ============================================================================
+// MAIN TEST RUNNER
+// ============================================================================
+
+fn main() -> u64 {
+    print("========================================")
+    print("MURPHY'S SIEVE INTEGRATION TEST SUITE")
+    print("========================================")
+    print("Testing all compiler fixes working together")
+    print("")
+    
+    let mut test_results: [dynamic]u64 = [dynamic]u64{}
+    let mut passed_count: u64 = 0
+    let total_tests: u64 = 8
+    
+    // Run all integration tests
+    print("Test 1: Small limits...")
+    let test1 = test_small_limits()
+    test_results.push(test1)
+    passed_count += test1
+    
+    print("Test 2: Medium limits...")
+    let test2 = test_medium_limits()
+    test_results.push(test2)
+    passed_count += test2
+    
+    print("Test 3: Specific primes...")
+    let test3 = test_specific_primes()
+    test_results.push(test3)
+    passed_count += test3
+    
+    print("Test 4: Edge cases...")
+    let test4 = test_edge_cases()
+    test_results.push(test4)
+    passed_count += test4
+    
+    print("Test 5: Stress test...")
+    let test5 = test_stress_small()
+    test_results.push(test5)
+    passed_count += test5
+    
+    print("Test 6: Algorithm correctness...")
+    let test6 = test_algorithm_correctness()
+    test_results.push(test6)
+    passed_count += test6
+    
+    print("Test 7: Array bounds...")
+    let test7 = test_array_bounds()
+    test_results.push(test7)
+    passed_count += test7
+    
+    print("Test 8: Integration...")
+    let test8 = test_integration()
+    test_results.push(test8)
+    passed_count += test8
+    
+    // Summary
+    print("")
+    print("========================================")
+    print("TEST SUMMARY")
+    print("========================================")
+    print("Passed: ", passed_count, "/", total_tests)
+    
+    // Detailed results
+    let mut i: u64 = 0
+    while i < test_results.len() {
+        if test_results[i] == 1 {
+            print("  Test ", i + 1, ": ✅ PASSED")
+        } else {
+            print("  Test ", i + 1, ": ❌ FAILED")
+        }
+        i += 1
+    }
+    
+    print("")
+    
+    if passed_count == total_tests {
+        print("🎉 ALL INTEGRATION TESTS PASSED!")
+        print("Murphy's Sieve is fully functional in Pure Zeta")
+        print("All compiler fixes are working together correctly")
+        return 0  // Success
+    } else {
+        print("⚠️  SOME TESTS FAILED")
+        print("Compiler fixes may not be fully integrated")
+        return 1  // Failure
+    }
+}

@@ -1,0 +1,84 @@
+// tests/concurrency/basic_executor.z
+// Test basic executor for futures
+
+// Simple future that yields
+struct YieldingFuture {
+    count: i32,
+    max: i32,
+}
+
+impl Future<i32> for YieldingFuture {
+    fn poll(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<i32> {
+        if self.count >= self.max {
+            Poll::Ready(self.count)
+        } else {
+            // Increment count
+            self.count += 1;
+            Poll::Pending
+        }
+    }
+}
+
+// Simple executor that runs futures to completion
+struct BasicExecutor {
+    futures: Vec<Pin<Box<dyn Future<i32>>>>,
+}
+
+impl BasicExecutor {
+    fn new() -> Self {
+        Self { futures: Vec::new() }
+    }
+    
+    fn spawn<F: Future<i32> + 'static>(&mut self, future: F) {
+        self.futures.push(Box::pin(future));
+    }
+    
+    fn run(&mut self) -> Vec<i32> {
+        let mut results = Vec::new();
+        let waker = Waker;
+        let mut cx = Context { waker };
+        
+        while !self.futures.is_empty() {
+            let mut i = 0;
+            while i < self.futures.len() {
+                match self.futures[i].as_mut().poll(&mut cx) {
+                    Poll::Ready(result) => {
+                        results.push(result);
+                        self.futures.remove(i);
+                    }
+                    Poll::Pending => {
+                        i += 1;
+                    }
+                }
+            }
+        }
+        
+        results
+    }
+}
+
+// Test function
+fn test_basic_executor() -> i32 {
+    let mut executor = BasicExecutor::new();
+    
+    // Spawn some yielding futures
+    executor.spawn(YieldingFuture { count: 0, max: 3 });
+    executor.spawn(YieldingFuture { count: 0, max: 2 });
+    executor.spawn(YieldingFuture { count: 0, max: 1 });
+    
+    // Run executor
+    let results = executor.run();
+    
+    // Sum results
+    let mut sum = 0;
+    for result in results {
+        sum += result;
+    }
+    
+    sum
+}
+
+// Main function
+fn main() -> i32 {
+    test_basic_executor()
+}

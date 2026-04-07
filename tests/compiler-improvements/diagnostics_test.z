@@ -1,0 +1,93 @@
+// Test file for compiler diagnostics improvements
+// This file contains various errors to test enhanced diagnostics
+
+// E1001: Unexpected token
+fn parse_error_test() {
+    let x = 10
+    // Missing semicolon - should trigger E1001 with suggestion
+}
+
+// E1002: Unterminated string
+fn string_error_test() {
+    let s = "hello world
+    // Missing closing quote
+}
+
+// E1003: Missing closing brace
+fn brace_error_test() {
+    // Missing closing brace
+    if true {
+        println!("true")
+    // No closing brace for function
+    
+// E2001: Type mismatch
+fn type_mismatch_test() {
+    let x: i32 = 10.5; // Should trigger type mismatch
+}
+
+// E2002: Undefined type
+fn undefined_type_test() {
+    let x: UnknownType = 10; // UnknownType not defined
+}
+
+// E2003: Cannot infer type
+fn inference_error_test() {
+    let x = ; // Missing initializer
+}
+
+// E3001: Undefined variable
+fn undefined_variable_test() {
+    println!(undefined_var); // undefined_var not defined
+}
+
+// E3002: Duplicate definition
+fn duplicate_test() {
+    // Will be defined twice
+}
+
+fn duplicate_test() {
+    // Duplicate function definition
+}
+
+// E4001: Division by zero (compile-time detectable)
+fn div_by_zero_test() {
+    let x = 10 / 0; // Should warn about division by zero
+}
+
+// E8001: Dead code
+fn dead_code_test() {
+    let x = 10;
+    let y = 20; // y is never used
+    println!("{}", x);
+    
+    if false {
+        println!("This will never execute"); // Dead code
+    }
+}
+
+// Test for constant propagation warnings
+fn constant_propagation_test() {
+    const PI: f64 = 3.14159;
+    let radius = 5.0;
+    let area = PI * radius * radius;
+    
+    // The compiler should be able to compute this at compile time
+    let computed = 2 + 2 * 2; // Should be constant folded to 6
+}
+
+// Test for unused imports warning
+use std::collections::HashMap; // This import is never used
+
+fn main() {
+    parse_error_test();
+    string_error_test();
+    brace_error_test();
+    type_mismatch_test();
+    undefined_type_test();
+    inference_error_test();
+    undefined_variable_test();
+    duplicate_test();
+    div_by_zero_test();
+    dead_code_test();
+    constant_propagation_test();
+}

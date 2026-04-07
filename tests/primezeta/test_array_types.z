@@ -1,0 +1,64 @@
+// Test array type parsing for v0.3.25
+// This test verifies that array types with both Zeta and PrimeZeta syntax work
+
+const NUM_RESIDUES: usize = 5760
+const ARRAY_SIZE: i64 = 10
+
+// Test 1: PrimeZeta style array return type (main issue)
+comptime fn generate_residues() -> [NUM_RESIDUES]u64 {
+    var arr: [NUM_RESIDUES]u64 = [0; NUM_RESIDUES]
+    return arr
+}
+
+// Test 2: Zeta style array return type (should already work)
+fn get_zeta_array() -> [u64; ARRAY_SIZE] {
+    let arr: [u64; ARRAY_SIZE] = [0; ARRAY_SIZE]
+    arr
+}
+
+// Test 3: Array type in variable declaration
+fn test_variable_declaration() {
+    // PrimeZeta style
+    var primezeta_arr: [10]i64 = [0; 10]
+    
+    // Zeta style  
+    var zeta_arr: [i64; 10] = [0; 10]
+    
+    // With constant
+    var const_arr: [NUM_RESIDUES]u64 = [0; NUM_RESIDUES]
+}
+
+// Test 4: Array type in function parameters
+fn process_array(arr: [100]f64) -> f64 {
+    return arr[0]
+}
+
+// Test 5: Nested array types
+fn nested_arrays() -> [[10]i64; 5] {
+    let arr: [[10]i64; 5] = [[0; 10]; 5]
+    arr
+}
+
+// Test 6: Unsized array (Zeta style only)
+fn unsized_array(arr: [i64]) -> i64 {
+    return arr[0]
+}
+
+// Test 7: Mixed syntax in same function
+fn mixed_syntax() {
+    // Declaration with PrimeZeta style
+    var a: [5]i64 = [0; 5]
+    
+    // Declaration with Zeta style
+    var b: [i64; 5] = [0; 5]
+    
+    // They should be compatible
+    a = b
+    b = a
+}
+
+// Main function
+fn main() -> i64 {
+    let result = generate_residues()
+    return result[0] as i64
+}

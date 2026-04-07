@@ -1,0 +1,102 @@
+// PrimeZeta compatibility test for array syntax
+// This tests that PrimeZeta's [N]T syntax works correctly
+
+// Test 1: Basic PrimeZeta array syntax
+fn primezeta_basic() -> [10]i64 {
+    var arr: [10]i64 = [0; 10];
+    return arr;
+}
+
+// Test 2: With usize size
+fn primezeta_usize() -> [32]usize {
+    var arr: [32]usize = [0; 32];
+    return arr;
+}
+
+// Test 3: Array of arrays (PrimeZeta style)
+fn primezeta_nested() -> [3][4]i64 {
+    var arr: [3][4]i64 = [[0; 4]; 3];
+    return arr;
+}
+
+// Test 4: Function with PrimeZeta array parameter
+fn process_primezeta_array(data: [256]u64) -> u64 {
+    var sum: u64 = 0;
+    for i in 0..256 {
+        sum = sum + data[i];
+    }
+    return sum;
+}
+
+// Test 5: Mixed syntax - function accepts both styles
+fn mixed_parameter(arr1: [10]i64, arr2: [i64; 10]) -> bool {
+    // Both should be compatible
+    return true;
+}
+
+// Test 6: Variable size array
+const NUM_ELEMENTS: usize = 100;
+fn variable_size_array() -> [NUM_ELEMENTS]f64 {
+    var arr: [NUM_ELEMENTS]f64 = [0.0; NUM_ELEMENTS];
+    return arr;
+}
+
+// Test 7: Array in struct (PrimeZeta style)
+struct PrimeZetaStruct {
+    data: [64]u8,
+    count: usize,
+}
+
+// Test 8: Array in struct (Zeta style) - should be compatible
+struct ZetaStruct {
+    data: [u8; 64],
+    count: usize,
+}
+
+// Test 9: Function returning array (PrimeZeta style)
+fn create_buffer() -> [1024]u8 {
+    var buffer: [1024]u8 = [0; 1024];
+    return buffer;
+}
+
+// Test 10: Complex nested case
+fn complex_nested() -> [2][3][4]i64 {
+    var arr: [2][3][4]i64 = [[[0; 4]; 3]; 2];
+    return arr;
+}
+
+// Main test function
+fn main() -> i64 {
+    // Test basic PrimeZeta
+    var arr1 = primezeta_basic();
+    
+    // Test usize
+    var arr2 = primezeta_usize();
+    
+    // Test nested
+    var arr3 = primezeta_nested();
+    
+    // Test function parameter
+    var test_data: [256]u64 = [0; 256];
+    var result = process_primezeta_array(test_data);
+    
+    // Test mixed syntax
+    var zeta_style: [i64; 10] = [0; 10];
+    var primezeta_style: [10]i64 = [0; 10];
+    var compatible = mixed_parameter(primezeta_style, zeta_style);
+    
+    // Test variable size
+    var var_arr = variable_size_array();
+    
+    // Test structs
+    var pz_struct = PrimeZetaStruct { data: [0; 64], count: 0 };
+    var z_struct = ZetaStruct { data: [0; 64], count: 0 };
+    
+    // Test buffer creation
+    var buffer = create_buffer();
+    
+    // Test complex nested
+    var complex = complex_nested();
+    
+    return 0;
+}

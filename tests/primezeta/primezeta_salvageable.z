@@ -1,0 +1,55 @@
+// Salvageable parts of PrimeZeta that might compile
+// Removing: comptime, complex arrays, #[ai_opt], [dynamic]T
+
+use std::malloc;
+use std::free;
+use std::print;
+use std::println;
+
+const MODULUS: u64 = 30030;
+const NUM_RESIDUES: usize = 5760;
+
+// GCD function without comptime
+fn gcd(a: u64, b: u64) -> u64 {
+    var x = a;
+    var y = b;
+    while y != 0 {
+        let t = y;
+        y = x % y;
+        x = t;
+    }
+    return x;
+}
+
+// Simple test of the algorithm logic (without arrays)
+fn test_prime_logic(n: u64) -> u64 {
+    var count: u64 = 0;
+    
+    // Simple prime check (not the full algorithm)
+    for i in 2..n {
+        var is_prime = true;
+        for j in 2..i {
+            if i % j == 0 {
+                is_prime = false;
+                break;
+            }
+        }
+        if is_prime {
+            count += 1;
+        }
+    }
+    
+    return count;
+}
+
+fn main() -> u64 {
+    // Test GCD
+    let gcd_result = gcd(42, 56);
+    println("GCD of 42 and 56 is: ");
+    // Can't actually print yet without proper stdlib
+    
+    // Test prime logic
+    let prime_count = test_prime_logic(100);
+    
+    return prime_count;
+}

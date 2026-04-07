@@ -1,0 +1,16 @@
+// Test without comparison
+
+fn testnocompare() -> u64 {
+    let arr: [dynamic]u8 = [dynamic]u8{}
+    
+    arr.push(1)
+    arr.push(1)
+    arr.push(0)
+    
+    // Just return arr[2] which should be 0
+    return arr[2]
+}
+
+fn main() -> u64 {
+    return testnocompare()
+}

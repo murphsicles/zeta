@@ -1,0 +1,100 @@
+// Test file for array syntax parsing
+// This tests both Zeta-style [T; N] and PrimeZeta-style [N]T syntax
+
+// Test 1: Zeta-style array syntax
+fn test_zeta_style() -> [i64; 10] {
+    var arr: [i64; 10] = [0; 10];
+    return arr;
+}
+
+// Test 2: PrimeZeta-style array syntax  
+fn test_primezeta_style() -> [10]i64 {
+    var arr: [10]i64 = [0; 10];
+    return arr;
+}
+
+// Test 3: Array with usize size
+fn test_usize_array() -> [usize; 32] {
+    var arr: [usize; 32] = [0; 32];
+    return arr;
+}
+
+// Test 4: PrimeZeta-style with usize
+fn test_primezeta_usize() -> [32]usize {
+    var arr: [32]usize = [0; 32];
+    return arr;
+}
+
+// Test 5: Array type in function signature (PrimeZeta style)
+fn process_residues(residues: [256]u64) -> u64 {
+    var sum: u64 = 0;
+    for i in 0..256 {
+        sum = sum + residues[i];
+    }
+    return sum;
+}
+
+// Test 6: Array type in function signature (Zeta style)
+fn process_residues_zeta(residues: [u64; 256]) -> u64 {
+    var sum: u64 = 0;
+    for i in 0..256 {
+        sum = sum + residues[i];
+    }
+    return sum;
+}
+
+// Test 7: Variable size array (using const)
+const NUM_RESIDUES: usize = 256;
+fn process_variable_size(residues: [NUM_RESIDUES]u64) -> u64 {
+    var sum: u64 = 0;
+    for i in 0..NUM_RESIDUES {
+        sum = sum + residues[i];
+    }
+    return sum;
+}
+
+// Test 8: Mixed syntax in same file
+fn mixed_syntax_test() {
+    var zeta_style: [f64; 8] = [0.0; 8];
+    var primezeta_style: [8]f64 = [0.0; 8];
+    
+    // Both should be compatible
+    zeta_style = primezeta_style;
+    primezeta_style = zeta_style;
+}
+
+// Test 9: Nested arrays
+fn nested_arrays() -> [[i64; 4]; 3] {
+    var arr: [[i64; 4]; 3] = [[0; 4]; 3];
+    return arr;
+}
+
+// Test 10: PrimeZeta nested arrays
+fn primezeta_nested() -> [3][4]i64 {
+    var arr: [3][4]i64 = [[0; 4]; 3];
+    return arr;
+}
+
+// Main test function
+fn main() -> i64 {
+    // Run all tests
+    test_zeta_style();
+    test_primezeta_style();
+    test_usize_array();
+    test_primezeta_usize();
+    
+    var residues1: [256]u64 = [0; 256];
+    var result1 = process_residues(residues1);
+    
+    var residues2: [u64; 256] = [0; 256];
+    var result2 = process_residues_zeta(residues2);
+    
+    var residues3: [NUM_RESIDUES]u64 = [0; NUM_RESIDUES];
+    var result3 = process_variable_size(residues3);
+    
+    mixed_syntax_test();
+    nested_arrays();
+    primezeta_nested();
+    
+    return 0;
+}

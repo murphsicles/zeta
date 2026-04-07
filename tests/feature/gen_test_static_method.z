@@ -1,0 +1,29 @@
+// Test program for GEN's code generation
+// This should compile once GEN implements static method code generation
+
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+impl Point {
+    // Static method - should generate as Point_new
+    fn new(x: i32, y: i32) -> Point {
+        Point { x, y }
+    }
+    
+    // Instance method - should generate as Point_sum (with self parameter)
+    fn sum(&self) -> i32 {
+        self.x + self.y
+    }
+}
+
+fn main() -> i32 {
+    // Test static method call
+    let p = Point::new(10, 20);
+    
+    // Test instance method call
+    let result = p.sum();
+    
+    result
+}

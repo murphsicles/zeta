@@ -1,0 +1,39 @@
+// Final comprehensive test of bool return type support
+// This tests the original issue: fn is_prime(n: u64) -> bool
+
+fn is_prime(n: u64) -> bool {
+    if n < 2 {
+        return false
+    }
+    if n == 2 {
+        return true
+    }
+    if n % 2 == 0 {
+        return false
+    }
+    let mut i = 3
+    while i * i <= n {
+        if n % i == 0 {
+            return false
+        }
+        i = i + 2
+    }
+    return true
+}
+
+fn main() {
+    // Test some primes
+    let p1 = is_prime(2)    // true
+    let p2 = is_prime(3)    // true
+    let p3 = is_prime(17)   // true
+    let p4 = is_prime(25)   // false (5*5)
+    let p5 = is_prime(97)   // true
+    
+    // Test edge cases
+    let e1 = is_prime(0)    // false
+    let e2 = is_prime(1)    // false
+    let e3 = is_prime(4)    // false
+    
+    // Test with complex boolean expression
+    let complex_check = is_prime(17) && !is_prime(25) && is_prime(2) || is_prime(3)
+}

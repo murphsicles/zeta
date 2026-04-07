@@ -1,0 +1,221 @@
+// Test Generic Associated Types (GATs) for v0.3.43
+// Created by TYPE-SYSTEM-ADVANCED-AGENT
+
+// Test 1: Basic GAT declaration
+trait Iterator {
+    // Generic associated type with lifetime parameter
+    type Item<'a> where Self: 'a
+    
+    // Method using the GAT
+    fn next<'a>(&'a mut self) -> Option<Self::Item<'a>>
+}
+
+// Test 2: Implementing Iterator for a simple type
+struct Counter {
+    count: u32,
+    max: u32,
+}
+
+impl Iterator for Counter {
+    type Item<'a> = &'a u32
+    
+    fn next<'a>(&'a mut self) -> Option<Self::Item<'a>> {
+        if self.count < self.max {
+            let result = &self.count
+            self.count += 1
+            Some(result)
+        } else {
+            None
+        }
+    }
+}
+
+// Test 3: GAT with type parameters
+trait Functor {
+    // Higher-kinded associated type
+    type F<A>
+    
+    // Map operation
+    fn map<A, B>(self: Self::F<A>, f: fn(A) -> B) -> Self::F<B>
+}
+
+// Test 4: GAT with multiple parameters
+trait Bifunctor {
+    type P<A, B>
+    
+    fn bimap<A, B, C, D>(
+        self: Self::P<A, B>,
+        f: fn(A) -> C,
+        g: fn(B) -> D,
+    ) -> Self::P<C, D>
+    
+    fn first<A, B, C>(
+        self: Self::P<A, B>,
+        f: fn(A) -> C,
+    ) -> Self::P<C, B> {
+        self.bimap(f, |x| x)
+    }
+    
+    fn second<A, B, D>(
+        self: Self::P<A, B>,
+        g: fn(B) -> D,
+    ) -> Self::P<A, D> {
+        self.bimap(|x| x, g)
+    }
+}
+
+// Test 5: Implementing Bifunctor for Result
+impl<E> Bifunctor for Result<E> {
+    type P<A, B> = Result<A, B>
+    
+    fn bimap<A, B, C, D>(
+        self: Result<A, B>,
+        f: fn(A) -> C,
+        g: fn(B) -> D,
+    ) -> Result<C, D> {
+        match self {
+            Ok(x) => Ok(f(x)),
+            Err(e) => Err(g(e)),
+        }
+    }
+}
+
+// Test 6: GAT with trait bounds
+trait Monad: Functor {
+    // Associated type with same trait bound as outer trait
+    type M<A>: Monad
+    
+    // Unit operation
+    fn unit<A>(value: A) -> Self::M<A>
+    
+    // Bind operation
+    fn bind<A, B>(
+        self: Self::M<A>,
+        f: fn(A) -> Self::M<B>,
+    ) -> Self::M<B>
+}
+
+// Test 7: Complex GAT pattern - associated type families
+trait Collection {
+    // Family of associated types
+    type Element
+    type Container<T>: Collection where T: Element
+    
+    // Convert between containers
+    fn map_container<A, B>(
+        self: Self::Container<A>,
+        f: fn(A) -> B,
+    ) -> Self::Container<B>
+    
+    // Nested containers
+    type Nested = Self::Container<Self::Element>
+}
+
+// Test 8: GAT in where clauses
+trait Processor {
+    type Input
+    type Output
+    type Error
+    
+    fn process<F>(&self, input: Self::Input) -> Result<Self::Output, Self::Error>
+    where
+        Self::Input: Clone,
+        Self::Output: Default,
+        Self::Error: std::error::Error,
+    
+    // Default implementation using associated types
+    fn process_with_default(&self) -> Result<Self::Output, Self::Error>
+    where
+        Self::Input: Default,
+    {
+        self.process(Default::default())
+    }
+}
+
+// Test 9: GAT with lifetime and type parameters
+trait Streaming {
+    type Chunk<'a, T>
+    where
+        T: 'a,
+        Self: 'a
+    
+    fn next_chunk<'a, T>(
+        &'a mut self,
+    ) -> Option<Self::Chunk<'a, T>>
+    
+    // Chunk iterator
+    type ChunkIterator<'a, T>: Iterator<Item = Self::Chunk<'a, T>>
+    where
+        T: 'a,
+        Self: 'a
+    
+    fn chunks<'a, T>(&'a mut self) -> Self::ChunkIterator<'a, T>
+}
+
+// Test 10: Recursive GAT pattern
+trait RecursiveStructure {
+    // Self-referential associated type
+    type Node<T>
+    
+    // Method that returns same structure with different type parameter
+    fn transform<A, B>(
+        self: Self::Node<A>,
+        f: fn(Self::Node<A>) -> Self::Node<B>,
+    ) -> Self::Node<B>
+    
+    // Nested transformation
+    fn deep_transform<A, B>(
+        self: Self::Node<A>,
+        f: fn(A) -> B,
+    ) -> Self::Node<B> {
+        self.transform(|node| {
+            // This would need more context in real implementation
+            node
+        })
+    }
+}
+
+// Test 11: Using GATs in function signatures
+fn process_iterator<I: Iterator>(mut iter: I) -> Vec<I::Item<'static>>
+where
+    for<'a> I::Item<'a>: Clone,
+{
+    let mut results = Vec::new()
+    while let Some(item) = iter.next() {
+        results.push(item.clone())
+    }
+    results
+}
+
+// Test 12: GAT with default associated type
+trait WithDefaultGAT {
+    // Associated type with default
+    type Container<T> = Vec<T>
+    
+    fn make_container<T>(&self, items: Vec<T>) -> Self::Container<T> {
+        items
+    }
+    
+    // Can be overridden
+    type SpecialContainer<T>: WithDefaultGAT<Container<T> = Self::SpecialContainer<T>>
+}
+
+// Test 13: Complex where clauses with GATs
+trait AdvancedTrait {
+    type Left<T>
+    type Right<T>
+    
+    fn combine<A, B, C>(
+        left: Self::Left<A>,
+        right: Self::Right<B>,
+        f: fn(A, B) -> C,
+    ) -> (Self::Left<C>, Self::Right<C>)
+    where
+        A: Clone,
+        B: Clone,
+        Self::Left<C>: Default,
+        Self::Right<C>: Default,
+    
+    // Associated type projection
+    type Combined<T> = (Self::Left<T>, Self::Right<T>)
+}

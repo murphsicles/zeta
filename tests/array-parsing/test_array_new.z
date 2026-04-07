@@ -1,0 +1,8 @@
+fn test() -> u64 {
+    let arr = [dynamic]u8{}
+    return 0
+}
+
+fn main() -> u64 {
+    return test()
+}

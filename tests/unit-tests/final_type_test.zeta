@@ -1,0 +1,43 @@
+// Comprehensive test of type comparisons needed for Murphy's Sieve
+fn main() -> i64 {
+    // Test 1: u8 == 0 comparison
+    let x: u8 = 0;
+    if !(x == 0) { return 1; }
+    
+    // Test 2: u8 != 0 comparison
+    let y: u8 = 5;
+    if !(y != 0) { return 2; }
+    
+    // Test 3: u8 < comparison
+    let z: u8 = 3;
+    if !(z < 5) { return 3; }
+    
+    // Test 4: u8 > comparison  
+    let w: u8 = 7;
+    if !(w > 5) { return 4; }
+    
+    // Test 5: u8 <= comparison
+    let a: u8 = 5;
+    if !(a <= 5) { return 5; }
+    
+    // Test 6: u8 >= comparison
+    let b: u8 = 5;
+    if !(b >= 5) { return 6; }
+    
+    // Test 7: while loop with u8 comparison
+    let mut c: u8 = 0;
+    let mut count = 0;
+    while c == 0 {
+        count = count + 1;
+        c = 1;
+    }
+    if count != 1 { return 7; }
+    
+    // Test 8: Complex condition with u8
+    let d: u8 = 0;
+    let e: u8 = 1;
+    if !(d == 0 && e != 0) { return 8; }
+    
+    // All tests passed
+    return 0;
+}

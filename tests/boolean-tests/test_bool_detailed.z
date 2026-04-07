@@ -1,0 +1,36 @@
+// Test 1: Simple bool return
+fn simple_bool() -> bool {
+    return true
+}
+
+// Test 2: Bool return with condition
+fn is_even(n: u64) -> bool {
+    return n % 2 == 0
+}
+
+// Test 3: Bool return with if-else
+fn is_positive(n: i64) -> bool {
+    if n > 0 {
+        return true
+    } else {
+        return false
+    }
+}
+
+// Test 4: Bool literal without return
+fn get_true() -> bool {
+    true
+}
+
+// Test 5: Complex bool expression
+fn in_range(x: i64, min: i64, max: i64) -> bool {
+    x >= min && x <= max
+}
+
+fn main() {
+    let b1 = simple_bool()
+    let b2 = is_even(42)
+    let b3 = is_positive(-5)
+    let b4 = get_true()
+    let b5 = in_range(10, 0, 20)
+}

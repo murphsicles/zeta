@@ -1,0 +1,249 @@
+// Practical Programming Test for Standard Library Foundation
+// Tests for common algorithms, error handling, and concurrency primitives
+
+// Test common algorithms
+fn test_algorithms() {
+    // Sorting
+    let mut numbers = vec![5, 2, 8, 1, 9, 3];
+    numbers.sort();
+    assert(numbers == vec![1, 2, 3, 5, 8, 9], "Sorting should work");
+    
+    // Searching
+    let sorted = vec![1, 2, 3, 5, 8, 9];
+    assert(sorted.binary_search(&3) == Ok(2), "Binary search should find element");
+    assert(sorted.binary_search(&4) == Err(3), "Binary search should not find missing element");
+    
+    // Min/max
+    let values = vec![5, 2, 8, 1, 9, 3];
+    assert(values.iter().min() == Some(&1), "Min should find smallest");
+    assert(values.iter().max() == Some(&9), "Max should find largest");
+    
+    // Sum and product
+    let sum: i32 = values.iter().sum();
+    assert(sum == 28, "Sum should be correct");
+    
+    // Filter and map
+    let even_numbers: Vec<i32> = values.iter()
+        .filter(|&&x| x % 2 == 0)
+        .map(|&x| x)
+        .collect();
+    assert(even_numbers == vec![2, 8], "Filter and map should work");
+    
+    println!("Algorithm tests passed");
+}
+
+// Test error handling utilities
+fn test_error_handling() {
+    // Option type
+    let some_value: Option<i32> = Some(42);
+    let none_value: Option<i32> = None;
+    
+    assert(some_value.is_some(), "Some should be some");
+    assert(!some_value.is_none(), "Some should not be none");
+    assert(none_value.is_none(), "None should be none");
+    assert(!none_value.is_some(), "None should not be some");
+    
+    // Option unwrapping
+    assert(some_value.unwrap() == 42, "Unwrap should get value");
+    assert(some_value.unwrap_or(0) == 42, "Unwrap_or should get value");
+    assert(none_value.unwrap_or(0) == 0, "Unwrap_or should return default");
+    
+    // Option mapping
+    let doubled = some_value.map(|x| x * 2);
+    assert(doubled == Some(84), "Map should transform value");
+    
+    let none_doubled = none_value.map(|x| x * 2);
+    assert(none_doubled == None, "Map on None should return None");
+    
+    // Result type
+    let ok_result: Result<i32, String> = Ok(42);
+    let err_result: Result<i32, String> = Err("error".to_string());
+    
+    assert(ok_result.is_ok(), "Ok should be ok");
+    assert(!ok_result.is_err(), "Ok should not be err");
+    assert(err_result.is_err(), "Err should be err");
+    assert(!err_result.is_ok(), "Err should not be ok");
+    
+    // Result unwrapping
+    assert(ok_result.unwrap() == 42, "Unwrap should get value");
+    assert(ok_result.unwrap_or(0) == 42, "Unwrap_or should get value");
+    assert(err_result.unwrap_or(0) == 0, "Unwrap_or on error should return default");
+    
+    // Result mapping
+    let ok_mapped = ok_result.map(|x| x * 2);
+    assert(ok_mapped == Ok(84), "Map should transform Ok value");
+    
+    let err_mapped = err_result.map(|x| x * 2);
+    assert(err_mapped.is_err(), "Map on Err should return Err");
+    
+    // Error propagation with ?
+    fn might_fail(succeed: bool) -> Result<i32, String> {
+        if succeed {
+            Ok(42)
+        } else {
+            Err("failed".to_string())
+        }
+    }
+    
+    fn propagate_error() -> Result<i32, String> {
+        let value = might_fail(true)?;
+        Ok(value * 2)
+    }
+    
+    assert(propagate_error() == Ok(84), "Error propagation should work");
+    
+    println!("Error handling tests passed");
+}
+
+// Test concurrency primitives
+fn test_concurrency_primitives() {
+    // Thread creation
+    let handle = std::thread::spawn(|| {
+        println!("Hello from thread!");
+        42
+    });
+    
+    let result = handle.join().expect("Thread should join successfully");
+    assert(result == 42, "Thread should return correct value");
+    
+    // Mutex for shared state
+    let counter = std::sync::Arc::new(std::sync::Mutex::new(0));
+    let mut handles = vec![];
+    
+    for _ in 0..10 {
+        let counter = std::sync::Arc::clone(&counter);
+        let handle = std::thread::spawn(move || {
+            let mut num = counter.lock().unwrap();
+            *num += 1;
+        });
+        handles.push(handle);
+    }
+    
+    for handle in handles {
+        handle.join().unwrap();
+    }
+    
+    let final_count = *counter.lock().unwrap();
+    assert(final_count == 10, "Mutex should protect shared state");
+    
+    // Channels for message passing
+    let (tx, rx) = std::sync::mpsc::channel();
+    
+    std::thread::spawn(move || {
+        tx.send("hello from thread".to_string()).unwrap();
+    });
+    
+    let received = rx.recv().unwrap();
+    assert(received == "hello from thread", "Channel should pass message");
+    
+    // Atomic operations
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    
+    let atomic_counter = AtomicUsize::new(0);
+    atomic_counter.fetch_add(1, Ordering::SeqCst);
+    assert(atomic_counter.load(Ordering::SeqCst) == 1, "Atomic operations should work");
+    
+    println!("Concurrency primitives tests passed");
+}
+
+// Test data structures
+fn test_data_structures() {
+    // Stack (using Vec)
+    let mut stack = Vec::new();
+    stack.push(1);
+    stack.push(2);
+    stack.push(3);
+    
+    assert(stack.pop() == Some(3), "Stack pop should work");
+    assert(stack.pop() == Some(2), "Stack pop should work");
+    assert(stack.pop() == Some(1), "Stack pop should work");
+    assert(stack.pop() == None, "Empty stack should return None");
+    
+    // Queue (using VecDeque)
+    use std::collections::VecDeque;
+    
+    let mut queue = VecDeque::new();
+    queue.push_back(1);
+    queue.push_back(2);
+    queue.push_back(3);
+    
+    assert(queue.pop_front() == Some(1), "Queue pop_front should work");
+    assert(queue.pop_front() == Some(2), "Queue pop_front should work");
+    assert(queue.pop_front() == Some(3), "Queue pop_front should work");
+    assert(queue.pop_front() == None, "Empty queue should return None");
+    
+    // HashSet
+    use std::collections::HashSet;
+    
+    let mut set = HashSet::new();
+    set.insert(1);
+    set.insert(2);
+    set.insert(3);
+    set.insert(2); // Duplicate
+    
+    assert(set.len() == 3, "Set should not contain duplicates");
+    assert(set.contains(&1), "Set should contain element");
+    assert(set.contains(&2), "Set should contain element");
+    assert(set.contains(&3), "Set should contain element");
+    assert(!set.contains(&4), "Set should not contain non-existent element");
+    
+    // BTreeMap (sorted map)
+    use std::collections::BTreeMap;
+    
+    let mut map = BTreeMap::new();
+    map.insert("c", 3);
+    map.insert("a", 1);
+    map.insert("b", 2);
+    
+    let keys: Vec<&str> = map.keys().copied().collect();
+    assert(keys == vec!["a", "b", "c"], "BTreeMap should be sorted");
+    
+    println!("Data structures tests passed");
+}
+
+// Test iterator utilities
+fn test_iterator_utilities() {
+    let numbers = vec![1, 2, 3, 4, 5];
+    
+    // Basic iteration
+    let mut sum = 0;
+    for num in &numbers {
+        sum += num;
+    }
+    assert(sum == 15, "Iteration should sum correctly");
+    
+    // Iterator methods
+    let doubled: Vec<i32> = numbers.iter().map(|&x| x * 2).collect();
+    assert(doubled == vec![2, 4, 6, 8, 10], "Map should transform elements");
+    
+    let evens: Vec<i32> = numbers.iter().filter(|&&x| x % 2 == 0).copied().collect();
+    assert(evens == vec![2, 4], "Filter should select elements");
+    
+    let folded = numbers.iter().fold(0, |acc, &x| acc + x);
+    assert(folded == 15, "Fold should accumulate");
+    
+    let any_greater_than_3 = numbers.iter().any(|&x| x > 3);
+    assert(any_greater_than_3, "Any should find matching element");
+    
+    let all_positive = numbers.iter().all(|&x| x > 0);
+    assert(all_positive, "All should check all elements");
+    
+    // Range iterators
+    let range_sum: i32 = (1..=5).sum();
+    assert(range_sum == 15, "Range iterator should work");
+    
+    println!("Iterator utilities tests passed");
+}
+
+// Main test runner
+fn main() {
+    println!("Running practical programming tests...");
+    
+    test_algorithms();
+    test_error_handling();
+    test_concurrency_primitives();
+    test_data_structures();
+    test_iterator_utilities();
+    
+    println!("All practical programming tests passed!");
+}

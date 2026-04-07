@@ -1,0 +1,40 @@
+// Debug array initialization and counting
+
+fn test_array_debug() -> u64 {
+    let arr: [dynamic]u8 = [dynamic]u8{}
+    
+    // Initialize array with 3 zeros
+    let mut i: u64 = 0
+    while i < 3 {
+        arr.push(0)
+        i += 1
+    }
+    
+    // Set arr[0] = 1, arr[1] = 1, arr[2] stays 0
+    arr[0] = 1
+    arr[1] = 1
+    // arr[2] is already 0
+    
+    // Check arr[2] value
+    let value_at_2 = arr[2]
+    
+    // Count zeros - should be 1
+    let mut count: u64 = 0
+    let mut n: u64 = 0
+    while n < 3 {
+        if arr[n] == 0 {
+            count += 1
+        }
+        n += 1
+    }
+    
+    // Return both value_at_2 and count
+    // If value_at_2 is 0 and count is 1, array works
+    // If value_at_2 is not 0 or count is not 1, something's wrong
+    return value_at_2 + count * 10
+    // Expected: 0 + 1*10 = 10
+}
+
+fn main() -> u64 {
+    return test_array_debug()
+}

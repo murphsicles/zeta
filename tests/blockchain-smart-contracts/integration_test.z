@@ -1,0 +1,503 @@
+// Blockchain & Smart Contracts Integration Test
+// v0.3.49 - Complete Test Suite
+
+// Import necessary modules (simulated)
+use std::collections::HashMap;
+
+// ============================================
+// TEST SUITE: BLOCKCHAIN FOUNDATION
+// ============================================
+
+fn test_blockchain_creation() {
+    println!("🧱 Testing Blockchain Creation...");
+    
+    // Create a new blockchain
+    let mut blockchain = Blockchain::new(2);
+    
+    // Verify genesis block
+    assert_eq!(blockchain.chain.len(), 1, "Should have genesis block");
+    assert_eq!(blockchain.chain[0].index, 0, "Genesis block index should be 0");
+    
+    println!("✅ Blockchain creation test passed!");
+}
+
+fn test_transaction_processing() {
+    println!("💸 Testing Transaction Processing...");
+    
+    let mut blockchain = Blockchain::new(2);
+    let wallet1 = Wallet::new();
+    let wallet2 = Wallet::new();
+    
+    // Create and sign transaction
+    let transaction = wallet1.create_transaction(wallet2.address.clone(), 100);
+    
+    // Add to pending transactions
+    blockchain.create_transaction(transaction);
+    
+    // Mine pending transactions
+    let success = blockchain.mine_pending_transactions(wallet1.address.clone());
+    assert!(success, "Mining should succeed");
+    
+    // Verify block was added
+    assert_eq!(blockchain.chain.len(), 2, "Should have 2 blocks (genesis + mined)");
+    
+    println!("✅ Transaction processing test passed!");
+}
+
+fn test_consensus_mechanisms() {
+    println!("⚖️ Testing Consensus Mechanisms...");
+    
+    // Test Proof of Work
+    let pow = ProofOfWork::new(2);
+    let mut block = Block::new(1, 1234567890, String::from("prev_hash"), 2);
+    let mined_block = pow.mine_block(block);
+    assert!(pow.validate(&mined_block), "PoW validation should pass");
+    
+    // Test Proof of Stake
+    let mut pos = ProofOfStake::new(100);
+    assert!(pos.add_validator(String::from("validator1"), 150), "Should add validator");
+    let validator = pos.select_validator(1234567890);
+    assert!(validator.is_some(), "Should select a validator");
+    
+    // Test Proof of Authority
+    let authorities = vec![
+        String::from("auth1"),
+        String::from("auth2"),
+    ];
+    let mut poa = ProofOfAuthority::new(authorities.clone());
+    let next_auth = poa.get_next_authority();
+    assert!(next_auth.is_some(), "Should get next authority");
+    assert!(poa.validate_authority(&next_auth.unwrap()), "Should validate authority");
+    
+    println!("✅ Consensus mechanisms test passed!");
+}
+
+// ============================================
+// TEST SUITE: SMART CONTRACT LANGUAGE
+// ============================================
+
+fn test_solidity_parsing() {
+    println!("📝 Testing Solidity-like Parsing...");
+    
+    let source = r#"
+        contract SimpleStorage {
+            uint storedData;
+            
+            function set(uint x) public {
+                storedData = x;
+            }
+            
+            function get() public view returns (uint) {
+                return storedData;
+            }
+        }
+    "#;
+    
+    let mut parser = SolidityParser::new(source.to_string());
+    let contract = parser.parse_contract();
+    
+    assert!(contract.is_ok(), "Should parse contract successfully");
+    let contract = contract.unwrap();
+    assert_eq!(contract.name, "SimpleStorage", "Contract name should match");
+    assert_eq!(contract.abi.functions.len(), 2, "Should have 2 functions");
+    
+    println!("✅ Solidity parsing test passed!");
+}
+
+fn test_contract_compilation() {
+    println!("⚙️ Testing Contract Compilation...");
+    
+    let source = r#"
+        contract HelloWorld {
+            string greeting = "Hello, World!";
+            
+            function getGreeting() public view returns (string memory) {
+                return greeting;
+            }
+        }
+    "#;
+    
+    let compiler = ContractCompiler::new();
+    let compiled = compiler.compile(source);
+    
+    assert!(compiled.is_ok(), "Should compile contract successfully");
+    let compiled = compiled.unwrap();
+    assert!(!compiled.bytecode.is_empty(), "Bytecode should not be empty");
+    
+    println!("✅ Contract compilation test passed!");
+}
+
+fn test_contract_execution() {
+    println!("🚀 Testing Contract Execution...");
+    
+    let mut engine = ContractExecutionEngine::new();
+    let compiler = ContractCompiler::new();
+    
+    let source = r#"
+        contract Counter {
+            uint count;
+            
+            constructor() {
+                count = 0;
+            }
+            
+            function increment() public {
+                count += 1;
+            }
+            
+            function getCount() public view returns (uint) {
+                return count;
+            }
+        }
+    "#;
+    
+    let compiled = compiler.compile(source).unwrap();
+    let creator = String::from("0xCreator");
+    let contract = engine.deploy_contract(compiled, creator, 0);
+    
+    assert!(contract.is_ok(), "Should deploy contract successfully");
+    
+    println!("✅ Contract execution test passed!");
+}
+
+// ============================================
+// TEST SUITE: CRYPTOGRAPHIC PRIMITIVES
+// ============================================
+
+fn test_hash_functions() {
+    println!("🔐 Testing Hash Functions...");
+    
+    // Test SHA-256
+    let data = b"Hello, Blockchain!";
+    let sha256_hash = SHA256::hash(data);
+    assert_eq!(sha256_hash.len(), 32, "SHA-256 hash should be 32 bytes");
+    
+    // Test Keccak-256
+    let keccak_hash = Keccak256::hash(data);
+    assert_eq!(keccak_hash.len(), 32, "Keccak-256 hash should be 32 bytes");
+    
+    // Verify different inputs produce different hashes
+    let data2 = b"Hello, Blockchain?";
+    let hash2 = SHA256::hash(data2);
+    assert_ne!(sha256_hash, hash2, "Different inputs should produce different hashes");
+    
+    println!("✅ Hash functions test passed!");
+}
+
+fn test_digital_signatures() {
+    println!("🖊️ Testing Digital Signatures...");
+    
+    let secp256k1 = Secp256k1::new();
+    let eddsa = EdDSA::new();
+    
+    // Test ECDSA
+    let (ecdsa_priv, ecdsa_pub) = secp256k1.generate_keypair();
+    let message = b"Sign this message";
+    let message_hash = SHA256::hash(message);
+    let signature = secp256k1.sign(&ecdsa_priv, &message_hash);
+    
+    let valid = secp256k1.verify(&ecdsa_pub, &message_hash, &signature);
+    assert!(valid, "ECDSA signature should be valid");
+    
+    // Test EdDSA
+    let (eddsa_priv, eddsa_pub) = eddsa.generate_keypair();
+    let eddsa_signature = eddsa.sign(&eddsa_priv, message);
+    
+    let eddsa_valid = eddsa.verify(&eddsa_pub, message, &eddsa_signature);
+    assert!(eddsa_valid, "EdDSA signature should be valid");
+    
+    println!("✅ Digital signatures test passed!");
+}
+
+// ============================================
+// TEST SUITE: DAPP DEVELOPMENT
+// ============================================
+
+fn test_dapp_builder() {
+    println!("🏗️ Testing DApp Builder...");
+    
+    let builder = DAppBuilder::new()
+        .with_template("react")
+        .with_feature("defi")
+        .with_feature("nft")
+        .with_plugin("@web3-react/core");
+    
+    let dapp = builder.build("MyAwesomeDApp");
+    
+    assert_eq!(dapp.name, "MyAwesomeDApp", "DApp name should match");
+    assert_eq!(dapp.frontend.framework, "react", "Frontend framework should be React");
+    assert!(dapp.frontend.wallet_integration, "Should have wallet integration");
+    assert_eq!(dapp.contracts.len(), 3, "Should have 3 contracts (ERC20, ERC721, Uniswap-like)");
+    assert_eq!(dapp.networks.len(), 2, "Should have 2 network configurations");
+    
+    println!("✅ DApp builder test passed!");
+}
+
+fn test_web3_integration() {
+    println!("🌐 Testing Web3 Integration...");
+    
+    // Simulate Web3 provider connection
+    struct Web3Provider {
+        connected: bool,
+        chain_id: u64,
+        accounts: Vec<String>,
+    }
+    
+    impl Web3Provider {
+        fn new() -> Self {
+            Web3Provider {
+                connected: false,
+                chain_id: 1,
+                accounts: Vec::new(),
+            }
+        }
+        
+        fn connect(&mut self) -> bool {
+            self.connected = true;
+            self.accounts = vec![String::from("0x1234..."), String::from("0x5678...")];
+            true
+        }
+        
+        fn get_balance(&self, address: &str) -> u64 {
+            if self.connected {
+                1000000000000000000u64 // 1 ETH in wei
+            } else {
+                0
+            }
+        }
+        
+        fn send_transaction(&self, to: &str, value: u64) -> Result<String, String> {
+            if self.connected && !self.accounts.is_empty() {
+                Ok(format!("tx_hash_{}_{}", to, value))
+            } else {
+                Err("Not connected or no accounts".to_string())
+            }
+        }
+    }
+    
+    let mut provider = Web3Provider::new();
+    assert!(!provider.connected, "Provider should start disconnected");
+    
+    let connected = provider.connect();
+    assert!(connected, "Should connect successfully");
+    assert!(provider.connected, "Provider should be connected");
+    assert!(!provider.accounts.is_empty(), "Should have accounts");
+    
+    let balance = provider.get_balance(&provider.accounts[0]);
+    assert!(balance > 0, "Should have positive balance");
+    
+    let tx_result = provider.send_transaction("0xRecipient", 100000000000000000u64);
+    assert!(tx_result.is_ok(), "Should send transaction successfully");
+    
+    println!("✅ Web3 integration test passed!");
+}
+
+fn test_oracle_integration() {
+    println!("🔮 Testing Oracle Integration...");
+    
+    // Simulate price oracle
+    struct PriceOracle {
+        prices: HashMap<String, u64>,
+    }
+    
+    impl PriceOracle {
+        fn new() -> Self {
+            let mut prices = HashMap::new();
+            prices.insert(String::from("ETH/USD"), 300000u64); // $3000.00 * 100
+            prices.insert(String::from("BTC/USD"), 6000000u64); // $60000.00 * 100
+            prices.insert(String::from("LINK/USD"), 1500u64); // $15.00 * 100
+            
+            PriceOracle { prices }
+        }
+        
+        fn get_price(&self, pair: &str) -> Option<u64> {
+            self.prices.get(pair).copied()
+        }
+        
+        fn update_price(&mut self, pair: &str, price: u64) {
+            self.prices.insert(pair.to_string(), price);
+        }
+    }
+    
+    let mut oracle = PriceOracle::new();
+    
+    // Test getting prices
+    let eth_price = oracle.get_price("ETH/USD");
+    assert!(eth_price.is_some(), "Should get ETH price");
+    assert_eq!(eth_price.unwrap(), 300000u64, "ETH price should be $3000");
+    
+    let btc_price = oracle.get_price("BTC/USD");
+    assert!(btc_price.is_some(), "Should get BTC price");
+    
+    // Test updating price
+    oracle.update_price("ETH/USD", 350000u64);
+    let new_eth_price = oracle.get_price("ETH/USD");
+    assert_eq!(new_eth_price.unwrap(), 350000u64, "ETH price should be updated to $3500");
+    
+    println!("✅ Oracle integration test passed!");
+}
+
+// ============================================
+// TEST SUITE: CROSS-CHAIN INTEROPERABILITY
+// ============================================
+
+fn test_cross_chain_bridge() {
+    println!("🌉 Testing Cross-Chain Bridge...");
+    
+    struct CrossChainBridge {
+        supported_chains: Vec<Chain>,
+        locked_assets: HashMap<String, u64>,
+    }
+    
+    struct Chain {
+        name: String,
+        chain_id: u64,
+        native_token: String,
+    }
+    
+    impl CrossChainBridge {
+        fn new() -> Self {
+            let chains = vec![
+                Chain {
+                    name: String::from("Ethereum"),
+                    chain_id: 1,
+                    native_token: String::from("ETH"),
+                },
+                Chain {
+                    name: String::from("Polygon"),
+                    chain_id: 137,
+                    native_token: String::from("MATIC"),
+                },
+                Chain {
+                    name: String::from("Arbitrum"),
+                    chain_id: 42161,
+                    native_token: String::from("ETH"),
+                },
+            ];
+            
+            CrossChainBridge {
+                supported_chains: chains,
+                locked_assets: HashMap::new(),
+            }
+        }
+        
+        fn lock_assets(&mut self, chain: &str, amount: u64, recipient: &str) -> String {
+            let key = format!("{}_{}", chain, recipient);
+            let current = self.locked_assets.get(&key).unwrap_or(&0);
+            self.locked_assets.insert(key, current + amount);
+            
+            format!("lock_tx_{}_{}_{}", chain, amount, recipient)
+        }
+        
+        fn release_assets(&mut self, chain: &str, amount: u64, recipient: &str) -> Result<String, String> {
+            let key = format!("{}_{}", chain, recipient);
+            
+            if let Some(locked) = self.locked_assets.get_mut(&key) {
+                if *locked >= amount {
+                    *locked -= amount;
+                    Ok(format!("release_tx_{}_{}_{}", chain, amount, recipient))
+                } else {
+                    Err("Insufficient locked assets".to_string())
+                }
+            } else {
+                Err("No locked assets found".to_string())
+            }
+        }
+        
+        fn is_chain_supported(&self, chain_id: u64) -> bool {
+            self.supported_chains.iter().any(|c| c.chain_id == chain_id)
+        }
+    }
+    
+    let mut bridge = CrossChainBridge::new();
+    
+    // Test chain support
+    assert!(bridge.is_chain_supported(1), "Ethereum should be supported");
+    assert!(bridge.is_chain_supported(137), "Polygon should be supported");
+    assert!(!bridge.is_chain_supported(999), "Unknown chain should not be supported");
+    
+    // Test asset locking
+    let lock_tx = bridge.lock_assets("Ethereum", 1000000000000000000u64, "0xRecipient");
+    assert!(!lock_tx.is_empty(), "Should return lock transaction hash");
+    
+    // Test asset release
+    let release_result = bridge.release_assets("Ethereum", 500000000000000000u64, "0xRecipient");
+    assert!(release_result.is_ok(), "Should release assets successfully");
+    
+    // Test insufficient assets
+    let insufficient_result = bridge.release_assets("Ethereum", 1000000000000000000u64, "0xRecipient");
+    assert!(insufficient_result.is_err(), "Should fail with insufficient assets");
+    
+    println!("✅ Cross-chain bridge test passed!");
+}
+
+// ============================================
+// COMPREHENSIVE INTEGRATION TEST
+// ============================================
+
+fn test_complete_dapp_workflow() {
+    println!("🎯 Testing Complete DApp Workflow...");
+    
+    // 1. Create blockchain
+    let mut blockchain = Blockchain::new(2);
+    
+    // 2. Create wallets
+    let alice = Wallet::new();
+    let bob = Wallet::new();
+    
+    println!("👛 Wallets created:");
+    println!("  Alice: {}", alice.address);
+    println!("  Bob: {}", bob.address);
+    
+    // 3. Create and deploy a smart contract
+    let source = r#"
+        contract SimpleBank {
+            mapping(address => uint) balances;
+            
+            function deposit() public payable {
+                balances[msg.sender] += msg.value;
+            }
+            
+            function withdraw(uint amount) public {
+                require(balances[msg.sender] >= amount, "Insufficient balance");
+                balances[msg.sender] -= amount;
+                payable(msg.sender).transfer(amount);
+            }
+            
+            function getBalance(address account) public view returns (uint) {
+                return balances[account];
+            }
+        }
+    "#;
+    
+    let compiler = ContractCompiler::new();
+    let mut engine = ContractExecutionEngine::new();
+    
+    let compiled = compiler.compile(source).unwrap();
+    let contract = engine.deploy_contract(compiled, alice.address.clone(), 0).unwrap();
+    
+    println!("📄 Smart contract deployed at: {}", contract.address);
+    
+    // 4. Create transactions
+    let tx1 = alice.create_transaction(contract.address.clone(), 1000000000000000000u64); // 1 ETH
+    let tx2 = alice.create_transaction(bob.address.clone(), 500000000000000000u64); // 0.5 ETH
+    
+    blockchain.create_transaction(tx1);
+    blockchain.create_transaction(tx2);
+    
+    // 5. Mine transactions
+    blockchain.mine_pending_transactions(alice.address.clone());
+    
+    // 6. Verify blockchain state
+    assert!(blockchain.is_chain_valid(), "Blockchain should be valid");
+    assert_eq!(blockchain.chain.len(), 2, "Should have 2 blocks");
+    
+    let alice_balance = blockchain.get_balance(alice.address.clone());
+    let bob_balance = blockchain.get_balance(bob.address.clone());
+    
+    println!("💰 Final balances:");
+    println!("  Alice: {} wei", alice_balance);
+    println!("  Bob: {} wei", bob_balance);
+    
+    // 7. Test cryptographic operations
+    let message = b"

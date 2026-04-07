@@ -1,0 +1,14 @@
+// Test different whitespace patterns
+
+// Pattern 1: No whitespace
+let a:[u64;10]=[0;10]
+
+// Pattern 2: Some whitespace  
+let b: [u64;10] = [0;10]
+
+// Pattern 3: More whitespace
+let c : [u64 ; 10] = [0 ; 10]
+
+fn main() -> u64 {
+    return 0
+}

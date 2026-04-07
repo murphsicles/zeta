@@ -1,0 +1,9 @@
+// Absolute minimal test for [dynamic]T{} parsing
+// If this parses, we've won the first battle
+
+fn main() -> u64 {
+    // Just test that the syntax parses
+    // Don't even use the array yet
+    let arr: [dynamic]u8 = [dynamic]u8{}
+    return 42
+}

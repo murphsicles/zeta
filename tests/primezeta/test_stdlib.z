@@ -1,0 +1,24 @@
+// Test stdlib imports for PrimeZeta compatibility
+// This tests that `use std::` imports work correctly
+
+use std::malloc
+use std::free
+use std::print
+use std::println
+use std::args
+
+fn main() -> i64 {
+    // Test malloc and free
+    let ptr = malloc(100);
+    free(ptr);
+    
+    // Test print functions
+    print(42);
+    println(123);
+    
+    // Test args (stub returns 0)
+    let args_ptr = args();
+    
+    // Return success
+    0
+}

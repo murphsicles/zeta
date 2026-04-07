@@ -1,0 +1,9 @@
+// Simple test for stdlib functions
+use std::print
+use std::println
+
+fn main() -> i64 {
+    print(42);
+    println(100);
+    0
+}

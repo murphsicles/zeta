@@ -1,0 +1,10 @@
+fn test() -> i64 {
+    let arr: [dynamic]i64 = [dynamic]i64{}
+    arr.push(42)
+    arr.push(100)
+    return arr[0] + arr[1]  // Should return 142
+}
+
+fn main() -> i64 {
+    return test()
+}

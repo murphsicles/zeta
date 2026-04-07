@@ -1,0 +1,10 @@
+// Control flow with match (alternative to if/else)
+fn main() -> i64 {
+    let condition = true;
+    
+    // Use match for control flow
+    match condition {
+        true => 100,
+        false => 200,
+    }
+}

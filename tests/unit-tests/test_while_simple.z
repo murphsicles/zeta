@@ -1,0 +1,15 @@
+// Test simple while loop
+
+fn test_while_simple() -> u64 {
+    let mut n: u64 = 0
+    
+    while n < 3 {
+        n += 1
+    }
+    
+    return n  // Should be 3
+}
+
+fn main() -> u64 {
+    return test_while_simple()
+}

@@ -1,0 +1,9 @@
+// Test conversion in function call
+fn takes_u64(x: u64) -> u64 {
+    x * 2
+}
+
+fn test_call() {
+    let i: i64 = 42;
+    let result = takes_u64(i as u64);
+}

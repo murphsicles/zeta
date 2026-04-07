@@ -1,0 +1,17 @@
+// Simple test for attribute parsing
+#[test]
+fn test_attribute_parsing() -> i64 {
+    42
+}
+
+#[derive(Clone)]
+struct Point {
+    x: i64,
+    y: i64,
+}
+
+impl Point {
+    fn new(x: i64, y: i64) -> Point {
+        Point { x, y }
+    }
+}

@@ -1,0 +1,9 @@
+mod math {
+    pub fn add(a: i64, b: i64) -> i64 {
+        a + b
+    }
+}
+
+fn main() -> i64 {
+    math::add(10, 20)
+}

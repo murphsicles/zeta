@@ -1,0 +1,7 @@
+// Minimal while loop test
+fn main() -> i64 {
+    let mut i: i64 = 0
+    // Just the condition without loop
+    let cond: bool = i < 5
+    return 0
+}

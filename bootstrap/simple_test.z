@@ -1,0 +1,3 @@
+fn test_bootstrap() -> i64 {
+    return 42;
+}

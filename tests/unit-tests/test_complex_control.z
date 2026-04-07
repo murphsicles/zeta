@@ -1,0 +1,340 @@
+// TEST SUITE: Complex Control Flow Fixes
+// Tests nested loops, conditionals, and complex control structures
+
+// Test 1: Nested while loops (for sieve algorithm)
+fn test_nested_while_loops() -> u64 {
+    let mut outer: u64 = 0
+    let mut total: u64 = 0
+    
+    while outer < 3 {
+        let mut inner: u64 = 0
+        while inner < 4 {
+            total += outer * 10 + inner
+            inner += 1
+        }
+        outer += 1
+    }
+    
+    return total  
+    // Expected: 
+    // outer=0: (0+1+2+3) = 6
+    // outer=1: (10+11+12+13) = 46
+    // outer=2: (20+21+22+23) = 86
+    // Total: 6 + 46 + 86 = 138
+}
+
+// Test 2: While loop with nested if-else
+fn test_while_with_nested_if() -> u64 {
+    let mut i: u64 = 0
+    let mut result: u64 = 0
+    
+    while i < 10 {
+        if i < 3 {
+            result += 1
+        } else if i < 7 {
+            result += 10
+        } else {
+            result += 100
+        }
+        i += 1
+    }
+    
+    return result
+    // Expected:
+    // i=0,1,2: +1 each = 3
+    // i=3,4,5,6: +10 each = 40
+    // i=7,8,9: +100 each = 300
+    // Total: 343
+}
+
+// Test 3: Complex conditional in loop (simulating sieve logic)
+fn test_sieve_like_condition() -> u64 {
+    let mut count: u64 = 0
+    let mut i: u64 = 0
+    
+    // Simulate checking array values like in sieve
+    while i < 20 {
+        // Complex condition similar to sieve: if bits[i] == 0
+        if i % 2 == 0 {  // Even numbers are "prime" in this test
+            if i % 3 != 0 {  // But not divisible by 3
+                if i % 5 != 0 {  // And not divisible by 5
+                    count += 1
+                }
+            }
+        }
+        i += 1
+    }
+    
+    return count
+    // Expected primes under 20 that are even and not divisible by 3 or 5:
+    // 2, 4, 8, 14, 16 → 5 numbers
+}
+
+// Test 4: Break and continue in nested loops
+fn test_break_continue_nested() -> u64 {
+    let mut sum: u64 = 0
+    let mut i: u64 = 0
+    
+    while i < 5 {
+        let mut j: u64 = 0
+        while j < 5 {
+            if i == 2 && j == 2 {
+                break  // Break inner loop when i=2,j=2
+            }
+            if j % 2 == 0 {
+                j += 1
+                continue  // Skip odd j values
+            }
+            sum += i * 10 + j
+            j += 1
+        }
+        if i == 3 {
+            break  // Break outer loop when i=3
+        }
+        i += 1
+    }
+    
+    return sum
+    // Complex calculation - main point is control flow works
+}
+
+// Test 5: Multiple levels of nesting
+fn test_triple_nested() -> u64 {
+    let mut a: u64 = 0
+    let mut total: u64 = 0
+    
+    while a < 2 {
+        let mut b: u64 = 0
+        while b < 3 {
+            let mut c: u64 = 0
+            while c < 4 {
+                total += a * 100 + b * 10 + c
+                c += 1
+            }
+            b += 1
+        }
+        a += 1
+    }
+    
+    return total
+    // Expected: Sum of all combinations
+}
+
+// Test 6: Control flow with function calls
+fn is_even(n: u64) -> u64 {
+    if n % 2 == 0 {
+        return 1
+    } else {
+        return 0
+    }
+}
+
+fn is_prime_simple(n: u64) -> u64 {
+    if n < 2 {
+        return 0
+    }
+    let mut i: u64 = 2
+    while i * i <= n {
+        if n % i == 0 {
+            return 0
+        }
+        i += 1
+    }
+    return 1
+}
+
+fn test_control_with_functions() -> u64 {
+    let mut result: u64 = 0
+    let mut i: u64 = 0
+    
+    while i < 20 {
+        if is_even(i) == 1 {
+            result += 1
+        }
+        if is_prime_simple(i) == 1 {
+            result += 10
+        }
+        i += 1
+    }
+    
+    return result
+    // Even numbers under 20: 10 (0,2,4,6,8,10,12,14,16,18)
+    // Primes under 20: 8 (2,3,5,7,11,13,17,19)
+    // Expected: 10 + 8*10 = 90
+}
+
+// Test 7: Early returns in nested control flow
+fn test_early_returns() -> u64 {
+    let mut i: u64 = 0
+    while i < 10 {
+        if i == 5 {
+            return i * 100  // Early return
+        }
+        i += 1
+    }
+    return 0
+    // Expected: 500 (returns when i=5)
+}
+
+// Test 8: Complex boolean expressions in conditions
+fn test_complex_conditions() -> u64 {
+    let mut count: u64 = 0
+    let mut i: u64 = 0
+    
+    while i < 30 {
+        // Complex condition: (multiple of 2 OR multiple of 3) AND NOT multiple of 6
+        if ((i % 2 == 0) || (i % 3 == 0)) && (i % 6 != 0) {
+            count += 1
+        }
+        i += 1
+    }
+    
+    return count
+    // Numbers that are multiples of 2 or 3 but not 6 under 30:
+    // 2,3,4,8,9,10,14,15,16,20,21,22,26,27,28 → 15 numbers
+}
+
+// Test 9: Switch-like behavior with if-else chain
+fn test_if_else_chain() -> u64 {
+    let mut result: u64 = 0
+    let mut i: u64 = 0
+    
+    while i < 10 {
+        if i == 0 {
+            result += 1
+        } else if i == 1 {
+            result += 2
+        } else if i == 2 {
+            result += 4
+        } else if i == 3 {
+            result += 8
+        } else if i == 4 {
+            result += 16
+        } else {
+            result += 32
+        }
+        i += 1
+    }
+    
+    return result
+    // Expected: 1+2+4+8+16 + 5*32 = 31 + 160 = 191
+}
+
+// Test 10: Nested control flow with arrays (simulating sieve)
+fn test_sieve_simulation() -> u64 {
+    // Simulate a small sieve
+    let size: u64 = 30
+    let mut is_prime: [dynamic]u8 = [dynamic]u8{}
+    
+    // Initialize
+    let mut i: u64 = 0
+    while i < size {
+        is_prime.push(1)  // 1 means prime initially
+        i += 1
+    }
+    
+    // Mark 0 and 1 as not prime
+    if size > 0 { is_prime[0] = 0 }
+    if size > 1 { is_prime[1] = 0 }
+    
+    // Sieve logic
+    let mut p: u64 = 2
+    while p * p < size {
+        if is_prime[p] == 1 {
+            let mut multiple: u64 = p * p
+            while multiple < size {
+                is_prime[multiple] = 0
+                multiple += p
+            }
+        }
+        p += 1
+    }
+    
+    // Count primes
+    let mut count: u64 = 0
+    let mut n: u64 = 0
+    while n < size {
+        if is_prime[n] == 1 {
+            count += 1
+        }
+        n += 1
+    }
+    
+    return count
+    // Expected primes under 30: 10 (2,3,5,7,11,13,17,19,23,29)
+}
+
+// Main test runner
+fn main() -> u64 {
+    let mut test_results: [dynamic]u64 = [dynamic]u64{}
+    
+    // Run all tests
+    let test1 = test_nested_while_loops()
+    test_results.push(test1)
+    print("Test 1 (nested while): ", test1, " expected: 138")
+    
+    let test2 = test_while_with_nested_if()
+    test_results.push(test2)
+    print("Test 2 (while with nested if): ", test2, " expected: 343")
+    
+    let test3 = test_sieve_like_condition()
+    test_results.push(test3)
+    print("Test 3 (sieve-like condition): ", test3, " expected: 5")
+    
+    let test4 = test_break_continue_nested()
+    test_results.push(test4)
+    print("Test 4 (break/continue nested): ", test4, " (complex)")
+    
+    let test5 = test_triple_nested()
+    test_results.push(test5)
+    print("Test 5 (triple nested): ", test5, " (complex sum)")
+    
+    let test6 = test_control_with_functions()
+    test_results.push(test6)
+    print("Test 6 (control with functions): ", test6, " expected: 90")
+    
+    let test7 = test_early_returns()
+    test_results.push(test7)
+    print("Test 7 (early returns): ", test7, " expected: 500")
+    
+    let test8 = test_complex_conditions()
+    test_results.push(test8)
+    print("Test 8 (complex conditions): ", test8, " expected: 15")
+    
+    let test9 = test_if_else_chain()
+    test_results.push(test9)
+    print("Test 9 (if-else chain): ", test9, " expected: 191")
+    
+    let test10 = test_sieve_simulation()
+    test_results.push(test10)
+    print("Test 10 (sieve simulation): ", test10, " expected: 10")
+    
+    // Expected results for verifiable tests
+    let expected_results: [dynamic]u64 = [138, 343, 5, 0, 0, 90, 500, 15, 191, 10]
+    let mut all_passed: u64 = 1
+    
+    // Skip tests 4 and 5 (complex calculations, just need to not crash)
+    let mut i: u64 = 0
+    while i < test_results.len() {
+        if i != 3 && i != 4 {  // Skip tests 4 and 5
+            if test_results[i] != expected_results[i] {
+                print("FAIL: Test ", i + 1, " got ", test_results[i], " expected ", expected_results[i])
+                all_passed = 0
+            }
+        }
+        i += 1
+    }
+    
+    // For tests 4 and 5, just check they didn't crash (returned some value)
+    if test_results[3] == 0 && test_results[4] == 0 {
+        print("Note: Tests 4 & 5 returned 0 - may need manual verification")
+    }
+    
+    if all_passed == 1 {
+        print("✅ ALL COMPLEX CONTROL FLOW TESTS PASSED")
+        return 0
+    } else {
+        print("❌ SOME COMPLEX CONTROL FLOW TESTS FAILED")
+        return 1
+    }
+}

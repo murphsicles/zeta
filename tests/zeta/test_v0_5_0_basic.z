@@ -1,0 +1,6 @@
+use zeta::frontend::ast::AstNode;
+use zeta::frontend::parser::top_level::parse_zeta;
+
+fn main() {
+    let node: AstNode = AstNode::Unit;
+}

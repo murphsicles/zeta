@@ -1,0 +1,24 @@
+// Test array set operation arr[index] = value
+
+fn test_array_set() -> u64 {
+    // Create array with two elements
+    let arr: [dynamic]u8 = [dynamic]u8{}
+    arr.push(0)  // arr[0]
+    arr.push(0)  // arr[1]
+    
+    // Set values using array set operation
+    arr[0] = 42
+    arr[1] = 100
+    
+    // Read back and sum
+    let sum = arr[0] + arr[1]
+    
+    // Also test length
+    let length = arr.len()
+    
+    return sum + length  // 142 + 2 = 144
+}
+
+fn main() -> u64 {
+    return test_array_set()
+}

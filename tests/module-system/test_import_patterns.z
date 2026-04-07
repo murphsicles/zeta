@@ -1,0 +1,102 @@
+// Test all import patterns for v0.3.27 module system
+// This tests the complete import resolution system
+
+// Test 1: crate:: prefix (current crate)
+use crate::middle::mir::Mir
+
+// Test 2: std:: prefix (standard library)
+use std::collections::HashMap
+use std::ffi::c_void
+
+// Test 3: zeta:: prefix (zeta crate itself as a library)
+// This is different from self-compilation imports
+use zeta::frontend::ast::AstNode
+use zeta::middle::resolver::Resolver
+
+// Test 4: zorb:: prefix (zeta's package manager)
+// This should resolve to zorb crate, not external crates
+use zorb::package::Package
+use zorb::manifest::Manifest
+
+// Test 5: Direct crate names (external dependencies)
+use reqwest::blocking::Client
+use serde::Deserialize
+use serde_json::to_string
+
+// Test 6: Mixed imports in same file (PrimeZeta pattern)
+use std::malloc
+use std::free
+use std::print
+use std::println
+
+// Test 7: Nested imports
+use std::collections::hash_map::Entry
+
+// Test 8: Aliases (if supported)
+// use std::collections::HashMap as Map
+
+// Test functions to verify imports work
+fn test_crate_import() -> i64 {
+    // Should be able to reference Mir type
+    let _mir: Mir = Mir::new()
+    0
+}
+
+fn test_std_import() -> i64 {
+    // Should be able to use HashMap
+    let _map: HashMap<i64, i64> = HashMap::new()
+    0
+}
+
+fn test_zeta_import() -> i64 {
+    // Should be able to reference AstNode type
+    // This tests zeta:: as a library import
+    let _node: AstNode = AstNode::Unit
+    0
+}
+
+fn test_zorb_import() -> i64 {
+    // Should be able to reference Package type
+    // This tests zorb:: as package manager
+    let _pkg: Package = Package::new("test")
+    0
+}
+
+fn test_external_import() -> i64 {
+    // Should be able to reference Client type
+    let _client: Client = Client::new()
+    0
+}
+
+fn test_mixed_imports() -> i64 {
+    // Test PrimeZeta pattern - using std functions
+    let ptr = malloc(100)
+    free(ptr)
+    0
+}
+
+fn main() -> i64 {
+    // Run all tests
+    let mut result = 0
+    
+    result = test_crate_import()
+    if result != 0 { return result }
+    
+    result = test_std_import()
+    if result != 0 { return result }
+    
+    result = test_zeta_import()
+    if result != 0 { return result }
+    
+    result = test_zorb_import()
+    if result != 0 { return result }
+    
+    result = test_external_import()
+    if result != 0 { return result }
+    
+    result = test_mixed_imports()
+    if result != 0 { return result }
+    
+    // All tests passed
+    0
+}

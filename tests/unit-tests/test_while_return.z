@@ -1,0 +1,15 @@
+// Test while loop with just return
+
+fn test_while_return() -> u64 {
+    let mut n: u64 = 0
+    
+    while n < 3 {
+        return 1
+    }
+    
+    return 0
+}
+
+fn main() -> u64 {
+    return test_while_return()
+}

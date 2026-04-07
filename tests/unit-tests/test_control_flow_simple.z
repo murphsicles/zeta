@@ -1,0 +1,40 @@
+// Test simplest possible control flow
+// To help debug while loop issues
+
+fn test_if() -> u64 {
+    // Simple if statement
+    let x: u64 = 5
+    if x == 5 {
+        return 1
+    } else {
+        return 0
+    }
+}
+
+fn test_while_simple() -> u64 {
+    // Absolute simplest while loop
+    let mut i: u64 = 0
+    // Just one iteration
+    while i < 1 {
+        i += 1
+    }
+    return i  // Should return 1
+}
+
+fn test_loop_increment() -> u64 {
+    // Test if increment works outside loop
+    let mut i: u64 = 0
+    i += 1
+    i += 1
+    i += 1
+    return i  // Should return 3
+}
+
+fn main() -> u64 {
+    // Combine tests
+    let if_result = test_if()        // Should be 1
+    let while_result = test_while_simple()  // Should be 1
+    let inc_result = test_loop_increment()  // Should be 3
+    
+    return if_result + while_result + inc_result  // Should be 5
+}

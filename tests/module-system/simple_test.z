@@ -1,0 +1,14 @@
+// Simple test for module resolver
+// This tests basic import resolution
+
+use std::malloc
+use std::free
+
+fn main() -> i64 {
+    // Test that std::malloc and std::free resolve
+    let ptr = malloc(100)
+    free(ptr)
+    
+    // Return success
+    0
+}

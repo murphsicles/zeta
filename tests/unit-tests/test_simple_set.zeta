@@ -1,0 +1,17 @@
+fn main() -> u64 {
+    // Create empty dynamic array of i64 (default type)
+    let arr = [dynamic]i64{}
+    
+    // Push three zeros
+    arr.push(0)
+    arr.push(0)
+    arr.push(0)
+    
+    // Set values using subscript assignment
+    arr[0] = 42
+    arr[1] = 100
+    arr[2] = 255
+    
+    // Get and return first value to verify
+    return arr[0]
+}

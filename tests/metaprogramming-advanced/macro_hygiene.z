@@ -1,0 +1,330 @@
+// Macro Hygiene Test File
+// Tests for hygienic macro expansion in Zeta v0.3.41
+
+// 1. Basic hygiene test
+macro_rules! hygienic_add {
+    ($x:expr, $y:expr) => {
+        {
+            let result = $x + $y;
+            result
+        }
+    }
+}
+
+fn test_basic_hygiene() {
+    let x = 5;
+    let y = 10;
+    
+    // This should not capture x or y from outer scope
+    let result = hygienic_add!(x, y);
+    println!("Result: {}", result); // Should print 15
+    
+    // Test with different variables
+    let a = 20;
+    let b = 30;
+    let result2 = hygienic_add!(a, b);
+    println!("Result2: {}", result2); // Should print 50
+}
+
+// 2. Variable capture test
+macro_rules! potentially_capturing {
+    ($body:expr) => {
+        {
+            let captured = 42;
+            $body
+        }
+    }
+}
+
+fn test_variable_capture() {
+    let captured = 100; // Outer variable
+    
+    let result = potentially_capturing!({
+        // This should use the inner 'captured', not the outer one
+        captured * 2
+    });
+    
+    println!("Capture test result: {}", result); // Should print 84, not 200
+}
+
+// 3. Unique identifier generation
+macro_rules! unique_counter {
+    () => {
+        {
+            static mut COUNTER: u64 = 0;
+            unsafe {
+                COUNTER += 1;
+                COUNTER
+            }
+        }
+    }
+}
+
+fn test_unique_ids() {
+    let id1 = unique_counter!();
+    let id2 = unique_counter!();
+    let id3 = unique_counter!();
+    
+    println!("Unique IDs: {}, {}, {}", id1, id2, id3);
+    // Should print: 1, 2, 3
+    // Each macro expansion should get its own counter instance
+}
+
+// 4. Nested macro hygiene
+macro_rules! outer_macro {
+    ($val:expr) => {
+        {
+            let outer_var = "outer";
+            inner_macro!($val, outer_var)
+        }
+    }
+}
+
+macro_rules! inner_macro {
+    ($val:expr, $context:expr) => {
+        {
+            let inner_var = "inner";
+            format!("{}: {} -> {}", $context, $val, inner_var)
+        }
+    }
+}
+
+fn test_nested_hygiene() {
+    let result = outer_macro!("test");
+    println!("Nested macro result: {}", result);
+    // Should work without variable conflicts
+}
+
+// 5. Hygiene with loops
+macro_rules! hygienic_loop {
+    ($init:expr, $cond:expr, $inc:expr, $body:expr) => {
+        {
+            let mut i = $init;
+            while i < $cond {
+                $body;
+                i = $inc(i);
+            }
+        }
+    }
+}
+
+fn test_loop_hygiene() {
+    let i = 100; // Outer i
+    
+    hygienic_loop!(0, 5, |x| x + 1, {
+        println!("Loop iteration: {}", i);
+        // Should print 0, 1, 2, 3, 4 (not 100)
+    });
+    
+    println!("Outer i after loop: {}", i); // Should still be 100
+}
+
+// 6. Hygiene in generated functions
+macro_rules! generate_adder {
+    ($name:ident, $amount:expr) => {
+        fn $name(x: i32) -> i32 {
+            x + $amount
+        }
+    }
+}
+
+fn test_generated_functions() {
+    generate_adder!(add_five, 5);
+    generate_adder!(add_ten, 10);
+    
+    println!("Add five: {}", add_five(3));  // Should print 8
+    println!("Add ten: {}", add_ten(3));    // Should print 13
+    
+    // Generated functions should not conflict with each other
+}
+
+// 7. Hygiene with patterns
+macro_rules! match_hygiene {
+    ($value:expr, $($pattern:pat => $result:expr),+) => {
+        match $value {
+            $($pattern => $result),+
+        }
+    }
+}
+
+fn test_pattern_hygiene() {
+    let x = Some(42);
+    
+    let result = match_hygiene!(x,
+        Some(y) => y * 2,
+        None => 0
+    );
+    
+    println!("Pattern match result: {}", result); // Should print 84
+    
+    // 'y' should not be accessible here
+    // let y = 10; // This should be fine - no conflict
+}
+
+// 8. Hygiene in closure generation
+macro_rules! make_closure {
+    ($factor:expr) => {
+        |x| x * $factor
+    }
+}
+
+fn test_closure_hygiene() {
+    let factor = 2; // Outer factor
+    
+    let doubler = make_closure!(3); // Should capture 3, not outer factor
+    
+    println!("Closure result: {}", doubler(5)); // Should print 15, not 10
+}
+
+// 9. Complex hygiene scenario
+macro_rules! complex_hygiene {
+    ($op:ident, $a:expr, $b:expr) => {
+        {
+            // Generate unique temporary variables
+            let temp_a = $a;
+            let temp_b = $b;
+            
+            // Perform operation
+            let result = temp_a.$op(temp_b);
+            
+            // Clean up
+            result
+        }
+    }
+}
+
+fn test_complex_hygiene() {
+    let temp_a = 100; // These should not conflict
+    let temp_b = 200;
+    let result = 300;
+    
+    let sum = complex_hygiene!(add, 5, 3);
+    println!("Complex hygiene sum: {}", sum); // Should print 8
+    
+    // Outer variables should be unchanged
+    println!("Outer vars: {}, {}, {}", temp_a, temp_b, result);
+}
+
+// 10. Hygiene with type parameters
+macro_rules! generic_hygiene {
+    ($t:ty, $value:expr) => {
+        {
+            let x: $t = $value;
+            x
+        }
+    }
+}
+
+fn test_generic_hygiene() {
+    let x = "string"; // Outer x
+    
+    let int_result: i32 = generic_hygiene!(i32, 42);
+    let str_result: &str = generic_hygiene!(&str, "hello");
+    
+    println!("Generic results: {}, {}", int_result, str_result);
+    println!("Outer x: {}", x); // Should still be "string"
+}
+
+// 11. Hygiene error cases (should fail to compile)
+/*
+macro_rules! unhygienic {
+    () => {
+        let x = 42;
+        x
+    }
+}
+
+fn test_unhygienic() {
+    let x = 100;
+    let result = unhygienic!(); // Should cause error: x already defined
+}
+*/
+
+// 12. Hygiene with attributes
+#[macro_hygiene]
+macro_rules! attributed_macro {
+    ($expr:expr) => {
+        {
+            #[inline]
+            fn helper() -> i32 {
+                $expr
+            }
+            helper()
+        }
+    }
+}
+
+fn test_attributed_hygiene() {
+    let result = attributed_macro!(5 + 3);
+    println!("Attributed macro result: {}", result);
+}
+
+// 13. Hygiene in recursive macros
+macro_rules! recursive_factorial {
+    (0) => { 1 };
+    ($n:expr) => {
+        $n * recursive_factorial!($n - 1)
+    };
+}
+
+fn test_recursive_hygiene() {
+    let n = 10; // Outer n
+    
+    let fact5 = recursive_factorial!(5);
+    println!("Factorial of 5: {}", fact5); // Should print 120
+    
+    println!("Outer n: {}", n); // Should still be 10
+}
+
+// 14. Hygiene with lifetime parameters
+macro_rules! lifetime_hygiene {
+    ($expr:expr) => {
+        {
+            let result = $expr;
+            &result
+        }
+    }
+}
+
+fn test_lifetime_hygiene() {
+    let value = lifetime_hygiene!("test");
+    println!("Lifetime hygiene: {}", value);
+}
+
+// Main function to test all hygiene features
+fn main() {
+    println!("Testing Macro Hygiene System");
+    
+    test_basic_hygiene();
+    test_variable_capture();
+    test_unique_ids();
+    test_nested_hygiene();
+    test_loop_hygiene();
+    test_generated_functions();
+    test_pattern_hygiene();
+    test_closure_hygiene();
+    test_complex_hygiene();
+    test_generic_hygiene();
+    test_attributed_hygiene();
+    test_recursive_hygiene();
+    test_lifetime_hygiene();
+    
+    println!("All hygiene tests completed!");
+    
+    // Test that hygiene prevents common errors
+    println!("\nTesting error prevention:");
+    
+    // This should work without issues due to hygiene
+    let x = 1;
+    let y = 2;
+    let z = hygienic_add!(x, y);
+    println!("Hygienic addition: {} + {} = {}", x, y, z);
+    
+    // Variables should not be captured unexpectedly
+    let counter = 0;
+    for _ in 0..3 {
+        let _ = unique_counter!();
+        // counter should not be affected
+    }
+    println!("Counter unchanged: {}", counter);
+}

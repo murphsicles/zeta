@@ -1,0 +1,10 @@
+fn main() -> () {
+    let x = 10;
+    let y = 20;
+    
+    if (x < y) {
+        print("x is less than y");
+    } else {
+        print("x is not less than y");
+    }
+}

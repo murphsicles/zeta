@@ -1,0 +1,42 @@
+// Test file for type system integration validation
+// After TYPE-INTEGRATION-AGENT completes, this should compile and run correctly
+
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+impl Point {
+    // Static method - should work with i32 parameters
+    fn new(x: i32, y: i32) -> Point {
+        Point { x, y }
+    }
+    
+    // Instance method - should return correct i32 value
+    fn sum(&self) -> i32 {
+        self.x + self.y
+    }
+}
+
+// Generic static method test
+struct Vec<T> {
+    data: T,
+}
+
+impl<T> Vec<T> {
+    fn new(data: T) -> Vec<T> {
+        Vec { data }
+    }
+}
+
+fn main() -> i32 {
+    // Test 1: Static method with i32 literals
+    let p = Point::new(10, 20);
+    let result = p.sum();
+    
+    // Test 2: Generic static method
+    let v = Vec::<i32>::new(42);
+    
+    // Return sum to verify it's not 0
+    result
+}

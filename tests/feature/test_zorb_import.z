@@ -1,0 +1,32 @@
+// Test Zorb module imports for v0.3.11
+// This should work after Zorb module system implementation
+
+use zorb::std::option::Option;
+use zorb::std::result::Result;
+
+fn test_option() -> i64 {
+    let some_value: Option<i64> = Option::Some(42);
+    let none_value: Option<i64> = Option::None;
+    
+    match some_value {
+        Option::Some(x) => x,
+        Option::None => 0,
+    }
+}
+
+fn test_result() -> i64 {
+    let ok_result: Result<i64, String> = Result::Ok(42);
+    let err_result: Result<i64, String> = Result::Err("error".to_string());
+    
+    match ok_result {
+        Result::Ok(x) => x,
+        Result::Err(_) => 0,
+    }
+}
+
+fn main() -> i64 {
+    let opt_result = test_option();
+    let res_result = test_result();
+    
+    opt_result + res_result
+}

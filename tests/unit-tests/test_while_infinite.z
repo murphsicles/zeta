@@ -1,0 +1,15 @@
+// Test while loop with false condition first
+// To avoid infinite loop during testing
+
+fn test_while_false() -> u64 {
+    let mut i: u64 = 10
+    // Condition is false immediately
+    while i < 5 {
+        i += 1
+    }
+    return i  // Should return 10 (loop never executes)
+}
+
+fn main() -> u64 {
+    return test_while_false()
+}

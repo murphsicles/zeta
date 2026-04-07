@@ -1,0 +1,74 @@
+// Test GCD function with comptime evaluation for PrimeZeta
+// This test verifies that GCD works correctly at compile time
+
+// GCD function using Euclidean algorithm
+comptime fn gcd(a: i64, b: i64) -> i64 {
+    var x = a
+    var y = b
+    while y != 0 {
+        let t = y
+        y = x % y
+        x = t
+    }
+    return x
+}
+
+// Test comptime evaluation of GCD
+comptime fn test_gcd_basic() -> i64 {
+    // Basic cases
+    let g1 = gcd(48, 18)  // Should be 6
+    let g2 = gcd(18, 48)  // Should be 6
+    let g3 = gcd(17, 5)   // Should be 1 (coprime)
+    let g4 = gcd(0, 5)    // Should be 5
+    let g5 = gcd(5, 0)    // Should be 5
+    let g6 = gcd(0, 0)    // Should be 0
+    
+    // Return sum to verify all computations
+    return g1 + g2 + g3 + g4 + g5 + g6  // 6+6+1+5+5+0 = 23
+}
+
+// Test with negative numbers (edge case for PrimeZeta)
+comptime fn test_gcd_negative() -> i64 {
+    // GCD should work with absolute values
+    let g1 = gcd(-48, 18)  // Should be 6
+    let g2 = gcd(48, -18)  // Should be 6
+    let g3 = gcd(-48, -18) // Should be 6
+    
+    return g1 + g2 + g3  // 6+6+6 = 18
+}
+
+// Test large numbers (performance test)
+comptime fn test_gcd_large() -> i64 {
+    let g1 = gcd(123456789, 987654321)  // Should be 9
+    let g2 = gcd(999999937, 999999929)  // Large primes, should be 1
+    
+    return g1 + g2  // 9+1 = 10
+}
+
+// Test GCD for PrimeZeta residue generation
+comptime fn test_primezeta_gcd() -> i64 {
+    const MODULUS: i64 = 30030
+    var count: i64 = 0
+    
+    // Count numbers coprime to MODULUS (should be 5760)
+    for i in 1..MODULUS {
+        if gcd(i, MODULUS) == 1 {
+            count += 1
+        }
+    }
+    
+    return count  // Should be 5760
+}
+
+// Main function to run tests
+fn main() -> i64 {
+    // These should all be computed at compile time
+    let result1 = test_gcd_basic()
+    let result2 = test_gcd_negative()
+    let result3 = test_gcd_large()
+    let result4 = test_primezeta_gcd()
+    
+    // Return sum of all test results
+    // 23 + 18 + 10 + 5760 = 5811
+    return result1 + result2 + result3 + result4
+}

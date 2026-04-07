@@ -1,0 +1,237 @@
+// Test type families for v0.3.43
+// Created by TYPE-SYSTEM-ADVANCED-AGENT
+
+// Test 1: Basic type family declaration
+type family ListLength a where
+    ListLength [] = Z
+    ListLength (x : xs) = S (ListLength xs)
+
+// Test 2: Using type family for compile-time computation
+type family If c t f where
+    If True t f = t
+    If False t f = f
+
+// Test 3: Type family with multiple parameters
+type family Map f xs where
+    Map f [] = []
+    Map f (x : xs) = f x : Map f xs
+
+// Test 4: Type-level arithmetic
+type family Add a b where
+    Add Z b = b
+    Add (S a) b = S (Add a b)
+
+type family Mul a b where
+    Mul Z b = Z
+    Mul (S a) b = Add b (Mul a b)
+
+// Test 5: Type-level comparison
+type family Less a b where
+    Less Z (S b) = True
+    Less (S a) (S b) = Less a b
+    Less a b = False
+
+// Test 6: Associated type family in type class
+class Collection c where
+    type Elem c
+    type Index c
+    
+    lookup :: c -> Index c -> Maybe (Elem c)
+    insert :: c -> Index c -> Elem c -> c
+
+// Test 7: Implementing Collection for List
+instance Collection [] where
+    type Elem [] a = a
+    type Index [] a = Int
+    
+    lookup xs i = if i >= 0 && i < length xs then Just (xs !! i) else Nothing
+    insert xs i x = take i xs ++ [x] ++ drop i xs
+
+// Test 8: Type family with kind polymorphism
+type family Apply f a where
+    Apply (f :: * -> *) a = f a
+    Apply (f :: * -> * -> *) a = f a
+
+// Test 9: Closed type family with overlapping instances
+type family Merge a b where
+    Merge [] ys = ys
+    Merge (x : xs) ys = x : Merge xs ys
+    Merge a b = a  -- catch-all case
+
+// Test 10: Type family for type-level programming
+// Type-level natural numbers
+data Z
+data S n
+
+// Type-level booleans
+data True
+data False
+
+// Type-level lists
+data Nil
+data Cons x xs
+
+// Test 11: Type family for computing vector length
+type family VLength v where
+    VLength VNil = Z
+    VLength (VCons x xs) = S (VLength xs)
+
+// Vector type indexed by length
+data Vect n a where
+    VNil :: Vect Z a
+    VCons :: a -> Vect n a -> Vect (S n) a
+
+// Test 12: Type-safe vector concatenation
+concatVect :: Vect m a -> Vect n a -> Vect (Add m n) a
+concatVect VNil ys = ys
+concatVect (VCons x xs) ys = VCons x (concatVect xs ys)
+
+// Test 13: Type family with injectivity annotation
+type family FromMaybe a where
+    FromMaybe (Maybe a) = a
+    FromMaybe a = a
+
+// Test 14: Type family for type-level pattern matching
+type family Head xs where
+    Head (Cons x xs) = x
+    Head Nil = Void  -- error case
+
+type family Tail xs where
+    Tail (Cons x xs) = xs
+    Tail Nil = Nil
+
+// Test 15: Complex type family for expression evaluation
+// Type-level expressions
+data Lit n
+data AddExpr a b
+data MulExpr a b
+
+// Type family for evaluating expressions
+type family Eval e where
+    Eval (Lit n) = n
+    Eval (AddExpr a b) = Add (Eval a) (Eval b)
+    Eval (MulExpr a b) = Mul (Eval a) (Eval b)
+
+// Test 16: Type family with constraints
+type family Lookup k m where
+    Lookup k ((k, v) : m) = v
+    Lookup k ((k', v) : m) = Lookup k m
+    Lookup k [] = Void
+
+// Test 17: Type family for type-level programming with functions
+type family Compose f g a where
+    Compose f g a = f (g a)
+
+type family Flip f a b where
+    Flip f a b = f b a
+
+// Test 18: Type family with kind signatures
+type family (f . g) a where
+    (f . g) a = f (g a)
+
+type family Const a b where
+    Const a b = a
+
+// Test 19: Type family for type-level logic
+type family And a b where
+    And True True = True
+    And a b = False
+
+type family Or a b where
+    Or False False = False
+    Or a b = True
+
+type family Not a where
+    Not True = False
+    Not False = True
+
+// Test 20: Type family with default case
+type family Default a where
+    Default Int = Int
+    Default String = String
+    Default a = a  -- identity for other types
+
+// Test 21: Type family for type-level string manipulation
+type family Concat a b where
+    Concat "" b = b
+    Concat a "" = a
+    Concat a b = a ++ b
+
+type family Length s where
+    Length "" = Z
+    Length (c : s) = S (Length s)
+
+// Test 22: Type family with type equality constraints
+type family Member x xs where
+    Member x (x : xs) = True
+    Member x (y : xs) = Member x xs
+    Member x [] = False
+
+// Test 23: Type family for type-level sets
+type family Insert x xs where
+    Insert x xs = If (Member x xs) xs (x : xs)
+
+type family Union xs ys where
+    Union [] ys = ys
+    Union (x : xs) ys = Insert x (Union xs ys)
+
+// Test 24: Type family with recursion
+type family Reverse xs where
+    Reverse [] = []
+    Reverse (x : xs) = Append (Reverse xs) [x]
+
+type family Append xs ys where
+    Append [] ys = ys
+    Append (x : xs) ys = x : Append xs ys
+
+// Test 25: Type family for compile-time validation
+type family ValidateSize n where
+    ValidateSize n = If (Less n (Lit 100)) n (Error "Size too large")
+
+// Using type families for safe APIs
+safeAllocate :: ValidateSize n -> IO (Ptr n)
+safeAllocate size = allocateMemory size
+
+// Test 26: Type family with associated type synonyms
+class Monoid a where
+    type Sum a b
+    type Zero
+    
+    mappend :: a -> a -> a
+    mempty :: a
+
+instance Monoid Int where
+    type Sum Int Int = Int
+    type Zero = Int
+    
+    mappend = (+)
+    mempty = 0
+
+// Test 27: Type family for type-level differentiation
+// Type-level symbolic differentiation
+type family Deriv f x where
+    Deriv (Const c) x = Const 0
+    Deriv (Var x) x = Const 1
+    Deriv (Var y) x = Const 0  -- y ≠ x
+    Deriv (Add f g) x = Add (Deriv f x) (Deriv g x)
+    Deriv (Mul f g) x = Add (Mul (Deriv f x) g) (Mul f (Deriv g x))
+
+// Test 28: Type family with type-level functions
+type family MapType f xs where
+    MapType f [] = []
+    MapType f (x : xs) = Apply f x : MapType f xs
+
+// Test 29: Type family for type-level state machines
+type family Transition state input where
+    Transition Locked Unlock = Unlocked
+    Transition Unlocked Lock = Locked
+    Transition state input = state  -- no transition
+
+// Test 30: Type family with type-level proofs
+type family ProofEqual a b where
+    ProofEqual a a = Refl
+    ProofEqual a b = Nothing
+
+// Using proofs for type-safe operations
+safeCast :: ProofEqual a b -> a -> b
+safeCast Refl x = x

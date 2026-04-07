@@ -1,0 +1,32 @@
+﻿// Simple bool test
+fn test_bool() -> bool {
+    return true
+}
+
+fn test_bool_expr(x: u64) -> bool {
+    return x > 10
+}
+
+fn test_complex_bool(x: u64) -> bool {
+    if x < 2 {
+        return false
+    }
+    
+    let mut i: u64 = 2
+    while i * i <= x {
+        if x % i == 0 {
+            return false
+        }
+        i += 1
+    }
+    
+    return true
+}
+
+fn main() -> u64 {
+    if test_bool() {
+        return 1
+    } else {
+        return 0
+    }
+}

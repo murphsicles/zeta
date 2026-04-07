@@ -1,0 +1,348 @@
+// Test advanced type-level programming for v0.3.43
+// Created by TYPE-SYSTEM-ADVANCED-AGENT
+
+// Test 1: Type-level natural numbers
+data Z
+data S n
+
+// Test 2: Type-level addition
+type family Add a b where
+    Add Z b = b
+    Add (S a) b = S (Add a b)
+
+// Test 3: Type-level multiplication
+type family Mul a b where
+    Mul Z b = Z
+    Mul (S a) b = Add b (Mul a b)
+
+// Test 4: Type-level booleans
+data True
+data False
+
+// Test 5: Type-level comparison
+type family Less a b where
+    Less Z (S b) = True
+    Less (S a) (S b) = Less a b
+    Less a b = False
+
+type family Equal a b where
+    Equal Z Z = True
+    Equal (S a) (S b) = Equal a b
+    Equal a b = False
+
+// Test 6: Type-level lists
+data Nil
+data Cons x xs
+
+// Test 7: Type-level list functions
+type family Length xs where
+    Length Nil = Z
+    Length (Cons x xs) = S (Length xs)
+
+type family Append xs ys where
+    Append Nil ys = ys
+    Append (Cons x xs) ys = Cons x (Append xs ys)
+
+type family Reverse xs where
+    Reverse Nil = Nil
+    Reverse (Cons x xs) = Append (Reverse xs) (Cons x Nil)
+
+// Test 8: Type-level Maybe
+data Nothing
+data Just a
+
+// Test 9: Type-level option operations
+type family FromMaybe a where
+    FromMaybe (Just a) = a
+    FromMaybe Nothing = Void
+
+// Test 10: Type-level Either
+data Left a
+data Right b
+
+// Test 11: Type-level either operations
+type family FromEither e where
+    FromEither (Left a) = a
+    FromEither (Right b) = b
+
+// Test 12: Type-level validation
+type family ValidatePositive n where
+    ValidatePositive Z = False
+    ValidatePositive (S n) = True
+
+// Safe function using type-level validation
+safeDivide :: ValidatePositive divisor -> Double -> Double -> Double
+safeDivide proof dividend divisor =
+    if proof == True
+    then dividend / divisor
+    else error "Division by zero"
+
+// Test 13: Type-level state machine
+data Locked
+data Unlocked
+
+type family Transition state input where
+    Transition Locked Unlock = Unlocked
+    Transition Unlocked Lock = Locked
+    Transition state input = state
+
+// Type-safe state machine API
+lock :: Transition Unlocked Lock -> Locked
+lock Refl = Locked
+
+unlock :: Transition Locked Unlock -> Unlocked
+unlock Refl = Unlocked
+
+// Test 14: Type-level finite state machine
+data State0
+data State1
+data State2
+
+data InputA
+data InputB
+
+type family FSM state input where
+    FSM State0 InputA = State1
+    FSM State0 InputB = State2
+    FSM State1 InputA = State2
+    FSM State1 InputB = State0
+    FSM State2 InputA = State0
+    FSM State2 InputB = State1
+    FSM state input = state
+
+// Test 15: Type-level arithmetic expressions
+data Lit n
+data AddExpr a b
+data SubExpr a b
+data MulExpr a b
+data DivExpr a b
+
+// Type family for evaluating expressions
+type family Eval e where
+    Eval (Lit n) = n
+    Eval (AddExpr a b) = Add (Eval a) (Eval b)
+    Eval (SubExpr a b) = Sub (Eval a) (Eval b)
+    Eval (MulExpr a b) = Mul (Eval a) (Eval b)
+    Eval (DivExpr a b) = Div (Eval a) (Eval b)
+
+// Need subtraction and division type families
+type family Sub a b where
+    Sub a Z = a
+    Sub (S a) (S b) = Sub a b
+    Sub a b = Z  // floor at zero
+
+type family Div a b where
+    Div a b = If (Less a b) Z (S (Div (Sub a b) b))
+
+// Test 16: Type-level if expression
+type family If cond t f where
+    If True t f = t
+    If False t f = f
+
+// Test 17: Type-level logic operations
+type family And a b where
+    And True True = True
+    And a b = False
+
+type family Or a b where
+    Or False False = False
+    Or a b = True
+
+type family Not a where
+    Not True = False
+    Not False = True
+
+// Test 18: Type-level maximum function
+type family Max a b where
+    Max a b = If (Less a b) b a
+
+// Test 19: Type-level minimum function
+type family Min a b where
+    Min a b = If (Less a b) a b
+
+// Test 20: Type-level Fibonacci
+type family Fib n where
+    Fib Z = Z
+    Fib (S Z) = S Z
+    Fib (S (S n)) = Add (Fib (S n)) (Fib n)
+
+// Test 21: Type-level factorial
+type family Fact n where
+    Fact Z = S Z
+    Fact (S n) = Mul (S n) (Fact n)
+
+// Test 22: Type-level prime checking
+type family IsPrime n where
+    IsPrime n = And (GT n (S Z)) (NoDivisors n (S (S Z)))
+
+type family NoDivisors n d where
+    NoDivisors n d = If (Equal d n) True
+        (If (Divisible n d) False (NoDivisors n (S d)))
+
+type family Divisible a b where
+    Divisible a b = Equal (Mod a b) Z
+
+type family Mod a b where
+    Mod a b = If (Less a b) a (Mod (Sub a b) b)
+
+type family GT a b where
+    GT a b = Not (Less a b)
+
+// Test 23: Type-level vector operations
+data VNil
+data VCons a n
+
+type family VLength v where
+    VLength VNil = Z
+    VLength (VCons a n) = S n
+
+type family VAppend v1 v2 where
+    VAppend VNil v2 = v2
+    VAppend (VCons a n) v2 = VCons a (VAppend n v2)
+
+// Test 24: Type-level matrix dimensions
+data Matrix rows cols
+
+type family Transpose m where
+    Transpose (Matrix rows cols) = Matrix cols rows
+
+type family MatrixMul a b where
+    MatrixMul (Matrix r1 c1) (Matrix r2 c2) =
+        If (Equal c1 r2) (Matrix r1 c2) (Error "Dimension mismatch")
+
+// Test 25: Type-level string manipulation (simplified)
+data EmptyString
+data ConsChar c s
+
+type family StrLength s where
+    StrLength EmptyString = Z
+    StrLength (ConsChar c s) = S (StrLength s)
+
+type family StrConcat s1 s2 where
+    StrConcat EmptyString s2 = s2
+    StrConcat (ConsChar c s1) s2 = ConsChar c (StrConcat s1 s2)
+
+// Test 26: Type-level environment for lambda calculus
+data EmptyEnv
+data Extend env var ty
+
+type family Lookup env var where
+    Lookup (Extend env var ty) var = Just ty
+    Lookup (Extend env var' ty) var = Lookup env var
+    Lookup EmptyEnv var = Nothing
+
+// Test 27: Type-level De Bruijn indices
+data Var Z
+data Var (S n)
+
+type family Shift env where
+    Shift EmptyEnv = EmptyEnv
+    Shift (Extend env var ty) = Extend (Shift env) (S var) ty
+
+// Test 28: Type-level type inference for simply typed lambda calculus
+data TyVar a
+data TyFun a b
+data TyForall a b
+
+type family Substitute ty var replacement where
+    Substitute (TyVar v) var replacement =
+        If (Equal v var) replacement (TyVar v)
+    Substitute (TyFun a b) var replacement =
+        TyFun (Substitute a var replacement) (Substitute b var replacement)
+    Substitute (TyForall a b) var replacement =
+        TyForall a (Substitute b (S var) (Shift replacement))
+
+// Test 29: Type-level unification
+type family Unify a b where
+    Unify (TyVar v) ty = ExtendSubst v ty
+    Unify ty (TyVar v) = ExtendSubst v ty
+    Unify (TyFun a1 b1) (TyFun a2 b2) =
+        ComposeSubst (Unify a1 a2) (Unify (ApplySubst b1 (Unify a1 a2)) (ApplySubst b2 (Unify a1 a2)))
+    Unify a b = If (Equal a b) EmptySubst (Error "Type mismatch")
+
+// Test 30: Type-level compiler transformations
+data ExprVar name
+data ExprLam name body
+data ExprApp fun arg
+
+type family AlphaRename expr old new where
+    AlphaRename (ExprVar name) old new =
+        If (Equal name old) (ExprVar new) (ExprVar name)
+    AlphaRename (ExprLam name body) old new =
+        ExprLam name (AlphaRename body old new)
+    AlphaRename (ExprApp fun arg) old new =
+        ExprApp (AlphaRename fun old new) (AlphaRename arg old new)
+
+type family BetaReduce expr where
+    BetaReduce (ExprApp (ExprLam var body) arg) =
+        Substitute body var arg
+    BetaReduce (ExprApp fun arg) =
+        ExprApp (BetaReduce fun) (BetaReduce arg)
+    BetaReduce (ExprLam var body) =
+        ExprLam var (BetaReduce body)
+    BetaReduce expr = expr
+
+// Test 31: Type-level continuation passing style transform
+type family CPSTransform expr k where
+    CPSTransform (ExprVar x) k = ExprApp k (ExprVar x)
+    CPSTransform (ExprLam x body) k =
+        ExprLam k' (CPSTransform body (ExprLam x (ExprApp k' (ExprVar x))))
+    CPSTransform (ExprApp f arg) k =
+        CPSTransform f (ExprLam fv (
+            CPSTransform arg (ExprLam av (
+                ExprApp (ExprApp fv av) k
+            ))
+        ))
+
+// Test 32: Type-level abstract interpretation
+data Top
+data Bottom
+data Join a b
+data Meet a b
+
+type family AbstractEval expr env where
+    AbstractEval (ExprVar x) env = Lookup env x
+    AbstractEval (ExprLam x body) env =
+        AbstractClosure x body env
+    AbstractEval (ExprApp f arg) env =
+        ApplyAbstract (AbstractEval f env) (AbstractEval arg env)
+
+// Test 33: Type-level proof checking
+data Refl a
+
+type family ProofEqual a b where
+    ProofEqual a a = Refl a
+    ProofEqual a b = Error "Not equal"
+
+// Type-safe cast using proofs
+safeCast :: ProofEqual a b -> a -> b
+safeCast (Refl _) x = x
+
+// Test 34: Type-level propositional logic
+data Implies a b
+data AndProp a b
+data OrProp a b
+data NotProp a
+data Forall x p
+
+type family Prove prop where
+    Prove (Implies a b) = If (Prove a) (Prove b) True
+    Prove (AndProp a b) = And (Prove a) (Prove b)
+    Prove (OrProp a b) = Or (Prove a) (Prove b)
+    Prove (NotProp a) = Not (Prove a)
+    Prove prop = prop  // atomic propositions
+
+// Test 35: Type-level system F type checking
+type family TypeOf expr env where
+    TypeOf (ExprVar x) env = Lookup env x
+    TypeOf (ExprLam x body) env =
+        TyForall x (TypeOf body (Extend env x (TyVar x)))
+    TypeOf (ExprApp f arg) env =
+        let funTy = TypeOf f env
+            argTy = TypeOf arg env
+        in If (Equal funTy (TyFun argTy (TyVar res)))
+            (TyVar res)
+            (Error "Type error in application")
+
+// This demonstrates sophisticated type-level programming capabilities
+// that enable compile-time verification, optimization, and metaprogramming.

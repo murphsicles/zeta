@@ -1,0 +1,97 @@
+// tests/concurrency/future_trait.z
+// Test Future trait implementation and basic executor
+
+// Define the Future trait (simplified version)
+trait Future {
+    type Output;
+    
+    // Poll the future to check if it's ready
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output>;
+}
+
+// Poll enum (simplified)
+enum Poll<T> {
+    Ready(T),
+    Pending,
+}
+
+// Context for polling (simplified)
+struct Context {
+    waker: Waker,
+}
+
+// Waker for waking tasks (simplified)
+struct Waker;
+
+// Simple future that's immediately ready
+struct ReadyFuture<T> {
+    value: Option<T>,
+}
+
+impl<T> ReadyFuture<T> {
+    fn new(value: T) -> Self {
+        Self { value: Some(value) }
+    }
+}
+
+impl<T> Future for ReadyFuture<T> {
+    type Output = T;
+    
+    fn poll(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<T> {
+        match self.value.take() {
+            Some(value) => Poll::Ready(value),
+            None => panic!("Future already polled"),
+        }
+    }
+}
+
+// Simple executor that runs futures
+struct SimpleExecutor {
+    tasks: Vec<Pin<Box<dyn Future<Output = i32>>>>,
+}
+
+impl SimpleExecutor {
+    fn new() -> Self {
+        Self { tasks: Vec::new() }
+    }
+    
+    fn spawn<F>(&mut self, future: F)
+    where
+        F: Future<Output = i32> + 'static,
+    {
+        self.tasks.push(Box::pin(future));
+    }
+    
+    fn run(&mut self) -> Option<i32> {
+        // Simple context with dummy waker
+        let waker = Waker;
+        let mut cx = Context { waker };
+        
+        for task in &mut self.tasks {
+            match task.as_mut().poll(&mut cx) {
+                Poll::Ready(result) => return Some(result),
+                Poll::Pending => continue,
+            }
+        }
+        None
+    }
+}
+
+// Test using the future trait
+fn test_future_trait() -> i32 {
+    let mut executor = SimpleExecutor::new();
+    
+    // Spawn a ready future
+    executor.spawn(ReadyFuture::new(42));
+    
+    // Run the executor
+    match executor.run() {
+        Some(result) => result,
+        None => 0,
+    }
+}
+
+// Main function
+fn main() -> i32 {
+    test_future_trait()
+}

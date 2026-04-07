@@ -1,0 +1,27 @@
+// Test that bool is properly recognized as a type
+
+// These should all compile
+fn returns_bool() -> bool {
+    true
+}
+
+fn takes_bool(b: bool) -> bool {
+    b
+}
+
+fn bool_ops(a: bool, b: bool) -> bool {
+    a && b || !a
+}
+
+// Test that bool is distinct from integers
+fn test_type_mismatch() {
+    // This should cause a type error (commented out)
+    // let x: bool = 42  // Should fail: cannot assign i64 to bool
+    // let y: i64 = true // Should fail: cannot assign bool to i64
+}
+
+fn main() {
+    let b1 = returns_bool()
+    let b2 = takes_bool(true)
+    let b3 = bool_ops(true, false)
+}

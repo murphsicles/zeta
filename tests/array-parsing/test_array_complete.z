@@ -1,0 +1,29 @@
+// Complete test of dynamic array operations
+// This should now work with all array functionality
+
+fn test_array_ops() -> u64 {
+    // Create dynamic array
+    let arr: [dynamic]u8 = [dynamic]u8{}
+    
+    // Push values
+    arr.push(42)
+    arr.push(100)
+    
+    // Get length
+    let length = arr.len()
+    
+    // Access elements
+    let first = arr[0]
+    let second = arr[1]
+    
+    // Calculate sum
+    let sum = first + second
+    
+    // Return combination of tests
+    // sum should be 142, length should be 2
+    return sum + length  // 142 + 2 = 144
+}
+
+fn main() -> u64 {
+    return test_array_ops()
+}

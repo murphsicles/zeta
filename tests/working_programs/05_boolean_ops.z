@@ -1,0 +1,17 @@
+// Boolean operations and comparisons
+fn main() -> i64 {
+    let a = 10;
+    let b = 20;
+    let c = 30;
+    
+    // Comparisons return boolean values
+    let is_equal = a == b;
+    let is_less = a < b;
+    let is_greater = c > b;
+    
+    // Convert boolean to integer for return
+    // true = 1, false = 0
+    let result = if is_less { 1 } else { 0 };
+    
+    result
+}

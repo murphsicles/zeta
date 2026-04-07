@@ -1,0 +1,10 @@
+// Simple addition test
+fn add() -> u64 {
+    let a: u64 = 2
+    let b: u64 = 3
+    return a + b
+}
+
+fn main() -> u64 {
+    return add()
+}

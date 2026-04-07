@@ -1,0 +1,26 @@
+// Test default method implementations in concepts
+concept Greeter {
+    fn greet(&self) -> String;
+    
+    // Default implementation
+    fn greet_loudly(&self) -> String {
+        let greeting = self.greet();
+        format!("{}!!!", greeting)
+    }
+}
+
+struct Person {
+    name: String
+}
+
+impl Greeter for Person {
+    fn greet(&self) -> String {
+        format!("Hello, I'm {}", self.name)
+    }
+    // greet_loudly uses the default implementation
+}
+
+fn main() -> String {
+    let p = Person { name: "Alice".to_string() };
+    p.greet_loudly()
+}

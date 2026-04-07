@@ -1,0 +1,25 @@
+// Debug while loop execution
+// Add print statements to trace execution
+
+fn debug_while() -> u64 {
+    let mut i: u64 = 0
+    print("Before while loop, i = ")
+    print(i)
+    
+    // Simple while loop
+    while i < 3 {
+        print("Inside while loop, i = ")
+        print(i)
+        i += 1
+        print("After increment, i = ")
+        print(i)
+    }
+    
+    print("After while loop, i = ")
+    print(i)
+    return i
+}
+
+fn main() -> u64 {
+    return debug_while()
+}

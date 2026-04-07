@@ -1,0 +1,77 @@
+// Test file for usize type support
+// Protocol compliance: Test files go in tests/ directory
+
+// Test 1: Basic usize constant
+const NUM_RESIDUES: usize = 5760
+
+// Test 2: usize in array type
+fn test_array() -> i64 {
+    let arr: [NUM_RESIDUES]u64 = [0; NUM_RESIDUES]
+    // Return length as i64
+    NUM_RESIDUES as i64
+}
+
+// Test 3: usize in for loop
+fn test_for_loop() -> i64 {
+    let mut sum: i64 = 0
+    for i: usize in 0..10 {
+        sum = sum + i as i64
+    }
+    sum
+}
+
+// Test 4: usize arithmetic
+fn test_arithmetic() -> i64 {
+    let a: usize = 100
+    let b: usize = 200
+    let result: usize = a + b
+    result as i64
+}
+
+// Test 5: usize comparison
+fn test_comparison() -> bool {
+    let x: usize = 42
+    let y: usize = 100
+    x < y
+}
+
+// Test 6: usize in struct
+struct TestStruct {
+    size: usize,
+    data: [100]i64
+}
+
+// Test 7: Main function to run tests
+fn main() -> i64 {
+    // Test 1: Constant
+    if NUM_RESIDUES != 5760 {
+        return 1
+    }
+    
+    // Test 2: Array
+    let array_test = test_array()
+    if array_test != 5760 {
+        return 2
+    }
+    
+    // Test 3: For loop
+    let loop_test = test_for_loop()
+    if loop_test != 45 { // 0+1+2+3+4+5+6+7+8+9 = 45
+        return 3
+    }
+    
+    // Test 4: Arithmetic
+    let arithmetic_test = test_arithmetic()
+    if arithmetic_test != 300 {
+        return 4
+    }
+    
+    // Test 5: Comparison
+    let comparison_test = test_comparison()
+    if !comparison_test {
+        return 5
+    }
+    
+    // All tests passed
+    0
+}

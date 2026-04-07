@@ -1,0 +1,8 @@
+// One iteration for loop with i=1
+comptime fn main() -> i64 {
+    var sum = 0
+    for i in 1..2 {
+        sum = sum + i
+    }
+    sum
+}

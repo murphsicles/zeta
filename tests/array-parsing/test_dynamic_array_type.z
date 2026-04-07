@@ -1,0 +1,16 @@
+// Test dynamic array type annotation and initialization
+// This should now parse correctly
+
+fn create_array() -> [dynamic]u8 {
+    // Return a dynamic array (type annotation test)
+    return [dynamic]u8{}
+}
+
+fn main() -> u64 {
+    // Test that we can declare and initialize
+    let arr: [dynamic]u8 = [dynamic]u8{}
+    
+    // For now, just return success code
+    // Array operations will come next
+    return 142
+}

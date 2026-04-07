@@ -1,0 +1,51 @@
+// Murphy's Sieve without dynamic arrays
+// Using simple trial division for now
+
+fn is_prime_wheel(n: u64) -> u64 {
+    if n < 2 {
+        return 0
+    }
+    
+    // Wheel of first 6 primes
+    if n == 2 || n == 3 || n == 5 || n == 7 || n == 11 || n == 13 {
+        return 1
+    }
+    
+    // Check divisibility by wheel primes
+    if n % 2 == 0 { return 0 }
+    if n % 3 == 0 { return 0 }
+    if n % 5 == 0 { return 0 }
+    if n % 7 == 0 { return 0 }
+    if n % 11 == 0 { return 0 }
+    if n % 13 == 0 { return 0 }
+    
+    // Trial division for remaining
+    let mut i: u64 = 17
+    while i * i <= n {
+        if n % i == 0 {
+            return 0
+        }
+        i += 2  // Check odd numbers only
+    }
+    
+    return 1
+}
+
+fn count_primes_wheel(limit: u64) -> u64 {
+    let mut count: u64 = 0
+    let mut n: u64 = 2
+    
+    while n <= limit {
+        if is_prime_wheel(n) == 1 {
+            count += 1
+        }
+        n += 1
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    // Count primes up to 1000 (should be 168)
+    return count_primes_wheel(1000)
+}
