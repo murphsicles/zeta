@@ -259,6 +259,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             i64_type.fn_type(&[i64_type.into()], false), // str is i64 pointer in runtime
             Some(Linkage::External),
         );
+
         module.add_function(
             "clone_bool",
             i64_type.fn_type(&[i64_type.into()], false), // bool is i64 in runtime

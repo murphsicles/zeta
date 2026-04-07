@@ -654,6 +654,36 @@ impl Resolver {
             ),
         );
 
+        // host_str_len(value: str) -> i64 (string length)
+        self.funcs.insert(
+            "host_str_len".to_string(),
+            (
+                vec![("value".to_string(), Type::Str)],
+                Type::I64,
+                false, // not async
+            ),
+        );
+
+        // host_str_contains(value: str, substring: str) -> bool
+        self.funcs.insert(
+            "host_str_contains".to_string(),
+            (
+                vec![("value".to_string(), Type::Str), ("substring".to_string(), Type::Str)],
+                Type::Bool,
+                false, // not async
+            ),
+        );
+
+        // host_str_concat(a: str, b: str) -> str
+        self.funcs.insert(
+            "host_str_concat".to_string(),
+            (
+                vec![("a".to_string(), Type::Str), ("b".to_string(), Type::Str)],
+                Type::Str,
+                false, // not async
+            ),
+        );
+
         // Array runtime functions
         // array_new() -> i64 (pointer to array)
         self.funcs.insert(
@@ -716,7 +746,7 @@ impl Resolver {
         );
 
         println!(
-            "[RESOLVER] Registered built-in runtime functions: clone_i64, is_null_i64, to_string_str, array_new, array_push, array_len, array_get, array_set, array_free"
+            "[RESOLVER] Registered built-in runtime functions: clone_i64, is_null_i64, to_string_str, host_str_len, host_str_contains, host_str_concat, array_new, array_push, array_len, array_get, array_set, array_free"
         );
     }
 }

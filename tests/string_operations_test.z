@@ -1,0 +1,32 @@
+// String operations test for v0.3.55
+// Tests basic string operations to identify missing runtime functions
+
+fn test_string_basics() -> i64 {
+    // Test 1: String literal
+    let s = "hello";
+    
+    // Test 2: String concatenation
+    let s2 = s + " world";
+    
+    // Test 3: String length
+    let len = s2.len();
+    
+    // Test 4: String contains
+    let has_hello = s2.contains("hello");
+    let has_world = s2.contains("world");
+    let has_foo = s2.contains("foo");
+    
+    // Test 5: String to_string (if needed)
+    // let s3 = 42.to_string();
+    
+    // Return success code based on tests
+    if len == 11 && has_hello && has_world && !has_foo {
+        return 0; // Success
+    } else {
+        return 1; // Failure
+    }
+}
+
+fn main() -> i64 {
+    return test_string_basics();
+}
