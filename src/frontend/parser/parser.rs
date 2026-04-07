@@ -658,6 +658,84 @@ fn parse_attribute_content(input: &str) -> IResult<&str, String> {
     Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::TakeUntil)))
 }
 
+/// Helper to parse angle-bracketed content, handling nested angle brackets
+fn parse_angle_bracketed_content(input: &str) -> IResult<&str, String> {
+    let mut depth = 0;
+    let mut result = String::new();
+    let mut chars = input.char_indices();
+    
+    while let Some((i, c)) = chars.next() {
+        match c {
+            '<' => {
+                depth += 1;
+                result.push(c);
+            }
+            '>' => {
+                if depth == 0 {
+                    return Ok((&input[i..], result));
+                }
+                depth -= 1;
+                result.push(c);
+            }
+            _ => {
+                result.push(c);
+            }
+        }
+    }
+    
+    Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::TakeUntil)))
+}
+
+/// Helper to parse angle-bracketed content when the opening '<' has already been consumed.
+/// Starts with depth=1 and returns the content inside the outermost brackets (excluding the outer brackets).
+fn parse_angle_bracketed_content_inner(input: &str) -> IResult<&str, String> {
+    let mut depth = 1;
+    let mut result = String::new();
+    let mut chars = input.char_indices();
+    
+    while let Some((i, c)) = chars.next() {
+        match c {
+            '<' => {
+                depth += 1;
+                result.push(c);
+            }
+            '>' => {
+                depth -= 1;
+                if depth == 0 {
+                    // We've matched the outer '>'; return content up to this point (excluding this '>')
+                    return Ok((&input[i..], result));
+                }
+                result.push(c);
+            }
+            _ => {
+                result.push(c);
+            }
+        }
+    }
+    
+    Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::TakeUntil)))
+}
+
+fn split_top_level_commas(input: &str) -> Vec<&str> {
+    let mut result = Vec::new();
+    let mut start = 0;
+    let mut depth = 0;
+    let chars = input.char_indices();
+    for (i, c) in chars {
+        match c {
+            '<' => depth += 1,
+            '>' => depth -= 1,
+            ',' if depth == 0 => {
+                result.push(&input[start..i]);
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    result.push(&input[start..]);
+    result
+}
+
 /// Parse zero or more attributes
 pub fn parse_attributes(input: &str) -> IResult<&str, Vec<String>> {
     let mut attributes = Vec::new();
