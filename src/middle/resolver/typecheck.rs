@@ -7,6 +7,8 @@
 use super::resolver::{Resolver, Type};
 use super::unified_typecheck::{TypeCheckResult, UnifiedTypeCheck};
 use crate::frontend::ast::AstNode;
+use crate::middle::passes::identity_verification::verify_identities;
+use crate::middle::types::identity::{CapabilityLevel, IdentityType};
 
 impl Resolver {
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {
@@ -25,7 +27,7 @@ impl Resolver {
         }
 
         // Use unified type checking interface
-        match self.typecheck_unified(asts) {
+        let typecheck_result = match self.typecheck_unified(asts) {
             TypeCheckResult::Success(_) => {
                 // Unified type checking succeeded
                 true
@@ -49,6 +51,13 @@ impl Resolver {
                 }
                 ok
             }
+        };
+        
+        // Run identity verification pass if type checking succeeded
+        if typecheck_result {
+            self.run_identity_verification(asts)
+        } else {
+            false
         }
     }
 
@@ -116,8 +125,24 @@ impl Resolver {
                     }
                 } else if lty != rty {
                     // For other binary operators, types must match
-                    eprintln!("Error: Type mismatch in binary operation '{}': {} vs {}", op, lty.display_name(), rty.display_name());
-                    ok = false;
+                    // Check for SIMD vector operations
+                    if lty.is_vector() && rty.is_vector() {
+                        // Both are vectors, check if they have same element type and size
+                        if let (Some((l_inner, l_size)), Some((r_inner, r_size))) = (lty.as_vector(), rty.as_vector()) {
+                            if l_inner != r_inner {
+                                eprintln!("Error: SIMD vector element type mismatch in '{}': {} vs {}", op, l_inner.display_name(), r_inner.display_name());
+                                ok = false;
+                            } else if l_size != r_size {
+                                eprintln!("Error: SIMD vector size mismatch in '{}': {} vs {}", op, l_size, r_size);
+                                ok = false;
+                            }
+                            // If types match, operation is valid
+                        }
+                    } else {
+                        // Not both vectors, types must match exactly
+                        eprintln!("Error: Type mismatch in binary operation '{}': {} vs {}", op, lty.display_name(), rty.display_name());
+                        ok = false;
+                    }
                 }
                 
                 if !self.check_node(left) {
@@ -232,6 +257,7 @@ impl Resolver {
             AstNode::FString(_) => Type::Str,
             AstNode::Var(_) => Type::I64,
             AstNode::Bool(_) => Type::Bool,
+            AstNode::Range { .. } => Type::Range,
             AstNode::BinaryOp { op, left, .. } => {
                 // Handle range operator specially
                 if op == ".." {
@@ -244,10 +270,24 @@ impl Resolver {
                     Type::Bool
                 } else {
                     // For other operators, return type of left operand
-                    self.infer_type(left)
+                    // For SIMD vectors, return vector type
+                    let lty = self.infer_type(left);
+                    if lty.is_vector() {
+                        lty
+                    } else {
+                        lty
+                    }
                 }
             },
-            AstNode::Call { .. } => Type::I64,
+            AstNode::Call { method, .. } => {
+                // Get the return type from the function signature
+                if let Some((_, ret_type, _)) = self.get_func_signature(method) {
+                    ret_type.clone()
+                } else {
+                    // Default to i64 for unknown functions
+                    Type::I64
+                }
+            },
             AstNode::DictLit { entries } => {
                 if entries.is_empty() {
                     // For now, return a named type for Map<i64, i64>
@@ -356,5 +396,67 @@ impl Resolver {
 
         // TODO: Add more compatibility rules as needed
         false
+    }
+    
+    /// Run identity verification pass on the AST
+    fn run_identity_verification(&self, asts: &[AstNode]) -> bool {
+        let mut all_ok = true;
+        
+        for ast in asts {
+            match verify_identities(ast) {
+                Ok(warnings) => {
+                    // Print warnings but don't fail compilation
+                    for warning in warnings {
+                        eprintln!("Identity warning: {}", warning);
+                    }
+                }
+                Err(errors) => {
+                    // Identity verification failed
+                    eprintln!("Identity verification failed with errors:");
+                    for error in errors {
+                        eprintln!("  Identity error: {}", error);
+                    }
+                    all_ok = false;
+                }
+            }
+        }
+        
+        all_ok
+    }
+    
+    /// Infer identity type for an expression based on usage context
+    fn infer_identity_type(&self, node: &AstNode, context_capabilities: &[CapabilityLevel]) -> Option<Type> {
+        match node {
+            AstNode::StringLit(s) => {
+                // Create an identity type with the required capabilities
+                let identity_type = IdentityType {
+                    value: Some(s.clone()),
+                    capabilities: context_capabilities.to_vec(),
+                    delegatable: false,
+                    constraints: Vec::new(),
+                    type_params: vec![],
+                };
+                Some(Type::Identity(Box::new(identity_type)))
+            }
+            AstNode::Var(_name) => {
+                // For now, don't infer identity types for variables
+                // TODO: Implement variable type tracking for identity inference
+                None
+            }
+            _ => None,
+        }
+    }
+    
+    /// Get required capabilities for a function argument
+    fn get_required_capabilities(&self, func_name: &str, arg_index: usize) -> Vec<CapabilityLevel> {
+        // Check if this is an identity-aware function
+        match func_name {
+            "str_len" | "str_concat" | "str_split" => vec![CapabilityLevel::Read],
+            "str_replace" | "str_to_uppercase" | "str_to_lowercase" => vec![CapabilityLevel::Write],
+            "read_only_string" => vec![CapabilityLevel::Read],
+            "read_write_string" => vec![CapabilityLevel::Read, CapabilityLevel::Write],
+            "owned_string" => vec![CapabilityLevel::Owned],
+            _ => vec![],
+        }
     }
 }

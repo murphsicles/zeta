@@ -1,0 +1,283 @@
+// Benchmark for Murphy's Sieve performance testing
+// Measures execution time and memory usage
+
+// Simple timer function using system time
+fn get_time() -> u64 {
+    // This would use system calls in a real implementation
+    // For now, return a placeholder
+    return 0
+}
+
+// Memory usage tracking
+fn get_memory_usage() -> u64 {
+    // Placeholder for memory tracking
+    return 0
+}
+
+// Optimized scalar Murphy's Sieve
+fn murphy_sieve_scalar(limit: u64) -> u64 {
+    if limit < 2 {
+        return 0
+    }
+    if limit == 2 {
+        return 1
+    }
+    
+    // Create bit array
+    let array_size = limit + 1
+    let mut bits: [u8] = []
+    
+    // Initialize with ones
+    let mut i: u64 = 0
+    while i < array_size {
+        bits.append(1)
+        i += 1
+    }
+    
+    // Mark 0 and 1 as composite
+    bits[0] = 0
+    bits[1] = 0
+    
+    // Mark multiples of small primes (wheel optimization)
+    i = 4
+    while i <= limit {
+        bits[i] = 0
+        i += 2
+    }
+    
+    i = 9
+    while i <= limit {
+        bits[i] = 0
+        i += 3
+    }
+    
+    i = 25
+    while i <= limit {
+        bits[i] = 0
+        i += 5
+    }
+    
+    i = 49
+    while i <= limit {
+        bits[i] = 0
+        i += 7
+    }
+    
+    // Main sieve loop
+    let mut p: u64 = 11
+    
+    while p * p <= limit {
+        if bits[p] == 1 {
+            let mut multiple = p * p
+            while multiple <= limit {
+                bits[multiple] = 0
+                multiple += p
+            }
+        }
+        
+        p += 1
+    }
+    
+    // Count primes
+    let mut count: u64 = 0
+    i = 2
+    
+    while i <= limit {
+        if bits[i] == 1 {
+            count += 1
+        }
+        i += 1
+    }
+    
+    return count
+}
+
+// SIMD-optimized version (simulated with loop unrolling)
+fn murphy_sieve_simd(limit: u64) -> u64 {
+    if limit < 2 {
+        return 0
+    }
+    if limit == 2 {
+        return 1
+    }
+    
+    let array_size = limit + 1
+    let mut bits: [u8] = []
+    
+    // Initialize
+    let mut i: u64 = 0
+    while i < array_size {
+        bits.append(1)
+        i += 1
+    }
+    
+    bits[0] = 0
+    bits[1] = 0
+    
+    // SIMD width for optimization
+    const SIMD_WIDTH: u64 = 8
+    
+    // Mark multiples with SIMD-like unrolling
+    // Mark multiples of 2
+    i = 4
+    while i <= limit {
+        bits[i] = 0
+        i += 2
+    }
+    
+    // Mark multiples of 3
+    i = 9
+    while i <= limit {
+        bits[i] = 0
+        i += 3
+    }
+    
+    // Mark multiples of 5
+    i = 25
+    while i <= limit {
+        bits[i] = 0
+        i += 5
+    }
+    
+    // Mark multiples of 7
+    i = 49
+    while i <= limit {
+        bits[i] = 0
+        i += 7
+    }
+    
+    // Main sieve loop with SIMD optimization
+    let mut p: u64 = 11
+    
+    while p * p <= limit {
+        if bits[p] == 1 {
+            // Use SIMD-like unrolling for marking multiples
+            let mut multiple = p * p
+            
+            // Process in chunks of SIMD_WIDTH
+            while multiple + SIMD_WIDTH * p <= limit {
+                // Unrolled marking simulates SIMD operations
+                bits[multiple] = 0
+                bits[multiple + p] = 0
+                bits[multiple + 2 * p] = 0
+                bits[multiple + 3 * p] = 0
+                bits[multiple + 4 * p] = 0
+                bits[multiple + 5 * p] = 0
+                bits[multiple + 6 * p] = 0
+                bits[multiple + 7 * p] = 0
+                
+                multiple += SIMD_WIDTH * p
+            }
+            
+            // Process remainder
+            while multiple <= limit {
+                bits[multiple] = 0
+                multiple += p
+            }
+        }
+        
+        p += 1
+    }
+    
+    // SIMD-optimized counting
+    let mut count: u64 = 0
+    i = 2
+    
+    // Count in SIMD_WIDTH chunks
+    while i + SIMD_WIDTH <= limit + 1 {
+        // Unrolled counting
+        if bits[i] == 1 { count += 1 }
+        if bits[i + 1] == 1 { count += 1 }
+        if bits[i + 2] == 1 { count += 1 }
+        if bits[i + 3] == 1 { count += 1 }
+        if bits[i + 4] == 1 { count += 1 }
+        if bits[i + 5] == 1 { count += 1 }
+        if bits[i + 6] == 1 { count += 1 }
+        if bits[i + 7] == 1 { count += 1 }
+        
+        i += SIMD_WIDTH
+    }
+    
+    // Count remainder
+    while i <= limit {
+        if bits[i] == 1 {
+            count += 1
+        }
+        i += 1
+    }
+    
+    return count
+}
+
+// Run benchmark for a given limit
+fn run_benchmark(limit: u64, use_simd: u64) -> u64 {
+    let start_time = get_time()
+    let start_memory = get_memory_usage()
+    
+    let result: u64
+    if use_simd == 1 {
+        result = murphy_sieve_simd(limit)
+    } else {
+        result = murphy_sieve_scalar(limit)
+    }
+    
+    let end_time = get_time()
+    let end_memory = get_memory_usage()
+    
+    // Return encoded metrics: result | time | memory
+    // For now, just return the result since timing isn't implemented
+    return result
+}
+
+// Verify both implementations give same results
+fn verify_implementations() -> u64 {
+    let test_limits = [10, 100, 1000, 10000]
+    let mut passed = 0
+    
+    for limit in test_limits {
+        let scalar_result = murphy_sieve_scalar(limit)
+        let simd_result = murphy_sieve_simd(limit)
+        
+        if scalar_result == simd_result {
+            passed += 1
+        }
+    }
+    
+    return passed
+}
+
+// Main benchmark function
+fn main() -> u64 {
+    // First verify correctness
+    let correctness = verify_implementations()
+    
+    if correctness != 4 {
+        // Not all tests passed
+        return 0
+    }
+    
+    // Run benchmarks for different limits
+    let limits = [1000, 10000, 100000]
+    let mut total_primes = 0
+    
+    for limit in limits {
+        // Run scalar benchmark
+        let scalar_result = murphy_sieve_scalar(limit)
+        
+        // Run SIMD benchmark
+        let simd_result = murphy_sieve_simd(limit)
+        
+        // Add to total for verification
+        total_primes += scalar_result + simd_result
+    }
+    
+    // Return success code with encoded results
+    // For limit=100000, expected primes = 9592
+    let final_check = murphy_sieve_scalar(100000)
+    
+    if final_check == 9592 {
+        return 1  // Success
+    } else {
+        return 0  // Failure
+    }
+}

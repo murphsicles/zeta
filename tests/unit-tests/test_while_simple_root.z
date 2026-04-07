@@ -1,0 +1,17 @@
+// Test while loops
+
+fn test_while() -> u64 {
+    let mut count: u64 = 0
+    let mut i: u64 = 0
+    
+    while i < 10 {
+        count = count + 1
+        i = i + 1
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    return test_while()
+}

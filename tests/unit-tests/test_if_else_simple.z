@@ -1,0 +1,12 @@
+// Simple test of if expression
+fn test() -> u64 {
+    let x: u64 = 10
+    let y: u64 = 20
+    
+    // This should work - if expression returns u64
+    return if x < y { x + y } else { x - y }
+}
+
+fn main() -> u64 {
+    return test()
+}

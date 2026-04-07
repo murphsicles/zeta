@@ -1,0 +1,185 @@
+// True Murphy's Sieve Algorithm
+// Implementation using const for array sizes
+// O(n log log n) time complexity
+// Uses i64 for compatibility with Zeta compiler
+
+// Maximum limit supported by this implementation
+// Using const for array size as required
+const MAX_LIMIT: i64 = 1000000;
+
+// True Murphy's Sieve (Sieve of Eratosthenes)
+// Returns the number of primes less than limit
+fn murphy_sieve_true(limit: i64) -> i64 {
+    // Validate input
+    if limit > MAX_LIMIT {
+        // For simplicity, cap at MAX_LIMIT
+        // In production, would return error or use segmented sieve
+    }
+    
+    let effective_limit = if limit > MAX_LIMIT { MAX_LIMIT } else { limit };
+    
+    if effective_limit < 2 {
+        return 0;
+    }
+    
+    // Create bit array using const for size
+    // We need array of size MAX_LIMIT to index up to MAX_LIMIT-1
+    // Using i64 array where 0 = prime, 1 = composite
+    let mut is_composite: [i64; MAX_LIMIT] = [0; MAX_LIMIT];
+    
+    // Mark 0 and 1 as composite (not prime)
+    if effective_limit > 0 {
+        is_composite[0] = 1;
+    }
+    
+    if effective_limit > 1 {
+        is_composite[1] = 1;
+    }
+    
+    // Sieve of Eratosthenes algorithm
+    let mut p: i64 = 2;
+    
+    // Only need to check up to sqrt(limit)
+    while p * p <= effective_limit {
+        // If p is prime
+        if is_composite[p] == 0 {
+            // Mark all multiples of p as composite
+            let mut multiple: i64 = p * p;
+            while multiple < effective_limit {
+                is_composite[multiple] = 1;
+                multiple += p;
+            }
+        }
+        p += 1;
+    }
+    
+    // Count primes (is_composite[i] == 0)
+    let mut count: i64 = 0;
+    let mut i: i64 = 2;
+    
+    while i < effective_limit {
+        if is_composite[i] == 0 {
+            count += 1;
+        }
+        i += 1;
+    }
+    
+    return count;
+}
+
+// Optimized version with wheel optimization for small primes
+fn murphy_sieve_optimized(limit: i64) -> i64 {
+    // Validate input
+    if limit > MAX_LIMIT {
+        // Cap at MAX_LIMIT
+    }
+    
+    let effective_limit = if limit > MAX_LIMIT { MAX_LIMIT } else { limit };
+    
+    if effective_limit < 2 {
+        return 0;
+    }
+    
+    if effective_limit == 2 {
+        return 1;
+    }
+    
+    // Create bit array using const for size
+    let mut is_composite: [i64; MAX_LIMIT] = [0; MAX_LIMIT];
+    
+    // Mark 0 and 1 as composite
+    if effective_limit > 0 {
+        is_composite[0] = 1;
+    }
+    
+    if effective_limit > 1 {
+        is_composite[1] = 1;
+    }
+    
+    // Wheel optimization: pre-mark multiples of small primes
+    // Mark multiples of 2
+    let mut i: i64 = 4;
+    while i < effective_limit {
+        is_composite[i] = 1;
+        i += 2;
+    }
+    
+    // Mark multiples of 3
+    i = 9;
+    while i < effective_limit {
+        is_composite[i] = 1;
+        i += 3;
+    }
+    
+    // Mark multiples of 5
+    i = 25;
+    while i < effective_limit {
+        is_composite[i] = 1;
+        i += 5;
+    }
+    
+    // Main sieve loop starting from 7
+    let mut p: i64 = 7;
+    
+    while p * p < effective_limit {
+        if is_composite[p] == 0 {
+            let mut multiple: i64 = p * p;
+            while multiple < effective_limit {
+                is_composite[multiple] = 1;
+                multiple += p;
+            }
+        }
+        p += 1;
+    }
+    
+    // Count primes
+    let mut count: i64 = 0;
+    i = 2;
+    
+    while i < effective_limit {
+        if is_composite[i] == 0 {
+            count += 1;
+        }
+        i += 1;
+    }
+    
+    return count;
+}
+
+// Known prime counts for verification
+fn known_prime_count(limit: i64) -> i64 {
+    match limit {
+        0 => 0,
+        1 => 0,
+        2 => 1,
+        10 => 4,      // primes: 2, 3, 5, 7
+        100 => 25,    // 25 primes under 100
+        1000 => 168,  // 168 primes under 1000
+        10000 => 1229,
+        100000 => 9592,
+        1000000 => 78498,
+        _ => 0,
+    }
+}
+
+// Test the implementation
+fn test_murphy_sieve() -> i64 {
+    let test_limits = [10, 100, 1000, 10000, 100000];
+    let mut passed_tests = 0;
+    
+    for limit in test_limits {
+        let result = murphy_sieve_true(limit);
+        let expected = known_prime_count(limit);
+        
+        if result == expected {
+            passed_tests += 1;
+        }
+    }
+    
+    return passed_tests;
+}
+
+// Main function for testing
+fn main() -> i64 {
+    return test_murphy_sieve();
+}

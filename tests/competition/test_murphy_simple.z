@@ -1,0 +1,49 @@
+// Simple Murphy's Sieve test
+fn sieve_simple(limit: usize) -> u64 {
+    if limit < 2 {
+        return 0;
+    }
+    
+    // Simple array - in real Zeta we'd need dynamic allocation
+    // For now, use fixed size for testing
+    let mut is_prime: [u8; 1000] = [1; 1000];
+    is_prime[0] = 0;
+    is_prime[1] = 0;
+    
+    let mut i = 2;
+    while i * i <= limit {
+        if is_prime[i] == 1 {
+            let mut j = i * i;
+            while j <= limit {
+                is_prime[j] = 0;
+                j += i;
+            }
+        }
+        i += 1;
+    }
+    
+    let mut count: u64 = 0;
+    let mut k = 2;
+    while k <= limit {
+        if is_prime[k] == 1 {
+            count += 1;
+        }
+        k += 1;
+    }
+    
+    return count;
+}
+
+fn main() -> u64 {
+    // Test with limit 1000
+    let limit = 1000;
+    let result = sieve_simple(limit);
+    
+    // π(1000) = 168
+    // Return 1 if correct, 0 if wrong
+    if result == 168 {
+        return 1;
+    } else {
+        return 0;
+    }
+}

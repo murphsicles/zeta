@@ -1,0 +1,2 @@
+// Simple test file with const
+const N: usize = 100;

@@ -1,15 +1,13 @@
-// Test simple while loop
-
-fn test_while_simple() -> u64 {
-    let mut n: u64 = 0
+fn test_while_simple() -> i64 {
+    let mut i = 0;
     
-    while n < 3 {
-        n += 1
+    while (i < 5) {
+        i = i + 1;
     }
     
-    return n  // Should be 3
+    return i;  // Should return 5
 }
 
-fn main() -> u64 {
-    return test_while_simple()
+fn main() -> i64 {
+    return test_while_simple();
 }

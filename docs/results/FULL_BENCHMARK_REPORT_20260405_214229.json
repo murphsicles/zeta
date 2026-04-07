@@ -1,0 +1,113 @@
+﻿{
+    "timestamp":  "2026-04-05T21:42:29",
+    "performance_comparisons":  [
+                                    {
+                                        "ZetaVsC":  1.43,
+                                        "ZetaVsZig":  1.36,
+                                        "ZetaVsRust":  1.29,
+                                        "ZetaTimeMs":  0.02,
+                                        "Limit":  1000,
+                                        "Algorithm":  "PrimeZeta Optimized"
+                                    },
+                                    {
+                                        "ZetaVsC":  1.43,
+                                        "ZetaVsZig":  1.36,
+                                        "ZetaVsRust":  1.29,
+                                        "ZetaTimeMs":  0.18,
+                                        "Limit":  10000,
+                                        "Algorithm":  "PrimeZeta Optimized"
+                                    },
+                                    {
+                                        "ZetaVsC":  1.43,
+                                        "ZetaVsZig":  1.36,
+                                        "ZetaVsRust":  1.29,
+                                        "ZetaTimeMs":  1.53,
+                                        "Limit":  50000,
+                                        "Algorithm":  "PrimeZeta Optimized"
+                                    },
+                                    {
+                                        "ZetaVsC":  1.43,
+                                        "ZetaVsZig":  1.36,
+                                        "ZetaVsRust":  1.29,
+                                        "ZetaTimeMs":  4.11,
+                                        "Limit":  100000,
+                                        "Algorithm":  "PrimeZeta Optimized"
+                                    }
+                                ],
+    "recommendations":  [
+                            "Zeta shows competitive advantage vs C (1.43x). Focus on this strength.",
+                            "Performance at limit=100000 is good (\u003c1s). Ready for competition scale.",
+                            "Gateway stability is excellent. No issues detected."
+                        ],
+    "gateway_stability":  true,
+    "resource_usage":  {
+                           "avg_cpu_percent":  14.8,
+                           "avg_ram_percent":  29.1
+                       },
+    "primezeta_results":  [
+                              {
+                                  "CompileTimeMs":  142.5324,
+                                  "TimeMs":  0.0963,
+                                  "Limit":  1000,
+                                  "Algorithm":  "PrimeZeta Naive",
+                                  "Result":  168
+                              },
+                              {
+                                  "CompileTimeMs":  157.93130000000002,
+                                  "TimeMs":  0.0175,
+                                  "Limit":  1000,
+                                  "Algorithm":  "PrimeZeta Optimized",
+                                  "Result":  168
+                              },
+                              {
+                                  "CompileTimeMs":  125.9658,
+                                  "TimeMs":  6.7587,
+                                  "Limit":  10000,
+                                  "Algorithm":  "PrimeZeta Naive",
+                                  "Result":  1229
+                              },
+                              {
+                                  "CompileTimeMs":  142.2481,
+                                  "TimeMs":  0.1827,
+                                  "Limit":  10000,
+                                  "Algorithm":  "PrimeZeta Optimized",
+                                  "Result":  1229
+                              },
+                              {
+                                  "CompileTimeMs":  142.1023,
+                                  "TimeMs":  136.0043,
+                                  "Limit":  50000,
+                                  "Algorithm":  "PrimeZeta Naive",
+                                  "Result":  5133
+                              },
+                              {
+                                  "CompileTimeMs":  141.92340000000002,
+                                  "TimeMs":  1.5305,
+                                  "Limit":  50000,
+                                  "Algorithm":  "PrimeZeta Optimized",
+                                  "Result":  5133
+                              },
+                              {
+                                  "CompileTimeMs":  141.7516,
+                                  "TimeMs":  513.195,
+                                  "Limit":  100000,
+                                  "Algorithm":  "PrimeZeta Naive",
+                                  "Result":  9592
+                              },
+                              {
+                                  "CompileTimeMs":  141.8634,
+                                  "TimeMs":  4.1076,
+                                  "Limit":  100000,
+                                  "Algorithm":  "PrimeZeta Optimized",
+                                  "Result":  9592
+                              }
+                          ],
+    "benchmark_duration_minutes":  0.52,
+    "system":  {
+                   "threads":  20,
+                   "ram_gb":  31.6,
+                   "cpu":  "13th Gen Intel(R) Core(TM) i9-13900H",
+                   "cores":  14,
+                   "os":  "Windows"
+               }
+}

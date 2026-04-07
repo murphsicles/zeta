@@ -1,0 +1,20 @@
+// Test string length function
+// Trying to call string functions
+
+fn main() -> i64 {
+    // Create a string
+    let s = "hello";
+    
+    // Try to get its length
+    // In Rust, we'd do s.len()
+    // In Zeta, we need to figure out the syntax
+    
+    // Try calling len() as a method
+    // let len = s.len();
+    
+    // Try calling it as a function
+    // let len = len(s);
+    
+    // For now, just return 0
+    return 0;
+}

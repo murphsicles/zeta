@@ -1,0 +1,64 @@
+// Murphy's Sieve - Final implementation (Step 1)
+// Simple structure that compiles
+
+fn is_prime_simple(n: u64) -> u64 {
+    // Handle small numbers
+    if n <= 1 {
+        return 0
+    } else if n <= 3 {
+        return 1
+    }
+    
+    // Check divisibility by 2 and 3
+    if n % 2 == 0 {
+        return 0
+    }
+    
+    if n % 3 == 0 {
+        return 0
+    }
+    
+    // Check divisibility by numbers of form 6k ± 1
+    let mut i: u64 = 5
+    
+    while i * i <= n {
+        if n % i == 0 {
+            return 0
+        }
+        
+        if n % (i + 2) == 0 {
+            return 0
+        }
+        
+        i += 6
+    }
+    
+    return 1
+}
+
+fn main() -> u64 {
+    // Test is_prime_simple
+    let mut count: u64 = 0
+    
+    if is_prime_simple(2) == 1 {
+        count += 1
+    }
+    
+    if is_prime_simple(3) == 1 {
+        count += 1
+    }
+    
+    if is_prime_simple(4) == 0 {
+        count += 1
+    }
+    
+    if is_prime_simple(5) == 1 {
+        count += 1
+    }
+    
+    if is_prime_simple(7) == 1 {
+        count += 1
+    }
+    
+    return count  // Should return 5 if all tests pass
+}

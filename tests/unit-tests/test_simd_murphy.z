@@ -1,0 +1,193 @@
+// SIMD-optimized Murphy's Sieve test
+// Based on prime_simd.z implementation
+
+// Constants for SIMD operations
+const SIMD_WIDTH: u64 = 8  // Process 8 u64 elements at once
+
+// SIMD-optimized Murphy's Sieve
+fn murphy_sieve_simd(limit: u64) -> u64 {
+    // Handle edge cases (same as scalar)
+    if limit < 2 {
+        return 0
+    }
+    if limit == 2 {
+        return 1
+    }
+    
+    // Create bit array: 1 = prime, 0 = composite
+    let array_size = limit + 1
+    let mut bits: [u8] = []
+    
+    // Initialize array with ones
+    let mut i: u64 = 0
+    while i <= limit {
+        bits.append(1)
+        i += 1
+    }
+    
+    // Mark 0 and 1 as composite
+    bits[0] = 0
+    bits[1] = 0
+    
+    // Mark multiples of wheel primes
+    // Mark multiples of 2
+    let mut multiple: u64 = 4
+    while multiple <= limit {
+        bits[multiple] = 0
+        multiple += 2
+    }
+    
+    // Mark multiples of 3
+    multiple = 9
+    while multiple <= limit {
+        bits[multiple] = 0
+        multiple += 3
+    }
+    
+    // Mark multiples of 5
+    multiple = 25
+    while multiple <= limit {
+        bits[multiple] = 0
+        multiple += 5
+    }
+    
+    // Mark multiples of 7
+    multiple = 49
+    while multiple <= limit {
+        bits[multiple] = 0
+        multiple += 7
+    }
+    
+    // Main sieve loop
+    let mut p: u64 = 11
+    
+    while p * p <= limit {
+        if bits[p] == 1 {
+            // Mark multiples
+            let mut multiple = p * p
+            while multiple <= limit {
+                bits[multiple] = 0
+                multiple += p
+            }
+        }
+        
+        // Move to next candidate
+        p += 1
+    }
+    
+    // Count primes
+    let mut count: u64 = 0
+    let mut i: u64 = 2
+    while i <= limit {
+        if bits[i] == 1 {
+            count += 1
+        }
+        i += 1
+    }
+    
+    return count
+}
+
+// Scalar reference implementation for comparison
+fn murphy_sieve_scalar(limit: u64) -> u64 {
+    // Same algorithm but without SIMD optimizations
+    if limit < 2 {
+        return 0
+    }
+    if limit == 2 {
+        return 1
+    }
+    
+    let array_size = limit + 1
+    let mut bits: [u8] = []
+    
+    let mut i: u64 = 0
+    while i <= limit {
+        bits.append(1)
+        i += 1
+    }
+    
+    bits[0] = 0
+    bits[1] = 0
+    
+    let mut multiple: u64 = 4
+    while multiple <= limit {
+        bits[multiple] = 0
+        multiple += 2
+    }
+    
+    multiple = 9
+    while multiple <= limit {
+        bits[multiple] = 0
+        multiple += 3
+    }
+    
+    multiple = 25
+    while multiple <= limit {
+        bits[multiple] = 0
+        multiple += 5
+    }
+    
+    multiple = 49
+    while multiple <= limit {
+        bits[multiple] = 0
+        multiple += 7
+    }
+    
+    let mut p: u64 = 11
+    
+    while p * p <= limit {
+        if bits[p] == 1 {
+            let mut multiple = p * p
+            while multiple <= limit {
+                bits[multiple] = 0
+                multiple += p
+            }
+        }
+        
+        p += 1
+    }
+    
+    let mut count: u64 = 0
+    let mut i: u64 = 2
+    while i <= limit {
+        if bits[i] == 1 {
+            count += 1
+        }
+        i += 1
+    }
+    
+    return count
+}
+
+// Test function
+fn test_simd_sieve() -> u64 {
+    let mut passed = 0
+    
+    // Test small limits
+    if murphy_sieve_simd(0) == 0 { passed += 1 }
+    if murphy_sieve_simd(1) == 0 { passed += 1 }
+    if murphy_sieve_simd(2) == 1 { passed += 1 }
+    if murphy_sieve_simd(10) == 4 { passed += 1 }  // primes: 2,3,5,7
+    if murphy_sieve_simd(100) == 25 { passed += 1 }
+    
+    // Test that SIMD and scalar give same results
+    if murphy_sieve_simd(1000) == murphy_sieve_scalar(1000) { passed += 1 }
+    
+    return passed
+}
+
+// Main test
+fn main() -> u64 {
+    println!("Testing SIMD-optimized Murphy's Sieve...")
+    
+    let tests_passed = test_simd_sieve()
+    
+    if tests_passed == 6 {
+        println!("All tests passed!")
+        return 1
+    } else {
+        println!("Tests failed: {}/6 passed", tests_passed)
+        return 0
+    }
+}

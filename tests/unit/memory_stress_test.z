@@ -1,0 +1,16 @@
+fn main() -> i32 {
+    let limit: i32 = 50;
+    let mut total: i32 = 0;
+    
+    // Do more work to stress memory
+    for n in 2..limit {
+        let mut sum: i32 = 0;
+        // Inner loop that does more work
+        for i in 1..1000 {
+            sum += n % i;
+        }
+        total += sum;
+    }
+    
+    return total;
+}

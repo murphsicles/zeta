@@ -1,0 +1,115 @@
+// Murphy's Sieve - FIXED VERSION
+// Addresses all known issues:
+// 1. While loops work ✓
+// 2. Modulo operator works ✓
+// 3. Array comparison works (with else branches) ✓
+// 4. If statements need else branches ✓
+
+fn murphy_sieve(limit: u64) -> u64 {
+    // Create dynamic bit array for sieve
+    // Using u64 instead of u8 to avoid type issues
+    let bits: [dynamic]u64 = [dynamic]u64{}
+    
+    // Initialize array with zeros (all prime initially)
+    let mut i: u64 = 0
+    while i < limit {
+        bits.push(0)
+        i += 1
+    }
+    
+    // Mark 0 and 1 as not prime (if within bounds)
+    if limit > 0 {
+        bits[0] = 1
+    } else {
+        // Do nothing
+    }
+    
+    if limit > 1 {
+        bits[1] = 1
+    } else {
+        // Do nothing
+    }
+    
+    // Sieve of Eratosthenes
+    let mut p: u64 = 2
+    while p * p < limit {
+        // If p is prime (bits[p] == 0)
+        if bits[p] == 0 {
+            // Mark all multiples of p as composite
+            let mut multiple: u64 = p * p
+            while multiple < limit {
+                bits[multiple] = 1
+                multiple += p
+            }
+        } else {
+            // p is composite, do nothing
+        }
+        p += 1
+    }
+    
+    // Count primes (bits[i] == 0)
+    let mut count: u64 = 0
+    let mut n: u64 = 0
+    while n < limit {
+        if bits[n] == 0 {
+            count += 1
+        } else {
+            // n is composite, do nothing
+        }
+        n += 1
+    }
+    
+    return count
+}
+
+// Test function
+fn test_murphy_sieve() -> u64 {
+    let mut all_tests_passed: u64 = 1
+    
+    // Test 1: limit = 0
+    let result0 = murphy_sieve(0)
+    if result0 == 0 {
+        // Test passed
+    } else {
+        all_tests_passed = 0
+    }
+    
+    // Test 2: limit = 1
+    let result1 = murphy_sieve(1)
+    if result1 == 0 {
+        // Test passed
+    } else {
+        all_tests_passed = 0
+    }
+    
+    // Test 3: limit = 2 (should have 1 prime: 2)
+    let result2 = murphy_sieve(2)
+    if result2 == 1 {
+        // Test passed
+    } else {
+        all_tests_passed = 0
+    }
+    
+    // Test 4: limit = 10 (should have 4 primes: 2, 3, 5, 7)
+    let result10 = murphy_sieve(10)
+    if result10 == 4 {
+        // Test passed
+    } else {
+        all_tests_passed = 0
+    }
+    
+    // Test 5: limit = 30 (should have 10 primes: 2,3,5,7,11,13,17,19,23,29)
+    let result30 = murphy_sieve(30)
+    if result30 == 10 {
+        // Test passed
+    } else {
+        all_tests_passed = 0
+    }
+    
+    return all_tests_passed
+}
+
+fn main() -> u64 {
+    // Run the test
+    return test_murphy_sieve()
+}

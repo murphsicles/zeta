@@ -1,0 +1,12 @@
+// Test modulo operator
+
+fn test_modulo() -> u64 {
+    let a: u64 = 10
+    let b: u64 = 3
+    let result: u64 = a % b
+    return result
+}
+
+fn main() -> u64 {
+    return test_modulo()
+}

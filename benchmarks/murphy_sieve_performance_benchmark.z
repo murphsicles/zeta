@@ -1,0 +1,349 @@
+// Comprehensive performance benchmark for Murphy's Sieve implementations
+// Measures and compares different optimization levels
+
+// Import optimized implementations
+// Note: In real Zeta, we'd use module imports
+
+// ============================================================================
+// BASELINE IMPLEMENTATION (Simple Sieve)
+// ============================================================================
+
+fn sieve_baseline(limit: usize) -> u64 {
+    if limit < 2 {
+        return 0;
+    }
+    
+    let mut is_prime: [u8; 1000000] = [1; 1000000];
+    is_prime[0] = 0;
+    is_prime[1] = 0;
+    
+    let mut i = 2;
+    while i * i <= limit {
+        if is_prime[i] == 1 {
+            let mut j = i * i;
+            while j <= limit {
+                is_prime[j] = 0;
+                j += i;
+            }
+        }
+        i += 1;
+    }
+    
+    let mut count: u64 = 0;
+    let mut k = 2;
+    while k <= limit {
+        if is_prime[k] == 1 {
+            count += 1;
+        }
+        k += 1;
+    }
+    
+    return count;
+}
+
+// ============================================================================
+// OPTIMIZED IMPLEMENTATION (Wheel + Cache)
+// ============================================================================
+
+const WHEEL_30_OFFSETS: [usize; 8] = [1, 7, 11, 13, 17, 19, 23, 29];
+
+fn sieve_optimized(limit: usize) -> u64 {
+    if limit < 2 {
+        return 0;
+    }
+    
+    let mut is_prime: [u8; 1000000] = [1; 1000000];
+    is_prime[0] = 0;
+    is_prime[1] = 0;
+    
+    // Handle small primes
+    // Mark multiples of 2
+    let mut j = 4;
+    while j <= limit {
+        is_prime[j] = 0;
+        j += 2;
+    }
+    
+    // Mark multiples of 3
+    j = 9;
+    while j <= limit {
+        is_prime[j] = 0;
+        j += 3;
+    }
+    
+    // Mark multiples of 5
+    j = 25;
+    while j <= limit {
+        is_prime[j] = 0;
+        j += 5;
+    }
+    
+    // Wheel factorization
+    let sqrt_limit = 1000;  // sqrt(1,000,000)
+    let mut i = 7;
+    
+    while i <= sqrt_limit {
+        for &offset in &WHEEL_30_OFFSETS {
+            let prime = i + offset;
+            if prime > sqrt_limit {
+                break;
+            }
+            
+            if is_prime[prime] == 1 {
+                let mut multiple = prime * prime;
+                while multiple <= limit {
+                    is_prime[multiple] = 0;
+                    multiple += prime;
+                }
+            }
+        }
+        i += 30;  // Wheel cycle
+    }
+    
+    // Count primes
+    let mut count: u64 = 0;
+    let mut k = 2;
+    while k <= limit {
+        if is_prime[k] == 1 {
+            count += 1;
+        }
+        k += 1;
+    }
+    
+    return count;
+}
+
+// ============================================================================
+// SIMD-OPTIMIZED IMPLEMENTATION
+// ============================================================================
+
+const SIMD_WIDTH: usize = 8;
+
+fn sieve_simd_optimized(limit: usize) -> u64 {
+    if limit < 2 {
+        return 0;
+    }
+    
+    let mut is_prime: [u8; 1000000] = [1; 1000000];
+    is_prime[0] = 0;
+    is_prime[1] = 0;
+    
+    // Handle small primes with SIMD-style loops
+    // Mark multiples of 2
+    let mut j = 4;
+    while j <= limit {
+        is_prime[j] = 0;
+        j += 2;
+    }
+    
+    // Mark multiples of 3
+    j = 9;
+    while j <= limit {
+        is_prime[j] = 0;
+        j += 3;
+    }
+    
+    // Mark multiples of 5
+    j = 25;
+    while j <= limit {
+        is_prime[j] = 0;
+        j += 5;
+    }
+    
+    // Main sieve with SIMD optimization pattern
+    let sqrt_limit = 1000;
+    let mut prime = 7;
+    
+    while prime <= sqrt_limit {
+        if is_prime[prime] == 1 {
+            // SIMD-style marking: process multiple positions
+            let mut multiple = prime * prime;
+            
+            // Process in chunks for better cache locality
+            while multiple <= limit {
+                // Mark current position
+                is_prime[multiple] = 0;
+                
+                // Calculate next positions in SIMD pattern
+                let next1 = multiple + prime;
+                let next2 = next1 + prime;
+                let next3 = next2 + prime;
+                
+                if next1 <= limit { is_prime[next1] = 0; }
+                if next2 <= limit { is_prime[next2] = 0; }
+                if next3 <= limit { is_prime[next3] = 0; }
+                
+                multiple += prime * 4;  // Skip 4 positions
+            }
+        }
+        
+        // Wheel-like skipping
+        prime += 4;
+        if prime > sqrt_limit { break; }
+        if is_prime[prime] == 1 {
+            let mut multiple = prime * prime;
+            while multiple <= limit {
+                is_prime[multiple] = 0;
+                multiple += prime;
+            }
+        }
+        
+        prime += 2;
+        if prime > sqrt_limit { break; }
+        if is_prime[prime] == 1 {
+            let mut multiple = prime * prime;
+            while multiple <= limit {
+                is_prime[multiple] = 0;
+                multiple += prime;
+            }
+        }
+        
+        prime += 4;
+        if prime > sqrt_limit { break; }
+        if is_prime[prime] == 1 {
+            let mut multiple = prime * prime;
+            while multiple <= limit {
+                is_prime[multiple] = 0;
+                multiple += prime;
+            }
+        }
+        
+        prime += 2;
+        if prime > sqrt_limit { break; }
+        if is_prime[prime] == 1 {
+            let mut multiple = prime * prime;
+            while multiple <= limit {
+                is_prime[multiple] = 0;
+                multiple += prime;
+            }
+        }
+        
+        prime += 4;
+        if prime > sqrt_limit { break; }
+        if is_prime[prime] == 1 {
+            let mut multiple = prime * prime;
+            while multiple <= limit {
+                is_prime[multiple] = 0;
+                multiple += prime;
+            }
+        }
+        
+        prime += 6;
+        if prime > sqrt_limit { break; }
+        if is_prime[prime] == 1 {
+            let mut multiple = prime * prime;
+            while multiple <= limit {
+                is_prime[multiple] = 0;
+                multiple += prime;
+            }
+        }
+        
+        prime += 2;
+    }
+    
+    // SIMD-optimized counting
+    let mut count: u64 = 0;
+    let mut i = 2;
+    
+    // Process in SIMD-width chunks
+    while i + SIMD_WIDTH <= limit {
+        count += is_prime[i] as u64;
+        count += is_prime[i + 1] as u64;
+        count += is_prime[i + 2] as u64;
+        count += is_prime[i + 3] as u64;
+        count += is_prime[i + 4] as u64;
+        count += is_prime[i + 5] as u64;
+        count += is_prime[i + 6] as u64;
+        count += is_prime[i + 7] as u64;
+        
+        i += SIMD_WIDTH;
+    }
+    
+    // Process remainder
+    while i <= limit {
+        count += is_prime[i] as u64;
+        i += 1;
+    }
+    
+    return count;
+}
+
+// ============================================================================
+// BENCHMARK RUNNER
+// ============================================================================
+
+// Timing function placeholder
+fn get_time() -> u64 {
+    // TODO: Implement proper timing
+    return 0;
+}
+
+fn run_benchmark() -> [u64; 4] {
+    let limit = 1000000;
+    let expected_primes = 78498;  // π(1,000,000)
+    
+    let mut results: [u64; 4] = [0; 4];
+    
+    // Benchmark 1: Baseline
+    let start1 = get_time();
+    let count1 = sieve_baseline(limit);
+    let end1 = get_time();
+    results[0] = if count1 as u64 == expected_primes { end1 - start1 } else { 0 };
+    
+    // Benchmark 2: Optimized
+    let start2 = get_time();
+    let count2 = sieve_optimized(limit);
+    let end2 = get_time();
+    results[1] = if count2 as u64 == expected_primes { end2 - start2 } else { 0 };
+    
+    // Benchmark 3: SIMD Optimized
+    let start3 = get_time();
+    let count3 = sieve_simd_optimized(limit);
+    let end3 = get_time();
+    results[2] = if count3 as u64 == expected_primes { end3 - start3 } else { 0 };
+    
+    // Benchmark 4: Composite score (lower is better)
+    if results[0] > 0 && results[1] > 0 && results[2] > 0 {
+        // Calculate speedup factors
+        let speedup_opt = results[0] * 100 / results[1];  // Percentage
+        let speedup_simd = results[0] * 100 / results[2]; // Percentage
+        
+        // Composite score: weighted average of speedups
+        results[3] = (speedup_opt * 40 + speedup_simd * 60) / 100;
+    }
+    
+    return results;
+}
+
+// ============================================================================
+// PERFORMANCE VALIDATION
+// ============================================================================
+
+fn validate_implementations() -> bool {
+    let test_limit = 1000;
+    let expected = 168;  // π(1000) = 168
+    
+    let count1 = sieve_baseline(test_limit);
+    let count2 = sieve_optimized(test_limit);
+    let count3 = sieve_simd_optimized(test_limit);
+    
+    return count1 == expected && count2 == expected && count3 == expected;
+}
+
+// ============================================================================
+// MAIN BENCHMARK ENTRY POINT
+// ============================================================================
+
+fn main() -> u64 {
+    // First validate all implementations
+    if !validate_implementations() {
+        return 0;  // Validation failed
+    }
+    
+    // Run benchmark
+    let results = run_benchmark();
+    
+    // Return composite performance score
+    // Higher score = better performance
+    return results[3];
+}

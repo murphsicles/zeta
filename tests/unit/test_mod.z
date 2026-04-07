@@ -1,0 +1,6 @@
+fn main() -> i32 {
+    // Test the modulo operator
+    let a: i32 = 10;
+    let b: i32 = 3;
+    return a % b; // Should return 1
+}

@@ -1,0 +1,288 @@
+// Test 4: Full PrimeZeta algorithm integration
+// This tests the complete PrimeZeta sieve algorithm
+
+// Constants for wheel factorization
+const MODULUS: u64 = 30  // 2*3*5
+const NUM_RESIDUES: u64 = 8  // φ(30) = 8
+
+// Generate residues coprime to MODULUS (wheel residues)
+fn generate_residues() -> [u64; NUM_RESIDUES] {
+    var residues: [u64; NUM_RESIDUES] = [0; NUM_RESIDUES]
+    var index: u64 = 0
+    
+    for i in 1..MODULUS {
+        if gcd(i, MODULUS) == 1 {
+            residues[index] = i
+            index += 1
+        }
+    }
+    
+    residues
+}
+
+// GCD function - Euclidean algorithm
+fn gcd(a: u64, b: u64) -> u64 {
+    var x = a
+    var y = b
+    while y != 0 {
+        let t = y
+        y = x % y
+        x = t
+    }
+    x
+}
+
+// Integer square root
+fn sqrt(n: u64) -> u64 {
+    if n < 2 {
+        return n
+    }
+    
+    var x = n
+    var y = (x + 1) / 2
+    while y < x {
+        x = y
+        y = (x + n / x) / 2
+    }
+    x
+}
+
+// Find all primes up to limit using wheel sieve
+fn prime_zeta_sieve(limit: u64) -> [dynamic]u64 {
+    if limit < 2 {
+        return []
+    }
+    
+    // Initialize sieve array
+    var is_prime = malloc<bool>(limit + 1)
+    for i in 0..(limit + 1) {
+        is_prime[i] = true
+    }
+    
+    // Mark 0 and 1 as not prime
+    is_prime[0] = false
+    is_prime[1] = false
+    
+    // Get wheel residues
+    let residues = generate_residues()
+    
+    // Small primes to initialize
+    let small_primes = [2, 3, 5]
+    for p in small_primes {
+        if p > limit {
+            break
+        }
+        var multiple = p * p
+        while multiple <= limit {
+            is_prime[multiple] = false
+            multiple += p
+        }
+    }
+    
+    // Use wheel factorization for larger primes
+    var k: u64 = 1
+    while true {
+        var all_too_large = true
+        
+        for residue in residues {
+            let p = k * MODULUS + residue
+            if p > limit {
+                continue
+            }
+            
+            all_too_large = false
+            
+            if is_prime[p] {
+                var multiple = p * p
+                while multiple <= limit {
+                    is_prime[multiple] = false
+                    multiple += p
+                }
+            }
+        }
+        
+        if all_too_large {
+            break
+        }
+        k += 1
+    }
+    
+    // Collect primes
+    var primes: [dynamic]u64 = []
+    for i in 2..(limit + 1) {
+        if is_prime[i] {
+            primes.push(i)
+        }
+    }
+    
+    free(is_prime)
+    primes
+}
+
+// Optimized version with fewer allocations
+fn prime_zeta_sieve_optimized(limit: u64) -> [dynamic]u64 {
+    if limit < 2 {
+        return []
+    }
+    
+    // Use bit array for efficiency
+    let size = (limit + 1 + 7) / 8  // Round up to nearest byte
+    var sieve = malloc<u8>(size)
+    for i in 0..size {
+        sieve[i] = 0xFF  // All bits set to 1 (true)
+    }
+    
+    // Helper functions for bit array
+    fn clear_bit(arr: *u8, index: u64) {
+        let byte_index = index / 8
+        let bit_index = index % 8
+        arr[byte_index] &= ~(1 << bit_index)
+    }
+    
+    fn get_bit(arr: *u8, index: u64) -> bool {
+        let byte_index = index / 8
+        let bit_index = index % 8
+        (arr[byte_index] & (1 << bit_index)) != 0
+    }
+    
+    // Mark 0 and 1 as not prime
+    clear_bit(sieve, 0)
+    clear_bit(sieve, 1)
+    
+    // Get wheel residues
+    let residues = generate_residues()
+    
+    // Small primes
+    let small_primes = [2, 3, 5]
+    for p in small_primes {
+        if p > limit {
+            break
+        }
+        var multiple = p * p
+        while multiple <= limit {
+            clear_bit(sieve, multiple)
+            multiple += p
+        }
+    }
+    
+    // Wheel factorization
+    var k: u64 = 1
+    let sqrt_limit = sqrt(limit)
+    
+    while true {
+        var all_too_large = true
+        
+        for residue in residues {
+            let p = k * MODULUS + residue
+            if p > sqrt_limit {
+                continue
+            }
+            
+            all_too_large = false
+            
+            if get_bit(sieve, p) {
+                var multiple = p * p
+                while multiple <= limit {
+                    clear_bit(sieve, multiple)
+                    multiple += p
+                }
+            }
+        }
+        
+        if all_too_large {
+            break
+        }
+        k += 1
+    }
+    
+    // Collect primes
+    var primes: [dynamic]u64 = []
+    for i in 2..(limit + 1) {
+        if get_bit(sieve, i) {
+            primes.push(i)
+        }
+    }
+    
+    free(sieve)
+    primes
+}
+
+// Test function for the sieve
+fn test_prime_zeta_sieve() -> bool {
+    // Test with small limit
+    let primes_up_to_30 = prime_zeta_sieve(30)
+    let expected_primes = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]
+    
+    if primes_up_to_30.len() != expected_primes.len() {
+        return false
+    }
+    
+    for i in 0..primes_up_to_30.len() {
+        if primes_up_to_30[i] != expected_primes[i] {
+            return false
+        }
+    }
+    
+    // Test optimized version
+    let primes_up_to_50 = prime_zeta_sieve_optimized(50)
+    let expected_primes_50 = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47]
+    
+    if primes_up_to_50.len() != expected_primes_50.len() {
+        return false
+    }
+    
+    for i in 0..primes_up_to_50.len() {
+        if primes_up_to_50[i] != expected_primes_50[i] {
+            return false
+        }
+    }
+    
+    true
+}
+
+// Benchmark function
+fn benchmark_sieve(limit: u64) -> u64 {
+    let start_time = std::time::now()
+    let primes = prime_zeta_sieve_optimized(limit)
+    let end_time = std::time::now()
+    let duration = end_time - start_time
+    
+    // Return number of primes found (as a simple metric)
+    primes.len()
+}
+
+// Main function
+fn main() -> u64 {
+    println("Testing Full PrimeZeta Algorithm Integration")
+    
+    // Test basic components
+    if gcd(48, 18) != 6 {
+        println("GCD test failed")
+        return 1
+    }
+    
+    let residues = generate_residues()
+    if residues.len() != NUM_RESIDUES {
+        println("Residue generation test failed")
+        return 2
+    }
+    
+    // Test the full sieve
+    if !test_prime_zeta_sieve() {
+        println("Prime sieve test failed")
+        return 3
+    }
+    
+    // Run benchmark
+    let prime_count = benchmark_sieve(1000)
+    println("Found " + prime_count + " primes up to 1000")
+    
+    // Verify prime count (π(1000) = 168)
+    if prime_count != 168 {
+        println("Prime count verification failed")
+        return 4
+    }
+    
+    println("All tests passed!")
+    0  // Success
+}

@@ -1,0 +1,308 @@
+// SIMD-optimized Murphy's Sieve implementation
+// Uses SIMD-like optimizations: loop unrolling, cache blocking, vectorized operations
+
+// SIMD width constant - represents how many elements we process at once
+const SIMD_WIDTH: u64 = 8  // Process 8 elements at once (simulating 256-bit SIMD)
+
+// SIMD-optimized sieve
+fn murphy_sieve_simd(limit: u64) -> u64 {
+    // Handle edge cases
+    if limit < 2 {
+        return 0
+    }
+    if limit == 2 {
+        return 1
+    }
+    
+    // Create bit array (1 = prime, 0 = composite)
+    let array_size = (limit + 1) as usize
+    let mut is_prime: [u8] = []
+    
+    // SIMD-OPTIMIZED: Initialize array efficiently
+    // Process in chunks of SIMD_WIDTH where possible
+    let full_chunks = array_size / SIMD_WIDTH as usize
+    let remainder = array_size % SIMD_WIDTH as usize
+    
+    // Initialize full chunks (simulating SIMD store of ones)
+    let mut chunk = 0
+    while chunk < full_chunks {
+        // Simulate SIMD store of 8 ones
+        let mut i = 0
+        while i < SIMD_WIDTH as usize {
+            is_prime.append(1)
+            i += 1
+        }
+        chunk += 1
+    }
+    
+    // Initialize remainder
+    let mut i = 0
+    while i < remainder {
+        is_prime.append(1)
+        i += 1
+    }
+    
+    // Mark 0 and 1 as composite
+    is_prime[0] = 0
+    is_prime[1] = 0
+    
+    // SIMD-OPTIMIZED: Mark small primes using optimized patterns
+    // Mark multiples of 2 (all even numbers except 2)
+    mark_multiples_simd_style(&mut is_prime, limit, 2, 4)
+    
+    // Mark multiples of 3
+    mark_multiples_simd_style(&mut is_prime, limit, 3, 9)
+    
+    // Mark multiples of 5
+    mark_multiples_simd_style(&mut is_prime, limit, 5, 25)
+    
+    // Main sieve loop with SIMD optimization
+    let sqrt_limit = (limit as f64).sqrt() as u64
+    
+    // Start from 7 (2,3,5 already handled)
+    let mut p: u64 = 7
+    
+    while p <= sqrt_limit {
+        if is_prime[p as usize] == 1 {
+            // SIMD-OPTIMIZED: Mark multiples using SIMD-style unrolling
+            mark_multiples_simd_style(&mut is_prime, limit, p, p * p)
+        }
+        
+        // Skip even numbers and multiples of 3, 5
+        // This reduces the number of primes to check
+        p += 4
+        if p > sqrt_limit { break }
+        if is_prime[p as usize] == 1 {
+            mark_multiples_simd_style(&mut is_prime, limit, p, p * p)
+        }
+        
+        p += 2
+        if p > sqrt_limit { break }
+        if is_prime[p as usize] == 1 {
+            mark_multiples_simd_style(&mut is_prime, limit, p, p * p)
+        }
+        
+        p += 4
+        if p > sqrt_limit { break }
+        if is_prime[p as usize] == 1 {
+            mark_multiples_simd_style(&mut is_prime, limit, p, p * p)
+        }
+        
+        p += 2
+        if p > sqrt_limit { break }
+        if is_prime[p as usize] == 1 {
+            mark_multiples_simd_style(&mut is_prime, limit, p, p * p)
+        }
+        
+        p += 4
+        if p > sqrt_limit { break }
+        if is_prime[p as usize] == 1 {
+            mark_multiples_simd_style(&mut is_prime, limit, p, p * p)
+        }
+        
+        p += 6
+        if p > sqrt_limit { break }
+        if is_prime[p as usize] == 1 {
+            mark_multiples_simd_style(&mut is_prime, limit, p, p * p)
+        }
+        
+        p += 2
+    }
+    
+    // SIMD-OPTIMIZED: Count primes using SIMD-style processing
+    return count_primes_simd_style(&is_prime, limit)
+}
+
+// SIMD-style marking of multiples (uses loop unrolling)
+fn mark_multiples_simd_style(is_prime: &mut [u8], limit: u64, prime: u64, start: u64) {
+    // For small primes or small ranges, use simple approach
+    if prime < SIMD_WIDTH * 2 || (limit - start) < SIMD_WIDTH * prime {
+        let mut multiple = start
+        while multiple <= limit {
+            is_prime[multiple as usize] = 0
+            multiple += prime
+        }
+        return
+    }
+    
+    // SIMD-style: process multiple positions at once using unrolling
+    let mut multiple = start
+    let prime_x8 = prime * SIMD_WIDTH
+    
+    // Process aligned chunks of SIMD_WIDTH multiples
+    while multiple + prime_x8 <= limit + prime {
+        // Unrolled marking - simulates SIMD store of zeros
+        // Mark 8 multiples at positions: multiple, multiple+prime, ..., multiple+7*prime
+        let mut offset: u64 = 0
+        while offset < SIMD_WIDTH {
+            let pos = multiple + offset * prime
+            if pos <= limit {
+                is_prime[pos as usize] = 0
+            }
+            offset += 1
+        }
+        multiple += prime_x8
+    }
+    
+    // Process remaining multiples
+    while multiple <= limit {
+        is_prime[multiple as usize] = 0
+        multiple += prime
+    }
+}
+
+// SIMD-style prime counting (uses loop unrolling)
+fn count_primes_simd_style(is_prime: &[u8], limit: u64) -> u64 {
+    let mut count: u64 = 0
+    let array_size = (limit + 1) as usize
+    
+    // Process in chunks of SIMD_WIDTH for better cache locality
+    let mut i: usize = 2
+    let simd_width_usize = SIMD_WIDTH as usize
+    
+    while i + simd_width_usize <= array_size {
+        // SIMD-style unrolled counting
+        // In real SIMD: load 8 bytes, compare with 1, count true values
+        if is_prime[i] == 1 { count += 1 }
+        if is_prime[i + 1] == 1 { count += 1 }
+        if is_prime[i + 2] == 1 { count += 1 }
+        if is_prime[i + 3] == 1 { count += 1 }
+        if is_prime[i + 4] == 1 { count += 1 }
+        if is_prime[i + 5] == 1 { count += 1 }
+        if is_prime[i + 6] == 1 { count += 1 }
+        if is_prime[i + 7] == 1 { count += 1 }
+        
+        i += simd_width_usize
+    }
+    
+    // Process remainder
+    while i < array_size {
+        if is_prime[i] == 1 {
+            count += 1
+        }
+        i += 1
+    }
+    
+    return count
+}
+
+// Cache-optimized version using block processing
+fn murphy_sieve_simd_cache_optimized(limit: u64) -> u64 {
+    // Handle edge cases
+    if limit < 2 {
+        return 0
+    }
+    if limit == 2 {
+        return 1
+    }
+    
+    // Create bit array
+    let array_size = (limit + 1) as usize
+    let mut is_prime: [u8] = []
+    
+    // Initialize
+    let mut i: usize = 0
+    while i < array_size {
+        is_prime.append(1)
+        i += 1
+    }
+    
+    is_prime[0] = 0
+    is_prime[1] = 0
+    
+    // Cache block size (simulating L1 cache)
+    const BLOCK_SIZE: u64 = 8192  // 8KB block
+    
+    let sqrt_limit = (limit as f64).sqrt() as u64
+    
+    // First, find small primes up to sqrt(limit)
+    let mut small_primes: [u64] = []
+    let mut p: u64 = 2
+    
+    while p <= sqrt_limit {
+        if is_prime[p as usize] == 1 {
+            small_primes.append(p)
+            
+            // Mark multiples in full array
+            let mut multiple = p * p
+            while multiple <= limit {
+                is_prime[multiple as usize] = 0
+                multiple += p
+            }
+        }
+        p += 1
+    }
+    
+    // Now use small primes to sieve in blocks
+    // This is more cache-friendly than strided access across entire array
+    
+    let mut block_start: u64 = sqrt_limit + 1
+    while block_start <= limit {
+        let block_end = if block_start + BLOCK_SIZE - 1 > limit {
+            limit
+        } else {
+            block_start + BLOCK_SIZE - 1
+        }
+        
+        // Sieve this block with all small primes
+        for prime in small_primes {
+            if prime == 0 { break }  // End of array
+            
+            // Find first multiple in this block
+            let first_multiple = ((block_start + prime - 1) / prime) * prime
+            if first_multiple > block_end {
+                continue
+            }
+            
+            // Mark multiples in this block
+            let mut multiple = first_multiple
+            while multiple <= block_end {
+                is_prime[multiple as usize] = 0
+                multiple += prime
+            }
+        }
+        
+        block_start += BLOCK_SIZE
+    }
+    
+    // Count primes
+    return count_primes_simd_style(&is_prime, limit)
+}
+
+// Test function
+fn test_simd_sieve() -> u64 {
+    let mut passed = 0
+    
+    // Test basic SIMD version
+    if murphy_sieve_simd(0) == 0 { passed += 1 }
+    if murphy_sieve_simd(1) == 0 { passed += 1 }
+    if murphy_sieve_simd(2) == 1 { passed += 1 }
+    if murphy_sieve_simd(10) == 4 { passed += 1 }
+    if murphy_sieve_simd(30) == 10 { passed += 1 }
+    if murphy_sieve_simd(100) == 25 { passed += 1 }
+    
+    // Test cache-optimized version
+    if murphy_sieve_simd_cache_optimized(0) == 0 { passed += 1 }
+    if murphy_sieve_simd_cache_optimized(1) == 0 { passed += 1 }
+    if murphy_sieve_simd_cache_optimized(2) == 1 { passed += 1 }
+    if murphy_sieve_simd_cache_optimized(10) == 4 { passed += 1 }
+    if murphy_sieve_simd_cache_optimized(30) == 10 { passed += 1 }
+    if murphy_sieve_simd_cache_optimized(100) == 25 { passed += 1 }
+    
+    return passed
+}
+
+fn main() -> u64 {
+    // Run tests
+    let tests_passed = test_simd_sieve()
+    
+    if tests_passed == 12 {
+        // All tests passed
+        // Run benchmark with SIMD version
+        let result = murphy_sieve_simd(1000000)
+        // Expected: 78498 primes under 1,000,000
+        return result
+    } else {
+        return 0  // Tests failed
+    }
+}

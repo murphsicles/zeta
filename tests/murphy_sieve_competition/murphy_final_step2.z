@@ -1,0 +1,49 @@
+// Murphy's Sieve - Final implementation (Step 2)
+// Different control flow structure
+
+fn is_prime_simple(n: u64) -> u64 {
+    // Handle small numbers with early returns
+    if n <= 1 {
+        return 0
+    }
+    
+    if n <= 3 {
+        return 1
+    }
+    
+    // Check divisibility by 2
+    let rem2: u64 = n % 2
+    if rem2 == 0 {
+        return 0
+    }
+    
+    // Check divisibility by 3
+    let rem3: u64 = n % 3
+    if rem3 == 0 {
+        return 0
+    }
+    
+    // Check divisibility by numbers of form 6k ± 1
+    let mut i: u64 = 5
+    
+    while i * i <= n {
+        let rem_i: u64 = n % i
+        if rem_i == 0 {
+            return 0
+        }
+        
+        let rem_i2: u64 = n % (i + 2)
+        if rem_i2 == 0 {
+            return 0
+        }
+        
+        i += 6
+    }
+    
+    return 1
+}
+
+fn main() -> u64 {
+    // Simple test
+    return is_prime_simple(7)
+}

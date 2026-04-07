@@ -1,0 +1,67 @@
+// Simple Murphy's Sieve benchmark
+
+fn murphy_sieve(limit: i32) -> i32 {
+    // Use array size based on limit
+    let array_size = 1000;
+    let mut sieve: [bool; 1000] = [false; 1000];
+    
+    // Safety check
+    if limit > array_size {
+        return 0;
+    }
+    
+    // Initialize
+    if limit > 0 {
+        sieve[0] = false;
+    }
+    if limit > 1 {
+        sieve[1] = false;
+    }
+    
+    // Mark potential primes
+    let mut i = 2;
+    while i < limit {
+        sieve[i] = true;
+        i += 1;
+    }
+    
+    // Sieve
+    i = 2;
+    while i < limit {
+        // Check if i*i would overflow
+        if i * i >= limit {
+            break;
+        }
+        
+        if sieve[i] {
+            let mut j = i * i;
+            while j < limit {
+                sieve[j] = false;
+                j += i;
+            }
+        }
+        i += 1;
+    }
+    
+    // Count
+    let mut count = 0;
+    let mut k = 0;
+    while k < limit {
+        if sieve[k] {
+            count += 1;
+        }
+        k += 1;
+    }
+    
+    return count;
+}
+
+fn main() -> i32 {
+    // Test with multiple limits
+    let result1 = murphy_sieve(10);   // Should be 4
+    let result2 = murphy_sieve(30);   // Should be 10
+    let result3 = murphy_sieve(100);  // Should be 25
+    
+    // Return sum of all results (4 + 10 + 25 = 39)
+    return result1 + result2 + result3;
+}

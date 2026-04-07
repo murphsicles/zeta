@@ -3,7 +3,9 @@
 mod codegen;
 mod jit;
 mod monomorphize;
+// mod simd;  // SIMD support will be added later
 
 pub use codegen::LLVMCodegen;
 pub use jit::*;
 pub use monomorphize::*;
+// pub use simd::SimdCodegen;

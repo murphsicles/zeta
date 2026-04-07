@@ -1,0 +1,135 @@
+// Example: Using the capability-based memory model in Zeta
+// This shows how the novel memory model simplifies memory management
+
+import std::memory;
+
+// Simple function that creates and uses a dynamic array
+fn process_numbers(count: i64) -> i64 {
+    // Create a dynamic array in the current region
+    let mut numbers = memory::DynamicArray::new(count as usize);
+    
+    // Fill with squares
+    for i in 0..count {
+        numbers.push(i * i);
+    }
+    
+    // Calculate sum
+    let mut sum = 0;
+    for i in 0..numbers.len() {
+        sum += numbers.get(i);
+    }
+    
+    // Array is automatically freed when it goes out of scope
+    return sum;
+}
+
+// Function using bit array for a simple sieve
+fn find_primes_up_to(limit: i64) -> memory::DynamicArray<i64> {
+    // Create sieve
+    let mut sieve = memory::Sieve::new(limit as u64);
+    sieve.run();
+    
+    // Collect primes into array
+    let mut primes = memory::DynamicArray::new(1000);
+    
+    // Add 2 separately
+    primes.push(2);
+    
+    // Add odd primes
+    for i in (3..=limit).step_by(2) {
+        if sieve.is_prime(i as u64) {
+            primes.push(i);
+        }
+    }
+    
+    return primes;
+}
+
+// Demonstrate region-based memory management
+fn region_demo() {
+    // Create a new region
+    let region_id = memory::create_region(None, "demo_region");
+    println("Created region: {}", region_id);
+    
+    // Create arrays in this region
+    let mut regional_array = memory::DynamicArray::new_in_region(100, region_id);
+    
+    for i in 0..100 {
+        regional_array.push(i * 10);
+    }
+    
+    println("Created array with {} elements in region", regional_array.len());
+    
+    // When we free the region, all allocations in it are automatically freed
+    memory::free_region(region_id);
+    println("Freed region and all its allocations");
+    
+    // Note: regional_array is now invalid and any use would be caught
+    // by the capability system (use-after-free detection)
+}
+
+// Main function demonstrating the memory model
+fn main() -> i64 {
+    println("Zeta Capability-Based Memory Model Demo");
+    println("=======================================");
+    
+    // Test 1: Dynamic array with automatic memory management
+    println("\n1. Dynamic Array Demo:");
+    let sum = process_numbers(10);
+    println("Sum of squares 0..9: {}", sum);
+    assert(sum == 285, "Sum of squares calculation failed");
+    
+    // Test 2: Sieve with bit array
+    println("\n2. Prime Sieve Demo:");
+    let primes = find_primes_up_to(50);
+    println("Primes <= 50: {}", primes.len());
+    
+    print("Primes: ");
+    for i in 0..primes.len() {
+        print("{} ", primes.get(i));
+    }
+    println("");
+    
+    // Test 3: Region-based management
+    println("\n3. Region-Based Memory Management:");
+    region_demo();
+    
+    // Test 4: Performance comparison
+    println("\n4. Performance Test (Murphy's Sieve):");
+    let limit = 1_000_000;
+    
+    let start_time = std::time::now();
+    let mut sieve = memory::Sieve::new(limit as u64);
+    sieve.run();
+    let elapsed = std::time::now() - start_time;
+    
+    let prime_count = sieve.count_primes();
+    println("Found {} primes <= {} in {} ns", prime_count, limit, elapsed);
+    assert(prime_count == 78498, "Prime count incorrect");
+    
+    println("\nMemory model demo completed successfully!");
+    return 0;
+}
+
+// Helper function for the benchmark
+fn benchmark_sieve() {
+    println("\nBenchmark: Running Murphy's Sieve 10 times");
+    
+    let total_start = std::time::now();
+    let mut total_primes = 0;
+    
+    for iteration in 0..10 {
+        let start = std::time::now();
+        let mut sieve = memory::Sieve::new(1_000_000);
+        sieve.run();
+        let count = sieve.count_primes();
+        let elapsed = std::time::now() - start;
+        
+        total_primes += count;
+        println("Iteration {}: {} primes in {} ns", iteration + 1, count, elapsed);
+    }
+    
+    let total_elapsed = std::time::now() - total_start;
+    println("Total: {} primes in {} ns (avg: {} ns/iteration)", 
+            total_primes, total_elapsed, total_elapsed / 10);
+}

@@ -32,7 +32,7 @@ impl TestResults {
         }
     }
 
-    fn record_test(&self, passed: bool, duration: Duration) {
+    fn record_test(&self, passed: bool, _duration: Duration) {
         self.total_tests.fetch_add(1, Ordering::Relaxed);
         if passed {
             self.passed_tests.fetch_add(1, Ordering::Relaxed);
@@ -281,7 +281,7 @@ fn main() {
     println!("=========================================");
     println!("Starting comprehensive distributed systems test suite...");
     
-    let results = TestResults::new();
+    let mut results = TestResults::new();
     let overall_start = Instant::now();
     
     // Run all test categories
@@ -316,7 +316,7 @@ mod test_exports {
     
     #[test]
     fn test_all_distributed_systems() {
-        let results = TestResults::new();
+        let mut results = TestResults::new();
         
         run_consensus_tests(&results);
         run_data_structure_tests(&results);

@@ -1,0 +1,50 @@
+// Murphy's Sieve - COMPLETE FINAL VERSION
+// All Zeta constraints satisfied
+
+fn murphy_sieve(limit: u64) -> u64 {
+    // Edge cases with early returns
+    if limit <= 1 {
+        return 0
+    }
+    
+    if limit == 2 {
+        return 1
+    }
+    
+    // Count primes
+    let mut count: u64 = 0
+    let mut n: u64 = 2
+    
+    while n < limit {
+        let mut is_prime: u64 = 1
+        let mut d: u64 = 2
+        
+        // Prime checking loop
+        while d * d <= n {
+            let remainder: u64 = n % d
+            if remainder == 0 {
+                is_prime = 0
+                d = n  // Exit loop
+            } else {
+                // Continue checking
+            }
+            d += 1
+        }
+        
+        // Count with proper else branch
+        if is_prime == 1 {
+            count += 1
+        } else {
+            // Not prime, do nothing
+        }
+        
+        n += 1
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    // Simple test: count primes under 10
+    return murphy_sieve(10)
+}

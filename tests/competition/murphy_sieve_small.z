@@ -1,0 +1,58 @@
+// Murphy's Sieve with small array
+
+fn murphy_sieve_small(limit: i32) -> i32 {
+    // Use a small array
+    let array_size = 100;
+    let mut sieve: [bool; 100] = [false; 100];
+    
+    // Safety check
+    if limit > array_size {
+        return 0;
+    }
+    
+    // Initialize
+    if limit > 0 {
+        sieve[0] = false;
+    }
+    if limit > 1 {
+        sieve[1] = false;
+    }
+    
+    // Mark potential primes
+    let mut i = 2;
+    while i < limit {
+        sieve[i] = true;
+        i += 1;
+    }
+    
+    // Sieve with bounds checking
+    i = 2;
+    while i * i < limit {
+        if sieve[i] {
+            let mut j = i * i;
+            while j < limit {
+                sieve[j] = false;
+                j += i;
+            }
+        }
+        i += 1;
+    }
+    
+    // Count
+    let mut count = 0;
+    let mut k = 0;
+    while k < limit {
+        if sieve[k] {
+            count += 1;
+        }
+        k += 1;
+    }
+    
+    return count;
+}
+
+fn main() -> i32 {
+    // Test with limit 30 (should return 10 primes: 2,3,5,7,11,13,17,19,23,29)
+    let result = murphy_sieve_small(30);
+    return result; // Should return 10
+}

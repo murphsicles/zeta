@@ -1,0 +1,33 @@
+// Test while loop body type requirements
+
+fn test_while_simple() -> u64 {
+    let mut i: u64 = 0
+    
+    while i < 3 {
+        i += 1
+    }
+    
+    return i
+}
+
+fn test_while_with_if() -> u64 {
+    let mut i: u64 = 0
+    
+    while i < 3 {
+        if i == 1 {
+            // Do nothing
+        } else {
+            // Do nothing
+        }
+        i += 1
+    }
+    
+    return i
+}
+
+fn main() -> u64 {
+    let test1 = test_while_simple()
+    let test2 = test_while_with_if()
+    
+    return test1 * 10 + test2
+}

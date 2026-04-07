@@ -1,0 +1,24 @@
+// Simple prime test without modulo in condition
+
+fn is_prime(n: u64) -> u64 {
+    if n < 2 {
+        return 0
+    }
+    
+    let mut d: u64 = 2
+    while d < n {
+        // Check divisibility without modulo in condition
+        let remainder: u64 = n % d
+        if remainder == 0 {
+            return 0
+        }
+        d += 1
+    }
+    
+    return 1
+}
+
+fn main() -> u64 {
+    // Test if 7 is prime (should return 1)
+    return is_prime(7)
+}

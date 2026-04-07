@@ -26,10 +26,15 @@ pub mod lsp;
 pub mod middle;
 pub mod ml;
 pub mod package;
+pub mod memory;
 pub mod runtime;
 pub mod std;
 pub mod workflows;
 pub mod zeta;
+pub mod distributed;
+
+// Paradigm-shifting features (simplified implementation)
+pub mod paradigm_simple;
 
 // #[cfg(test)]
 // mod tests;

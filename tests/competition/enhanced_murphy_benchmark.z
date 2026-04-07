@@ -1,0 +1,200 @@
+// Enhanced Murphy's Sieve Benchmark
+// Tests: scale testing, heap arrays, performance measurement, correctness validation
+// Includes workaround for while loop condition bug
+
+// Import runtime functions for heap allocation
+extern fn runtime_malloc(size: i64) -> *mut i8;
+
+// Heap-based Murphy's Sieve with workaround
+fn murphy_sieve_heap_workaround(limit: i64) -> i64 {
+    // Allocate heap array for sieve
+    let array_size = limit as usize;
+    let sieve_ptr = runtime_malloc(array_size as i64) as *mut bool;
+    
+    // Initialize array
+    let mut i: i64 = 0;
+    while i < limit {
+        unsafe {
+            *sieve_ptr.offset(i as isize) = true;
+        }
+        i += 1;
+    }
+    
+    // 0 and 1 are not prime
+    if limit > 0 {
+        unsafe {
+            *sieve_ptr.offset(0) = false;
+        }
+    }
+    if limit > 1 {
+        unsafe {
+            *sieve_ptr.offset(1) = false;
+        }
+    }
+    
+    // Sieve with workaround for while loop condition bug
+    i = 2;
+    loop {
+        // Workaround: manually check condition and break
+        if i * i >= limit {
+            break;
+        }
+        
+        unsafe {
+            if *sieve_ptr.offset(i as isize) {
+                let mut j = i * i;
+                while j < limit {
+                    *sieve_ptr.offset(j as isize) = false;
+                    j += i;
+                }
+            }
+        }
+        
+        i += 1;
+    }
+    
+    // Count primes
+    let mut count: i64 = 0;
+    let mut k: i64 = 0;
+    while k < limit {
+        unsafe {
+            if *sieve_ptr.offset(k as isize) {
+                count += 1;
+            }
+        }
+        k += 1;
+    }
+    
+    return count;
+}
+
+// Stack-based Murphy's Sieve with workaround (for comparison)
+fn murphy_sieve_stack_workaround(limit: i64) -> i64 {
+    // Use fixed-size array for testing
+    let max_limit = 10000;
+    let mut sieve: [bool; 10000] = [false; 10000];
+    
+    if limit > max_limit {
+        return 0;
+    }
+    
+    // Initialize
+    let mut i: i64 = 0;
+    while i < limit {
+        sieve[i as usize] = true;
+        i += 1;
+    }
+    
+    if limit > 0 {
+        sieve[0] = false;
+    }
+    if limit > 1 {
+        sieve[1] = false;
+    }
+    
+    // Sieve with workaround
+    i = 2;
+    loop {
+        if i * i >= limit {
+            break;
+        }
+        
+        if sieve[i as usize] {
+            let mut j = i * i;
+            while j < limit {
+                sieve[j as usize] = false;
+                j += i;
+            }
+        }
+        
+        i += 1;
+    }
+    
+    // Count primes
+    let mut count: i64 = 0;
+    let mut k: i64 = 0;
+    while k < limit {
+        if sieve[k as usize] {
+            count += 1;
+        }
+        k += 1;
+    }
+    
+    return count;
+}
+
+// Performance measurement wrapper
+fn benchmark_sieve(name: &str, limit: i64, expected: i64, use_heap: bool) -> bool {
+    let start_time = 0; // Placeholder for timing
+    
+    let result = if use_heap {
+        murphy_sieve_heap_workaround(limit)
+    } else {
+        murphy_sieve_stack_workaround(limit)
+    };
+    
+    let end_time = 0; // Placeholder for timing
+    let elapsed = end_time - start_time;
+    
+    let correct = result == expected;
+    
+    // Print results (simplified for now)
+    // In real benchmark, we'd print timing and correctness
+    
+    return correct;
+}
+
+fn main() -> i64 {
+    // Known prime counts for validation
+    // π(10) = 4, π(100) = 25, π(1000) = 168, π(10000) = 1229
+    
+    let test_cases = [
+        (10, 4, "Small scale"),
+        (100, 25, "Medium small"),
+        (1000, 168, "Small scale benchmark"),
+        (10000, 1229, "Medium scale benchmark"),
+    ];
+    
+    let mut total_tests = 0;
+    let mut passed_tests = 0;
+    
+    // Test stack-based implementation
+    println!("Testing stack-based implementation:");
+    for &(limit, expected, description) in &test_cases {
+        total_tests += 1;
+        let result = murphy_sieve_stack_workaround(limit);
+        if result == expected {
+            println!("  ✓ {} (limit={}): {} primes (expected {})", description, limit, result, expected);
+            passed_tests += 1;
+        } else {
+            println!("  ✗ {} (limit={}): {} primes (expected {})", description, limit, result, expected);
+        }
+    }
+    
+    // Test heap-based implementation (for larger limits)
+    println!("\nTesting heap-based implementation:");
+    let heap_test_cases = [
+        (1000, 168, "Heap small scale"),
+        (10000, 1229, "Heap medium scale"),
+    ];
+    
+    for &(limit, expected, description) in &heap_test_cases {
+        total_tests += 1;
+        let result = murphy_sieve_heap_workaround(limit);
+        if result == expected {
+            println!("  ✓ {} (limit={}): {} primes (expected {})", description, limit, result, expected);
+            passed_tests += 1;
+        } else {
+            println!("  ✗ {} (limit={}): {} primes (expected {})", description, limit, result, expected);
+        }
+    }
+    
+    // Return success rate as percentage
+    if total_tests > 0 {
+        let success_rate = (passed_tests * 100) / total_tests;
+        println!("\nOverall: {}/{} tests passed ({}%)", passed_tests, total_tests, success_rate);
+        return success_rate;
+    } else {
+        return 0;
+    }
+}

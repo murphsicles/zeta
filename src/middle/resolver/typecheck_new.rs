@@ -3,7 +3,7 @@
 
 use super::resolver::Resolver;
 use crate::frontend::ast::AstNode;
-use crate::middle::types::{Substitution, Type, UnifyError};
+use crate::middle::types::{ArraySize, Substitution, Type, UnifyError, IdentityType, CapabilityLevel};
 
 /// Extended resolver with new type checking
 pub trait NewTypeCheck {
@@ -21,12 +21,30 @@ impl NewTypeCheck for Resolver {
     fn typecheck_new(&mut self, asts: &[AstNode]) -> Result<Substitution, Vec<UnifyError>> {
         use crate::middle::resolver::new_resolver;
 
+        eprintln!("[TYPECHECK_NEW] Starting typecheck_new with {} AST nodes", asts.len());
+        
         let mut context = new_resolver::InferContext::new();
 
         // Convert existing variable types from old system to new system
         // Note: This is a simplified conversion - in a full implementation,
         // we would need to convert the entire resolver state
         // For now, we start with a clean context
+
+        // Add built-in functions from resolver to the inference context
+        eprintln!("[TYPECHECK_NEW] Adding built-in functions to inference context");
+        let funcs = self.get_all_func_signatures();
+        eprintln!("[TYPECHECK_NEW] Found {} built-in functions", funcs.len());
+        for (name, (params, ret_ty, _is_async)) in funcs {
+            eprintln!("[TYPECHECK_NEW] Adding function: {} with {} params", name, params.len());
+            // Convert parameter types to a vector of Types
+            let param_types: Vec<Type> = params.iter().map(|(_, ty)| ty.clone()).collect();
+            
+            // Create function type: (param_types) -> ret_ty
+            let func_type = Type::Function(param_types, Box::new(ret_ty.clone()));
+            
+            // Add to inference context
+            context.add_function(name.clone(), func_type);
+        }
 
         // Infer types for all AST nodes
         let mut any_success = false;
@@ -85,6 +103,7 @@ impl NewTypeCheck for Resolver {
             "i32" => return Type::I32,
             "bool" => return Type::Bool,
             "str" => return Type::Str,
+            "string" => return Type::Str,
             "String" => return Type::Named("String".to_string(), Vec::new()),
             "i8" => return Type::I8,
             "i16" => return Type::I16,
@@ -121,6 +140,41 @@ impl NewTypeCheck for Resolver {
             }
         }
 
+        // Check for identity type: string[identity:read], string[identity:read+write], etc.
+        if s.starts_with("string[identity:") && s.ends_with(']') {
+            let inner = &s["string[".len()..s.len() - 1]; // Remove "string[" and "]"
+            if let Some(capabilities_str) = inner.strip_prefix("identity:") {
+                // Parse capabilities
+                let capabilities: Vec<CapabilityLevel> = capabilities_str
+                    .split('+')
+                    .filter_map(|cap| match cap.trim() {
+                        "read" => Some(CapabilityLevel::Read),
+                        "write" => Some(CapabilityLevel::Write),
+                        "immutable" => Some(CapabilityLevel::Immutable),
+                        "owned" => Some(CapabilityLevel::Owned),
+                        "execute" => Some(CapabilityLevel::Execute),
+                        _ => None,
+                    })
+                    .collect();
+                
+                if capabilities.is_empty() {
+                    // No valid capabilities found, treat as named type
+                    return Type::Named(s.to_string(), Vec::new());
+                }
+                
+                // Create identity type
+                let identity_type = IdentityType {
+                    value: None,
+                    capabilities,
+                    delegatable: false,
+                    constraints: Vec::new(),
+                    type_params: Vec::new(),
+                };
+                
+                return Type::Identity(Box::new(identity_type));
+            }
+        }
+
         // Check for array type: [T; N]
         if s.starts_with('[') {
             if !s.ends_with(']') {
@@ -132,7 +186,7 @@ impl NewTypeCheck for Resolver {
             if let Some((type_part, size_part)) = inner.split_once(';') {
                 let inner_type = self.string_to_type(type_part.trim());
                 if let Ok(size) = size_part.trim().parse::<usize>() {
-                    return Type::Array(Box::new(inner_type), size);
+                    return Type::Array(Box::new(inner_type), ArraySize::Literal(size));
                 }
             } else {
                 // Slice type: [T]
@@ -385,12 +439,12 @@ mod tests {
         // Test array types
         assert_eq!(
             resolver.string_to_type("[i32; 10]"),
-            Type::Array(Box::new(Type::I32), 10)
+            Type::Array(Box::new(Type::I32), ArraySize::Literal(10))
         );
 
         assert_eq!(
             resolver.string_to_type("[bool; 5]"),
-            Type::Array(Box::new(Type::Bool), 5)
+            Type::Array(Box::new(Type::Bool), ArraySize::Literal(5))
         );
 
         // Test slice types
@@ -457,7 +511,7 @@ mod tests {
         assert_eq!(resolver.type_to_string(&mut_ref_i64), "&'static mut i64");
 
         // Test array type display
-        let array_i32 = Type::Array(Box::new(Type::I32), 10);
+        let array_i32 = Type::Array(Box::new(Type::I32), ArraySize::Literal(10));
         assert_eq!(resolver.type_to_string(&array_i32), "[i32; 10]");
 
         // Test slice type display

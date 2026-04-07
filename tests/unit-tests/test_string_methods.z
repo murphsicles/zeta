@@ -1,0 +1,24 @@
+// Test string methods for v0.3.55
+// Testing if string methods are callable
+
+fn main() -> i32 {
+    let s = "Hello, Zeta!";
+    
+    // Test if we can call string methods
+    // These should work if string methods are properly implemented
+    // let len = s.len();
+    // let contains = s.contains("Zeta");
+    // let starts = s.starts_with("Hello");
+    // let ends = s.ends_with("!");
+    
+    // For now, just test basic string functionality
+    let converted = to_string_str(s);
+    
+    return 0;
+}
+
+// We might need to declare these functions if they're not built-in
+// fn len(s: str) -> i64;
+// fn contains(s: str, substr: str) -> bool;
+// fn starts_with(s: str, prefix: str) -> bool;
+// fn ends_with(s: str, suffix: str) -> bool;

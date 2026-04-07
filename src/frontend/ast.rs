@@ -2,6 +2,25 @@
 //! Defines the Abstract Syntax Tree (AST) nodes for the Zeta language.
 //! Represents programs, definitions, expressions, statements, and algebraic constructs.
 
+/// Generic parameter in function, struct, enum, concept, or impl definitions.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum GenericParam {
+    /// Type parameter with optional trait bounds (e.g., T, T: Clone + Debug)
+    Type {
+        name: String,
+        bounds: Vec<String>,
+    },
+    /// Lifetime parameter (e.g., 'a, 'static)
+    Lifetime {
+        name: String,
+    },
+    /// Const parameter with type (e.g., const N: usize, const SIZE: u32)
+    Const {
+        name: String,
+        ty: String,
+    },
+}
+
 /// Match expression arm with pattern and body.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MatchArm {
@@ -20,7 +39,7 @@ pub enum AstNode {
     /// Concept (trait) definition with method signatures.
     ConceptDef {
         name: String,
-        generics: Vec<String>,
+        generics: Vec<GenericParam>,
         lifetimes: Vec<String>, // Lifetime parameters like 'a, 'b
         methods: Vec<AstNode>,
         associated_types: Vec<AstNode>,
@@ -36,7 +55,7 @@ pub enum AstNode {
     /// Implementation block for a concept on a type.
     ImplBlock {
         concept: String,
-        generics: Vec<String>,
+        generics: Vec<GenericParam>,
         lifetimes: Vec<String>, // Lifetime parameters like 'a, 'b
         ty: String,
         body: Vec<AstNode>,
@@ -50,7 +69,7 @@ pub enum AstNode {
         name: String,
         params: Vec<(String, String)>,
         ret: String,
-        generics: Vec<String>,
+        generics: Vec<GenericParam>,
         lifetimes: Vec<String>, // Lifetime parameters like 'a, 'b
         attrs: Vec<String>,
         doc: String,
@@ -62,7 +81,7 @@ pub enum AstNode {
     /// Function definition with parameters, return type, and body.
     FuncDef {
         name: String,
-        generics: Vec<String>,
+        generics: Vec<GenericParam>,
         lifetimes: Vec<String>, // Lifetime parameters like 'a, 'b
         params: Vec<(String, String)>,
         ret: String,
@@ -84,7 +103,7 @@ pub enum AstNode {
     },
     ExternFunc {
         name: String,
-        generics: Vec<String>,
+        generics: Vec<GenericParam>,
         lifetimes: Vec<String>, // Lifetime parameters like 'a, 'b
         params: Vec<(String, String)>,
         ret: String,
@@ -94,7 +113,7 @@ pub enum AstNode {
     /// Enumeration definition with variants.
     EnumDef {
         name: String,
-        generics: Vec<String>,
+        generics: Vec<GenericParam>,
         lifetimes: Vec<String>, // Lifetime parameters like 'a, 'b
         variants: Vec<(String, Vec<String>)>,
         attrs: Vec<String>,
@@ -107,7 +126,7 @@ pub enum AstNode {
     /// Structure definition with fields.
     StructDef {
         name: String,
-        generics: Vec<String>,
+        generics: Vec<GenericParam>,
         lifetimes: Vec<String>, // Lifetime parameters like 'a, 'b
         fields: Vec<(String, String)>,
         attrs: Vec<String>,
@@ -319,4 +338,9 @@ pub enum AstNode {
     },
     /// Or pattern for multiple alternatives (e.g., 1 | 2 | 3)
     OrPattern(Vec<AstNode>),
+    /// Type-annotated pattern (e.g., x: i32, s: string[identity:read])
+    TypeAnnotatedPattern {
+        pattern: Box<AstNode>,
+        ty: String,
+    },
 }

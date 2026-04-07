@@ -1,0 +1,10 @@
+// Test parsing type arguments
+fn foo<T>() -> i64 {
+    return 0
+}
+
+fn main() -> i64 {
+    // This should parse even if type checker fails
+    let x = foo::<i32>()
+    return 0
+}

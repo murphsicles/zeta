@@ -1,0 +1,28 @@
+// Simple string test without string comparison
+
+fn test_string_len() -> i64 {
+    let s = "Hello";
+    str_len(s)
+}
+
+fn test_string_starts_with() -> bool {
+    let s = "Hello, World!";
+    str_starts_with(s, "Hello")
+}
+
+fn main() -> i64 {
+    // Test string length
+    let len_result = test_string_len();
+    if len_result != 5 {
+        return 1; // Fail if length is not 5
+    }
+    
+    // Test starts_with
+    let starts_result = test_string_starts_with();
+    if !starts_result {
+        return 2; // Fail if starts_with returns false
+    }
+    
+    // All tests passed
+    0
+}

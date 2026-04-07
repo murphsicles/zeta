@@ -1,0 +1,23 @@
+fn main() -> i32 {
+    let limit: i32 = 10000;
+    let mut count: i32 = 0;
+    
+    // Same algorithm as previous tests
+    for n in 2..limit {
+        let mut is_prime: bool = true;
+        for i in 2..n {
+            if n % i == 0 {
+                is_prime = false;
+                break;
+            }
+        }
+        if is_prime {
+            count += 1;
+        }
+    }
+    
+    // Print the result
+    print_i64(count as i64);
+    
+    return count; // Should return 1229 (primes up to 10000)
+}

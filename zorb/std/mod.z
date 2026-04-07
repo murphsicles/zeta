@@ -23,6 +23,9 @@ pub mod fmt;
 pub mod time;
 pub mod thread;
 
+// SIMD module
+pub mod simd;
+
 // Re-export commonly used items
 pub use option::Option;
 pub use result::Result;
@@ -33,3 +36,4 @@ pub use io::{File, stdin, stdout, stderr};
 pub use fmt::{Debug, Display, Formatter};
 pub use time::{Instant, Duration, SystemTime};
 pub use thread::{Thread, Builder, JoinHandle};
+pub use simd::{Vector, Vector2, Vector4, Vector8, Vector16, Int32x4, Int64x2, Float32x4, Float64x2, Uint8x16, Uint16x8, Uint32x4, Uint64x2};

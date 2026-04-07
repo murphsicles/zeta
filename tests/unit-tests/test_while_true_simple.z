@@ -1,0 +1,13 @@
+// Test while loop with true condition
+// Use VERY simple case to debug crash
+
+fn main() -> u64 {
+    let mut i: u64 = 0
+    // Simple true condition
+    while i < 1 {
+        i += 1
+        // Add return inside loop to break early
+        return 999  // If loop executes, return 999
+    }
+    return i  // If loop doesn't execute, return 0
+}

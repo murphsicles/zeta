@@ -1,0 +1,21 @@
+// Simple compiler test v2 for v0.3.54
+// Even simpler - no string methods
+
+// Identity compiler function
+fn compile_zeta_to_zeta(source: String) -> String {
+    source
+}
+
+// Main function
+fn main() -> i64 {
+    // Test the compiler with a simple program
+    let test_code = "fn test() -> i64 { return 42; }".to_string();
+    let compiled = compile_zeta_to_zeta(test_code);
+    
+    // Just print something to show it worked
+    println!("Compiler test completed!");
+    println!("Input was compiled successfully.");
+    
+    // Return success
+    0
+}

@@ -1,0 +1,17 @@
+// Basic while loop test for bootstrap compiler
+
+fn test_while_basic() -> i64 {
+    let i = 0;
+    
+    while (i < 3) {
+        // In a real while loop, we'd need to reassign i
+        // but for now just test parsing
+        return 42;
+    }
+    
+    return 99;
+}
+
+fn main() -> i64 {
+    return test_while_basic();
+}

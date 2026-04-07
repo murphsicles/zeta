@@ -1,0 +1,24 @@
+// Test current to_string behavior
+fn test_current_behavior() -> i64 {
+    // This should work - string to string
+    let s = "hello";
+    let s_str = to_string_str(s);
+    
+    // This should fail - i64 to string using wrong function
+    // let num = 42;
+    // let num_str = to_string_str(num);  // Type error: expected str, got i64
+    
+    // This works - i64 to string using correct function
+    let num = 42;
+    let num_str = to_string_i64(num);
+    
+    // This works - bool to string using correct function
+    let flag = true;
+    let bool_str = to_string_bool(flag);
+    
+    return 0;
+}
+
+fn main() -> i64 {
+    return test_current_behavior();
+}

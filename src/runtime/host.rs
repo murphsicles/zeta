@@ -7,6 +7,16 @@ use std::os::raw::c_void;
 use std::ptr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// Allocates memory using std_malloc.
+///
+/// # Safety
+/// Caller must ensure valid size and free with host_free.
+#[unsafe(no_mangle)]
+#[allow(unsafe_op_in_unsafe_fn)]
+pub unsafe extern "C" fn runtime_malloc(size: usize) -> i64 {
+    std_malloc(size)
+}
+
 /// Returns the current datetime as milliseconds since UNIX epoch.
 ///
 /// # Safety
@@ -325,7 +335,8 @@ pub unsafe extern "C" fn to_string_bool(value: i64) -> i64 {
 }
 
 // ===== Dynamic Array Runtime Functions =====
-
+// COMMENTED OUT: Duplicate functions moved to array.rs for bulletproof implementation
+/*
 /// Dynamic array structure
 struct DynamicArray {
     capacity: i64,
@@ -337,6 +348,7 @@ struct DynamicArray {
 ///
 /// # Safety
 /// Returns a pointer to a heap-allocated DynamicArray
+#[unsafe(no_mangle)]
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn array_new() -> i64 {
     let arr = Box::new(DynamicArray {
@@ -351,6 +363,7 @@ pub unsafe extern "C" fn array_new() -> i64 {
 ///
 /// # Safety
 /// arr_ptr must be a valid pointer to a DynamicArray
+#[unsafe(no_mangle)]
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn array_push(arr_ptr: i64, value: i64) {
     if arr_ptr == 0 {
@@ -363,6 +376,12 @@ pub unsafe extern "C" fn array_push(arr_ptr: i64, value: i64) {
         let new_capacity = if arr.capacity == 0 { 4 } else { arr.capacity * 2 };
         let new_size = (new_capacity as usize) * std::mem::size_of::<i64>();
         let new_data = std_malloc(new_size) as *mut i64;
+        
+        // Check if allocation succeeded
+        if new_data.is_null() {
+            // Allocation failed - cannot resize
+            return;
+        }
         
         if !arr.data.is_null() {
             // Copy existing data
@@ -387,6 +406,7 @@ pub unsafe extern "C" fn array_push(arr_ptr: i64, value: i64) {
 ///
 /// # Safety
 /// arr_ptr must be a valid pointer to a DynamicArray or 0
+#[unsafe(no_mangle)]
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn array_len(arr_ptr: i64) -> i64 {
     if arr_ptr == 0 {
@@ -401,6 +421,7 @@ pub unsafe extern "C" fn array_len(arr_ptr: i64) -> i64 {
 /// # Safety
 /// arr_ptr must be a valid pointer to a DynamicArray
 /// Returns 0 if index is out of bounds
+#[unsafe(no_mangle)]
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn array_get(arr_ptr: i64, index: i64) -> i64 {
     if arr_ptr == 0 {
@@ -420,6 +441,7 @@ pub unsafe extern "C" fn array_get(arr_ptr: i64, index: i64) -> i64 {
 /// # Safety
 /// arr_ptr must be a valid pointer to a DynamicArray
 /// Index must be within bounds (0 <= index < length)
+#[unsafe(no_mangle)]
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn array_set(arr_ptr: i64, index: i64, value: i64) {
     if arr_ptr == 0 {
@@ -438,6 +460,7 @@ pub unsafe extern "C" fn array_set(arr_ptr: i64, index: i64, value: i64) {
 ///
 /// # Safety
 /// arr_ptr must be a valid pointer to a DynamicArray or 0
+#[unsafe(no_mangle)]
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn array_free(arr_ptr: i64) {
     if arr_ptr == 0 {
@@ -449,35 +472,4 @@ pub unsafe extern "C" fn array_free(arr_ptr: i64) {
     }
     // Box is dropped here, freeing the DynamicArray struct
 }
-
-/// Append method for dynamic arrays (alias for array_push)
-/// Needed because codegen looks for append_i64
-///
-/// # Safety
-/// arr_ptr must be a valid pointer to a DynamicArray
-#[allow(unsafe_op_in_unsafe_fn)]
-pub unsafe extern "C" fn append_i64(arr_ptr: i64, value: i64) {
-    array_push(arr_ptr, value)
-}
-
-/// Append method for u8 arrays
-///
-/// # Safety
-/// arr_ptr must be a valid pointer to a DynamicArray
-#[allow(unsafe_op_in_unsafe_fn)]
-pub unsafe extern "C" fn append_u8(arr_ptr: i64, value: i64) {
-    // Convert i64 to u8
-    let u8_value = (value & 0xFF) as u8;
-    // array_push expects i64, so we need to convert back
-    array_push(arr_ptr, u8_value as i64)
-}
-
-/// Map get function (alias for array_get)
-/// Codegen uses map_get for array indexing
-///
-/// # Safety
-/// arr_ptr must be a valid pointer to a DynamicArray
-#[allow(unsafe_op_in_unsafe_fn)]
-pub unsafe extern "C" fn map_get(arr_ptr: i64, index: i64) -> i64 {
-    array_get(arr_ptr, index)
-}
+*/

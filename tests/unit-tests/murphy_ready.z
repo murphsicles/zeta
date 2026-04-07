@@ -1,0 +1,57 @@
+// Murphy's Sieve - READY for when while loop bug fixed
+// Tests all the fixes: while loops, type comparisons, arrays
+
+fn murphy_sieve_small(limit: u64) -> u64 {
+    // Test with small limit first
+    let bits: [dynamic]u8 = [dynamic]u8{}
+    
+    // Initialize array (needs while loop fix)
+    let mut i: u64 = 0
+    while i < limit {
+        bits.push(0)
+        i += 1
+    }
+    
+    // Mark 0 and 1 as composite
+    if limit > 0 {
+        bits[0] = 1
+    }
+    if limit > 1 {
+        bits[1] = 1
+    }
+    
+    // Sieve algorithm (needs while loop fix)
+    let mut p: u64 = 2
+    while p * p < limit {
+        if bits[p] == 0 {  // Needs type comparison fix
+            let mut multiple: u64 = p * p
+            while multiple < limit {  // Nested while loop
+                bits[multiple] = 1
+                multiple += p
+            }
+        }
+        p += 1
+    }
+    
+    // Count primes (needs while loop fix)
+    let mut count: u64 = 0
+    let mut n: u64 = 0
+    while n < limit {
+        if bits[n] == 0 {  // Needs type comparison fix
+            count += 1
+        }
+        n += 1
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    // Test with known values
+    let result3 = murphy_sieve_small(3)   // Should be 1 (prime: 2)
+    let result10 = murphy_sieve_small(10) // Should be 4 (primes: 2,3,5,7)
+    let result25 = murphy_sieve_small(25) // Should be 9
+    
+    // Return combination to verify all work
+    return result3 * 10000 + result10 * 100 + result25
+}

@@ -1,0 +1,172 @@
+// Basic String Functions Test
+// Tests each string function individually
+
+fn test_str_concat() -> i64 {
+    let s1 = "Hello";
+    let s2 = "World";
+    let result = str_concat(s1, s2);
+    
+    if str_len(result) == 10 {
+        1
+    } else {
+        0
+    }
+}
+
+fn test_str_len() -> i64 {
+    let s1 = "Hello";
+    let s2 = "";
+    let s3 = "  Spaces  ";
+    
+    if str_len(s1) == 5 && str_len(s2) == 0 && str_len(s3) == 9 {
+        1
+    } else {
+        0
+    }
+}
+
+fn test_str_to_lowercase() -> i64 {
+    let s1 = "HELLO";
+    let s2 = "World";
+    let s3 = "MiXeD";
+    
+    let r1 = str_to_lowercase(s1);
+    let r2 = str_to_lowercase(s2);
+    let r3 = str_to_lowercase(s3);
+    
+    if r1 == "hello" && r2 == "world" && r3 == "mixed" {
+        1
+    } else {
+        0
+    }
+}
+
+fn test_str_to_uppercase() -> i64 {
+    let s1 = "hello";
+    let s2 = "World";
+    let s3 = "MiXeD";
+    
+    let r1 = str_to_uppercase(s1);
+    let r2 = str_to_uppercase(s2);
+    let r3 = str_to_uppercase(s3);
+    
+    if r1 == "HELLO" && r2 == "WORLD" && r3 == "MIXED" {
+        1
+    } else {
+        0
+    }
+}
+
+fn test_str_trim() -> i64 {
+    let s1 = "  hello  ";
+    let s2 = "world\t\n";
+    let s3 = "\n\n  spaces  \t\t";
+    
+    let r1 = str_trim(s1);
+    let r2 = str_trim(s2);
+    let r3 = str_trim(s3);
+    
+    if r1 == "hello" && r2 == "world" && r3 == "spaces" {
+        1
+    } else {
+        0
+    }
+}
+
+fn test_str_starts_with() -> i64 {
+    let s = "Hello World";
+    
+    if str_starts_with(s, "Hello") == 1 &&
+       str_starts_with(s, "World") == 0 &&
+       str_starts_with(s, "") == 1 {
+        1
+    } else {
+        0
+    }
+}
+
+fn test_str_ends_with() -> i64 {
+    let s = "Hello World";
+    
+    if str_ends_with(s, "World") == 1 &&
+       str_ends_with(s, "Hello") == 0 &&
+       str_ends_with(s, "") == 1 {
+        1
+    } else {
+        0
+    }
+}
+
+fn test_str_contains() -> i64 {
+    let s = "The quick brown fox";
+    
+    if str_contains(s, "quick") == 1 &&
+       str_contains(s, "brown") == 1 &&
+       str_contains(s, "fox") == 1 &&
+       str_contains(s, "lazy") == 0 {
+        1
+    } else {
+        0
+    }
+}
+
+fn test_str_replace() -> i64 {
+    let s = "I like apples";
+    
+    let r1 = str_replace(s, "apples", "oranges");
+    let r2 = str_replace(s, "like", "love");
+    let r3 = str_replace(s, "bananas", "pears"); // No change
+    
+    if r1 == "I like oranges" &&
+       r2 == "I love apples" &&
+       r3 == "I like apples" {
+        1
+    } else {
+        0
+    }
+}
+
+fn main() -> i64 {
+    // Run all tests
+    let mut passed = 0;
+    let total = 9;
+    
+    if test_str_concat() == 1 {
+        passed = passed + 1;
+    }
+    
+    if test_str_len() == 1 {
+        passed = passed + 1;
+    }
+    
+    if test_str_to_lowercase() == 1 {
+        passed = passed + 1;
+    }
+    
+    if test_str_to_uppercase() == 1 {
+        passed = passed + 1;
+    }
+    
+    if test_str_trim() == 1 {
+        passed = passed + 1;
+    }
+    
+    if test_str_starts_with() == 1 {
+        passed = passed + 1;
+    }
+    
+    if test_str_ends_with() == 1 {
+        passed = passed + 1;
+    }
+    
+    if test_str_contains() == 1 {
+        passed = passed + 1;
+    }
+    
+    if test_str_replace() == 1 {
+        passed = passed + 1;
+    }
+    
+    // Return number of passed tests
+    passed
+}

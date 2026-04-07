@@ -1,0 +1,105 @@
+// Test the final Murphy's Sieve implementation
+
+// Helper function: check if a number is prime using wheel optimization
+// Assumes n > 3 and n is not divisible by 2 or 3
+fn is_prime_wheel(n: u64) -> u64 {
+    // Check divisibility by numbers of the form 6i ± 1
+    let mut i: u64 = 5
+    let mut w: u64 = 2  // Will alternate between 2 and 4
+    
+    while i * i <= n {
+        // Check divisibility by i (which is of form 6k ± 1)
+        let rem1: u64 = n % i
+        
+        // Check if remainder is zero
+        // We use multiplication trick to avoid direct comparison issues
+        let check1: u64 = rem1 * 1000
+        
+        if check1 == 0 {
+            return 0  // Not prime
+        }
+        
+        // Move to next candidate (alternate between adding 2 and 4)
+        i += w
+        w = 6 - w  // Alternate between 2 and 4
+    }
+    
+    return 1  // Prime
+}
+
+// Main sieve function - computes primes up to limit using Murphy's Sieve
+// Implements wheel factorization optimization (wheel of size 6)
+fn murphy_sieve(limit: u64) -> u64 {
+    // Handle edge cases
+    if limit <= 2 {
+        return 0
+    }
+    
+    // Count 2 and 3 as primes
+    let mut count: u64 = 0
+    
+    if limit > 2 {
+        count += 1  // 2 is prime
+    }
+    
+    if limit > 3 {
+        count += 1  // 3 is prime
+    }
+    
+    // Check numbers of the form 6k ± 1 (wheel of size 6)
+    // These are not divisible by 2 or 3
+    let mut k: u64 = 1
+    
+    while true {
+        // Generate candidates
+        let n1 = 6 * k - 1
+        let n2 = 6 * k + 1
+        
+        // Stop if both candidates exceed limit
+        if n1 >= limit && n2 >= limit {
+            break
+        }
+        
+        // Check 6k - 1
+        if n1 < limit {
+            if is_prime_wheel(n1) == 1 {
+                count += 1
+            }
+        }
+        
+        // Check 6k + 1
+        if n2 < limit {
+            if is_prime_wheel(n2) == 1 {
+                count += 1
+            }
+        }
+        
+        k += 1
+    }
+    
+    return count
+}
+
+// Test function
+fn test_murphy() -> u64 {
+    let mut passed: u64 = 0
+    
+    // Test small limits
+    if murphy_sieve(10) == 4 {
+        passed += 1
+    }
+    
+    if murphy_sieve(30) == 10 {
+        passed += 1
+    }
+    
+    if murphy_sieve(100) == 25 {
+        passed += 1
+    }
+    
+    return passed
+}
+
+fn main() -> u64 {
+    return test_murphy()
+}

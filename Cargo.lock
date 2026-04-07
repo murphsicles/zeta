@@ -7453,12 +7453,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "zeta-verification"
+version = "0.1.0"
+
+[[package]]
 name = "zetac"
-version = "0.3.54"
+version = "0.3.55"
 dependencies = [
  "aes-gcm",
  "argon2",
  "base64 0.22.1",
+ "bincode",
  "bip39",
  "bs58",
  "chalk-ir",
@@ -7497,6 +7502,7 @@ dependencies = [
  "tokio",
  "toml 0.8.23",
  "which",
+ "zeta-verification",
 ]
 
 [[package]]

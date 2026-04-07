@@ -1,0 +1,10 @@
+// Test turbofish syntax
+fn foo<T>() -> i64 {
+    return 0
+}
+
+fn main() -> i64 {
+    // Just test if ::< parses at all
+    let x = foo::<i32>()
+    return 0
+}

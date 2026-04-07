@@ -8,7 +8,7 @@
 use crate::frontend::ast::AstNode;
 use crate::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use crate::middle::specialization::MonoKey;
-use crate::middle::types::Type;
+use crate::middle::types::{Type, ArraySize};
 use std::collections::HashMap;
 
 pub struct MirGen {
@@ -100,19 +100,57 @@ impl MirGen {
     fn lower_ast(&mut self, ast: &AstNode) {
         match ast {
             AstNode::Let { pattern, expr, .. } => {
-                if let AstNode::Var(name) = &**pattern {
-                    let rhs_id = self.lower_expr(expr);
-                    let lhs_id = self.next_id();
-                    self.stmts.push(MirStmt::Assign {
-                        lhs: lhs_id,
-                        rhs: rhs_id,
-                    });
-                    self.name_to_id.insert(name.clone(), lhs_id);
-                    self.exprs.insert(lhs_id, MirExpr::Var(lhs_id));
-                    // Copy type from RHS to LHS
-                    if let Some(rhs_type) = self.type_map.get(&rhs_id) {
-                        self.type_map.insert(lhs_id, rhs_type.clone());
-                    } else {
+                // Handle different pattern types
+                match &**pattern {
+                    AstNode::Var(name) => {
+                        let rhs_id = self.lower_expr(expr);
+                        let lhs_id = self.next_id();
+                        self.stmts.push(MirStmt::Assign {
+                            lhs: lhs_id,
+                            rhs: rhs_id,
+                        });
+                        self.name_to_id.insert(name.clone(), lhs_id);
+                        self.exprs.insert(lhs_id, MirExpr::Var(lhs_id));
+                        // Copy type from RHS to LHS
+                        if let Some(rhs_type) = self.type_map.get(&rhs_id) {
+                            self.type_map.insert(lhs_id, rhs_type.clone());
+                        } else {
+                            self.type_map.insert(lhs_id, Type::I64);
+                        }
+                    }
+                    AstNode::TypeAnnotatedPattern { pattern: inner_pattern, ty: _ } => {
+                        // For type-annotated patterns, extract the inner pattern
+                        // The type checking should have been done by the type checker
+                        if let AstNode::Var(name) = &**inner_pattern {
+                            let rhs_id = self.lower_expr(expr);
+                            let lhs_id = self.next_id();
+                            self.stmts.push(MirStmt::Assign {
+                                lhs: lhs_id,
+                                rhs: rhs_id,
+                            });
+                            self.name_to_id.insert(name.clone(), lhs_id);
+                            self.exprs.insert(lhs_id, MirExpr::Var(lhs_id));
+                            // Copy type from RHS to LHS
+                            if let Some(rhs_type) = self.type_map.get(&rhs_id) {
+                                self.type_map.insert(lhs_id, rhs_type.clone());
+                            } else {
+                                self.type_map.insert(lhs_id, Type::I64);
+                            }
+                        }
+                        // Note: We could add runtime identity checking here if needed,
+                        // but the type checker should have already validated the type.
+                    }
+                    _ => {
+                        // For other pattern types, generate a simple assignment
+                        // This is a simplification - in a full implementation,
+                        // we would need to handle destructuring patterns
+                        let rhs_id = self.lower_expr(expr);
+                        let lhs_id = self.next_id();
+                        self.stmts.push(MirStmt::Assign {
+                            lhs: lhs_id,
+                            rhs: rhs_id,
+                        });
+                        self.exprs.insert(lhs_id, MirExpr::Var(lhs_id));
                         self.type_map.insert(lhs_id, Type::I64);
                     }
                 }
@@ -123,7 +161,7 @@ impl MirGen {
                     let base_id = self.lower_expr(base);
                     let index_id = self.lower_expr(index);
                     
-                    // Check if base is a dynamic array
+                    // Check if base is an array type
                     let base_ty = self.type_map.get(&base_id).cloned().unwrap_or(Type::I64);
                     if let Type::DynamicArray(_) = base_ty {
                         // Generate array_set call for dynamic arrays
@@ -131,6 +169,25 @@ impl MirGen {
                             func: "array_set".to_string(),
                             args: vec![base_id, index_id, rhs_id],
                         });
+                    } else if let Type::Array(_, size) = base_ty {
+                        // Check if this is a stack array (fixed size) or heap array
+                        match size {
+                            ArraySize::Literal(n) if n <= 1024 => {
+                                // Small fixed-size array - treat as stack array
+                                // Use stack_array_set for direct memory access
+                                self.stmts.push(MirStmt::VoidCall {
+                                    func: "stack_array_set".to_string(),
+                                    args: vec![base_id, index_id, rhs_id],
+                                });
+                            }
+                            _ => {
+                                // Dynamic or large array - use heap array access
+                                self.stmts.push(MirStmt::VoidCall {
+                                    func: "array_set".to_string(),
+                                    args: vec![base_id, index_id, rhs_id],
+                                });
+                            }
+                        }
                     } else {
                         // Use DictInsert for other types (maps/dicts)
                         self.stmts.push(MirStmt::DictInsert {
@@ -364,58 +421,67 @@ impl MirGen {
                 //   i = i + 1;
                 // }
 
-                // Check if expr is a range expression (BinaryOp with "..")
-                if let AstNode::BinaryOp { op, left, right } = &**expr {
-                    if op == ".." {
-                        // Get variable name from pattern
-                        if let AstNode::Var(var_name) = &**pattern {
-                            // Lower start and end expressions
-                            let start_id = self.lower_expr(left);
-                            let end_id = self.lower_expr(right);
-
-                            // Create loop variable
-                            let var_id = self.next_id();
-                            self.name_to_id.insert(var_name.clone(), var_id);
-                            self.exprs.insert(var_id, MirExpr::Var(var_id));
-                            self.type_map.insert(var_id, Type::I64);
-
-                            // Initialize loop variable: let mut i = start
-                            self.stmts.push(MirStmt::Assign {
-                                lhs: var_id,
-                                rhs: start_id,
-                            });
-
-                            // Create a range iterator expression
-                            // For range start..end, we need to create an iterator
-                            // For now, we'll create a simple representation
-                            let range_id = self.next_id();
-                            self.exprs.insert(range_id, MirExpr::Range {
-                                start: start_id,
-                                end: end_id,
-                            });
-                            self.type_map.insert(range_id, Type::Range);
-                            
-                            // Save current statements to restore after loop body
-                            let stmts_before_body = self.stmts.len();
-
-                            // Generate loop body
-                            for stmt in body {
-                                self.lower_ast(stmt);
-                            }
-
-                            // Get body statements
-                            let body_stmts = self.stmts.split_off(stmts_before_body);
-                            
-                            // Create For statement in MIR
-                            self.stmts.push(MirStmt::For {
-                                iterator: range_id,
-                                pattern: var_name.clone(),
-                                body: body_stmts,
-                            });
-                        }
+                // Check if expr is a range expression (BinaryOp with ".." or AstNode::Range)
+                let (start_expr, end_expr) = match &**expr {
+                    AstNode::BinaryOp { op, left, right } if op == ".." => {
+                        (left, right)
                     }
+                    AstNode::Range { start, end, inclusive: _ } => {
+                        (start, end)
+                    }
+                    _ => {
+                        // TODO: Handle other iterator types
+                        return;
+                    }
+                };
+                
+                // Get variable name from pattern
+                if let AstNode::Var(var_name) = &**pattern {
+                    // Lower start and end expressions
+                    let start_id = self.lower_expr(start_expr);
+                    let end_id = self.lower_expr(end_expr);
+
+                    // Create loop variable
+                    let var_id = self.next_id();
+                    self.name_to_id.insert(var_name.clone(), var_id);
+                    self.exprs.insert(var_id, MirExpr::Var(var_id));
+                    self.type_map.insert(var_id, Type::I64);
+
+                    // Initialize loop variable: let mut i = start
+                    self.stmts.push(MirStmt::Assign {
+                        lhs: var_id,
+                        rhs: start_id,
+                    });
+
+                    // Create a range iterator expression
+                    // For range start..end, we need to create an iterator
+                    // For now, we'll create a simple representation
+                    let range_id = self.next_id();
+                    self.exprs.insert(range_id, MirExpr::Range {
+                        start: start_id,
+                        end: end_id,
+                    });
+                    self.type_map.insert(range_id, Type::Range);
+                    
+                    // Save current statements to restore after loop body
+                    let stmts_before_body = self.stmts.len();
+
+                    // Generate loop body
+                    for stmt in body {
+                        self.lower_ast(stmt);
+                    }
+
+                    // Get body statements
+                    let body_stmts = self.stmts.split_off(stmts_before_body);
+                    
+                    // Create For statement in MIR
+                    self.stmts.push(MirStmt::For {
+                        iterator: range_id,
+                        pattern: var_name.clone(),
+                        var_id: var_id,
+                        body: body_stmts,
+                    });
                 }
-                // TODO: Handle other iterator types
             }
             AstNode::While { cond, body } => {
                 let cond_id = self.lower_expr(cond);
@@ -455,6 +521,12 @@ impl MirGen {
                 self.exprs.insert(id, MirExpr::Lit(*n));
                 self.type_map.insert(id, Type::I32);
             }
+            AstNode::Bool(b) => {
+                // Convert bool to i64: true = 1, false = 0
+                let value = if *b { 1 } else { 0 };
+                self.exprs.insert(id, MirExpr::Lit(value));
+                self.type_map.insert(id, Type::Bool);
+            }
             AstNode::StringLit(s) => {
                 self.exprs.insert(id, MirExpr::StringLit(s.clone()));
                 self.type_map.insert(id, Type::Str);
@@ -477,30 +549,13 @@ impl MirGen {
                     });
                     self.type_map.insert(dest, Type::Range);
                 } else if op == "+" {
-                    // Check if either operand is a string
-                    let left_ty = self.type_map.get(&left_id);
-                    let right_ty = self.type_map.get(&right_id);
-                    
-                    if left_ty == Some(&Type::Str) || right_ty == Some(&Type::Str) {
-                        // String concatenation
-                        self.stmts.push(MirStmt::Call {
-                            func: "host_str_concat".to_string(),
-                            args: vec![left_id, right_id],
-                            dest,
-                            type_args: vec![],
-                        });
-                        self.exprs.insert(dest, MirExpr::Var(dest));
-                        self.type_map.insert(dest, Type::I64); // String handle is i64
-                    } else {
-                        // Numeric addition
-                        self.stmts.push(MirStmt::SemiringFold {
-                            op: SemiringOp::Add,
-                            values: vec![left_id, right_id],
-                            result: dest,
-                        });
-                        self.exprs.insert(dest, MirExpr::Var(dest));
-                        self.type_map.insert(dest, Type::I64);
-                    }
+                    self.stmts.push(MirStmt::SemiringFold {
+                        op: SemiringOp::Add,
+                        values: vec![left_id, right_id],
+                        result: dest,
+                    });
+                    self.exprs.insert(dest, MirExpr::Var(dest));
+                    self.type_map.insert(dest, Type::I64);
                 } else if op == "*" {
                     self.stmts.push(MirStmt::SemiringFold {
                         op: SemiringOp::Mul,
@@ -510,15 +565,39 @@ impl MirGen {
                     self.exprs.insert(dest, MirExpr::Var(dest));
                     self.type_map.insert(dest, Type::I64);
                 } else {
-                    self.stmts.push(MirStmt::Call {
-                        func: op.clone(),
-                        args: vec![left_id, right_id],
-                        dest,
-                        type_args: vec![],
-                    });
-                    self.exprs.insert(dest, MirExpr::Var(dest));
+                    // For comparison operators used in loop conditions, create BinaryOp expression
+                    // instead of caching the result in a variable
+                    if op == "<" || op == ">" || op == "<=" || op == ">=" || op == "==" || op == "!=" {
+                        self.exprs.insert(dest, MirExpr::BinaryOp {
+                            op: op.clone(),
+                            left: left_id,
+                            right: right_id,
+                        });
+                    } else {
+                        self.stmts.push(MirStmt::Call {
+                            func: op.clone(),
+                            args: vec![left_id, right_id],
+                            dest,
+                            type_args: vec![],
+                        });
+                        self.exprs.insert(dest, MirExpr::Var(dest));
+                    }
                     self.type_map.insert(dest, Type::I64);
                 }
+                return dest;
+            }
+            
+            AstNode::Range { start, end, inclusive: _ } => {
+                let start_id = self.lower_expr(start);
+                let end_id = self.lower_expr(end);
+                let dest = self.next_id();
+                
+                // Range expression for for loops
+                self.exprs.insert(dest, MirExpr::Range {
+                    start: start_id,
+                    end: end_id,
+                });
+                self.type_map.insert(dest, Type::Range);
                 return dest;
             }
             AstNode::Call {
@@ -580,53 +659,33 @@ impl MirGen {
                     arg_ids.push(self.lower_expr(a));
                 }
                 
-                // Check if this is a method call on a dynamic array or string
-                let (func, is_array_len, is_array_push, is_string_len) = if let Some(ref rty) = receiver_ty {
-                    match rty {
-                        // Check if receiver is a dynamic array type
-                        Type::DynamicArray(_) => {
-                            // Map array methods to runtime functions
-                            match method.as_str() {
-                                "push" => ("array_push".to_string(), false, true, false),
-                                "len" => ("array_len".to_string(), true, false, false),
-                                _ => {
-                                    // For other methods, use standard mangling
-                                    let key = MonoKey {
-                                        func_name: method.clone(),
-                                        type_args: vec![rty.display_name()],
-                                    };
-                                    (key.mangle(), false, false, false)
-                                }
+                // Check if this is a method call on a dynamic array
+                let (func, is_array_len, is_array_push) = if let Some(ref rty) = receiver_ty {
+                    // Check if receiver is a dynamic array type
+                    if let Type::DynamicArray(_) = rty {
+                        // Map array methods to runtime functions
+                        match method.as_str() {
+                            "push" => ("array_push".to_string(), false, true),
+                            "len" => ("array_len".to_string(), true, false),
+                            _ => {
+                                // For other methods, use standard mangling
+                                let key = MonoKey {
+                                    func_name: method.clone(),
+                                    type_args: vec![rty.display_name()],
+                                };
+                                (key.mangle(), false, false)
                             }
                         }
-                        // Check if receiver is a string type
-                        Type::Str => {
-                            // Map string methods to runtime functions
-                            match method.as_str() {
-                                "len" => ("host_str_len".to_string(), false, false, true),
-                                "contains" => ("host_str_contains".to_string(), false, false, false),
-                                "concat" => ("host_str_concat".to_string(), false, false, false),
-                                _ => {
-                                    // For other methods, use standard mangling
-                                    let key = MonoKey {
-                                        func_name: method.clone(),
-                                        type_args: vec![rty.display_name()],
-                                    };
-                                    (key.mangle(), false, false, false)
-                                }
-                            }
-                        }
-                        _ => {
-                            // Not a dynamic array or string, use standard mangling
-                            let key = MonoKey {
-                                func_name: method.clone(),
-                                type_args: vec![rty.display_name()],
-                            };
-                            (key.mangle(), false, false, false)
-                        }
+                    } else {
+                        // Not a dynamic array, use standard mangling
+                        let key = MonoKey {
+                            func_name: method.clone(),
+                            type_args: vec![rty.display_name()],
+                        };
+                        (key.mangle(), false, false)
                     }
                 } else {
-                    (method.clone(), false, false, false)
+                    (method.clone(), false, false)
                 };
 
                 // Convert type arguments from strings to Type objects
@@ -640,8 +699,8 @@ impl MirGen {
                     type_args: mir_type_args,
                 });
                 self.exprs.insert(id, MirExpr::Var(id));
-                // For array and string methods, set appropriate return type
-                if is_array_len || is_string_len {
+                // For array methods, set appropriate return type
+                if is_array_len {
                     self.type_map.insert(id, Type::I64);
                 } else if is_array_push {
                     // push returns void
@@ -842,6 +901,24 @@ impl MirGen {
                                 self.type_map.insert(cond_id, Type::Bool);
                             }
                         }
+                        AstNode::TypeAnnotatedPattern { pattern: inner_pattern, ty: _ } => {
+                            // For type-annotated patterns, extract the inner pattern
+                            // The type checking should have been done by the type checker
+                            match &**inner_pattern {
+                                AstNode::Var(var_name) => {
+                                    // Regular variable binding pattern - always matches
+                                    // Add binding to name_to_id so the arm body can reference it
+                                    self.name_to_id.insert(var_name.clone(), scrutinee_id);
+                                    self.exprs.insert(cond_id, MirExpr::Lit(1));
+                                    self.type_map.insert(cond_id, Type::Bool);
+                                }
+                                _ => {
+                                    // For other inner patterns, treat as always false for now
+                                    self.exprs.insert(cond_id, MirExpr::Lit(0));
+                                    self.type_map.insert(cond_id, Type::Bool);
+                                }
+                            }
+                        }
                         _ => {
                             // For now, treat other patterns as always false
                             self.exprs.insert(cond_id, MirExpr::Lit(0));
@@ -991,26 +1068,153 @@ impl MirGen {
                 });
             }
             AstNode::ArrayLit(elements) => {
-                // For now, treat regular array literals as creating a static array
-                // We'll need to implement proper array handling later
+                // Create an array using ArrayHeader API
                 println!("[MIR GEN DEBUG] ArrayLit with {} elements", elements.len());
-                // Create a placeholder value
-                self.exprs.insert(id, MirExpr::Lit(0));
-                self.type_map.insert(id, Type::I64);
+                
+                let size = elements.len();
+                
+                // HYBRID MEMORY SYSTEM: Check if this should be a stack array
+                // For small, fixed-size arrays, use stack allocation
+                if size <= 1024 { // Reasonable stack size limit
+                    println!("[MIR GEN DEBUG] Using StackArray for array literal with {} elements", size);
+                    
+                    // Lower each element expression
+                    let mut element_ids = Vec::new();
+                    for element in elements {
+                        let elem_id = self.lower_expr(element);
+                        element_ids.push(elem_id);
+                    }
+                    
+                    // Clone element_ids before moving it
+                    let element_ids_clone = element_ids.clone();
+                    
+                    // Create StackArray expression
+                    self.exprs.insert(id, MirExpr::StackArray {
+                        elements: element_ids,
+                        size,
+                    });
+                    
+                    // Determine element type from elements
+                    let elem_type = self.get_common_element_type(&element_ids_clone);
+                    
+                    // Set the type to Array(elem_type, size) for subscript access
+                    self.type_map.insert(id, Type::Array(Box::new(elem_type), ArraySize::Literal(size)));
+                } else {
+                    // Large array, use heap allocation
+                    println!("[MIR GEN DEBUG] Using heap array for large array with {} elements", size);
+                    
+                    // Call array_new with capacity = size
+                    let array_data_ptr = self.next_id();
+                    let capacity_id = self.next_id();
+                    self.exprs.insert(capacity_id, MirExpr::Lit(size as i64));
+                    self.stmts.push(MirStmt::Call {
+                        func: "array_new".to_string(),
+                        args: vec![capacity_id],
+                        dest: array_data_ptr,
+                        type_args: vec![],
+                    });
+                    
+                    // For heap arrays, we need to set the length
+                    let len_id = self.next_id();
+                    self.exprs.insert(len_id, MirExpr::Lit(size as i64));
+                    self.stmts.push(MirStmt::VoidCall {
+                        func: "array_set_len".to_string(),
+                        args: vec![array_data_ptr, len_id],
+                    });
+                    
+                    // Set each element at its index and collect element IDs
+                    let mut heap_element_ids = Vec::new();
+                    for (i, element) in elements.iter().enumerate() {
+                        let elem_id = self.lower_expr(element);
+                        heap_element_ids.push(elem_id);
+                        let index_id = self.next_id();
+                        self.exprs.insert(index_id, MirExpr::Lit(i as i64));
+                        self.stmts.push(MirStmt::VoidCall {
+                            func: "array_set".to_string(),
+                            args: vec![array_data_ptr, index_id, elem_id],
+                        });
+                    }
+                    
+                    // Clone heap_element_ids before using it
+                    let heap_element_ids_clone = heap_element_ids.clone();
+                    
+                    // Return the data pointer (after header)
+                    self.exprs.insert(id, MirExpr::Var(array_data_ptr));
+                    // Determine element type from elements
+                    let elem_type = self.get_common_element_type(&heap_element_ids_clone);
+                    // Set the type to Array(elem_type, size) for subscript access
+                    self.type_map.insert(id, Type::Array(Box::new(elem_type), ArraySize::Literal(size)));
+                }
             }
             AstNode::ArrayRepeat { value, size } => {
                 println!("[MIR GEN DEBUG] ArrayRepeat: [value; size]");
                 let value_id = self.lower_expr(value);
-                let size_id = self.lower_expr(size);
-                // For now, create a placeholder
-                self.exprs.insert(id, MirExpr::Lit(0));
-                self.type_map.insert(id, Type::I64);
+                
+                // Get the type of the value expression
+                let elem_type = self.type_map.get(&value_id).cloned().unwrap_or(Type::I64);
+                
+                // Check if size is a literal by examining the AST node directly
+                // We need to pattern match on the boxed value
+                match size.as_ref() {
+                    AstNode::Lit(size_lit) => {
+                        let size_val = *size_lit as usize;
+                        println!("[MIR GEN DEBUG] ArrayRepeat with constant size: {}, elem_type: {:?}", size_val, elem_type);
+                        
+                        // HYBRID MEMORY SYSTEM: Use StackArray for small fixed-size arrays
+                        if size_val <= 1024 { // Reasonable stack size limit
+                            println!("[MIR GEN DEBUG] Using StackArray for array repeat with {} elements", size_val);
+                            
+                            // Create StackArray expression with repeated value
+                            self.exprs.insert(id, MirExpr::StackArray {
+                                elements: vec![value_id; size_val],
+                                size: size_val,
+                            });
+                            
+                            // Set the type to Array(elem_type, size) for subscript access
+                            self.type_map.insert(id, Type::Array(Box::new(elem_type), ArraySize::Literal(size_val)));
+                        } else {
+                            // Large array, use heap allocation
+                            println!("[MIR GEN DEBUG] Using heap array for large array repeat with {} elements", size_val);
+                            
+                            // Allocate array using array_new with capacity = size
+                            let array_ptr = self.next_id();
+                            let capacity_id = self.next_id();
+                            self.exprs.insert(capacity_id, MirExpr::Lit(size_val as i64));
+                            self.stmts.push(MirStmt::Call {
+                                func: "array_new".to_string(),
+                                args: vec![capacity_id],
+                                dest: array_ptr,
+                                type_args: vec![],
+                            });
+                            
+                            // Push the value size_val times
+                            for _ in 0..size_val {
+                                self.stmts.push(MirStmt::VoidCall {
+                                    func: "array_push".to_string(),
+                                    args: vec![array_ptr, value_id],
+                                });
+                            }
+                            
+                            // Return the array pointer
+                            self.exprs.insert(id, MirExpr::Var(array_ptr));
+                            // Set the type to Array(elem_type, size) for subscript access
+                            self.type_map.insert(id, Type::Array(Box::new(elem_type), ArraySize::Literal(size_val)));
+                        }
+                    }
+                    _ => {
+                        // Size is not a literal constant
+                        println!("[MIR GEN DEBUG] ArrayRepeat with non-constant size, using placeholder");
+                        // For now, create a placeholder
+                        self.exprs.insert(id, MirExpr::Lit(0));
+                        self.type_map.insert(id, Type::I64);
+                    }
+                }
             }
             AstNode::Subscript { base, index } => {
                 let bid = self.lower_expr(base);
                 let iid = self.lower_expr(index);
                 
-                // Check if base is a dynamic array
+                // Check if base is an array type (dynamic or static)
                 let base_ty = self.type_map.get(&bid).cloned().unwrap_or(Type::I64);
                 if let Type::DynamicArray(_) = base_ty {
                     // Generate array_get call for dynamic arrays
@@ -1020,6 +1224,32 @@ impl MirGen {
                         dest: id,
                         type_args: vec![],
                     });
+                } else if let Type::Array(_, size) = base_ty {
+                    // Check if this is a stack array (fixed size) or heap array
+                    println!("[MIR GEN DEBUG] Array subscript with size: {:?}", size);
+                    match size {
+                        ArraySize::Literal(n) if n <= 1024 => {
+                            // Small fixed-size array - treat as stack array
+                            // Use stack_array_get for direct memory access
+                            println!("[MIR GEN DEBUG] Using stack_array_get for stack array subscript (size={})", n);
+                            self.stmts.push(MirStmt::Call {
+                                func: "stack_array_get".to_string(),
+                                args: vec![bid, iid],
+                                dest: id,
+                                type_args: vec![],
+                            });
+                        }
+                        _ => {
+                            // Dynamic or large array - use heap array access
+                            println!("[MIR GEN DEBUG] Using array_get for heap/dynamic array subscript");
+                            self.stmts.push(MirStmt::Call {
+                                func: "array_get".to_string(),
+                                args: vec![bid, iid],
+                                dest: id,
+                                type_args: vec![],
+                            });
+                        }
+                    }
                 } else {
                     // Use DictGet for other types (maps/dicts)
                     self.stmts.push(MirStmt::DictGet {
@@ -1032,11 +1262,13 @@ impl MirGen {
                 self.type_map.insert(id, Type::I64);
             }
             AstNode::DynamicArrayLit { elem_type, elements } => {
-                // Call array_new to create a new dynamic array
+                // Call array_new with capacity = number of elements
                 let array_ptr = self.next_id();
+                let capacity_id = self.next_id();
+                self.exprs.insert(capacity_id, MirExpr::Lit(elements.len() as i64));
                 self.stmts.push(MirStmt::Call {
                     func: "array_new".to_string(),
-                    args: vec![],
+                    args: vec![capacity_id],
                     dest: array_ptr,
                     type_args: vec![],
                 });
@@ -1073,6 +1305,16 @@ impl MirGen {
         let id = self.next_id;
         self.next_id += 1;
         id
+    }
+
+    /// Get the common type of element expressions.
+    /// If elements is empty, returns Type::I64 as default.
+    fn get_common_element_type(&self, element_ids: &[u32]) -> Type {
+        if let Some(first_elem_id) = element_ids.first() {
+            self.type_map.get(first_elem_id).cloned().unwrap_or(Type::I64)
+        } else {
+            Type::I64
+        }
     }
 
     fn next_id_with_lit(&mut self, n: i64) -> u32 {

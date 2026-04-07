@@ -1,0 +1,29 @@
+// Test modulo operation fix
+
+fn test_mod() -> u64 {
+    let a: u64 = 10
+    let b: u64 = 3
+    
+    // Direct modulo
+    let result = a % b
+    
+    return result
+}
+
+fn test_mod_in_condition() -> u64 {
+    let n: u64 = 10
+    
+    // Modulo in if condition
+    if n % 2 == 0 {
+        return 1
+    } else {
+        return 0
+    }
+}
+
+fn main() -> u64 {
+    let test1 = test_mod()
+    let test2 = test_mod_in_condition()
+    
+    return test1 + test2 * 10
+}

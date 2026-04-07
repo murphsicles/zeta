@@ -1,0 +1,56 @@
+// Test modulo operator type errors
+// This tests the issue: modulo operator type errors
+
+fn test_modulo_operations() -> u64 {
+    let mut tests_passed: u64 = 0
+    
+    // Test 1: Basic modulo with u64
+    let a: u64 = 10
+    let b: u64 = 3
+    let mod1: u64 = a % b
+    if mod1 == 1 {
+        tests_passed += 1
+    }
+    
+    // Test 2: Modulo in while loop condition
+    let mut count: u64 = 0
+    let mut i: u64 = 0
+    while i < 20 {
+        if i % 2 == 0 {
+            count += 1
+        }
+        i += 1
+    }
+    if count == 10 {  // 10 even numbers from 0 to 19
+        tests_passed += 1
+    }
+    
+    // Test 3: Modulo with multiplication
+    let mut j: u64 = 2
+    let mut prime_test: u64 = 0
+    let n: u64 = 17
+    while j * j <= n {
+        if n % j == 0 {
+            prime_test = 1
+        }
+        j += 1
+    }
+    if prime_test == 0 {  // 17 is prime
+        tests_passed += 1
+    }
+    
+    // Test 4: Complex modulo expression
+    let x: u64 = 100
+    let y: u64 = 7
+    let z: u64 = 3
+    let result: u64 = (x + y) % z
+    if result == 2 {  // (100 + 7) % 3 = 107 % 3 = 2
+        tests_passed += 1
+    }
+    
+    return tests_passed
+}
+
+fn main() -> u64 {
+    return test_modulo_operations()
+}

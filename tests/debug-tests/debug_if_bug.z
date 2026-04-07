@@ -1,0 +1,14 @@
+fn test() -> u64 {
+    let mut count: u64 = 0
+    
+    // This if statement causes error
+    if 1 == 1 {
+        count += 1
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    return test()
+}

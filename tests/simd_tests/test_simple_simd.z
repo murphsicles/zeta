@@ -1,0 +1,8 @@
+// Simple SIMD test
+fn main() -> u64 {
+    // Test SIMD vector type
+    let v: Vector<u64, 4> = Vector::splat(5);
+    
+    // Return first element
+    return v.extract(0)
+}

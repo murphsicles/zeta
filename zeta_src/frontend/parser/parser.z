@@ -25,6 +25,7 @@ enum Token {
     Lt, Gt,
     Dot, Question,
     Semi,
+    AtSymbol,
     Eof,
 }
 
@@ -113,6 +114,17 @@ impl Lexer {
             "spawn" => Token::KeywordSpawn,
             "for" => Token::KeywordFor,
             "let" => Token::KeywordLet,
+            // ML keywords
+            "Tensor" => Token::KeywordTensor,
+            "diff" => Token::KeywordDiff,
+            "layer" => Token::KeywordLayer,
+            "model" => Token::KeywordModel,
+            "train" => Token::KeywordTrain,
+            "gradient" => Token::KeywordGradient,
+            "backward" => Token::KeywordBackward,
+            "step" => Token::KeywordStep,
+            "param" => Token::KeywordParam,
+            "requires_grad" => Token::KeywordRequiresGrad,
             _ => Token::Ident(word),
         };
         self.tokens.push(tok);
@@ -258,6 +270,7 @@ impl Lexer {
             '.' => Token::Dot,
             '?' => Token::Question,
             ';' => Token::Semi,
+            '@' => Token::AtSymbol,
             _ => Token::Eof,
         };
         self.advance();

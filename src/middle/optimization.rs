@@ -111,6 +111,7 @@ pub fn dead_code_elimination(mir: &mut Mir) {
                 iterator,
                 pattern: _,
                 body,
+                var_id: _,
             } => {
                 mark_expr_used(*iterator, &mut used, &mir.exprs);
                 // Recursively process nested statements in the loop body
@@ -171,6 +172,11 @@ fn mark_expr_used(id: u32, used: &mut HashMap<u32, bool>, exprs: &HashMap<u32, M
             }
             MirExpr::TimingOwned(inner_id) => {
                 used.insert(*inner_id, true);
+            }
+            MirExpr::StackArray { elements, .. } => {
+                for element_id in elements {
+                    used.insert(*element_id, true);
+                }
             }
             _ => {}
         }
@@ -262,6 +268,16 @@ pub fn common_subexpression_elimination(mir: &mut Mir) {
             MirExpr::Range { start, end } => {
                 format!("Range({}-{})", start, end)
             }
+            MirExpr::BinaryOp { op, left, right } => {
+                format!("BinaryOp({} {} {})", left, op, right)
+            }
+            MirExpr::StackArray { elements, size } => {
+                let elements_str = elements.iter()
+                    .map(|e| e.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",");
+                format!("StackArray(size={}, elements=[{}])", size, elements_str)
+            }
         };
         
         // Check if we've seen this expression before
@@ -331,7 +347,7 @@ pub fn common_subexpression_elimination(mir: &mut Mir) {
                             *key_id = existing_id;
                         }
                     }
-                    MirStmt::For { iterator, pattern: _, body: _ } if *iterator == *id => {
+                    MirStmt::For { iterator, pattern: _, body: _, var_id: _ } if *iterator == *id => {
                         *iterator = existing_id;
                     }
                     _ => {}

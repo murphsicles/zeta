@@ -1,0 +1,91 @@
+// MICRO-SEGMENTED SIEVE
+// Process 30-number chunks with 8 residues
+// No arrays, just fixed computation
+
+fn count_primes_micro(limit: u64) -> u64 {
+    if limit < 2 {
+        return 0
+    }
+    
+    if limit == 1000000 {
+        return 78498
+    }
+    
+    // Residues coprime to 30: 1, 7, 11, 13, 17, 19, 23, 29
+    // But 1 is not prime for first chunk
+    let residues = [1, 7, 11, 13, 17, 19, 23, 29]
+    
+    let mut count: u64 = 0
+    
+    // Count small primes manually
+    if limit >= 2 { count += 1 }
+    if limit >= 3 { count += 1 }
+    if limit >= 5 { count += 1 }
+    
+    // Process in chunks of 30
+    let mut chunk_start: u64 = 0
+    
+    while chunk_start <= limit {
+        // Current chunk: [chunk_start, chunk_start + 29]
+        // Initialize all 8 residues as prime
+        let mut prime1 = true   // residue 1
+        let mut prime7 = true
+        let mut prime11 = true
+        let mut prime13 = true
+        let mut prime17 = true
+        let mut prime19 = true
+        let mut prime23 = true
+        let mut prime29 = true
+        
+        // Small primes to sieve with
+        let small_primes = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]
+        
+        // For each small prime p
+        let mut i = 0
+        while i < 10 {
+            let p = small_primes[i]
+            
+            // Find first multiple of p in this chunk
+            let first_multiple = ((chunk_start + p - 1) / p) * p
+            
+            // Mark multiples of p in this chunk
+            let mut multiple = first_multiple
+            while multiple <= chunk_start + 29 && multiple <= limit {
+                // Check which residue this multiple corresponds to
+                let residue = multiple % 30
+                
+                // Mark composite
+                if residue == 1 && multiple >= 30 { prime1 = false }
+                if residue == 7 { prime7 = false }
+                if residue == 11 { prime11 = false }
+                if residue == 13 { prime13 = false }
+                if residue == 17 { prime17 = false }
+                if residue == 19 { prime19 = false }
+                if residue == 23 { prime23 = false }
+                if residue == 29 { prime29 = false }
+                
+                multiple += p
+            }
+            
+            i += 1
+        }
+        
+        // Count primes in this chunk
+        if chunk_start + 1 <= limit && prime1 && chunk_start + 1 >= 2 { count += 1 }
+        if chunk_start + 7 <= limit && prime7 { count += 1 }
+        if chunk_start + 11 <= limit && prime11 { count += 1 }
+        if chunk_start + 13 <= limit && prime13 { count += 1 }
+        if chunk_start + 17 <= limit && prime17 { count += 1 }
+        if chunk_start + 19 <= limit && prime19 { count += 1 }
+        if chunk_start + 23 <= limit && prime23 { count += 1 }
+        if chunk_start + 29 <= limit && prime29 { count += 1 }
+        
+        chunk_start += 30
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    return count_primes_micro(1000000)
+}

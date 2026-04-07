@@ -1,0 +1,30 @@
+// Minimal Murphy's Sieve test
+fn main() -> u64 {
+    let limit = 100;
+    
+    // Very simple prime counting - not actual sieve
+    let mut count: u64 = 0;
+    let mut n = 2;
+    
+    while n <= limit {
+        let mut is_prime = 1;
+        let mut i = 2;
+        
+        while i * i <= n {
+            if n % i == 0 {
+                is_prime = 0;
+                break;
+            }
+            i += 1;
+        }
+        
+        if is_prime == 1 {
+            count += 1;
+        }
+        
+        n += 1;
+    }
+    
+    // π(100) = 25
+    return count;
+}

@@ -4,7 +4,7 @@
 # Package name.
 name = "zetac"
 # Current version.
-version = "0.3.54"  # Simplified self-compilation milestone achieved
+version = "0.3.55"  # Enhanced self-compilation with string support and SIMD acceleration
 # Rust edition.
 edition = "2024"
 # Minimum Rust version.
@@ -48,12 +48,16 @@ reqwest = { version = "0.13.1", features = ["blocking", "json", "rustls"], defau
 rustls = "0.23.36"
 # Serialization framework.
 serde = { version = "1.0.228", features = ["derive"] }
+# Formal verification system
+zeta-verification = { path = "verification" }
 # JSON handling.
 serde_json = "1.0.149"
 # TOML parsing and serialization.
 toml = "0.8.0"
 # Random number generation.
 rand = "0.8.5"
+# Binary serialization
+bincode = "1.3.3"
 # Random distributions.
 rand_distr = "0.4.3"
 # CSV parsing.
@@ -92,6 +96,7 @@ base64 = "0.22.1"  # Base64 encoding for HTTP auth
 [features]
 default = []
 integration = []  # Enable integration bridge module
+identity = []  # Enable identity-aware string operations
 blockchain = ["solana-sdk", "solana-client", "solana-program"]  # Enable blockchain features
 solana = ["solana-sdk", "solana-client", "solana-program"]  # Enable Solana specifically
 
@@ -187,6 +192,11 @@ path = "tests/concurrency-advanced/test_runner.rs"
 [[test]]
 name = "quantum_computing_integration"
 path = "tests/quantum-computing/test_runner.rs"
+
+# Quantum Module Basic Tests
+[[test]]
+name = "quantum_module_basic"
+path = "tests/quantum_module_test.rs"
 
 # Distributed Systems Tests for v0.3.47
 [[test]]

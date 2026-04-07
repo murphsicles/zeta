@@ -1,0 +1,30 @@
+fn main() -> i64 {
+    // Test map operations directly
+    // This simulates what the compiler generates for arrays
+    
+    // Create a map (simulating array)
+    // Actually, we can't create maps directly in Zeta
+    
+    // Instead, let's test a simple loop that would use map operations
+    let mut i = 0
+    let mut sum = 0
+    
+    while i < 5 {
+        // Simulate array[i] = i
+        // map_insert(map, i, i)
+        
+        // Simulate reading array[i]
+        // let val = map_get(map, i)
+        // sum = sum + val
+        
+        // For now, just add i
+        sum = sum + i
+        i = i + 1
+    }
+    
+    // sum should be 0+1+2+3+4 = 10
+    print_i64(sum)
+    println()
+    
+    return sum
+}

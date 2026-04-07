@@ -1,0 +1,31 @@
+fn test_array_index_while() -> u64 {
+    let arr: [dynamic]u8 = [dynamic]u8{}
+    
+    // Initialize array
+    let mut i: u64 = 0
+    while i < 5 {
+        arr.push(0)
+        i += 1
+    }
+    
+    // Set values in while loop
+    i = 0
+    while i < 5 {
+        arr[i] = i + 1  // Set to 1, 2, 3, 4, 5
+        i += 1
+    }
+    
+    // Sum values
+    let mut sum: u64 = 0
+    i = 0
+    while i < 5 {
+        sum += arr[i]
+        i += 1
+    }
+    
+    return sum  // Should return 15 (1+2+3+4+5)
+}
+
+fn main() -> u64 {
+    return test_array_index_while()
+}

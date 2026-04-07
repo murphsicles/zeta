@@ -1,0 +1,16 @@
+// Simple test to isolate if statement issue
+
+fn test_if() -> u64 {
+    let x: u64 = 5
+    let mut result: u64 = 0
+    
+    if x == 5 {
+        result = 1
+    }
+    
+    return result
+}
+
+fn main() -> u64 {
+    return test_if()
+}

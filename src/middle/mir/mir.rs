@@ -77,6 +77,7 @@ pub enum MirStmt {
     For {
         iterator: u32,   // Iterator expression
         pattern: String, // Variable name to bind to
+        var_id: u32,     // Variable ID for the loop variable
         body: Vec<MirStmt>,
     },
     // While loop
@@ -112,6 +113,17 @@ pub enum MirExpr {
     Range {
         start: u32,
         end: u32,
+    },
+    // Binary operation
+    BinaryOp {
+        op: String,
+        left: u32,
+        right: u32,
+    },
+    // Stack array literal (for hybrid memory system)
+    StackArray {
+        elements: Vec<u32>,
+        size: usize,
     },
 }
 

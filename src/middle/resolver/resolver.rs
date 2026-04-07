@@ -10,6 +10,8 @@ use crate::frontend::macro_expand::MacroExpander;
 use crate::middle::mir::mir::Mir;
 use crate::middle::resolver::module_resolver::ModuleResolver;
 use crate::middle::resolver::typecheck_new::NewTypeCheck;
+use crate::middle::types::ArraySize;
+use crate::middle::types::identity::{CapabilityLevel, IdentityType};
 use crate::middle::specialization::{
     CACHE, MonoKey, MonoValue, is_cache_safe, record_specialization,
 };
@@ -42,6 +44,10 @@ pub struct Resolver {
     module_resolver: ModuleResolver,
     /// Macro expander for macro processing
     macro_expander: MacroExpander,
+    /// Identity inference context for capability-based type inference
+    identity_inference: crate::middle::types::identity::inference::IdentityInferenceContext,
+    /// Capability inferencer for identity-aware type inference
+    capability_inferencer: crate::middle::types::identity::inference::CapabilityInferencer,
 }
 
 // Learning: Complex type factored into type definition per clippy suggestion
@@ -60,6 +66,8 @@ impl Resolver {
             registered_funcs: HashMap::new(),
             module_resolver: ModuleResolver::new("."),
             macro_expander: MacroExpander::new(),
+            identity_inference: crate::middle::types::identity::inference::IdentityInferenceContext::new(),
+            capability_inferencer: crate::middle::types::identity::inference::CapabilityInferencer::new(),
         };
 
         // Register built-in runtime functions
@@ -415,6 +423,11 @@ impl Resolver {
         result
     }
 
+    /// Get all function signatures (for type inference)
+    pub fn get_all_func_signatures(&self) -> &HashMap<String, (Vec<(String, Type)>, Type, bool)> {
+        &self.funcs
+    }
+
     pub fn is_abi_stable(&self, key: &MonoKey) -> bool {
         key.type_args.iter().all(|t| is_cache_safe(t))
     }
@@ -654,29 +667,30 @@ impl Resolver {
             ),
         );
 
-        // host_str_len(value: str) -> i64 (string length)
+        // to_string_i64(value: i64) -> str
         self.funcs.insert(
-            "host_str_len".to_string(),
+            "to_string_i64".to_string(),
             (
-                vec![("value".to_string(), Type::Str)],
-                Type::I64,
+                vec![("value".to_string(), Type::I64)],
+                Type::Str,
                 false, // not async
             ),
         );
 
-        // host_str_contains(value: str, substring: str) -> bool
+        // to_string_bool(value: bool) -> str
         self.funcs.insert(
-            "host_str_contains".to_string(),
+            "to_string_bool".to_string(),
             (
-                vec![("value".to_string(), Type::Str), ("substring".to_string(), Type::Str)],
-                Type::Bool,
+                vec![("value".to_string(), Type::Bool)],
+                Type::Str,
                 false, // not async
             ),
         );
 
-        // host_str_concat(a: str, b: str) -> str
+        // String runtime functions
+        // str_concat(a: str, b: str) -> str
         self.funcs.insert(
-            "host_str_concat".to_string(),
+            "str_concat".to_string(),
             (
                 vec![("a".to_string(), Type::Str), ("b".to_string(), Type::Str)],
                 Type::Str,
@@ -684,12 +698,141 @@ impl Resolver {
             ),
         );
 
+        // str_len(s: str) -> i64
+        self.funcs.insert(
+            "str_len".to_string(),
+            (
+                vec![("s".to_string(), Type::Str)],
+                Type::I64,
+                false, // not async
+            ),
+        );
+
+        // Identity-aware string functions
+        // read_only_string(value: str) -> identity(value)[read]
+        self.funcs.insert(
+            "read_only_string".to_string(),
+            (
+                vec![("value".to_string(), Type::Str)],
+                Type::Identity(Box::new(IdentityType {
+                    value: None,
+                    capabilities: vec![CapabilityLevel::Read],
+                    delegatable: false,
+                    constraints: vec![],
+                    type_params: vec![],
+                })),
+                false, // not async
+            ),
+        );
+
+        // read_write_string(value: str) -> identity(value)[read, write]
+        self.funcs.insert(
+            "read_write_string".to_string(),
+            (
+                vec![("value".to_string(), Type::Str)],
+                Type::Identity(Box::new(IdentityType {
+                    value: None,
+                    capabilities: vec![CapabilityLevel::Read, CapabilityLevel::Write],
+                    delegatable: false,
+                    constraints: vec![],
+                    type_params: vec![],
+                })),
+                false, // not async
+            ),
+        );
+
+        // owned_string(value: str) -> identity(value)[read, write, owned]
+        self.funcs.insert(
+            "owned_string".to_string(),
+            (
+                vec![("value".to_string(), Type::Str)],
+                Type::Identity(Box::new(IdentityType {
+                    value: None,
+                    capabilities: vec![CapabilityLevel::Read, CapabilityLevel::Write, CapabilityLevel::Owned],
+                    delegatable: false,
+                    constraints: vec![],
+                    type_params: vec![],
+                })),
+                false, // not async
+            ),
+        );
+
+        // str_to_lowercase(s: str) -> str
+        self.funcs.insert(
+            "str_to_lowercase".to_string(),
+            (
+                vec![("s".to_string(), Type::Str)],
+                Type::Str,
+                false, // not async
+            ),
+        );
+
+        // str_to_uppercase(s: str) -> str
+        self.funcs.insert(
+            "str_to_uppercase".to_string(),
+            (
+                vec![("s".to_string(), Type::Str)],
+                Type::Str,
+                false, // not async
+            ),
+        );
+
+        // str_trim(s: str) -> str
+        self.funcs.insert(
+            "str_trim".to_string(),
+            (
+                vec![("s".to_string(), Type::Str)],
+                Type::Str,
+                false, // not async
+            ),
+        );
+
+        // str_starts_with(haystack: str, needle: str) -> bool
+        self.funcs.insert(
+            "str_starts_with".to_string(),
+            (
+                vec![("haystack".to_string(), Type::Str), ("needle".to_string(), Type::Str)],
+                Type::Bool,
+                false, // not async
+            ),
+        );
+
+        // str_ends_with(haystack: str, needle: str) -> bool
+        self.funcs.insert(
+            "str_ends_with".to_string(),
+            (
+                vec![("haystack".to_string(), Type::Str), ("needle".to_string(), Type::Str)],
+                Type::Bool,
+                false, // not async
+            ),
+        );
+
+        // str_contains(haystack: str, needle: str) -> bool
+        self.funcs.insert(
+            "str_contains".to_string(),
+            (
+                vec![("haystack".to_string(), Type::Str), ("needle".to_string(), Type::Str)],
+                Type::Bool,
+                false, // not async
+            ),
+        );
+
+        // str_replace(s: str, old: str, new: str) -> str
+        self.funcs.insert(
+            "str_replace".to_string(),
+            (
+                vec![("s".to_string(), Type::Str), ("old".to_string(), Type::Str), ("new".to_string(), Type::Str)],
+                Type::Str,
+                false, // not async
+            ),
+        );
+
         // Array runtime functions
-        // array_new() -> i64 (pointer to array)
+        // array_new(capacity: usize) -> i64 (pointer to array)
         self.funcs.insert(
             "array_new".to_string(),
             (
-                vec![],
+                vec![("capacity".to_string(), Type::Usize)],
                 Type::I64,
                 false, // not async
             ),
@@ -744,19 +887,220 @@ impl Resolver {
                 false, // not async
             ),
         );
-
-        // std_println(fmt: str) -> void
+        
+        // Memory allocation functions
+        // runtime_malloc(size: usize) -> i64 (pointer to allocated memory)
         self.funcs.insert(
-            "std_println".to_string(),
+            "runtime_malloc".to_string(),
             (
-                vec![("fmt".to_string(), Type::Str)],
+                vec![("size".to_string(), Type::Usize)],
+                Type::I64,
+                false, // not async
+            ),
+        );
+        println!("[RESOLVER] Registered runtime_malloc");
+        
+        // map_get(map: i64, key: i64) -> i64
+        self.funcs.insert(
+            "map_get".to_string(),
+            (
+                vec![("map".to_string(), Type::I64), ("key".to_string(), Type::I64)],
+                Type::I64,
+                false, // not async
+            ),
+        );
+        
+        // print_i64(value: i64) -> void
+        self.funcs.insert(
+            "print_i64".to_string(),
+            (
+                vec![("value".to_string(), Type::I64)],
+                Type::Tuple(vec![]), // void
+                false, // not async
+            ),
+        );
+        
+        // println() -> void
+        self.funcs.insert(
+            "println".to_string(),
+            (
+                vec![],
                 Type::Tuple(vec![]), // void
                 false, // not async
             ),
         );
 
+        // Vector constructor for Vector<u64, 8> (most common for Murphy's Sieve)
+        // Note: This is a hack - we should handle generic vector types properly
+        self.funcs.insert(
+            "Vector::new".to_string(),
+            (
+                vec![("a0".to_string(), Type::U64), 
+                     ("a1".to_string(), Type::U64),
+                     ("a2".to_string(), Type::U64),
+                     ("a3".to_string(), Type::U64),
+                     ("a4".to_string(), Type::U64),
+                     ("a5".to_string(), Type::U64),
+                     ("a6".to_string(), Type::U64),
+                     ("a7".to_string(), Type::U64)],
+                Type::Vector(Box::new(Type::U64), ArraySize::Literal(8)),
+                false, // not async
+            ),
+        );
+        // Vector splat for Vector<u64, 8>
+        self.funcs.insert(
+            "Vector::splat".to_string(),
+            (
+                vec![("value".to_string(), Type::U64)],
+                Type::Vector(Box::new(Type::U64), ArraySize::Literal(8)),
+                false, // not async
+            ),
+        );
+        
+        // SIMD runtime functions for Vector<u64, 8>
+        self.funcs.insert(
+            "vector_make_u64x8".to_string(),
+            (
+                vec![("a0".to_string(), Type::I64),
+                     ("a1".to_string(), Type::I64),
+                     ("a2".to_string(), Type::I64),
+                     ("a3".to_string(), Type::I64),
+                     ("a4".to_string(), Type::I64),
+                     ("a5".to_string(), Type::I64),
+                     ("a6".to_string(), Type::I64),
+                     ("a7".to_string(), Type::I64)],
+                Type::I64, // Returns pointer to vector
+                false, // not async
+            ),
+        );
+        self.funcs.insert(
+            "vector_splat_u64x8".to_string(),
+            (
+                vec![("value".to_string(), Type::I64)],
+                Type::I64, // Returns pointer to vector
+                false, // not async
+            ),
+        );
+        self.funcs.insert(
+            "vector_add_u64x8".to_string(),
+            (
+                vec![("a".to_string(), Type::I64), ("b".to_string(), Type::I64)],
+                Type::I64, // Returns pointer to new vector
+                false, // not async
+            ),
+        );
+        self.funcs.insert(
+            "vector_sub_u64x8".to_string(),
+            (
+                vec![("a".to_string(), Type::I64), ("b".to_string(), Type::I64)],
+                Type::I64, // Returns pointer to new vector
+                false, // not async
+            ),
+        );
+        self.funcs.insert(
+            "vector_mul_u64x8".to_string(),
+            (
+                vec![("a".to_string(), Type::I64), ("b".to_string(), Type::I64)],
+                Type::I64, // Returns pointer to new vector
+                false, // not async
+            ),
+        );
+        self.funcs.insert(
+            "vector_get_u64x8".to_string(),
+            (
+                vec![("ptr".to_string(), Type::I64), ("index".to_string(), Type::I64)],
+                Type::I64, // Returns element value
+                false, // not async
+            ),
+        );
+        self.funcs.insert(
+            "vector_set_u64x8".to_string(),
+            (
+                vec![("ptr".to_string(), Type::I64), ("index".to_string(), Type::I64), ("value".to_string(), Type::I64)],
+                Type::Tuple(vec![]), // void
+                false, // not async
+            ),
+        );
+        self.funcs.insert(
+            "vector_free_u64x8".to_string(),
+            (
+                vec![("ptr".to_string(), Type::I64)],
+                Type::Tuple(vec![]), // void
+                false, // not async
+            ),
+        );
+        
+        // SIMD runtime functions for Vector<i32, 4>
+        self.funcs.insert(
+            "vector_make_i32x4".to_string(),
+            (
+                vec![("a0".to_string(), Type::I64),
+                     ("a1".to_string(), Type::I64),
+                     ("a2".to_string(), Type::I64),
+                     ("a3".to_string(), Type::I64)],
+                Type::I64, // Returns pointer to vector
+                false, // not async
+            ),
+        );
+        self.funcs.insert(
+            "vector_splat_i32x4".to_string(),
+            (
+                vec![("value".to_string(), Type::I64)],
+                Type::I64, // Returns pointer to vector
+                false, // not async
+            ),
+        );
+        self.funcs.insert(
+            "vector_add_i32x4".to_string(),
+            (
+                vec![("a".to_string(), Type::I64), ("b".to_string(), Type::I64)],
+                Type::I64, // Returns pointer to new vector
+                false, // not async
+            ),
+        );
+        self.funcs.insert(
+            "vector_sub_i32x4".to_string(),
+            (
+                vec![("a".to_string(), Type::I64), ("b".to_string(), Type::I64)],
+                Type::I64, // Returns pointer to new vector
+                false, // not async
+            ),
+        );
+        self.funcs.insert(
+            "vector_mul_i32x4".to_string(),
+            (
+                vec![("a".to_string(), Type::I64), ("b".to_string(), Type::I64)],
+                Type::I64, // Returns pointer to new vector
+                false, // not async
+            ),
+        );
+        self.funcs.insert(
+            "vector_get_i32x4".to_string(),
+            (
+                vec![("ptr".to_string(), Type::I64), ("index".to_string(), Type::I64)],
+                Type::I64, // Returns element value
+                false, // not async
+            ),
+        );
+        self.funcs.insert(
+            "vector_set_i32x4".to_string(),
+            (
+                vec![("ptr".to_string(), Type::I64), ("index".to_string(), Type::I64), ("value".to_string(), Type::I64)],
+                Type::Tuple(vec![]), // void
+                false, // not async
+            ),
+        );
+        self.funcs.insert(
+            "vector_free_i32x4".to_string(),
+            (
+                vec![("ptr".to_string(), Type::I64)],
+                Type::Tuple(vec![]), // void
+                false, // not async
+            ),
+        );
+        
         println!(
-            "[RESOLVER] Registered built-in runtime functions: clone_i64, is_null_i64, to_string_str, host_str_len, host_str_contains, host_str_concat, array_new, array_push, array_len, array_get, array_set, array_free, std_println"
+            "[RESOLVER] Registered built-in runtime functions: clone_i64, is_null_i64, to_string_str, to_string_i64, to_string_bool, array_new, array_push, array_len, array_get, array_set, array_free, runtime_malloc, map_get, print_i64, println, Vector::new, vector_make_u64x8, vector_add_i32x4, etc."
         );
     }
 }

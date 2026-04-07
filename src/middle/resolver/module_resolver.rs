@@ -920,7 +920,10 @@ impl ModuleResolver {
                     // Create Channel struct (generic)
                     let channel_struct = AstNode::StructDef {
                         name: "Channel".to_string(),
-                        generics: vec!["T".to_string()],
+                        generics: vec![crate::frontend::ast::GenericParam::Type {
+                            name: "T".to_string(),
+                            bounds: vec![],
+                        }],
                         lifetimes: vec![],
                         fields: vec![],
                         attrs: vec![],

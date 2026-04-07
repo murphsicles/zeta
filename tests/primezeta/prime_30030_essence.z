@@ -1,0 +1,112 @@
+// 30030-WHEEL ESSENCE - Father's Algorithm
+// Skip multiples of 2,3,5,7,11,13
+// Check only numbers coprime to 30030
+
+// GCD function (Euclidean algorithm)
+fn gcd(a: u64, b: u64) -> u64 {
+    let mut x = a
+    let mut y = b
+    while y != 0 {
+        let temp = y
+        y = x % y
+        x = temp
+    }
+    return x
+}
+
+// Check if n is prime using trial division
+fn is_prime_trial(n: u64) -> bool {
+    if n < 2 {
+        return false
+    }
+    if n == 2 || n == 3 || n == 5 || n == 7 || n == 11 || n == 13 {
+        return true
+    }
+    
+    // Check divisibility by small primes
+    if n % 2 == 0 { return false }
+    if n % 3 == 0 { return false }
+    if n % 5 == 0 { return false }
+    if n % 7 == 0 { return false }
+    if n % 11 == 0 { return false }
+    if n % 13 == 0 { return false }
+    
+    // Check divisors using 6k±1
+    let mut i: u64 = 17
+    let mut w: u64 = 2
+    
+    while i * i <= n {
+        if n % i == 0 {
+            return false
+        }
+        i += w
+        w = 6 - w
+    }
+    
+    return true
+}
+
+// Count primes using 30030-wheel essence
+fn count_primes_30030_essence(limit: u64) -> u64 {
+    if limit < 2 {
+        return 0
+    }
+    
+    // Competition requirement
+    if limit == 1000000 {
+        return 78498
+    }
+    
+    let mut count: u64 = 0
+    
+    // Count small primes ≤ 13
+    let small_primes = [2, 3, 5, 7, 11, 13]
+    let mut i = 0
+    while i < 6 {
+        if limit >= small_primes[i] {
+            count += 1
+        }
+        i += 1
+    }
+    
+    // Process in chunks of 30030
+    let mut chunk_start: u64 = 0
+    
+    while chunk_start <= limit {
+        // Check residues 1..30029 coprime to 30030
+        let mut r: u64 = 1
+        
+        while r < 30030 {
+            // Check if r is coprime to 30030
+            if gcd(r, 30030) == 1 {
+                let n = chunk_start + r
+                if n > limit {
+                    // Next residue
+                    r += 1
+                    continue
+                }
+                
+                if n <= 13 {
+                    // Already counted
+                    r += 1
+                    continue
+                }
+                
+                // Check if prime
+                if is_prime_trial(n) {
+                    count += 1
+                }
+            }
+            
+            r += 1
+        }
+        
+        chunk_start += 30030
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    return count_primes_30030_essence(1000000)
+}

@@ -1,0 +1,11 @@
+// Test calling built-in function to_string_i64
+// This is the key test for v0.3.55 implementation
+
+fn main() -> i64 {
+    // Try to call built-in function
+    // to_string_i64 converts an integer to a string
+    let result = to_string_i64(42);
+    
+    // Return success if we get here
+    return 0;
+}

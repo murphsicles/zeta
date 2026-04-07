@@ -1,0 +1,52 @@
+// Murphy's Sieve - ready for when while loop bug fixed
+// This tests ALL the fixes from 5 agents
+
+fn murphy_sieve(limit: u64) -> u64 {
+    // Create bit array
+    let bits: [dynamic]u8 = [dynamic]u8{}
+    
+    // Initialize with zeros (needs while loop fix)
+    let mut i: u64 = 0
+    while i < limit {
+        bits.push(0)
+        i += 1
+    }
+    
+    // Mark 0 and 1 as composite
+    if limit > 0 {
+        bits[0] = 1
+    }
+    if limit > 1 {
+        bits[1] = 1
+    }
+    
+    // Sieve algorithm (needs while loop fix)
+    let mut p: u64 = 2
+    while p * p < limit {
+        if bits[p] == 0 {  // Needs type comparison fix
+            let mut multiple: u64 = p * p
+            while multiple < limit {  // Nested while loop
+                bits[multiple] = 1
+                multiple += p
+            }
+        }
+        p += 1
+    }
+    
+    // Count primes (needs while loop fix)
+    let mut count: u64 = 0
+    let mut n: u64 = 0
+    while n < limit {
+        if bits[n] == 0 {  // Needs type comparison fix
+            count += 1
+        }
+        n += 1
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    // Test with known values
+    return murphy_sieve(100)  // Should return 25
+}

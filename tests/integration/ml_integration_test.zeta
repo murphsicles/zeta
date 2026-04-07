@@ -1,0 +1,217 @@
+// tests/ml_integration_test.zeta
+// Test ML integration features in Zeta
+
+// Test 1: Basic tensor operations
+fn test_tensor_operations() -> i64 {
+    println("Testing tensor operations...");
+    
+    // Create tensors
+    let a: Tensor<f32, [2, 3]> = tensor![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]];
+    let b: Tensor<f32, [3, 2]> = tensor![[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]];
+    
+    // Matrix multiplication
+    let c = a @ b;
+    println("Matrix multiplication result shape should be [2, 2]");
+    
+    // Element-wise operations
+    let d = c + tensor![[1.0, 0.0], [0.0, 1.0]];
+    let e = relu(d);
+    
+    // Activation functions
+    let f = sigmoid(e);
+    let g = softmax(f);
+    
+    return 0;
+}
+
+// Test 2: Differentiable function
+diff fn quadratic(x: Tensor<f32, [?]>) -> Tensor<f32, [?]> {
+    // f(x) = x^2 + 2x + 1
+    return x * x + 2.0 * x + 1.0;
+}
+
+fn test_autograd() -> i64 {
+    println("Testing automatic differentiation...");
+    
+    let x = tensor![1.0, 2.0, 3.0];
+    let y = quadratic(x);
+    
+    // Compute gradient
+    let grad = gradient(quadratic, x);
+    println("Gradient of f(x) = x^2 + 2x + 1 at x=[1,2,3] should be [4,6,8]");
+    
+    return 0;
+}
+
+// Test 3: Layer definition
+layer TestLinear(in_features: i64, out_features: i64) {
+    weight: Tensor<f32, [in_features, out_features]>;
+    bias: Tensor<f32, [out_features]>;
+    
+    forward(x: Tensor<f32, [?, in_features]>) -> Tensor<f32, [?, out_features]> {
+        return x @ self.weight + self.bias;
+    }
+}
+
+// Test 4: Model definition
+model TestMLP {
+    layers: [
+        TestLinear(784, 256),
+        TestLinear(256, 128),
+        TestLinear(128, 10)
+    ];
+    
+    forward(x: Tensor<f32, [?, 784]>) -> Tensor<f32, [?, 10]> {
+        var h = x;
+        for layer in self.layers {
+            h = layer.forward(h);
+            h = relu(h);
+        }
+        return softmax(h);
+    }
+}
+
+// Test 5: Training loop simulation
+fn test_training_simulation() -> i64 {
+    println("Testing training simulation...");
+    
+    // Create model
+    let model = TestMLP();
+    
+    // Simulated training data
+    let batch_size = 32;
+    let num_batches = 100;
+    
+    for epoch in 0..10 {
+        println("Epoch {}", epoch);
+        
+        for batch_idx in 0..num_batches {
+            // Simulated batch
+            let x: Tensor<f32, [32, 784]> = tensor![[0.0; 784]; 32];
+            let y: Tensor<f32, [32, 10]> = tensor![[0.0; 10]; 32];
+            
+            // Forward pass
+            let y_pred = model(x);
+            
+            // Compute loss (simulated)
+            let loss = tensor![0.5];
+            
+            // Backward pass
+            backward(loss);
+            
+            // Optimizer step (simulated)
+            if batch_idx % 10 == 0 {
+                println("  Batch {}, Loss: {}", batch_idx, 0.5);
+            }
+        }
+    }
+    
+    return 0;
+}
+
+// Test 6: ML-optimized sieve algorithm
+fn test_ml_sieve() -> i64 {
+    println("Testing ML-optimized sieve...");
+    
+    let limit = 1000;
+    let primes = ml_enhanced_sieve(limit);
+    
+    println("Found {} primes up to {}", primes.len(), limit);
+    
+    // Verify first few primes
+    let expected_primes = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29];
+    for (i, &expected) in expected_primes.iter().enumerate() {
+        if i < primes.len() && primes[i] == expected {
+            println("Prime {}: OK", expected);
+        }
+    }
+    
+    return 0;
+}
+
+// ML-enhanced sieve algorithm
+fn ml_enhanced_sieve(limit: i64) -> Vec<i64> {
+    // Traditional sieve for small numbers
+    let small_limit = min(limit, 1000);
+    let mut is_prime = vec![true; (small_limit + 1) as usize];
+    is_prime[0] = false;
+    is_prime[1] = false;
+    
+    let sqrt_limit = (small_limit as f64).sqrt() as i64;
+    for i in 2..=sqrt_limit {
+        if is_prime[i as usize] {
+            let mut j = i * i;
+            while j <= small_limit {
+                is_prime[j as usize] = false;
+                j += i;
+            }
+        }
+    }
+    
+    let mut primes: Vec<i64> = Vec::new();
+    for i in 2..=small_limit {
+        if is_prime[i as usize] {
+            primes.push(i);
+        }
+    }
+    
+    // For larger numbers, we would use ML model
+    // This is a placeholder for the ML-based prime checking
+    if limit > 1000 {
+        println("Note: ML-based prime checking for numbers > 1000 would be implemented here");
+    }
+    
+    primes
+}
+
+// Main test runner
+fn main() -> i64 {
+    println("=== Zeta ML Integration Tests ===");
+    
+    let mut passed = 0;
+    let mut total = 0;
+    
+    // Run tests
+    total += 1;
+    if test_tensor_operations() == 0 {
+        println("✓ Tensor operations test passed");
+        passed += 1;
+    } else {
+        println("✗ Tensor operations test failed");
+    }
+    
+    total += 1;
+    if test_autograd() == 0 {
+        println("✓ Autograd test passed");
+        passed += 1;
+    } else {
+        println("✗ Autograd test failed");
+    }
+    
+    total += 1;
+    if test_training_simulation() == 0 {
+        println("✓ Training simulation test passed");
+        passed += 1;
+    } else {
+        println("✗ Training simulation test failed");
+    }
+    
+    total += 1;
+    if test_ml_sieve() == 0 {
+        println("✓ ML sieve test passed");
+        passed += 1;
+    } else {
+        println("✗ ML sieve test failed");
+    }
+    
+    println("\n=== Test Summary ===");
+    println("Passed: {}/{}", passed, total);
+    
+    if passed == total {
+        println("All ML integration tests passed! ✓");
+        return 0;
+    } else {
+        println("Some tests failed");
+        return 1;
+    }
+}

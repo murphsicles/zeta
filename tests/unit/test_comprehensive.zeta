@@ -1,0 +1,59 @@
+// Test 1: Simple range expression
+fn test_simple_range() -> i64 {
+    let mut sum = 0;
+    for i in 0..10 {
+        sum = sum + i;
+    }
+    sum
+}
+
+// Test 2: For loop with accumulation
+fn test_accumulation() -> i64 {
+    let mut product = 1;
+    for i in 1..6 {
+        product = product * i;
+    }
+    product
+}
+
+// Test 3: Nested loops
+fn test_nested_loops() -> i64 {
+    let mut sum = 0;
+    for i in 0..3 {
+        for j in 0..3 {
+            sum = sum + i * j;
+        }
+    }
+    sum
+}
+
+// Test 4: Range expression outside loop
+fn test_range_outside_loop() -> i64 {
+    let r = 5..10;
+    let mut sum = 0;
+    for i in r {
+        sum = sum + i;
+    }
+    sum
+}
+
+// Test 5: Verify loops actually execute (not return 0)
+fn test_loop_executes() -> i64 {
+    let mut count = 0;
+    for i in 0..100 {
+        count = count + 1;
+    }
+    count
+}
+
+fn main() -> i64 {
+    // Run all tests
+    let test1 = test_simple_range();
+    let test2 = test_accumulation();
+    let test3 = test_nested_loops();
+    let test4 = test_range_outside_loop();
+    let test5 = test_loop_executes();
+    
+    // Return combined result
+    test1 + test2 + test3 + test4 + test5
+}

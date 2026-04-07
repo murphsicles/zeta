@@ -1,0 +1,52 @@
+// Test different ways to check if a number is zero
+
+fn test_modulo_direct() -> u64 {
+    let n: u64 = 10
+    let d: u64 = 3
+    
+    // Direct modulo
+    let rem: u64 = n % d
+    
+    // Check if remainder is zero
+    if rem == 0 {
+        return 0
+    } else {
+        return 1
+    }
+}
+
+fn test_modulo_indirect() -> u64 {
+    let n: u64 = 10
+    let d: u64 = 3
+    
+    // Store modulo
+    let rem: u64 = n % d
+    
+    // Check using arithmetic: (rem + 1) - 1 == rem
+    // If rem == 0, then (rem + 1) - 1 == 0
+    let check: u64 = (rem + 1) - 1
+    
+    if check == 0 {
+        return 0
+    } else {
+        return 1
+    }
+}
+
+fn test_modulo_no_if() -> u64 {
+    let n: u64 = 10
+    let d: u64 = 3
+    
+    // Just return the remainder
+    let rem: u64 = n % d
+    
+    return rem
+}
+
+fn main() -> u64 {
+    let test1 = test_modulo_direct()
+    let test2 = test_modulo_indirect()
+    let test3 = test_modulo_no_if()
+    
+    return test1 * 100 + test2 * 10 + test3
+}

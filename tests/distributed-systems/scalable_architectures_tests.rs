@@ -561,4 +561,11 @@ impl EventBus {
         });
     }
 
-    fn unsubscribe(&self, topic: &str, subscriber_id
+    fn unsubscribe(&self, topic: &str, subscriber_id: &str) {
+        let mut subscribers = self.subscribers.write().unwrap();
+        if let Some(topic_subscribers) = subscribers.get_mut(topic) {
+            topic_subscribers.retain(|subscriber| subscriber.id != subscriber_id);
+        }
+    }
+}
+

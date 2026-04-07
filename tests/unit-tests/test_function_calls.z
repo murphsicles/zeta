@@ -1,0 +1,23 @@
+// Test function calls in comptime
+
+comptime fn gcd(a: i64, b: i64) -> i64 {
+    if b == 0 {
+        a
+    } else {
+        gcd(b, a % b)
+    }
+}
+
+comptime fn simple_add(x: i64, y: i64) -> i64 {
+    x + y
+}
+
+comptime fn test_function_calls() -> i64 {
+    let result1 = simple_add(10, 20)
+    let result2 = gcd(48, 18)
+    result1 + result2
+}
+
+fn main() -> i64 {
+    test_function_calls()
+}

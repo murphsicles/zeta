@@ -1,0 +1,113 @@
+// Test script to verify prime counts
+// This tests the Murphy's Sieve implementation
+
+fn murphy_sieve(limit: u64) -> u64 {
+    // Same implementation as in prime.z
+    if limit < 2 {
+        return 0
+    }
+    if limit == 2 {
+        return 1
+    }
+    
+    let array_size = limit + 1
+    let mut bits: [u8] = []
+    
+    let mut i: u64 = 0
+    while i < array_size {
+        bits.append(1)
+        i += 1
+    }
+    
+    bits[0] = 0
+    bits[1] = 0
+    
+    i = 4
+    while i <= limit {
+        bits[i] = 0
+        i += 2
+    }
+    
+    i = 6
+    while i <= limit {
+        bits[i] = 0
+        i += 3
+    }
+    
+    let mut k: u64 = 1
+    
+    while true {
+        let p1 = 6 * k - 1
+        let p2 = 6 * k + 1
+        
+        if p1 * p1 > limit {
+            break
+        }
+        
+        if p1 <= limit && bits[p1] == 1 {
+            let mut multiple = p1 * p1
+            while multiple <= limit {
+                bits[multiple] = 0
+                multiple += p1
+            }
+        }
+        
+        if p2 <= limit && bits[p2] == 1 {
+            let mut multiple = p2 * p2
+            while multiple <= limit {
+                bits[multiple] = 0
+                multiple += p2
+            }
+        }
+        
+        k += 1
+    }
+    
+    let mut count: u64 = 0
+    i = 2
+    
+    while i <= limit {
+        if bits[i] == 1 {
+            count += 1
+        }
+        i += 1
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    let mut all_pass = 1
+    
+    // Test case 1: limit=10, expected=4
+    let result1 = murphy_sieve(10)
+    if result1 != 4 {
+        all_pass = 0
+    }
+    
+    // Test case 2: limit=30, expected=10
+    let result2 = murphy_sieve(30)
+    if result2 != 10 {
+        all_pass = 0
+    }
+    
+    // Test case 3: limit=100, expected=25
+    let result3 = murphy_sieve(100)
+    if result3 != 25 {
+        all_pass = 0
+    }
+    
+    // Test case 4: limit=1000, expected=168
+    let result4 = murphy_sieve(1000)
+    if result4 != 168 {
+        all_pass = 0
+    }
+    
+    // Final test: 1,000,000 should have 78,498 primes
+    let final_result = murphy_sieve(1000000)
+    if final_result != 78498 {
+        all_pass = 0
+    }
+    
+    return all_pass
+}

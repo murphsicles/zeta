@@ -1,0 +1,19 @@
+// Ultimate simple test - proves while loops work
+// Counts numbers from 0 to 29
+
+fn count_numbers(limit: u64) -> u64 {
+    let mut count: u64 = 0
+    let mut i: u64 = 0
+    
+    while i < limit {
+        count += 1
+        i += 1
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    // Should return 30 (counts 0 through 29)
+    return count_numbers(30)
+}

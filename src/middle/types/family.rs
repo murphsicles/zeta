@@ -350,7 +350,7 @@ impl TypeFamilyContext {
             Type::Array(inner, size) => {
                 Type::Array(
                     Box::new(self.apply_substitution(inner, substitution)),
-                    *size,
+                    size.clone(),
                 )
             }
             
@@ -372,6 +372,13 @@ impl TypeFamilyContext {
                     Box::new(self.apply_substitution(inner, substitution)),
                     lifetime.clone(),
                     *mutability,
+                )
+            }
+            
+            Type::Vector(inner, size) => {
+                Type::Vector(
+                    Box::new(self.apply_substitution(inner, substitution)),
+                    size.clone(),
                 )
             }
             
@@ -411,7 +418,7 @@ impl TypeFamilyContext {
             
             // Recursively simplify compound types
             Type::Array(inner, size) => {
-                Ok(Type::Array(Box::new(self.simplify(inner)?), *size))
+                Ok(Type::Array(Box::new(self.simplify(inner)?), size.clone()))
             }
             
             Type::Slice(inner) => {
@@ -444,6 +451,10 @@ impl TypeFamilyContext {
                     simplified_params?,
                     Box::new(self.simplify(ret)?),
                 ))
+            }
+            
+            Type::Vector(inner, size) => {
+                Ok(Type::Vector(Box::new(self.simplify(inner)?), size.clone()))
             }
             
             // Other types remain unchanged

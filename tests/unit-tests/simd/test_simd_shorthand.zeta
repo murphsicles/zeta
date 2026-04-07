@@ -1,0 +1,5 @@
+fn main() -> i32 {
+    // Test SIMD vector type with shorthand syntax
+    let v: i32x4;
+    return 0;
+}

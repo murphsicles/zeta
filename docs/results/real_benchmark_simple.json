@@ -1,0 +1,11 @@
+﻿{
+    "iterations":  5,
+    "successful":  5,
+    "max_time_ms":  305.8313,
+    "throughput_rps":  3.3533355326743308,
+    "timestamp":  "2026-04-05T19:53:48",
+    "min_time_ms":  294.7846,
+    "benchmark":  "test_simple.z",
+    "avg_time_ms":  298.21054000000004,
+    "total_time_ms":  1491.0527000000002
+}

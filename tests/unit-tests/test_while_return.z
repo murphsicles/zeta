@@ -1,15 +1,16 @@
-// Test while loop with just return
-
-fn test_while_return() -> u64 {
-    let mut n: u64 = 0
+// Test while loop type issue
+fn test_while() -> u64 {
+    let mut i: u64 = 0
+    let mut sum: u64 = 0
     
-    while n < 3 {
-        return 1
+    while i < 5 {
+        sum += i
+        i += 1
     }
     
-    return 0
+    return sum
 }
 
 fn main() -> u64 {
-    return test_while_return()
+    return test_while()
 }

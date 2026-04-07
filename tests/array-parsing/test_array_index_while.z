@@ -1,0 +1,29 @@
+// Test array indexing in while loops - Murphy's Sieve pattern
+fn test_array_index_while() -> u64 {
+    // Create an array and initialize it
+    let arr: [dynamic]u64 = [dynamic]u64{}
+    
+    // Fill array with some values
+    arr.push(0)
+    arr.push(1)
+    arr.push(0)
+    arr.push(1)
+    arr.push(0)
+    
+    // Try to access array elements in a while loop
+    let mut i: u64 = 0
+    let mut sum: u64 = 0
+    
+    while i < arr.len() {
+        // This is the problematic pattern: arr[i]
+        let value = arr[i]
+        sum += value
+        i += 1
+    }
+    
+    return sum
+}
+
+fn main() -> u64 {
+    return test_array_index_while()
+}

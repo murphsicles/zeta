@@ -1,0 +1,11 @@
+fn test_for_loop() -> i64 {
+    let mut sum = 0;
+    for i in 0..5 {
+        sum = sum + i;
+    }
+    sum
+}
+
+fn main() -> i64 {
+    test_for_loop()
+}

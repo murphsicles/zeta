@@ -1,0 +1,50 @@
+// Murphy's Sieve - ULTIMATE WORKING VERSION
+
+fn murphy_sieve(limit: u64) -> u64 {
+    // Edge cases
+    if limit <= 1 {
+        return 0
+    }
+    
+    if limit == 2 {
+        return 1
+    }
+    
+    // Simple prime counter
+    let mut count: u64 = 0
+    let mut n: u64 = 2
+    
+    while n < limit {
+        let mut is_prime: u64 = 1
+        let mut d: u64 = 2
+        
+        // Simplified loop condition
+        while d < n {
+            let remainder: u64 = n % d
+            if remainder == 0 {
+                is_prime = 0
+                // Use early "break" by setting d to exit condition
+                d = n
+            } else {
+                // Continue
+            }
+            d += 1
+        }
+        
+        // Count with else
+        if is_prime == 1 {
+            count += 1
+        } else {
+            // Skip
+        }
+        
+        n += 1
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    // Should return 4 (primes under 10: 2, 3, 5, 7)
+    return murphy_sieve(10)
+}

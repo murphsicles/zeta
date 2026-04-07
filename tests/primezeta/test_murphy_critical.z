@@ -1,0 +1,28 @@
+// Test CRITICAL Murphy's Sieve pattern
+// u8 == 0 comparison that was broken
+
+fn test_sieve_pattern() -> u64 {
+    // Create array like Murphy's Sieve would
+    let bits: [dynamic]u8 = [dynamic]u8{}
+    bits.push(0)  // Prime
+    bits.push(1)  // Composite
+    bits.push(0)  // Prime
+    bits.push(1)  // Composite
+    
+    let mut prime_count: u64 = 0
+    
+    // Test u8 == 0 comparison (CRITICAL for sieve)
+    let mut i: u64 = 0
+    while i < 4 {
+        if bits[i] == 0 {
+            prime_count += 1
+        }
+        i += 1
+    }
+    
+    return prime_count  // Should return 2 (indices 0 and 2)
+}
+
+fn main() -> u64 {
+    return test_sieve_pattern()
+}

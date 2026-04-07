@@ -1,0 +1,14 @@
+fn test_if_return() -> i64 {
+    let x = 10;
+    let y = 20;
+    
+    if (x < y) {
+        return 1;
+    } else {
+        return 2;
+    }
+}
+
+fn main() -> i64 {
+    return test_if_return();
+}

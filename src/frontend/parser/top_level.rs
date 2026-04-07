@@ -5,7 +5,7 @@
 #![allow(unused_variables)]
 use super::expr::parse_full_expr;
 use super::parser::{
-    parse_attributes, parse_generic_params, parse_ident, parse_path, parse_type, parse_trait_bounds, parse_where_clause, skip_ws_and_comments, ws,
+    parse_attributes, parse_generic_params, parse_generic_params_as_enum, parse_ident, parse_path, parse_type, parse_trait_bounds, parse_where_clause, skip_ws_and_comments, ws,
 };
 use super::stmt::parse_block_body;
 use crate::frontend::ast::AstNode;
@@ -90,6 +90,7 @@ fn parse_visibility(input: &str) -> IResult<&str, bool> {
 }
 
 fn parse_func(input: &str) -> IResult<&str, AstNode> {
+    eprintln!("[DEBUG parse_func] input: {:?}", input);
     // Parse attributes first
     let (input, attrs) = parse_attributes(input)?;
 
@@ -103,8 +104,23 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("fn")).parse(input)?;
     let (input, path) = ws(parse_path).parse(input)?;
     let name = path.join("::");
-    let (input, generics_opt) = opt(ws(parse_generic_params)).parse(input)?;
-    let (lifetimes, type_generics) = generics_opt.unwrap_or((Vec::new(), Vec::new()));
+    let (input, generics_opt) = opt(ws(parse_generic_params_as_enum)).parse(input)?;
+    let mut lifetimes = Vec::new();
+    let mut generics = Vec::new();
+    
+    if let Some(params) = generics_opt {
+        for param in params {
+            match param {
+                crate::frontend::ast::GenericParam::Lifetime { name } => {
+                    lifetimes.push(name);
+                }
+                _ => {
+                    generics.push(param);
+                }
+            }
+        }
+    }
+    
     let (input, params) = delimited(
         ws(tag("(")),
         terminated(
@@ -154,7 +170,7 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
     let ast = if extern_opt.is_some() {
         AstNode::ExternFunc {
             name,
-            generics: type_generics,
+            generics,
             lifetimes,
             params,
             ret,
@@ -163,7 +179,7 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
     } else {
         AstNode::FuncDef {
             name,
-            generics: type_generics,
+            generics,
             lifetimes,
             params,
             ret,
@@ -206,8 +222,22 @@ fn parse_concept(input: &str) -> IResult<&str, AstNode> {
 
     let (input, _) = ws(tag("concept")).parse(input)?;
     let (input, name) = ws(parse_ident).parse(input)?;
-    let (input, generics_opt) = opt(ws(parse_generic_params)).parse(input)?;
-    let (lifetimes, type_generics) = generics_opt.unwrap_or((Vec::new(), Vec::new()));
+    let (input, generics_opt) = opt(ws(parse_generic_params_as_enum)).parse(input)?;
+    let mut lifetimes = Vec::new();
+    let mut generics = Vec::new();
+    
+    if let Some(params) = generics_opt {
+        for param in params {
+            match param {
+                crate::frontend::ast::GenericParam::Lifetime { name } => {
+                    lifetimes.push(name);
+                }
+                _ => {
+                    generics.push(param);
+                }
+            }
+        }
+    }
     
     // Parse supertraits (concept inheritance) if present
     let (input, supertraits) = if let Ok((input, _)) = ws(tag(":")).parse(input) {
@@ -244,7 +274,7 @@ fn parse_concept(input: &str) -> IResult<&str, AstNode> {
         input,
         AstNode::ConceptDef {
             name,
-            generics: type_generics,
+            generics,
             lifetimes,
             methods,
             associated_types,
@@ -294,8 +324,22 @@ fn parse_method_sig(input: &str) -> IResult<&str, AstNode> {
 
     let (input, _) = ws(tag("fn")).parse(input)?;
     let (input, name) = ws(parse_ident).parse(input)?;
-    let (input, generics_opt) = opt(ws(parse_generic_params)).parse(input)?;
-    let (lifetimes, type_generics) = generics_opt.unwrap_or((Vec::new(), Vec::new()));
+    let (input, generics_opt) = opt(ws(parse_generic_params_as_enum)).parse(input)?;
+    let mut lifetimes = Vec::new();
+    let mut generics = Vec::new();
+    
+    if let Some(params) = generics_opt {
+        for param in params {
+            match param {
+                crate::frontend::ast::GenericParam::Lifetime { name } => {
+                    lifetimes.push(name);
+                }
+                _ => {
+                    generics.push(param);
+                }
+            }
+        }
+    }
     let (input, params) = delimited(
         ws(tag("(")),
         terminated(
@@ -326,7 +370,7 @@ fn parse_method_sig(input: &str) -> IResult<&str, AstNode> {
             name,
             params,
             ret,
-            generics: type_generics,
+            generics,
             lifetimes,
             attrs,
             doc: "".to_string(),
@@ -341,7 +385,22 @@ fn parse_impl(input: &str) -> IResult<&str, AstNode> {
     let (input, attrs) = parse_attributes(input)?;
 
     let (input, _) = ws(tag("impl")).parse(input)?;
-    let (input, generics_opt) = opt(ws(parse_generic_params)).parse(input)?;
+    let (input, generics_opt) = opt(ws(parse_generic_params_as_enum)).parse(input)?;
+    let mut lifetimes = Vec::new();
+    let mut generics = Vec::new();
+    
+    if let Some(params) = generics_opt {
+        for param in params {
+            match param {
+                crate::frontend::ast::GenericParam::Lifetime { name } => {
+                    lifetimes.push(name);
+                }
+                _ => {
+                    generics.push(param);
+                }
+            }
+        }
+    }
 
     // Try to parse as inherent impl: impl<Generics> Type { ... }
     let parse_result = alt((
@@ -367,12 +426,11 @@ fn parse_impl(input: &str) -> IResult<&str, AstNode> {
     let where_clauses = where_clauses_opt.unwrap_or_default();
     let (input, body) =
         delimited(ws(tag("{")), many0(ws(parse_func)), ws(tag("}"))).parse(input)?;
-    let (lifetimes, type_generics) = generics_opt.unwrap_or((Vec::new(), Vec::new()));
     Ok((
         input,
         AstNode::ImplBlock {
             concept,
-            generics: type_generics,
+            generics,
             lifetimes,
             ty,
             body,
@@ -419,8 +477,22 @@ fn parse_enum(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("enum")).parse(input)?;
     let (input, name) = ws(parse_ident).parse(input)?;
     // Parse generic parameters if present (e.g., <T> or <T, E>)
-    let (input, generics_opt) = opt(ws(parse_generic_params)).parse(input)?;
-    let (lifetimes, type_generics) = generics_opt.unwrap_or((Vec::new(), Vec::new()));
+    let (input, generics_opt) = opt(ws(parse_generic_params_as_enum)).parse(input)?;
+    let mut lifetimes = Vec::new();
+    let mut generics = Vec::new();
+    
+    if let Some(params) = generics_opt {
+        for param in params {
+            match param {
+                crate::frontend::ast::GenericParam::Lifetime { name } => {
+                    lifetimes.push(name);
+                }
+                _ => {
+                    generics.push(param);
+                }
+            }
+        }
+    }
     // Parse where clause if present
     let (input, where_clauses_opt) = opt(ws(parse_where_clause)).parse(input)?;
     let where_clauses = where_clauses_opt.unwrap_or_default();
@@ -437,7 +509,7 @@ fn parse_enum(input: &str) -> IResult<&str, AstNode> {
         input,
         AstNode::EnumDef {
             name,
-            generics: type_generics,
+            generics,
             lifetimes,
             variants,
             attrs,
@@ -467,8 +539,22 @@ fn parse_struct(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("struct")).parse(input)?;
     let (input, name) = ws(parse_ident).parse(input)?;
     // Parse generic parameters if present
-    let (input, generics_opt) = opt(ws(parse_generic_params)).parse(input)?;
-    let (lifetimes, type_generics) = generics_opt.unwrap_or((Vec::new(), Vec::new()));
+    let (input, generics_opt) = opt(ws(parse_generic_params_as_enum)).parse(input)?;
+    let mut lifetimes = Vec::new();
+    let mut generics = Vec::new();
+    
+    if let Some(params) = generics_opt {
+        for param in params {
+            match param {
+                crate::frontend::ast::GenericParam::Lifetime { name } => {
+                    lifetimes.push(name);
+                }
+                _ => {
+                    generics.push(param);
+                }
+            }
+        }
+    }
 
     // Parse where clause if present
     let (input, where_clauses_opt) = opt(ws(parse_where_clause)).parse(input)?;
@@ -488,7 +574,7 @@ fn parse_struct(input: &str) -> IResult<&str, AstNode> {
         input,
         AstNode::StructDef {
             name,
-            generics: type_generics,
+            generics,
             lifetimes,
             fields,
             attrs,

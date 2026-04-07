@@ -17,6 +17,9 @@ impl Parser {
                 AstNode::Defer(Box::new(expr))
             }
             Token::KeywordLet => self.parse_let_stmt(),
+            Token::KeywordTrain => self.parse_train_stmt(),
+            Token::KeywordBackward => self.parse_backward_stmt(),
+            Token::KeywordStep => self.parse_step_stmt(),
             _ => {
                 let expr = self.parse_expr();
                 if self.consume(Token::Semi) {

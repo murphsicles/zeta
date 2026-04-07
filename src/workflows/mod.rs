@@ -14,7 +14,7 @@ mod quality;
 pub use ci_cd::{CICDTemplate, CICDProvider, generate_ci_config};
 pub use documentation::{DocumentationGenerator, DocFormat, generate_docs};
 pub use profiling::{Profiler, ProfileResult, ProfileMetric, run_profiler};
-pub use quality::{CodeQualityChecker, QualityIssue, check_code_quality};
+pub use quality::{CodeQualityChecker, QualityIssue, IssueSeverity, check_code_quality};
 
 /// Workflow error type
 #[derive(Debug)]

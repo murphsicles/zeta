@@ -22,14 +22,18 @@ fn parse_float_lit(input: &str) -> IResult<&str, AstNode> {
 
     let bytes = input.as_bytes();
     let mut pos = 0;
+    let mut has_digit = false;
 
-    // Parse integer part (digits)
+    // Parse integer part (digits and underscores)
     let start_pos = pos;
-    while pos < bytes.len() && bytes[pos].is_ascii_digit() {
+    while pos < bytes.len() && (bytes[pos].is_ascii_digit() || bytes[pos] == b'_') {
+        if bytes[pos].is_ascii_digit() {
+            has_digit = true;
+        }
         pos += 1;
     }
 
-    if pos == start_pos {
+    if !has_digit {
         return Err(nom::Err::Error(NomError::new(
             input,
             nom::error::ErrorKind::Digit,
@@ -43,13 +47,17 @@ fn parse_float_lit(input: &str) -> IResult<&str, AstNode> {
         has_decimal = true;
         pos += 1; // Skip the decimal point
 
-        // Parse fraction part (digits after decimal)
+        // Parse fraction part (digits after decimal, with underscores)
         let fraction_start = pos;
-        while pos < bytes.len() && bytes[pos].is_ascii_digit() {
+        let mut fraction_has_digit = false;
+        while pos < bytes.len() && (bytes[pos].is_ascii_digit() || bytes[pos] == b'_') {
+            if bytes[pos].is_ascii_digit() {
+                fraction_has_digit = true;
+            }
             pos += 1;
         }
 
-        if pos == fraction_start {
+        if !fraction_has_digit {
             // Invalid: decimal point without digits
             return Err(nom::Err::Error(NomError::new(
                 input,
@@ -68,7 +76,11 @@ fn parse_float_lit(input: &str) -> IResult<&str, AstNode> {
 
     let float_str = &input[..pos];
     let remaining = &input[pos..];
-    Ok((remaining, AstNode::FloatLit(float_str.to_string())))
+    
+    // Remove underscores from the float string
+    let clean_float: String = float_str.chars().filter(|c| c.is_ascii_digit() || *c == '.').collect();
+    
+    Ok((remaining, AstNode::FloatLit(clean_float)))
 }
 
 pub fn parse_lit(input: &str) -> IResult<&str, AstNode> {
@@ -82,15 +94,34 @@ pub fn parse_lit(input: &str) -> IResult<&str, AstNode> {
         }
     }
 
-    let (input, num) = take_while(|c: char| c.is_ascii_digit()).parse(input)?;
-    if num.is_empty() {
+    // Parse integer with optional underscores
+    let bytes = input.as_bytes();
+    let mut pos = 0;
+    let mut has_digit = false;
+    
+    // Parse digits and underscores
+    while pos < bytes.len() && (bytes[pos].is_ascii_digit() || bytes[pos] == b'_') {
+        if bytes[pos].is_ascii_digit() {
+            has_digit = true;
+        }
+        pos += 1;
+    }
+    
+    if !has_digit {
         return Err(nom::Err::Error(NomError::new(
             input,
             nom::error::ErrorKind::Digit,
         )));
     }
-    let value = num.parse::<i64>().unwrap_or(0);
-    Ok((input, AstNode::Lit(value)))
+    
+    let num_str = &input[..pos];
+    let remaining = &input[pos..];
+    
+    // Remove underscores and parse as i64
+    let clean_num: String = num_str.chars().filter(|c| c.is_ascii_digit()).collect();
+    let value = clean_num.parse::<i64>().unwrap_or(0);
+    
+    Ok((remaining, AstNode::Lit(value)))
 }
 
 fn parse_string_lit(input: &str) -> IResult<&str, AstNode> {

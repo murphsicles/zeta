@@ -5,3 +5,5 @@ pub mod std;
 pub mod actor;
 pub mod xai;
 pub mod array;
+pub mod tensor;
+pub mod ml;

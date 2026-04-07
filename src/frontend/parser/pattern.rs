@@ -14,7 +14,8 @@ use nom::sequence::{delimited, preceded, terminated};
 
 /// Parse a pattern: `_`, identifier, literal, tuple pattern, struct pattern, range pattern, bind pattern, or or-pattern.
 pub fn parse_pattern(input: &str) -> IResult<&str, AstNode> {
-    alt((
+    // First parse a basic pattern
+    let (input, pattern) = alt((
         // Wildcard pattern
         tag("_").map(|_| AstNode::Ignore),
         // Tuple pattern: `(pattern, pattern, ...)`
@@ -32,7 +33,22 @@ pub fn parse_pattern(input: &str) -> IResult<&str, AstNode> {
         // Variable pattern
         parse_ident.map(AstNode::Var),
     ))
-    .parse(input)
+    .parse(input)?;
+    
+    // Then check for type annotation
+    let (input, ty_opt) = opt(preceded(
+        ws(tag(":")),
+        ws(crate::frontend::parser::parser::parse_type),
+    )).parse(input)?;
+    
+    if let Some(ty) = ty_opt {
+        Ok((input, AstNode::TypeAnnotatedPattern {
+            pattern: Box::new(pattern),
+            ty,
+        }))
+    } else {
+        Ok((input, pattern))
+    }
 }
 
 /// Parse a tuple pattern: `(pattern, pattern, ...)`
@@ -169,10 +185,15 @@ fn parse_or_pattern(input: &str) -> IResult<&str, AstNode> {
         preceded(ws(tag("|")), ws(parse_simple_pattern))
     ).parse(input)?;
     
-    let mut all_patterns = vec![first];
-    all_patterns.extend(patterns);
-    
-    Ok((input, AstNode::OrPattern(all_patterns)))
+    // If there are no additional patterns, this isn't really an or-pattern
+    if patterns.is_empty() {
+        Ok((input, first))
+    } else {
+        let mut all_patterns = vec![first];
+        all_patterns.extend(patterns);
+        
+        Ok((input, AstNode::OrPattern(all_patterns)))
+    }
 }
 
 /// Parse a simple pattern (without | operator) for use in or-patterns

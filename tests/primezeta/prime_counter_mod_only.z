@@ -1,0 +1,44 @@
+// Prime counter using modulo without direct comparison
+
+fn count_primes(limit: u64) -> u64 {
+    if limit <= 2 {
+        return 0
+    }
+    
+    // Count 2 as prime
+    let mut count: u64 = 1
+    
+    // Check odd numbers starting from 3
+    let mut n: u64 = 3
+    
+    while n < limit {
+        let mut is_prime: u64 = 1
+        let mut d: u64 = 3
+        
+        // Check divisibility
+        while d * d <= n {
+            // Store modulo result
+            let remainder: u64 = n % d
+            
+            // Check if remainder is zero
+            // We'll use a different approach
+            if remainder == 0 {
+                is_prime = 0
+            }
+            
+            d += 2
+        }
+        
+        if is_prime == 1 {
+            count += 1
+        }
+        
+        n += 2
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    return count_primes(10)
+}

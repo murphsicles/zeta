@@ -28,6 +28,10 @@ pub use family::{
     TypeFamilyEquationBuilder, TypeFamilyPattern, TypeFamilyConstraint,
 };
 
+// Re-export identity types
+pub mod identity;
+pub use identity::{CapabilityLevel, IdentityConstraint, IdentityContext, IdentityOp, IdentityType};
+
 /// Type variable for inference
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeVar(pub u32);
@@ -45,6 +49,41 @@ impl TypeVar {
 pub enum Mutability {
     Immutable,
     Mutable,
+}
+
+/// Array size representation for const generics
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ArraySize {
+    Literal(usize),
+    ConstParam(String), // Name of const parameter
+    Expr(Box<ConstExpr>),
+}
+
+impl std::fmt::Display for ArraySize {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ArraySize::Literal(n) => write!(f, "{}", n),
+            ArraySize::ConstParam(name) => write!(f, "{}", name),
+            ArraySize::Expr(expr) => write!(f, "{:?}", expr),
+        }
+    }
+}
+
+/// Constant expression for compile-time evaluation
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ConstExpr {
+    Literal(ConstValue),
+    Var(String),
+    Add(Box<ConstExpr>, Box<ConstExpr>),
+    Mul(Box<ConstExpr>, Box<ConstExpr>),
+}
+
+/// Constant value for compile-time evaluation
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ConstValue {
+    Int(i64),
+    UInt(u64),
+    Bool(bool),
 }
 
 /// Algebraic type representation
@@ -71,7 +110,7 @@ pub enum Type {
     Range,
 
     // Compound types
-    Array(Box<Type>, usize),              // [T; N]
+    Array(Box<Type>, ArraySize),              // [T; N]
     Slice(Box<Type>),                     // [T]
     DynamicArray(Box<Type>),              // [dynamic]T
     Tuple(Vec<Type>),                     // (T1, T2, ...)
@@ -92,6 +131,9 @@ pub enum Type {
     // Type variables (for inference)
     Variable(TypeVar),
 
+    // SIMD vector types
+    Vector(Box<Type>, ArraySize), // Vector<T, N> - SIMD vector of N elements of type T
+
     // Type constructor (higher-kinded type)
     Constructor(String, Vec<Type>, Kind), // Name, type arguments, kind
 
@@ -100,6 +142,9 @@ pub enum Type {
 
     // Error type (when inference fails)
     Error,
+
+    // Identity types (string-based capabilities)
+    Identity(Box<IdentityType>),
 }
 
 /// Trait bounds for generic type parameters
@@ -115,6 +160,7 @@ pub enum TraitBound {
     Ord,
     Hash,
     Future,
+    Identity(Vec<crate::middle::types::identity::CapabilityLevel>),
     // Add more as needed
 }
 
@@ -219,6 +265,18 @@ impl Type {
             "bool" => Type::Bool,
             "char" => Type::Char,
             "str" => Type::Str,
+            // Check for identity type: identity("value")[read, write]
+            s if s.starts_with("identity(") => {
+                // For now, just create a basic identity type
+                // TODO: Implement proper parsing
+                Type::Identity(Box::new(IdentityType {
+                    value: None,
+                    capabilities: Vec::new(),
+                    delegatable: false,
+                    constraints: Vec::new(),
+                    type_params: vec![],
+                }))
+            }
             _ => {
                 // Check for &mut prefix (must check before & prefix)
                 if let Some(rest) = s.strip_prefix("&mut ") {
@@ -232,6 +290,38 @@ impl Type {
                     if !rest.starts_with("mut ") {
                         let inner = Type::from_string(rest);
                         return Type::Ref(Box::new(inner), Lifetime::Static, Mutability::Immutable);
+                    }
+                }
+
+                // Check for identity type shorthand: string[identity:read] or string[identity:read+write]
+                if let Some(base_end) = s.find('[') {
+                    if s[base_end..].contains("identity:") {
+                        // Parse base type (should be "string")
+                        let base = &s[..base_end];
+                        // Extract the part inside brackets
+                        let bracket_end = s.find(']').unwrap_or(s.len());
+                        let inner = &s[base_end + 1..bracket_end];
+                        // inner should be "identity:read" or "identity:read+write"
+                        if let Some(caps_str) = inner.strip_prefix("identity:") {
+                            // Parse capabilities: "read", "write", "read+write"
+                            let capabilities = caps_str.split('+')
+                                .filter_map(|s| match s.trim() {
+                                    "read" => Some(CapabilityLevel::Read),
+                                    "write" => Some(CapabilityLevel::Write),
+                                    "immutable" => Some(CapabilityLevel::Immutable),
+                                    "execute" => Some(CapabilityLevel::Execute),
+                                    "owned" => Some(CapabilityLevel::Owned),
+                                    _ => None,
+                                })
+                                .collect::<Vec<_>>();
+                            return Type::Identity(Box::new(IdentityType {
+                                value: None,
+                                capabilities,
+                                delegatable: false,
+                                constraints: vec![],
+                                type_params: vec![],
+                            }));
+                        }
                     }
                 }
 
@@ -267,9 +357,11 @@ impl Type {
                         let size_part = &inner[pos + 1..];
                         let inner_type = Type::from_string(type_part.trim());
                         if let Ok(size) = size_part.trim().parse::<usize>() {
-                            return Type::Array(Box::new(inner_type), size);
+                            return Type::Array(Box::new(inner_type), ArraySize::Literal(size));
                         }
-                        // If size doesn't parse as usize, fall through to Named type
+                        // If size doesn't parse as usize, treat it as a variable size (use 0 as wildcard)
+                        // This allows [bool; limit] to unify with [bool; 0]
+                        return Type::Array(Box::new(inner_type), ArraySize::Literal(0));
                     } else {
                         // Slice type: [T]
                         let inner_type = Type::from_string(inner.trim());
@@ -340,6 +432,36 @@ impl Type {
                 if let Some(inner) = s.strip_prefix("*mut ") {
                     let inner_type = Type::from_string(inner);
                     return Type::Ptr(Box::new(inner_type), Mutability::Mutable);
+                }
+
+                // Check for Vector<T, N> type
+                if s.starts_with("Vector<") && s.ends_with('>') {
+                    let inner = &s[7..s.len() - 1]; // Remove "Vector<" and ">"
+                    // Find the comma separating type and size
+                    let mut comma_pos = None;
+                    let mut depth = 0;
+                    
+                    for (i, ch) in inner.chars().enumerate() {
+                        match ch {
+                            '<' => depth += 1,
+                            '>' => depth -= 1,
+                            ',' if depth == 0 => {
+                                comma_pos = Some(i);
+                                break;
+                            }
+                            _ => {}
+                        }
+                    }
+                    
+                    if let Some(comma) = comma_pos {
+                        let type_part = &inner[..comma].trim();
+                        let size_part = &inner[comma + 1..].trim();
+                        
+                        let inner_type = Type::from_string(type_part);
+                        if let Ok(size) = size_part.parse::<usize>() {
+                            return Type::Vector(Box::new(inner_type), ArraySize::Literal(size));
+                        }
+                    }
                 }
 
                 // Check for trait objects: dyn Trait
@@ -440,6 +562,8 @@ impl Type {
             Type::Variable(_) => true,
             Type::Array(inner, _) => inner.contains_vars(),
             Type::Slice(inner) => inner.contains_vars(),
+            Type::DynamicArray(inner) => inner.contains_vars(),
+            Type::Vector(inner, _) => inner.contains_vars(),
             Type::Tuple(types) => types.iter().any(|t| t.contains_vars()),
             Type::Ptr(inner, _) => inner.contains_vars(),
             Type::Ref(inner, lifetime, _) => inner.contains_vars() || lifetime.contains_vars(),
@@ -455,6 +579,7 @@ impl Type {
             Type::PartialApplication(constructor, args) => {
                 constructor.contains_vars() || args.iter().any(|t| t.contains_vars())
             }
+            Type::Identity(_) => false,
             _ => false,
         }
     }
@@ -480,6 +605,7 @@ impl Type {
             Type::Array(inner, size) => format!("[{}; {}]", inner.display_name(), size),
             Type::Slice(inner) => format!("[{}]", inner.display_name()),
             Type::DynamicArray(inner) => format!("[dynamic]{}", inner.display_name()),
+            Type::Vector(inner, size) => format!("Vector<{}, {}>", inner.display_name(), size),
             Type::Tuple(types) => {
                 let inner = types
                     .iter()
@@ -548,6 +674,7 @@ impl Type {
                 format!("{}<{}>", constructor_str, args_str)
             }
             Type::Error => "<?>".to_string(),
+            Type::Identity(identity) => identity.to_string(),
         }
     }
 
@@ -572,6 +699,7 @@ impl Type {
             Type::Array(inner, size) => format!("Array_{}_{}", inner.mangled_name(), size),
             Type::Slice(inner) => format!("Slice_{}", inner.mangled_name()),
             Type::DynamicArray(inner) => format!("DynamicArray_{}", inner.mangled_name()),
+            Type::Vector(inner, size) => format!("Vector_{}_{}", inner.mangled_name(), size),
             Type::Tuple(types) => {
                 let mut name = "Tuple".to_string();
                 for ty in types {
@@ -636,6 +764,24 @@ impl Type {
                     .collect::<Vec<_>>()
                     .join("_");
                 format!("AsyncFunction_{}_{}", param_str, ret.mangled_name())
+            }
+            Type::Identity(identity) => {
+                let mut mangled = "Identity_".to_string();
+                if let Some(value) = &identity.value {
+                    let replaced = value.replace(" ", "_").replace("\"", "");
+                    mangled.push_str(&replaced);
+                } else {
+                    mangled.push_str("Unknown");
+                }
+                for cap in &identity.capabilities {
+                    mangled.push('_');
+                    let cap_str = cap.to_string();
+                    mangled.push_str(&cap_str);
+                }
+                if identity.delegatable {
+                    mangled.push_str("_Delegatable");
+                }
+                mangled
             }
             Type::Constructor(name, args, kind) => {
                 let mut mangled = format!("Constructor_{}_kind_{}", name, kind.mangled_name());
@@ -709,7 +855,7 @@ impl Type {
             // For other types, we might need to recursively instantiate
             Type::Array(inner, size) => {
                 let instantiated_inner = inner.instantiate_generic(type_args)?;
-                Ok(Type::Array(Box::new(instantiated_inner), *size))
+                Ok(Type::Array(Box::new(instantiated_inner), size.clone()))
             }
 
             Type::Slice(inner) => {
@@ -763,8 +909,53 @@ impl Type {
                 ))
             }
 
+            // Identity types
+            Type::Identity(identity) => {
+                if identity.is_parametric() {
+                    // Convert type_args from Type to IdentityType
+                    let identity_type_args: Result<Vec<IdentityType>, String> = type_args
+                        .iter()
+                        .map(|ty| {
+                            if let Type::Identity(id_ty) = ty {
+                                Ok((**id_ty).clone())
+                            } else {
+                                Err(format!(
+                                    "Expected identity type argument, got {}",
+                                    ty.display_name()
+                                ))
+                            }
+                        })
+                        .collect();
+                    
+                    let identity_type_args = identity_type_args?;
+                    
+                    // Instantiate the identity type
+                    let instantiated = identity.instantiate(identity_type_args)?;
+                    Ok(Type::Identity(Box::new(instantiated)))
+                } else {
+                    // Non-parametric identity type remains unchanged
+                    Ok(Type::Identity(identity.clone()))
+                }
+            },
+
             // Primitive types and error type remain unchanged
             _ => Ok(self.clone()),
+        }
+    }
+
+    /// Check if this type is a SIMD vector
+    pub fn is_vector(&self) -> bool {
+        matches!(self, Type::Vector(_, _))
+    }
+
+    /// Get the element type and size of a vector if this is a vector type
+    pub fn as_vector(&self) -> Option<(&Type, usize)> {
+        match self {
+            Type::Vector(inner, size) => Some((inner, match size {
+                ArraySize::Literal(n) => *n,
+                _ => 0, // Default for non-literal sizes
+            })),
+            _ => None,
         }
     }
 }
@@ -851,8 +1042,10 @@ impl Substitution {
                 .get(var)
                 .cloned()
                 .unwrap_or(Type::Variable(var.clone())),
-            Type::Array(inner, size) => Type::Array(Box::new(self.apply(inner)), *size),
+            Type::Array(inner, size) => Type::Array(Box::new(self.apply(inner)), size.clone()),
             Type::Slice(inner) => Type::Slice(Box::new(self.apply(inner))),
+            Type::DynamicArray(inner) => Type::DynamicArray(Box::new(self.apply(inner))),
+            Type::Vector(inner, size) => Type::Vector(Box::new(self.apply(inner)), size.clone()),
             Type::Tuple(types) => Type::Tuple(types.iter().map(|t| self.apply(t)).collect()),
             Type::Ptr(inner, mutability) => Type::Ptr(Box::new(self.apply(inner)), *mutability),
             Type::Ref(inner, lifetime, mutability) => {
@@ -865,6 +1058,7 @@ impl Substitution {
                 params.iter().map(|p| self.apply(p)).collect(),
                 Box::new(self.apply(ret)),
             ),
+            Type::Identity(inner) => Type::Identity(inner.clone()),
             _ => ty.clone(),
         }
     }
@@ -876,6 +1070,8 @@ impl Substitution {
             Type::Variable(v) => v == var,
             Type::Array(inner, _) => self.occurs_check(var, inner),
             Type::Slice(inner) => self.occurs_check(var, inner),
+            Type::DynamicArray(inner) => self.occurs_check(var, inner),
+            Type::Vector(inner, _) => self.occurs_check(var, inner),
             Type::Tuple(types) => types.iter().any(|t| self.occurs_check(var, t)),
             Type::Ptr(inner, _) => self.occurs_check(var, inner),
             Type::Ref(inner, _, _) => self.occurs_check(var, inner),
@@ -886,7 +1082,67 @@ impl Substitution {
             Type::AsyncFunction(params, ret) => {
                 params.iter().any(|p| self.occurs_check(var, p)) || self.occurs_check(var, ret)
             }
+            Type::Identity(_) => false,
             _ => false,
+        }
+    }
+    
+    /// Unify two array sizes
+    fn unify_array_size(&mut self, size1: &ArraySize, size2: &ArraySize) -> Result<(), UnifyError> {
+        match (size1, size2) {
+            // Literal sizes must match exactly
+            (ArraySize::Literal(n1), ArraySize::Literal(n2)) => {
+                if n1 == n2 {
+                    Ok(())
+                } else {
+                    // Create dummy array types for error reporting
+                    let t1 = Type::Array(Box::new(Type::Error), size1.clone());
+                    let t2 = Type::Array(Box::new(Type::Error), size2.clone());
+                    Err(UnifyError::Mismatch(t1, t2))
+                }
+            }
+            
+            // Const parameter can unify with literal or another const parameter
+            (ArraySize::ConstParam(name1), ArraySize::ConstParam(name2)) => {
+                if name1 == name2 {
+                    Ok(())
+                } else {
+                    // Different const parameters don't unify
+                    let t1 = Type::Array(Box::new(Type::Error), size1.clone());
+                    let t2 = Type::Array(Box::new(Type::Error), size2.clone());
+                    Err(UnifyError::Mismatch(t1, t2))
+                }
+            }
+            
+            // Const parameter can unify with literal (const parameter gets bound to literal)
+            // This is a simplification - in full const generics, we'd need to track const parameter values
+            (ArraySize::ConstParam(_), ArraySize::Literal(_)) => {
+                // For now, allow unification (const parameter can have any value)
+                Ok(())
+            }
+            (ArraySize::Literal(_), ArraySize::ConstParam(_)) => {
+                // Symmetric case
+                Ok(())
+            }
+            
+            // Expressions are more complex - for now, require exact match
+            (ArraySize::Expr(e1), ArraySize::Expr(e2)) => {
+                if e1 == e2 {
+                    Ok(())
+                } else {
+                    let t1 = Type::Array(Box::new(Type::Error), size1.clone());
+                    let t2 = Type::Array(Box::new(Type::Error), size2.clone());
+                    Err(UnifyError::Mismatch(t1, t2))
+                }
+            }
+            
+            // Mixed expression with literal/const - for now, don't unify
+            // In a full implementation, we'd need to evaluate/simplify expressions
+            _ => {
+                let t1 = Type::Array(Box::new(Type::Error), size1.clone());
+                let t2 = Type::Array(Box::new(Type::Error), size2.clone());
+                Err(UnifyError::Mismatch(t1, t2))
+            }
         }
     }
 }
@@ -1008,6 +1264,19 @@ impl Substitution {
                 // Allow unification between i64 and usize
                 Ok(())
             }
+            // Special case for array compatibility: allow i64 to unify with signed integers
+            (Type::I64, Type::I8) | (Type::I8, Type::I64) => {
+                // Allow unification between i64 and i8 (for array literals)
+                Ok(())
+            }
+            (Type::I64, Type::I16) | (Type::I16, Type::I64) => {
+                // Allow unification between i64 and i16 (for array literals)
+                Ok(())
+            }
+            (Type::I64, Type::I32) | (Type::I32, Type::I64) => {
+                // Allow unification between i64 and i32 (for array literals)
+                Ok(())
+            }
 
             // Type variable cases
             (Type::Variable(a), Type::Variable(b)) if a == b => Ok(()),
@@ -1023,7 +1292,11 @@ impl Substitution {
 
             // Array types
             (Type::Array(inner1, size1), Type::Array(inner2, size2)) => {
-                if size1 != size2 {
+                // Allow size 0 as a wildcard (for type inference)
+                // This is a hack to support array subscripting
+                if size1 != size2 && 
+                   !matches!(size1, ArraySize::Literal(0)) && 
+                   !matches!(size2, ArraySize::Literal(0)) {
                     return Err(UnifyError::Mismatch(t1, t2));
                 }
                 self.unify(inner1, inner2)
@@ -1031,6 +1304,14 @@ impl Substitution {
 
             // Dynamic array types
             (Type::DynamicArray(inner1), Type::DynamicArray(inner2)) => {
+                self.unify(inner1, inner2)
+            }
+
+            // Vector types
+            (Type::Vector(inner1, size1), Type::Vector(inner2, size2)) => {
+                if size1 != size2 {
+                    return Err(UnifyError::Mismatch(t1, t2));
+                }
                 self.unify(inner1, inner2)
             }
 
@@ -1140,6 +1421,33 @@ impl Substitution {
                 Ok(())
             }
 
+            // Identity types
+            (Type::Identity(id1), Type::Identity(id2)) => {
+                // Check if they can be unified through constraints
+                if id1.is_parametric() && id2.is_parametric() {
+                    // Both are parametric - check if they have same number of parameters
+                    if id1.type_params.len() == id2.type_params.len() {
+                        // For now, allow unification of parametric identity types with same arity
+                        // Actual constraint checking happens during instantiation
+                        Ok(())
+                    } else {
+                        Err(UnifyError::Mismatch(t1, t2))
+                    }
+                } else if !id1.is_parametric() && !id2.is_parametric() {
+                    // Both are concrete - check capability compatibility
+                    // For identity types, unification succeeds if either can substitute the other
+                    // This allows for capability subtyping (e.g., read+write can substitute read)
+                    if id1.can_substitute(&id2) || id2.can_substitute(&id1) {
+                        Ok(())
+                    } else {
+                        Err(UnifyError::Mismatch(t1, t2))
+                    }
+                } else {
+                    // One is parametric, one is concrete - can't unify
+                    Err(UnifyError::Mismatch(t1, t2))
+                }
+            }
+
             // Mismatch
             _ => Err(UnifyError::Mismatch(t1, t2)),
         }
@@ -1158,6 +1466,9 @@ impl Substitution {
                 Self::collect_type_vars(inner, type_vars);
             }
             Type::DynamicArray(inner) => {
+                Self::collect_type_vars(inner, type_vars);
+            }
+            Type::Vector(inner, _) => {
                 Self::collect_type_vars(inner, type_vars);
             }
             Type::Tuple(types) => {
@@ -1181,6 +1492,10 @@ impl Substitution {
                     Self::collect_type_vars(param, type_vars);
                 }
                 Self::collect_type_vars(ret, type_vars);
+            }
+            Type::Identity(_) => {
+                // Identity types don't contain type variables directly
+                // Type variables would be in the type parameters, which are handled separately
             }
             _ => {} // Primitive types don't contain type variables
         }
@@ -1238,13 +1553,25 @@ impl Substitution {
             Type::Array(inner, size) => {
                 let instantiated_inner =
                     self.instantiate_generic_with_bounds(inner, type_args, context)?;
-                Ok(Type::Array(Box::new(instantiated_inner), *size))
+                Ok(Type::Array(Box::new(instantiated_inner), size.clone()))
             }
 
             Type::Slice(inner) => {
                 let instantiated_inner =
                     self.instantiate_generic_with_bounds(inner, type_args, context)?;
                 Ok(Type::Slice(Box::new(instantiated_inner)))
+            }
+
+            Type::DynamicArray(inner) => {
+                let instantiated_inner =
+                    self.instantiate_generic_with_bounds(inner, type_args, context)?;
+                Ok(Type::DynamicArray(Box::new(instantiated_inner)))
+            }
+
+            Type::Vector(inner, size) => {
+                let instantiated_inner =
+                    self.instantiate_generic_with_bounds(inner, type_args, context)?;
+                Ok(Type::Vector(Box::new(instantiated_inner), size.clone()))
             }
 
             Type::Tuple(types) => {
@@ -1334,6 +1661,18 @@ impl Substitution {
             TraitBound::Ord => self.is_ord(&ty),
             TraitBound::Hash => self.is_hash(&ty),
             TraitBound::Future => false, // TODO: Implement Future trait check
+            TraitBound::Identity(capabilities) => {
+                // Check if type has identity with required capabilities
+                match ty {
+                    Type::Identity(identity_type) => {
+                        // Check if identity has all required capabilities
+                        capabilities.iter().all(|required_cap| {
+                            identity_type.capabilities.iter().any(|cap| cap >= required_cap)
+                        })
+                    }
+                    _ => false,
+                }
+            },
         }
     }
 
@@ -1357,6 +1696,7 @@ impl Substitution {
             Type::Ref(_, _, Mutability::Immutable) => true, // Shared references are Copy
 
             Type::Tuple(types) => types.iter().all(|t| self.is_copy(t)),
+            Type::Vector(inner, _) => self.is_copy(inner),
 
             Type::Named(name, args) => {
                 // Check if this is a known Copy type
@@ -1399,6 +1739,7 @@ impl Substitution {
             | Type::Char => true,
 
             Type::Tuple(types) => types.iter().all(|t| self.is_default(t)),
+            Type::Vector(inner, _) => self.is_default(inner),
 
             Type::Named(name, args) => match name.as_str() {
                 "Option" if args.len() == 1 => self.is_default(&args[0]),
@@ -1458,7 +1799,7 @@ mod tests {
         assert_eq!(Type::Bool.display_name(), "bool");
         assert_eq!(Type::Str.display_name(), "str");
 
-        let array = Type::Array(Box::new(Type::I32), 10);
+        let array = Type::Array(Box::new(Type::I32), ArraySize::Literal(10));
         assert_eq!(array.display_name(), "[i32; 10]");
 
         let tuple = Type::Tuple(vec![Type::I32, Type::Bool]);

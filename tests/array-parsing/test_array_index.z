@@ -1,0 +1,52 @@
+// Test array indexing issues
+
+fn test_direct_index() -> u64 {
+    let arr: [3]u64 = [10, 20, 30]
+    
+    // Direct indexing
+    let first = arr[0]
+    let second = arr[1]
+    let third = arr[2]
+    
+    if first == 10 && second == 20 && third == 30 {
+        return 1
+    } else {
+        return 0
+    }
+}
+
+fn test_variable_index() -> u64 {
+    let arr: [3]u64 = [10, 20, 30]
+    
+    // Variable index
+    let idx: u64 = 1
+    let value = arr[idx]
+    
+    if value == 20 {
+        return 1
+    } else {
+        return 0
+    }
+}
+
+fn test_while_index() -> u64 {
+    let arr: [3]u64 = [10, 20, 30]
+    
+    let mut i: u64 = 0
+    // Just access, don't sum
+    while i < 3 {
+        let value = arr[i]
+        i += 1
+    }
+    
+    // If we get here without crashing
+    return 1
+}
+
+fn main() -> u64 {
+    let test1 = test_direct_index()
+    let test2 = test_variable_index()
+    let test3 = test_while_index()
+    
+    return test1 + test2 * 10 + test3 * 100
+}

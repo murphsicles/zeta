@@ -1,0 +1,17 @@
+// Test array fixes
+fn main() -> i32 {
+    // Test 1: Simple array with type annotation
+    let arr1: [i32; 3] = [1, 2, 3];
+    
+    // Test 2: Array indexing
+    let arr2: [i32; 5] = [10, 20, 30, 40, 50];
+    let element = arr2[2];  // Should be 30
+    
+    // Test 3: Array repeat syntax
+    let arr3: [i32; 5] = [0; 5];
+    
+    // Test 4: Bool array
+    let arr4: [bool; 3] = [true; 3];
+    
+    return element
+}

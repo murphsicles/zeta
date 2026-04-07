@@ -1,0 +1,34 @@
+// Simple sieve algorithm with array
+fn main() -> i32 {
+    const N: usize = 100;
+    let mut is_prime: [bool; 100] = [true; 100];
+    
+    // 0 and 1 are not prime
+    is_prime[0] = false;
+    is_prime[1] = false;
+    
+    // Sieve of Eratosthenes
+    let mut i: usize = 2;
+    while i * i < 100 {
+        if is_prime[i] {
+            let mut j: usize = i * i;
+            while j < 100 {
+                is_prime[j] = false;
+                j += i;
+            }
+        }
+        i += 1;
+    }
+    
+    // Count primes
+    let mut count: i32 = 0;
+    let mut k: usize = 0;
+    while k < 100 {
+        if is_prime[k] {
+            count += 1;
+        }
+        k += 1;
+    }
+    
+    return count;
+}

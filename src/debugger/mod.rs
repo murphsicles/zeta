@@ -9,7 +9,7 @@ mod inspector;
 
 pub use debug_info::DebugInfo;
 pub use breakpoints::{Breakpoint, BreakpointManager};
-pub use inspector::VariableInspector;
+pub use inspector::{VariableInspector, VariableValue};
 
 /// Debugger error types
 #[derive(Debug)]

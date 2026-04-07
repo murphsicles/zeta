@@ -1,9 +1,61 @@
-fn test() -> u64 {
-    let arr = [dynamic]u8{}
-    arr.push(42)
-    return arr[0]
+// Test array operations in current Zeta
+
+fn test_array_basic() -> u64 {
+    // Test 1: Simple array declaration
+    let arr: [10]u64 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    
+    // Test 2: Array access
+    let first = arr[0]
+    let last = arr[9]
+    
+    // Test 3: Array modification
+    arr[0] = 100
+    arr[9] = 900
+    
+    // Test 4: While loop with array
+    let mut i: u64 = 0
+    let mut sum: u64 = 0
+    while i < 10 {
+        sum += arr[i]
+        i += 1
+    }
+    
+    return sum
+}
+
+fn test_array_comparison() -> u64 {
+    // Test array comparison in while loop
+    let bits: [100]u64 = [0; 100]  // Initialize with zeros
+    
+    let mut p: u64 = 2
+    while p < 100 {
+        // This is the problematic comparison
+        if bits[p] == 0 {
+            // Mark as visited
+            bits[p] = 1
+            return 1  // Success
+        }
+        p += 1
+    }
+    
+    return 0
+}
+
+fn test_modulo() -> u64 {
+    // Test modulo operation
+    let a: u64 = 10
+    let b: u64 = 3
+    let result = a % b
+    
+    return result  // Should return 1
 }
 
 fn main() -> u64 {
-    return test()
+    // Run all tests
+    let test1 = test_array_basic()
+    let test2 = test_array_comparison()
+    let test3 = test_modulo()
+    
+    // Return combined result
+    return test1 + test2 * 100 + test3 * 10000
 }

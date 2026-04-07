@@ -22,11 +22,21 @@ impl Parser {
         while let Some(op) = self.binary_op() {
             self.advance();
             let right = self.parse_postfix();
-            left = AstNode::BinaryOp {
-                op,
-                left: Box::new(left),
-                right: Box::new(right),
-            };
+            
+            if op == "@" {
+                // Matrix multiplication - treat as tensor operation
+                left = AstNode::TensorOp {
+                    op: "matmul".to_string(),
+                    inputs: vec![left, right],
+                    attrs: vec![],
+                };
+            } else {
+                left = AstNode::BinaryOp {
+                    op,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                };
+            }
         }
         left
     }
@@ -99,6 +109,19 @@ impl Parser {
                     self.expect(Token::Gt);
                     let inner = self.parse_expr();
                     AstNode::TimingOwned { ty, inner: Box::new(inner) }
+                } else if name == "tensor" && self.peek() == Token::Bang {
+                    // Tensor literal: tensor![...]
+                    self.advance(); // Skip '!'
+                    self.parse_tensor_lit()
+                } else if name == "Tensor" && self.peek() == Token::Lt {
+                    // Tensor type: Tensor<f32, [2, 3]>
+                    self.parse_tensor_type()
+                } else if name == "param" && self.peek() == Token::LParen {
+                    // Parameter declaration: param(Tensor<f32, [784, 256]>)
+                    self.parse_param()
+                } else if name == "gradient" && self.peek() == Token::LParen {
+                    // Gradient call: gradient(f, x)
+                    self.parse_gradient_call()
                 } else {
                     AstNode::Var(name)
                 }
@@ -209,6 +232,7 @@ impl Parser {
             Token::Minus => Some("-".to_string()),
             Token::Star => Some("*".to_string()),
             Token::Slash => Some("/".to_string()),
+            Token::AtSymbol => Some("@".to_string()), // Matrix multiplication
             _ => None,
         }
     }

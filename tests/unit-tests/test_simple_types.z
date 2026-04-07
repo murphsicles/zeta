@@ -1,0 +1,12 @@
+// Simple test to understand type system
+
+fn test_types() -> u64 {
+    let x: u64 = 5
+    let y: u64 = 3
+    let z: u64 = x + y
+    return z
+}
+
+fn main() -> u64 {
+    return test_types()
+}

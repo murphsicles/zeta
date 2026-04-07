@@ -1,0 +1,127 @@
+// Murphy's Sieve with Bit Array Optimization
+// Uses u8 array (1 bit per element) for 8x memory savings
+// Prevents OpenClaw Gateway crash by reducing memory usage
+
+// Import runtime functions for heap allocation
+extern fn runtime_malloc(size: i64) -> *mut i8;
+
+// Bit array utilities
+fn set_bit(array: *mut u8, index: i64) {
+    let byte_index = index / 8;
+    let bit_offset = index % 8;
+    unsafe {
+        let byte = *array.offset(byte_index as isize);
+        *array.offset(byte_index as isize) = byte | (1 << bit_offset);
+    }
+}
+
+fn clear_bit(array: *mut u8, index: i64) {
+    let byte_index = index / 8;
+    let bit_offset = index % 8;
+    unsafe {
+        let byte = *array.offset(byte_index as isize);
+        *array.offset(byte_index as isize) = byte & !(1 << bit_offset);
+    }
+}
+
+fn get_bit(array: *mut u8, index: i64) -> bool {
+    let byte_index = index / 8;
+    let bit_offset = index % 8;
+    unsafe {
+        let byte = *array.offset(byte_index as isize);
+        (byte & (1 << bit_offset)) != 0
+    }
+}
+
+// Bit array Murphy's Sieve
+fn murphy_sieve_bitarray(limit: i64) -> i64 {
+    // Calculate byte array size (ceil(limit/8))
+    let byte_size = (limit + 7) / 8;
+    
+    // Allocate byte array for bit sieve
+    let sieve_ptr = runtime_malloc(byte_size) as *mut u8;
+    
+    // Initialize all bits to 1 (true = prime)
+    let mut i: i64 = 0;
+    while i < byte_size {
+        unsafe {
+            *sieve_ptr.offset(i as isize) = 0xFF; // All bits set to 1
+        }
+        i += 1;
+    }
+    
+    // Clear bits for 0 and 1 (not prime)
+    if limit > 0 {
+        clear_bit(sieve_ptr, 0);
+    }
+    if limit > 1 {
+        clear_bit(sieve_ptr, 1);
+    }
+    
+    // Sieve with workaround for while loop condition bug
+    i = 2;
+    loop {
+        // Workaround: manually check condition and break
+        if i * i >= limit {
+            break;
+        }
+        
+        if get_bit(sieve_ptr, i) {
+            let mut j = i * i;
+            while j < limit {
+                clear_bit(sieve_ptr, j);
+                j += i;
+            }
+        }
+        
+        i += 1;
+    }
+    
+    // Count primes (bits still set to 1)
+    let mut count: i64 = 0;
+    let mut k: i64 = 0;
+    while k < limit {
+        if get_bit(sieve_ptr, k) {
+            count += 1;
+        }
+        k += 1;
+    }
+    
+    return count;
+}
+
+// Test function
+fn test_bitarray_sieve() -> bool {
+    // Known prime counts for validation
+    let test_cases = [
+        (10, 4),
+        (100, 25),
+        (1000, 168),
+        (10000, 1229),
+    ];
+    
+    let mut all_passed = true;
+    
+    println!("Testing Bit Array Murphy's Sieve:");
+    for &(limit, expected) in &test_cases {
+        let result = murphy_sieve_bitarray(limit);
+        if result == expected {
+            println!("  ✓ limit={}: {} primes (expected {})", limit, result, expected);
+        } else {
+            println!("  ✗ limit={}: {} primes (expected {})", limit, result, expected);
+            all_passed = false;
+        }
+    }
+    
+    return all_passed;
+}
+
+fn main() -> i64 {
+    if test_bitarray_sieve() {
+        println!("\nAll tests passed! Bit array optimization successful.");
+        return 0; // Success
+    } else {
+        println!("\nSome tests failed.");
+        return 1; // Failure
+    }
+}

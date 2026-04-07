@@ -503,4 +503,6 @@ impl OptimizationStrategy {
     fn commute_gates(&self, circuit: &mut QuantumCircuit) {
         // Reorder gates to enable more optimizations
         // This is a simplified implementation
-        let mut new
+        // Placeholder implementation
+    }
+}

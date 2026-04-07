@@ -1,0 +1,32 @@
+// Test array comparison operations with else branches
+
+fn test_array_comparison() -> u64 {
+    let arr: [dynamic]u64 = [dynamic]u64{}
+    
+    arr.push(0)
+    arr.push(1)
+    arr.push(0)
+    
+    let mut count: u64 = 0
+    
+    // Test direct comparison with else
+    if arr[0] == 0 {
+        count = count + 1
+    } else {
+        count = count
+    }
+    
+    // Test with variable
+    let val: u64 = arr[1]
+    if val == 1 {
+        count = count + 1
+    } else {
+        count = count
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    return test_array_comparison()
+}

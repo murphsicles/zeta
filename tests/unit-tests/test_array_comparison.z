@@ -1,0 +1,51 @@
+// Test array comparison operations in while loops
+// This tests the issue: bits[p] == 0
+
+fn test_array_comparison() -> u64 {
+    // Create a simple array
+    let arr: [dynamic]u8 = [dynamic]u8{}
+    
+    // Initialize with some values
+    arr.push(0)
+    arr.push(1)
+    arr.push(0)
+    arr.push(1)
+    arr.push(0)
+    
+    // Test 1: Direct comparison in if statement
+    let mut test1_passed: u64 = 0
+    if arr[0] == 0 {
+        test1_passed = 1
+    }
+    
+    // Test 2: Comparison in while loop condition
+    let mut test2_passed: u64 = 0
+    let mut i: u64 = 0
+    while i < arr.len() {
+        if arr[i] == 0 {
+            test2_passed += 1
+        }
+        i += 1
+    }
+    
+    // Test 3: Store array value in variable first
+    let mut test3_passed: u64 = 0
+    let mut j: u64 = 0
+    while j < arr.len() {
+        let val: u8 = arr[j]
+        if val == 0 {
+            test3_passed += 1
+        }
+        j += 1
+    }
+    
+    // Return combined result
+    // test1_passed should be 1
+    // test2_passed should be 3 (there are 3 zeros in the array)
+    // test3_passed should be 3
+    return test1_passed * 100 + test2_passed * 10 + test3_passed
+}
+
+fn main() -> u64 {
+    return test_array_comparison()
+}

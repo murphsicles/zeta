@@ -360,7 +360,12 @@ pub fn parse_macro_rules(input: &str) -> Result<DeclarativeMacro, String> {
     let mut name = String::new();
     while let Some(&c) = chars.peek() {
         if c.is_alphanumeric() || c == '_' {
-            name.push(chars.next().unwrap());
+            // Safe because we just peeked
+            if let Some(ch) = chars.next() {
+                name.push(ch);
+            } else {
+                break;
+            }
         } else {
             break;
         }
@@ -463,7 +468,10 @@ fn parse_macro_tokens<I: Iterator<Item = char>>(
         }
 
         if c.is_alphanumeric() || c == '_' {
-            current_ident.push(chars.next().unwrap());
+            // Safe because we just peeked
+            if let Some(ch) = chars.next() {
+                current_ident.push(ch);
+            }
         } else {
             // Flush identifier if we have one
             if !current_ident.is_empty() {
@@ -512,7 +520,10 @@ fn parse_macro_tokens<I: Iterator<Item = char>>(
                         let mut sep = String::new();
                         while let Some(&c) = chars.peek() {
                             if c.is_alphanumeric() || c == '_' {
-                                sep.push(chars.next().unwrap());
+                                // Safe because we just peeked
+                                if let Some(ch) = chars.next() {
+                                    sep.push(ch);
+                                }
                             } else {
                                 break;
                             }
@@ -555,7 +566,9 @@ fn parse_macro_tokens<I: Iterator<Item = char>>(
                 }
                 _ => {
                     // Punctuation
-                    tokens.push(MacroToken::Punct(chars.next().unwrap()));
+                    if let Some(ch) = chars.next() {
+                        tokens.push(MacroToken::Punct(ch));
+                    }
                 }
             }
         }

@@ -1,6 +1,7 @@
-// Test type alias
-type MyInt = u64
+// Test type alias functionality
+type MyInt = i64;
 
-fn main() -> MyInt {
-    return 42
+fn main() -> i64 {
+    let x: MyInt = 42;
+    x
 }
