@@ -48,7 +48,7 @@ fn main() {
         ),
         (
             "Large",
-            include_str!("../../tests/complex_program_test_suite.rs"),
+            include_str!("../../tests/unit/complex_program_test_suite.rs"),
         ),
     ];
 

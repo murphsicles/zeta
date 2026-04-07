@@ -1,0 +1,50 @@
+// Sieve with print to debug
+fn main() -> i64 {
+    let limit: i64 = 10;
+    
+    // Fixed size array
+    let mut is_prime: [bool; 10] = [true; 10];
+    
+    // 0 and 1 are not prime
+    is_prime[0] = false;
+    is_prime[1] = false;
+    
+    let mut i: i64 = 2;
+    
+    // DEBUG: Print loop start
+    print_i64(i);
+    
+    while i * i < limit {
+        // DEBUG: Print i value
+        print_i64(i);
+        
+        if is_prime[i as usize] {
+            let mut j: i64 = i * i;
+            while j < limit {
+                is_prime[j as usize] = false;
+                j += i;
+            }
+        }
+        i += 1;
+        
+        // Safety check
+        if i > 100 {
+            return -1; // Infinite loop detected
+        }
+    }
+    
+    // Count primes
+    let mut count: i64 = 0;
+    let mut k: i64 = 0;
+    while k < limit {
+        if is_prime[k as usize] {
+            count += 1;
+        }
+        k += 1;
+    }
+    
+    // DEBUG: Print result
+    print_i64(count);
+    
+    return count; // Should return 4
+}

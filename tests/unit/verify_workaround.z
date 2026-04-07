@@ -1,0 +1,78 @@
+// Verify the workaround for while loop condition bug
+// Tests: if i*i >= limit { break; } pattern
+
+fn test_workaround(limit: i64) -> i64 {
+    // Small array for testing
+    let mut sieve: [bool; 100] = [true; 100];
+    
+    if limit > 100 {
+        return 0;
+    }
+    
+    // 0 and 1 are not prime
+    if limit > 0 {
+        sieve[0] = false;
+    }
+    if limit > 1 {
+        sieve[1] = false;
+    }
+    
+    // Test the workaround pattern
+    let mut i: i64 = 2;
+    loop {
+        // This is the workaround for: while i*i < limit
+        if i * i >= limit {
+            break;
+        }
+        
+        if sieve[i as usize] {
+            let mut j = i * i;
+            while j < limit {
+                sieve[j as usize] = false;
+                j += i;
+            }
+        }
+        
+        i += 1;
+    }
+    
+    // Count primes
+    let mut count: i64 = 0;
+    let mut k: i64 = 0;
+    while k < limit {
+        if sieve[k as usize] {
+            count += 1;
+        }
+        k += 1;
+    }
+    
+    return count;
+}
+
+fn main() -> i64 {
+    // Test known values
+    // π(10) = 4, π(30) = 10, π(100) = 25
+    
+    let mut passed = 0;
+    
+    // Test 1: limit = 10
+    let result1 = test_workaround(10);
+    if result1 == 4 {
+        passed += 1;
+    }
+    
+    // Test 2: limit = 30
+    let result2 = test_workaround(30);
+    if result2 == 10 {
+        passed += 1;
+    }
+    
+    // Test 3: limit = 100
+    let result3 = test_workaround(100);
+    if result3 == 25 {
+        passed += 1;
+    }
+    
+    // Return number of passed tests (0-3)
+    return passed;
+}

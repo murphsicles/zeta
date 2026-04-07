@@ -1,8 +1,0 @@
-// Simple test that doesn't need runtime
-fn main() {
-    let x = 42;
-    let y = 100;
-    let sum = x + y;
-    // We'll just return the sum instead of printing
-    sum
-}

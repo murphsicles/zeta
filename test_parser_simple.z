@@ -1,2 +1,0 @@
-// Test if parser can parse identity types
-let x: string[identity:read] = "hello"

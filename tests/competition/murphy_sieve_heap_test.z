@@ -1,0 +1,69 @@
+// Murphy's Sieve with heap arrays - tests runtime_malloc and bool array fixes
+// This should test the recent fixes: heap arrays, bool arrays, and hybrid system
+
+fn murphy_sieve_heap(limit: i32) -> i32 {
+    // Create a heap-allocated boolean array
+    // This tests runtime_malloc fix
+    let mut sieve = [false; limit];
+    
+    // Initialize: 0 and 1 are not prime
+    if limit > 0 {
+        sieve[0] = false;
+    }
+    if limit > 1 {
+        sieve[1] = false;
+    }
+    
+    // Mark all other numbers as potentially prime initially
+    let mut i = 2;
+    while i < limit {
+        sieve[i] = true;
+        i += 1;
+    }
+    
+    // Sieve of Eratosthenes
+    i = 2;
+    while i * i < limit {
+        if sieve[i] {
+            let mut j = i * i;
+            while j < limit {
+                sieve[j] = false;
+                j += i;
+            }
+        }
+        i += 1;
+    }
+    
+    // Count primes
+    let mut count = 0;
+    let mut k = 0;
+    while k < limit {
+        if sieve[k] {
+            count += 1;
+        }
+        k += 1;
+    }
+    
+    return count;
+}
+
+fn main() -> i32 {
+    // Test with known values
+    let test_cases = [
+        (10, 4),     // π(10) = 4
+        (100, 25),   // π(100) = 25
+        (1000, 168), // π(1000) = 168
+    ];
+    
+    let mut passed = 0;
+    
+    for &(limit, expected) in &test_cases {
+        let result = murphy_sieve_heap(limit);
+        if result == expected {
+            passed += 1;
+        }
+    }
+    
+    // Return number of passed tests (0-3)
+    return passed;
+}

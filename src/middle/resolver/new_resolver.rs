@@ -1656,6 +1656,28 @@ impl InferContext {
                         "Ord" => bounds.push(TraitBound::Ord),
                         "Hash" => bounds.push(TraitBound::Hash),
                         "Future" => bounds.push(TraitBound::Future),
+                        bound_str if bound_str.starts_with("Identity<") && bound_str.ends_with(">") => {
+                            // Parse Identity<Read> or Identity<Read+Write>
+                            let inner = &bound_str[9..bound_str.len()-1]; // Remove "Identity<" and ">"
+                            let capabilities: Result<Vec<_>, _> = inner.split('+')
+                                .map(|cap| cap.trim())
+                                .map(|cap_str| {
+                                    match cap_str.to_lowercase().as_str() {
+                                        "read" => Ok(crate::middle::types::identity::CapabilityLevel::Read),
+                                        "write" => Ok(crate::middle::types::identity::CapabilityLevel::Write),
+                                        "execute" => Ok(crate::middle::types::identity::CapabilityLevel::Execute),
+                                        "owned" => Ok(crate::middle::types::identity::CapabilityLevel::Owned),
+                                        "immutable" => Ok(crate::middle::types::identity::CapabilityLevel::Immutable),
+                                        _ => Err(format!("Unknown capability: {}", cap_str)),
+                                    }
+                                })
+                                .collect();
+                            
+                            match capabilities {
+                                Ok(caps) => bounds.push(TraitBound::Identity(caps)),
+                                Err(e) => return Err(format!("Invalid identity constraint: {}", e)),
+                            }
+                        },
                         _ => return Err(format!("Unknown trait bound: {}", bound_str)),
                     }
                 }

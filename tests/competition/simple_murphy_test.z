@@ -1,0 +1,53 @@
+// Simple Murphy's Sieve test with static array
+// This should work with the bool array fix
+
+fn murphy_sieve_simple(limit: i32) -> i32 {
+    // Use a static array size for testing
+    let mut sieve: [bool; 1000] = [false; 1000];
+    
+    // Initialize
+    if limit > 0 {
+        sieve[0] = false;
+    }
+    if limit > 1 {
+        sieve[1] = false;
+    }
+    
+    // Mark potential primes
+    let mut i = 2;
+    while i < limit && i < 1000 {
+        sieve[i] = true;
+        i += 1;
+    }
+    
+    // Sieve
+    i = 2;
+    while i * i < limit && i < 1000 {
+        if sieve[i] {
+            let mut j = i * i;
+            while j < limit && j < 1000 {
+                sieve[j] = false;
+                j += i;
+            }
+        }
+        i += 1;
+    }
+    
+    // Count
+    let mut count = 0;
+    let mut k = 0;
+    while k < limit && k < 1000 {
+        if sieve[k] {
+            count += 1;
+        }
+        k += 1;
+    }
+    
+    return count;
+}
+
+fn main() -> i32 {
+    // Test with limit 100 (should return 25 primes)
+    let result = murphy_sieve_simple(100);
+    return result; // Should return 25
+}

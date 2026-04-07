@@ -1,0 +1,92 @@
+// Simple Murphy's Sieve Benchmark
+// Focus on core functionality: workaround testing and correctness
+
+// Stack-based Murphy's Sieve with workaround
+fn murphy_sieve_stack(limit: i64) -> i64 {
+    // Use fixed-size array
+    let mut sieve: [bool; 10000] = [false; 10000];
+    
+    if limit > 10000 {
+        return 0;
+    }
+    
+    // Initialize
+    let mut i: i64 = 0;
+    while i < limit {
+        sieve[i as usize] = true;
+        i += 1;
+    }
+    
+    if limit > 0 {
+        sieve[0] = false;
+    }
+    if limit > 1 {
+        sieve[1] = false;
+    }
+    
+    // Sieve with workaround for while loop condition bug
+    i = 2;
+    loop {
+        // Workaround: manually check condition and break
+        if i * i >= limit {
+            break;
+        }
+        
+        if sieve[i as usize] {
+            let mut j = i * i;
+            while j < limit {
+                sieve[j as usize] = false;
+                j += i;
+            }
+        }
+        
+        i += 1;
+    }
+    
+    // Count primes
+    let mut count: i64 = 0;
+    let mut k: i64 = 0;
+    while k < limit {
+        if sieve[k as usize] {
+            count += 1;
+        }
+        k += 1;
+    }
+    
+    return count;
+}
+
+fn main() -> i64 {
+    // Test cases with known prime counts
+    // π(10) = 4, π(100) = 25, π(1000) = 168, π(10000) = 1229
+    
+    let mut passed = 0;
+    let total = 4;
+    
+    // Test 1: limit = 10
+    let result1 = murphy_sieve_stack(10);
+    if result1 == 4 {
+        passed += 1;
+    }
+    
+    // Test 2: limit = 100
+    let result2 = murphy_sieve_stack(100);
+    if result2 == 25 {
+        passed += 1;
+    }
+    
+    // Test 3: limit = 1000
+    let result3 = murphy_sieve_stack(1000);
+    if result3 == 168 {
+        passed += 1;
+    }
+    
+    // Test 4: limit = 10000
+    let result4 = murphy_sieve_stack(10000);
+    if result4 == 1229 {
+        passed += 1;
+    }
+    
+    // Return number of passed tests (0-4)
+    return passed;
+}

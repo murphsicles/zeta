@@ -1,5 +1,8 @@
-// Minimal test that v0.3.23 can compile
-fn main() -> i64 {
+// Simple test that doesn't need runtime
+fn main() {
     let x = 42;
-    x
+    let y = 100;
+    let sum = x + y;
+    // We'll just return the sum instead of printing
+    sum
 }

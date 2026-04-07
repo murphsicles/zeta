@@ -1,5 +1,0 @@
-// Simple test for array repeat
-fn main() -> i64 {
-    let arr = [true; 10000];
-    return arr[0];
-}

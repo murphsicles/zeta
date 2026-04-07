@@ -160,6 +160,7 @@ pub enum TraitBound {
     Ord,
     Hash,
     Future,
+    Identity(Vec<crate::middle::types::identity::CapabilityLevel>),
     // Add more as needed
 }
 
@@ -1626,6 +1627,18 @@ impl Substitution {
             TraitBound::Ord => self.is_ord(&ty),
             TraitBound::Hash => self.is_hash(&ty),
             TraitBound::Future => false, // TODO: Implement Future trait check
+            TraitBound::Identity(capabilities) => {
+                // Check if type has identity with required capabilities
+                match ty {
+                    Type::Identity(identity_type) => {
+                        // Check if identity has all required capabilities
+                        capabilities.iter().all(|required_cap| {
+                            identity_type.capabilities.iter().any(|cap| cap >= required_cap)
+                        })
+                    }
+                    _ => false,
+                }
+            },
         }
     }
 
