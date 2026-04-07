@@ -1,0 +1,9 @@
+// Test [dynamic]u8 syntax
+fn test() -> u64 {
+    let mut arr: [dynamic]u8 = []
+    return 0
+}
+
+fn main() -> u64 {
+    return 0
+}
