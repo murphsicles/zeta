@@ -1,0 +1,18 @@
+// Step 1: Minimal working GCD test
+fn gcd(a: u64, b: u64) -> u64 {
+    let mut x = a
+    let mut y = b
+    while y != 0 {
+        let t = y
+        y = x % y
+        x = t
+    }
+    return x
+}
+
+// Step 2: Add comptime constant
+comptime MODULUS: u64 = 30030
+
+fn main() -> u64 {
+    return gcd(MODULUS, 17)
+}

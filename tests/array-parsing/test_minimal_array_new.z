@@ -1,0 +1,7 @@
+// Test minimal array syntax
+fn main() -> u64 {
+    let mut arr: [u8] = []
+    arr.append(1)
+    arr.append(2)
+    return arr[0] as u64
+}

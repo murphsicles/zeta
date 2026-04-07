@@ -127,3 +127,4 @@ HEARTBEAT.md
 memory/
 .workspace-config/
 workspace-config/
+.openclaw-workspace/

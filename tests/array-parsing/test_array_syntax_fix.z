@@ -1,0 +1,7 @@
+fn test() -> u64 {
+    // Test different array syntaxes
+    let mut arr1: [u8;] = []  // Type with no size
+    let mut arr2: [u8; 0] = []  // Type with zero size
+    let mut arr3 = [] as [u8]  // Cast syntax
+    return 0
+}
