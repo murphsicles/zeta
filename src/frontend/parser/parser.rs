@@ -393,15 +393,18 @@ pub fn parse_type(input: &str) -> IResult<&str, String> {
 }
 
 pub fn parse_type_args(input: &str) -> IResult<&str, Vec<String>> {
-    delimited(
+    let (input, inner) = delimited(
         ws(tag("<")),
-        terminated(
-            separated_list0(ws(tag(",")), ws(parse_generic_arg_text)),
-            opt(ws(tag(","))),
-        ),
+        parse_angle_bracketed_content_inner_slice,
         ws(tag(">")),
     )
-    .parse(input)
+    .parse(input)?;
+    let (_, args) = terminated(
+        separated_list0(ws(tag(",")), ws(parse_generic_arg_text)),
+        opt(ws(tag(","))),
+    )
+    .parse(inner)?;
+    Ok((input, args))
 }
 
 /// Parse generic argument text (now parses a full type)
@@ -589,18 +592,17 @@ pub fn parse_generic_params(input: &str) -> IResult<&str, (Vec<String>, Vec<Stri
 
 /// Parse generic parameters as GenericParam enum values
 pub fn parse_generic_params_as_enum(input: &str) -> IResult<&str, Vec<GenericParam>> {
-    let (input, params) = delimited(
+    let (input, inner) = delimited(
         ws(tag("<")),
-        terminated(
-            separated_list0(
-                ws(tag(",")),
-                ws(parse_generic_param_as_enum),
-            ),
-            opt(ws(tag(","))),
-        ),
+        parse_angle_bracketed_content_inner_slice,
         ws(tag(">")),
     )
     .parse(input)?;
+    let (_, params) = terminated(
+        separated_list0(ws(tag(",")), ws(parse_generic_param_as_enum)),
+        opt(ws(tag(","))),
+    )
+    .parse(inner)?;
 
     Ok((input, params))
 }
@@ -652,6 +654,27 @@ fn parse_attribute_content(input: &str) -> IResult<&str, String> {
                 escape_next = false;
                 result.push(c);
             }
+        }
+    }
+    
+    Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::TakeUntil)))
+}
+
+fn parse_angle_bracketed_content_inner_slice(input: &str) -> IResult<&str, &str> {
+    let mut depth = 1;
+    let mut chars = input.char_indices();
+    
+    while let Some((i, c)) = chars.next() {
+        match c {
+            '<' => depth += 1,
+            '>' => {
+                depth -= 1;
+                if depth == 0 {
+                    // We've matched the outer '>'; return content up to this point (excluding this '>')
+                    return Ok((&input[i..], &input[0..i]));
+                }
+            }
+            _ => {}
         }
     }
     
