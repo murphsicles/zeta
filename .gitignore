@@ -80,9 +80,42 @@ verification/
 /SOUL.md
 /TOOLS.md
 /USER.md
-/WORK_QUEUE.md
 /MEMORY.md
 /BOOTSTRAP.md
+
+# Competition benchmark files
+FRESH_BENCHMARK_REPORT.md
+benchmark_output.txt
+benchmark_primezeta.ps1
+benchmark_zeta.ps1
+collect_data.ps1
+fresh_benchmark.ps1
+fresh_benchmark_results.csv
+parse_bool_array.ps1
+competition_rules.md
+
+# Executable files and build outputs
+*.exe
+*.exe.o
+*.pdb
+zetac.exe
+final_murphy_benchmark.exe
+murphy_sieve_competition_final.exe
+performance_comparison.exe
+regression_test_fixed.exe
+test_print.exe
+test_print2.exe
+test_sieve.exe
+
+# Test output directories
+Primes/
+runtime_lib/
+tests/competition/
+tests/performance/
+
+# Backup files
+*.backup
+*.bak
 
 # OpenClaw workspace files (PRIVATE)
 AGENTS.md
