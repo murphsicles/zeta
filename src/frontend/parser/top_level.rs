@@ -90,6 +90,7 @@ fn parse_visibility(input: &str) -> IResult<&str, bool> {
 }
 
 fn parse_func(input: &str) -> IResult<&str, AstNode> {
+    eprintln!("[DEBUG parse_func] input: {:?}", input);
     // Parse attributes first
     let (input, attrs) = parse_attributes(input)?;
 

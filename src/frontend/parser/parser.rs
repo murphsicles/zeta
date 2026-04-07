@@ -592,17 +592,20 @@ pub fn parse_generic_params(input: &str) -> IResult<&str, (Vec<String>, Vec<Stri
 
 /// Parse generic parameters as GenericParam enum values
 pub fn parse_generic_params_as_enum(input: &str) -> IResult<&str, Vec<GenericParam>> {
+    eprintln!("[DEBUG parse_generic_params_as_enum] input: {:?}", input);
     let (input, inner) = delimited(
         ws(tag("<")),
         parse_angle_bracketed_content_inner_slice,
         ws(tag(">")),
     )
     .parse(input)?;
+    eprintln!("[DEBUG parse_generic_params_as_enum] inner: {:?}", inner);
     let (_, params) = terminated(
         separated_list0(ws(tag(",")), ws(parse_generic_param_as_enum)),
         opt(ws(tag(","))),
     )
     .parse(inner)?;
+    eprintln!("[DEBUG parse_generic_params_as_enum] params: {:?}", params);
 
     Ok((input, params))
 }
