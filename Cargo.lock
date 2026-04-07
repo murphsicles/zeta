@@ -7454,7 +7454,7 @@ dependencies = [
 
 [[package]]
 name = "zetac"
-version = "0.3.53"
+version = "0.3.54"
 dependencies = [
  "aes-gcm",
  "argon2",
