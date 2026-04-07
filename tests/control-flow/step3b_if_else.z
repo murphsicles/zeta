@@ -1,0 +1,18 @@
+// Step 3b: if with else
+fn test() -> u64 {
+    let mut count: u64 = 0
+    let mut i: u64 = 0
+    while i < 10 {
+        if i % 2 == 0 {
+            count += i  // Add even numbers
+        } else {
+            // Do nothing for odd numbers
+        }
+        i += 1
+    }
+    return count
+}
+
+fn main() -> u64 {
+    return test()
+}

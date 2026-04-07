@@ -1,0 +1,12 @@
+// Test sized array [u64; N] syntax
+comptime SIZE: u64 = 10
+
+fn test() -> u64 {
+    // Sized array with constant size
+    let mut arr: [u64; SIZE] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    return arr[0]
+}
+
+fn main() -> u64 {
+    return test()
+}

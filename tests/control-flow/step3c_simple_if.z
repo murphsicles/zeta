@@ -1,0 +1,17 @@
+// Step 3c: Simple if without +=
+fn test() -> u64 {
+    let mut count: u64 = 0
+    let mut i: u64 = 0
+    while i < 10 {
+        let is_even = i % 2 == 0
+        if is_even {
+            count = count + i  // Use = instead of +=
+        }
+        i = i + 1  // Use = instead of +=
+    }
+    return count
+}
+
+fn main() -> u64 {
+    return test()
+}
