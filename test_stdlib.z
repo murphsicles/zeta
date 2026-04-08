@@ -1,0 +1,24 @@
+// Test stdlib functions
+use std::malloc;
+use std::free;
+use std::print;
+use std::println;
+use std::args;
+
+fn main() -> i64 {
+    // Test malloc and free
+    let ptr = malloc(100);
+    
+    // Test print and println
+    print(42);
+    println(99);
+    
+    // Test args
+    let args_ptr = args();
+    
+    // Free memory
+    free(ptr);
+    
+    // Return success
+    0
+}

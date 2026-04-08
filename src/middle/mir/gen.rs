@@ -39,11 +39,33 @@ impl MirGen {
         self.next_id = 1;
 
         if let AstNode::FuncDef { params, .. } = ast {
-            for (i, (name, _)) in params.iter().enumerate() {
+            for (i, (name, type_str)) in params.iter().enumerate() {
                 let id = self.next_id();
                 self.name_to_id.insert(name.clone(), id);
                 self.exprs.insert(id, MirExpr::Var(id));
-                self.type_map.insert(id, Type::I64);
+                
+                // Convert string type to Type enum
+                // TODO: This should use the resolver's string_to_type method
+                // For now, use simple conversion
+                let param_type = match type_str.as_str() {
+                    "i8" => Type::I8,
+                    "i16" => Type::I16,
+                    "i32" => Type::I32,
+                    "i64" => Type::I64,
+                    "u8" => Type::U8,
+                    "u16" => Type::U16,
+                    "u32" => Type::U32,
+                    "u64" => Type::U64,
+                    "f32" => Type::F32,
+                    "f64" => Type::F64,
+                    "bool" => Type::Bool,
+                    "char" => Type::Char,
+                    "str" => Type::Str,
+                    "()" => Type::Tuple(vec![]),
+                    _ => Type::Named(type_str.clone(), vec![]),
+                };
+                
+                self.type_map.insert(id, param_type);
                 self.stmts.push(MirStmt::ParamInit {
                     param_id: id,
                     arg_index: i as u32,

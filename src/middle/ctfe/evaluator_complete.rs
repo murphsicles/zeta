@@ -512,4 +512,27 @@ impl ConstEvaluator {
                     // Evaluate statements, last expression is result
                     let mut last_value = ConstValue::Unit;
                     for stmt in body {
-                        last_value =
+                        last_value = self.eval_const_expr(stmt)?;
+                        
+                        // Check for return statement
+                        if let AstNode::Return(expr) = stmt {
+                            last_value = self.eval_const_expr(expr)?;
+                            break;
+                        }
+                    }
+                    Ok(last_value)
+                } else {
+                    Ok(ConstValue::Unit)
+                };
+                
+                // Exit function scope
+                self.context.exit_scope();
+                
+                result
+            }
+            _ => Err(CtfeError::NotAConstFunction),
+        }
+    }
+}
+
+// Rest of the file would continue here...

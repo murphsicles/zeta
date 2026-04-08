@@ -1,0 +1,63 @@
+// PrimeZeta Module System Compatibility Test
+// This file tests all the import patterns that should work in PrimeZeta
+
+// File-based module declaration
+mod utils;
+
+// Inline module definition
+mod math {
+    pub fn add(a: i32, b: i32) -> i32 {
+        a + b
+    }
+    
+    pub const PI: f64 = 3.14159;
+}
+
+// Standard library imports
+use std::collections::HashMap;
+use std::io as stdio;
+use std::prelude::*;
+
+// Crate-relative imports  
+use crate::math::add;
+use crate::math::PI;
+
+// Zeta language imports
+use zeta::frontend::ast::AstNode;
+use zeta::middle::resolver::Resolver;
+
+// Zorb package manager imports
+use zorb::serde::Deserialize;
+use zorb::serde_json as json;
+
+// Complex nested imports
+use std::collections::{HashMap, HashSet, BTreeMap as BMap};
+use zeta::frontend::{ast::AstNode, parser::parse_zeta};
+
+// Main function using imports
+fn main() -> i32 {
+    // Use math module
+    let result = add(10, 20);
+    
+    // Create a HashMap (from std::collections)
+    let mut map = HashMap::new();
+    map.insert("key", "value");
+    
+    // Return result
+    result
+}
+
+// Test struct with imports in implementation
+struct Data {
+    value: i32,
+}
+
+impl Data {
+    fn new(value: i32) -> Self {
+        Self { value }
+    }
+    
+    fn process(&self) -> i32 {
+        self.value * 2
+    }
+}

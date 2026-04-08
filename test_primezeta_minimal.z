@@ -1,0 +1,74 @@
+// Minimal PrimeZeta compatibility test for v0.3.55
+// Testing core features needed for PrimeZeta v0.5.0
+
+// Test 1: Array syntax [N]T (PrimeZeta style)
+const SIZE: usize = 10
+fn test_array_syntax() -> i64 {
+    var arr: [SIZE]i64 = [0; SIZE]
+    arr[0] = 42
+    return arr[0]
+}
+
+// Test 2: Comptime function (simplified)
+comptime fn simple_comptime() -> i64 {
+    return 42
+}
+
+// Test 3: GCD function (core PrimeZeta algorithm)
+fn gcd(a: u64, b: u64) -> u64 {
+    var x = a
+    var y = b
+    while y != 0 {
+        let t = y
+        y = x % y
+        x = t
+    }
+    return x
+}
+
+// Test 4: Range loops
+fn test_range_loop() -> i64 {
+    var sum: i64 = 0
+    for i in 0..10 {
+        sum += i
+    }
+    return sum
+}
+
+// Test 5: Type conversions with 'as'
+fn test_type_conversion() -> i64 {
+    let x: u64 = 42
+    let y: i64 = x as i64
+    return y
+}
+
+// Main test function
+fn main() -> i64 {
+    // Run all tests
+    let test1 = test_array_syntax()
+    if test1 != 42 {
+        return -1
+    }
+    
+    let test2 = simple_comptime()
+    if test2 != 42 {
+        return -2
+    }
+    
+    let test3 = gcd(42, 56)
+    if test3 != 14 {
+        return -3
+    }
+    
+    let test4 = test_range_loop()
+    if test4 != 45 { // 0+1+2+...+9 = 45
+        return -4
+    }
+    
+    let test5 = test_type_conversion()
+    if test5 != 42 {
+        return -5
+    }
+    
+    return 0 // All tests passed
+}

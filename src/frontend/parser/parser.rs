@@ -5,7 +5,7 @@ use nom::Parser;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_until, take_while};
 use nom::character::complete::{alpha1, multispace1, satisfy};
-use nom::combinator::{map, opt, recognize, value, verify};
+use nom::combinator::{complete, map, opt, recognize, value, verify};
 
 use nom::multi::{many0, many1, separated_list0, separated_list1};
 use nom::sequence::{delimited, pair, preceded, terminated};
@@ -195,7 +195,7 @@ pub fn parse_array_type(input: &str) -> IResult<&str, String> {
         Ok(result) => return Ok(result),
         Err(_) => {
             // Dynamic array failed, try PrimeZeta style first (for [limit]bool syntax)
-            match parse_primezeta_array(original_input) {
+            match complete(parse_primezeta_array)(original_input) {
                 Ok((remaining, (size, elem_type))) => {
                     return Ok((remaining, format!("[{}; {}]", elem_type, size)));
                 }

@@ -700,29 +700,46 @@ fn parse_mod(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("mod")).parse(input)?;
     let (input, name) = ws(parse_ident).parse(input)?;
 
-    // Parse module body
-    let (input, items) = delimited(
+    // Check if this is a file-based module declaration (mod name;) or inline module (mod name { ... })
+    let parse_result = delimited(
         ws(tag("{")),
         many0(ws(alt((
             parse_use_statement,
             map(parse_top_level_item, |node| vec![node]),
         )))),
         ws(tag("}")),
-    )
-    .parse(input)?;
+    ).parse(input);
 
-    // Flatten the items
-    let items: Vec<AstNode> = items.into_iter().flatten().collect();
+    match parse_result {
+        Ok((remaining, items_vec)) => {
+            // Inline module definition
+            // Flatten the items
+            let items: Vec<AstNode> = items_vec.into_iter().flatten().collect();
 
-    Ok((
-        input,
-        AstNode::ModDef {
-            name,
-            items,
-            pub_,
-            attrs,
-        },
-    ))
+            Ok((
+                remaining,
+                AstNode::ModDef {
+                    name,
+                    items,
+                    pub_,
+                    attrs,
+                },
+            ))
+        }
+        Err(_) => {
+            // File-based module declaration (mod name;)
+            let (input, _) = ws(tag(";")).parse(input)?;
+            
+            Ok((
+                input,
+                AstNode::ModDecl {
+                    name,
+                    pub_,
+                    attrs,
+                },
+            ))
+        }
+    }
 }
 
 fn parse_macro_def(input: &str) -> IResult<&str, AstNode> {

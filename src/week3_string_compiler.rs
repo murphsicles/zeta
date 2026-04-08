@@ -585,4 +585,7 @@ impl Parser {
         match self.consume() {
             Some(Token::Ident(name)) => Ok(AstNode::Ident(name.clone())),
             Some(token) => Err(format!("Expected identifier, found {:?}", token)),
-            None => Err("Expected identifier, found EOF
+            None => Err("Expected identifier, found EOF".to_string()),
+        }
+    }
+}

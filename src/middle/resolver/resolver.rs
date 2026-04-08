@@ -145,100 +145,101 @@ impl Resolver {
                                         println!("[RESOLVER] Registering enum from module: {}", name);
                                         self.register(module_ast.clone());
 
-                                    // Also register enum variant constructors as functions
-                                    for (variant_name, variant_params) in variants {
-                                        // Create a function name like "Option::Some"
-                                        let func_name = format!("{}::{}", name, variant_name);
-                                        println!(
-                                            "[RESOLVER] Registering enum variant constructor: {}",
-                                            func_name
-                                        );
+                                        // Also register enum variant constructors as functions
+                                        for (variant_name, variant_params) in variants {
+                                            // Create a function name like "Option::Some"
+                                            let func_name = format!("{}::{}", name, variant_name);
+                                            println!(
+                                                "[RESOLVER] Registering enum variant constructor: {}",
+                                                func_name
+                                            );
 
-                                        // Create a fake function AST for the variant constructor
-                                        // The return type is the enum with its type parameters
-                                        let ret_type = if variant_params.is_empty() {
-                                            name.clone()
-                                        } else {
-                                            // For generic enums like Option<T>, we need to handle type parameters
-                                            // For now, just use the base name
-                                            name.clone()
-                                        };
+                                            // Create a fake function AST for the variant constructor
+                                            // The return type is the enum with its type parameters
+                                            let ret_type = if variant_params.is_empty() {
+                                                name.clone()
+                                            } else {
+                                                // For generic enums like Option<T>, we need to handle type parameters
+                                                // For now, just use the base name
+                                                name.clone()
+                                            };
 
-                                        // Create parameter types from variant params
-                                        let params: Vec<(String, String)> = variant_params
-                                            .iter()
-                                            .enumerate()
-                                            .map(|(i, param_type)| {
-                                                (i.to_string(), param_type.clone())
-                                            })
-                                            .collect();
+                                            // Create parameter types from variant params
+                                            let params: Vec<(String, String)> = variant_params
+                                                .iter()
+                                                .enumerate()
+                                                .map(|(i, param_type)| {
+                                                    (i.to_string(), param_type.clone())
+                                                })
+                                                .collect();
 
-                                        // Create a fake function definition for the variant constructor
-                                        let variant_func = AstNode::FuncDef {
-                                            name: func_name.clone(),
-                                            generics: vec![], // TODO: Handle generics
-                                            lifetimes: vec![], // TODO: Handle lifetimes
-                                            params,
-                                            ret: ret_type,
-                                            body: vec![],
-                                            attrs: vec![],
-                                            ret_expr: None,
-                                            single_line: false,
-                                            doc: "".to_string(),
-                                            pub_: true, // Variant constructors are always public
-                                            async_: false, // Variant constructors are not async
-                                            const_: false, // Variant constructors are not const
-                                            comptime_: false, // Variant constructors are not comptime
-                                            where_clauses: vec![],
-                                        };
+                                            // Create a fake function definition for the variant constructor
+                                            let variant_func = AstNode::FuncDef {
+                                                name: func_name.clone(),
+                                                generics: vec![], // TODO: Handle generics
+                                                lifetimes: vec![], // TODO: Handle lifetimes
+                                                params,
+                                                ret: ret_type,
+                                                body: vec![],
+                                                attrs: vec![],
+                                                ret_expr: None,
+                                                single_line: false,
+                                                doc: "".to_string(),
+                                                pub_: true, // Variant constructors are always public
+                                                async_: false, // Variant constructors are not async
+                                                const_: false, // Variant constructors are not const
+                                                comptime_: false, // Variant constructors are not comptime
+                                                where_clauses: vec![],
+                                            };
 
-                                        // Register the variant constructor
-                                        self.register(variant_func);
+                                            // Register the variant constructor
+                                            self.register(variant_func);
+                                        }
                                     }
-                                }
-                                AstNode::StructDef { name, .. } => {
-                                    println!("[RESOLVER] Registering struct from module: {}", name);
-                                    self.register(module_ast);
-                                }
-                                AstNode::TypeAlias { name, .. } => {
-                                    println!(
-                                        "[RESOLVER] Registering type alias from module: {}",
-                                        name
-                                    );
-                                    self.register(module_ast);
-                                }
-                                AstNode::ConstDef { name, comptime_, .. } => {
-                                    println!("[RESOLVER] Registering const from module: {}", name);
-                                    self.register(module_ast);
-                                }
-                                AstNode::FuncDef { name, .. } => {
-                                    println!(
-                                        "[RESOLVER] Registering function from module: {}",
-                                        name
-                                    );
-                                    // When importing via `use std::malloc`, register with simple name
-                                    // The function will be available as `malloc` in current scope
-                                    self.register(module_ast);
-                                }
-                                // Skip impl blocks for now - they cause issues
-                                _ => {
-                                    println!(
-                                        "[RESOLVER] Skipping non-export AST from module: {:?}",
-                                        module_ast
-                                    );
-                                }
-                            }
+                                    AstNode::StructDef { name, .. } => {
+                                        println!("[RESOLVER] Registering struct from module: {}", name);
+                                        self.register(module_ast);
+                                    }
+                                    AstNode::TypeAlias { name, .. } => {
+                                        println!(
+                                            "[RESOLVER] Registering type alias from module: {}",
+                                            name
+                                        );
+                                        self.register(module_ast);
+                                    }
+                                    AstNode::ConstDef { name, comptime_, .. } => {
+                                        println!("[RESOLVER] Registering const from module: {}", name);
+                                        self.register(module_ast);
+                                    }
+                                    AstNode::FuncDef { name, .. } => {
+                                        println!(
+                                            "[RESOLVER] Registering function from module: {}",
+                                            name
+                                        );
+                                        // When importing via `use std::malloc`, register with simple name
+                                        // The function will be available as `malloc` in current scope
+                                        self.register(module_ast);
+                                    }
+                                    // Skip impl blocks for now - they cause issues
+                                    _ => {
+                                        println!(
+                                            "[RESOLVER] Skipping non-export AST from module: {:?}",
+                                            module_ast
+                                        );
+                                    }
+                                } // Close match on module_ast
+                            } // Close for loop
                         }
-                    }
-                    Err(e) => {
-                        eprintln!(
-                            "Warning: Failed to process use statement {}: {}",
-                            path.join("::"),
-                            e
-                        );
-                    }
-                }
-            }
+                        Err(e) => {
+                            eprintln!(
+                                "Warning: Failed to process use statement {}: {}",
+                                path.join("::"),
+                                e
+                            );
+                        }
+                    } // Close match on process_use_statement
+                } // Close else block (non-glob import)
+            } // Close AstNode::Use match arm
             AstNode::FuncDef {
                 ref name,
                 ref params,
@@ -375,6 +376,31 @@ impl Resolver {
                             let mut new_item = item.clone();
                             if let AstNode::EnumDef { ref mut name, .. } = new_item {
                                 // For enums, we need to register the enum itself and its variants
+            }
+            AstNode::ModDecl {
+                name: module_name,
+                pub_,
+                ..
+            } => {
+                // File-based module declaration: need to load the module file
+                println!(
+                    "[RESOLVER] Processing file-based module declaration: {} (pub: {})",
+                    module_name, pub_
+                );
+                
+                // In a full implementation, we would:
+                // 1. Look for module_name.z or module_name/mod.z
+                // 2. Parse the file
+                // 3. Register its contents
+                // 
+                // For now, we'll just log it and treat it as an empty module
+                println!(
+                    "[RESOLVER] NOTE: File-based module loading not yet implemented for {}",
+                    module_name
+                );
+                
+                // Create an empty module entry
+                self.modules.insert(module_name.clone(), vec![]);
                                 *name = format!("{}::{}", module_name, enum_name);
                             }
                             new_item

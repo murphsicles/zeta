@@ -332,6 +332,13 @@ pub enum AstNode {
         pub_: bool,
         attrs: Vec<String>,
     },
+    /// Module declaration (file-based module: `mod name;`)
+    ModDecl {
+        name: String,
+        /// Visibility: true for public, false for private (default)
+        pub_: bool,
+        attrs: Vec<String>,
+    },
     /// Range pattern (e.g., 1..=10, 'a'..='z')
     RangePattern {
         start: Box<AstNode>,
