@@ -433,34 +433,163 @@ pub trait Future {
     fn poll(&mut self) -> Poll<Self::Output>;
 }
 
-/// A simple executor for running futures to completion.
+/// A waker that can wake up a task.
 ///
-/// This is a basic executor that polls futures until they complete.
+/// In a real async system, this would be more sophisticated.
+pub struct Waker {
+    // For simplicity, we just store whether the task should be woken
+    should_wake: bool,
+}
+
+impl Waker {
+    /// Create a new waker.
+    pub fn new() -> Self {
+        Waker { should_wake: false }
+    }
+    
+    /// Wake the task associated with this waker.
+    pub fn wake(&mut self) {
+        self.should_wake = true;
+    }
+    
+    /// Check if the task should be woken.
+    pub fn should_wake(&self) -> bool {
+        self.should_wake
+    }
+}
+
+/// Context for polling a future.
+///
+/// This provides the waker to the future being polled.
+pub struct Context<'a> {
+    waker: &'a mut Waker,
+}
+
+impl<'a> Context<'a> {
+    /// Create a new context with the given waker.
+    pub fn new(waker: &'a mut Waker) -> Self {
+        Context { waker }
+    }
+    
+    /// Get a reference to the waker.
+    pub fn waker(&mut self) -> &mut Waker {
+        self.waker
+    }
+}
+
+/// Enhanced Future trait with context support.
+///
+/// This is the proper async/await future trait.
+pub trait Future {
+    /// The type of value produced on completion.
+    type Output;
+    
+    /// Attempt to resolve the future to a final value.
+    ///
+    /// This function returns:
+    /// - `Poll::Ready(val)` if the future is ready
+    /// - `Poll::Pending` if the future is not ready yet
+    fn poll(&mut self, cx: &mut Context) -> Poll<Self::Output>;
+}
+
+/// A task that can be scheduled on an executor.
+pub struct Task {
+    // In a real implementation, this would hold the future state
+    // For simplicity, we track if it's completed
+    completed: bool,
+    result: Option<i64>,  // Simplified for i64 results
+}
+
+impl Task {
+    /// Create a new task.
+    pub fn new() -> Self {
+        Task {
+            completed: false,
+            result: None,
+        }
+    }
+    
+    /// Mark the task as completed with a result.
+    pub fn complete(&mut self, result: i64) {
+        self.completed = true;
+        self.result = Some(result);
+    }
+    
+    /// Check if the task is completed.
+    pub fn is_completed(&self) -> bool {
+        self.completed
+    }
+    
+    /// Get the result if completed.
+    pub fn result(&self) -> Option<i64> {
+        self.result
+    }
+}
+
+/// An executor with a task queue for proper async scheduling.
 pub struct Executor {
-    // In a real implementation, this would hold a queue of tasks
-    // For simplicity, we just poll futures directly
+    tasks: Vec<Task>,
+    waker: Waker,
 }
 
 impl Executor {
     /// Create a new executor.
     pub fn new() -> Self {
-        Executor {}
+        Executor {
+            tasks: Vec::new(),
+            waker: Waker::new(),
+        }
     }
     
-    /// Run a future to completion.
+    /// Spawn a new task on the executor.
+    pub fn spawn(&mut self, task: Task) {
+        self.tasks.push(task);
+    }
+    
+    /// Run the executor until all tasks are complete.
+    pub fn run(&mut self) {
+        while !self.tasks.is_empty() {
+            let mut i = 0;
+            while i < self.tasks.len() {
+                if self.tasks[i].is_completed() {
+                    // Task is done, remove it
+                    self.tasks.remove(i);
+                } else {
+                    // Task is not done, check if it should be woken
+                    if self.waker.should_wake() {
+                        // In a real implementation, we would poll the future here
+                        // For now, we just mark it for the next iteration
+                        self.waker.should_wake = false;
+                    }
+                    i += 1;
+                }
+            }
+            
+            // In a real implementation, we would sleep or yield here
+            // to avoid busy-waiting
+        }
+    }
+    
+    /// Run a future to completion (simplified version).
     ///
     /// This blocks the current thread until the future completes.
     pub fn block_on<F>(&mut self, mut future: F) -> F::Output
     where
         F: Future,
     {
+        let mut waker = Waker::new();
+        let mut cx = Context::new(&mut waker);
+        
         loop {
-            match future.poll() {
+            match future.poll(&mut cx) {
                 Poll::Ready(val) => return val,
                 Poll::Pending => {
-                    // In a real implementation, we would yield to the scheduler
-                    // or sleep for a bit. For simplicity, we just busy-wait.
-                    // This is NOT production-quality code!
+                    // If waker was triggered, continue immediately
+                    if waker.should_wake() {
+                        waker.should_wake = false;
+                        continue;
+                    }
+                    // Otherwise yield (in a real system, this would sleep)
                 }
             }
         }
@@ -478,7 +607,7 @@ pub fn ready<T>(value: T) -> impl Future<Output = T> {
     impl<T> Future for ReadyFuture<T> {
         type Output = T;
         
-        fn poll(&mut self) -> Poll<T> {
+        fn poll(&mut self, _cx: &mut Context) -> Poll<T> {
             Poll::Ready(self.value.take().unwrap())
         }
     }
@@ -497,7 +626,7 @@ pub fn yield_now() -> impl Future<Output = ()> {
     impl Future for YieldNow {
         type Output = ();
         
-        fn poll(&mut self) -> Poll<()> {
+        fn poll(&mut self, _cx: &mut Context) -> Poll<()> {
             if self.yielded {
                 Poll::Ready(())
             } else {
