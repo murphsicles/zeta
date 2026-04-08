@@ -315,6 +315,24 @@ pub fn parse_simd_type<'a>(input: &'a str) -> IResult<&'a str, String> {
     alt((shorthand_parser, generic_parser)).parse(input)
 }
 
+/// Parse a capability expression like "Read" or "Read+Write"
+pub fn parse_capability_expression(input: &str) -> IResult<&str, String> {
+    // Parse first capability identifier
+    let (input, first) = ws(parse_ident).parse(input)?;
+    let mut capabilities = vec![first];
+    
+    // Parse additional capabilities with +
+    let mut input = input;
+    while let Ok((new_input, _)) = ws(tag("+")).parse(input) {
+        let (new_input, capability) = ws(parse_ident).parse(new_input)?;
+        capabilities.push(capability);
+        input = new_input;
+    }
+    
+    let result = capabilities.join("+");
+    Ok((input, result))
+}
+
 pub fn parse_type(input: &str) -> IResult<&str, String> {
     let (mut input, mut s) = (input, String::new());
 
@@ -381,10 +399,14 @@ pub fn parse_type(input: &str) -> IResult<&str, String> {
         tag("String").map(|_| "String".to_string()),
     ));
     
-    // Try special types first, then built-in types, then type paths
+    // Try capability expression (for Identity<Read+Write>)
+    let capability_expr = parse_capability_expression;
+    
+    // Try special types first, then built-in types, then capability expressions, then type paths
     let (input, base) = alt((
         special_types,
         builtin_types,
+        capability_expr,
         parse_type_path,
     )).parse(input)?;
     s += &base;
