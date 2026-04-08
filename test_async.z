@@ -1,0 +1,37 @@
+// Test async/await syntax for Zeta
+
+// Test async function
+async fn fetch_data() -> i64 {
+    // Simulate async work
+    42
+}
+
+// Test async function with await
+async fn compute() -> i64 {
+    let data = await fetch_data();
+    data * 2
+}
+
+// Test async block
+async fn async_block_test() -> i64 {
+    let result = async {
+        let x = 10;
+        let y = 20;
+        x + y
+    };
+    await result
+}
+
+// Test closure with async
+fn closure_test() {
+    let async_closure = async |x: i64| -> i64 {
+        x * 2
+    };
+}
+
+// Main function to test
+fn main() -> i64 {
+    // In a real implementation, we would use an executor
+    // For now, just compile test
+    0
+}

@@ -403,6 +403,117 @@ pub mod atomic {
     pub type AtomicIsize = lt(Atomic, isize)>;
 }
 
+// ============================================================================
+// Async/Await Futures System
+// ============================================================================
+
+/// The result of polling a future.
+///
+/// This is similar to Rust's `Poll` enum.
+pub enum Poll<T> {
+    /// The future is ready with a value.
+    Ready(T),
+    /// The future is not ready yet.
+    Pending,
+}
+
+/// A future represents an asynchronous computation.
+///
+/// A future is a value that may not have finished computing yet.
+/// This trait is similar to Rust's `Future` trait.
+pub trait Future {
+    /// The type of value produced on completion.
+    type Output;
+    
+    /// Attempt to resolve the future to a final value.
+    ///
+    /// This function returns:
+    /// - `Poll::Ready(val)` if the future is ready
+    /// - `Poll::Pending` if the future is not ready yet
+    fn poll(&mut self) -> Poll<Self::Output>;
+}
+
+/// A simple executor for running futures to completion.
+///
+/// This is a basic executor that polls futures until they complete.
+pub struct Executor {
+    // In a real implementation, this would hold a queue of tasks
+    // For simplicity, we just poll futures directly
+}
+
+impl Executor {
+    /// Create a new executor.
+    pub fn new() -> Self {
+        Executor {}
+    }
+    
+    /// Run a future to completion.
+    ///
+    /// This blocks the current thread until the future completes.
+    pub fn block_on<F>(&mut self, mut future: F) -> F::Output
+    where
+        F: Future,
+    {
+        loop {
+            match future.poll() {
+                Poll::Ready(val) => return val,
+                Poll::Pending => {
+                    // In a real implementation, we would yield to the scheduler
+                    // or sleep for a bit. For simplicity, we just busy-wait.
+                    // This is NOT production-quality code!
+                }
+            }
+        }
+    }
+}
+
+/// Convert a value into a future that is immediately ready.
+///
+/// This is similar to Rust's `ready` or async block that returns immediately.
+pub fn ready<T>(value: T) -> impl Future<Output = T> {
+    struct ReadyFuture<T> {
+        value: Option<T>,
+    }
+    
+    impl<T> Future for ReadyFuture<T> {
+        type Output = T;
+        
+        fn poll(&mut self) -> Poll<T> {
+            Poll::Ready(self.value.take().unwrap())
+        }
+    }
+    
+    ReadyFuture { value: Some(value) }
+}
+
+/// Create a future that yields control once.
+///
+/// This is useful for cooperative multitasking.
+pub fn yield_now() -> impl Future<Output = ()> {
+    struct YieldNow {
+        yielded: bool,
+    }
+    
+    impl Future for YieldNow {
+        type Output = ();
+        
+        fn poll(&mut self) -> Poll<()> {
+            if self.yielded {
+                Poll::Ready(())
+            } else {
+                self.yielded = true;
+                Poll::Pending
+            }
+        }
+    }
+    
+    YieldNow { yielded: false }
+}
+
+// ============================================================================
+// Platform-specific bindings (simplified)
+// ============================================================================
+
 // sub(Platform, specific) bindings (simplified)
 #[cfg(target_os = "windows")]
 mod windows {
