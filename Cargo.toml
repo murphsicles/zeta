@@ -4,7 +4,7 @@
 # Package name.
 name = "zetac"
 # Current version.
-version = "0.3.57"  # Integration test cleanup and documentation updates
+version = "0.3.58"  # Performance optimization phase
 # Rust edition.
 edition = "2024"
 # Minimum Rust version.
@@ -262,5 +262,13 @@ harness = false
 name = "zeta_bench"
 # Path to benchmark file.
 path = "benches/zeta_bench.rs"
+# Disable default harness.
+harness = false
+
+[[bench]]
+# Benchmark name.
+name = "performance_baseline"
+# Path to benchmark file.
+path = "benches/performance_baseline.rs"
 # Disable default harness.
 harness = false
