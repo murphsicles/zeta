@@ -80,10 +80,17 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
     let const_evaluated_asts = crate::middle::const_eval::evaluate_constants(&expanded_asts)
         .map_err(|e| format!("Const evaluation error: {}", e))?;
 
-    for ast in &const_evaluated_asts {
+    // Use evaluated ASTs if available, otherwise use expanded ASTs
+    let asts_to_use = if const_evaluated_asts.is_empty() {
+        &expanded_asts
+    } else {
+        &const_evaluated_asts
+    };
+
+    for ast in asts_to_use {
         resolver.register(ast.clone());
     }
-    if !resolver.typecheck(&const_evaluated_asts) {
+    if !resolver.typecheck(asts_to_use) {
         return Err("Typecheck failed".into());
     }
 
