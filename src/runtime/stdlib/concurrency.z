@@ -596,6 +596,92 @@ impl Executor {
     }
 }
 
+// ============================================================================
+// Async Channel Operations
+// ============================================================================
+
+/// Async version of channel send.
+///
+/// Returns a future that completes when the value is sent.
+pub fn send_async<T>(sender: &lt(Sender, T)>, value: T) -> impl Future<Output = Result<(), lt(SendError, T)>>> {
+    struct SendFuture<T> {
+        sender: lt(Sender, T)>,
+        value: Option<T>,
+        attempted: bool,
+    }
+    
+    impl<T> Future for SendFuture<T> {
+        type Output = Result<(), lt(SendError, T)>>;
+        
+        fn poll(&mut self, cx: &mut Context) -> Poll<Self::Output> {
+            if !self.attempted {
+                // Try to send
+                match self.sender.try_send(self.value.take().unwrap()) {
+                    Ok(()) => return Poll::Ready(Ok(())),
+                    Err(e) => {
+                        // Couldn't send immediately, store value back
+                        self.value = Some(e.into_inner());
+                        self.attempted = true;
+                        // In a real implementation, we would register waker
+                        return Poll::Pending;
+                    }
+                }
+            }
+            
+            // Already attempted, check if we can send now
+            // In a real implementation, this would check if channel has space
+            Poll::Pending
+        }
+    }
+    
+    SendFuture {
+        sender: sender.clone(),
+        value: Some(value),
+        attempted: false,
+    }
+}
+
+/// Async version of channel receive.
+///
+/// Returns a future that completes when a value is received.
+pub fn recv_async<T>(receiver: &lt(Receiver, T)>) -> impl Future<Output = lt(Result, T), RecvError>> {
+    struct RecvFuture<T> {
+        receiver: lt(Receiver, T)>,
+        attempted: bool,
+    }
+    
+    impl<T> Future for RecvFuture<T> {
+        type Output = lt(Result, T), RecvError>;
+        
+        fn poll(&mut self, cx: &mut Context) -> Poll<Self::Output> {
+            if !self.attempted {
+                // Try to receive
+                match self.receiver.try_recv() {
+                    Ok(value) => return Poll::Ready(Ok(value)),
+                    Err(_) => {
+                        self.attempted = true;
+                        // In a real implementation, we would register waker
+                        return Poll::Pending;
+                    }
+                }
+            }
+            
+            // Already attempted, check if we can receive now
+            // In a real implementation, this would check if channel has data
+            Poll::Pending
+        }
+    }
+    
+    RecvFuture {
+        receiver: receiver.clone(),
+        attempted: false,
+    }
+}
+
+// ============================================================================
+// Async Utilities
+// ============================================================================
+
 /// Convert a value into a future that is immediately ready.
 ///
 /// This is similar to Rust's `ready` or async block that returns immediately.

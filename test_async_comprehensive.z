@@ -1,0 +1,71 @@
+// Comprehensive async/await test for Zeta
+
+use std::concurrency;
+
+// Test async function with await
+async fn fetch_data() -> i64 {
+    // Simulate async work by yielding
+    await concurrency::yield_now();
+    42
+}
+
+// Test async function that uses channels
+async fn channel_example() -> i64 {
+    let (tx, rx) = concurrency::channel();
+    
+    // Spawn async send
+    async {
+        await concurrency::send_async(&tx, 100);
+    };
+    
+    // Async receive
+    let value = await concurrency::recv_async(&rx);
+    value.unwrap()
+}
+
+// Test executor usage
+fn test_executor() -> i64 {
+    let mut executor = concurrency::Executor::new();
+    
+    // Run a future to completion
+    let result = executor.block_on(async {
+        let x = await fetch_data();
+        let y = await channel_example();
+        x + y
+    });
+    
+    result
+}
+
+// Test ready future
+async fn test_ready() -> i64 {
+    let value = await concurrency::ready(123);
+    value
+}
+
+// Main test function
+fn main() -> i64 {
+    println!("Testing async/await system...");
+    
+    // Create executor
+    let mut executor = concurrency::Executor::new();
+    
+    // Test 1: ready future
+    let result1 = executor.block_on(test_ready());
+    println!("Test 1 - ready future: {}", result1);
+    
+    // Test 2: yield future  
+    let result2 = executor.block_on(fetch_data());
+    println!("Test 2 - fetch_data: {}", result2);
+    
+    // Test 3: channel operations
+    let result3 = executor.block_on(channel_example());
+    println!("Test 3 - channel_example: {}", result3);
+    
+    // Test 4: comprehensive
+    let result4 = test_executor();
+    println!("Test 4 - test_executor: {}", result4);
+    
+    println!("All async tests completed!");
+    0
+}
