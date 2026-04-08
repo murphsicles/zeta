@@ -368,31 +368,89 @@ pub fn common_subexpression_elimination(mir: &mut Mir) {
     }
 }
 
+/// Helper function to check if a number is a power of two
+fn is_power_of_two(n: i64) -> bool {
+    n > 0 && (n & (n - 1)) == 0
+}
+
+/// Helper function to get log2 of a power of two number
+fn log2_power_of_two(n: i64) -> u32 {
+    n.trailing_zeros()
+}
+
 /// Strength reduction optimization
 pub fn strength_reduction(mir: &mut Mir) {
-    // Look for multiplication/division by powers of two
-    for (id, expr) in mir.exprs.iter_mut() {
-        // This would be more comprehensive in a real implementation
-        // For now, we'll just mark where strength reduction could be applied
-        match expr {
-            MirExpr::Lit(value) => {
-                // Check if this is used in multiplication/division
-                // In a full implementation, we'd track uses and replace
-                // x * 2 with x << 1, x / 4 with x >> 2, etc.
+    // Look for multiplication by powers of two in SemiringFold operations
+    for stmt in &mut mir.stmts {
+        if let MirStmt::SemiringFold { op, values, result } = stmt {
+            if *op == SemiringOp::Mul && values.len() == 2 {
+                // Check if either operand is a constant power of two
+                for i in 0..2 {
+                    let other_idx = 1 - i;
+                    if let Some(MirExpr::Lit(value)) = mir.exprs.get(&values[i]) {
+                        if is_power_of_two(*value) {
+                            // Found multiplication by power of two
+                            // In a full implementation, we would:
+                            // 1. Create a shift operation
+                            // 2. Replace the multiplication with shift
+                            // 3. Update the MIR
+                            // 
+                            // For now, we'll just mark that strength reduction
+                            // could be applied here
+                            // 
+                            // x * 2^n can be replaced with x << n
+                            // where n = log2(value)
+                            let n = log2_power_of_two(*value);
+                            // TODO: Implement shift operation and replace
+                            // For now, we'll just record that we could optimize this
+                            // This is a placeholder for actual implementation
+                        }
+                    }
+                }
             }
-            _ => {}
         }
     }
 }
 
 /// Algebraic simplification
 pub fn algebraic_simplification(mir: &mut Mir) {
-    for (id, expr) in mir.exprs.iter_mut() {
-        match expr {
-            // x * 0 = 0, x * 1 = x, 0 * x = 0, 1 * x = x
-            // x + 0 = x, 0 + x = x
-            // These would be implemented when we have binary operations in MIR
-            _ => {}
+    // Look for algebraic identities in SemiringFold operations
+    for stmt in &mut mir.stmts {
+        if let MirStmt::SemiringFold { op, values, result } = stmt {
+            match op {
+                SemiringOp::Add => {
+                    // x + 0 = x, 0 + x = x
+                    // Check for addition with zero
+                    for i in 0..values.len() {
+                        if let Some(MirExpr::Lit(value)) = mir.exprs.get(&values[i]) {
+                            if *value == 0 {
+                                // Addition with zero - can be simplified
+                                // In a full implementation, we would:
+                                // 1. Remove the zero operand
+                                // 2. If only one operand remains, replace with that operand
+                                // 3. Update the MIR
+                                // 
+                                // For now, just mark that simplification is possible
+                            }
+                        }
+                    }
+                }
+                SemiringOp::Mul => {
+                    // x * 0 = 0, x * 1 = x, 0 * x = 0, 1 * x = x
+                    // Check for multiplication by zero or one
+                    for i in 0..values.len() {
+                        if let Some(MirExpr::Lit(value)) = mir.exprs.get(&values[i]) {
+                            if *value == 0 {
+                                // Multiplication by zero - result is zero
+                                // In a full implementation, replace with zero
+                            } else if *value == 1 {
+                                // Multiplication by one - can be eliminated
+                                // In a full implementation, remove this operand
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
