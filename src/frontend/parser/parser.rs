@@ -262,12 +262,11 @@ pub fn parse_simd_type<'a>(input: &'a str) -> IResult<&'a str, String> {
     // Try shorthand syntax first: u64x8, f32x4, etc.
     let shorthand_parser = move |input: &'a str| -> IResult<&'a str, String> {
         // Parse base type: i8, i16, i32, i64, u8, u16, u32, u64, f32, f64
-        let mut base_type_parser = alt((
+        let (input, base_type) = alt((
             tag("i8"), tag("i16"), tag("i32"), tag("i64"),
             tag("u8"), tag("u16"), tag("u32"), tag("u64"),
             tag("f32"), tag("f64"),
-        ));
-        let (input, base_type) = base_type_parser.parse(input)?;
+        )).parse(input)?;
         
         // Parse 'x' separator
         let (input, _) = tag("x")(input)?;
@@ -783,4 +782,49 @@ pub fn parse_attributes(input: &str) -> IResult<&str, Vec<String>> {
     }
 
     Ok((current_input, attributes))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_parse_simd_type() {
+        // Test shorthand syntax
+        let test_cases = vec![
+            ("u64x8", "Vector<u64, 8>"),
+            ("f32x4", "Vector<f32, 4>"),
+            ("i32x16", "Vector<i32, 16>"),
+        ];
+        
+        for (input, expected) in test_cases {
+            match parse_simd_type(input) {
+                Ok((remaining, result)) => {
+                    assert!(remaining.is_empty(), "Input '{}' had remaining: '{}'", input, remaining);
+                    assert_eq!(result, expected, "Input '{}' expected '{}', got '{}'", input, expected, result);
+                }
+                Err(e) => {
+                    panic!("Failed to parse '{}': {:?}", input, e);
+                }
+            }
+        }
+        
+        // Test Vector<T, N> syntax
+        let test_cases = vec![
+            ("Vector<u64, 8>", "Vector<u64, 8>"),
+            ("Vector<f32, 4>", "Vector<f32, 4>"),
+        ];
+        
+        for (input, expected) in test_cases {
+            match parse_simd_type(input) {
+                Ok((remaining, result)) => {
+                    assert!(remaining.is_empty(), "Input '{}' had remaining: '{}'", input, remaining);
+                    assert_eq!(result, expected, "Input '{}' expected '{}', got '{}'", input, expected, result);
+                }
+                Err(e) => {
+                    panic!("Failed to parse '{}': {:?}", input, e);
+                }
+            }
+        }
+    }
 }
