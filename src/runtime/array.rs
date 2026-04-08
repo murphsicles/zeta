@@ -28,12 +28,16 @@ const CANARY_VALUE: u64 = 0xDEADBEEF;
 
 /// Get header from data pointer
 unsafe fn get_header(data_ptr: *mut i64) -> *mut ArrayHeader {
-    (data_ptr as *mut u8).sub(ARRAY_HEADER_SIZE) as *mut ArrayHeader
+    unsafe {
+        (data_ptr as *mut u8).sub(ARRAY_HEADER_SIZE) as *mut ArrayHeader
+    }
 }
 
 /// Get data pointer from header
 unsafe fn get_data(header: *mut ArrayHeader) -> *mut i64 {
-    (header as *mut u8).add(ARRAY_HEADER_SIZE) as *mut i64
+    unsafe {
+        (header as *mut u8).add(ARRAY_HEADER_SIZE) as *mut i64
+    }
 }
 
 /// Check if header is valid
