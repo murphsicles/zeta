@@ -41,7 +41,7 @@ comptime fn test() -> i64 {
             // Find the test function
             let test_func = ast.iter().find(|node| {
                 match node {
-                    &zetac::frontend::ast::AstNode::FuncDef { ref name, .. } => {
+                    &zetac::frontend::ast::AstNode::FuncDef { name, .. } => {
                         name == "test"
                     }
                     _ => false,

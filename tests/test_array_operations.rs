@@ -80,7 +80,7 @@ fn test_comptime_function(code: &str, func_name: &str) {
             // Find the test function
             let test_func = ast.iter().find(|node| {
                 match node {
-                    &zetac::frontend::ast::AstNode::FuncDef { ref name, .. } => {
+                    &zetac::frontend::ast::AstNode::FuncDef { name, .. } => {
                         name == func_name
                     }
                     _ => false,
