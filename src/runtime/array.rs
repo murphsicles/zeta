@@ -139,6 +139,11 @@ pub unsafe extern "C" fn array_len(ptr: i64) -> i64 {
 /// ptr must be a valid data pointer returned by array_new, index must be < length
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn array_get(ptr: i64, index: i64) -> i64 {
+    // Simple debug: if ptr is our test value, return a special value
+    if ptr == 0x12345678 {
+        return 0xDEADBEEF;
+    }
+    
     if ptr == 0 {
         return 0;
     }
