@@ -263,5 +263,8 @@
   5. ⚠️ **Type system has issues** with identity-constrained types (type checking fails with "expected str, found identity[read]")
 - **Root cause**: Parser fixed, but type system implementation for identity constraints appears incomplete or has type compatibility issues.
 - **Compiler stability**: All existing tests continue to pass (no regressions from parser changes).
+  - ✅ **106/106 library tests passing**
+  - ✅ **8/8 integration tests passing**
+- **Identity generics test status**: 1/3 tests passing (improved from "No main function" errors to type checking failures)
 - **Next steps**: Investigate type system implementation for identity constraints or move to next disabled test file.
-- **Git status**: Working tree has parser changes for capability expression support.
+- **Git status**: Changes committed and pushed to GitHub (commit f147323e).
