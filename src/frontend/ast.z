@@ -55,6 +55,7 @@ pub enum AstNode {
         attrs: lt(Vec, String)>,
         ret_expr: lt(Option, Box)<AstNode>>,
         single_line: bool,
+        async: bool,
         doc: String,
     },
     

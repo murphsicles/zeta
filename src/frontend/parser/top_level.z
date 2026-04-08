@@ -38,6 +38,8 @@ impl Parser {
     }
 
     fn parse_func_def(&mut self) -> AstNode {
+        // Check for async keyword
+        let is_async = self.consume(Token::KeywordAsync);
         self.expect(Token::KeywordFn);
         let name = self.expect_ident();
         let generics = self.parse_generics();
@@ -65,6 +67,7 @@ impl Parser {
             attrs: vec![],
             ret_expr,
             single_line,
+            async: is_async,
             doc: "".to_string(),
         }
     }

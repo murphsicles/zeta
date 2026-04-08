@@ -119,6 +119,18 @@ impl Parser {
                 self.expect(Token::RParen);
                 AstNode::Spawn { func, args }
             }
+            Token::KeywordAsync => {
+                self.advance();
+                // Check if it's an async block: async { ... }
+                if self.peek() == Token::LBrace {
+                    let body = self.parse_block();
+                    AstNode::AsyncBlock { body }
+                } else {
+                    // TODO: Handle async closures or other async constructs
+                    self.advance();
+                    AstNode::Lit(0)
+                }
+            }
             _ => {
                 self.advance();
                 AstNode::Lit(0)

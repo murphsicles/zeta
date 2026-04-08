@@ -550,6 +550,10 @@ impl Parser {
                 expr = AstNode::TryProp {
                     expr: Box::new(expr),
                 };
+            } else if self.consume(Token::KeywordAwait) {
+                expr = AstNode::Await {
+                    expr: Box::new(expr),
+                };
             } else {
                 break;
             }
