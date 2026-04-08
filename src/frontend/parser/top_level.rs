@@ -48,39 +48,110 @@ fn parse_param(input: &str) -> IResult<&str, (String, String)> {
 
 fn parse_use_statement(input: &str) -> IResult<&str, Vec<AstNode>> {
     let (input, _) = ws(tag("use")).parse(input)?;
+    
+    // Parse the import path
     let (input, path) = ws(parse_path).parse(input)?;
-    let (input, group_opt) = opt(preceded(
-        ws(tag("::")),
-        delimited(
-            ws(tag("{")),
-            terminated(
-                separated_list0(
-                    ws(tag(",")),
-                    ws(alt((value("self".to_string(), tag("self")), parse_ident))),
+    
+    // Check for glob import (*)
+    let (input, is_glob) = if let Ok((remaining, _)) = ws(tag("*")).parse(input) {
+        (remaining, true)
+    } else {
+        (input, false)
+    };
+    
+    // Check for renamed import (as keyword)
+    let (input, alias) = if !is_glob {
+        let (input, as_keyword) = opt(ws(tag("as"))).parse(input)?;
+        if as_keyword.is_some() {
+            let (input, alias_name) = ws(parse_ident).parse(input)?;
+            (input, Some(alias_name))
+        } else {
+            (input, None)
+        }
+    } else {
+        (input, None)
+    };
+    
+    // Check for nested imports with braces
+    let (input, group_opt) = if !is_glob && alias.is_none() {
+        opt(preceded(
+            ws(tag("::")),
+            delimited(
+                ws(tag("{")),
+                terminated(
+                    separated_list0(
+                        ws(tag(",")),
+                        ws(parse_use_item),
+                    ),
+                    opt(ws(tag(","))),
                 ),
-                opt(ws(tag(","))),
+                ws(tag("}")),
             ),
-            ws(tag("}")),
-        ),
-    ))
-    .parse(input)?;
+        )).parse(input)?
+    } else {
+        (input, None)
+    };
+    
     let (input, _) = opt(ws(tag(";"))).parse(input)?;
+    
     let nodes = if let Some(items) = group_opt {
+        // Handle nested imports: `use std::collections::{HashMap, HashSet};`
         let mut ns = vec![];
-        for item in items {
-            if item == "self" {
-                ns.push(AstNode::Use { path: path.clone() });
-            } else {
-                let mut p = path.clone();
-                p.push(item);
-                ns.push(AstNode::Use { path: p });
-            }
+        for (item_path, item_alias, item_is_glob) in items {
+            let mut full_path = path.clone();
+            full_path.extend(item_path);
+            ns.push(AstNode::Use {
+                path: full_path,
+                alias: item_alias,
+                is_glob: item_is_glob,
+            });
         }
         ns
+    } else if is_glob {
+        // Handle glob import: `use std::prelude::*;`
+        vec![AstNode::Use {
+            path,
+            alias: None,
+            is_glob: true,
+        }]
     } else {
-        vec![AstNode::Use { path }]
+        // Handle simple or renamed import
+        vec![AstNode::Use {
+            path,
+            alias,
+            is_glob: false,
+        }]
     };
+    
     Ok((input, nodes))
+}
+
+/// Parse a single item in a use group (e.g., `HashMap` or `HashSet as HS`)
+fn parse_use_item(input: &str) -> IResult<&str, (Vec<String>, Option<String>, bool)> {
+    // Parse path (could be just an identifier or a path with ::)
+    let (input, item_path) = parse_path(input)?;
+    
+    // Check for glob
+    let (input, is_glob) = if let Ok((remaining, _)) = ws(tag("*")).parse(input) {
+        (remaining, true)
+    } else {
+        (input, false)
+    };
+    
+    // Check for alias
+    let (input, alias) = if !is_glob {
+        let (input, as_keyword) = opt(ws(tag("as"))).parse(input)?;
+        if as_keyword.is_some() {
+            let (input, alias_name) = ws(parse_ident).parse(input)?;
+            (input, Some(alias_name))
+        } else {
+            (input, None)
+        }
+    } else {
+        (input, None)
+    };
+    
+    Ok((input, (item_path, alias, is_glob)))
 }
 
 /// Parse visibility modifier (pub keyword)

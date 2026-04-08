@@ -1,0 +1,7 @@
+// Test for as operator error
+fn main() -> i64 {
+    let x: i64 = 42
+    // This should fail if as operator is not supported
+    let y: u64 = x as u64
+    y
+}

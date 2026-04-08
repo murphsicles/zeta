@@ -1,0 +1,31 @@
+// Example of comptime fn for PrimeZeta compatibility
+
+// This would be defined elsewhere
+const NUM_RESIDUES: usize = 64;
+
+// Comptime function that PrimeZeta needs
+comptime fn generate_residues() -> [NUM_RESIDUES]u64 {
+    let mut residues = [0; NUM_RESIDUES];
+    
+    // Simple example: fill with sequential values
+    for i in 0..NUM_RESIDUES {
+        residues[i] = (i + 1) as u64;
+    }
+    
+    residues
+}
+
+// Regular const function for comparison
+const fn add(a: i64, b: i64) -> i64 {
+    a + b
+}
+
+// Usage
+fn main() -> i64 {
+    // These would be evaluated at compile time
+    let sum = add(10, 20);
+    let residues = generate_residues();
+    
+    // Return first residue as example
+    residues[0]
+}

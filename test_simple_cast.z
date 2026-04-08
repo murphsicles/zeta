@@ -1,0 +1,6 @@
+// Simple test for as operator
+fn main() -> i64 {
+    let x: i64 = 42
+    let y: u64 = x as u64
+    y as i64
+}

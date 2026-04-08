@@ -986,6 +986,8 @@ impl ModuleResolver {
         let module = self.load_module(&module_path)?.clone();
 
         // Add all exports to import scope
+        // Note: This function doesn't handle aliases - aliases are handled by the caller
+        // (the resolver) which knows the alias name
         for name in module.exports.keys() {
             let full_path = path.join("::") + "::" + name;
             self.imports.insert(name.clone(), full_path);
@@ -993,6 +995,42 @@ impl ModuleResolver {
 
         // Return the module's ASTs so they can be registered
         Ok(module.asts)
+    }
+
+    /// Process a use statement with alias
+    /// Returns the module's ASTs and the alias mapping
+    pub fn process_use_statement_with_alias(
+        &mut self,
+        path: &[String],
+        alias: Option<&str>,
+    ) -> Result<(Vec<AstNode>, Option<String>), String> {
+        // Resolve path to file
+        let module_path = self.resolve_use_path(path)?;
+
+        // Load the module
+        let module = self.load_module(&module_path)?.clone();
+
+        // Handle alias if present
+        // For simple imports like `use std::collections::HashMap;`,
+        // we need to import just the last item (HashMap)
+        // For renamed imports like `use std::io as stdio;`,
+        // we need to map the alias to the module
+        
+        // Get the item name (last component of the path)
+        let item_name = path.last().cloned();
+        
+        // If we have an alias, map it to the full path
+        if let Some(alias_name) = alias {
+            let full_path = path.join("::");
+            self.imports.insert(alias_name.to_string(), full_path);
+        } else if let Some(item) = &item_name {
+            // For simple imports, map the item name to the full path
+            let full_path = path.join("::");
+            self.imports.insert(item.clone(), full_path);
+        }
+
+        // Return the module's ASTs and the alias
+        Ok((module.asts, alias.map(|s| s.to_string())))
     }
 
     /// Look up an item in the import scope

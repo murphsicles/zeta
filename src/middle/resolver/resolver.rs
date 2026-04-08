@@ -102,21 +102,48 @@ impl Resolver {
 
     pub fn register(&mut self, ast: AstNode) {
         match ast {
-            AstNode::Use { path } => {
-                println!("[RESOLVER] Processing use statement: {}", path.join("::"));
-                // Process use statement to load module
-                match self.module_resolver.process_use_statement(&path) {
-                    Ok(module_asts) => {
-                        println!(
-                            "[RESOLVER] Successfully loaded module, got {} ASTs",
-                            module_asts.len()
-                        );
-                        // Register only enum/struct definitions, not impl blocks
-                        for module_ast in module_asts {
-                            match &module_ast {
-                                AstNode::EnumDef { name, variants, .. } => {
-                                    println!("[RESOLVER] Registering enum from module: {}", name);
-                                    self.register(module_ast.clone());
+            AstNode::Use { path, alias, is_glob } => {
+                println!(
+                    "[RESOLVER] Processing use statement: {} alias: {:?} glob: {}",
+                    path.join("::"),
+                    alias,
+                    is_glob
+                );
+                
+                // Handle glob imports
+                if is_glob {
+                    println!("[RESOLVER] Processing glob import: {}", path.join("::"));
+                    // For now, we'll handle glob imports by importing all items from the module
+                    // In a full implementation, we would need to track which items are actually used
+                    match self.module_resolver.process_use_statement(&path) {
+                        Ok(module_asts) => {
+                            println!(
+                                "[RESOLVER] Successfully loaded module for glob import, got {} ASTs",
+                                module_asts.len()
+                            );
+                            // Register all public items from the module
+                            for module_ast in module_asts {
+                                self.register(module_ast.clone());
+                            }
+                        }
+                        Err(e) => {
+                            println!("[RESOLVER] Failed to load module for glob import: {}", e);
+                        }
+                    }
+                } else {
+                    // Process regular use statement to load module
+                    match self.module_resolver.process_use_statement(&path) {
+                        Ok(module_asts) => {
+                            println!(
+                                "[RESOLVER] Successfully loaded module, got {} ASTs",
+                                module_asts.len()
+                            );
+                            // Register only enum/struct definitions, not impl blocks
+                            for module_ast in module_asts {
+                                match &module_ast {
+                                    AstNode::EnumDef { name, variants, .. } => {
+                                        println!("[RESOLVER] Registering enum from module: {}", name);
+                                        self.register(module_ast.clone());
 
                                     // Also register enum variant constructors as functions
                                     for (variant_name, variant_params) in variants {
@@ -447,6 +474,29 @@ impl Resolver {
 
     pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
         let mut mir_gen = crate::middle::mir::r#gen::MirGen::new();
+        
+        // First, run type checking to get type information
+        // Note: This creates a mutable copy of self for type checking
+        let mut resolver_for_check = Resolver::new();
+        // Copy relevant state from self to resolver_for_check
+        resolver_for_check.funcs = self.funcs.clone();
+        resolver_for_check.registered_funcs = self.registered_funcs.clone();
+        
+        // Run type checking on a single AST node
+        let asts = vec![ast.clone()];
+        match resolver_for_check.typecheck_new(&asts) {
+            Ok(substitution) => {
+                // TODO: Pass type information to MIR generation
+                println!("[RESOLVER] Type checking successful, got substitution");
+            }
+            Err(errors) => {
+                eprintln!("[RESOLVER] Type checking failed with {} errors", errors.len());
+                for err in errors {
+                    eprintln!("  Error: {:?}", err);
+                }
+            }
+        }
+        
         mir_gen.lower_to_mir(ast)
     }
 
@@ -1116,3 +1166,5 @@ impl Drop for Resolver {
         self.persist_specialization_cache();
     }
 }
+
+

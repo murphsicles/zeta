@@ -203,7 +203,14 @@ pub enum AstNode {
     /// Expression used as a statement (for side-effects, e.g. function call).
     ExprStmt { expr: Box<AstNode> },
     /// Use statement for importing paths.
-    Use { path: Vec<String> },
+    Use {
+        /// Full import path (e.g., ["std", "collections", "HashMap"])
+        path: Vec<String>,
+        /// Optional alias for renamed imports (e.g., "stdio" for `use std::io as stdio;`)
+        alias: Option<String>,
+        /// Whether this is a glob import (e.g., `use std::prelude::*;`)
+        is_glob: bool,
+    },
     /// Type alias definition.
     TypeAlias {
         name: String,

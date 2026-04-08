@@ -69,6 +69,26 @@ impl<'ctx> LLVMCodegen<'ctx> {
             Some(Linkage::External),
         );
         module.add_function(
+            "malloc",
+            ptr_type.fn_type(&[i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "print",
+            void_type.fn_type(&[i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "println",
+            void_type.fn_type(&[i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "args",
+            ptr_type.fn_type(&[], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
             "channel_send",
             void_type.fn_type(&[i64_type.into(), i64_type.into()], false),
             Some(Linkage::External),
@@ -1139,6 +1159,30 @@ impl<'ctx> LLVMCodegen<'ctx> {
         // === NEW: handle println explicitly to prevent CRITICAL panic ===
         if name == "println"
             && let Some(f) = self.module.get_function("println")
+        {
+            return f;
+        }
+        // === NEW: handle print explicitly ===
+        if name == "print"
+            && let Some(f) = self.module.get_function("print")
+        {
+            return f;
+        }
+        // === NEW: handle malloc explicitly ===
+        if name == "malloc"
+            && let Some(f) = self.module.get_function("malloc")
+        {
+            return f;
+        }
+        // === NEW: handle free explicitly ===
+        if name == "free"
+            && let Some(f) = self.module.get_function("free")
+        {
+            return f;
+        }
+        // === NEW: handle args explicitly ===
+        if name == "args"
+            && let Some(f) = self.module.get_function("args")
         {
             return f;
         }

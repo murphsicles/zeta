@@ -58,7 +58,7 @@ pub unsafe extern "C" fn std_print(value: i64) {
 ///
 /// # Safety
 /// Caller must ensure valid arguments.
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn std_println(fmt: i64) {
     // Simplified implementation for benchmark compliance
     // Ignores variadic arguments and format string for now
@@ -74,7 +74,7 @@ pub unsafe extern "C" fn std_println(fmt: i64) {
 ///
 /// # Safety
 /// The returned pointer must be freed by the caller.
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn std_args() -> *mut *mut u8 {
     let args: Vec<String> = env::args().collect();
     let mut arg_ptrs: Vec<*mut u8> = Vec::with_capacity(args.len() + 1);
@@ -99,7 +99,7 @@ pub unsafe extern "C" fn std_args() -> *mut *mut u8 {
 ///
 /// # Safety
 /// Caller must ensure valid size, free returned pointer with std_free.
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn std_calloc(count: i64, size: i64) -> i64 {
     // For now, return a dummy pointer
     // In a real implementation, this would allocate zero-initialized memory
@@ -110,7 +110,7 @@ pub unsafe extern "C" fn std_calloc(count: i64, size: i64) -> i64 {
 ///
 /// # Safety
 /// ptr must be from std_malloc/std_calloc or null.
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn std_realloc(ptr: i64, new_size: i64) -> i64 {
     // For now, return a dummy pointer
     // In a real implementation, this would reallocate memory
@@ -119,7 +119,7 @@ pub unsafe extern "C" fn std_realloc(ptr: i64, new_size: i64) -> i64 {
 
 /// Creates a new dynamic array.
 /// Returns a pointer to the array structure.
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn dynamic_array_new() -> i64 {
     // Allocate memory for array structure (capacity, length, data pointer)
     // For now, return a dummy pointer
@@ -130,7 +130,7 @@ pub unsafe extern "C" fn dynamic_array_new() -> i64 {
 ///
 /// # Safety
 /// array_ptr must be a valid dynamic array pointer.
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn dynamic_array_push(array_ptr: i64, value: i64) {
     // For now, do nothing
     // In a real implementation, this would push the value
@@ -140,7 +140,7 @@ pub unsafe extern "C" fn dynamic_array_push(array_ptr: i64, value: i64) {
 ///
 /// # Safety
 /// array_ptr must be a valid dynamic array pointer.
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn dynamic_array_len(array_ptr: i64) -> i64 {
     // For now, return 0
     // In a real implementation, this would return the actual length
@@ -151,7 +151,7 @@ pub unsafe extern "C" fn dynamic_array_len(array_ptr: i64) -> i64 {
 ///
 /// # Safety
 /// array_ptr must be a valid dynamic array pointer, index must be in bounds.
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn dynamic_array_get(array_ptr: i64, index: i64) -> i64 {
     // For now, return 0
     // In a real implementation, this would return the element
@@ -164,7 +164,7 @@ pub unsafe extern "C" fn dynamic_array_get(array_ptr: i64, index: i64) -> i64 {
 ///
 /// # Safety
 /// Value must be a valid i32 value
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn simd_splat_i32x4(value: i64) -> i64 {
     // Return a dummy vector value
     // In a real implementation, this would create a vector with all elements set to value
@@ -175,7 +175,7 @@ pub unsafe extern "C" fn simd_splat_i32x4(value: i64) -> i64 {
 ///
 /// # Safety
 /// Value must be a valid i64 value
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn simd_splat_i64x2(value: i64) -> i64 {
     // Return a dummy vector value
     0x1001 as i64
@@ -185,7 +185,7 @@ pub unsafe extern "C" fn simd_splat_i64x2(value: i64) -> i64 {
 ///
 /// # Safety
 /// Value must be a valid f32 value (passed as i64)
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn simd_splat_f32x4(value: i64) -> i64 {
     // Return a dummy vector value
     0x1002 as i64
@@ -195,7 +195,7 @@ pub unsafe extern "C" fn simd_splat_f32x4(value: i64) -> i64 {
 ///
 /// # Safety
 /// a and b must be valid i32x4 vector values
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn simd_add_i32x4(a: i64, b: i64) -> i64 {
     // Return a dummy result
     0x1003 as i64
@@ -205,7 +205,7 @@ pub unsafe extern "C" fn simd_add_i32x4(a: i64, b: i64) -> i64 {
 ///
 /// # Safety
 /// a and b must be valid i32x4 vector values
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn simd_mul_i32x4(a: i64, b: i64) -> i64 {
     // Return a dummy result
     0x1004 as i64
@@ -215,7 +215,7 @@ pub unsafe extern "C" fn simd_mul_i32x4(a: i64, b: i64) -> i64 {
 ///
 /// # Safety
 /// a and b must be valid i32x4 vector values
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn simd_sub_i32x4(a: i64, b: i64) -> i64 {
     // Return a dummy result
     0x1005 as i64
@@ -225,7 +225,7 @@ pub unsafe extern "C" fn simd_sub_i32x4(a: i64, b: i64) -> i64 {
 ///
 /// # Safety
 /// ptr must be a valid pointer to at least 4 i32 values
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn simd_load_i32x4(ptr: i64) -> i64 {
     // Return a dummy vector value
     0x1006 as i64
@@ -236,7 +236,7 @@ pub unsafe extern "C" fn simd_load_i32x4(ptr: i64) -> i64 {
 /// # Safety
 /// ptr must be a valid pointer to at least 4 i32 values
 /// vec must be a valid i32x4 vector value
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn simd_store_i32x4(ptr: i64, vec: i64) {
     // Do nothing - stub implementation
 }
@@ -246,7 +246,7 @@ pub unsafe extern "C" fn simd_store_i32x4(ptr: i64, vec: i64) {
 /// # Safety
 /// vec must be a valid i32x4 vector value
 /// index must be 0, 1, 2, or 3
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn simd_extract_i32x4(vec: i64, index: i64) -> i64 {
     // Return a dummy element value
     0
@@ -258,7 +258,7 @@ pub unsafe extern "C" fn simd_extract_i32x4(vec: i64, index: i64) -> i64 {
 /// vec must be a valid i32x4 vector value
 /// value must be a valid i32 value
 /// index must be 0, 1, 2, or 3
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn simd_insert_i32x4(vec: i64, value: i64, index: i64) -> i64 {
     // Return a dummy vector value
     0x1007 as i64
