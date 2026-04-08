@@ -169,6 +169,11 @@ path = "tests/memory-management/lifetime_tests.rs"
 name = "memory_management_safety"
 path = "tests/memory-management/memory_safety_tests.rs"
 
+# Optimization Tests for v0.3.60
+[[test]]
+name = "optimization_passes"
+path = "tests/optimization_tests.rs"
+
 [[test]]
 name = "memory_management_integration"
 path = "tests/memory-management/integration_test.rs"

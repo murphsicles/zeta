@@ -1046,6 +1046,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 | "&&"
                 | "||"
                 | "!"
+                | "<<"  // Shift left
+                | ">>"  // Shift right
                 | "add"
                 | "sub"
                 | "mul"
@@ -1074,6 +1076,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 | "and_i64"
                 | "or_i64"
                 | "not_i64"
+                | "shl_i64"  // Shift left i64
+                | "shr_i64"  // Shift right i64
         )
     }
 
@@ -1584,6 +1588,25 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                     left.into_int_value(),
                                     right.into_int_value(),
                                     "mod",
+                                )
+                                .unwrap(),
+
+                            // Shift operators
+                            "<<" | "shl_i64" => self
+                                .builder
+                                .build_left_shift(
+                                    left.into_int_value(),
+                                    right.into_int_value(),
+                                    "shl",
+                                )
+                                .unwrap(),
+                            ">>" | "shr_i64" => self
+                                .builder
+                                .build_right_shift(
+                                    left.into_int_value(),
+                                    right.into_int_value(),
+                                    false, // arithmetic shift (signed)
+                                    "shr",
                                 )
                                 .unwrap(),
 

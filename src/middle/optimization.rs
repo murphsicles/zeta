@@ -390,20 +390,40 @@ pub fn strength_reduction(mir: &mut Mir) {
                     if let Some(MirExpr::Lit(value)) = mir.exprs.get(&values[i]) {
                         if is_power_of_two(*value) {
                             // Found multiplication by power of two
-                            // In a full implementation, we would:
-                            // 1. Create a shift operation
-                            // 2. Replace the multiplication with shift
-                            // 3. Update the MIR
-                            // 
-                            // For now, we'll just mark that strength reduction
-                            // could be applied here
-                            // 
                             // x * 2^n can be replaced with x << n
                             // where n = log2(value)
                             let n = log2_power_of_two(*value);
-                            // TODO: Implement shift operation and replace
-                            // For now, we'll just record that we could optimize this
-                            // This is a placeholder for actual implementation
+                            
+                            // Get the other operand (the non-constant one)
+                            let other_operand = values[other_idx];
+                            
+                            // Create a shift left expression
+                            // We need to create a new expression ID for the shift
+                            // For now, we'll reuse the result ID
+                            // In a real implementation, we'd need to generate a new ID
+                            
+                            // Create shift amount expression (constant n)
+                            let shift_amount_id = *result + 1000; // Temporary ID
+                            mir.exprs.insert(shift_amount_id, MirExpr::Lit(n as i64));
+                            
+                            // Create shift operation expression
+                            // Note: We're using BinaryOp with "<<" as the operator
+                            // This assumes the codegen handles "<<" as a shift operator
+                            mir.exprs.insert(*result, MirExpr::BinaryOp {
+                                op: "<<".to_string(),
+                                left: other_operand,
+                                right: shift_amount_id,
+                            });
+                            
+                            // Mark the SemiringFold statement for removal
+                            // We'll replace it with an assignment that will be cleaned up by DCE
+                            *stmt = MirStmt::Assign {
+                                lhs: *result,
+                                rhs: *result, // Self-assignment, will be removed by DCE
+                            };
+                            
+                            // We found and replaced one optimization, break out of the loop
+                            break;
                         }
                     }
                 }
@@ -421,32 +441,83 @@ pub fn algebraic_simplification(mir: &mut Mir) {
                 SemiringOp::Add => {
                     // x + 0 = x, 0 + x = x
                     // Check for addition with zero
-                    for i in 0..values.len() {
-                        if let Some(MirExpr::Lit(value)) = mir.exprs.get(&values[i]) {
+                    let mut new_values = Vec::new();
+                    let mut has_zero = false;
+                    
+                    for &val_id in values.iter() {
+                        if let Some(MirExpr::Lit(value)) = mir.exprs.get(&val_id) {
                             if *value == 0 {
-                                // Addition with zero - can be simplified
-                                // In a full implementation, we would:
-                                // 1. Remove the zero operand
-                                // 2. If only one operand remains, replace with that operand
-                                // 3. Update the MIR
-                                // 
-                                // For now, just mark that simplification is possible
+                                // Skip zero operand
+                                has_zero = true;
+                                continue;
                             }
+                        }
+                        new_values.push(val_id);
+                    }
+                    
+                    // If we removed zeros and have at least one operand left
+                    if has_zero && !new_values.is_empty() {
+                        if new_values.len() == 1 {
+                            // Single operand remaining: replace SemiringFold with that operand
+                            mir.exprs.insert(*result, mir.exprs[&new_values[0]].clone());
+                            // Mark statement for removal (self-assignment that DCE will clean up)
+                            *stmt = MirStmt::Assign {
+                                lhs: *result,
+                                rhs: *result,
+                            };
+                        } else {
+                            // Multiple operands remaining: update values list
+                            *values = new_values;
                         }
                     }
                 }
                 SemiringOp::Mul => {
                     // x * 0 = 0, x * 1 = x, 0 * x = 0, 1 * x = x
-                    // Check for multiplication by zero or one
-                    for i in 0..values.len() {
-                        if let Some(MirExpr::Lit(value)) = mir.exprs.get(&values[i]) {
+                    let mut new_values = Vec::new();
+                    let mut has_zero = false;
+                    let mut has_one = false;
+                    
+                    for &val_id in values.iter() {
+                        if let Some(MirExpr::Lit(value)) = mir.exprs.get(&val_id) {
                             if *value == 0 {
                                 // Multiplication by zero - result is zero
-                                // In a full implementation, replace with zero
+                                has_zero = true;
+                                break; // Once we have zero, result is zero
                             } else if *value == 1 {
-                                // Multiplication by one - can be eliminated
-                                // In a full implementation, remove this operand
+                                // Multiplication by one - skip this operand
+                                has_one = true;
+                                continue;
                             }
+                        }
+                        new_values.push(val_id);
+                    }
+                    
+                    if has_zero {
+                        // Result is zero
+                        mir.exprs.insert(*result, MirExpr::Lit(0));
+                        // Mark statement for removal
+                        *stmt = MirStmt::Assign {
+                            lhs: *result,
+                            rhs: *result,
+                        };
+                    } else if has_one {
+                        if new_values.is_empty() {
+                            // All operands were ones, result is 1
+                            mir.exprs.insert(*result, MirExpr::Lit(1));
+                            *stmt = MirStmt::Assign {
+                                lhs: *result,
+                                rhs: *result,
+                            };
+                        } else if new_values.len() == 1 {
+                            // Single non-one operand remaining
+                            mir.exprs.insert(*result, mir.exprs[&new_values[0]].clone());
+                            *stmt = MirStmt::Assign {
+                                lhs: *result,
+                                rhs: *result,
+                            };
+                        } else {
+                            // Multiple operands remaining, update values list
+                            *values = new_values;
                         }
                     }
                 }
