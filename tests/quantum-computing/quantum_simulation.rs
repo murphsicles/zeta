@@ -507,4 +507,41 @@ impl QuantumChannel {
                     for k in 0..size {
                         for l in 0..size {
                             temp[i][j] = temp[i][j] + 
-                                kraus.matrix[i][k] * density_matrix.m
+                                kraus.matrix[i][k] * density_matrix.matrix[k][l] * kraus.matrix[j][l].conj();
+                        }
+                    }
+                }
+            }
+            
+            // Add weighted contribution
+            for i in 0..size {
+                for j in 0..size {
+                    new_matrix[i][j] = new_matrix[i][j] + weight * temp[i][j];
+                }
+            }
+        }
+        
+        // Update density matrix
+        density_matrix.matrix = new_matrix;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::std::quantum::Complex;
+    
+    #[test]
+    fn test_quantum_channel() {
+        // Test depolarizing channel
+        let mut density_matrix = DensityMatrix::new(2);
+        density_matrix.matrix[0][0] = Complex::new(1.0, 0.0);
+        
+        let channel = QuantumChannel::depolarizing(2, 0.1);
+        channel.apply(&mut density_matrix);
+        
+        // Trace should be preserved
+        let trace = density_matrix.matrix[0][0] + density_matrix.matrix[1][1];
+        assert!((trace.re - 1.0).abs() < 1e-10);
+    }
+}

@@ -213,7 +213,7 @@ fn test_common_memory_safety_idioms() {
     println!("  for item in &vec {{");
     println!("    // vec.push(4); // COMPILE ERROR: cannot borrow as mutable");
     println!("    println!(\"{{}}\", item);");
-    println!("  }");
+    println!("  }}");
     
     println!("\nIdiom 3: Interior mutability patterns");
     println!("  - Cell<T> for Copy types");

@@ -1,0 +1,38 @@
+//! Basic quantum module tests for Zeta v0.3.46
+//! 
+//! Tests the basic quantum computing module functionality
+
+#[test]
+fn test_quantum_module_basic() {
+    println!("Testing basic quantum module...");
+    
+    // Test that quantum module can be loaded
+    use crate::std::quantum::Complex;
+    
+    let c = Complex::new(1.0, 2.0);
+    assert_eq!(c.re, 1.0);
+    assert_eq!(c.im, 2.0);
+    
+    println!("✓ Basic quantum module test passed");
+}
+
+#[test]
+fn test_quantum_gates() {
+    println!("Testing quantum gates...");
+    
+    // Test that quantum gates can be created
+    use crate::std::quantum::QuantumGate;
+    
+    // Create basic gates
+    let x_gate = QuantumGate::X;
+    let h_gate = QuantumGate::H;
+    let cnot_gate = QuantumGate::CNOT(0, 1);
+    
+    println!("✓ Quantum gates test passed");
+}
+
+fn main() {
+    test_quantum_module_basic();
+    test_quantum_gates();
+    println!("✅ All quantum module basic tests passed!");
+}
