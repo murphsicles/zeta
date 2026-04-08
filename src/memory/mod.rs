@@ -4,8 +4,12 @@
 //! Automatic Reference Counting (ARC) for safe memory management.
 
 mod arc;
+mod allocator;
+mod borrow;
 
 pub use arc::*;
+pub use allocator::*;
+pub use borrow::*;
 
 /// Initialize the memory management system
 pub fn init() {
