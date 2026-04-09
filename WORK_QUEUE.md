@@ -147,6 +147,7 @@
 - **Focus**: Fix type inference to preserve and check generic bounds for identity-constrained generic functions
 - **Root Cause**: Generic bounds (e.g., `T: Identity<Read>`) are lost during type inference
 - **Specific Issue**: When `fn process<T: Identity<Read>>(x: T) -> i64` is called with `string[identity:read]`, type checker fails to unify `T` with `identity[read]`
+- **Status**: Version bumped to v0.3.63, issue diagnosed, ready for implementation
 - **Implementation Plan**:
   1. Store generic bounds with function signatures in resolver
   2. Modify `typecheck_new` to handle generic bounds when adding functions
@@ -155,6 +156,7 @@
   5. Prevent type variables from defaulting when they have bounds
 - **Success Criteria**: All 3 identity generics tests passing (currently 1/3)
 - **Test Coverage**: Ensure all existing tests continue to pass (106 library + 8 integration)
+- **Next Steps**: Implement the fix in a separate development session
 
 ### Immediate Actions (12:03 UTC)
 
