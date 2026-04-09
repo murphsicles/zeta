@@ -1,5 +1,44 @@
 # WORK QUEUE - Zeta Bootstrap Project
 
+## ⚠️ **NOTE: ACTIVE WORK IN `zeta/` SUBDIRECTORY**
+
+**This root workspace WORK_QUEUE.md is outdated. The active Zeta compiler project is in the `zeta/` subdirectory.**
+
+### **Current Active Status (from zeta/WORK_QUEUE.md)**
+**COMPILER STATUS**: ✅ **v0.3.64 STABLE** - Compiler builds successfully with only warnings
+**LIBRARY TESTS**: ✅ **106/106 PASSING** - All library tests passing (verified)
+**IDENTITY GENERICS TESTS**: ⚠️ **1/3 PASSING** - `test_combined_constraints` passes, others fail due to type system architectural issue
+**ARCHITECTURAL ISSUE**: 🔍 **IDENTIFIED** - Type system doesn't support polymorphic functions with constraints
+**GIT STATUS**: ✅ **CLEAN** - Working tree clean, branch up to date with origin/main
+**LAST CRON CHECK**: ✅ **April 9, 2026 - 19:00 UTC** - Bootstrap progress verified, architectural issue confirmed
+
+### **Root Cause Analysis**
+- **Issue**: Type system architecture doesn't support generic functions with bounds
+- **When** `fn process<T: Identity<Read>>(x: T) -> i64` **is registered**:
+  - Function type stored as `Function([Variable(TypeVar(0))], I64)`
+  - The bound `T: Identity<Read>` is stored separately in `func_generics` HashMap
+  - Type variable `TypeVar(0)` has no connection to the bound
+  - No representation for `∀T. (T: Identity<Read>) => (T) -> i64` in type system
+- **When** `process(s)` **is called where** `s` **has type** `Identity([Read])`:
+  - Type checker tries to unify `TypeVar(0)` with `Identity([Read])`
+  - But somewhere in type inference, `TypeVar(0)` is also unified with `Str`
+  - This causes mismatch: `Str` vs `Identity([Read])`
+  - No bound checking occurs because bound information is disconnected from type variable
+
+### **Required Changes**
+1. Extend `Type::Variable` to include bound information or create mapping from `TypeVar` to `TypeParam`
+2. Update `string_to_type` to create type variables linked to their bounds
+3. Update `instantiate_generic_with_bounds` to actually check bounds
+4. Implement constraint solving for trait bounds during type unification
+
+### **Next Version Target**: v0.3.65 - Type system extension for generic bounds
+### **Week 3 Goal**: Complete identity generics support with all tests passing
+### **Week 4**: Testing, benchmarking & documentation (UPCOMING)
+
+---
+
+## **Outdated Content Below (for reference only)**
+
 ## Current Status: v0.3.65-competition-ready - PrimeZeta Competition Submission (April 9, 2026 - 13:45 UTC)
 
 **COMPILER STATUS**: ✅ **v0.3.65 STABLE** - Compiler builds successfully with only warnings
