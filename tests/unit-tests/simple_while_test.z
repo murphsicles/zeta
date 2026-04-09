@@ -1,0 +1,17 @@
+// Simple while loop test
+fn test_while() -> u64 {
+    let mut i: u64 = 0
+    while i < 5 {
+        i = i + 1
+    }
+    return i  // Should return 5
+}
+
+fn main() -> u64 {
+    let result = test_while()
+    if result == 5 {
+        return 0
+    } else {
+        return 1
+    }
+}

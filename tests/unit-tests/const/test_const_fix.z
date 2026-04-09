@@ -1,0 +1,11 @@
+// Test const declaration fix
+const N: usize = 100;
+const MAX_LIMIT: usize = 1_000_000;
+
+fn main() -> u64 {
+    // Test const usage
+    let array: [u64; N] = [0; N];
+    
+    // Return const value
+    return N as u64
+}

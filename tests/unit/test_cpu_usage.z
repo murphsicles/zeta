@@ -1,0 +1,8 @@
+fn main() -> i32 {
+    // Do some computation that should use CPU
+    let mut x: i32 = 0;
+    x = 1 + 2 * 3 - 4 / 2;
+    x = x % 7;
+    x = x * x * x;
+    return x;
+}

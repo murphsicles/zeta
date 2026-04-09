@@ -1,0 +1,6 @@
+fn test() -> u64 {
+    let arr: [dynamic]u64 = [dynamic]u64{}
+    arr.push(42)
+    arr.push(100)
+    return arr[0] + arr[1]  // Should return 142
+}

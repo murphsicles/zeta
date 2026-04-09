@@ -1,0 +1,9 @@
+// Debug scope issue
+comptime fn main() -> i64 {
+    var x = 0
+    {
+        // This should update x in parent scope
+        x = 1
+    }
+    x
+}

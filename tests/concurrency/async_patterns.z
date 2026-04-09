@@ -1,0 +1,55 @@
+// tests/concurrency/async_patterns.z
+// Test asynchronous patterns and task spawning
+
+// Simple async task
+async fn async_task(id: i32, delay: i32) -> i32 {
+    // Simulate some async work
+    // In a real implementation, this would yield control
+    id * delay
+}
+
+// Async function that spawns multiple tasks
+async fn spawn_multiple_tasks() -> i32 {
+    // Spawn multiple async tasks
+    // In a real implementation, these would run concurrently
+    let task1 = async_task(1, 10).await;
+    let task2 = async_task(2, 20).await;
+    let task3 = async_task(3, 30).await;
+    
+    task1 + task2 + task3
+}
+
+// Future composition
+async fn composed_future() -> i32 {
+    // Chain async operations
+    let a = async_task(1, 5).await;
+    let b = async_task(2, 10).await;
+    let c = async_task(3, 15).await;
+    
+    a + b + c
+}
+
+// Async function with control flow
+async fn async_with_control_flow(condition: bool) -> i32 {
+    if condition {
+        async_task(1, 100).await
+    } else {
+        async_task(2, 200).await
+    }
+}
+
+// Main function testing async patterns
+fn main() -> i32 {
+    // Test basic async patterns
+    // Note: In the current implementation, we can't actually run async functions
+    // without a runtime. This is a placeholder for when async/await is fully implemented.
+    
+    // For now, return a success code
+    0
+}
+
+// Test runner
+fn test_async_patterns() -> i32 {
+    // This would test various async patterns once implemented
+    0
+}

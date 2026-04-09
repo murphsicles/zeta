@@ -1,0 +1,8 @@
+// Test array syntax variations
+fn main() -> u64 {
+    // Try different syntaxes
+    let mut arr1 = []  // No type
+    let mut arr2: [] = []  // Empty type
+    let mut arr3: [u8;] = []  // Type with no size
+    return 0
+}

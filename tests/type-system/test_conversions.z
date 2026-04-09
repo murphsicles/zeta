@@ -1,0 +1,46 @@
+// Test file for type conversion (as operator)
+// Created in tests/type-system/ as per protocol
+
+// Test basic integer conversions
+fn test_i64_to_u64() {
+    let i: i64 = -42;
+    let u: u64 = i as u64;
+    // This should compile and convert
+}
+
+fn test_i64_to_usize() {
+    let i: i64 = 100;
+    let u: usize = i as usize;
+    // This should compile and convert
+}
+
+fn test_u64_to_i64() {
+    let u: u64 = 100;
+    let i: i64 = u as i64;
+    // This should compile and convert
+}
+
+// Test in array indexing context (PrimeZeta use case)
+fn test_array_index_conversion() {
+    let list = [1, 2, 3, 4, 5];
+    let i: i64 = 2;
+    // This is the PrimeZeta use case: list[idx] = i as u64
+    let value = list[i as usize];
+}
+
+// Test multiple conversions
+fn test_chained_conversions() {
+    let x: i64 = 100;
+    let y: u64 = x as u64;
+    let z: usize = y as usize;
+}
+
+// Test with function calls
+fn takes_u64(x: u64) -> u64 {
+    x * 2
+}
+
+fn test_conversion_in_call() {
+    let i: i64 = 42;
+    let result = takes_u64(i as u64);
+}

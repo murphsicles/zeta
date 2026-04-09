@@ -1,0 +1,124 @@
+//! Simple error recovery for Zeta parser
+
+use nom::IResult;
+use nom::Parser;
+use nom::bytes::complete::tag;
+use nom::combinator::opt;
+use nom::multi::many0;
+
+/// Simple error recovery parser that tries to parse items with recovery
+pub fn parse_with_recovery<'a, P, O>(
+    mut parser: P,
+    input: &'a str,
+) -> IResult<&'a str, Vec<O>>
+where
+    P: Parser<&'a str, O, nom::error::Error<&'a str>>,
+{
+    let mut remaining = input;
+    let mut results = Vec::new();
+    
+    // Skip initial whitespace
+    let (mut remaining, _) = opt(skip_whitespace_and_comments).parse(remaining)?;
+    
+    while !remaining.is_empty() {
+        // Try to parse an item
+        match parser.parse(remaining) {
+            Ok((new_remaining, output)) => {
+                results.push(output);
+                remaining = new_remaining;
+                
+                // Skip whitespace after successful parse
+                let (new_remaining, _) = opt(skip_whitespace_and_comments).parse(remaining)?;
+                remaining = new_remaining;
+            }
+            Err(_) => {
+                // Try to recover by skipping to next likely item start
+                if let Ok((new_remaining, _)) = skip_to_next_item(remaining) {
+                    remaining = new_remaining;
+                } else {
+                    // Can't recover further
+                    break;
+                }
+            }
+        }
+    }
+    
+    Ok((remaining, results))
+}
+
+/// Skip whitespace and comments
+fn skip_whitespace_and_comments(input: &str) -> IResult<&str, ()> {
+    let mut remaining = input;
+    
+    loop {
+        let mut made_progress = false;
+        
+        // Skip whitespace
+        if let Ok((new_remaining, _)) = nom::character::complete::multispace1::<_, nom::error::Error<&str>>(remaining) {
+            remaining = new_remaining;
+            made_progress = true;
+        }
+        
+        // Skip line comments
+        if let Ok((new_remaining, _)) = tag("//")(remaining) {
+            // Skip to end of line
+            let end_of_line = remaining.find('\n').unwrap_or(remaining.len());
+            remaining = &remaining[end_of_line..];
+            made_progress = true;
+        }
+        
+        // Skip block comments
+        if remaining.starts_with("/*") {
+            if let Some(end) = remaining.find("*/") {
+                remaining = &remaining[end + 2..];
+                made_progress = true;
+            } else {
+                // Unclosed block comment - skip to end
+                remaining = "";
+                made_progress = true;
+            }
+        }
+        
+        if !made_progress {
+            break;
+        }
+    }
+    
+    Ok((remaining, ()))
+}
+
+/// Skip to next likely item start
+fn skip_to_next_item(input: &str) -> IResult<&str, ()> {
+    let mut remaining = input;
+    let mut skipped = 0;
+    
+    // Maximum characters to skip before giving up
+    const MAX_SKIP: usize = 1000;
+    
+    while skipped < MAX_SKIP && !remaining.is_empty() {
+        // Check for item start patterns
+        let patterns = [
+            "\nfn ", "\nconcept ", "\nimpl ", "\nenum ", "\nstruct ", 
+            "\nuse ", "\ntype ", "\nmod ", "\ntrait ", "\nextern ", "\nconst ",
+        ];
+        
+        let mut found = false;
+        for pattern in patterns.iter() {
+            if remaining.starts_with(pattern) {
+                found = true;
+                break;
+            }
+        }
+        
+        if found {
+            break;
+        }
+        
+        // Skip one character
+        let char_len = remaining.chars().next().map_or(1, |c| c.len_utf8());
+        remaining = &remaining[char_len..];
+        skipped += char_len;
+    }
+    
+    Ok((remaining, ()))
+}

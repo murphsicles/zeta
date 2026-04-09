@@ -1,0 +1,25 @@
+// Simple test to verify the bootstrap compiler works
+fn test_simple() -> i64 {
+    return 42;
+}
+
+fn test_addition() -> i64 {
+    return 10 + 20;
+}
+
+fn test_function_call() -> i64 {
+    return add(5, 7);
+}
+
+fn add(a: i64, b: i64) -> i64 {
+    return a + b;
+}
+
+fn main() -> i64 {
+    let result1 = test_simple();
+    let result2 = test_addition();
+    let result3 = test_function_call();
+    
+    // Return combined result
+    return result1 + result2 + result3;
+}

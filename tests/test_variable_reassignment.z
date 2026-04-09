@@ -1,0 +1,73 @@
+// Test program for bootstrap compiler - variable reassignment
+// This should be compilable by the enhanced minimal Zeta compiler
+
+fn test_simple_reassignment() -> i64 {
+    let x = 10;
+    x = 20;  // Reassignment
+    return x;
+}
+
+fn test_multiple_reassignments() -> i64 {
+    let counter = 0;
+    counter = counter + 1;
+    counter = counter * 2;
+    counter = counter - 1;
+    return counter;
+}
+
+fn test_reassignment_in_conditional() -> i64 {
+    let value = 5;
+    
+    if (value < 10) {
+        value = 10;  // Reassign in if branch
+    }
+    
+    return value;
+}
+
+fn test_reassignment_in_loop() -> i64 {
+    let sum = 0;
+    let i = 0;
+    
+    // This will need while loop support
+    // while (i < 5) {
+    //     sum = sum + i;
+    //     i = i + 1;
+    // }
+    
+    // For now, simulate with multiple assignments
+    sum = sum + 0;
+    i = i + 1;
+    sum = sum + 1;
+    i = i + 1;
+    sum = sum + 2;
+    i = i + 1;
+    sum = sum + 3;
+    i = i + 1;
+    sum = sum + 4;
+    
+    return sum;
+}
+
+fn test_complex_reassignment() -> i64 {
+    let a = 1;
+    let b = 2;
+    let c = 3;
+    
+    // Chain of reassignments
+    a = b;
+    b = c;
+    c = a + b;
+    
+    return a + b + c;
+}
+
+fn main() -> i64 {
+    let test1 = test_simple_reassignment();
+    let test2 = test_multiple_reassignments();
+    let test3 = test_reassignment_in_conditional();
+    let test4 = test_reassignment_in_loop();
+    let test5 = test_complex_reassignment();
+    
+    return test1 + test2 + test3 + test4 + test5;
+}

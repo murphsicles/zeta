@@ -1,0 +1,388 @@
+// Advanced Code Generation Test File
+// Tests for AST manipulation and template-based code generation in Zeta v0.3.41
+
+// 1. AST manipulation at compile time
+#[transform_ast]
+fn original_function(x: i32, y: i32) -> i32 {
+    x + y
+}
+
+// Should be transformed to:
+// fn transformed_function(x: i32, y: i32) -> i32 {
+//     let start = std::time::Instant::now();
+//     let result = x + y;
+//     let duration = start.elapsed();
+//     println!("Function took {:?}", duration);
+//     result
+// }
+
+// 2. Template-based code generation
+#[template(path = "templates/entity.template.z")]
+struct UserEntity {
+    id: u64,
+    username: String,
+    email: String,
+    created_at: DateTime,
+}
+
+// Should generate:
+// - CRUD methods (create, read, update, delete)
+// - Validation methods
+// - Serialization/deserialization
+// - Database mapping
+
+// 3. Code generation from external data
+#[generate_from_json("schemas/user.json")]
+struct JsonUser {
+    // Fields generated from JSON schema
+}
+
+// 4. DSL (Domain Specific Language) compilation
+#[dsl]
+fn business_rule() {
+    when Customer::age > 18 &&
+         Customer::status == "active" &&
+         Order::total > 100.0 {
+        apply Discount::percentage(10)
+    }
+}
+
+// Should compile to:
+// fn business_rule(customer: &Customer, order: &Order) -> Option<Discount> {
+//     if customer.age > 18 &&
+//        customer.status == "active" &&
+//        order.total > 100.0 {
+//         Some(Discount::percentage(10))
+//     } else {
+//         None
+//     }
+// }
+
+// 5. Compile-time SQL query generation
+#[sql_query]
+fn get_active_users() -> Vec<User> {
+    SELECT * FROM users WHERE active = true
+}
+
+// Should generate:
+// fn get_active_users(conn: &Connection) -> Result<Vec<User>, Error> {
+//     conn.query("SELECT * FROM users WHERE active = true", &[])
+//        .map(|rows| rows.iter().map(User::from_row).collect())
+// }
+
+// 6. Protocol buffer code generation
+#[generate_from_proto("messages/user.proto")]
+struct ProtoUser {
+    // Fields and methods generated from .proto file
+}
+
+// 7. GraphQL schema generation
+#[graphql_schema]
+struct GraphQLUser {
+    id: ID!,
+    username: String!,
+    email: String!,
+    posts: Vec<Post>,
+}
+
+// Should generate GraphQL schema and resolvers
+
+// 8. Web API generation
+#[rest_api]
+struct UserController {
+    #[get("/users")]
+    fn get_all() -> Vec<User>,
+    
+    #[get("/users/:id")]
+    fn get_by_id(id: u64) -> Option<User>,
+    
+    #[post("/users")]
+    fn create(user: User) -> User,
+    
+    #[put("/users/:id")]
+    fn update(id: u64, user: User) -> Option<User>,
+    
+    #[delete("/users/:id")]
+    fn delete(id: u64) -> bool,
+}
+
+// 9. State machine generation
+#[state_machine]
+enum OrderState {
+    Created,
+    Paid,
+    Shipped,
+    Delivered,
+    Cancelled,
+}
+
+// Should generate:
+// - State transition methods
+// - Validation of allowed transitions
+// - Event handlers
+
+// 10. Builder pattern with validation
+#[smart_builder]
+struct Config {
+    #[required]
+    host: String,
+    
+    #[required]
+    port: u16,
+    
+    #[default = "5000"]
+    timeout: u64,
+    
+    #[validate(range = "1..10")]
+    retries: u8,
+    
+    #[default = "false"]
+    debug: bool,
+}
+
+// 11. Observer pattern generation
+#[observable]
+struct DataModel {
+    value: i32,
+    name: String,
+}
+
+// Should generate:
+// - Observer registration methods
+// - Event notification system
+// - Change tracking
+
+// 12. Cache wrapper generation
+#[cached(ttl = "300")] // 5 minutes
+fn expensive_computation(x: i32, y: i32) -> i32 {
+    std::thread::sleep(std::time::Duration::from_secs(1));
+    x * y
+}
+
+// Should generate caching layer
+
+// 13. Retry logic generation
+#[retry(max_attempts = 3, backoff = "exponential")]
+fn unreliable_network_call(url: &str) -> Result<String, Error> {
+    // ...
+}
+
+// 14. Metrics collection generation
+#[instrument]
+fn process_request(request: Request) -> Response {
+    // Function automatically records metrics:
+    // - Execution time
+    // - Success/failure count
+    // - Input/output sizes
+}
+
+// 15. Compile-time configuration generation
+#[generate_config]
+struct AppConfig {
+    #[env("DATABASE_URL")]
+    database_url: String,
+    
+    #[env("REDIS_URL", default = "redis://localhost:6379")]
+    redis_url: String,
+    
+    #[env("LOG_LEVEL", default = "info")]
+    log_level: String,
+    
+    #[env("PORT", default = "8080")]
+    port: u16,
+}
+
+// 16. Test case generation
+#[generate_tests]
+impl User {
+    fn new(username: String, email: String) -> Self {
+        User { id: 0, username, email }
+    }
+    
+    fn is_valid(&self) -> bool {
+        !self.username.is_empty() && self.email.contains('@')
+    }
+}
+
+// Should generate unit tests
+
+// 17. Benchmark generation
+#[benchmark]
+fn algorithm_to_benchmark(input: &[i32]) -> i32 {
+    input.iter().sum()
+}
+
+// Should generate benchmark code
+
+// 18. Documentation generation
+#[auto_document]
+struct WellDocumentedStruct {
+    /// The unique identifier
+    id: u64,
+    
+    /// The user's display name
+    username: String,
+    
+    /// Contact email address
+    email: String,
+}
+
+// Should generate comprehensive documentation
+
+// 19. Serialization adapters
+#[serialize_as(json, yaml, toml)]
+struct MultiFormatConfig {
+    name: String,
+    values: Vec<i32>,
+    metadata: HashMap<String, String>,
+}
+
+// 20. Compile-time feature flags
+#[feature_gate("experimental")]
+fn experimental_feature() {
+    // Only compiled when experimental feature is enabled
+}
+
+// 21. Dependency injection
+#[inject]
+struct ServiceContainer {
+    repository: UserRepository,
+    cache: RedisCache,
+    logger: Logger,
+}
+
+// 22. Compile-time routing table
+#[routes]
+mod api {
+    #[route("GET", "/users")]
+    fn get_users() -> Vec<User> { /* ... */ }
+    
+    #[route("GET", "/users/:id")]
+    fn get_user(id: u64) -> Option<User> { /* ... */ }
+    
+    #[route("POST", "/users")]
+    fn create_user(user: User) -> Result<User, Error> { /* ... */ }
+}
+
+// 23. Database migration generation
+#[migration(id = "001_create_users")]
+fn create_users_table() {
+    CREATE TABLE users (
+        id BIGINT PRIMARY KEY,
+        username VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL
+    );
+}
+
+// 24. Compile-time validation rules
+#[validate_rules]
+struct UserRegistration {
+    #[rule("required")]
+    username: String,
+    
+    #[rule("email")]
+    email: String,
+    
+    #[rule("min_length:8")]
+    password: String,
+    
+    #[rule("equals_field:password")]
+    confirm_password: String,
+}
+
+// 25. Code generation from database schema
+#[generate_from_db("users_table")]
+struct DbUser {
+    // Fields generated from database schema
+}
+
+// Example usage of generated code
+fn main() {
+    println!("Testing Advanced Code Generation");
+    
+    // Test transformed function
+    let result = original_function(5, 3);
+    println!("Transformed function result: {}", result);
+    
+    // Test smart builder
+    let config = Config::builder()
+        .host("localhost".to_string())
+        .port(8080)
+        .retries(3)
+        .build()
+        .expect("Valid configuration");
+    
+    println!("Config: {}:{}", config.host, config.port);
+    
+    // Test cached function
+    let cached_result = expensive_computation(6, 7);
+    println!("Cached computation: {}", cached_result);
+    
+    // Test with retry
+    match unreliable_network_call("https://example.com") {
+        Ok(response) => println!("Network call succeeded: {}", response),
+        Err(e) => println!("Network call failed: {}", e),
+    }
+    
+    // Test observable
+    let mut model = DataModel {
+        value: 42,
+        name: "Test".to_string(),
+    };
+    
+    // Would notify observers on change
+    model.value = 100;
+    
+    // Test feature-gated code
+    #[cfg(feature = "experimental")]
+    {
+        experimental_feature();
+    }
+    
+    println!("All code generation tests completed!");
+}
+
+// Helper functions for examples
+struct Customer {
+    age: u8,
+    status: String,
+}
+
+struct Order {
+    total: f64,
+}
+
+struct Discount;
+
+impl Discount {
+    fn percentage(pct: u8) -> Self {
+        Discount
+    }
+}
+
+struct Request;
+struct Response;
+struct Error;
+struct Connection;
+struct DateTime;
+struct JsonValue;
+struct Post;
+struct ID;
+struct UserRepository;
+struct RedisCache;
+struct Logger;
+struct User {
+    id: u64,
+    username: String,
+    email: String,
+}
+
+impl User {
+    fn from_row(_row: &()) -> Self {
+        User {
+            id: 0,
+            username: String::new(),
+            email: String::new(),
+        }
+    }
+}

@@ -1,0 +1,17 @@
+// Test u8 equality comparison
+
+fn test_u8_equality() -> u64 {
+    let x: u8 = 0
+    let y: u8 = 0
+    
+    // Test if u8 equality works
+    if x == y {
+        return 1
+    } else {
+        return 0
+    }
+}
+
+fn main() -> u64 {
+    return test_u8_equality()
+}

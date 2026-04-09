@@ -1,0 +1,20 @@
+// Test u8 to i64 conversion for comparison
+
+fn test_u8_to_i64() -> u64 {
+    let x: u8 = 0
+    let y: i64 = 0
+    
+    // Convert u8 to i64 for comparison
+    let x_i64: i64 = x as i64
+    
+    // Test if comparison works
+    if x_i64 == y {
+        return 1
+    } else {
+        return 0
+    }
+}
+
+fn main() -> u64 {
+    return test_u8_to_i64()
+}

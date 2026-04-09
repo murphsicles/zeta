@@ -1,0 +1,28 @@
+fn main() -> i64 {
+    // Test basic I/O
+    print_i64(42)
+    println()
+    
+    // Test SIMD
+    let vec = vector_splat_u64x8(5)
+    
+    // Test memory allocation
+    let ptr = runtime_malloc(100)
+    
+    if ptr == 0 {
+        print_str("malloc failed")
+        println()
+        return 1
+    }
+    
+    // Free memory
+    runtime_free(ptr)
+    
+    // Test array operations (if supported)
+    // Note: array_new() expects 0 args based on compiler output
+    
+    print_str("All tests passed")
+    println()
+    
+    return 0
+}

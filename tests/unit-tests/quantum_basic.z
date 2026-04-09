@@ -1,0 +1,157 @@
+// Basic quantum computing test for Zeta
+// Tests the quantum computing primitives
+
+fn test_quantum_circuit() -> i32 {
+    // Create a simple quantum circuit
+    let mut circuit = std::quantum::QuantumCircuit::new(2);
+    
+    // Apply Hadamard to first qubit
+    circuit.h(0);
+    
+    // Apply CNOT gate
+    circuit.cnot(0, 1);
+    
+    // Measure both qubits
+    circuit.measure(0);
+    circuit.measure(1);
+    
+    // Execute the circuit
+    let (state, measurements) = circuit.execute();
+    
+    // Verify we got measurements
+    if measurements.len() != 2 {
+        return -1;
+    }
+    
+    // Verify state has correct number of qubits
+    if state.qubits != 2 {
+        return -2;
+    }
+    
+    0
+}
+
+fn test_complex_numbers() -> i32 {
+    // Test complex number operations
+    let c1 = std::quantum::Complex::new(1.0, 2.0);
+    let c2 = std::quantum::Complex::new(3.0, 4.0);
+    
+    let sum = c1 + c2;
+    if sum.re != 4.0 || sum.im != 6.0 {
+        return -3;
+    }
+    
+    let product = c1 * c2;
+    if product.re != -5.0 || product.im != 10.0 {
+        return -4;
+    }
+    
+    0
+}
+
+fn test_qubit_states() -> i32 {
+    // Test qubit state creation
+    let zero_state = std::quantum::QubitState::zero();
+    let one_state = std::quantum::QubitState::one();
+    let plus_state = std::quantum::QubitState::plus();
+    
+    if !zero_state.is_normalized() {
+        return -5;
+    }
+    
+    if !one_state.is_normalized() {
+        return -6;
+    }
+    
+    if !plus_state.is_normalized() {
+        return -7;
+    }
+    
+    0
+}
+
+fn test_shors_algorithm() -> i32 {
+    // Test Shor's algorithm (classical simulation)
+    use std::quantum::algorithms::ShorsAlgorithm;
+    
+    let n = 15;
+    let shor = ShorsAlgorithm::new(n);
+    
+    if let Some((p, q)) = shor.factor() {
+        if p * q != n {
+            return -8;
+        }
+        if p <= 1 || q <= 1 {
+            return -9;
+        }
+    } else {
+        // Factorization might fail sometimes (depends on random base)
+        // This is acceptable for the test
+        println!("Shor's algorithm failed to factor {} (this can happen)", n);
+    }
+    
+    0
+}
+
+fn test_grovers_algorithm() -> i32 {
+    // Test Grover's algorithm
+    use std::quantum::algorithms::GroversAlgorithm;
+    
+    let database_size = 8;
+    let marked_item = 3;
+    
+    let grover = GroversAlgorithm::new(database_size, |x| x == marked_item);
+    let iterations = grover.optimal_iterations();
+    
+    if iterations == 0 {
+        return -10;
+    }
+    
+    // Check success probability calculation
+    let prob = grover.success_probability(iterations);
+    if prob < 0.0 || prob > 1.0 {
+        return -11;
+    }
+    
+    0
+}
+
+fn main() -> i32 {
+    println!("Running quantum computing tests...");
+    
+    let mut passed = 0;
+    let mut failed = 0;
+    
+    // Run all tests
+    let tests = [
+        ("Quantum Circuit", test_quantum_circuit),
+        ("Complex Numbers", test_complex_numbers),
+        ("Qubit States", test_qubit_states),
+        ("Shor's Algorithm", test_shors_algorithm),
+        ("Grover's Algorithm", test_grovers_algorithm),
+    ];
+    
+    for (name, test_fn) in tests.iter() {
+        print!("Testing {}... ", name);
+        let result = test_fn();
+        
+        if result == 0 {
+            println!("PASSED");
+            passed += 1;
+        } else {
+            println!("FAILED (error code: {})", result);
+            failed += 1;
+        }
+    }
+    
+    println!("\nTest Summary:");
+    println!("  Passed: {}", passed);
+    println!("  Failed: {}", failed);
+    println!("  Total:  {}", tests.len());
+    
+    if failed > 0 {
+        -1
+    } else {
+        0
+    }
+}

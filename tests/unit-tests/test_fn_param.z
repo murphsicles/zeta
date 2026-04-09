@@ -1,0 +1,9 @@
+// Test function with parameter
+
+fn add_one(x: u64) -> u64 {
+    return x + 1
+}
+
+fn main() -> u64 {
+    return add_one(41)
+}

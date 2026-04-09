@@ -1,0 +1,15 @@
+// Test less than operator
+
+fn test_less_than() -> u64 {
+    let n: u64 = 0
+    
+    if n < 3 {
+        return 1
+    } else {
+        return 0
+    }
+}
+
+fn main() -> u64 {
+    return test_less_than()
+}

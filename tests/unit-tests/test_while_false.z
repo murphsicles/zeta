@@ -1,0 +1,13 @@
+// Test while loop with false condition
+fn test_while_false() -> u64 {
+    let mut i: u64 = 0
+    // Condition is false from the start
+    while i > 0 {
+        i = i + 1
+    }
+    return i  // Should return 0
+}
+
+fn main() -> u64 {
+    return test_while_false()
+}

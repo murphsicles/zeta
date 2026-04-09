@@ -1,0 +1,11 @@
+// Test increment
+
+fn test_increment() -> u64 {
+    let mut n: u64 = 0
+    n += 1
+    return n  // Should be 1
+}
+
+fn main() -> u64 {
+    return test_increment()
+}

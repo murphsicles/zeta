@@ -1,0 +1,15 @@
+// Minimal test of modulo in while loop
+
+fn test_mod_while() -> u64 {
+    let n: u64 = 10
+    let d: u64 = 3
+    
+    // Store modulo result in variable
+    let remainder: u64 = n % d
+    
+    return remainder
+}
+
+fn main() -> u64 {
+    return test_mod_while()
+}

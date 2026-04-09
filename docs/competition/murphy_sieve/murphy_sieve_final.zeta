@@ -1,0 +1,42 @@
+// Murphy's Sieve implementation - Final version
+// Uses fixed array size for compilation
+
+comptime fn prime_sieve_fixed() -> [100]bool {
+    let mut sieve = [true; 100];
+    
+    // 0 and 1 are not prime
+    sieve[0] = false;
+    sieve[1] = false;
+    
+    // Sieve of Eratosthenes
+    let mut i = 2;
+    while i * i < 100 {
+        if sieve[i] {
+            let mut j = i * i;
+            while j < 100 {
+                sieve[j] = false;
+                j += i;
+            }
+        }
+        i += 1;
+    }
+    
+    return sieve;
+}
+
+fn main() -> i64 {
+    let sieve = prime_sieve_fixed();
+    
+    // Count primes up to 100
+    let mut count = 0;
+    let mut i = 0;
+    while i < 100 {
+        if sieve[i] {
+            count += 1;
+        }
+        i += 1;
+    }
+    
+    // Should return 25 (number of primes <= 100)
+    return count;
+}

@@ -1,0 +1,43 @@
+// Debug Murphy's Sieve with simpler test
+
+fn simple_sieve(limit: u64) -> u64 {
+    // Simple sieve for small limit
+    let bits: [dynamic]u8 = [dynamic]u8{}
+    
+    // Initialize
+    let mut i: u64 = 0
+    while i < limit {
+        bits.push(0)
+        i += 1
+    }
+    
+    // Mark 0 and 1
+    if limit > 0 {
+        bits[0] = 1
+    }
+    if limit > 1 {
+        bits[1] = 1
+    }
+    
+    // Just mark 2 as prime (don't mark multiples)
+    if limit > 2 {
+        // Leave bits[2] = 0 (prime)
+    }
+    
+    // Count primes (should be 1 for limit=3: only 2 is prime)
+    let mut count: u64 = 0
+    let mut n: u64 = 0
+    while n < limit {
+        if bits[n] == 0 {
+            count += 1
+        }
+        n += 1
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    // Test with limit=3 (primes: 2)
+    return simple_sieve(3)  // Should return 1
+}

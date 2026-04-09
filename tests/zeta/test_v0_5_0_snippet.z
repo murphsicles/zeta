@@ -1,0 +1,25 @@
+use zeta::frontend::ast::AstNode;
+use zeta::middle::resolver::resolver::Resolver;
+use zeta::backend::codegen::codegen::LLVMCodegen;
+
+struct Compiler {
+    resolver: Resolver,
+    codegen: LLVMCodegen,
+}
+
+impl Compiler {
+    fn new() -> Self {
+        Compiler {
+            resolver: Resolver::new(),
+            codegen: LLVMCodegen::new(),
+        }
+    }
+    
+    fn compile(&mut self, ast: AstNode) {
+    }
+}
+
+fn main() {
+    let mut compiler = Compiler::new();
+    compiler.compile(AstNode::Unit);
+}

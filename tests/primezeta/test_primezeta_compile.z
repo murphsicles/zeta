@@ -1,0 +1,8 @@
+// Simple PrimeZeta-like test
+const MODULUS: u64 = 30030
+const NUM_RESIDUES: usize = 5760
+
+fn main() -> i64 {
+    let test = 42
+    test
+}

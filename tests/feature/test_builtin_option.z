@@ -1,0 +1,12 @@
+// Test built-in Option type (not imported from stdlib)
+fn main() -> i64 {
+    // Test Option enum - these should be built-in
+    let x = Option::Some(42);
+    let y = Option::None;
+    
+    // Test pattern matching
+    match x {
+        Option::Some(val) => val,
+        Option::None => 0,
+    }
+}

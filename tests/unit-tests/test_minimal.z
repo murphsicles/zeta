@@ -1,0 +1,4 @@
+// Minimal test - no loops
+fn main() -> i64 {
+    return 42
+}

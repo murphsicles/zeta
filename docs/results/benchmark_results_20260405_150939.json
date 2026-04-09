@@ -1,0 +1,1069 @@
+﻿{
+    "summary":  {
+                    "total_time_ms":  19261,
+                    "total_iterations":  200,
+                    "total_benchmarks":  2,
+                    "average_success_rate":  91.5
+                },
+    "benchmarks":  [
+                       {
+                           "name":  "comparison_framework",
+                           "timestamp":  "2026-04-05T15:09:39",
+                           "iterations":  100,
+                           "metrics":  {
+                                           "median_time_ms":  108,
+                                           "avg_time_ms":  105,
+                                           "max_time_ms":  128,
+                                           "throughput":  9.5238095238095237,
+                                           "success_rate":  91,
+                                           "total_time_ms":  9555,
+                                           "min_time_ms":  80,
+                                           "iterations_completed":  91
+                                       },
+                           "results":  [
+                                           {
+                                               "iteration":  1,
+                                               "success":  true,
+                                               "time_ms":  121
+                                           },
+                                           {
+                                               "iteration":  2,
+                                               "success":  true,
+                                               "time_ms":  128
+                                           },
+                                           {
+                                               "iteration":  3,
+                                               "success":  true,
+                                               "time_ms":  91
+                                           },
+                                           {
+                                               "iteration":  4,
+                                               "success":  true,
+                                               "time_ms":  122
+                                           },
+                                           {
+                                               "iteration":  5,
+                                               "success":  true,
+                                               "time_ms":  92
+                                           },
+                                           {
+                                               "iteration":  6,
+                                               "success":  true,
+                                               "time_ms":  102
+                                           },
+                                           {
+                                               "iteration":  7,
+                                               "success":  true,
+                                               "time_ms":  94
+                                           },
+                                           {
+                                               "iteration":  8,
+                                               "success":  true,
+                                               "time_ms":  124
+                                           },
+                                           {
+                                               "iteration":  9,
+                                               "success":  true,
+                                               "time_ms":  82
+                                           },
+                                           {
+                                               "iteration":  10,
+                                               "success":  true,
+                                               "time_ms":  122
+                                           },
+                                           {
+                                               "iteration":  11,
+                                               "success":  false,
+                                               "error":  "Simulated benchmark failure",
+                                               "time_ms":  85
+                                           },
+                                           {
+                                               "iteration":  12,
+                                               "success":  true,
+                                               "time_ms":  121
+                                           },
+                                           {
+                                               "iteration":  13,
+                                               "success":  true,
+                                               "time_ms":  122
+                                           },
+                                           {
+                                               "iteration":  14,
+                                               "success":  true,
+                                               "time_ms":  96
+                                           },
+                                           {
+                                               "iteration":  15,
+                                               "success":  true,
+                                               "time_ms":  109
+                                           },
+                                           {
+                                               "iteration":  16,
+                                               "success":  true,
+                                               "time_ms":  124
+                                           },
+                                           {
+                                               "iteration":  17,
+                                               "success":  true,
+                                               "time_ms":  100
+                                           },
+                                           {
+                                               "iteration":  18,
+                                               "success":  true,
+                                               "time_ms":  125
+                                           },
+                                           {
+                                               "iteration":  19,
+                                               "success":  true,
+                                               "time_ms":  105
+                                           },
+                                           {
+                                               "iteration":  20,
+                                               "success":  true,
+                                               "time_ms":  99
+                                           },
+                                           {
+                                               "iteration":  21,
+                                               "success":  true,
+                                               "time_ms":  81
+                                           },
+                                           {
+                                               "iteration":  22,
+                                               "success":  true,
+                                               "time_ms":  126
+                                           },
+                                           {
+                                               "iteration":  23,
+                                               "success":  true,
+                                               "time_ms":  82
+                                           },
+                                           {
+                                               "iteration":  24,
+                                               "success":  true,
+                                               "time_ms":  112
+                                           },
+                                           {
+                                               "iteration":  25,
+                                               "success":  true,
+                                               "time_ms":  92
+                                           },
+                                           {
+                                               "iteration":  26,
+                                               "success":  true,
+                                               "time_ms":  127
+                                           },
+                                           {
+                                               "iteration":  27,
+                                               "success":  false,
+                                               "error":  "Simulated benchmark failure",
+                                               "time_ms":  83
+                                           },
+                                           {
+                                               "iteration":  28,
+                                               "success":  true,
+                                               "time_ms":  114
+                                           },
+                                           {
+                                               "iteration":  29,
+                                               "success":  true,
+                                               "time_ms":  108
+                                           },
+                                           {
+                                               "iteration":  30,
+                                               "success":  true,
+                                               "time_ms":  93
+                                           },
+                                           {
+                                               "iteration":  31,
+                                               "success":  true,
+                                               "time_ms":  117
+                                           },
+                                           {
+                                               "iteration":  32,
+                                               "success":  true,
+                                               "time_ms":  110
+                                           },
+                                           {
+                                               "iteration":  33,
+                                               "success":  true,
+                                               "time_ms":  84
+                                           },
+                                           {
+                                               "iteration":  34,
+                                               "success":  true,
+                                               "time_ms":  116
+                                           },
+                                           {
+                                               "iteration":  35,
+                                               "success":  true,
+                                               "time_ms":  108
+                                           },
+                                           {
+                                               "iteration":  36,
+                                               "success":  false,
+                                               "error":  "Simulated benchmark failure",
+                                               "time_ms":  113
+                                           },
+                                           {
+                                               "iteration":  37,
+                                               "success":  true,
+                                               "time_ms":  117
+                                           },
+                                           {
+                                               "iteration":  38,
+                                               "success":  true,
+                                               "time_ms":  101
+                                           },
+                                           {
+                                               "iteration":  39,
+                                               "success":  true,
+                                               "time_ms":  117
+                                           },
+                                           {
+                                               "iteration":  40,
+                                               "success":  true,
+                                               "time_ms":  109
+                                           },
+                                           {
+                                               "iteration":  41,
+                                               "success":  true,
+                                               "time_ms":  101
+                                           },
+                                           {
+                                               "iteration":  42,
+                                               "success":  true,
+                                               "time_ms":  99
+                                           },
+                                           {
+                                               "iteration":  43,
+                                               "success":  false,
+                                               "error":  "Simulated benchmark failure",
+                                               "time_ms":  96
+                                           },
+                                           {
+                                               "iteration":  44,
+                                               "success":  true,
+                                               "time_ms":  128
+                                           },
+                                           {
+                                               "iteration":  45,
+                                               "success":  true,
+                                               "time_ms":  103
+                                           },
+                                           {
+                                               "iteration":  46,
+                                               "success":  true,
+                                               "time_ms":  111
+                                           },
+                                           {
+                                               "iteration":  47,
+                                               "success":  true,
+                                               "time_ms":  83
+                                           },
+                                           {
+                                               "iteration":  48,
+                                               "success":  true,
+                                               "time_ms":  95
+                                           },
+                                           {
+                                               "iteration":  49,
+                                               "success":  true,
+                                               "time_ms":  96
+                                           },
+                                           {
+                                               "iteration":  50,
+                                               "success":  false,
+                                               "error":  "Simulated benchmark failure",
+                                               "time_ms":  92
+                                           },
+                                           {
+                                               "iteration":  51,
+                                               "success":  true,
+                                               "time_ms":  80
+                                           },
+                                           {
+                                               "iteration":  52,
+                                               "success":  true,
+                                               "time_ms":  108
+                                           },
+                                           {
+                                               "iteration":  53,
+                                               "success":  true,
+                                               "time_ms":  114
+                                           },
+                                           {
+                                               "iteration":  54,
+                                               "success":  true,
+                                               "time_ms":  112
+                                           },
+                                           {
+                                               "iteration":  55,
+                                               "success":  true,
+                                               "time_ms":  105
+                                           },
+                                           {
+                                               "iteration":  56,
+                                               "success":  true,
+                                               "time_ms":  80
+                                           },
+                                           {
+                                               "iteration":  57,
+                                               "success":  true,
+                                               "time_ms":  128
+                                           },
+                                           {
+                                               "iteration":  58,
+                                               "success":  true,
+                                               "time_ms":  109
+                                           },
+                                           {
+                                               "iteration":  59,
+                                               "success":  true,
+                                               "time_ms":  115
+                                           },
+                                           {
+                                               "iteration":  60,
+                                               "success":  true,
+                                               "time_ms":  108
+                                           },
+                                           {
+                                               "iteration":  61,
+                                               "success":  true,
+                                               "time_ms":  103
+                                           },
+                                           {
+                                               "iteration":  62,
+                                               "success":  true,
+                                               "time_ms":  82
+                                           },
+                                           {
+                                               "iteration":  63,
+                                               "success":  true,
+                                               "time_ms":  83
+                                           },
+                                           {
+                                               "iteration":  64,
+                                               "success":  true,
+                                               "time_ms":  108
+                                           },
+                                           {
+                                               "iteration":  65,
+                                               "success":  true,
+                                               "time_ms":  100
+                                           },
+                                           {
+                                               "iteration":  66,
+                                               "success":  true,
+                                               "time_ms":  127
+                                           },
+                                           {
+                                               "iteration":  67,
+                                               "success":  false,
+                                               "error":  "Simulated benchmark failure",
+                                               "time_ms":  128
+                                           },
+                                           {
+                                               "iteration":  68,
+                                               "success":  true,
+                                               "time_ms":  121
+                                           },
+                                           {
+                                               "iteration":  69,
+                                               "success":  false,
+                                               "error":  "Simulated benchmark failure",
+                                               "time_ms":  115
+                                           },
+                                           {
+                                               "iteration":  70,
+                                               "success":  true,
+                                               "time_ms":  121
+                                           },
+                                           {
+                                               "iteration":  71,
+                                               "success":  true,
+                                               "time_ms":  109
+                                           },
+                                           {
+                                               "iteration":  72,
+                                               "success":  true,
+                                               "time_ms":  126
+                                           },
+                                           {
+                                               "iteration":  73,
+                                               "success":  true,
+                                               "time_ms":  121
+                                           },
+                                           {
+                                               "iteration":  74,
+                                               "success":  true,
+                                               "time_ms":  101
+                                           },
+                                           {
+                                               "iteration":  75,
+                                               "success":  true,
+                                               "time_ms":  108
+                                           },
+                                           {
+                                               "iteration":  76,
+                                               "success":  true,
+                                               "time_ms":  122
+                                           },
+                                           {
+                                               "iteration":  77,
+                                               "success":  true,
+                                               "time_ms":  97
+                                           },
+                                           {
+                                               "iteration":  78,
+                                               "success":  true,
+                                               "time_ms":  80
+                                           },
+                                           {
+                                               "iteration":  79,
+                                               "success":  true,
+                                               "time_ms":  82
+                                           },
+                                           {
+                                               "iteration":  80,
+                                               "success":  true,
+                                               "time_ms":  98
+                                           },
+                                           {
+                                               "iteration":  81,
+                                               "success":  true,
+                                               "time_ms":  119
+                                           },
+                                           {
+                                               "iteration":  82,
+                                               "success":  true,
+                                               "time_ms":  93
+                                           },
+                                           {
+                                               "iteration":  83,
+                                               "success":  true,
+                                               "time_ms":  88
+                                           },
+                                           {
+                                               "iteration":  84,
+                                               "success":  true,
+                                               "time_ms":  121
+                                           },
+                                           {
+                                               "iteration":  85,
+                                               "success":  true,
+                                               "time_ms":  120
+                                           },
+                                           {
+                                               "iteration":  86,
+                                               "success":  true,
+                                               "time_ms":  94
+                                           },
+                                           {
+                                               "iteration":  87,
+                                               "success":  true,
+                                               "time_ms":  113
+                                           },
+                                           {
+                                               "iteration":  88,
+                                               "success":  false,
+                                               "error":  "Simulated benchmark failure",
+                                               "time_ms":  112
+                                           },
+                                           {
+                                               "iteration":  89,
+                                               "success":  true,
+                                               "time_ms":  100
+                                           },
+                                           {
+                                               "iteration":  90,
+                                               "success":  true,
+                                               "time_ms":  93
+                                           },
+                                           {
+                                               "iteration":  91,
+                                               "success":  true,
+                                               "time_ms":  82
+                                           },
+                                           {
+                                               "iteration":  92,
+                                               "success":  true,
+                                               "time_ms":  111
+                                           },
+                                           {
+                                               "iteration":  93,
+                                               "success":  true,
+                                               "time_ms":  104
+                                           },
+                                           {
+                                               "iteration":  94,
+                                               "success":  true,
+                                               "time_ms":  124
+                                           },
+                                           {
+                                               "iteration":  95,
+                                               "success":  true,
+                                               "time_ms":  83
+                                           },
+                                           {
+                                               "iteration":  96,
+                                               "success":  true,
+                                               "time_ms":  84
+                                           },
+                                           {
+                                               "iteration":  97,
+                                               "success":  true,
+                                               "time_ms":  84
+                                           },
+                                           {
+                                               "iteration":  98,
+                                               "success":  true,
+                                               "time_ms":  84
+                                           },
+                                           {
+                                               "iteration":  99,
+                                               "success":  false,
+                                               "error":  "Simulated benchmark failure",
+                                               "time_ms":  104
+                                           },
+                                           {
+                                               "iteration":  100,
+                                               "success":  true,
+                                               "time_ms":  101
+                                           }
+                                       ],
+                           "file":  "C:\\Users\\mummy\\.openclaw\\workspace\\benchmarks\\comparison_framework.z"
+                       },
+                       {
+                           "name":  "murphy_sieve_performance_benchmark",
+                           "timestamp":  "2026-04-05T15:09:39",
+                           "iterations":  100,
+                           "metrics":  {
+                                           "median_time_ms":  108,
+                                           "avg_time_ms":  105.5,
+                                           "max_time_ms":  129,
+                                           "throughput":  9.47867298578199,
+                                           "success_rate":  92,
+                                           "total_time_ms":  9706,
+                                           "min_time_ms":  80,
+                                           "iterations_completed":  92
+                                       },
+                           "results":  [
+                                           {
+                                               "iteration":  1,
+                                               "success":  true,
+                                               "time_ms":  109
+                                           },
+                                           {
+                                               "iteration":  2,
+                                               "success":  true,
+                                               "time_ms":  98
+                                           },
+                                           {
+                                               "iteration":  3,
+                                               "success":  true,
+                                               "time_ms":  112
+                                           },
+                                           {
+                                               "iteration":  4,
+                                               "success":  true,
+                                               "time_ms":  105
+                                           },
+                                           {
+                                               "iteration":  5,
+                                               "success":  true,
+                                               "time_ms":  117
+                                           },
+                                           {
+                                               "iteration":  6,
+                                               "success":  true,
+                                               "time_ms":  123
+                                           },
+                                           {
+                                               "iteration":  7,
+                                               "success":  true,
+                                               "time_ms":  100
+                                           },
+                                           {
+                                               "iteration":  8,
+                                               "success":  true,
+                                               "time_ms":  129
+                                           },
+                                           {
+                                               "iteration":  9,
+                                               "success":  true,
+                                               "time_ms":  87
+                                           },
+                                           {
+                                               "iteration":  10,
+                                               "success":  true,
+                                               "time_ms":  126
+                                           },
+                                           {
+                                               "iteration":  11,
+                                               "success":  true,
+                                               "time_ms":  120
+                                           },
+                                           {
+                                               "iteration":  12,
+                                               "success":  true,
+                                               "time_ms":  114
+                                           },
+                                           {
+                                               "iteration":  13,
+                                               "success":  true,
+                                               "time_ms":  86
+                                           },
+                                           {
+                                               "iteration":  14,
+                                               "success":  true,
+                                               "time_ms":  111
+                                           },
+                                           {
+                                               "iteration":  15,
+                                               "success":  true,
+                                               "time_ms":  115
+                                           },
+                                           {
+                                               "iteration":  16,
+                                               "success":  true,
+                                               "time_ms":  124
+                                           },
+                                           {
+                                               "iteration":  17,
+                                               "success":  true,
+                                               "time_ms":  108
+                                           },
+                                           {
+                                               "iteration":  18,
+                                               "success":  true,
+                                               "time_ms":  105
+                                           },
+                                           {
+                                               "iteration":  19,
+                                               "success":  true,
+                                               "time_ms":  111
+                                           },
+                                           {
+                                               "iteration":  20,
+                                               "success":  true,
+                                               "time_ms":  96
+                                           },
+                                           {
+                                               "iteration":  21,
+                                               "success":  true,
+                                               "time_ms":  83
+                                           },
+                                           {
+                                               "iteration":  22,
+                                               "success":  true,
+                                               "time_ms":  121
+                                           },
+                                           {
+                                               "iteration":  23,
+                                               "success":  true,
+                                               "time_ms":  93
+                                           },
+                                           {
+                                               "iteration":  24,
+                                               "success":  true,
+                                               "time_ms":  120
+                                           },
+                                           {
+                                               "iteration":  25,
+                                               "success":  true,
+                                               "time_ms":  120
+                                           },
+                                           {
+                                               "iteration":  26,
+                                               "success":  true,
+                                               "time_ms":  101
+                                           },
+                                           {
+                                               "iteration":  27,
+                                               "success":  true,
+                                               "time_ms":  121
+                                           },
+                                           {
+                                               "iteration":  28,
+                                               "success":  true,
+                                               "time_ms":  88
+                                           },
+                                           {
+                                               "iteration":  29,
+                                               "success":  true,
+                                               "time_ms":  109
+                                           },
+                                           {
+                                               "iteration":  30,
+                                               "success":  true,
+                                               "time_ms":  115
+                                           },
+                                           {
+                                               "iteration":  31,
+                                               "success":  true,
+                                               "time_ms":  118
+                                           },
+                                           {
+                                               "iteration":  32,
+                                               "success":  true,
+                                               "time_ms":  84
+                                           },
+                                           {
+                                               "iteration":  33,
+                                               "success":  true,
+                                               "time_ms":  91
+                                           },
+                                           {
+                                               "iteration":  34,
+                                               "success":  true,
+                                               "time_ms":  109
+                                           },
+                                           {
+                                               "iteration":  35,
+                                               "success":  true,
+                                               "time_ms":  129
+                                           },
+                                           {
+                                               "iteration":  36,
+                                               "success":  true,
+                                               "time_ms":  108
+                                           },
+                                           {
+                                               "iteration":  37,
+                                               "success":  false,
+                                               "error":  "Simulated benchmark failure",
+                                               "time_ms":  118
+                                           },
+                                           {
+                                               "iteration":  38,
+                                               "success":  true,
+                                               "time_ms":  112
+                                           },
+                                           {
+                                               "iteration":  39,
+                                               "success":  true,
+                                               "time_ms":  107
+                                           },
+                                           {
+                                               "iteration":  40,
+                                               "success":  true,
+                                               "time_ms":  86
+                                           },
+                                           {
+                                               "iteration":  41,
+                                               "success":  true,
+                                               "time_ms":  98
+                                           },
+                                           {
+                                               "iteration":  42,
+                                               "success":  false,
+                                               "error":  "Simulated benchmark failure",
+                                               "time_ms":  115
+                                           },
+                                           {
+                                               "iteration":  43,
+                                               "success":  true,
+                                               "time_ms":  126
+                                           },
+                                           {
+                                               "iteration":  44,
+                                               "success":  false,
+                                               "error":  "Simulated benchmark failure",
+                                               "time_ms":  95
+                                           },
+                                           {
+                                               "iteration":  45,
+                                               "success":  true,
+                                               "time_ms":  93
+                                           },
+                                           {
+                                               "iteration":  46,
+                                               "success":  true,
+                                               "time_ms":  122
+                                           },
+                                           {
+                                               "iteration":  47,
+                                               "success":  true,
+                                               "time_ms":  83
+                                           },
+                                           {
+                                               "iteration":  48,
+                                               "success":  true,
+                                               "time_ms":  112
+                                           },
+                                           {
+                                               "iteration":  49,
+                                               "success":  true,
+                                               "time_ms":  89
+                                           },
+                                           {
+                                               "iteration":  50,
+                                               "success":  true,
+                                               "time_ms":  111
+                                           },
+                                           {
+                                               "iteration":  51,
+                                               "success":  true,
+                                               "time_ms":  125
+                                           },
+                                           {
+                                               "iteration":  52,
+                                               "success":  true,
+                                               "time_ms":  89
+                                           },
+                                           {
+                                               "iteration":  53,
+                                               "success":  true,
+                                               "time_ms":  89
+                                           },
+                                           {
+                                               "iteration":  54,
+                                               "success":  true,
+                                               "time_ms":  115
+                                           },
+                                           {
+                                               "iteration":  55,
+                                               "success":  false,
+                                               "error":  "Simulated benchmark failure",
+                                               "time_ms":  115
+                                           },
+                                           {
+                                               "iteration":  56,
+                                               "success":  false,
+                                               "error":  "Simulated benchmark failure",
+                                               "time_ms":  80
+                                           },
+                                           {
+                                               "iteration":  57,
+                                               "success":  true,
+                                               "time_ms":  114
+                                           },
+                                           {
+                                               "iteration":  58,
+                                               "success":  true,
+                                               "time_ms":  112
+                                           },
+                                           {
+                                               "iteration":  59,
+                                               "success":  true,
+                                               "time_ms":  80
+                                           },
+                                           {
+                                               "iteration":  60,
+                                               "success":  true,
+                                               "time_ms":  105
+                                           },
+                                           {
+                                               "iteration":  61,
+                                               "success":  false,
+                                               "error":  "Simulated benchmark failure",
+                                               "time_ms":  116
+                                           },
+                                           {
+                                               "iteration":  62,
+                                               "success":  true,
+                                               "time_ms":  87
+                                           },
+                                           {
+                                               "iteration":  63,
+                                               "success":  true,
+                                               "time_ms":  123
+                                           },
+                                           {
+                                               "iteration":  64,
+                                               "success":  true,
+                                               "time_ms":  87
+                                           },
+                                           {
+                                               "iteration":  65,
+                                               "success":  true,
+                                               "time_ms":  91
+                                           },
+                                           {
+                                               "iteration":  66,
+                                               "success":  true,
+                                               "time_ms":  90
+                                           },
+                                           {
+                                               "iteration":  67,
+                                               "success":  false,
+                                               "error":  "Simulated benchmark failure",
+                                               "time_ms":  95
+                                           },
+                                           {
+                                               "iteration":  68,
+                                               "success":  true,
+                                               "time_ms":  86
+                                           },
+                                           {
+                                               "iteration":  69,
+                                               "success":  true,
+                                               "time_ms":  119
+                                           },
+                                           {
+                                               "iteration":  70,
+                                               "success":  true,
+                                               "time_ms":  89
+                                           },
+                                           {
+                                               "iteration":  71,
+                                               "success":  true,
+                                               "time_ms":  112
+                                           },
+                                           {
+                                               "iteration":  72,
+                                               "success":  true,
+                                               "time_ms":  93
+                                           },
+                                           {
+                                               "iteration":  73,
+                                               "success":  true,
+                                               "time_ms":  122
+                                           },
+                                           {
+                                               "iteration":  74,
+                                               "success":  true,
+                                               "time_ms":  118
+                                           },
+                                           {
+                                               "iteration":  75,
+                                               "success":  true,
+                                               "time_ms":  117
+                                           },
+                                           {
+                                               "iteration":  76,
+                                               "success":  true,
+                                               "time_ms":  118
+                                           },
+                                           {
+                                               "iteration":  77,
+                                               "success":  true,
+                                               "time_ms":  95
+                                           },
+                                           {
+                                               "iteration":  78,
+                                               "success":  true,
+                                               "time_ms":  125
+                                           },
+                                           {
+                                               "iteration":  79,
+                                               "success":  true,
+                                               "time_ms":  90
+                                           },
+                                           {
+                                               "iteration":  80,
+                                               "success":  true,
+                                               "time_ms":  81
+                                           },
+                                           {
+                                               "iteration":  81,
+                                               "success":  true,
+                                               "time_ms":  93
+                                           },
+                                           {
+                                               "iteration":  82,
+                                               "success":  true,
+                                               "time_ms":  123
+                                           },
+                                           {
+                                               "iteration":  83,
+                                               "success":  true,
+                                               "time_ms":  107
+                                           },
+                                           {
+                                               "iteration":  84,
+                                               "success":  true,
+                                               "time_ms":  94
+                                           },
+                                           {
+                                               "iteration":  85,
+                                               "success":  true,
+                                               "time_ms":  100
+                                           },
+                                           {
+                                               "iteration":  86,
+                                               "success":  true,
+                                               "time_ms":  88
+                                           },
+                                           {
+                                               "iteration":  87,
+                                               "success":  true,
+                                               "time_ms":  109
+                                           },
+                                           {
+                                               "iteration":  88,
+                                               "success":  true,
+                                               "time_ms":  122
+                                           },
+                                           {
+                                               "iteration":  89,
+                                               "success":  true,
+                                               "time_ms":  125
+                                           },
+                                           {
+                                               "iteration":  90,
+                                               "success":  true,
+                                               "time_ms":  123
+                                           },
+                                           {
+                                               "iteration":  91,
+                                               "success":  true,
+                                               "time_ms":  98
+                                           },
+                                           {
+                                               "iteration":  92,
+                                               "success":  true,
+                                               "time_ms":  82
+                                           },
+                                           {
+                                               "iteration":  93,
+                                               "success":  true,
+                                               "time_ms":  80
+                                           },
+                                           {
+                                               "iteration":  94,
+                                               "success":  true,
+                                               "time_ms":  102
+                                           },
+                                           {
+                                               "iteration":  95,
+                                               "success":  true,
+                                               "time_ms":  98
+                                           },
+                                           {
+                                               "iteration":  96,
+                                               "success":  false,
+                                               "error":  "Simulated benchmark failure",
+                                               "time_ms":  112
+                                           },
+                                           {
+                                               "iteration":  97,
+                                               "success":  true,
+                                               "time_ms":  107
+                                           },
+                                           {
+                                               "iteration":  98,
+                                               "success":  true,
+                                               "time_ms":  121
+                                           },
+                                           {
+                                               "iteration":  99,
+                                               "success":  true,
+                                               "time_ms":  109
+                                           },
+                                           {
+                                               "iteration":  100,
+                                               "success":  true,
+                                               "time_ms":  108
+                                           }
+                                       ],
+                           "file":  "C:\\Users\\mummy\\.openclaw\\workspace\\benchmarks\\murphy_sieve_performance_benchmark.z"
+                       }
+                   ],
+    "metadata":  {
+                     "host":  "GALAXY",
+                     "powershell_version":  "5.1.26100.8115",
+                     "generated":  "2026-04-05T15:09:39",
+                     "os":  "Microsoft Windows NT 10.0.26200.0"
+                 }
+}

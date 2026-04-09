@@ -1,0 +1,45 @@
+// Test 1: Simple while loop
+fn test_while() -> u64 {
+    let mut i: u64 = 0
+    while i < 5 {
+        i += 1
+    }
+    return i  // Should return 5
+}
+
+// Test 2: While with array
+fn test_while_array() -> u64 {
+    let arr: [dynamic]u8 = [dynamic]u8{}
+    let mut i: u64 = 0
+    while i < 5 {
+        arr.push(i as u8)
+        i += 1
+    }
+    return arr.len()  // Should return 5
+}
+
+// Test 3: Nested control flow (simple)
+fn test_nested() -> u64 {
+    let mut count: u64 = 0
+    let mut i: u64 = 0
+    while i < 3 {
+        if i % 2 == 0 {
+            count += 1
+        }
+        i += 1
+    }
+    return count  // Should return 2 (i=0,2 are even)
+}
+
+fn main() -> u64 {
+    let result1 = test_while()
+    let result2 = test_while_array()
+    let result3 = test_nested()
+    
+    // Return 0 if all tests pass (all return expected values)
+    if result1 == 5 && result2 == 5 && result3 == 2 {
+        return 0
+    } else {
+        return 1
+    }
+}

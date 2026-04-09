@@ -1,0 +1,329 @@
+// Formal specification language with temporal logic
+// Demonstrates Linear Temporal Logic (LTL) and Computational Tree Logic (CTL) patterns
+
+// Simple state machine with temporal properties
+struct TrafficLight {
+    state: LightState,
+    timer: u32,
+}
+
+enum LightState {
+    Red,
+    Yellow,
+    Green,
+}
+
+impl TrafficLight {
+    fn new() -> TrafficLight {
+        TrafficLight {
+            state: LightState::Red,
+            timer: 0,
+        }
+    }
+    
+    fn tick(&mut self) {
+        self.timer = self.timer + 1;
+        
+        // State transition logic
+        match self.state {
+            LightState::Red => {
+                if self.timer >= 30 {
+                    self.state = LightState::Green;
+                    self.timer = 0;
+                }
+            }
+            LightState::Green => {
+                if self.timer >= 45 {
+                    self.state = LightState::Yellow;
+                    self.timer = 0;
+                }
+            }
+            LightState::Yellow => {
+                if self.timer >= 5 {
+                    self.state = LightState::Red;
+                    self.timer = 0;
+                }
+            }
+        }
+    }
+    
+    // Temporal logic specifications
+    #[spec("AG (state = Red -> AF state = Green)", "Always, if red then eventually green")]
+    #[spec("AG (state = Green -> AF state = Yellow)", "Always, if green then eventually yellow")]
+    #[spec("AG (state = Yellow -> AF state = Red)", "Always, if yellow then eventually red")]
+    #[spec("AG !(state = Green && state = Red)", "Never both green and red")]
+    #[spec("AG (state = Red -> AX (state = Red || state = Green))", "From red, next state is red or green")]
+    
+    fn get_state(&self) -> LightState {
+        self.state
+    }
+}
+
+// Concurrent system with safety and liveness properties
+struct Mutex {
+    locked: bool,
+    owner: Option<u32>,
+}
+
+impl Mutex {
+    fn new() -> Mutex {
+        Mutex {
+            locked: false,
+            owner: None,
+        }
+    }
+    
+    fn lock(&mut self, thread_id: u32) -> bool {
+        // Safety property: mutual exclusion
+        #[spec("AG !(locked && exists other: owner = Some(other) && other != thread_id)", "Mutual exclusion")]
+        
+        if !self.locked {
+            self.locked = true;
+            self.owner = Some(thread_id);
+            true
+        } else {
+            false
+        }
+    }
+    
+    fn unlock(&mut self, thread_id: u32) -> bool {
+        // Safety property: only owner can unlock
+        #[spec("AG (unlock(thread_id) -> owner = Some(thread_id))", "Only owner can unlock")]
+        
+        if self.locked && self.owner == Some(thread_id) {
+            self.locked = false;
+            self.owner = None;
+            true
+        } else {
+            false
+        }
+    }
+    
+    // Liveness property: if a thread wants to lock, it eventually will
+    #[spec("AG (try_lock(thread_id) -> AF lock_acquired(thread_id))", "Starvation freedom")]
+    fn try_lock(&mut self, thread_id: u32) -> bool {
+        self.lock(thread_id)
+    }
+}
+
+// Model checking example: dining philosophers
+struct Philosopher {
+    id: u32,
+    has_left_chopstick: bool,
+    has_right_chopstick: bool,
+    is_eating: bool,
+    is_thinking: bool,
+}
+
+impl Philosopher {
+    fn new(id: u32) -> Philosopher {
+        Philosopher {
+            id: id,
+            has_left_chopstick: false,
+            has_right_chopstick: false,
+            is_eating: false,
+            is_thinking: true,
+        }
+    }
+    
+    fn pick_up_left(&mut self) {
+        #[spec("AG (pick_up_left -> !has_left_chopstick)", "Can only pick up if not already holding")]
+        self.has_left_chopstick = true;
+        self.check_if_can_eat();
+    }
+    
+    fn pick_up_right(&mut self) {
+        #[spec("AG (pick_up_right -> !has_right_chopstick)", "Can only pick up if not already holding")]
+        self.has_right_chopstick = true;
+        self.check_if_can_eat();
+    }
+    
+    fn put_down_left(&mut self) {
+        #[spec("AG (put_down_left -> has_left_chopstick)", "Can only put down if holding")]
+        self.has_left_chopstick = false;
+        self.is_eating = false;
+        self.is_thinking = true;
+    }
+    
+    fn put_down_right(&mut self) {
+        #[spec("AG (put_down_right -> has_right_chopstick)", "Can only put down if holding")]
+        self.has_right_chopstick = false;
+        self.is_eating = false;
+        self.is_thinking = true;
+    }
+    
+    fn check_if_can_eat(&mut self) {
+        if self.has_left_chopstick && self.has_right_chopstick {
+            self.is_eating = true;
+            self.is_thinking = false;
+        }
+    }
+    
+    // Deadlock freedom specification
+    #[spec("AG !(forall p: p.has_left_chopstick && !p.has_right_chopstick)", "No circular wait")]
+    #[spec("AG (is_thinking -> AF is_eating)", "Progress - thinking philosophers eventually eat")]
+}
+
+// Property specification language examples
+spec SafetyProperties {
+    // Always (globally) properties
+    property no_division_by_zero = "AG (b != 0 -> divide(a, b) defined)";
+    property array_bounds_check = "AG (0 <= index < arr.len() -> safe_array_access(arr, index) defined)";
+    property non_negative_balance = "AG (account.balance >= 0)";
+    
+    // Eventually properties
+    property eventual_green = "AF traffic_light.state = Green";
+    property eventual_lock = "AF mutex.lock(thread_id)";
+    
+    // Until properties
+    property red_until_green = "traffic_light.state = Red U traffic_light.state = Green";
+    
+    // Next state properties
+    property next_state_valid = "AX (traffic_light.state in {Red, Green, Yellow})";
+}
+
+spec LivenessProperties {
+    // Response properties
+    property request_granted = "AG (request -> AF grant)";
+    
+    // Persistence properties  
+    property always_eventually = "AG AF system_ready";
+    
+    // Fairness properties
+    property weak_fairness = "AG (enabled -> AF executed)";
+    property strong_fairness = "AG AF (enabled -> executed)";
+}
+
+// Model checking foundation
+struct ModelChecker {
+    states: Vec<SystemState>,
+    transitions: Vec<(usize, usize)>,
+    initial_state: usize,
+}
+
+struct SystemState {
+    traffic_light: LightState,
+    mutex_locked: bool,
+    philosopher_states: [PhilosopherState],
+}
+
+enum PhilosopherState {
+    Thinking,
+    Hungry,
+    Eating,
+}
+
+impl ModelChecker {
+    fn new() -> ModelChecker {
+        ModelChecker {
+            states: Vec::new(),
+            transitions: Vec::new(),
+            initial_state: 0,
+        }
+    }
+    
+    fn add_state(&mut self, state: SystemState) -> usize {
+        let id = self.states.len();
+        self.states.push(state);
+        id
+    }
+    
+    fn add_transition(&mut self, from: usize, to: usize) {
+        self.transitions.push((from, to));
+    }
+    
+    // Check CTL properties
+    fn check_ctl(&self, property: &str) -> bool {
+        // Simplified CTL model checking
+        match property {
+            "AG EF reachable" => true,  // Always eventually reachable
+            "AG !deadlock" => self.check_deadlock_free(),
+            _ => false,
+        }
+    }
+    
+    fn check_deadlock_free(&self) -> bool {
+        // Check if any state has no outgoing transitions
+        for i in 0..self.states.len() {
+            let mut has_transition = false;
+            for &(from, _) in &self.transitions {
+                if from == i {
+                    has_transition = true;
+                    break;
+                }
+            }
+            if !has_transition {
+                return false;
+            }
+        }
+        true
+    }
+    
+    // Check LTL properties
+    fn check_ltl(&self, property: &str) -> bool {
+        match property {
+            "G F progress" => self.check_progress(),
+            "G !unsafe" => self.check_safety(),
+            _ => false,
+        }
+    }
+    
+    fn check_progress(&self) -> bool {
+        // Simplified progress check
+        true
+    }
+    
+    fn check_safety(&self) -> bool {
+        // Simplified safety check
+        true
+    }
+}
+
+fn main() -> i32 {
+    println!("Testing Temporal Logic Specifications");
+    
+    // Test traffic light temporal properties
+    let mut light = TrafficLight::new();
+    println!("Initial light state: {:?}", light.get_state());
+    
+    for _ in 0..100 {
+        light.tick();
+    }
+    println!("After 100 ticks, light state: {:?}", light.get_state());
+    
+    // Test mutex with safety properties
+    let mut mutex = Mutex::new();
+    let thread1 = 1;
+    let thread2 = 2;
+    
+    println!("Thread {} locking: {}", thread1, mutex.lock(thread1));
+    println!("Thread {} trying to lock: {}", thread2, mutex.tock(thread2));
+    println!("Thread {} unlocking: {}", thread1, mutex.unlock(thread1));
+    println!("Thread {} locking: {}", thread2, mutex.lock(thread2));
+    
+    // Test model checker
+    let mut checker = ModelChecker::new();
+    
+    let state1 = SystemState {
+        traffic_light: LightState::Red,
+        mutex_locked: false,
+        philosopher_states: [PhilosopherState::Thinking, PhilosopherState::Thinking],
+    };
+    
+    let state2 = SystemState {
+        traffic_light: LightState::Green,
+        mutex_locked: true,
+        philosopher_states: [PhilosopherState::Eating, PhilosopherState::Thinking],
+    };
+    
+    let id1 = checker.add_state(state1);
+    let id2 = checker.add_state(state2);
+    checker.add_transition(id1, id2);
+    checker.add_transition(id2, id1);
+    
+    println!("Model deadlock free: {}", checker.check_deadlock_free());
+    println!("CTL property AG EF reachable: {}", checker.check_ctl("AG EF reachable"));
+    println!("LTL property G !unsafe: {}", checker.check_ltl("G !unsafe"));
+    
+    0
+}

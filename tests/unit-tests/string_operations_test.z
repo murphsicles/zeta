@@ -1,0 +1,39 @@
+// Test string operations
+// Trying to see what string operations are available
+
+fn main() -> i64 {
+    // Test 1: String literal assignment (already works)
+    let s1 = "hello";
+    
+    // Test 2: String concatenation
+    // let s2 = s1 + " world";  // Might not work
+    
+    // Test 3: String length
+    // let len = s1.len();  // Might not work
+    
+    // Test 4: String comparison
+    // let eq = s1 == "hello";  // Might not work
+    
+    // Test 5: String as function parameter
+    // test_string_param(s1);
+    
+    // Test 6: String return
+    // let s3 = get_string();
+    
+    return 0;
+}
+
+// Test function with string parameter
+fn test_string_param(s: String) -> i64 {
+    // Try to use the string parameter
+    // if s == "test" {
+    //     return 1;
+    // }
+    return 0;
+}
+
+// Test function returning string
+fn get_string() -> String {
+    // return "test";  // Might not work
+    return "test";  // Try anyway
+}

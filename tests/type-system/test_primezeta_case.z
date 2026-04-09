@@ -1,0 +1,15 @@
+// Test the specific PrimeZeta use case: list[idx] = i as u64
+fn test_primezeta_case() {
+    // Simulate PrimeZeta code - using simple array for now
+    let list = [0, 0, 0, 0, 0];
+    let i: i64 = 42;
+    
+    // This is the critical line that PrimeZeta needs
+    // list[2] = i as u64;
+    // For now, just test the conversion
+    let converted = i as u64;
+    
+    // Array access with conversion
+    let idx: i64 = 2;
+    let value = list[idx as usize];
+}

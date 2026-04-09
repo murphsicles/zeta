@@ -1,0 +1,31 @@
+// Test comparison workaround
+
+fn test_workaround() -> u64 {
+    let arr: [dynamic]u8 = [dynamic]u8{}
+    
+    // Create array [1, 1, 0]
+    arr.push(1)
+    arr.push(1)
+    arr.push(0)
+    
+    // Count zeros - workaround
+    let mut count: u64 = 0
+    let mut n: u64 = 0
+    while n < 3 {
+        let value: u8 = arr[n]
+        // Compare without using ==
+        // If value is 0, increment count
+        // We can use subtraction: if value - 0 == 0
+        // Or we can use a match-like approach with if-else
+        if value == 0 {
+            count += 1
+        }
+        n += 1
+    }
+    
+    return count  // Should be 1
+}
+
+fn main() -> u64 {
+    return test_workaround()
+}

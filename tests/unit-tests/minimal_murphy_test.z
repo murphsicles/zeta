@@ -1,0 +1,47 @@
+// Minimal Murphy's Sieve test
+// Tests basic functionality
+
+fn murphy_sieve(limit: u64) -> u64 {
+    if limit <= 1 {
+        return 0
+    }
+    
+    if limit == 2 {
+        return 1
+    }
+    
+    let mut count: u64 = 1  // Count 2
+    let mut n: u64 = 3
+    
+    while n < limit {
+        let mut is_prime: u64 = 1
+        let mut d: u64 = 2
+        
+        while d * d <= n {
+            if n % d == 0 {
+                is_prime = 0
+            }
+            d += 1
+        }
+        
+        if is_prime == 1 {
+            count += 1
+        }
+        
+        n += 2  // Skip even numbers
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    // Test with limit=10 (should return 4)
+    let result = murphy_sieve(10)
+    
+    // Return 1 if correct, 0 if wrong
+    if result == 4 {
+        return 1
+    } else {
+        return 0
+    }
+}

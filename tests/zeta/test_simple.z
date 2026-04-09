@@ -1,0 +1,6 @@
+use zeta::frontend::ast::AstNode;
+
+fn main() {
+    let x: i32 = 42;
+    println!("Testing v0.5.0 imports");
+}

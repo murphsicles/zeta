@@ -1,0 +1,19 @@
+// Main file using modules
+// Note: This won't work yet because we need import/use statements
+// For now, modules must be defined inline
+
+mod math {
+    pub fn add(a: i64, b: i64) -> i64 {
+        a + b
+    }
+}
+
+mod utils {
+    pub fn double(x: i64) -> i64 {
+        x * 2
+    }
+}
+
+fn main() -> i64 {
+    utils::double(math::add(5, 10))  // Should be 30
+}

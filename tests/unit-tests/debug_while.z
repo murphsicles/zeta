@@ -1,0 +1,14 @@
+// Debug while loop
+fn test_while() -> u64 {
+    let mut i: u64 = 0
+    // Simple condition that should be true
+    while i == 0 {
+        i = 1
+    }
+    return i  // Should return 1
+}
+
+fn main() -> u64 {
+    let result = test_while()
+    return result  // Return the actual value to see what we get
+}

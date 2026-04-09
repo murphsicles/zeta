@@ -1,0 +1,17 @@
+// Verification test for bootstrap compiler
+// This tests basic compilation capabilities
+
+fn verify_addition() -> i64 {
+    return 10 + 20;
+}
+
+fn verify_function_call() -> i64 {
+    let x = verify_addition();
+    return x * 2;
+}
+
+fn main() -> i64 {
+    let result = verify_function_call();
+    // Should return 60 (30 * 2)
+    return result;
+}

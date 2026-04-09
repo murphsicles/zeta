@@ -1,0 +1,6 @@
+fn main() -> i32 {
+    // Test array indexing
+    let arr: [i32; 5] = [10, 20, 30, 40, 50];
+    let idx: i32 = 2;
+    return arr[idx];
+}

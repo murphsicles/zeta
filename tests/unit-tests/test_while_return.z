@@ -1,0 +1,16 @@
+// Test while loop type issue
+fn test_while() -> u64 {
+    let mut i: u64 = 0
+    let mut sum: u64 = 0
+    
+    while i < 5 {
+        sum += i
+        i += 1
+    }
+    
+    return sum
+}
+
+fn main() -> u64 {
+    return test_while()
+}

@@ -1,0 +1,15 @@
+fn test() -> u64 {
+    let limit: u64 = 1000000
+    let mut count: u64 = 0
+    
+    // This pattern from prime_final_stand.z
+    if limit >= 2 {
+        count += 1
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    return test()
+}

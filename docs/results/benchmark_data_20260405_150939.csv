@@ -1,0 +1,3 @@
+﻿Benchmark,AvgTimeMs,ThroughputOpsSec,SuccessRate,Iterations,MinTimeMs,MaxTimeMs,MedianTimeMs,TotalTimeMs
+"comparison_framework",105.00,9.52,91.0,100,80.00,128.00,108.00,9555.00
+"murphy_sieve_performance_benchmark",105.50,9.48,92.0,100,80.00,129.00,108.00,9706.00

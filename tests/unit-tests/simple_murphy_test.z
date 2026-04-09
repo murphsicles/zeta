@@ -1,0 +1,198 @@
+// Simple Murphy's Sieve test - minimal implementation
+// Tests both scalar and SIMD-like optimizations
+
+// Scalar implementation
+fn murphy_scalar(limit: u64) -> u64 {
+    if limit < 2 {
+        return 0
+    }
+    if limit == 2 {
+        return 1
+    }
+    
+    // Simple trial division for small limits
+    let mut count: u64 = 1  // Count 2
+    
+    let mut n: u64 = 3
+    while n < limit {
+        let mut is_prime: u64 = 1
+        let mut d: u64 = 2
+        
+        while d * d <= n {
+            if n % d == 0 {
+                is_prime = 0
+            }
+            d += 1
+        }
+        
+        if is_prime == 1 {
+            count += 1
+        }
+        
+        n += 2  // Skip even numbers
+    }
+    
+    return count
+}
+
+// SIMD-optimized version (simulated)
+fn murphy_simd(limit: u64) -> u64 {
+    if limit < 2 {
+        return 0
+    }
+    if limit == 2 {
+        return 1
+    }
+    
+    // Use same algorithm but with loop unrolling to simulate SIMD
+    let mut count: u64 = 1  // Count 2
+    
+    let mut n: u64 = 3
+    const UNROLL_FACTOR: u64 = 8  // Simulate SIMD width of 8
+    
+    while n + UNROLL_FACTOR * 2 < limit {
+        // Check 8 candidates at a time (simulating SIMD)
+        let mut local_count: u64 = 0
+        
+        // Check n
+        let mut is_prime_n: u64 = 1
+        let mut d: u64 = 2
+        while d * d <= n {
+            if n % d == 0 {
+                is_prime_n = 0
+            }
+            d += 1
+        }
+        if is_prime_n == 1 { local_count += 1 }
+        
+        // Check n+2
+        let mut is_prime_n2: u64 = 1
+        d = 2
+        while d * d <= (n + 2) {
+            if (n + 2) % d == 0 {
+                is_prime_n2 = 0
+            }
+            d += 1
+        }
+        if is_prime_n2 == 1 { local_count += 1 }
+        
+        // Check n+4
+        let mut is_prime_n4: u64 = 1
+        d = 2
+        while d * d <= (n + 4) {
+            if (n + 4) % d == 0 {
+                is_prime_n4 = 0
+            }
+            d += 1
+        }
+        if is_prime_n4 == 1 { local_count += 1 }
+        
+        // Check n+6
+        let mut is_prime_n6: u64 = 1
+        d = 2
+        while d * d <= (n + 6) {
+            if (n + 6) % d == 0 {
+                is_prime_n6 = 0
+            }
+            d += 1
+        }
+        if is_prime_n6 == 1 { local_count += 1 }
+        
+        // Check n+8
+        let mut is_prime_n8: u64 = 1
+        d = 2
+        while d * d <= (n + 8) {
+            if (n + 8) % d == 0 {
+                is_prime_n8 = 0
+            }
+            d += 1
+        }
+        if is_prime_n8 == 1 { local_count += 1 }
+        
+        // Check n+10
+        let mut is_prime_n10: u64 = 1
+        d = 2
+        while d * d <= (n + 10) {
+            if (n + 10) % d == 0 {
+                is_prime_n10 = 0
+            }
+            d += 1
+        }
+        if is_prime_n10 == 1 { local_count += 1 }
+        
+        // Check n+12
+        let mut is_prime_n12: u64 = 1
+        d = 2
+        while d * d <= (n + 12) {
+            if (n + 12) % d == 0 {
+                is_prime_n12 = 0
+            }
+            d += 1
+        }
+        if is_prime_n12 == 1 { local_count += 1 }
+        
+        // Check n+14
+        let mut is_prime_n14: u64 = 1
+        d = 2
+        while d * d <= (n + 14) {
+            if (n + 14) % d == 0 {
+                is_prime_n14 = 0
+            }
+            d += 1
+        }
+        if is_prime_n14 == 1 { local_count += 1 }
+        
+        count += local_count
+        n += UNROLL_FACTOR * 2
+    }
+    
+    // Process remaining numbers
+    while n < limit {
+        let mut is_prime: u64 = 1
+        let mut d: u64 = 2
+        
+        while d * d <= n {
+            if n % d == 0 {
+                is_prime = 0
+            }
+            d += 1
+        }
+        
+        if is_prime == 1 {
+            count += 1
+        }
+        
+        n += 2
+    }
+    
+    return count
+}
+
+// Test function
+fn test_implementations() -> u64 {
+    let mut passed = 0
+    
+    // Test small limits
+    if murphy_scalar(10) == 4 { passed += 1 }  // 2,3,5,7
+    if murphy_scalar(100) == 25 { passed += 1 }  // 25 primes under 100
+    
+    // Test that both implementations give same results
+    if murphy_scalar(1000) == murphy_simd(1000) { passed += 1 }
+    if murphy_scalar(10000) == murphy_simd(10000) { passed += 1 }
+    
+    return passed
+}
+
+// Main function
+fn main() -> u64 {
+    let tests_passed = test_implementations()
+    
+    // Return encoded result:
+    // - If all 4 tests pass, return 1
+    // - Otherwise return 0
+    if tests_passed == 4 {
+        return 1
+    } else {
+        return 0
+    }
+}

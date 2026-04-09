@@ -1,0 +1,36 @@
+// zeta_src/runtime/std.z
+// Standard low-level memory for Zeta runtime
+// Ported from src/runtime/std.rs, implementations now in Zeta.
+
+use std::ffi::c_void;
+use std::ptr;
+
+unsafe extern "C" {
+    pub fn malloc(size: usize) -> *mut c_void;
+    pub fn free(ptr: *mut c_void);
+}
+
+/// Allocates memory via libc malloc.
+pub fn std_malloc(size: usize) -> *mut u8 {
+    if size == 0 {
+        ptr::null_mut()
+    } else {
+        malloc(size) as *mut u8
+    }
+}
+
+/// Frees memory allocated by std_malloc.
+pub fn std_free(ptr: *mut u8) {
+    if !ptr.is_null() {
+        free(ptr as *mut c_void)
+    }
+}
+
+// Simple wrapper (for future Zeta allocators)
+fn malloc(size: i64) -> i64 {
+    std_malloc(size as usize) as i64
+}
+
+fn free(ptr: i64) {
+    std_free(ptr as *mut u8)
+}

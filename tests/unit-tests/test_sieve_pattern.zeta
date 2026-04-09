@@ -1,0 +1,14 @@
+// Test pattern similar to Murphy's Sieve algorithm
+fn main() -> i64 {
+    // Simulate bits array - for now just use a single u8
+    let mut bits: u8 = 0;
+    
+    // Check if prime (bits == 0)
+    if bits == 0 {
+        // Mark as composite (bits = 1)
+        bits = 1;
+        return 1; // Success
+    }
+    
+    return 0; // Failure
+}

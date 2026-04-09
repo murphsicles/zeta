@@ -1,0 +1,49 @@
+// Demonstration of pattern matching and enums for v0.3.30
+
+// 1. Enum definition - WORKS
+enum Result<T, E> {
+    Ok(T),
+    Err(E),
+}
+
+// 2. Simple match expression - WORKS
+fn test_match_simple(x: i64) -> i64 {
+    match x {
+        1 => 2,
+        2 => 3,
+        _ => 0,
+    }
+}
+
+// 3. Simple if-let - WORKS  
+fn test_if_let_simple() -> i64 {
+    let x = Some(42);
+    if let Some(value) = x {
+        value
+    } else {
+        0
+    }
+}
+
+// 4. Match with enum - SHOULD WORK (parsing-wise)
+fn test_match_enum(result: Result<i64, String>) -> i64 {
+    match result {
+        Ok(value) => value,
+        Err(_) => 0,
+    }
+}
+
+// 5. If-let with enum variant - CURRENTLY FAILS
+fn test_if_let_enum(result: Result<i64, String>) -> i64 {
+    if let Ok(value) = result {
+        value
+    } else {
+        0
+    }
+}
+
+// 6. Option enum - NOT YET DEFINED
+// enum Option<T> {
+//     Some(T),
+//     None,
+// }

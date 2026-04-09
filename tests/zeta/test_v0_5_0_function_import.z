@@ -1,0 +1,6 @@
+use zeta::middle::specialization::{is_cache_safe, lookup_specialization};
+
+fn main() {
+    let cache_safe = is_cache_safe("some_type");
+    let specialization = lookup_specialization("some_func");
+}

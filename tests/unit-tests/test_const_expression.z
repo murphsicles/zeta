@@ -1,0 +1,17 @@
+// Test const expression in array size
+const MAX: usize = 100;
+
+fn test_array() -> usize {
+    // Try using const expression
+    let arr: [usize; MAX + 1] = [0; MAX + 1];
+    
+    // Simple test
+    arr[0] = 1;
+    arr[1] = 1;
+    
+    return arr[50];
+}
+
+fn main() -> usize {
+    return test_array();
+}

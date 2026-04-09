@@ -1,0 +1,13 @@
+// Test modulo operator type
+
+fn test_modulo() -> u64 {
+    let n: u64 = 10
+    let d: u64 = 3
+    let remainder: u64 = n % d
+    
+    return remainder
+}
+
+fn main() -> u64 {
+    return test_modulo()
+}

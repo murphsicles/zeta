@@ -1,0 +1,9 @@
+// Minimal array test
+fn test() -> u64 {
+    let arr = [1, 2, 3]
+    return arr[0]
+}
+
+fn main() -> u64 {
+    return test()
+}

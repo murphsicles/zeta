@@ -1,0 +1,83 @@
+// Minimal Murphy's Sieve implementation
+// Using const for array sizes
+
+const MAX_LIMIT: i64 = 1000;
+
+fn murphy_sieve(limit: i64) -> i64 {
+    if limit < 2 {
+        return 0;
+    } else {
+        // Do nothing
+    }
+    
+    if limit > MAX_LIMIT {
+        // Cap at MAX_LIMIT
+    } else {
+        // Do nothing
+    }
+    
+    let effective_limit = if limit > MAX_LIMIT { MAX_LIMIT } else { limit };
+    
+    // Create array with const size
+    let mut is_composite: [i64; MAX_LIMIT] = [0; MAX_LIMIT];
+    
+    // Mark 0 and 1
+    if effective_limit > 0 {
+        is_composite[0] = 1;
+    } else {
+        // Do nothing
+    }
+    
+    if effective_limit > 1 {
+        is_composite[1] = 1;
+    } else {
+        // Do nothing
+    }
+    
+    // Sieve algorithm
+    let mut p: i64 = 2;
+    
+    while p * p <= effective_limit {
+        if is_composite[p] == 0 {
+            let mut multiple: i64 = p * p;
+            while multiple < effective_limit {
+                is_composite[multiple] = 1;
+                multiple += p;
+            }
+        } else {
+            // Do nothing
+        }
+        p += 1;
+    }
+    
+    // Count primes
+    let mut count: i64 = 0;
+    let mut i: i64 = 2;
+    
+    while i < effective_limit {
+        if is_composite[i] == 0 {
+            count += 1;
+        } else {
+            // Do nothing
+        }
+        i += 1;
+    }
+    
+    return count;
+}
+
+fn test_sieve() -> i64 {
+    // Test with limit = 10
+    let result = murphy_sieve(10);
+    
+    // Should be 4 primes under 10: 2, 3, 5, 7
+    if result == 4 {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+fn main() -> i64 {
+    return test_sieve();
+}

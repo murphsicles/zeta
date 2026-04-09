@@ -1,0 +1,16 @@
+// Test loop with counter
+fn test_loop() -> u64 {
+    let mut i: u64 = 0
+    let mut count: u64 = 0
+    
+    while count < 1 {
+        i = 5
+        count = count + 1
+    }
+    
+    return i  // Should return 5
+}
+
+fn main() -> u64 {
+    return test_loop()
+}

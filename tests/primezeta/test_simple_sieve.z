@@ -1,0 +1,34 @@
+// Test: Can Zeta handle a simple prime counting algorithm?
+// No arrays, no complex control flow
+
+fn count_primes_simple(limit: u64) -> u64 {
+    let mut count = 0
+    let mut n = 2
+    
+    while n <= limit {
+        let mut is_prime = true
+        let mut d = 2
+        
+        // Simple trial division
+        while d * d <= n {
+            if n % d == 0 {
+                is_prime = false
+                break
+            }
+            d = d + 1
+        }
+        
+        if is_prime {
+            count = count + 1
+        }
+        
+        n = n + 1
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    // Test with small limit
+    return count_primes_simple(10)  // Should return 4 (primes: 2,3,5,7)
+}

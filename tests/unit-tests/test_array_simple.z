@@ -1,0 +1,21 @@
+// Test array operations
+
+fn test_array() -> u64 {
+    let arr: [dynamic]u64 = [dynamic]u64{}
+    
+    // Push some values
+    arr.push(10)
+    arr.push(20)
+    arr.push(30)
+    
+    // Get values
+    let val1: u64 = arr[0]
+    let val2: u64 = arr[1]
+    let val3: u64 = arr[2]
+    
+    return val1 + val2 + val3
+}
+
+fn main() -> u64 {
+    return test_array()
+}

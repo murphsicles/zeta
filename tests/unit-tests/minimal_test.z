@@ -1,0 +1,3 @@
+fn simple() -> i64 {
+    return 42;
+}

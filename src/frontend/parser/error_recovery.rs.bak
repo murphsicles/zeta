@@ -1,0 +1,153 @@
+//! Error recovery combinators for the Zeta parser.
+//!
+//! This module provides combinators that allow the parser to recover from
+//! syntax errors and continue parsing the rest of the input.
+
+use nom::IResult;
+use nom::Parser;
+use nom::error::ErrorKind;
+
+/// Parser that attempts to parse but recovers on error
+///
+/// This parser will try to parse using the given parser. If it fails,
+/// it will skip ahead to a recovery point (like a semicolon, newline,
+/// or next top-level keyword) and continue parsing.
+pub fn recoverable<'a, P, O, E>(
+    parser: P,
+    recovery_parser: impl Parser<&'a str, Output = &'a str, Error = E>,
+) -> impl Parser<&'a str, Output = Option<O>, Error = E>
+where
+    P: Parser<&'a str, Output = O, Error = E>,
+    E: nom::error::ParseError<&'a str>,
+{
+    move |input: &'a str| {
+        match parser.parse(input) {
+            Ok((remaining, output)) => Ok((remaining, Some(output))),
+            Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
+                // Try to recover by skipping to a recovery point
+                match recovery_parser.parse(input) {
+                    Ok((remaining, _)) => {
+                        // Successfully skipped to recovery point
+                        // Return None to indicate this item failed but we recovered
+                        Ok((remaining, None))
+                    }
+                    Err(_) => {
+                        // Can't even recover - propagate the original error
+                        Err(nom::Err::Error(e))
+                    }
+                }
+            }
+            Err(e) => Err(e),
+        }
+    }
+}
+
+/// Skip until one of the given patterns is found
+pub fn skip_until_pattern<'a, E>(
+    patterns: &'static [&'static str],
+) -> impl Parser<&'a str, Output = &'a str, Error = E>
+where
+    E: nom::error::ParseError<&'a str>,
+{
+    move |input: &'a str| {
+        let mut remaining = input;
+        let mut skipped = 0;
+        
+        while !remaining.is_empty() {
+            // Check if any pattern matches at the current position
+            let mut pattern_matched = false;
+            for pattern in patterns {
+                if remaining.starts_with(pattern) {
+                    pattern_matched = true;
+                    break;
+                }
+            }
+            
+            if pattern_matched {
+                break;
+            }
+            
+            // Skip one character
+            let char_len = remaining.chars().next().map_or(1, |c| c.len_utf8());
+            skipped += char_len;
+            remaining = &remaining[char_len..];
+        }
+        
+        if skipped == 0 {
+            Ok((remaining, ""))
+        } else {
+            Ok((remaining, &input[..skipped]))
+        }
+    }
+}
+
+/// Skip until a top-level recovery point
+///
+/// This looks for patterns that typically indicate the start of a new
+/// top-level item in Zeta.
+pub fn skip_to_next_top_level<'a, E>() -> impl Parser<&'a str, Output = &'a str, Error = E>
+where
+    E: nom::error::ParseError<&'a str>,
+{
+    let recovery_patterns = [
+        "\nfn ", "\nconcept ", "\nimpl ", "\nenum ", "\nstruct ", "\nuse ", "\ntype ",
+        "\nmod ", "\ntrait ", "\nextern ",
+    ];
+    skip_until_pattern(&recovery_patterns)
+}
+
+/// Skip until a statement recovery point
+///
+/// This looks for patterns that typically indicate the start of a new
+/// statement within a block.
+pub fn skip_to_next_statement<'a, E>() -> impl Parser<&'a str, Output = &'a str, Error = E>
+where
+    E: nom::error::ParseError<&'a str>,
+{
+    let recovery_patterns = [
+        "\n", ";", "\nlet ", "\nif ", "\nfor ", "\nwhile ", "\nloop ",
+        "\nreturn ", "\nbreak ", "\ncontinue ", "\n}",
+    ];
+    skip_until_pattern(&recovery_patterns)
+}
+
+/// Parse multiple items with error recovery
+///
+/// This combinator will parse as many items as possible, recovering from
+/// errors and continuing with the next item.
+pub fn many0_recoverable<'a, P, O, E>(
+    parser: P,
+    recovery_parser: impl Parser<&'a str, Output = &'a str, Error = E>,
+) -> impl Parser<&'a str, Output = Vec<O>, Error = E>
+where
+    P: Parser<&'a str, Output = O, Error = E>,
+    E: nom::error::ParseError<&'a str>,
+{
+    move |mut input: &'a str| {
+        let mut outputs = Vec::new();
+        
+        loop {
+            if input.is_empty() {
+                break;
+            }
+            
+            match recoverable(&parser, &recovery_parser).parse(input) {
+                Ok((remaining, Some(output))) => {
+                    outputs.push(output);
+                    input = remaining;
+                }
+                Ok((remaining, None)) => {
+                    // Parser failed but we recovered
+                    // Error has been logged, continue with next item
+                    input = remaining;
+                }
+                Err(_) => {
+                    // Can't recover anymore
+                    break;
+                }
+            }
+        }
+        
+        Ok((input, outputs))
+    }
+}

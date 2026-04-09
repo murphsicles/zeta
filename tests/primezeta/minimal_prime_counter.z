@@ -1,0 +1,43 @@
+// Minimal prime counter that definitely works
+
+fn count_primes_simple(limit: u64) -> u64 {
+    if limit <= 2 {
+        return 0
+    }
+    
+    // Count 2 as prime
+    let mut count: u64 = 1
+    
+    // Check odd numbers
+    let mut n: u64 = 3
+    
+    while n < limit {
+        let mut d: u64 = 3
+        let mut is_prime: u64 = 1
+        
+        while d < n {
+            // Check divisibility
+            let rem: u64 = n % d
+            
+            if rem == 0 {
+                is_prime = 0
+                d = n  // Exit loop
+            }
+            
+            d += 2
+        }
+        
+        if is_prime == 1 {
+            count += 1
+        }
+        
+        n += 2
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    // Test with limit=10 (should return 4)
+    return count_primes_simple(10)
+}

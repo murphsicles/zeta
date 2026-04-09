@@ -1,0 +1,24 @@
+{
+    "spawn_attempts":  0,
+    "current_release":  "v0.3.28",
+    "pipeline_status":  "idle",
+    "version":  "1.0.0",
+    "config":  {
+                   "auto_advance":  true,
+                   "notify_on_stall":  true,
+                   "release_timeout_hours":  6,
+                   "spawn_cooldown_minutes":  5
+               },
+    "max_spawn_attempts":  3,
+    "last_spawn_attempt":  null,
+    "release_history":  [
+
+                        ],
+    "last_updated":  "2026-04-02T00:48:06Z",
+    "release_queue":  [
+                          "v0.3.28",
+                          "v0.3.29",
+                          "v0.3.30",
+                          "v0.4.0"
+                      ]
+}

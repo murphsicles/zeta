@@ -1,0 +1,24 @@
+// Test: if with else where else contains while with break
+fn test() -> u64 {
+    let n: u64 = 17
+    let mut is_prime = true
+    
+    if n % 2 == 0 {
+        is_prime = false
+    } else {
+        let mut i: u64 = 3
+        while i * i <= n {
+            if n % i == 0 {
+                is_prime = false
+                break
+            }
+            i += 2
+        }
+    }
+    
+    return if is_prime { 1 } else { 0 }
+}
+
+fn main() -> u64 {
+    return test()
+}

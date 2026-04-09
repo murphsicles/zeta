@@ -1,0 +1,193 @@
+name: Agent Sync & Merge
+
+on:
+  push:
+    branches:
+      - 'feat/**'  # Agent feature branches
+  workflow_dispatch:  # Manual trigger for testing
+
+jobs:
+  sync-and-merge:
+    name: Sync ${{ github.ref_name }} → v0.3.9
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Get all history for merging
+          
+      - name: Configure Git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+      - name: Extract agent info
+        id: agent-info
+        run: |
+          BRANCH="${{ github.ref_name }}"
+          if [[ "$BRANCH" =~ ^feat/([a-zA-Z]+)- ]]; then
+            AGENT="${BASH_REMATCH[1]}"
+            echo "agent=${AGENT^^}" >> $GITHUB_OUTPUT
+            echo "feature_branch=$BRANCH" >> $GITHUB_OUTPUT
+          else
+            echo "agent=UNKNOWN" >> $GITHUB_OUTPUT
+            echo "feature_branch=$BRANCH" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Check if ready for merge
+        id: check-ready
+        run: |
+          # Check if this branch passes all tests
+          echo "Checking if ${{ steps.agent-info.outputs.feature_branch }} is ready for merge..."
+          
+          # Get last commit message
+          LAST_COMMIT=$(git log --oneline -1)
+          echo "Last commit: $LAST_COMMIT"
+          
+          # Check for [READY] tag in commit message
+          if [[ "$LAST_COMMIT" =~ \[READY\] ]]; then
+            echo "✅ Branch marked READY for merge"
+            echo "ready=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Branch not marked READY (missing [READY] tag)"
+            echo "ready=false" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Sync with v0.3.9
+        if: steps.check-ready.outputs.ready == 'true'
+        run: |
+          echo "Syncing ${{ steps.agent-info.outputs.feature_branch }} with v0.3.9..."
+          
+          # Fetch all branches
+          git fetch origin
+          
+          # Checkout v0.3.9
+          git checkout v0.3.9
+          git pull origin v0.3.9
+          
+          # Checkout feature branch
+          git checkout ${{ steps.agent-info.outputs.feature_branch }}
+          git pull origin ${{ steps.agent-info.outputs.feature_branch }}
+          
+          # Merge v0.3.9 into feature branch
+          echo "Merging v0.3.9 into feature branch..."
+          if git merge v0.3.9 --no-ff --no-edit; then
+            echo "✅ Merge successful"
+            echo "merge_status=success" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Merge conflict detected"
+            echo "merge_status=conflict" >> $GITHUB_OUTPUT
+            # Try to abort
+            git merge --abort 2>/dev/null || true
+          fi
+          
+      - name: Resolve conflicts (if any)
+        if: steps.check-ready.outputs.ready == 'true' && steps.check-ready.outputs.merge_status == 'conflict'
+        run: |
+          echo "🚨 Merge conflict detected in ${{ steps.agent-info.outputs.feature_branch }}"
+          echo "Agent ${{ steps.agent-info.outputs.agent }} needs to resolve conflicts manually"
+          
+          # Show conflicting files
+          git status --porcelain | grep -E "^AA|^UU|^DD" || true
+          
+      - name: Run tests after sync
+        if: steps.check-ready.outputs.ready == 'true' && steps.check-ready.outputs.merge_status == 'success'
+        run: |
+          echo "Running tests after sync..."
+          
+          # Setup Rust
+          rustup default stable
+          rustup component add clippy rustfmt
+          
+          # Run Rust tests
+          cargo test --workspace --all-features
+          
+          # Build and run Zeta tests
+          cargo build --release
+          powershell -ExecutionPolicy Bypass -File scripts/run_zeta_tests.ps1
+          
+      - name: Create sync report
+        if: always()
+        run: |
+          echo "## Agent Sync Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Agent:** ${{ steps.agent-info.outputs.agent }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ steps.agent-info.outputs.feature_branch }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Ready for Merge:** ${{ steps.check-ready.outputs.ready }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ steps.check-ready.outputs.ready }}" == "true" ]]; then
+            echo "**Merge Status:** ${{ steps.check-ready.outputs.merge_status || 'not attempted' }}" >> $GITHUB_STEP_SUMMARY
+            
+            if [[ "${{ steps.check-ready.outputs.merge_status }}" == "success" ]]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "✅ **Sync Successful**" >> $GITHUB_STEP_SUMMARY
+              echo "Feature branch is now synced with v0.3.9 and ready for final merge." >> $GITHUB_STEP_SUMMARY
+            elif [[ "${{ steps.check-ready.outputs.merge_status }}" == "conflict" ]]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "🚨 **Merge Conflict**" >> $GITHUB_STEP_SUMMARY
+              echo "Agent ${{ steps.agent-info.outputs.agent }} needs to resolve conflicts manually." >> $GITHUB_STEP_SUMMARY
+              echo "Run: \`git checkout ${{ steps.agent-info.outputs.feature_branch }} && git merge v0.3.9\`" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ **Not Ready for Merge**" >> $GITHUB_STEP_SUMMARY
+            echo "Add \`[READY]\` tag to commit message when feature is complete." >> $GITHUB_STEP_SUMMARY
+          fi
+          
+      - name: Notify agent on conflict
+        if: steps.check-ready.outputs.ready == 'true' && steps.check-ready.outputs.merge_status == 'conflict'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const agent = '${{ steps.agent-info.outputs.agent }}';
+            const branch = '${{ steps.agent-info.outputs.feature_branch }}';
+            
+            // Create issue or comment
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚨 Merge Conflict: ${branch}`,
+              body: `Agent ${agent} has merge conflicts with v0.3.9.\n\nPlease resolve conflicts in ${branch} before merging.\n\nWorkflow: ${context.runId}`,
+              labels: ['merge-conflict', 'agent-work']
+            });
+
+  # Separate job for actual merge to v0.3.9 (manual approval)
+  merge-to-main:
+    name: Merge to v0.3.9
+    if: github.event_name == 'workflow_dispatch'  # Manual trigger only
+    needs: sync-and-merge
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Merge feature branch to v0.3.9
+        run: |
+          BRANCH="${{ github.event.inputs.branch }}"
+          
+          if [ -z "$BRANCH" ]; then
+            echo "Error: Branch not specified"
+            exit 1
+          fi
+          
+          echo "Merging $BRANCH into v0.3.9..."
+          
+          git checkout v0.3.9
+          git pull origin v0.3.9
+          
+          # Merge with no-fast-forward to preserve history
+          git merge --no-ff origin/$BRANCH -m "Merge $BRANCH into v0.3.9"
+          
+          # Push to v0.3.9
+          git push origin v0.3.9
+          
+          echo "✅ $BRANCH merged into v0.3.9"
+          
+      - name: Trigger v0.3.9 CI
+        run: |
+          echo "Triggering CI on v0.3.9..."
+          # This will trigger the agent-branches.yml workflow

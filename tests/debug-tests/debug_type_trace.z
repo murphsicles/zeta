@@ -1,0 +1,19 @@
+// Minimal reproduction of type checker bug
+fn test() -> u64 {
+    let mut i: u64 = 0
+    
+    while i < 10 {
+        // This if statement with break causes type error
+        if i == 5 {
+            break  // Uncomment to see error
+            // i = 10  // Alternative: set i high to exit
+        }
+        i += 1
+    }
+    
+    return i
+}
+
+fn main() -> u64 {
+    return test()
+}

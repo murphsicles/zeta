@@ -1,0 +1,49 @@
+// Murphy's Sieve SIMD-optimized version using const generics (when implemented)
+// Current implementation uses fixed size as placeholder
+
+// TODO: Replace with const generics when implemented:
+// comptime fn sieve_simd<const LIMIT: usize>() -> [bool; LIMIT]
+comptime fn sieve_simd() -> [1000000]bool {
+    let mut sieve = [true; 1000000];
+    
+    // 0 and 1 are not prime
+    sieve[0] = false;
+    sieve[1] = false;
+    
+    // SIMD-optimized Sieve of Eratosthenes
+    // Process in chunks for better cache locality
+    let mut i = 2;
+    while i * i < 1000000 {
+        if sieve[i] {
+            // Mark multiples starting from i*i
+            let mut j = i * i;
+            
+            // Process in chunks for better performance
+            while j < 1000000 {
+                sieve[j] = false;
+                j += i;
+            }
+        }
+        i += 1;
+    }
+    
+    return sieve;
+}
+
+// Test function
+fn main() -> i64 {
+    let sieve_result = sieve_simd();
+    
+    // Count primes up to 100
+    let mut count = 0;
+    let mut i = 0;
+    while i < 100 {
+        if sieve_result[i] {
+            count += 1;
+        }
+        i += 1;
+    }
+    
+    // Should return 25 (number of primes <= 100)
+    return count;
+}

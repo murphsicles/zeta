@@ -1,0 +1,7 @@
+fn get_true() -> bool {
+    true
+}
+
+fn main() {
+    let x = get_true()
+}

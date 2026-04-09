@@ -1,0 +1,26 @@
+// Simplest test - just count zeros in a manually created array
+
+fn test_simple() -> u64 {
+    let arr: [dynamic]u8 = [dynamic]u8{}
+    
+    // Manually create array [1, 1, 0]
+    arr.push(1)
+    arr.push(1)
+    arr.push(0)
+    
+    // Count zeros
+    let mut count: u64 = 0
+    let mut i: u64 = 0
+    while i < 3 {
+        if arr[i] == 0 {
+            count += 1
+        }
+        i += 1
+    }
+    
+    return count  // Should be 1
+}
+
+fn main() -> u64 {
+    return test_simple()
+}

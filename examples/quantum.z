@@ -1,0 +1,284 @@
+// Quantum Computing DSL for Zeta
+// Demonstrates quantum computing primitives and hybrid programming
+
+// Import quantum computing module
+use std::quantum::*;
+
+// Quantum circuit DSL
+concept QuantumCircuitDSL {
+    fn h(qubit: usize) -> Self;
+    fn x(qubit: usize) -> Self;
+    fn y(qubit: usize) -> Self;
+    fn z(qubit: usize) -> Self;
+    fn rx(qubit: usize, angle: f64) -> Self;
+    fn ry(qubit: usize, angle: f64) -> Self;
+    fn rz(qubit: usize, angle: f64) -> Self;
+    fn cnot(control: usize, target: usize) -> Self;
+    fn cz(control: usize, target: usize) -> Self;
+    fn swap(qubit1: usize, qubit2: usize) -> Self;
+    fn toffoli(control1: usize, control2: usize, target: usize) -> Self;
+    fn measure(qubit: usize) -> Self;
+    fn execute() -> (QuantumState, Vec<bool>);
+}
+
+impl QuantumCircuitDSL for QuantumCircuit {
+    fn h(qubit: usize) -> Self {
+        let mut circuit = QuantumCircuit::new(1);
+        circuit.h(qubit);
+        circuit
+    }
+    
+    fn x(qubit: usize) -> Self {
+        let mut circuit = QuantumCircuit::new(1);
+        circuit.x(qubit);
+        circuit
+    }
+    
+    fn y(qubit: usize) -> Self {
+        let mut circuit = QuantumCircuit::new(1);
+        circuit.y(qubit);
+        circuit
+    }
+    
+    fn z(qubit: usize) -> Self {
+        let mut circuit = QuantumCircuit::new(1);
+        circuit.z(qubit);
+        circuit
+    }
+    
+    fn rx(qubit: usize, angle: f64) -> Self {
+        let mut circuit = QuantumCircuit::new(1);
+        circuit.rx(qubit, angle);
+        circuit
+    }
+    
+    fn ry(qubit: usize, angle: f64) -> Self {
+        let mut circuit = QuantumCircuit::new(1);
+        circuit.ry(qubit, angle);
+        circuit
+    }
+    
+    fn rz(qubit: usize, angle: f64) -> Self {
+        let mut circuit = QuantumCircuit::new(1);
+        circuit.rz(qubit, angle);
+        circuit
+    }
+    
+    fn cnot(control: usize, target: usize) -> Self {
+        let mut circuit = QuantumCircuit::new(2);
+        circuit.cnot(control, target);
+        circuit
+    }
+    
+    fn cz(control: usize, target: usize) -> Self {
+        let mut circuit = QuantumCircuit::new(2);
+        circuit.cz(control, target);
+        circuit
+    }
+    
+    fn swap(qubit1: usize, qubit2: usize) -> Self {
+        let mut circuit = QuantumCircuit::new(2);
+        circuit.swap(qubit1, qubit2);
+        circuit
+    }
+    
+    fn toffoli(control1: usize, control2: usize, target: usize) -> Self {
+        let mut circuit = QuantumCircuit::new(3);
+        circuit.toffoli(control1, control2, target);
+        circuit
+    }
+    
+    fn measure(qubit: usize) -> Self {
+        let mut circuit = QuantumCircuit::new(1);
+        circuit.measure(qubit);
+        circuit
+    }
+    
+    fn execute(self) -> (QuantumState, Vec<bool>) {
+        self.execute()
+    }
+}
+
+// Quantum algorithm implementations
+fn quantum_teleportation() -> i32 {
+    // Quantum teleportation protocol
+    let mut circuit = QuantumCircuit::new(3);
+    
+    // Create entanglement between qubits 1 and 2
+    circuit.h(1);
+    circuit.cnot(1, 2);
+    
+    // Prepare the state to teleport (on qubit 0)
+    circuit.rx(0, 0.5); // Some arbitrary rotation
+    
+    // Teleportation protocol
+    circuit.cnot(0, 1);
+    circuit.h(0);
+    
+    // Measure qubits 0 and 1
+    circuit.measure(0);
+    circuit.measure(1);
+    
+    // Apply corrections based on measurements
+    // (In a real implementation, these would be conditional)
+    circuit.cnot(1, 2);
+    circuit.cz(0, 2);
+    
+    let (state, measurements) = circuit.execute();
+    
+    println!("Teleportation measurements: {:?}", measurements);
+    0
+}
+
+fn grovers_search(database_size: usize, marked_item: usize) -> i32 {
+    // Grover's search algorithm
+    use std::quantum::algorithms::GroversAlgorithm;
+    
+    let oracle = |x: usize| x == marked_item;
+    let grover = GroversAlgorithm::new(database_size, oracle);
+    
+    let iterations = grover.optimal_iterations();
+    println!("Grovers algorithm needs {} iterations", iterations);
+    
+    if let Some(result) = grover.search() {
+        println!("Found item: {}", result);
+        if result == marked_item {
+            println!("Success!");
+            return 0;
+        }
+    }
+    
+    -1
+}
+
+fn shors_factorization(n: u64) -> i32 {
+    // Shor's factorization algorithm
+    use std::quantum::algorithms::ShorsAlgorithm;
+    
+    let shor = ShorsAlgorithm::new(n);
+    
+    if let Some((p, q)) = shor.factor() {
+        println!("Shor's algorithm factored {} = {} * {}", n, p, q);
+        return 0;
+    }
+    
+    println!("Factorization failed for {}", n);
+    -1
+}
+
+// Hybrid quantum-classical computation
+fn variational_quantum_eigensolver() -> i32 {
+    use std::quantum::hybrid::*;
+    
+    // Create a simple Hamiltonian (Pauli-Z on first qubit)
+    let hamiltonian = QuantumOperator::pauli_z(0, 2);
+    
+    // Create variational ansatz
+    let ansatz = VariationalAnsatz::new(2, 3); // 2 qubits, 3 layers
+    
+    // Create VQE instance
+    let mut vqe = VariationalQuantumEigensolver::new(hamiltonian, ansatz);
+    
+    // Optimize
+    let (energy, parameters) = vqe.optimize(100);
+    
+    println!("VQE found energy: {}", energy);
+    println!("Optimal parameters: {:?}", parameters);
+    
+    0
+}
+
+// Quantum prime number checking
+fn quantum_prime_check(n: u64) -> bool {
+    // Simple quantum-inspired prime checking
+    // This is a hybrid approach combining classical and quantum techniques
+    
+    if n <= 1 {
+        return false;
+    }
+    if n <= 3 {
+        return true;
+    }
+    if n % 2 == 0 || n % 3 == 0 {
+        return false;
+    }
+    
+    // Use quantum period finding as part of primality test
+    // (This is a simplified version)
+    let mut i = 5;
+    while i * i <= n {
+        if n % i == 0 || n % (i + 2) == 0 {
+            return false;
+        }
+        i += 6;
+    }
+    
+    true
+}
+
+// Quantum random number generation
+fn quantum_random_bits(n: usize) -> Vec<bool> {
+    // Generate random bits using quantum measurements
+    let mut circuit = QuantumCircuit::new(n);
+    let mut results = Vec::new();
+    
+    for i in 0..n {
+        circuit.h(i);
+        circuit.measure(i);
+    }
+    
+    let (_, measurements) = circuit.execute();
+    measurements
+}
+
+// Main function demonstrating quantum computing capabilities
+fn main() -> i32 {
+    println!("Zeta Quantum Computing Demo");
+    println!("===========================");
+    
+    // Test 1: Basic quantum circuit
+    println!("\n1. Basic Quantum Circuit:");
+    let mut circuit = QuantumCircuit::new(2);
+    circuit.h(0);
+    circuit.cnot(0, 1);
+    circuit.measure(0);
+    circuit.measure(1);
+    
+    let (state, measurements) = circuit.execute();
+    println!("   Measurements: {:?}", measurements);
+    println!("   State has {} qubits", state.qubits);
+    
+    // Test 2: Quantum teleportation
+    println!("\n2. Quantum Teleportation:");
+    quantum_teleportation();
+    
+    // Test 3: Grover's search
+    println!("\n3. Grover's Search Algorithm:");
+    grovers_search(8, 3);
+    
+    // Test 4: Shor's factorization
+    println!("\n4. Shor's Factorization Algorithm:");
+    shors_factorization(15);
+    
+    // Test 5: Hybrid quantum-classical computation
+    println!("\n5. Variational Quantum Eigensolver:");
+    variational_quantum_eigensolver();
+    
+    // Test 6: Quantum prime checking
+    println!("\n6. Quantum Prime Checking:");
+    let test_numbers = [2, 3, 4, 5, 17, 21, 29];
+    for &n in &test_numbers {
+        let is_prime = quantum_prime_check(n);
+        println!("   {} is prime: {}", n, is_prime);
+    }
+    
+    // Test 7: Quantum random number generation
+    println!("\n7. Quantum Random Number Generation:");
+    let random_bits = quantum_random_bits(8);
+    println!("   Random bits: {:?}", random_bits);
+    
+    println!("\n===========================");
+    println!("Quantum computing demo complete!");
+    
+    0
+}

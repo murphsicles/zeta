@@ -1,0 +1,160 @@
+// Test preconditions and postconditions for formal verification
+// This demonstrates Design by Contract (DbC) principles
+
+// Simple function with preconditions and postconditions
+fn divide(a: i32, b: i32) -> i32 {
+    // Precondition: divisor must not be zero
+    #[pre(b != 0, "Divisor cannot be zero")]
+    
+    // Postcondition: result multiplied by b equals a (for integer division)
+    #[post(result * b <= a && a < (result + 1) * b, "Integer division property")]
+    
+    a / b
+}
+
+// Function with multiple preconditions
+fn safe_array_access(arr: [i32], index: usize) -> i32 {
+    // Multiple preconditions
+    #[pre(index < arr.len(), "Index out of bounds")]
+    #[pre(arr.len() > 0, "Array must not be empty")]
+    
+    arr[index]
+}
+
+// Function with complex postcondition
+fn max(a: i32, b: i32) -> i32 {
+    #[post(result >= a && result >= b, "Result is at least as large as inputs")]
+    #[post(result == a || result == b, "Result equals one of the inputs")]
+    
+    if a > b { a } else { b }
+}
+
+// Loop invariant example
+fn sum_array(arr: [i32]) -> i32 {
+    let mut total = 0;
+    let mut i = 0;
+    
+    // Loop invariant: total equals sum of arr[0..i]
+    #[invariant(total == sum(arr[0..i]))]
+    while i < arr.len() {
+        total = total + arr[i];
+        i = i + 1;
+    }
+    
+    total
+}
+
+// Helper function for loop invariant (simplified)
+fn sum(slice: [i32]) -> i32 {
+    let mut total = 0;
+    let mut i = 0;
+    while i < slice.len() {
+        total = total + slice[i];
+        i = i + 1;
+    }
+    total
+}
+
+// Class invariant example
+struct BankAccount {
+    balance: i32,
+    account_number: u64,
+}
+
+impl BankAccount {
+    // Class invariant: balance must be non-negative
+    #[invariant(self.balance >= 0, "Balance cannot be negative")]
+    
+    fn new(initial_balance: i32, account_number: u64) -> BankAccount {
+        #[pre(initial_balance >= 0, "Initial balance must be non-negative")]
+        
+        BankAccount {
+            balance: initial_balance,
+            account_number: account_number,
+        }
+    }
+    
+    fn withdraw(&mut self, amount: i32) -> bool {
+        #[pre(amount > 0, "Withdrawal amount must be positive")]
+        #[post(if result { self.balance == old(self.balance) - amount } else { self.balance == old(self.balance) }, "Balance updated correctly on successful withdrawal")]
+        
+        if self.balance >= amount {
+            self.balance = self.balance - amount;
+            true
+        } else {
+            false
+        }
+    }
+    
+    fn deposit(&mut self, amount: i32) {
+        #[pre(amount > 0, "Deposit amount must be positive")]
+        #[post(self.balance == old(self.balance) + amount, "Balance increased by deposit amount")]
+        
+        self.balance = self.balance + amount;
+    }
+    
+    fn get_balance(&self) -> i32 {
+        #[post(result == self.balance, "Returns current balance")]
+        self.balance
+    }
+}
+
+// Contract inheritance example
+trait SecureContainer {
+    // Trait-level invariant
+    #[invariant(self.is_secure(), "Container must be in secure state")]
+    
+    fn is_secure(&self) -> bool;
+    fn validate(&self) -> bool;
+}
+
+struct SecureBox {
+    data: [u8],
+    locked: bool,
+}
+
+impl SecureContainer for SecureBox {
+    fn is_secure(&self) -> bool {
+        self.locked
+    }
+    
+    fn validate(&self) -> bool {
+        #[pre(self.is_secure(), "Must be secure before validation")]
+        #[post(result == (self.data.len() > 0), "Valid if contains data")]
+        
+        self.data.len() > 0
+    }
+}
+
+// Main test function
+fn main() -> i32 {
+    // Test basic pre/post conditions
+    let result1 = divide(10, 2);
+    println!("10 / 2 = {}", result1);
+    
+    // Test array access with preconditions
+    let arr = [1, 2, 3, 4, 5];
+    let value = safe_array_access(arr, 2);
+    println!("arr[2] = {}", value);
+    
+    // Test max function
+    let max_val = max(5, 10);
+    println!("max(5, 10) = {}", max_val);
+    
+    // Test BankAccount with class invariants
+    let mut account = BankAccount::new(100, 12345);
+    println!("Initial balance: {}", account.get_balance());
+    
+    let success = account.withdraw(30);
+    println!("Withdraw 30: {}, new balance: {}", success, account.get_balance());
+    
+    account.deposit(50);
+    println!("Deposit 50, new balance: {}", account.get_balance());
+    
+    // Test loop invariant
+    let test_arr = [1, 2, 3, 4, 5];
+    let total = sum_array(test_arr);
+    println!("Sum of [1,2,3,4,5] = {}", total);
+    
+    0
+}

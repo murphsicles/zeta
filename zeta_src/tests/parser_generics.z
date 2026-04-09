@@ -1,0 +1,105 @@
+// zeta_src/tests/parser_generics.z
+// Test suite for generic parameter parsing enhancement
+// Tests various generic syntax patterns
+
+// Test 1: Simple generic parameters
+fn simple_generic<T>() -> T {
+    unimplemented!()
+}
+
+struct SimpleStruct<T> {
+    value: T,
+}
+
+// Test 2: Multiple generic parameters
+fn multiple_generics<T, U>(a: T, b: U) -> (T, U) {
+    (a, b)
+}
+
+struct Pair<A, B> {
+    first: A,
+    second: B,
+}
+
+// Test 3: Trait bounds
+fn with_trait_bound<T: Display>(value: T) {
+    println!("{}", value);
+}
+
+struct BoundedStruct<T: Clone + Debug> {
+    data: T,
+}
+
+// Test 4: Multiple trait bounds with +
+fn multiple_bounds<T: Clone + Debug + Display>(item: T) -> T {
+    item.clone()
+}
+
+// Test 5: Lifetime parameters
+fn with_lifetime<'a>(s: &'a str) -> &'a str {
+    s
+}
+
+struct LifetimeStruct<'a> {
+    reference: &'a str,
+}
+
+// Test 6: Generic with lifetime and trait bound
+fn complex_generic<'a, T: Display>(value: &'a T) -> &'a T {
+    value
+}
+
+// Test 7: Where clauses
+fn where_clause<T>(value: T) -> T
+where
+    T: Clone + Debug,
+{
+    value.clone()
+}
+
+struct WhereStruct<T>
+where
+    T: Eq + PartialEq,
+{
+    items: Vec<T>,
+}
+
+// Test 8: Complex combination
+fn complex_combination<'a, 'b, T, U>(a: &'a T, b: &'b U) -> (&'a T, &'b U)
+where
+    T: Display + Clone,
+    U: Debug + PartialEq,
+{
+    (a, b)
+}
+
+// Test 9: Associated type bounds (future)
+// fn associated_type<T: Iterator<Item = i32>>(iter: T) -> i32 {
+//     iter.sum()
+// }
+
+// Test 10: Default generic parameters (future)
+// struct DefaultGeneric<T = i32> {
+//     value: T,
+// }
+
+// Helper concepts for testing
+concept Display {
+    fn fmt(&self) -> String;
+}
+
+concept Debug {
+    fn debug(&self) -> String;
+}
+
+concept Clone {
+    fn clone(&self) -> Self;
+}
+
+concept Eq {
+    fn eq(&self, other: &Self) -> bool;
+}
+
+concept PartialEq {
+    fn partial_eq(&self, other: &Self) -> bool;
+}

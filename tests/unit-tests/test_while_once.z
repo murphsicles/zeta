@@ -1,0 +1,13 @@
+// Test while loop that executes once
+fn test_while_once() -> u64 {
+    let mut i: u64 = 0
+    // Execute once, then i becomes 1, condition becomes false
+    while i == 0 {
+        i = 1
+    }
+    return i  // Should return 1
+}
+
+fn main() -> u64 {
+    return test_while_once()
+}

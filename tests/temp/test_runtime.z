@@ -1,0 +1,39 @@
+// Test runtime library implementation
+
+fn test_array_operations() -> i64 {
+    // Create array
+    let arr: [i64; 5] = [10, 20, 30, 40, 50]
+    
+    // Access elements
+    let first = arr[0]  // Should be 10
+    let third = arr[2]  // Should be 30
+    
+    // Modify element
+    arr[1] = 25  // Change 20 to 25
+    
+    return arr[0] + arr[1] + arr[2]  // 10 + 25 + 30 = 65
+}
+
+fn test_simd() -> Vector<u64, 8> {
+    // Create SIMD vector
+    let vec = Vector::new(1, 2, 3, 4, 5, 6, 7, 8)
+    return vec
+}
+
+fn test_print() -> i64 {
+    // Test I/O functions
+    print_i64(42)
+    println()
+    print_str("Hello from Zeta runtime!")
+    println()
+    
+    return 0
+}
+
+fn main() -> i64 {
+    let array_result = test_array_operations()
+    let simd_vec = test_simd()
+    let print_result = test_print()
+    
+    return array_result  // Should return 65
+}

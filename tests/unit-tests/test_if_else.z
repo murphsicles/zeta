@@ -1,0 +1,66 @@
+// Test program for bootstrap compiler - if/else statements
+// This should be compilable by the enhanced minimal Zeta compiler
+
+fn test_if_else_basic() -> i64 {
+    let x = 10;
+    let y = 20;
+    
+    if (x < y) {
+        return 1;
+    } else {
+        return 2;
+    }
+}
+
+fn test_if_else_nested() -> i64 {
+    let value = 42;
+    
+    if (value > 50) {
+        return 100;
+    } else {
+        if (value > 30) {
+            return 50;
+        } else {
+            return 10;
+        }
+    }
+}
+
+fn test_if_else_with_variables() -> i64 {
+    let a = 15;
+    let b = 25;
+    let result = 0;
+    
+    if (a < b) {
+        result = a;
+    } else {
+        result = b;
+    }
+    
+    return result;
+}
+
+fn test_multiple_else_if() -> i64 {
+    let score = 85;
+    
+    if (score >= 90) {
+        return 4; // A
+    } else if (score >= 80) {
+        return 3; // B
+    } else if (score >= 70) {
+        return 2; // C
+    } else if (score >= 60) {
+        return 1; // D
+    } else {
+        return 0; // F
+    }
+}
+
+fn main() -> i64 {
+    let test1 = test_if_else_basic();
+    let test2 = test_if_else_nested();
+    let test3 = test_if_else_with_variables();
+    let test4 = test_multiple_else_if();
+    
+    return test1 + test2 + test3 + test4;
+}

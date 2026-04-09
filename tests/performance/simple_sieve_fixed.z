@@ -1,0 +1,36 @@
+// Simple sieve with fixed array size
+fn main() -> i64 {
+    let limit: i64 = 10;
+    
+    // Fixed size array
+    let mut is_prime: [bool; 10] = [true; 10];
+    
+    // 0 and 1 are not prime
+    is_prime[0] = false;
+    is_prime[1] = false;
+    
+    let mut i: i64 = 2;
+    
+    while i * i < limit {
+        if is_prime[i as usize] {
+            let mut j: i64 = i * i;
+            while j < limit {
+                is_prime[j as usize] = false;
+                j += i;
+            }
+        }
+        i += 1;
+    }
+    
+    // Count primes
+    let mut count: i64 = 0;
+    let mut k: i64 = 0;
+    while k < limit {
+        if is_prime[k as usize] {
+            count += 1;
+        }
+        k += 1;
+    }
+    
+    return count; // Should return 4
+}

@@ -1,0 +1,51 @@
+// Zeta Compiler Verification Suite
+// Proves infinite while loop bug is FIXED
+
+// Test 1: Basic while loop
+fn test_basic_while() -> u64 {
+    let mut i: u64 = 0
+    while i < 3 {
+        i += 1
+    }
+    return i  // Should return 3
+}
+
+// Test 2: Nested while loops  
+fn test_nested_while() -> u64 {
+    let mut i: u64 = 0
+    let mut j: u64 = 0
+    let mut count: u64 = 0
+    
+    while i < 3 {
+        j = 0
+        while j < 3 {
+            count += 1
+            j += 1
+        }
+        i += 1
+    }
+    return count  // Should return 9
+}
+
+// Test 3: While loop with array operations
+fn test_array_while() -> u64 {
+    let arr: [dynamic]u8 = [dynamic]u8{}
+    
+    let mut i: u64 = 0
+    while i < 5 {
+        arr.push(0)
+        i += 1
+    }
+    
+    return arr.len()  // Should return 5
+}
+
+// Main function runs all tests
+fn main() -> u64 {
+    let test1 = test_basic_while()    // Should be 3
+    let test2 = test_nested_while()   // Should be 9  
+    let test3 = test_array_while()    // Should be 5
+    
+    // Combine results: 3 * 10000 + 9 * 100 + 5 = 30905
+    return test1 * 10000 + test2 * 100 + test3
+}

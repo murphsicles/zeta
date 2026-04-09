@@ -1,0 +1,20 @@
+﻿// Should fail type checking
+fn should_fail1() -> bool {
+    return 42  // i64, not bool
+}
+
+fn should_fail2(x: u64) -> bool {
+    return x + 10  // i64, not bool
+}
+
+fn should_fail3() -> u64 {
+    return true  // bool, not u64
+}
+
+fn main() -> u64 {
+    // Call the functions to force type checking
+    let _ = should_fail1()
+    let _ = should_fail2(5)
+    let _ = should_fail3()
+    return 0
+}

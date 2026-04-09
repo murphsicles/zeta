@@ -1,0 +1,1 @@
+comptime x: [u64; NUM_RESIDUES] = something()

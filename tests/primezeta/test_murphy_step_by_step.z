@@ -1,0 +1,42 @@
+// Test Murphy's Sieve step by step
+
+fn test_step() -> u64 {
+    let limit: u64 = 3
+    
+    // Create array
+    let bits: [dynamic]i64 = [dynamic]i64{}
+    
+    // Initialize with 3 zeros
+    bits.push(0)
+    bits.push(0)
+    bits.push(0)
+    
+    // Mark 0 and 1 as composite
+    bits[0] = 1
+    bits[1] = 1
+    
+    // Now array should be [1, 1, 0]
+    
+    // Check bits[2] value
+    let value_at_2 = bits[2]  // Should be 0
+    
+    // Count zeros
+    let mut count: u64 = 0
+    let mut n: u64 = 0
+    while n < 3 {
+        if bits[n] == 0 {
+            count += 1
+        }
+        n += 1
+    }
+    
+    // Return combination: value_at_2 * 10 + count
+    // If value_at_2=0 and count=1, returns 1
+    // If value_at_2=0 and count=0, returns 0
+    // If value_at_2=1 and count=0, returns 10
+    return value_at_2 * 10 + count
+}
+
+fn main() -> u64 {
+    return test_step()
+}

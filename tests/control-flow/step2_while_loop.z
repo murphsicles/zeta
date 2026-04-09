@@ -1,0 +1,14 @@
+// Step 2: Add while loop
+fn test() -> u64 {
+    let mut count: u64 = 0
+    let mut i: u64 = 0
+    while i < 10 {
+        count += i
+        i += 1
+    }
+    return count
+}
+
+fn main() -> u64 {
+    return test()
+}

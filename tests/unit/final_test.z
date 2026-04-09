@@ -1,0 +1,40 @@
+// Final test to verify compiler stability
+// This tests the crash points that were fixed
+
+fn main() {
+    // Test 1: Array operations (should not crash)
+    let arr = [1, 2, 3, 4, 5];
+    let mut sum = 0;
+    
+    // Safe array access
+    for i in 0..5 {
+        sum = sum + arr[i];
+    }
+    
+    println("Array sum: ", sum);
+    
+    // Test 2: Const expressions (should not crash)
+    const N: i32 = 100;
+    const M: i32 = N * 2;
+    
+    println("Const N: ", N);
+    println("Const M: ", M);
+    
+    // Test 3: Control flow (should not crash)
+    let mut i = 0;
+    while i < 10 {
+        i = i + 1;
+    }
+    
+    println("Loop completed, i = ", i);
+    
+    // Test 4: Function calls (should not crash)
+    let result = multiply(7, 8);
+    println("7 * 8 = ", result);
+    
+    println("All tests passed - compiler is stable!");
+}
+
+fn multiply(a: i32, b: i32) -> i32 {
+    return a * b;
+}

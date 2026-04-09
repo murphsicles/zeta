@@ -1,0 +1,21 @@
+// Tiny prime test - limit=10
+fn main() -> i32 {
+    let limit: i32 = 10;
+    let mut count: i32 = 0;
+    
+    // Simple prime counting
+    for n in 2..limit {
+        let mut is_prime: bool = true;
+        for i in 2..n {
+            if n % i == 0 {
+                is_prime = false;
+                break;
+            }
+        }
+        if is_prime {
+            count += 1;
+        }
+    }
+    
+    return count; // Should return 4 (primes: 2, 3, 5, 7)
+}

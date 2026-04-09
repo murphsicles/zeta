@@ -1,0 +1,23 @@
+// Minimal PrimeZeta test - removing unsupported features
+// Removed: comptime, #[ai_opt], [dynamic]T, complex array syntax
+
+const MODULUS: u64 = 30030;
+const NUM_RESIDUES: usize = 5760;
+
+// Simple GCD function (no comptime)
+fn gcd(a: u64, b: u64) -> u64 {
+    var x = a;
+    var y = b;
+    while y != 0 {
+        let t = y;
+        y = x % y;
+        x = t;
+    }
+    return x;
+}
+
+// Simple main function
+fn main() -> u64 {
+    let result = gcd(42, 56);
+    return result;
+}

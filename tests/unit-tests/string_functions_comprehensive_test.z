@@ -1,0 +1,64 @@
+// Comprehensive string function test
+
+fn main() -> i64 {
+    // Test 1: str_len
+    let len = str_len("Hello");
+    if len != 5 {
+        return 1;
+    }
+    
+    // Test 2: str_starts_with (true case)
+    if !str_starts_with("Hello, World!", "Hello") {
+        return 2;
+    }
+    
+    // Test 3: str_starts_with (false case)
+    if str_starts_with("Hello, World!", "World") {
+        return 3;
+    }
+    
+    // Test 4: str_ends_with (true case)
+    if !str_ends_with("Hello, World!", "World!") {
+        return 4;
+    }
+    
+    // Test 5: str_ends_with (false case)
+    if str_ends_with("Hello, World!", "Hello") {
+        return 5;
+    }
+    
+    // Test 6: str_contains (true case)
+    if !str_contains("Hello, World!", "World") {
+        return 6;
+    }
+    
+    // Test 7: str_contains (false case)
+    if str_contains("Hello, World!", "Universe") {
+        return 7;
+    }
+    
+    // Test 8: str_to_lowercase
+    // We can't compare strings directly, but we can check length
+    let lower = str_to_lowercase("HELLO");
+    let lower_len = str_len(lower);
+    if lower_len != 5 {
+        return 8;
+    }
+    
+    // Test 9: str_to_uppercase
+    let upper = str_to_uppercase("hello");
+    let upper_len = str_len(upper);
+    if upper_len != 5 {
+        return 9;
+    }
+    
+    // Test 10: str_trim
+    let trimmed = str_trim("  hello  ");
+    let trimmed_len = str_len(trimmed);
+    if trimmed_len != 5 {
+        return 10;
+    }
+    
+    // All tests passed
+    0
+}

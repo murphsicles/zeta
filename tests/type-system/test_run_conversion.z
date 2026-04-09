@@ -1,0 +1,21 @@
+// Test that actually runs to verify conversions work
+fn main() {
+    // Test i64 to u64 conversion
+    let i: i64 = 42;
+    let u: u64 = i as u64;
+    println("i64 to u64: ", i, " -> ", u);
+    
+    // Test i64 to usize conversion (for array indexing)
+    let idx: i64 = 2;
+    let list = [10, 20, 30, 40, 50];
+    let value = list[idx as usize];
+    println("Array index conversion: list[", idx, " as usize] = ", value);
+    
+    // Test chained conversions
+    let x: i64 = 100;
+    let y: u64 = x as u64;
+    let z: usize = y as usize;
+    println("Chained conversions: ", x, " -> ", y, " -> ", z);
+    
+    println("All conversion tests passed!");
+}

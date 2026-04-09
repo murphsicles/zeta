@@ -1,0 +1,44 @@
+// Quick benchmark test for Father's validation
+fn main() {
+    let limit = 1000000;
+    let mut is_prime = [true; 1000000];
+    
+    // Simple sieve
+    let start = std::time::Instant::now();
+    
+    is_prime[0] = false;
+    is_prime[1] = false;
+    
+    let mut i = 2;
+    while i * i <= limit {
+        if is_prime[i] {
+            let mut j = i * i;
+            while j < limit {
+                is_prime[j] = false;
+                j += i;
+            }
+        }
+        i += 1;
+    }
+    
+    // Count primes
+    let mut count = 0;
+    let mut k = 0;
+    while k < limit {
+        if is_prime[k] {
+            count += 1;
+        }
+        k += 1;
+    }
+    
+    let duration = start.elapsed();
+    println!("Primes up to {}: {}", limit, count);
+    println!("Time: {:?}", duration);
+    
+    // Expected: 78498 primes
+    if count == 78498 {
+        println!("✅ CORRECT - Benchmark validation passed!");
+    } else {
+        println!("❌ INCORRECT - Expected 78498, got {}", count);
+    }
+}

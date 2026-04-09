@@ -1,0 +1,50 @@
+// Murphy's Sieve implementation to test compiler stability
+fn murphy_sieve(limit: i32) -> [i32] {
+    // Create sieve array
+    let mut sieve = [true; limit];
+    
+    // 0 and 1 are not prime
+    if limit > 0 {
+        sieve[0] = false;
+    }
+    if limit > 1 {
+        sieve[1] = false;
+    }
+    
+    // Sieve of Eratosthenes
+    let mut i = 2;
+    while i * i < limit {
+        if sieve[i] {
+            let mut j = i * i;
+            while j < limit {
+                sieve[j] = false;
+                j += i;
+            }
+        }
+        i += 1;
+    }
+    
+    // Collect primes
+    let mut primes = [];
+    let mut count = 0;
+    for idx in 0..limit {
+        if sieve[idx] {
+            primes.push(idx as i32);
+            count += 1;
+        }
+    }
+    
+    println!("Found {} primes up to {}", count, limit);
+    return primes;
+}
+
+fn main() {
+    let primes = murphy_sieve(100);
+    println!("First few primes: ");
+    for i in 0..10 {
+        if i < primes.len() {
+            print!("{} ", primes[i]);
+        }
+    }
+    println!("");
+}

@@ -1,0 +1,16 @@
+// Test simple to_string functions
+fn main() -> i64 {
+    // Test with i64 using to_string_i64
+    let num = 42;
+    let num_str = to_string_i64(num);
+    
+    // Test with bool using to_string_bool
+    let flag = true;
+    let bool_str = to_string_bool(flag);
+    
+    // Test with string using to_string_str
+    let s = "hello";
+    let s_str = to_string_str(s);
+    
+    return 0;
+}

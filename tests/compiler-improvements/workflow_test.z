@@ -1,0 +1,250 @@
+// Test file for professional workflow improvements
+// This file tests build system integration, cross-compilation, and profiling
+
+// Test 1: Library crate structure
+pub mod utils {
+    /// Public utility function
+    pub fn public_helper() -> String {
+        "Helper from utils".to_string()
+    }
+    
+    /// Internal utility (not exported)
+    fn internal_helper() -> i32 {
+        42
+    }
+}
+
+// Test 2: Feature flags for conditional compilation
+#[cfg(feature = "advanced_features")]
+mod advanced {
+    pub fn complex_algorithm() -> String {
+        "Advanced algorithm enabled".to_string()
+    }
+}
+
+#[cfg(not(feature = "advanced_features"))]
+mod advanced {
+    pub fn complex_algorithm() -> String {
+        "Basic algorithm (advanced features disabled)".to_string()
+    }
+}
+
+// Test 3: Cross-compilation support
+#[cfg(target_arch = "x86_64")]
+fn arch_specific_x86() -> String {
+    "x86_64 optimized code".to_string()
+}
+
+#[cfg(target_arch = "aarch64")]
+fn arch_specific_arm() -> String {
+    "ARM64 optimized code".to_string()
+}
+
+#[cfg(target_arch = "wasm32")]
+fn arch_specific_wasm() -> String {
+    "WebAssembly target".to_string()
+}
+
+// Test 4: Profile-guided optimization markers
+fn hot_function(n: i32) -> i32 {
+    // This function is expected to be hot (frequently called)
+    let mut sum = 0;
+    for i in 0..n {
+        sum += i * i;
+    }
+    sum
+}
+
+fn cold_function() -> String {
+    // This function is expected to be cold (rarely called)
+    "Cold path".to_string()
+}
+
+// Test 5: Link-time optimization test
+#[link_section = ".lto_section"]
+fn lto_optimized_function() -> i32 {
+    // This function should benefit from LTO
+    100
+}
+
+// Test 6: Sanitizer support
+#[cfg(sanitize = "address")]
+fn asan_instrumented() -> String {
+    "AddressSanitizer instrumented".to_string()
+}
+
+#[cfg(sanitize = "memory")]
+fn msan_instrumented() -> String {
+    "MemorySanitizer instrumented".to_string()
+}
+
+#[cfg(sanitize = "thread")]
+fn tsan_instrumented() -> String {
+    "ThreadSanitizer instrumented".to_string()
+}
+
+// Test 7: Benchmarking support
+#[cfg(feature = "benchmarks")]
+mod bench {
+    pub fn benchmark_helper() -> String {
+        "Benchmark mode enabled".to_string()
+    }
+}
+
+// Test 8: Version checking
+#[cfg(zeta_version = "0.3.38")]
+fn version_specific_code() -> String {
+    "Code for Zeta v0.3.38".to_string()
+}
+
+// Test 9: Debug vs Release builds
+#[cfg(debug_assertions)]
+fn debug_build() -> String {
+    "Debug build with assertions".to_string()
+}
+
+#[cfg(not(debug_assertions))]
+fn debug_build() -> String {
+    "Release build (assertions disabled)".to_string()
+}
+
+// Test 10: Platform-specific code
+#[cfg(target_family = "unix")]
+mod unix_specific {
+    pub fn get_system_info() -> String {
+        "Unix-like system".to_string()
+    }
+}
+
+#[cfg(target_family = "windows")]
+mod windows_specific {
+    pub fn get_system_info() -> String {
+        "Windows system".to_string()
+    }
+}
+
+// Test 11: SIMD optimizations
+#[cfg(target_feature = "sse2")]
+fn simd_optimized() -> String {
+    "SSE2 optimized".to_string()
+}
+
+#[cfg(target_feature = "avx2")]
+fn avx_optimized() -> String {
+    "AVX2 optimized".to_string()
+}
+
+#[cfg(target_feature = "neon")]
+fn neon_optimized() -> String {
+    "NEON optimized".to_string()
+}
+
+// Test 12: Build metadata
+const GIT_COMMIT: &str = env!("GIT_COMMIT_HASH");
+const BUILD_MODE: &str = if cfg!(debug_assertions) { "debug" } else { "release" };
+
+// Test 13: Incremental compilation test
+// This function would benefit from incremental recompilation
+fn frequently_changed_function() -> String {
+    // Business logic that changes often
+    format!("Build: {}, Mode: {}", GIT_COMMIT, BUILD_MODE)
+}
+
+// Test 14: Dependency injection for testing
+trait Database {
+    fn query(&self, sql: &str) -> String;
+}
+
+struct RealDatabase;
+impl Database for RealDatabase {
+    fn query(&self, sql: &str) -> String {
+        format!("Real DB query: {}", sql)
+    }
+}
+
+struct MockDatabase;
+impl Database for MockDatabase {
+    fn query(&self, sql: &str) -> String {
+        format!("Mock DB query: {}", sql)
+    }
+}
+
+fn business_logic(db: &dyn Database) -> String {
+    db.query("SELECT * FROM users")
+}
+
+// Test 15: Async/await for concurrent workflows
+async fn async_workflow() -> String {
+    // Simulate async work
+    "Async workflow completed".to_string()
+}
+
+// Main function
+fn main() {
+    println!("Utils: {}", utils::public_helper());
+    println!("Advanced features: {}", advanced::complex_algorithm());
+    
+    // Architecture specific
+    #[cfg(target_arch = "x86_64")]
+    println!("Arch: {}", arch_specific_x86());
+    
+    #[cfg(target_arch = "aarch64")]
+    println!("Arch: {}", arch_specific_arm());
+    
+    #[cfg(target_arch = "wasm32")]
+    println!("Arch: {}", arch_specific_wasm());
+    
+    // Profile-guided optimization
+    println!("Hot function result: {}", hot_function(100));
+    println!("Cold function: {}", cold_function());
+    println!("LTO function: {}", lto_optimized_function());
+    
+    // Sanitizers
+    #[cfg(sanitize = "address")]
+    println!("Sanitizer: {}", asan_instrumented());
+    
+    #[cfg(sanitize = "memory")]
+    println!("Sanitizer: {}", msan_instrumented());
+    
+    #[cfg(sanitize = "thread")]
+    println!("Sanitizer: {}", tsan_instrumented());
+    
+    // Version specific
+    #[cfg(zeta_version = "0.3.38")]
+    println!("Version: {}", version_specific_code());
+    
+    // Debug vs Release
+    println!("Build type: {}", debug_build());
+    
+    // Platform specific
+    #[cfg(target_family = "unix")]
+    println!("Platform: {}", unix_specific::get_system_info());
+    
+    #[cfg(target_family = "windows")]
+    println!("Platform: {}", windows_specific::get_system_info());
+    
+    // SIMD
+    #[cfg(target_feature = "sse2")]
+    println!("SIMD: {}", simd_optimized());
+    
+    #[cfg(target_feature = "avx2")]
+    println!("SIMD: {}", avx_optimized());
+    
+    #[cfg(target_feature = "neon")]
+    println!("SIMD: {}", neon_optimized());
+    
+    // Build metadata
+    println!("Git commit: {}", GIT_COMMIT);
+    println!("Build mode: {}", BUILD_MODE);
+    println!("Incremental: {}", frequently_changed_function());
+    
+    // Dependency injection
+    let real_db = RealDatabase;
+    println!("Real DB: {}", business_logic(&real_db));
+    
+    let mock_db = MockDatabase;
+    println!("Mock DB: {}", business_logic(&mock_db));
+    
+    // Async workflow (would need runtime)
+    println!("Async workflow test ready");
+}

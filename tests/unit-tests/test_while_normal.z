@@ -1,0 +1,10 @@
+// Test normal while loop execution
+// Without early return
+
+fn main() -> u64 {
+    let mut i: u64 = 0
+    while i < 3 {
+        i += 1
+    }
+    return i  // Should return 3
+}

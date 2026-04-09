@@ -1,0 +1,8 @@
+// Test with actual while loop
+fn main() -> i64 {
+    let mut i: i64 = 0
+    while i < 5 {
+        i = i + 1
+    }
+    return i
+}

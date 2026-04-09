@@ -1,0 +1,5 @@
+fn main() -> i32 {
+    // Test SIMD vector type without annotation
+    let v = Vector::new(1, 2, 3, 4);
+    return 0;
+}

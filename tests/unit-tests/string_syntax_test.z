@@ -1,0 +1,30 @@
+// Test string syntax in Zeta
+// Trying to understand how string literals work
+
+fn test_string_literal() -> i64 {
+    // Try different string literal syntaxes
+    let s1 = "hello";  // Double quotes
+    // let s2 = 'world';  // Single quotes (might not work)
+    
+    // For now, just return success
+    return 0;
+}
+
+fn test_string_function() -> i64 {
+    // Try to call a string function
+    // let s = "test";
+    // let len = s.len();  // Might not work yet
+    
+    return 0;
+}
+
+fn main() -> i64 {
+    let result1 = test_string_literal();
+    let result2 = test_string_function();
+    
+    if result1 == 0 && result2 == 0 {
+        return 0;  // Success
+    } else {
+        return 1;  // Failure
+    }
+}

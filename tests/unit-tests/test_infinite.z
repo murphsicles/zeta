@@ -1,0 +1,11 @@
+fn main() -> u64 {
+    // Test if while true works
+    let mut count: u64 = 0
+    while true {
+        count = count + 1
+        if count >= 10 {
+            break
+        }
+    }
+    return count
+}

@@ -1,0 +1,7 @@
+// Test empty braces
+fn main() -> u64 {
+    // Try empty braces
+    let x = {}
+    
+    return 0
+}

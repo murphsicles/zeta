@@ -1,0 +1,27 @@
+// Simple test with const array size
+const MAX: usize = 100;
+
+fn test_sieve() -> usize {
+    // Test array with const size
+    let mut arr: [usize; MAX] = [0; MAX];
+    
+    // Simple test: mark some numbers
+    arr[0] = 1;
+    arr[1] = 1;
+    
+    // Count unmarked
+    let mut count = 0;
+    let mut i = 0;
+    while i < MAX {
+        if arr[i] == 0 {
+            count += 1;
+        }
+        i += 1;
+    }
+    
+    return count;
+}
+
+fn main() -> usize {
+    return test_sieve();
+}

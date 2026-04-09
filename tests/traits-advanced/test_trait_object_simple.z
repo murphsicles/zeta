@@ -1,0 +1,23 @@
+// Simple test for trait objects
+concept Show {
+    fn show(&self) -> String;
+}
+
+struct Number {
+    value: i64
+}
+
+impl Show for Number {
+    fn show(&self) -> String {
+        format!("Number({})", self.value)
+    }
+}
+
+fn display(s: &dyn Show) -> String {
+    s.show()
+}
+
+fn main() -> String {
+    let n = Number { value: 42 };
+    display(&n)
+}

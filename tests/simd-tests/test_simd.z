@@ -1,0 +1,9 @@
+fn main() -> i64 {
+    // Test SIMD type declaration
+    let v: u64x8 = 0;
+    
+    // Test Vector<T, N> syntax
+    let w: Vector<u64, 8> = 0;
+    
+    0
+}

@@ -1,0 +1,23 @@
+// Simple compiler test for v0.3.54
+// This is the simplest possible "compiler" that can be compiled
+
+// Identity compiler function
+fn compile_zeta_to_zeta(source: String) -> String {
+    source
+}
+
+// Main function
+fn main() -> i64 {
+    // Test the compiler
+    let test_code = "fn test() -> i64 { return 42; }".to_string();
+    let compiled = compile_zeta_to_zeta(test_code);
+    
+    // Check if it worked
+    if compiled.contains("fn test") {
+        println!("✅ Compiler test passed!");
+        0
+    } else {
+        println!("❌ Compiler test failed!");
+        1
+    }
+}

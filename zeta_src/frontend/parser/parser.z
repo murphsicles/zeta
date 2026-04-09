@@ -1,0 +1,279 @@
+// zeta_src/frontend/parser/parser.z
+#[derive(Clone, Debug, PartialEq)]
+enum Token {
+    Ident(String),
+    KeywordFn,
+    KeywordConcept,
+    KeywordImpl,
+    KeywordStruct,
+    KeywordEnum,
+    KeywordReturn,
+    KeywordIf,
+    KeywordElse,
+    KeywordDefer,
+    KeywordSpawn,
+    KeywordFor,
+    KeywordLet,
+    Lit(i64),
+    FloatLit(f64),
+    StringLit(String),
+    LParen, RParen,
+    LBrace, RBrace,
+    LBracket, RBracket,
+    Colon, Comma, Eq, Arrow,
+    Plus, Minus, Star, Slash,
+    Lt, Gt,
+    Dot, Question,
+    Semi,
+    AtSymbol,
+    Eof,
+}
+
+struct Lexer {
+    input: String,
+    pos: i64,
+    tokens: Vec<Token>,
+}
+
+impl Lexer {
+    fn new(input: String) -> Self {
+        Self { input, pos: 0, tokens: vec![] }
+    }
+
+    fn tokenize(&mut self) -> Vec<Token> {
+        while self.pos < self.input.len() as i64 {
+            let ch = self.peek();
+            if ch.is_whitespace() {
+                self.skip_whitespace();
+                continue;
+            }
+            if ch.is_alphabetic() || ch == '_' {
+                self.lex_ident_or_keyword();
+            } else if ch.is_digit(10) {
+                self.lex_number();
+            } else if ch == '"' {
+                self.lex_string();
+            } else {
+                self.lex_symbol();
+            }
+        }
+        self.tokens.push(Token::Eof);
+        self.tokens.clone()
+    }
+
+    fn peek(&self) -> char {
+        self.input.chars().nth(self.pos as usize).unwrap_or('\0')
+    }
+
+    fn peek_next(&self) -> char {
+        self.input.chars().nth((self.pos + 1) as usize).unwrap_or('\0')
+    }
+
+    fn advance(&mut self) {
+        self.pos += 1;
+    }
+
+    fn skip_whitespace(&mut self) {
+        while self.peek().is_whitespace() {
+            self.advance();
+        }
+    }
+
+    fn lex_ident_or_keyword(&mut self) {
+        let mut word = String::new();
+        
+        // First character: check if it can start an identifier
+        // In Rust: XID_Start ∪ '_'
+        // For bootstrap: not digit, not whitespace, not operator symbol
+        let first_char = self.peek();
+        if !self.can_start_ident(first_char) {
+            return;
+        }
+        
+        word.push(first_char);
+        self.advance();
+        
+        // Subsequent characters: check if they can continue an identifier
+        // In Rust: XID_Continue
+        // For bootstrap: not whitespace, not operator symbol
+        while self.can_continue_ident(self.peek()) {
+            word.push(self.peek());
+            self.advance();
+        }
+        
+        let tok = match word.as_str() {
+            "fn" => Token::KeywordFn,
+            "concept" => Token::KeywordConcept,
+            "impl" => Token::KeywordImpl,
+            "struct" => Token::KeywordStruct,
+            "enum" => Token::KeywordEnum,
+            "return" => Token::KeywordReturn,
+            "if" => Token::KeywordIf,
+            "else" => Token::KeywordElse,
+            "defer" => Token::KeywordDefer,
+            "spawn" => Token::KeywordSpawn,
+            "for" => Token::KeywordFor,
+            "let" => Token::KeywordLet,
+            // ML keywords
+            "Tensor" => Token::KeywordTensor,
+            "diff" => Token::KeywordDiff,
+            "layer" => Token::KeywordLayer,
+            "model" => Token::KeywordModel,
+            "train" => Token::KeywordTrain,
+            "gradient" => Token::KeywordGradient,
+            "backward" => Token::KeywordBackward,
+            "step" => Token::KeywordStep,
+            "param" => Token::KeywordParam,
+            "requires_grad" => Token::KeywordRequiresGrad,
+            _ => Token::Ident(word),
+        };
+        self.tokens.push(tok);
+    }
+    
+    fn can_start_ident(&self, ch: char) -> bool {
+        if ch == '\0' {
+            return false;
+        }
+        
+        // Check for ASCII whitespace
+        match ch {
+            ' ' | '\t' | '\n' | '\r' => return false,
+            _ => {}
+        }
+        
+        // Can't start with ASCII digit
+        match ch {
+            '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => return false,
+            _ => {}
+        }
+        
+        // Check if it's an operator symbol that can't start an identifier
+        match ch {
+            '(' | ')' | '{' | '}' | '[' | ']' |
+            ':' | ',' | '=' | '+' | '-' | '*' | '/' |
+            '<' | '>' | '.' | '?' | ';' | '"' | '\'' |
+            '&' | '|' | '!' | '^' | '%' | '~' | '`' |
+            '@' | '#' | '\\' => false,
+            _ => true, // Allow everything else (including Unicode)
+        }
+    }
+    
+    fn can_continue_ident(&self, ch: char) -> bool {
+        if ch == '\0' {
+            return false;
+        }
+        
+        // Check for ASCII whitespace
+        match ch {
+            ' ' | '\t' | '\n' | '\r' => return false,
+            _ => {}
+        }
+        
+        // Check if it's an operator symbol that can't be in identifier
+        match ch {
+            '(' | ')' | '{' | '}' | '[' | ']' |
+            ':' | ',' | '=' | '+' | '-' | '*' | '/' |
+            '<' | '>' | '.' | '?' | ';' | '"' | '\'' |
+            '&' | '|' | '!' | '^' | '%' | '~' | '`' |
+            '@' | '#' | '\\' => false,
+            _ => true, // Allow everything else (including Unicode, digits, $, _)
+        }
+    }
+
+    fn lex_number(&mut self) {
+        let mut num_str = String::new();
+        let mut is_float = false;
+        
+        // Parse integer part
+        while self.peek().is_digit(10) {
+            num_str.push(self.peek());
+            self.advance();
+        }
+        
+        // Check for decimal point
+        if self.peek() == '.' && self.peek_next().is_digit(10) {
+            is_float = true;
+            num_str.push('.');
+            self.advance();
+            
+            // Parse fractional part
+            while self.peek().is_digit(10) {
+                num_str.push(self.peek());
+                self.advance();
+            }
+        }
+        
+        // Check for exponent
+        if self.peek() == 'e' || self.peek() == 'E' {
+            is_float = true;
+            num_str.push('e');
+            self.advance();
+            
+            // Optional sign
+            if self.peek() == '+' || self.peek() == '-' {
+                num_str.push(self.peek());
+                self.advance();
+            }
+            
+            // Parse exponent digits
+            while self.peek().is_digit(10) {
+                num_str.push(self.peek());
+                self.advance();
+            }
+        }
+        
+        if is_float {
+            // Parse as f64
+            let float_val: f64 = num_str.parse().unwrap_or(0.0);
+            self.tokens.push(Token::FloatLit(float_val));
+        } else {
+            // Parse as i64
+            let int_val: i64 = num_str.parse().unwrap_or(0);
+            self.tokens.push(Token::Lit(int_val));
+        }
+    }
+
+    fn lex_string(&mut self) {
+        self.advance(); // opening "
+        let mut s = String::new();
+        while self.peek() != '"' && self.peek() != '\0' {
+            s.push(self.peek());
+            self.advance();
+        }
+        self.advance(); // closing "
+        self.tokens.push(Token::StringLit(s));
+    }
+
+    fn lex_symbol(&mut self) {
+        let tok = match self.peek() {
+            '(' => Token::LParen,
+            ')' => Token::RParen,
+            '{' => Token::LBrace,
+            '}' => Token::RBrace,
+            '[' => Token::LBracket,
+            ']' => Token::RBracket,
+            ':' => Token::Colon,
+            ',' => Token::Comma,
+            '=' => Token::Eq,
+            '+' => Token::Plus,
+            '-' => if self.peek_next() == '>' {
+                self.advance();
+                self.advance();
+                Token::Arrow
+            } else {
+                Token::Minus
+            },
+            '*' => Token::Star,
+            '/' => Token::Slash,
+            '<' => Token::Lt,
+            '>' => Token::Gt,
+            '.' => Token::Dot,
+            '?' => Token::Question,
+            ';' => Token::Semi,
+            '@' => Token::AtSymbol,
+            _ => Token::Eof,
+        };
+        self.advance();
+        self.tokens.push(tok);
+    }
+}

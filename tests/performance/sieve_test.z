@@ -1,0 +1,29 @@
+fn main() -> i64 {
+    let limit: usize = 1000000;
+    let mut is_prime: [bool; 1000000] = [true; 1000000];
+    
+    // Simple sieve logic
+    let mut i = 2;
+    while i * i <= limit {
+        if is_prime[i] {
+            let mut j = i * i;
+            while j <= limit {
+                is_prime[j] = false;
+                j += i;
+            }
+        }
+        i += 1;
+    }
+    
+    // Count primes
+    let mut count: i64 = 0;
+    let mut k = 2;
+    while k <= limit {
+        if is_prime[k] {
+            count += 1;
+        }
+        k += 1;
+    }
+    
+    return count;
+}

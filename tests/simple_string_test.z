@@ -1,0 +1,13 @@
+// Simple string test for v0.3.55
+// Tests basic string operations
+
+fn main() -> i64 {
+    // Test 1: String literal
+    let s = "hello";
+    
+    // Test 2: String length
+    let len = s.len();
+    
+    // Return length as success code
+    return len;
+}

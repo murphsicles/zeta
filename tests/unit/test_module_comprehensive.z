@@ -1,0 +1,28 @@
+// Test comprehensive module system
+mod math {
+    pub fn add(a: i64, b: i64) -> i64 {
+        a + b
+    }
+    
+    pub fn sub(a: i64, b: i64) -> i64 {
+        a - b
+    }
+    
+    // Private function (not pub)
+    fn internal() -> i64 {
+        42
+    }
+}
+
+mod utils {
+    pub fn double(x: i64) -> i64 {
+        x * 2
+    }
+}
+
+fn main() -> i64 {
+    let a = math::add(10, 20);
+    let b = math::sub(30, 5);
+    let c = utils::double(a);
+    c - b  // Should be: (10+20)*2 - (30-5) = 60 - 25 = 35
+}

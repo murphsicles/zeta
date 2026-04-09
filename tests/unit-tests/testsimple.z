@@ -1,0 +1,24 @@
+// Test simple function without underscores
+
+fn testsimple() -> u64 {
+    let arr: [dynamic]u8 = [dynamic]u8{}
+    
+    arr.push(1)
+    arr.push(1)
+    arr.push(0)
+    
+    let mut count: u64 = 0
+    let mut n: u64 = 0
+    while n < 3 {
+        if arr[n] == 0 {
+            count += 1
+        }
+        n += 1
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    return testsimple()
+}

@@ -1,0 +1,67 @@
+// Test function-like procedural macros
+
+// Built-in function-like macros
+fn test_builtin_macros() {
+    // println! macro
+    println!("Hello, world!");
+    
+    // vec! macro
+    let v = vec![1, 2, 3];
+    println!("Vector: {:?}", v);
+    
+    // format! macro (simulated)
+    let s = format!("The answer is {}", 42);
+    println!("Formatted: {}", s);
+}
+
+// Custom function-like macro
+macro_rules! my_vec {
+    ($($x:expr),*) => {
+        {
+            let mut temp_vec = Vec::new();
+            $(temp_vec.push($x);)*
+            temp_vec
+        }
+    };
+}
+
+fn test_custom_function_like_macro() {
+    let v = my_vec![1, 2, 3, 4, 5];
+    println!("Custom vec: {:?}", v);
+}
+
+// Macro with different delimiters
+macro_rules! assert_eq {
+    ($left:expr, $right:expr) => {
+        if $left != $right {
+            panic!("Assertion failed: {} != {}", $left, $right);
+        }
+    };
+}
+
+fn test_assert_macro() {
+    assert_eq!(2 + 2, 4);
+    println!("Assertion passed!");
+}
+
+// Macro with repetition
+macro_rules! hash_map {
+    ($($key:expr => $value:expr),*) => {
+        {
+            let mut map = std::collections::HashMap::new();
+            $(map.insert($key, $value);)*
+            map
+        }
+    };
+}
+
+fn main() -> i64 {
+    println!("Testing function-like macros...");
+    
+    test_builtin_macros();
+    test_custom_function_like_macro();
+    test_assert_macro();
+    
+    println!("All function-like macro tests completed!");
+    0
+}

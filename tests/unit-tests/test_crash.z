@@ -1,0 +1,16 @@
+// Test program to check for compiler crashes
+fn main() {
+    // Test array operations
+    let arr = [1, 2, 3, 4, 5];
+    let x = arr[10]; // This should cause array index out of bounds
+    
+    // Test const expression in array size
+    const SIZE: i32 = 100;
+    let big_arr: [i32; SIZE] = [0; SIZE];
+    
+    // Test SIMD operations (if supported)
+    // use std::simd;
+    // let vec = simd::splat::<i32, 4>(5);
+    
+    println!("Test completed");
+}

@@ -1,0 +1,5 @@
+// Test variable creation
+comptime fn main() -> i64 {
+    var x = 5
+    x
+}

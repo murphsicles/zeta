@@ -1,0 +1,21 @@
+[package]
+name = "zeta-verification"
+version = "0.1.0"
+edition = "2021"
+description = "Formal verification system for Zeta programming language"
+license = "MIT"
+authors = ["Zeta Project <zeta@example.com>"]
+
+[dependencies]
+# We'll add Z3 bindings later when we integrate with actual Z3
+# z3 = { version = "0.12", features = ["static-link-z3"] }
+
+[dev-dependencies]
+
+[[bin]]
+name = "test-verification"
+path = "test_verification.rs"
+
+[lib]
+name = "verification"
+path = "src/lib.rs"

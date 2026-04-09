@@ -1,0 +1,26 @@
+// Test counting logic
+
+fn test_counting() -> u64 {
+    let arr: [dynamic]u8 = [dynamic]u8{}
+    
+    // Create array [1, 1, 0]
+    arr.push(1)
+    arr.push(1)
+    arr.push(0)
+    
+    // Count zeros
+    let mut count: u64 = 0
+    let mut n: u64 = 0
+    while n < 3 {
+        if arr[n] == 0 {
+            count += 1
+        }
+        n += 1
+    }
+    
+    return count  // Should be 1
+}
+
+fn main() -> u64 {
+    return test_counting()
+}

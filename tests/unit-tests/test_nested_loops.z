@@ -1,0 +1,17 @@
+// Test nested loops
+fn main() -> i64 {
+    let mut i: i64 = 0
+    let mut j: i64 = 0
+    let mut count: i64 = 0
+    
+    while i < 3 {
+        j = 0
+        while j < 3 {
+            count = count + 1
+            j = j + 1
+        }
+        i = i + 1
+    }
+    
+    return count  // Should return 9 (3 * 3)
+}

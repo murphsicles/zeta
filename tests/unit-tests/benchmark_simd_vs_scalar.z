@@ -1,0 +1,365 @@
+// Benchmark comparison: Scalar vs SIMD Murphy's Sieve
+// Measures performance difference between implementations
+
+// Import implementations
+// Note: In a real project, these would be in separate modules
+// For this benchmark, we'll include simplified versions
+
+// Simple timer simulation (in real implementation would use system time)
+fn get_time() -> u64 {
+    // Placeholder - returns incrementing counter
+    static mut counter: u64 = 0
+    unsafe {
+        counter += 1
+        return counter
+    }
+}
+
+// Scalar implementation (simplified for benchmark)
+fn murphy_sieve_scalar(limit: u64) -> u64 {
+    if limit < 2 {
+        return 0
+    }
+    
+    let array_size = (limit + 1) as usize
+    let mut is_prime: [u8] = []
+    
+    // Initialize
+    let mut i: usize = 0
+    while i < array_size {
+        is_prime.append(1)
+        i += 1
+    }
+    
+    is_prime[0] = 0
+    is_prime[1] = 0
+    
+    // Sieve
+    let sqrt_limit = (limit as f64).sqrt() as u64
+    let mut p: u64 = 2
+    
+    while p <= sqrt_limit {
+        if is_prime[p as usize] == 1 {
+            let mut multiple = p * p
+            while multiple <= limit {
+                is_prime[multiple as usize] = 0
+                multiple += p
+            }
+        }
+        p += 1
+    }
+    
+    // Count
+    let mut count: u64 = 0
+    i = 2
+    while i < array_size {
+        if is_prime[i] == 1 {
+            count += 1
+        }
+        i += 1
+    }
+    
+    return count
+}
+
+// SIMD-optimized implementation (simplified for benchmark)
+fn murphy_sieve_simd(limit: u64) -> u64 {
+    if limit < 2 {
+        return 0
+    }
+    
+    let array_size = (limit + 1) as usize
+    let mut is_prime: [u8] = []
+    
+    // Initialize
+    let mut i: usize = 0
+    while i < array_size {
+        is_prime.append(1)
+        i += 1
+    }
+    
+    is_prime[0] = 0
+    is_prime[1] = 0
+    
+    // SIMD optimization: process in chunks
+    const SIMD_WIDTH: usize = 8
+    let sqrt_limit = (limit as f64).sqrt() as u64
+    let mut p: u64 = 2
+    
+    while p <= sqrt_limit {
+        if is_prime[p as usize] == 1 {
+            // Mark multiples with SIMD-style unrolling
+            let mut multiple = p * p
+            let prime_x8 = p * SIMD_WIDTH as u64
+            
+            // Process chunks
+            while multiple + prime_x8 <= limit + p {
+                // Unrolled marking
+                let mut offset: u64 = 0
+                while offset < SIMD_WIDTH as u64 {
+                    let pos = multiple + offset * p
+                    if pos <= limit {
+                        is_prime[pos as usize] = 0
+                    }
+                    offset += 1
+                }
+                multiple += prime_x8
+            }
+            
+            // Remainder
+            while multiple <= limit {
+                is_prime[multiple as usize] = 0
+                multiple += p
+            }
+        }
+        p += 1
+    }
+    
+    // SIMD-optimized counting
+    let mut count: u64 = 0
+    i = 2
+    
+    // Count in chunks
+    while i + SIMD_WIDTH <= array_size {
+        // Unrolled counting
+        if is_prime[i] == 1 { count += 1 }
+        if is_prime[i + 1] == 1 { count += 1 }
+        if is_prime[i + 2] == 1 { count += 1 }
+        if is_prime[i + 3] == 1 { count += 1 }
+        if is_prime[i + 4] == 1 { count += 1 }
+        if is_prime[i + 5] == 1 { count += 1 }
+        if is_prime[i + 6] == 1 { count += 1 }
+        if is_prime[i + 7] == 1 { count += 1 }
+        
+        i += SIMD_WIDTH
+    }
+    
+    // Count remainder
+    while i < array_size {
+        if is_prime[i] == 1 {
+            count += 1
+        }
+        i += 1
+    }
+    
+    return count
+}
+
+// Cache-optimized SIMD implementation
+fn murphy_sieve_cache_optimized(limit: u64) -> u64 {
+    if limit < 2 {
+        return 0
+    }
+    
+    let array_size = (limit + 1) as usize
+    let mut is_prime: [u8] = []
+    
+    // Initialize
+    let mut i: usize = 0
+    while i < array_size {
+        is_prime.append(1)
+        i += 1
+    }
+    
+    is_prime[0] = 0
+    is_prime[1] = 0
+    
+    // Block processing for cache optimization
+    const BLOCK_SIZE: u64 = 8192
+    let sqrt_limit = (limit as f64).sqrt() as u64
+    
+    // Find small primes first
+    let mut small_primes: [u64] = []
+    let mut p: u64 = 2
+    
+    while p <= sqrt_limit {
+        if is_prime[p as usize] == 1 {
+            small_primes.append(p)
+            // Mark multiples in full array for small primes
+            let mut multiple = p * p
+            while multiple <= limit {
+                is_prime[multiple as usize] = 0
+                multiple += p
+            }
+        }
+        p += 1
+    }
+    
+    // Process in blocks
+    let mut block_start = sqrt_limit + 1
+    while block_start <= limit {
+        let block_end = if block_start + BLOCK_SIZE - 1 > limit {
+            limit
+        } else {
+            block_start + BLOCK_SIZE - 1
+        }
+        
+        // Sieve this block with all small primes
+        for prime in small_primes {
+            if prime == 0 { break }
+            
+            // Find first multiple in this block
+            let first_multiple = ((block_start + prime - 1) / prime) * prime
+            if first_multiple > block_end {
+                continue
+            }
+            
+            // Mark multiples in block
+            let mut multiple = first_multiple
+            while multiple <= block_end {
+                is_prime[multiple as usize] = 0
+                multiple += prime
+            }
+        }
+        
+        block_start += BLOCK_SIZE
+    }
+    
+    // Count primes
+    let mut count: u64 = 0
+    i = 2
+    while i < array_size {
+        if is_prime[i] == 1 {
+            count += 1
+        }
+        i += 1
+    }
+    
+    return count
+}
+
+// Run single benchmark iteration
+fn run_benchmark(limit: u64, version: u64) -> (u64, u64) {
+    let start_time = get_time()
+    
+    let result: u64
+    if version == 0 {
+        result = murphy_sieve_scalar(limit)
+    } else if version == 1 {
+        result = murphy_sieve_simd(limit)
+    } else {
+        result = murphy_sieve_cache_optimized(limit)
+    }
+    
+    let end_time = get_time()
+    let elapsed = end_time - start_time
+    
+    return (result, elapsed)
+}
+
+// Verify all implementations give same results
+fn verify_implementations() -> u64 {
+    let test_limits = [10, 100, 1000]
+    let mut passed = 0
+    
+    for limit in test_limits {
+        let scalar_result = murphy_sieve_scalar(limit)
+        let simd_result = murphy_sieve_simd(limit)
+        let cache_result = murphy_sieve_cache_optimized(limit)
+        
+        if scalar_result == simd_result && scalar_result == cache_result {
+            passed += 1
+        }
+    }
+    
+    return passed
+}
+
+// Performance comparison
+fn compare_performance() -> u64 {
+    // Test with medium limit
+    let limit = 10000
+    
+    // Run each version multiple times for better measurement
+    const ITERATIONS: u64 = 10
+    
+    let mut scalar_total_time: u64 = 0
+    let mut simd_total_time: u64 = 0
+    let mut cache_total_time: u64 = 0
+    
+    let mut scalar_result: u64 = 0
+    let mut simd_result: u64 = 0
+    let mut cache_result: u64 = 0
+    
+    let mut i: u64 = 0
+    while i < ITERATIONS {
+        let (result1, time1) = run_benchmark(limit, 0)  // Scalar
+        let (result2, time2) = run_benchmark(limit, 1)  // SIMD
+        let (result3, time3) = run_benchmark(limit, 2)  // Cache-optimized
+        
+        scalar_total_time += time1
+        simd_total_time += time2
+        cache_total_time += time3
+        
+        scalar_result = result1
+        simd_result = result2
+        cache_result = result3
+        
+        i += 1
+    }
+    
+    // Calculate averages
+    let scalar_avg = scalar_total_time / ITERATIONS
+    let simd_avg = simd_total_time / ITERATIONS
+    let cache_avg = cache_total_time / ITERATIONS
+    
+    // Calculate speedup
+    let simd_speedup = if simd_avg > 0 {
+        scalar_avg * 100 / simd_avg  // Percentage
+    } else {
+        0
+    }
+    
+    let cache_speedup = if cache_avg > 0 {
+        scalar_avg * 100 / cache_avg  // Percentage
+    } else {
+        0
+    }
+    
+    // Verify results are consistent
+    if scalar_result == simd_result && scalar_result == cache_result {
+        // Return encoded results: scalar_time | simd_time | cache_time | simd_speedup | cache_speedup
+        // Encode as: (scalar_avg << 48) | (simd_avg << 32) | (cache_avg << 16) | (simd_speedup << 8) | cache_speedup
+        let encoded = (scalar_avg << 48) | (simd_avg << 32) | (cache_avg << 16) | (simd_speedup << 8) | cache_speedup
+        return encoded
+    } else {
+        return 0  // Results don't match
+    }
+}
+
+// Main benchmark function
+fn main() -> u64 {
+    // First verify correctness
+    let verification = verify_implementations()
+    
+    if verification != 3 {
+        // Not all tests passed
+        return 0
+    }
+    
+    // Run performance comparison
+    let performance_data = compare_performance()
+    
+    if performance_data == 0 {
+        return 0  // Comparison failed
+    }
+    
+    // Decode and print results (in real implementation would print)
+    let scalar_time = (performance_data >> 48) & 0xFFFF
+    let simd_time = (performance_data >> 32) & 0xFFFF
+    let cache_time = (performance_data >> 16) & 0xFFFF
+    let simd_speedup = (performance_data >> 8) & 0xFF
+    let cache_speedup = performance_data & 0xFF
+    
+    // For this benchmark, we'll return a success code with speedup info
+    // Return format: (simd_speedup << 8) | cache_speedup
+    let result = (simd_speedup << 8) | cache_speedup
+    
+    // Also run a final correctness check with known value
+    let final_check = murphy_sieve_scalar(100000)
+    if final_check == 9592 {  // Known number of primes under 100,000
+        return result
+    } else {
+        return 0
+    }
+}

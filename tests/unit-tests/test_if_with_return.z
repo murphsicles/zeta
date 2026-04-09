@@ -1,0 +1,15 @@
+// Test if with return statement
+
+fn test_if() -> u64 {
+    let x: u64 = 5
+    
+    if x == 5 {
+        return 1
+    }
+    
+    return 0
+}
+
+fn main() -> u64 {
+    return test_if()
+}

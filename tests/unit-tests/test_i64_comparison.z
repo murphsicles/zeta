@@ -1,0 +1,16 @@
+// Test i64 comparison
+
+fn testi64compare() -> u64 {
+    let x: i64 = 0
+    let y: i64 = 0
+    
+    if x == y {
+        return 1
+    } else {
+        return 0
+    }
+}
+
+fn main() -> u64 {
+    return testi64compare()
+}

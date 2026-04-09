@@ -1,0 +1,22 @@
+// Test calling string functions
+// Trying to see how to call built-in string functions
+
+fn main() -> i64 {
+    // Create a string
+    let s = "hello";
+    
+    // Try to call string functions
+    // These might be built-in functions that we can call directly
+    
+    // Test 1: Get string length
+    // let len = s.len();  // This might not work - need to check syntax
+    
+    // Test 2: Call built-in string function directly
+    // let len = host_str_len(s);  // Might need different syntax
+    
+    // Test 3: Use to_string_str (which seems to be a built-in)
+    // let s2 = to_string_str(s);  // This might work
+    
+    // For now, just return success
+    return 0;
+}

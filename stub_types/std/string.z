@@ -1,0 +1,18 @@
+//! Stub for std::string::String
+pub struct String {
+    // Stub implementation
+}
+
+impl String {
+    pub fn from(s: &str) -> Self {
+        String {}
+    }
+    
+    pub fn len(&self) -> usize {
+        0
+    }
+    
+    pub fn is_empty(&self) -> bool {
+        true
+    }
+}

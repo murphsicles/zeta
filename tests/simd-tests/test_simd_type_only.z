@@ -1,0 +1,19 @@
+// Test SIMD type declarations without operations
+fn test_vector_type() -> i64 {
+    // Declare different SIMD types
+    let v1: Vector<u64, 8>;
+    let v2: Vector<i32, 4>;
+    let v3: Vector<f32, 4>;
+    
+    // Use shorthand syntax
+    let v4: u64x8;
+    let v5: i32x4;
+    let v6: f32x4;
+    
+    // Return success
+    0
+}
+
+fn main() -> i64 {
+    test_vector_type()
+}

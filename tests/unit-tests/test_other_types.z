@@ -1,0 +1,24 @@
+// Test that other return types still work
+
+fn returns_i64() -> i64 {
+    return 42
+}
+
+fn returns_u64() -> u64 {
+    return 42
+}
+
+fn returns_usize() -> usize {
+    return 42
+}
+
+fn returns_tuple() -> (i64, bool) {
+    return (1, true)
+}
+
+fn main() {
+    let a = returns_i64()
+    let b = returns_u64()
+    let c = returns_usize()
+    let (d, e) = returns_tuple()
+}

@@ -1,0 +1,54 @@
+// Test program for bootstrap compiler - variables and if statements
+// This should be compilable by the enhanced minimal Zeta compiler
+
+fn test_variables() -> i64 {
+    let x = 10;
+    let y = 20;
+    let z = x + y;
+    return z;
+}
+
+fn test_if_statement() -> i64 {
+    let a = 15;
+    let b = 25;
+    
+    if (a < b) {
+        return a;
+    }
+    
+    return b;
+}
+
+fn test_nested_if() -> i64 {
+    let value = 42;
+    
+    if (value > 0) {
+        if (value < 100) {
+            return value;
+        }
+    }
+    
+    return 0;
+}
+
+fn test_if_with_variables() -> i64 {
+    let x = 5;
+    let y = 10;
+    let result = 0;
+    
+    if (x < y) {
+        let temp = x * y;
+        result = temp;
+    }
+    
+    return result;
+}
+
+fn main() -> i64 {
+    let test1 = test_variables();
+    let test2 = test_if_statement();
+    let test3 = test_nested_if();
+    let test4 = test_if_with_variables();
+    
+    return test1 + test2 + test3 + test4;
+}

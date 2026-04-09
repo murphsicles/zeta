@@ -1,0 +1,462 @@
+// Phase 1 Algorithm Implementation - Sieve of Eratosthenes with Wheel Factorization
+// Target: 60,000x vs naive (480x improvement over current sqrt optimization)
+// Implementation for competition scale (up to 10,000,000)
+
+// Maximum limit for this implementation
+const MAX_LIMIT: usize = 10000000; // 10 million
+
+// ============================================================================
+// BASIC SIEVE OF ERATOSTHENES (O(n log log n))
+// ============================================================================
+
+fn sieve_basic(limit: usize) -> usize {
+    // Validate input
+    if limit > MAX_LIMIT {
+        return 0;
+    }
+    
+    if limit < 2 {
+        return 0;
+    }
+    
+    // Create boolean array: true = prime, false = composite
+    // Using usize array for simplicity (1 element per number)
+    let mut is_prime: [usize; MAX_LIMIT + 1] = [1; MAX_LIMIT + 1];
+    
+    // Mark 0 and 1 as not prime
+    is_prime[0] = 0;
+    is_prime[1] = 0;
+    
+    // Sieve algorithm
+    let mut p: usize = 2;
+    let sqrt_limit = (limit as f64).sqrt() as usize;
+    
+    while p <= sqrt_limit {
+        if is_prime[p] == 1 {
+            let mut multiple = p * p;
+            while multiple <= limit {
+                is_prime[multiple] = 0;
+                multiple += p;
+            }
+        }
+        p += 1;
+    }
+    
+    // Count primes
+    let mut count: usize = 0;
+    let mut i: usize = 2;
+    
+    while i <= limit {
+        if is_prime[i] == 1 {
+            count += 1;
+        }
+        i += 1;
+    }
+    
+    return count;
+}
+
+// ============================================================================
+// SIEVE WITH WHEEL OPTIMIZATION (Skip multiples of 2, 3, 5)
+// ============================================================================
+
+fn sieve_wheel_235(limit: usize) -> usize {
+    // Validate input
+    if limit > MAX_LIMIT {
+        return 0;
+    }
+    
+    if limit < 2 {
+        return 0;
+    }
+    
+    // Create boolean array
+    let mut is_prime: [usize; MAX_LIMIT + 1] = [1; MAX_LIMIT + 1];
+    
+    // Mark 0 and 1 as not prime
+    is_prime[0] = 0;
+    is_prime[1] = 0;
+    
+    // Handle small limits
+    if limit == 2 {
+        return 1;
+    }
+    if limit == 3 {
+        return 2;
+    }
+    if limit == 4 {
+        return 2;
+    }
+    if limit == 5 {
+        return 3;
+    }
+    
+    // Wheel optimization: pre-mark multiples of small primes
+    // Mark multiples of 2 (except 2 itself)
+    let mut i: usize = 4;
+    while i <= limit {
+        is_prime[i] = 0;
+        i += 2;
+    }
+    
+    // Mark multiples of 3 (except 3 itself)
+    i = 9;
+    while i <= limit {
+        is_prime[i] = 0;
+        i += 3;
+    }
+    
+    // Mark multiples of 5 (except 5 itself)
+    i = 25;
+    while i <= limit {
+        is_prime[i] = 0;
+        i += 5;
+    }
+    
+    // Main sieve loop starting from 7
+    // Only check numbers not divisible by 2, 3, or 5
+    let sqrt_limit = (limit as f64).sqrt() as usize;
+    let mut p: usize = 7;
+    
+    while p <= sqrt_limit {
+        if is_prime[p] == 1 {
+            let mut multiple = p * p;
+            while multiple <= limit {
+                is_prime[multiple] = 0;
+                multiple += p;
+            }
+        }
+        
+        // Increment to next candidate not divisible by 2, 3, or 5
+        // Pattern: +4, +2, +4, +2, +4, +6, +2, +6 (30-wheel spokes)
+        // Simplified: check p % 30 values
+        if p % 30 == 7 {
+            p += 4;
+        } else if p % 30 == 11 {
+            p += 2;
+        } else if p % 30 == 13 {
+            p += 4;
+        } else if p % 30 == 17 {
+            p += 2;
+        } else if p % 30 == 19 {
+            p += 4;
+        } else if p % 30 == 23 {
+            p += 6;
+        } else if p % 30 == 29 {
+            p += 2;
+        } else if p % 30 == 1 {
+            p += 6;
+        } else {
+            p += 1; // fallback
+        }
+    }
+    
+    // Count primes (including 2, 3, 5 which we know are prime)
+    let mut count: usize = 0;
+    
+    // Count 2, 3, 5
+    if limit >= 2 {
+        count += 1;
+    }
+    if limit >= 3 {
+        count += 1;
+    }
+    if limit >= 5 {
+        count += 1;
+    }
+    
+    // Count remaining primes (starting from 7)
+    let mut i: usize = 7;
+    while i <= limit {
+        if is_prime[i] == 1 {
+            count += 1;
+        }
+        
+        // Skip multiples of 2, 3, 5 using same pattern
+        if i % 30 == 7 {
+            i += 4;
+        } else if i % 30 == 11 {
+            i += 2;
+        } else if i % 30 == 13 {
+            i += 4;
+        } else if i % 30 == 17 {
+            i += 2;
+        } else if i % 30 == 19 {
+            i += 4;
+        } else if i % 30 == 23 {
+            i += 6;
+        } else if i % 30 == 29 {
+            i += 2;
+        } else if i % 30 == 1 {
+            i += 6;
+        } else {
+            i += 1; // fallback
+        }
+    }
+    
+    return count;
+}
+
+// ============================================================================
+// BIT-PACKED SIEVE (Memory efficient - 1 bit per number)
+// ============================================================================
+
+// Helper functions for bit operations
+fn set_bit(bit_array: &mut [usize], index: usize) {
+    let word = index / (usize::BITS as usize);
+    let bit = index % (usize::BITS as usize);
+    bit_array[word] |= 1 << bit;
+}
+
+fn clear_bit(bit_array: &mut [usize], index: usize) {
+    let word = index / (usize::BITS as usize);
+    let bit = index % (usize::BITS as usize);
+    bit_array[word] &= !(1 << bit);
+}
+
+fn get_bit(bit_array: &[usize], index: usize) -> bool {
+    let word = index / (usize::BITS as usize);
+    let bit = index % (usize::BITS as usize);
+    (bit_array[word] >> bit) & 1 == 1
+}
+
+fn sieve_bitpacked(limit: usize) -> usize {
+    // Validate input
+    if limit > MAX_LIMIT {
+        return 0;
+    }
+    
+    if limit < 2 {
+        return 0;
+    }
+    
+    // Calculate number of usize needed
+    let words_needed = (limit + 1 + usize::BITS as usize - 1) / (usize::BITS as usize);
+    
+    // Create bit array (all bits initially set to 1 = prime)
+    let mut bit_array: [usize] = [];
+    let mut i: usize = 0;
+    while i < words_needed {
+        bit_array.append(usize::MAX);
+        i += 1;
+    }
+    
+    // Mark 0 and 1 as not prime
+    clear_bit(&mut bit_array, 0);
+    clear_bit(&mut bit_array, 1);
+    
+    // Sieve algorithm
+    let sqrt_limit = (limit as f64).sqrt() as usize;
+    let mut p: usize = 2;
+    
+    while p <= sqrt_limit {
+        if get_bit(&bit_array, p) {
+            let mut multiple = p * p;
+            while multiple <= limit {
+                clear_bit(&mut bit_array, multiple);
+                multiple += p;
+            }
+        }
+        p += 1;
+    }
+    
+    // Count primes
+    let mut count: usize = 0;
+    let mut i: usize = 2;
+    
+    while i <= limit {
+        if get_bit(&bit_array, i) {
+            count += 1;
+        }
+        i += 1;
+    }
+    
+    return count;
+}
+
+// ============================================================================
+// SEGMENTED SIEVE (Cache-friendly for large limits)
+// ============================================================================
+
+const SEGMENT_SIZE: usize = 32768; // 32KB cache-friendly segment
+
+fn segmented_sieve(limit: usize) -> usize {
+    // Validate input
+    if limit > MAX_LIMIT {
+        return 0;
+    }
+    
+    if limit < 2 {
+        return 0;
+    }
+    
+    // For small limits, use basic sieve
+    if limit <= SEGMENT_SIZE * 2 {
+        return sieve_basic(limit);
+    }
+    
+    // Step 1: Find all primes up to sqrt(limit) using basic sieve
+    let sqrt_limit = (limit as f64).sqrt() as usize;
+    let small_primes = find_small_primes(sqrt_limit);
+    
+    // Step 2: Process in segments
+    let mut count: usize = 0;
+    let mut low: usize = 0;
+    
+    while low <= limit {
+        let high = if low + SEGMENT_SIZE <= limit {
+            low + SEGMENT_SIZE
+        } else {
+            limit
+        };
+        
+        // Create segment array (all numbers initially prime)
+        let mut segment: [usize; SEGMENT_SIZE + 1] = [1; SEGMENT_SIZE + 1];
+        
+        // For each small prime, mark its multiples in this segment
+        for &p in &small_primes {
+            // Find first multiple of p in [low, high]
+            let start = if low % p == 0 {
+                low
+            } else {
+                low + p - (low % p)
+            };
+            
+            // Mark multiples
+            let mut multiple = if start < p * p { p * p } else { start };
+            while multiple <= high {
+                segment[multiple - low] = 0;
+                multiple += p;
+            }
+        }
+        
+        // Count primes in this segment
+        let mut i: usize = if low == 0 { 2 } else { 0 };
+        while i <= high - low {
+            if segment[i] == 1 {
+                count += 1;
+            }
+            i += 1;
+        }
+        
+        low = high + 1;
+    }
+    
+    return count;
+}
+
+// Helper function for segmented sieve
+fn find_small_primes(limit: usize) -> [usize] {
+    if limit < 2 {
+        return [];
+    }
+    
+    let mut is_prime: [usize; MAX_LIMIT + 1] = [1; MAX_LIMIT + 1];
+    is_prime[0] = 0;
+    is_prime[1] = 0;
+    
+    let sqrt_limit = (limit as f64).sqrt() as usize;
+    let mut p: usize = 2;
+    
+    while p <= sqrt_limit {
+        if is_prime[p] == 1 {
+            let mut multiple = p * p;
+            while multiple <= limit {
+                is_prime[multiple] = 0;
+                multiple += p;
+            }
+        }
+        p += 1;
+    }
+    
+    // Collect primes into array
+    let mut primes: [usize] = [];
+    let mut i: usize = 2;
+    
+    while i <= limit {
+        if is_prime[i] == 1 {
+            primes.append(i);
+        }
+        i += 1;
+    }
+    
+    return primes;
+}
+
+// ============================================================================
+// VERIFICATION AND TESTING
+// ============================================================================
+
+// Known prime counts for verification
+fn known_prime_count(limit: usize) -> usize {
+    match limit {
+        0 => 0,
+        1 => 0,
+        2 => 1,
+        3 => 2,
+        5 => 3,
+        10 => 4,        // 2, 3, 5, 7
+        20 => 8,        // 2, 3, 5, 7, 11, 13, 17, 19
+        100 => 25,
+        1000 => 168,
+        10000 => 1229,
+        100000 => 9592,
+        1000000 => 78498,
+        10000000 => 664579,
+        _ => 0,
+    }
+}
+
+// Test all implementations
+fn test_all_implementations() -> usize {
+    let test_limits = [10, 100, 1000, 10000, 100000];
+    let mut passed_tests = 0;
+    let total_tests = test_limits.len() * 4; // 4 implementations
+    
+    println!("Testing Phase 1 Algorithm Implementations");
+    println!("=========================================\n");
+    
+    for &limit in &test_limits {
+        println!("Limit = {}:", limit);
+        
+        let expected = known_prime_count(limit);
+        
+        // Test basic sieve
+        let result1 = sieve_basic(limit);
+        let ok1 = result1 == expected;
+        println!("  Basic Sieve: {} (expected: {}) {}", result1, expected, if ok1 { "✓" } else { "✗" });
+        if ok1 { passed_tests += 1; }
+        
+        // Test wheel sieve
+        let result2 = sieve_wheel_235(limit);
+        let ok2 = result2 == expected;
+        println!("  Wheel Sieve: {} (expected: {}) {}", result2, expected, if ok2 { "✓" } else { "✗" });
+        if ok2 { passed_tests += 1; }
+        
+        // Test bitpacked sieve (skip for very small limits due to array initialization)
+        if limit >= 100 {
+            let result3 = sieve_bitpacked(limit);
+            let ok3 = result3 == expected;
+            println!("  Bitpacked:   {} (expected: {}) {}", result3, expected, if ok3 { "✓" } else { "✗" });
+            if ok3 { passed_tests += 1; }
+        } else {
+            println!("  Bitpacked:   Skipped (limit too small)");
+        }
+        
+        // Test segmented sieve
+        let result4 = segmented_sieve(limit);
+        let ok4 = result4 == expected;
+        println!("  Segmented:   {} (expected: {}) {}", result4, expected, if ok4 { "✓" } else { "✗" });
+        if ok4 { passed_tests += 1; }
+        
+        println!();
+    }
+    
+    println!("Passed {}/{} tests", passed_tests, total_tests);
+    return passed_tests;
+}
+
+// Main function
+fn main() -> usize {
+    return test_all_implementations();
+}

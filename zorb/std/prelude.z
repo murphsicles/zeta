@@ -1,0 +1,14 @@
+// Zorb Standard Library Prelude
+// Common imports automatically available in every Zeta module
+
+pub fn clone_i64(value: i64) -> i64 {
+    value
+}
+
+pub fn is_null_i64(value: i64) -> bool {
+    value == 0
+}
+
+pub fn to_string_str(value: str) -> str {
+    value
+}

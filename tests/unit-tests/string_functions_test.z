@@ -1,0 +1,107 @@
+// Test string functions for v0.3.55 Week 1 implementation
+// This test verifies that string functions are properly registered and functional
+
+fn test_string_concat() -> str {
+    let s1 = "Hello, ";
+    let s2 = "World!";
+    str_concat(s1, s2)
+}
+
+fn test_string_len() -> i64 {
+    let s = "Hello";
+    str_len(s)
+}
+
+fn test_string_to_lowercase() -> str {
+    let s = "HELLO";
+    str_to_lowercase(s)
+}
+
+fn test_string_to_uppercase() -> str {
+    let s = "hello";
+    str_to_uppercase(s)
+}
+
+fn test_string_trim() -> str {
+    let s = "  hello  ";
+    str_trim(s)
+}
+
+fn test_string_starts_with() -> bool {
+    let s = "Hello, World!";
+    str_starts_with(s, "Hello")
+}
+
+fn test_string_ends_with() -> bool {
+    let s = "Hello, World!";
+    str_ends_with(s, "World!")
+}
+
+fn test_string_contains() -> bool {
+    let s = "Hello, World!";
+    str_contains(s, "World")
+}
+
+fn test_string_replace() -> str {
+    let s = "Hello, World!";
+    str_replace(s, "World", "Universe")
+}
+
+fn main() -> i64 {
+    // Test string concatenation
+    let concat_result = test_string_concat();
+    if concat_result != "Hello, World!" {
+        return 1;
+    }
+    
+    // Test string length
+    let len_result = test_string_len();
+    if len_result != 5 {
+        return 2;
+    }
+    
+    // Test lowercase conversion
+    let lower_result = test_string_to_lowercase();
+    if lower_result != "hello" {
+        return 3;
+    }
+    
+    // Test uppercase conversion
+    let upper_result = test_string_to_uppercase();
+    if upper_result != "HELLO" {
+        return 4;
+    }
+    
+    // Test trim
+    let trim_result = test_string_trim();
+    if trim_result != "hello" {
+        return 5;
+    }
+    
+    // Test starts_with
+    let starts_result = test_string_starts_with();
+    if !starts_result {
+        return 6;
+    }
+    
+    // Test ends_with
+    let ends_result = test_string_ends_with();
+    if !ends_result {
+        return 7;
+    }
+    
+    // Test contains
+    let contains_result = test_string_contains();
+    if !contains_result {
+        return 8;
+    }
+    
+    // Test replace
+    let replace_result = test_string_replace();
+    if replace_result != "Hello, Universe!" {
+        return 9;
+    }
+    
+    // All tests passed
+    0
+}

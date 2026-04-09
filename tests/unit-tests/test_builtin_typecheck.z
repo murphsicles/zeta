@@ -1,0 +1,8 @@
+// Test program for built-in function type checking
+// This tests the to_string_i64 built-in function
+
+fn main() -> str {
+    // Test calling to_string_i64 with an integer
+    let result = to_string_i64(42);
+    result
+}

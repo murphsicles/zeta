@@ -1,0 +1,34 @@
+// Simple sieve test
+fn main() -> u64 {
+    const N: usize = 100;
+    let mut is_prime: [u8; N] = [1; N];
+    
+    // 0 and 1 are not prime
+    is_prime[0] = 0;
+    is_prime[1] = 0;
+    
+    // Sieve of Eratosthenes
+    let mut i: usize = 2;
+    while i * i < N {
+        if is_prime[i] == 1 {
+            let mut j: usize = i * i;
+            while j < N {
+                is_prime[j] = 0;
+                j += i;
+            }
+        }
+        i += 1;
+    }
+    
+    // Count primes
+    let mut count: u64 = 0;
+    let mut k: usize = 0;
+    while k < N {
+        if is_prime[k] == 1 {
+            count += 1;
+        }
+        k += 1;
+    }
+    
+    return count;
+}

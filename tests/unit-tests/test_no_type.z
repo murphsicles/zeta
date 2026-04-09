@@ -1,0 +1,11 @@
+// Test let without type annotation
+
+// This should work
+let a = 42
+
+// This might work
+let b = [0; 10]
+
+fn main() -> u64 {
+    return a
+}

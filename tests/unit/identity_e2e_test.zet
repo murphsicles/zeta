@@ -1,0 +1,30 @@
+// Simple identity test program
+// This tests basic identity type usage
+
+fn main() {
+    // Create an identity with read capability
+    let user_id: identity("user123")[read] = "user123";
+    
+    // Try to use it for reading (should work)
+    let length = user_id.len();
+    println!("User ID length: {}", length);
+    
+    // Create an identity with read/write capabilities
+    let mut config_token: identity[read, write];
+    config_token = "config_token_abc";
+    
+    // Try to modify it (should work with write capability)
+    config_token = config_token + "_updated";
+    println!("Updated token: {}", config_token);
+    
+    // Create a simple string (not an identity)
+    let regular_string = "hello world";
+    println!("Regular string: {}", regular_string);
+    
+    // Try to create an identity with execute capability
+    let executable: identity[read, execute] = "script.sh";
+    println!("Executable: {}", executable);
+    
+    // Return success
+    0
+}

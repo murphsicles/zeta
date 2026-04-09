@@ -1,0 +1,50 @@
+// Test advanced pattern matching features
+
+fn test_range_patterns() {
+    let x = 5;
+    
+    match x {
+        1..=10 => println("1 to 10"),
+        11..=20 => println("11 to 20"),
+        _ => println("other"),
+    }
+}
+
+fn test_at_patterns() {
+    let value = 7;
+    
+    match value {
+        x @ 1..=10 => println("x is between 1 and 10: {}", x),
+        y @ 11..=20 => println("y is between 11 and 20: {}", y),
+        _ => println("other"),
+    }
+}
+
+fn test_or_patterns() {
+    let value = 3;
+    
+    match value {
+        1 | 2 | 3 => println("small"),
+        4 | 5 | 6 => println("medium"),
+        7 | 8 | 9 => println("large"),
+        _ => println("other"),
+    }
+}
+
+fn test_pattern_guards() {
+    let x = 5;
+    let y = 10;
+    
+    match (x, y) {
+        (a, b) if a > 0 && b > 0 => println("both positive"),
+        (a, b) if a < 0 && b < 0 => println("both negative"),
+        _ => println("other"),
+    }
+}
+
+fn main() {
+    test_range_patterns();
+    test_at_patterns();
+    test_or_patterns();
+    test_pattern_guards();
+}

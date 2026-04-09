@@ -1,0 +1,278 @@
+// tests/concurrency-advanced/actor_system.z
+// Advanced actor system with message passing and supervision
+
+// Define message types for actor communication
+enum ActorMessage {
+    Ping(i32),
+    Pong(i32),
+    Compute(i32, i32),
+    Result(i32),
+    Shutdown,
+}
+
+// Base actor trait
+trait Actor {
+    fn handle_message(&mut self, msg: ActorMessage) -> Option<ActorMessage>;
+    fn on_start(&mut self);
+    fn on_stop(&mut self);
+}
+
+// Simple ping-pong actor
+struct PingPongActor {
+    id: i32,
+    partner_id: Option<i32>,
+    count: i32,
+}
+
+impl PingPongActor {
+    fn new(id: i32) -> Self {
+        Self {
+            id,
+            partner_id: None,
+            count: 0,
+        }
+    }
+    
+    fn set_partner(&mut self, partner_id: i32) {
+        self.partner_id = Some(partner_id);
+    }
+}
+
+impl Actor for PingPongActor {
+    fn handle_message(&mut self, msg: ActorMessage) -> Option<ActorMessage> {
+        match msg {
+            ActorMessage::Ping(value) => {
+                println!("Actor {} received Ping({})", self.id, value);
+                self.count += 1;
+                if self.count < 5 {
+                    Some(ActorMessage::Pong(value + 1))
+                } else {
+                    println!("Actor {} reached limit, stopping", self.id);
+                    None
+                }
+            }
+            ActorMessage::Pong(value) => {
+                println!("Actor {} received Pong({})", self.id, value);
+                self.count += 1;
+                if self.count < 5 {
+                    Some(ActorMessage::Ping(value + 1))
+                } else {
+                    println!("Actor {} reached limit, stopping", self.id);
+                    None
+                }
+            }
+            ActorMessage::Shutdown => {
+                println!("Actor {} shutting down", self.id);
+                None
+            }
+            _ => None,
+        }
+    }
+    
+    fn on_start(&mut self) {
+        println!("Actor {} started", self.id);
+    }
+    
+    fn on_stop(&mut self) {
+        println!("Actor {} stopped after {} messages", self.id, self.count);
+    }
+}
+
+// Worker actor for computation
+struct WorkerActor {
+    id: i32,
+    supervisor_id: Option<i32>,
+}
+
+impl WorkerActor {
+    fn new(id: i32) -> Self {
+        Self {
+            id,
+            supervisor_id: None,
+        }
+    }
+    
+    fn set_supervisor(&mut self, supervisor_id: i32) {
+        self.supervisor_id = Some(supervisor_id);
+    }
+}
+
+impl Actor for WorkerActor {
+    fn handle_message(&mut self, msg: ActorMessage) -> Option<ActorMessage> {
+        match msg {
+            ActorMessage::Compute(a, b) => {
+                println!("Worker {} computing {} + {}", self.id, a, b);
+                let result = a + b;
+                Some(ActorMessage::Result(result))
+            }
+            ActorMessage::Shutdown => {
+                println!("Worker {} shutting down", self.id);
+                None
+            }
+            _ => None,
+        }
+    }
+    
+    fn on_start(&mut self) {
+        println!("Worker {} started", self.id);
+    }
+    
+    fn on_stop(&mut self) {
+        println!("Worker {} stopped", self.id);
+    }
+}
+
+// Supervisor actor that manages workers
+struct SupervisorActor {
+    id: i32,
+    workers: Vec<i32>,
+    results: Vec<i32>,
+}
+
+impl SupervisorActor {
+    fn new(id: i32) -> Self {
+        Self {
+            id,
+            workers: Vec::new(),
+            results: Vec::new(),
+        }
+    }
+    
+    fn add_worker(&mut self, worker_id: i32) {
+        self.workers.push(worker_id);
+    }
+}
+
+impl Actor for SupervisorActor {
+    fn handle_message(&mut self, msg: ActorMessage) -> Option<ActorMessage> {
+        match msg {
+            ActorMessage::Result(value) => {
+                println!("Supervisor received result: {}", value);
+                self.results.push(value);
+                
+                if self.results.len() >= self.workers.len() {
+                    let total: i32 = self.results.iter().sum();
+                    println!("All workers completed. Total: {}", total);
+                    Some(ActorMessage::Shutdown)
+                } else {
+                    None
+                }
+            }
+            ActorMessage::Shutdown => {
+                println!("Supervisor shutting down workers");
+                for &worker_id in &self.workers {
+                    // Send shutdown to all workers
+                    println!("Sending shutdown to worker {}", worker_id);
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+    
+    fn on_start(&mut self) {
+        println!("Supervisor {} started with {} workers", self.id, self.workers.len());
+    }
+    
+    fn on_stop(&mut self) {
+        println!("Supervisor {} stopped. Results: {:?}", self.id, self.results);
+    }
+}
+
+// Actor system manager
+struct ActorSystem {
+    actors: std::collections::HashMap<i32, Box<dyn Actor>>,
+    next_id: i32,
+}
+
+impl ActorSystem {
+    fn new() -> Self {
+        Self {
+            actors: std::collections::HashMap::new(),
+            next_id: 1,
+        }
+    }
+    
+    fn spawn_actor<A: Actor + 'static>(&mut self, actor: A) -> i32 {
+        let id = self.next_id;
+        self.next_id += 1;
+        
+        let mut boxed_actor = Box::new(actor);
+        boxed_actor.on_start();
+        
+        self.actors.insert(id, boxed_actor);
+        id
+    }
+    
+    fn send_message(&mut self, actor_id: i32, msg: ActorMessage) -> bool {
+        if let Some(actor) = self.actors.get_mut(&actor_id) {
+            if let Some(response) = actor.handle_message(msg) {
+                // In a real system, we'd route this response to another actor
+                println!("Actor {} generated response: {:?}", actor_id, response);
+                true
+            } else {
+                true
+            }
+        } else {
+            false
+        }
+    }
+    
+    fn shutdown_actor(&mut self, actor_id: i32) {
+        if let Some(mut actor) = self.actors.remove(&actor_id) {
+            actor.on_stop();
+        }
+    }
+    
+    fn shutdown_all(&mut self) {
+        let actor_ids: Vec<i32> = self.actors.keys().cloned().collect();
+        for actor_id in actor_ids {
+            self.shutdown_actor(actor_id);
+        }
+    }
+}
+
+// Main test function
+fn test_actor_system() -> i32 {
+    println!("=== Testing Actor System ===");
+    
+    let mut system = ActorSystem::new();
+    
+    // Create ping-pong actors
+    let actor1_id = system.spawn_actor(PingPongActor::new(1));
+    let actor2_id = system.spawn_actor(PingPongActor::new(2));
+    
+    // Start the ping-pong
+    println!("\nStarting ping-pong between actors {} and {}", actor1_id, actor2_id);
+    system.send_message(actor1_id, ActorMessage::Ping(1));
+    
+    // Create supervisor and workers
+    let supervisor_id = system.spawn_actor(SupervisorActor::new(100));
+    
+    let worker1_id = system.spawn_actor(WorkerActor::new(101));
+    let worker2_id = system.spawn_actor(WorkerActor::new(102));
+    let worker3_id = system.spawn_actor(WorkerActor::new(103));
+    
+    // Send computation tasks
+    println!("\nSending computation tasks to workers");
+    system.send_message(worker1_id, ActorMessage::Compute(10, 20));
+    system.send_message(worker2_id, ActorMessage::Compute(30, 40));
+    system.send_message(worker3_id, ActorMessage::Compute(50, 60));
+    
+    // Simulate receiving results
+    println!("\nSimulating result processing");
+    system.send_message(supervisor_id, ActorMessage::Result(30));  // 10+20
+    system.send_message(supervisor_id, ActorMessage::Result(70));  // 30+40
+    system.send_message(supervisor_id, ActorMessage::Result(110)); // 50+60
+    
+    // Shutdown
+    println!("\nShutting down system");
+    system.shutdown_all();
+    
+    println!("\n=== Actor System Test Complete ===");
+    0
+}
+
+fn main() -> i32 {
+    test_actor_system()
+}

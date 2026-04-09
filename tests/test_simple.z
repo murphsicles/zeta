@@ -1,0 +1,6 @@
+// Simple test program
+fn main() -> i64 {
+    let x: i64 = 42;
+    let y: i64 = 10;
+    x + y
+}

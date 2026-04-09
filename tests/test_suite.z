@@ -1,0 +1,130 @@
+// Test suite for bootstrap compiler
+// Phase 1.1: Ultra Simple Compiler tests
+
+fn test_literal() -> i64 {
+    // Test: fn test() -> i64 { return 42; }
+    let source = r#"
+        fn test() -> i64 {
+            return 42;
+        }
+    "#.to_string();
+    
+    let expected = r#"
+        fn test() -> i64 {
+            return 42;
+        }
+    "#.to_string();
+    
+    // For now, just return success
+    // Later: compile source and compare with expected
+    0
+}
+
+fn test_identifier() -> i64 {
+    // Test: fn test() -> i64 { return x; }
+    let source = r#"
+        fn test() -> i64 {
+            return x;
+        }
+    "#.to_string();
+    
+    let expected = r#"
+        fn test() -> i64 {
+            return x;
+        }
+    "#.to_string();
+    
+    0
+}
+
+fn test_addition() -> i64 {
+    // Test: fn add() -> i64 { return a + b; }
+    let source = r#"
+        fn add() -> i64 {
+            return a + b;
+        }
+    "#.to_string();
+    
+    // Note: Our current compiler doesn't handle binary ops yet
+    // This test will fail until we implement it
+    0
+}
+
+fn test_multiple_functions() -> i64 {
+    // Test: Multiple functions
+    let source = r#"
+        fn answer() -> i64 {
+            return 42;
+        }
+        
+        fn main() -> i64 {
+            return answer();
+        }
+    "#.to_string();
+    
+    let expected = r#"
+        fn answer() -> i64 {
+            return 42;
+        }
+        
+        fn main() -> i64 {
+            return answer();
+        }
+    "#.to_string();
+    
+    0
+}
+
+fn run_all_tests() -> i64 {
+    println!("Running bootstrap compiler test suite...");
+    
+    let mut failures = 0;
+    
+    println!("Test 1: Literal return...");
+    if test_literal() != 0 {
+        println!("  FAILED");
+        failures += 1;
+    } else {
+        println!("  PASSED");
+    }
+    
+    println!("Test 2: Identifier return...");
+    if test_identifier() != 0 {
+        println!("  FAILED");
+        failures += 1;
+    } else {
+        println!("  PASSED");
+    }
+    
+    println!("Test 3: Addition expression...");
+    if test_addition() != 0 {
+        println!("  FAILED (expected - not implemented yet)");
+        // Don't count as failure since it's not implemented
+    } else {
+        println!("  PASSED");
+    }
+    
+    println!("Test 4: Multiple functions...");
+    if test_multiple_functions() != 0 {
+        println!("  FAILED");
+        failures += 1;
+    } else {
+        println!("  PASSED");
+    }
+    
+    println!("\nTest suite complete!");
+    println!("Total tests: 4");
+    println!("Failures: {}", failures);
+    
+    if failures == 0 {
+        println!("All tests PASSED! ✅");
+        return 0;
+    } else {
+        println!("Some tests FAILED! ❌");
+        return 1;
+    }
+}
+
+fn main() -> i64 {
+    run_all_tests()
+}

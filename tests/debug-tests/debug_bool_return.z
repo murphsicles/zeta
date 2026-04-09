@@ -1,0 +1,10 @@
+fn test() -> bool {
+    return true
+}
+
+fn main() -> u64 {
+    if test() {
+        return 1
+    }
+    return 0
+}

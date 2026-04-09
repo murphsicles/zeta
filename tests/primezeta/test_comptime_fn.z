@@ -1,0 +1,48 @@
+// Test comptime function parsing for v0.3.25
+// This test verifies that comptime functions can be parsed correctly
+
+const MODULUS: u64 = 30030
+const NUM_RESIDUES: usize = 5760
+
+// Test comptime function declaration
+comptime fn generate_residues() -> [NUM_RESIDUES]u64 {
+    var list: [NUM_RESIDUES]u64 = [0; NUM_RESIDUES]
+    var idx: usize = 0
+    for i in 1..MODULUS {
+        if gcd(i, MODULUS) == 1 {
+            list[idx] = i as u64
+            idx += 1
+        }
+    }
+    return list
+}
+
+// Test comptime variable with comptime function initializer
+comptime residues: [NUM_RESIDUES]u64 = generate_residues()
+
+// Test regular const function for comparison
+const fn add(a: i64, b: i64) -> i64 {
+    return a + b
+}
+
+// Test regular function
+fn multiply(a: i64, b: i64) -> i64 {
+    return a * b
+}
+
+// Test async function (should still work)
+async fn fetch_data() -> i64 {
+    return 42
+}
+
+// Test pub comptime function
+pub comptime fn public_comptime_fn() -> i64 {
+    return 100
+}
+
+// Main function to test compilation
+fn main() -> i64 {
+    // Test that we can call regular functions
+    let result = multiply(2, 3)
+    return result
+}

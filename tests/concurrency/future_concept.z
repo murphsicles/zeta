@@ -1,0 +1,88 @@
+// tests/concurrency/future_concept.z
+// Test Future concept (trait) implementation
+
+// Define the Future concept (trait)
+concept Future<T> {
+    // Poll method - returns Poll<T>
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<T>;
+}
+
+// Poll enum
+enum Poll<T> {
+    Ready(T),
+    Pending,
+}
+
+// Context struct for polling
+struct Context {
+    waker: Waker,
+}
+
+// Waker struct
+struct Waker;
+
+// Ready future implementation
+struct ReadyFuture<T> {
+    value: Option<T>,
+}
+
+impl<T> Future<T> for ReadyFuture<T> {
+    fn poll(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<T> {
+        match self.value.take() {
+            Some(value) => Poll::Ready(value),
+            None => Poll::Pending, // Already polled
+        }
+    }
+}
+
+// Function to create a ready future
+fn ready<T>(value: T) -> ReadyFuture<T> {
+    ReadyFuture { value: Some(value) }
+}
+
+// Simple async executor
+struct Executor {
+    futures: Vec<Pin<Box<dyn Future<i32>>>>,
+}
+
+impl Executor {
+    fn new() -> Self {
+        Self { futures: Vec::new() }
+    }
+    
+    fn spawn<F: Future<i32> + 'static>(&mut self, future: F) {
+        self.futures.push(Box::pin(future));
+    }
+    
+    fn run(&mut self) -> Option<i32> {
+        let waker = Waker;
+        let mut cx = Context { waker };
+        
+        for future in &mut self.futures {
+            match future.as_mut().poll(&mut cx) {
+                Poll::Ready(result) => return Some(result),
+                Poll::Pending => continue,
+            }
+        }
+        None
+    }
+}
+
+// Test function
+fn test_future_concept() -> i32 {
+    let mut executor = Executor::new();
+    
+    // Spawn a ready future
+    executor.spawn(ready(42));
+    
+    // Run executor
+    match executor.run() {
+        Some(result) => result,
+        None => 0,
+    }
+}
+
+// Main function
+fn main() -> i32 {
+    test_future_concept()
+}

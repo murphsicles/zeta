@@ -1,0 +1,10 @@
+// Test std imports with semicolon
+use std::malloc;
+use std::free;
+use std::print;
+use std::println;
+use std::args;
+
+fn main() -> i64 {
+    42
+}

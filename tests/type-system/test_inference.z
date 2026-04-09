@@ -1,0 +1,75 @@
+// Test type inference for range loops and comptime functions
+// Created as part of v0.3.26 TYPE-INFERENCE-FIXER mission
+
+// Test 1: Basic for loop with range
+fn test_for_loop_range() {
+    // This should type-check correctly
+    for i in 1..10 {
+        println!(i);
+    }
+}
+
+// Test 2: For loop with variable range
+fn test_for_loop_variable_range() {
+    let start = 1;
+    let end = 10;
+    for i in start..end {
+        println!(i);
+    }
+}
+
+// Test 3: Comptime function with array type
+comptime fn test_comptime_array() -> [5]i64 {
+    let mut arr = [0; 5];
+    for i in 0..5 {
+        arr[i] = i as i64;
+    }
+    arr
+}
+
+// Test 4: Range operator type inference
+fn test_range_operator() {
+    let range = 1..10;
+    // range should have type Range
+    println!("Range created");
+}
+
+// Test 5: For loop with usize
+fn test_for_loop_usize() {
+    for i in 0..10 as usize {
+        println!(i);
+    }
+}
+
+// Test 6: Nested for loops
+fn test_nested_for_loops() {
+    for i in 0..5 {
+        for j in 0..5 {
+            println!(i * j);
+        }
+    }
+}
+
+// Test 7: Comptime function with for loop
+comptime fn compute_factorial(n: i64) -> i64 {
+    let mut result = 1;
+    for i in 1..(n + 1) {
+        result = result * i;
+    }
+    result
+}
+
+fn main() {
+    test_for_loop_range();
+    test_for_loop_variable_range();
+    
+    let arr = test_comptime_array();
+    println!("Array: ", arr);
+    
+    test_range_operator();
+    test_for_loop_usize();
+    test_nested_for_loops();
+    
+    let fact = compute_factorial(5);
+    println!("5! = ", fact);
+}

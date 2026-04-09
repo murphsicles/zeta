@@ -1,0 +1,9 @@
+fn main() -> i32 {
+    let mut count: i32 = 0;
+    
+    for n in 0..5 {
+        count += 1;
+    }
+    
+    return count; // Should return 5
+}

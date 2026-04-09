@@ -1,0 +1,6 @@
+// Test const declaration compilation
+const N: usize = 100;
+
+fn main() -> usize {
+    return N;
+}

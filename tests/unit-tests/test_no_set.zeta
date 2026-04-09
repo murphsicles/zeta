@@ -1,0 +1,12 @@
+fn main() -> u64 {
+    // Create empty dynamic array
+    let arr = [dynamic]i64{}
+    
+    // Push three values
+    arr.push(42)
+    arr.push(100)
+    arr.push(255)
+    
+    // Get and return first value
+    return arr[0]
+}

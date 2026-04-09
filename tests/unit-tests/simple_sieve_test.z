@@ -1,0 +1,34 @@
+// Simplified Sieve for Competition - PROVES while loop fix works
+// Returns prime count for limit=30 (should be 10: 2,3,5,7,11,13,17,19,23,29)
+
+fn simple_sieve(limit: u64) -> u64 {
+    // Simple counter - demonstrates while loops work
+    let mut count: u64 = 0
+    let mut n: u64 = 2  // Start from 2, first prime
+    
+    while n < limit {
+        let mut is_prime: u64 = 1  // Assume prime
+        let mut divisor: u64 = 2
+        
+        // Check divisibility
+        while divisor * divisor <= n {
+            if n % divisor == 0 {
+                is_prime = 0  // Not prime
+                break
+            }
+            divisor += 1
+        }
+        
+        if is_prime == 1 {
+            count += 1
+        }
+        n += 1
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    // Test with limit=30 (should return 10)
+    return simple_sieve(30)
+}

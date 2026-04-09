@@ -1,0 +1,44 @@
+// Test Murphy's Sieve with limit=3
+
+fn murphy_sieve_limit3() -> u64 {
+    let limit: u64 = 3
+    
+    // Create dynamic bit array for sieve
+    // 0 = prime, 1 = composite
+    let bits: [dynamic]u8 = [dynamic]u8{}
+    
+    // Initialize array with zeros (all prime initially)
+    let mut i: u64 = 0
+    while i < limit {
+        bits.push(0)
+        i += 1
+    }
+    
+    // Mark 0 and 1 as not prime (if within bounds)
+    if limit > 0 {
+        bits[0] = 1
+    }
+    if limit > 1 {
+        bits[1] = 1
+    }
+    
+    // Sieve of Eratosthenes
+    // For limit=3, p from 2 to √3 (√3 ≈ 1.73, so p=2 is not in range)
+    // So we skip the sieve loop
+    
+    // Count primes (bits[i] == 0)
+    let mut count: u64 = 0
+    let mut n: u64 = 0
+    while n < limit {
+        if bits[n] == 0 {
+            count += 1
+        }
+        n += 1
+    }
+    
+    return count  // Should be 1 (prime: 2)
+}
+
+fn main() -> u64 {
+    return murphy_sieve_limit3()
+}

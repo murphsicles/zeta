@@ -1,0 +1,47 @@
+// Basic test for concept inheritance
+concept Clone {
+    fn clone(&self) -> Self;
+}
+
+concept Debug {
+    fn debug(&self) -> String;
+}
+
+// Concept with inheritance
+concept Printable: Clone + Debug {
+    fn print(&self);
+}
+
+// Struct implementing the concept
+struct Point {
+    x: i64,
+    y: i64,
+}
+
+impl Clone for Point {
+    fn clone(&self) -> Self {
+        Point { x: self.x, y: self.y }
+    }
+}
+
+impl Debug for Point {
+    fn debug(&self) -> String {
+        format!("Point({}, {})", self.x, self.y)
+    }
+}
+
+impl Printable for Point {
+    fn print(&self) {
+        println!("{}", self.debug());
+    }
+}
+
+// Test function using concepts
+fn print_point(p: &dyn Printable) {
+    p.print();
+}
+
+fn main() {
+    let p = Point { x: 10, y: 20 };
+    print_point(&p);
+}

@@ -1,0 +1,28 @@
+//! Stub for zorb::manifest::Manifest
+use zorb::package::Package
+
+pub struct Manifest {
+    package: Package,
+    dependencies: Vec<Dependency>,
+}
+
+pub struct Dependency {
+    name: String,
+    version: String,
+}
+
+impl Manifest {
+    pub fn new(package: Package) -> Self {
+        Manifest {
+            package,
+            dependencies: Vec::new(),
+        }
+    }
+
+    pub fn add_dependency(&mut self, name: &str, version: &str) {
+        self.dependencies.push(Dependency {
+            name: name.to_string(),
+            version: version.to_string(),
+        });
+    }
+}

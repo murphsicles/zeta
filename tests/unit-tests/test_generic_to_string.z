@@ -1,0 +1,20 @@
+// Test generic to_string_str<T> function
+fn test_generic_to_string() -> i64 {
+    // Test with i64
+    let num = 42;
+    let num_str = to_string_str(num);  // Should call to_string_i64
+    
+    // Test with bool
+    let flag = true;
+    let bool_str = to_string_str(flag);  // Should call to_string_bool
+    
+    // Test with string
+    let s = "hello";
+    let s_str = to_string_str(s);  // Should call to_string_str
+    
+    return 0;
+}
+
+fn main() -> i64 {
+    return test_generic_to_string();
+}

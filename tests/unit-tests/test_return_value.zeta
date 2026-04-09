@@ -1,0 +1,7 @@
+fn main() -> i64 {
+    let x: u8 = 0;
+    if x == 0 {
+        return 42;  // Return a specific value
+    }
+    return 0;
+}

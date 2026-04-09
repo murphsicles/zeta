@@ -1,0 +1,10 @@
+// Test all import patterns
+use crate::middle::mir::Mir;           // Rust internal
+use std::collections::HashMap;         // Standard library  
+use reqwest::blocking::Client;         // Rust external (no zorb::)
+use zorb::serde::Deserialize;          // Zeta external
+use zeta::frontend::ast::AstNode;      // Zeta internal
+
+fn main() {
+    println!("Testing all import patterns");
+}

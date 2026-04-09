@@ -1,0 +1,50 @@
+// Compiler identity test for v0.3.54
+// Tests the concept of a compiler without actually using strings
+
+// A "compiler" that just adds 1 to a number
+fn compile_number(x: i64) -> i64 {
+    // "Compile" the number by adding 1
+    x + 1
+}
+
+// Test the compiler
+fn test_compiler() -> i64 {
+    let input = 42;
+    let output = compile_number(input);
+    
+    // The "compiled" output should be input + 1
+    if output == 43 {
+        return 0;  // Success
+    } else {
+        return 1;  // Failure
+    }
+}
+
+// Test self-compilation
+fn test_self_compilation() -> i64 {
+    // "Compile" the compiler function itself
+    // We'll use the function pointer as input (conceptually)
+    let compiler_code = 100;  // Representing the compiler
+    let compiled_compiler = compile_number(compiler_code);
+    
+    // The compiled compiler should be compiler_code + 1
+    if compiled_compiler == 101 {
+        return 0;  // Success
+    } else {
+        return 1;  // Failure
+    }
+}
+
+// Main function
+fn main() -> i64 {
+    let result1 = test_compiler();
+    let result2 = test_self_compilation();
+    
+    if result1 == 0 && result2 == 0 {
+        // Both tests passed
+        return 0;
+    } else {
+        // At least one test failed
+        return 1;
+    }
+}

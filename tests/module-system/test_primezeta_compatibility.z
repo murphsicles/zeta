@@ -1,0 +1,93 @@
+// PrimeZeta v0.5.0 compatibility test
+// Tests mixed import patterns used in PrimeZeta
+
+// PrimeZeta uses these std:: imports
+use std::malloc
+use std::free
+use std::print
+use std::println
+use std::args
+
+// PrimeZeta also uses usize type (handled by type system unification)
+const NUM_RESIDUES: usize = 5760
+
+// Test std::malloc and std::free
+fn test_memory_functions() -> i64 {
+    // Allocate memory
+    let ptr = malloc(1024)
+    
+    // Free memory
+    free(ptr)
+    
+    // Return success
+    0
+}
+
+// Test print functions (stubs)
+fn test_print_functions() -> i64 {
+    // These are stubs that don't actually print
+    print(42)
+    println(42)
+    
+    0
+}
+
+// Test args function (stub)
+fn test_args_function() -> i64 {
+    // Get command line arguments (stub returns 0)
+    let args_ptr = args()
+    
+    // Should return a pointer (0 for stub)
+    if args_ptr != 0 {
+        return 1
+    }
+    
+    0
+}
+
+// Test usize constant
+fn test_usize_constant() -> i64 {
+    // NUM_RESIDUES should be 5760
+    if NUM_RESIDUES != 5760 {
+        return 1
+    }
+    
+    // usize should work with i64 arithmetic (type system unification)
+    let usize_val: usize = 100
+    let i64_val: i64 = 200
+    let sum: i64 = usize_val + i64_val
+    
+    if sum != 300 {
+        return 2
+    }
+    
+    0
+}
+
+// Main test function
+fn main() -> i64 {
+    let mut result: i64 = 0
+    
+    result = test_memory_functions()
+    if result != 0 {
+        return 10 + result
+    }
+    
+    result = test_print_functions()
+    if result != 0 {
+        return 20 + result
+    }
+    
+    result = test_args_function()
+    if result != 0 {
+        return 30 + result
+    }
+    
+    result = test_usize_constant()
+    if result != 0 {
+        return 40 + result
+    }
+    
+    // All tests passed
+    0
+}

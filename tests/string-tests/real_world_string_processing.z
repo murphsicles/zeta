@@ -1,0 +1,191 @@
+// Real-World String Processing Examples
+// Demonstrates practical uses of string functions
+
+// Example 1: Email validation (simplified)
+fn is_valid_email(email: str) -> i64 {
+    // Basic checks
+    if str_len(email) < 5 {  // a@b.c
+        return 0;
+    }
+    
+    if str_contains(email, "@") == 0 {
+        return 0;
+    }
+    
+    if str_contains(email, ".") == 0 {
+        return 0;
+    }
+    
+    // Check for spaces
+    if str_contains(email, " ") == 1 {
+        return 0;
+    }
+    
+    // Check that @ comes before .
+    let at_pos = 0; // Simplified - would need find function
+    let dot_pos = 0; // Simplified
+    
+    // For now, just check basic structure
+    1
+}
+
+// Example 2: URL processing
+fn extract_domain(url: str) -> str {
+    // Remove protocol if present
+    let cleaned = if str_starts_with(url, "http://") == 1 {
+        str_replace(url, "http://", "")
+    } else if str_starts_with(url, "https://") == 1 {
+        str_replace(url, "https://", "")
+    } else {
+        url
+    };
+    
+    // Remove path after domain
+    let slash_pos = 0; // Simplified - would need find function
+    
+    // For now, return as is
+    cleaned
+}
+
+// Example 3: Text normalization for search
+fn normalize_search_query(query: str) -> str {
+    // Convert to lowercase
+    let lower = str_to_lowercase(query);
+    
+    // Trim whitespace
+    let trimmed = str_trim(lower);
+    
+    // Remove extra spaces (simplified)
+    trimmed
+}
+
+// Example 4: Password strength checker (simplified)
+fn check_password_strength(password: str) -> i64 {
+    let mut score = 0;
+    
+    // Length check
+    let len = str_len(password);
+    if len >= 8 {
+        score = score + 1;
+    }
+    if len >= 12 {
+        score = score + 1;
+    }
+    
+    // Contains uppercase
+    let upper = str_to_uppercase(password);
+    if upper != password {
+        score = score + 1;
+    }
+    
+    // Contains lowercase
+    let lower = str_to_lowercase(password);
+    if lower != password {
+        score = score + 1;
+    }
+    
+    // Contains numbers (simplified check)
+    if str_contains(password, "0") == 1 || str_contains(password, "1") == 1 ||
+       str_contains(password, "2") == 1 || str_contains(password, "3") == 1 ||
+       str_contains(password, "4") == 1 || str_contains(password, "5") == 1 ||
+       str_contains(password, "6") == 1 || str_contains(password, "7") == 1 ||
+       str_contains(password, "8") == 1 || str_contains(password, "9") == 1 {
+        score = score + 1;
+    }
+    
+    score
+}
+
+// Example 5: CSV line parsing (simplified)
+fn parse_csv_line(line: str) -> i64 {
+    // Count commas
+    let mut comma_count = 0;
+    let len = str_len(line);
+    
+    // Simple character-by-character check
+    // Note: This is simplified - real implementation would need char access
+    if str_contains(line, ",") == 1 {
+        comma_count = 1; // Simplified
+    }
+    
+    // Return number of fields (commas + 1)
+    comma_count + 1
+}
+
+// Example 6: Template string replacement
+fn render_template(template: str, name: str, value: i64) -> str {
+    // Replace placeholders
+    let with_name = str_replace(template, "{name}", name);
+    let value_str = to_string_str(value);
+    let with_value = str_replace(with_name, "{value}", value_str);
+    
+    with_value
+}
+
+fn main() -> i64 {
+    // Test email validation
+    let email1 = "test@example.com";
+    let email2 = "invalid-email";
+    let email3 = "a@b.c";
+    
+    if is_valid_email(email1) != 1 {
+        return 1;
+    }
+    
+    if is_valid_email(email2) != 0 {
+        return 2;
+    }
+    
+    if is_valid_email(email3) != 1 {
+        return 3;
+    }
+    
+    // Test URL processing
+    let url1 = "https://example.com/path";
+    let url2 = "http://sub.domain.co.uk";
+    let url3 = "example.com";
+    
+    let domain1 = extract_domain(url1);
+    let domain2 = extract_domain(url2);
+    let domain3 = extract_domain(url3);
+    
+    // Test search normalization
+    let query = "  HELLO World  ";
+    let normalized = normalize_search_query(query);
+    
+    if normalized != "hello world" {
+        return 4;
+    }
+    
+    // Test password strength
+    let weak_pass = "password";
+    let medium_pass = "Password123";
+    let strong_pass = "Str0ngP@ssw0rd!";
+    
+    let weak_score = check_password_strength(weak_pass);
+    let medium_score = check_password_strength(medium_pass);
+    let strong_score = check_password_strength(strong_pass);
+    
+    if weak_score < 2 || medium_score < 4 || strong_score < 5 {
+        return 5;
+    }
+    
+    // Test CSV parsing
+    let csv_line = "John,Doe,30,New York";
+    let field_count = parse_csv_line(csv_line);
+    
+    if field_count != 4 {
+        return 6;
+    }
+    
+    // Test template rendering
+    let template = "Hello {name}, your score is {value}";
+    let rendered = render_template(template, "Alice", 95);
+    
+    if rendered != "Hello Alice, your score is 95" {
+        return 7;
+    }
+    
+    // All tests passed
+    0
+}

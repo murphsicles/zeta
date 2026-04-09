@@ -1,0 +1,18 @@
+// Step 3d: if as expression
+fn test() -> u64 {
+    let mut count: u64 = 0
+    let mut i: u64 = 0
+    while i < 10 {
+        // if as expression that returns value
+        let should_add = if i % 2 == 0 { true } else { false }
+        if should_add {
+            count = count + i
+        }
+        i = i + 1
+    }
+    return count
+}
+
+fn main() -> u64 {
+    return test()
+}

@@ -1,0 +1,6 @@
+// Test April 5th compiler array support
+fn main() -> u64 {
+    // Simple array test
+    let x = 42
+    return x
+}

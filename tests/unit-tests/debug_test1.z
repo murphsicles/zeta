@@ -1,0 +1,7 @@
+fn test1() -> i64 {
+    return 42;
+}
+
+fn main() -> i64 {
+    return test1();
+}

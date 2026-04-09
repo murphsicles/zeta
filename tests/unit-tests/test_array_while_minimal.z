@@ -1,0 +1,16 @@
+fn test_array_while() -> u64 {
+    let arr: [dynamic]u8 = [dynamic]u8{}
+    
+    // Simple while loop with array push
+    let mut i: u64 = 0
+    while i < 5 {
+        arr.push(0)
+        i += 1
+    }
+    
+    return arr.len()
+}
+
+fn main() -> u64 {
+    return test_array_while()
+}

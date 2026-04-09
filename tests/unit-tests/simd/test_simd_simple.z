@@ -1,0 +1,15 @@
+// Simple SIMD test - just create a vector and return success
+fn main() -> i64 {
+    // Create a simple vector
+    let v_ptr = vector_make_i32x4(1, 2, 3, 4);
+    
+    // Check that we got a non-null pointer
+    if v_ptr == 0 {
+        return 1; // Failed to create vector
+    }
+    
+    // Free the vector
+    vector_free_i32x4(v_ptr);
+    
+    return 0; // Success
+}

@@ -1,0 +1,64 @@
+// PrimeZeta compatibility test for usize
+// This tests the specific case mentioned in the mission: const NUM_RESIDUES: usize = 5760
+
+// Test 1: Basic usize constant (the main requirement)
+const NUM_RESIDUES: usize = 5760
+
+// Test 2: usize in array type declaration
+fn test_array() -> i64 {
+    // PrimeZeta uses [NUM_RESIDUES]u64 syntax
+    // The parser converts this to [u64; NUM_RESIDUES]
+    // But for now, let's test with a literal
+    let arr: [5760]u64 = [0; 5760]
+    
+    // Return the length
+    5760
+}
+
+// Test 3: usize arithmetic with i64 (testing compatibility hack)
+fn test_mixed_arithmetic() -> i64 {
+    let usize_val: usize = 100
+    let i64_val: i64 = 200
+    
+    // This should work due to the i64 <-> usize unification hack
+    let result: i64 = usize_val + i64_val
+    result
+}
+
+// Test 4: usize in for loop range
+fn test_for_loop() -> i64 {
+    let mut sum: i64 = 0
+    for i: usize in 0..10 {
+        sum = sum + i as i64
+    }
+    sum
+}
+
+// Main test function
+fn main() -> i64 {
+    // Test 1: Constant value
+    if NUM_RESIDUES != 5760 {
+        return 1
+    }
+    
+    // Test 2: Array
+    let array_result = test_array()
+    if array_result != 5760 {
+        return 2
+    }
+    
+    // Test 3: Mixed arithmetic
+    let mixed_result = test_mixed_arithmetic()
+    if mixed_result != 300 {
+        return 3
+    }
+    
+    // Test 4: For loop
+    let loop_result = test_for_loop()
+    if loop_result != 45 { // 0+1+2+3+4+5+6+7+8+9 = 45
+        return 4
+    }
+    
+    // All tests passed
+    0
+}

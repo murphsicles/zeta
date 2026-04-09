@@ -1,0 +1,17 @@
+// Test array syntax from PrimeZeta
+const SIZE: usize = 10
+
+fn main() -> i64 {
+    // Test 1: Array initialization with [value; size]
+    var arr1: [SIZE]u64 = [0; SIZE]
+    
+    // Test 2: Multi-dimensional array
+    var arr2: [[SIZE]u16; SIZE] = [[0; SIZE]; SIZE]
+    
+    // Test 3: Array access
+    arr1[0] = 42
+    arr2[0][0] = 100
+    
+    // Return something
+    0
+}

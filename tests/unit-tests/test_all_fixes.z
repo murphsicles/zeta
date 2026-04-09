@@ -1,0 +1,57 @@
+// Test all fixes for PrimeZeta compilation
+
+// 1. Bool return type (should work)
+fn is_even(n: u64) -> bool {
+    return n % 2 == 0
+}
+
+// 2. Array return type - PrimeZeta style
+const SIZE: usize = 10
+fn get_array_primezeta() -> [SIZE]u64 {
+    var arr: [SIZE]u64 = [0; SIZE]
+    return arr
+}
+
+// 3. Array return type - Zeta style  
+fn get_array_zeta() -> [u64; SIZE] {
+    let arr: [u64; SIZE] = [0; SIZE]
+    return arr
+}
+
+// 4. Type alias
+type MyArray = [SIZE]u64
+
+// 5. Comptime function
+comptime fn compute() -> u64 {
+    return 42
+}
+
+// 6. Comptime block (new feature)
+fn test_comptime_block() -> u64 {
+    let x = comptime {
+        let mut sum = 0
+        for i in 1..10 {
+            sum = sum + i
+        }
+        sum
+    }
+    return x
+}
+
+// 7. Dynamic array (new feature)
+fn process_dynamic(arr: [dynamic]u64) -> u64 {
+    return arr[0]
+}
+
+// Main function
+fn main() -> u64 {
+    if is_even(42) {
+        let a = get_array_primezeta()
+        let b = get_array_zeta()
+        let c = compute()
+        let d = test_comptime_block()
+        return a[0] + b[0] + c + d
+    } else {
+        return 0
+    }
+}

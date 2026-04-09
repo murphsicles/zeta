@@ -1,0 +1,11 @@
+mod outer {
+    pub mod inner {
+        pub fn hello() -> i64 {
+            42
+        }
+    }
+}
+
+fn main() -> i64 {
+    outer::inner::hello()
+}

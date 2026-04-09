@@ -1,0 +1,15 @@
+// Test non-generic malloc
+use std::malloc_raw
+use std::free_raw
+
+fn main() -> i64 {
+    // Test malloc with raw size
+    let ptr = malloc_raw(80)  // 10 * sizeof(u64) = 80
+    if ptr != 0 {
+        // Success
+        free_raw(ptr)
+        return 0
+    }
+    // Failure
+    return 1
+}

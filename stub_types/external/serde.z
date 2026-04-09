@@ -1,0 +1,4 @@
+//! Stub for serde
+// Traits are not fully supported in Zeta, using empty concepts as stubs
+pub concept Deserialize {}
+pub concept Serialize {}

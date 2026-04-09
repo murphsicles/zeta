@@ -1,0 +1,20 @@
+// Simple test for stdlib imports
+use std::malloc
+use std::free
+use std::print
+use std::println
+
+fn main() -> i64 {
+    // Allocate memory
+    let ptr = malloc(100);
+    
+    // Print the pointer value
+    print(ptr);
+    println(0); // newline
+    
+    // Free memory
+    free(ptr);
+    
+    // Return success
+    0
+}

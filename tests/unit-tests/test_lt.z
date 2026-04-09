@@ -1,0 +1,10 @@
+// Test less than operator
+fn test_lt() -> u64 {
+    let i: u64 = 0
+    let result = i < 5
+    return result  // Should return 1 (true)
+}
+
+fn main() -> u64 {
+    return test_lt()
+}

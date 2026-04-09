@@ -1,0 +1,46 @@
+// Murphy's Sieve - Simple working version
+
+fn murphy_sieve(limit: u64) -> u64 {
+    if limit <= 1 {
+        return 0
+    }
+    
+    let mut count: u64 = 0
+    let mut n: u64 = 2
+    
+    while n < limit {
+        let mut is_prime: u64 = 1
+        let mut d: u64 = 2
+        
+        // Check divisibility - optimized to sqrt(n)
+        while d * d <= n {
+            // Check if n is divisible by d
+            if n % d == 0 {
+                is_prime = 0
+                // Exit loop by setting d high enough
+                d = n
+            }
+            d += 1
+        }
+        
+        if is_prime == 1 {
+            count += 1
+        }
+        
+        n += 1
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    // Test with known values
+    // limit=10 -> 4 primes (2,3,5,7)
+    // limit=30 -> 10 primes (2,3,5,7,11,13,17,19,23,29)
+    
+    let result10 = murphy_sieve(10)
+    let result30 = murphy_sieve(30)
+    
+    // Return 410 if both correct (4*100 + 10)
+    return result10 * 100 + result30
+}

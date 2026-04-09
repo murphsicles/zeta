@@ -1,0 +1,14 @@
+fn test_prime_2() -> i64 {
+    let n = 2;
+    let mut is_prime = 1; // 1 = true, 0 = false
+    for i in 2..n {
+        if n % i == 0 {
+            is_prime = 0;
+        }
+    }
+    is_prime
+}
+
+fn main() -> i64 {
+    test_prime_2()
+}

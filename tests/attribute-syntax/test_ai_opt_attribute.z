@@ -1,0 +1,30 @@
+// Test #[ai_opt] attribute for PrimeZeta compatibility
+
+#[ai_opt]
+comptime fn optimized_function() -> i64 {
+    // This function should be optimized by AI
+    100
+}
+
+// Test with multiple attributes
+#[cfg(feature = "ai")]
+#[ai_opt]
+#[inline(always)]
+fn highly_optimized() -> i64 {
+    200
+}
+
+// Test on struct
+#[ai_opt]
+struct OptimizedStruct {
+    x: i64,
+    y: i64,
+}
+
+// Test on impl block
+#[ai_opt]
+impl OptimizedStruct {
+    fn new() -> Self {
+        OptimizedStruct { x: 0, y: 0 }
+    }
+}

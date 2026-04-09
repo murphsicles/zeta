@@ -1,0 +1,126 @@
+// Zorb Standard Library - File I/O
+// v0.5.0 Standard Library
+
+use super::{Read, Write, Seek, SeekFrom, Result, Error, ErrorKind};
+
+/// A reference to an open file on the filesystem.
+pub struct File {
+    // File descriptor or handle
+    _fd: i32,
+    // File path
+    _path: String,
+}
+
+impl File {
+    /// Opens a file in read-only mode.
+    pub fn open(path: &str) -> Result<File> {
+        // Stub implementation
+        Ok(File {
+            _fd: 0,
+            _path: String::from(path),
+        })
+    }
+    
+    /// Opens a file in write-only mode.
+    /// If the file already exists, it will be truncated.
+    pub fn create(path: &str) -> Result<File> {
+        // Stub implementation
+        Ok(File {
+            _fd: 1,
+            _path: String::from(path),
+        })
+    }
+    
+    /// Opens a file in append mode.
+    pub fn append(path: &str) -> Result<File> {
+        // Stub implementation
+        Ok(File {
+            _fd: 2,
+            _path: String::from(path),
+        })
+    }
+    
+    /// Returns the file's metadata.
+    pub fn metadata(&self) -> Result<Metadata> {
+        // Stub implementation
+        Ok(Metadata {
+            _size: 0,
+            _is_file: true,
+            _is_dir: false,
+        })
+    }
+    
+    /// Attempts to sync all OS-internal metadata to disk.
+    pub fn sync_all(&self) -> Result<()> {
+        // Stub implementation
+        Ok(())
+    }
+    
+    /// Attempts to sync file data to disk.
+    pub fn sync_data(&self) -> Result<()> {
+        // Stub implementation
+        Ok(())
+    }
+    
+    /// Truncates or extends the file to the specified size.
+    pub fn set_len(&self, size: u64) -> Result<()> {
+        // Stub implementation
+        Ok(())
+    }
+}
+
+impl Read for File {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        // Stub implementation
+        Ok(0)
+    }
+}
+
+impl Write for File {
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        // Stub implementation
+        Ok(buf.len())
+    }
+    
+    fn flush(&mut self) -> Result<()> {
+        // Stub implementation
+        Ok(())
+    }
+}
+
+impl Seek for File {
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        // Stub implementation
+        Ok(0)
+    }
+}
+
+impl Drop for File {
+    fn drop(&mut self) {
+        // Stub - would need to close the file
+    }
+}
+
+/// Metadata information about a file.
+pub struct Metadata {
+    _size: u64,
+    _is_file: bool,
+    _is_dir: bool,
+}
+
+impl Metadata {
+    /// Returns the size of the file in bytes.
+    pub fn len(&self) -> u64 {
+        self._size
+    }
+    
+    /// Returns `true` if this metadata is for a regular file.
+    pub fn is_file(&self) -> bool {
+        self._is_file
+    }
+    
+    /// Returns `true` if this metadata is for a directory.
+    pub fn is_dir(&self) -> bool {
+        self._is_dir
+    }
+}

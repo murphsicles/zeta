@@ -1,0 +1,31 @@
+// Simple comptime function test
+// This should evaluate at compile time
+
+comptime fn simple() -> i64 {
+    42
+}
+
+comptime fn add() -> i64 {
+    10 + 32
+}
+
+// Test with return statement
+comptime fn with_return() -> i64 {
+    return 42
+}
+
+// Array test
+comptime fn array_test() -> [i64; 3] {
+    [1, 2, 3]
+}
+
+// Main function to use the comptime results
+fn main() -> i64 {
+    let a = simple()
+    let b = add()
+    let c = with_return()
+    let arr = array_test()
+    
+    // Should be evaluated at compile time
+    return a + b + c + arr[0]
+}

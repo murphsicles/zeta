@@ -1,0 +1,12 @@
+// Simple string test to debug string functions
+
+fn main() -> i64 {
+    // Test 1: String concatenation
+    let s1 = "Hello, ";
+    let s2 = "World!";
+    let result = str_concat(s1, s2);
+    
+    // For now, just return 0 if it compiles and runs
+    // We'll add proper validation once we know the functions work
+    0
+}

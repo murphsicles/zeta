@@ -1,0 +1,15 @@
+// Simple test for malloc/free
+use std::malloc
+use std::free
+
+fn main() -> i64 {
+    // Test malloc with size (10 * sizeof(u64) = 80)
+    let ptr = malloc(80)
+    if ptr != 0 {
+        // Success
+        free(ptr)
+        return 0
+    }
+    // Failure
+    return 1
+}

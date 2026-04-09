@@ -1,0 +1,86 @@
+// Detailed test of array operations
+
+fn test_array_init() -> u64 {
+    // Test array initialization with values
+    let arr: [5]u64 = [10, 20, 30, 40, 50]
+    
+    // Check first element
+    if arr[0] == 10 {
+        return 1
+    } else {
+        return 0
+    }
+}
+
+fn test_array_modify() -> u64 {
+    // Test array modification
+    let arr: [3]u64 = [1, 2, 3]
+    
+    // Modify element
+    arr[1] = 99
+    
+    if arr[1] == 99 {
+        return 1
+    } else {
+        return 0
+    }
+}
+
+fn test_array_while() -> u64 {
+    // Test while loop with array
+    let arr: [5]u64 = [1, 2, 3, 4, 5]
+    
+    let mut i: u64 = 0
+    let mut sum: u64 = 0
+    while i < 5 {
+        sum += arr[i]
+        i += 1
+    }
+    
+    // Sum should be 15
+    if sum == 15 {
+        return 1
+    } else {
+        return 0
+    }
+}
+
+fn test_array_comparison_detailed() -> u64 {
+    // Test the specific problematic comparison
+    let bits: [10]u64 = [0; 10]
+    
+    let mut p: u64 = 2
+    while p < 10 {
+        // This is the exact comparison that was failing
+        if bits[p] == 0 {
+            return 1  // Success if we get here
+        }
+        p += 1
+    }
+    
+    return 0
+}
+
+fn test_modulo_detailed() -> u64 {
+    // Test modulo operation
+    let result1: u64 = 10 % 3
+    let result2: u64 = 7 % 2
+    let result3: u64 = 15 % 4
+    
+    if result1 == 1 && result2 == 1 && result3 == 3 {
+        return 1
+    } else {
+        return 0
+    }
+}
+
+fn main() -> u64 {
+    let test1 = test_array_init()
+    let test2 = test_array_modify()
+    let test3 = test_array_while()
+    let test4 = test_array_comparison_detailed()
+    let test5 = test_modulo_detailed()
+    
+    // Return combined result: test1 * 1 + test2 * 10 + test3 * 100 + test4 * 1000 + test5 * 10000
+    return test1 + test2 * 10 + test3 * 100 + test4 * 1000 + test5 * 10000
+}

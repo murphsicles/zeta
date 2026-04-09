@@ -1,0 +1,6 @@
+use zeta::frontend::ast::AstNode;
+
+fn main() {
+    let x: AstNode = AstNode::Program;
+    println!("Testing AstNode import");
+}

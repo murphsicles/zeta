@@ -1,0 +1,10 @@
+// Simple test for Option creation
+
+use zorb::std::option::Option;
+
+fn main() -> i64 {
+    let some_value: Option<i64> = Option::Some(42);
+    
+    // Just return 42, don't use match
+    42
+}

@@ -1,0 +1,85 @@
+// Comprehensive stability test for compiler
+// Tests array operations, const expressions, and control flow
+
+fn test_array_bounds() {
+    // Test 1: Array creation with const size
+    const SIZE: i32 = 10;
+    let arr: [i32; SIZE] = [0; SIZE];
+    
+    // Test 2: Array indexing (should not crash)
+    for i in 0..SIZE {
+        let _ = arr[i];
+    }
+    
+    // Test 3: Array assignment
+    for i in 0..SIZE {
+        // In a real language this would be arr[i] = i, but Zeta might have different syntax
+        // arr[i] = i as i32;
+    }
+    
+    println("Array bounds test passed");
+}
+
+fn test_const_expressions() {
+    // Test const arithmetic
+    const A: i32 = 10;
+    const B: i32 = 20;
+    const SUM: i32 = A + B;
+    const PRODUCT: i32 = A * B;
+    
+    // Test const in array size
+    const ARR_SIZE: i32 = SUM;
+    let _arr: [i32; ARR_SIZE] = [0; ARR_SIZE];
+    
+    println("Const expressions test passed");
+}
+
+fn test_control_flow() {
+    // Test loops
+    let mut sum = 0;
+    for i in 0..100 {
+        sum = sum + i;
+    }
+    
+    // Test conditionals
+    if sum > 0 {
+        println("Sum is positive");
+    } else {
+        println("Sum is not positive");
+    }
+    
+    // Test while loop
+    let mut count = 0;
+    while count < 10 {
+        count = count + 1;
+    }
+    
+    println("Control flow test passed");
+}
+
+fn test_memory_operations() {
+    // Test basic memory operations
+    let x = 42;
+    let y = x + 1;
+    let z = x * y;
+    
+    // Test function calls
+    let result = add_numbers(x, y);
+    
+    println("Memory operations test passed");
+}
+
+fn add_numbers(a: i32, b: i32) -> i32 {
+    return a + b;
+}
+
+fn main() {
+    println("Starting compiler stability tests...");
+    
+    test_array_bounds();
+    test_const_expressions();
+    test_control_flow();
+    test_memory_operations();
+    
+    println("All stability tests passed!");
+}

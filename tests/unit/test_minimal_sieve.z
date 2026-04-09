@@ -1,0 +1,32 @@
+// Minimal sieve test to verify basic functionality
+
+fn simple_sieve(limit: u64) -> u64 {
+    // Very simple implementation for testing
+    let mut count: u64 = 0
+    let mut n: u64 = 2
+    
+    while n <= limit {
+        let mut is_prime: u64 = 1
+        let mut d: u64 = 2
+        
+        while d * d <= n {
+            if n % d == 0 {
+                is_prime = 0
+                break
+            }
+            d += 1
+        }
+        
+        if is_prime == 1 {
+            count += 1
+        }
+        n += 1
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    // Test with small limit
+    return simple_sieve(100)
+}

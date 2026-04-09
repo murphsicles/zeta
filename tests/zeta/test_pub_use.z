@@ -1,0 +1,17 @@
+// test_pub_use.z
+// Test module with pub use re-export
+mod my_module {
+    pub use super::other_module::MyType;
+}
+
+mod other_module {
+    pub struct MyType {
+        pub value: i32,
+    }
+}
+
+fn main() {
+    use my_module::MyType;
+    let x = MyType { value: 42 };
+    println!("Value: {}", x.value);
+}

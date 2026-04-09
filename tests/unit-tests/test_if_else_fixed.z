@@ -1,0 +1,17 @@
+// Test if statements with else branches - fixed version
+fn test_if_else() -> u64 {
+    let x: u64 = 10
+    let y: u64 = 20
+    
+    let result: u64 = if x < y {
+        x + y
+    } else {
+        x - y
+    }
+    
+    result  // Implicit return
+}
+
+fn main() -> u64 {
+    return test_if_else()
+}

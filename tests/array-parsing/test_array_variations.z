@@ -1,0 +1,34 @@
+// Test different array syntax variations
+fn test1() -> u64 {
+    // Variation 1: [u8] (original PrimeZeta syntax)
+    let mut arr1: [u8] = []
+    return 0
+}
+
+fn test2() -> u64 {
+    // Variation 2: [u8;] (maybe dynamic)
+    let mut arr2: [u8;] = []
+    return 0
+}
+
+fn test3() -> u64 {
+    // Variation 3: [u8; 0] (zero-sized)
+    let mut arr3: [u8; 0] = []
+    return 0
+}
+
+fn test4() -> u64 {
+    // Variation 4: [dynamic]u8 (dynamic array syntax from parser)
+    let mut arr4: [dynamic]u8 = []
+    return 0
+}
+
+fn test5() -> u64 {
+    // Variation 5: No type annotation
+    let mut arr5 = []
+    return 0
+}
+
+fn main() -> u64 {
+    return 0
+}

@@ -1,0 +1,7 @@
+fn test2() -> i64 {
+    return 10 + 5 * 2;
+}
+
+fn main() -> i64 {
+    return test2();
+}

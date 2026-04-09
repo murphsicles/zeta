@@ -1,0 +1,21 @@
+// Step 1: Minimal working GCD test
+fn gcd(a: u64, b: u64) -> u64 {
+    let mut x = a
+    let mut y = b
+    while y != 0 {
+        let t = y
+        y = x % y
+        x = t
+    }
+    return x
+}
+
+// Step 2: Add comptime constant
+comptime MODULUS: u64 = 30030
+
+fn main() -> u64 {
+    // Step 3: Simple array literal (not comptime)
+    let residues = [0u64, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    let first_residue = residues[0]
+    return gcd(MODULUS, first_residue)
+}

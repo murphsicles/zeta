@@ -1,0 +1,106 @@
+// True Murphy's Sieve Algorithm - Simple version
+// Uses const for array sizes
+
+// Maximum limit - must be a compile-time constant
+const MAX_LIMIT: usize = 1000000;
+
+// True Murphy's Sieve (Sieve of Eratosthenes)
+// Returns the number of primes less than limit
+fn murphy_sieve_true(limit: usize) -> usize {
+    // Validate input
+    if limit > MAX_LIMIT {
+        // For simplicity, just cap at MAX_LIMIT
+        // In a real implementation, we'd return an error
+    }
+    
+    let effective_limit = if limit > MAX_LIMIT { MAX_LIMIT } else { limit };
+    
+    if effective_limit < 2 {
+        return 0;
+    }
+    
+    // Create bit array using const for size
+    // We allocate MAX_LIMIT + 1 elements to handle indexing up to MAX_LIMIT
+    // Note: This requires MAX_LIMIT + 1 to be a compile-time constant
+    // For now, we'll use MAX_LIMIT and adjust indices
+    
+    // Using usize array where 0 = prime, 1 = composite
+    let mut is_composite: [usize; MAX_LIMIT] = [0; MAX_LIMIT];
+    
+    // Mark 0 and 1 as composite (not prime)
+    if effective_limit > 0 {
+        is_composite[0] = 1;
+    }
+    
+    if effective_limit > 1 {
+        is_composite[1] = 1;
+    }
+    
+    // Sieve of Eratosthenes algorithm
+    let mut p: usize = 2;
+    
+    // Only need to check up to sqrt(limit)
+    while p * p <= effective_limit {
+        // If p is prime
+        if is_composite[p] == 0 {
+            // Mark all multiples of p as composite
+            let mut multiple: usize = p * p;
+            while multiple < effective_limit {
+                is_composite[multiple] = 1;
+                multiple += p;
+            }
+        }
+        p += 1;
+    }
+    
+    // Count primes (is_composite[i] == 0)
+    let mut count: usize = 0;
+    let mut i: usize = 2;
+    
+    while i < effective_limit {
+        if is_composite[i] == 0 {
+            count += 1;
+        }
+        i += 1;
+    }
+    
+    return count;
+}
+
+// Known prime counts for verification
+fn known_prime_count(limit: usize) -> usize {
+    match limit {
+        0 => 0,
+        1 => 0,
+        2 => 1,
+        10 => 4,      // primes: 2, 3, 5, 7
+        100 => 25,    // 25 primes under 100
+        1000 => 168,  // 168 primes under 1000
+        10000 => 1229,
+        100000 => 9592,
+        1000000 => 78498,
+        _ => 0,
+    }
+}
+
+// Test the implementation
+fn test_murphy_sieve() -> usize {
+    let test_limits = [10, 100, 1000, 10000, 100000];
+    let mut passed_tests = 0;
+    
+    for limit in test_limits {
+        let result = murphy_sieve_true(limit);
+        let expected = known_prime_count(limit);
+        
+        if result == expected {
+            passed_tests += 1;
+        }
+    }
+    
+    return passed_tests;
+}
+
+// Main function for testing
+fn main() -> usize {
+    return test_murphy_sieve();
+}

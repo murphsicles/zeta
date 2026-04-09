@@ -1,0 +1,39 @@
+// Murphy's Sieve implementation - Simple version
+// Count primes up to 100 without returning array
+
+comptime fn count_primes_up_to_100() -> i64 {
+    let mut sieve = [true; 100];
+    
+    // 0 and 1 are not prime
+    sieve[0] = false;
+    sieve[1] = false;
+    
+    // Sieve of Eratosthenes
+    let mut i = 2;
+    while i * i < 100 {
+        if sieve[i] {
+            let mut j = i * i;
+            while j < 100 {
+                sieve[j] = false;
+                j += i;
+            }
+        }
+        i += 1;
+    }
+    
+    // Count primes
+    let mut count = 0;
+    let mut k = 0;
+    while k < 100 {
+        if sieve[k] {
+            count += 1;
+        }
+        k += 1;
+    }
+    
+    return count;
+}
+
+fn main() -> i64 {
+    return count_primes_up_to_100();
+}

@@ -1,0 +1,48 @@
+// Test basic attribute syntax for PrimeZeta compatibility
+// Following Father's guidance: "Parse but IGNORE (no optimization implementation)"
+
+// 1. Basic #[attribute] syntax - should parse
+#[test]
+fn basic() -> i64 {
+    42
+}
+
+// 2. #[ai_opt] specifically - should parse but be ignored
+#[ai_opt]
+comptime fn generate_residues() -> [5760]u64 {
+    [0; 5760]
+}
+
+// 3. PrimeZeta line 108 exact syntax
+#[ai_opt]
+comptime stepping_lut: [[5760]u16; 5760] = [[0; 5760]; 5760]
+
+// 4. Multiple attributes
+#[cfg(feature = "ai")]
+#[ai_opt]
+#[inline]
+fn optimized() -> i64 {
+    100
+}
+
+// 5. Attributes with arguments
+#[derive(Clone, Debug)]
+struct Point {
+    x: i64,
+    y: i64,
+}
+
+// 6. Complex attribute (nested brackets, strings)
+#[cfg(target_os = "linux", feature = "avx512")]
+fn avx_function() -> i64 {
+    512
+}
+
+fn main() -> i64 {
+    println("Basic attribute syntax test")
+    println("✅ #[attribute] syntax should parse")
+    println("✅ #[ai_opt] should parse but be ignored")
+    println("✅ PrimeZeta line 108 compatible")
+    println("✅ Syntax valid - no compilation breaks")
+    0
+}

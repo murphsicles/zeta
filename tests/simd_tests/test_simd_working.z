@@ -1,0 +1,18 @@
+// Test SIMD implementation
+use std::simd::*;
+
+fn test_simd_basic() -> u64 {
+    // Create SIMD vectors
+    let v1 = Vector<u64, 4>::splat(1);
+    let v2 = Vector<u64, 4>::splat(2);
+    
+    // SIMD addition
+    let result = v1 + v2;
+    
+    // Extract first element (should be 3)
+    return result.extract(0)
+}
+
+fn main() -> u64 {
+    return test_simd_basic()
+}

@@ -1,0 +1,207 @@
+﻿[
+    {
+        "File":  "main.z",
+        "Status":  "OTHER ERRORS",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\main.z"
+    },
+    {
+        "File":  "plan.z",
+        "Status":  "OTHER ERRORS",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\plan.z"
+    },
+    {
+        "File":  "mod.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\backend\\mod.z"
+    },
+    {
+        "File":  "codegen.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\backend\\codegen\\codegen.z"
+    },
+    {
+        "File":  "ir_gen.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\backend\\codegen\\ir_gen.z"
+    },
+    {
+        "File":  "jit.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\backend\\codegen\\jit.z"
+    },
+    {
+        "File":  "mod.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\backend\\codegen\\mod.z"
+    },
+    {
+        "File":  "ast.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\frontend\\ast.z"
+    },
+    {
+        "File":  "borrow.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\frontend\\borrow.z"
+    },
+    {
+        "File":  "mod.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\frontend\\mod.z"
+    },
+    {
+        "File":  "expr.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\frontend\\parser\\expr.z"
+    },
+    {
+        "File":  "mod.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\frontend\\parser\\mod.z"
+    },
+    {
+        "File":  "parser.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\frontend\\parser\\parser.z"
+    },
+    {
+        "File":  "stmt.z",
+        "Status":  "OTHER ERRORS",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\frontend\\parser\\stmt.z"
+    },
+    {
+        "File":  "top_level.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\frontend\\parser\\top_level.z"
+    },
+    {
+        "File":  "mod.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\frontend\\semantic\\mod.z"
+    },
+    {
+        "File":  "type_checker.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\frontend\\semantic\\type_checker.z"
+    },
+    {
+        "File":  "mod.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\middle\\mod.z"
+    },
+    {
+        "File":  "specialization.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\middle\\specialization.z"
+    },
+    {
+        "File":  "gen.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\middle\\mir\\gen.z"
+    },
+    {
+        "File":  "mir.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\middle\\mir\\mir.z"
+    },
+    {
+        "File":  "mod.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\middle\\mir\\mod.z"
+    },
+    {
+        "File":  "lower.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\middle\\resolver\\lower.z"
+    },
+    {
+        "File":  "mod.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\middle\\resolver\\mod.z"
+    },
+    {
+        "File":  "resolver.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\middle\\resolver\\resolver.z"
+    },
+    {
+        "File":  "typecheck.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\middle\\resolver\\typecheck.z"
+    },
+    {
+        "File":  "host.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\runtime\\host.z"
+    },
+    {
+        "File":  "mod.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\runtime\\mod.z"
+    },
+    {
+        "File":  "std.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\runtime\\std.z"
+    },
+    {
+        "File":  "xai.z",
+        "Status":  "OTHER ERRORS",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\runtime\\xai.z"
+    },
+    {
+        "File":  "channel.z",
+        "Status":  "OTHER ERRORS",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\runtime\\actor\\channel.z"
+    },
+    {
+        "File":  "map.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\runtime\\actor\\map.z"
+    },
+    {
+        "File":  "mod.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\runtime\\actor\\mod.z"
+    },
+    {
+        "File":  "result.z",
+        "Status":  "OTHER ERRORS",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\runtime\\actor\\result.z"
+    },
+    {
+        "File":  "scheduler.z",
+        "Status":  "OTHER ERRORS",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\runtime\\actor\\scheduler.z"
+    },
+    {
+        "File":  "parser_float.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\tests\\parser_float.z"
+    },
+    {
+        "File":  "parser_generics.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\tests\\parser_generics.z"
+    },
+    {
+        "File":  "parser_impl_blocks.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\tests\\parser_impl_blocks.z"
+    },
+    {
+        "File":  "parser_inherent_impl.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\tests\\parser_inherent_impl.z"
+    },
+    {
+        "File":  "parser_let.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\tests\\parser_let.z"
+    },
+    {
+        "File":  "parser_unicode.z",
+        "Status":  "COMPILES",
+        "Path":  "C:\\Users\\mummy\\.openclaw\\workspace\\zeta_src\\tests\\parser_unicode.z"
+    }
+]

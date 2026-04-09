@@ -1,0 +1,24 @@
+// Test basic array operations to debug
+
+fn test_basic() -> u64 {
+    let arr: [dynamic]u8 = [dynamic]u8{}
+    
+    // Push three zeros
+    arr.push(0)
+    arr.push(0)
+    arr.push(0)
+    
+    // Set values
+    arr[0] = 1
+    arr[1] = 2
+    arr[2] = 3
+    
+    // Read back
+    let sum = arr[0] + arr[1] + arr[2]
+    
+    return sum  // Should be 6
+}
+
+fn main() -> u64 {
+    return test_basic()
+}

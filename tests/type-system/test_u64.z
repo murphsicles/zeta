@@ -1,0 +1,44 @@
+// Test u64 type support for v0.3.26
+// Created by U64-TYPE-AGENT
+
+// Test 1: Basic u64 constant
+const MODULUS: u64 = 30030
+
+// Test 2: u64 variable declaration
+fn test_u64_var() -> u64 {
+    let x: u64 = 42
+    x
+}
+
+// Test 3: u64 in array type
+const ARRAY_SIZE: usize = 10
+fn test_u64_array() -> [u64; ARRAY_SIZE] {
+    let arr: [u64; ARRAY_SIZE] = [0; ARRAY_SIZE]
+    arr
+}
+
+// Test 4: u64 arithmetic
+fn test_u64_arithmetic() -> u64 {
+    let a: u64 = 100
+    let b: u64 = 50
+    a + b
+}
+
+// Test 5: u64 return type
+fn returns_u64() -> u64 {
+    12345
+}
+
+// Test 6: Mixed with i64 (should fail type checking)
+// fn mixed_types() -> u64 {
+//     let x: i64 = -10
+//     x as u64  // Would need explicit cast
+// }
+
+fn main() -> i64 {
+    let result: u64 = test_u64_var()
+    let array = test_u64_array()
+    let sum = test_u64_arithmetic()
+    let ret = returns_u64()
+    0
+}

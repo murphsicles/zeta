@@ -1,0 +1,47 @@
+fn is_prime_final(n: u64) -> bool {
+    if n < 2 {
+        return false
+    }
+    if n == 2 {
+        return true
+    }
+    if n == 3 {
+        return true
+    }
+    
+    // Check divisibility by 2,3,5,7
+    if n % 2 == 0 {
+        return false
+    }
+    if n % 3 == 0 {
+        return false
+    }
+    if n % 5 == 0 {
+        return false
+    }
+    if n % 7 == 0 {
+        return false
+    }
+    
+    // Check divisors using 6k±1
+    let mut i: u64 = 11
+    let mut w: u64 = 2
+    
+    // Simple while condition only
+    while i * i <= n {
+        if n % i == 0 {
+            return false
+        }
+        i += w
+        w = 6 - w
+    }
+    
+    return true
+}
+
+fn main() -> u64 {
+    if is_prime_final(17) {
+        return 1
+    }
+    return 0
+}
