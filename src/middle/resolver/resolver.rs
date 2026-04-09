@@ -871,6 +871,38 @@ impl Resolver {
             ),
         );
 
+        // read_only_string(value: str) -> identity(value)[read]
+        self.funcs.insert(
+            "read_only_string".to_string(),
+            (
+                vec![("value".to_string(), Type::Str)],
+                Type::Identity(Box::new(IdentityType {
+                    value: None,
+                    capabilities: vec![CapabilityLevel::Read],
+                    delegatable: false,
+                    constraints: vec![],
+                    type_params: vec![],
+                })),
+                false, // not async
+            ),
+        );
+
+        // read_write_string(value: str) -> identity(value)[read, write]
+        self.funcs.insert(
+            "read_write_string".to_string(),
+            (
+                vec![("value".to_string(), Type::Str)],
+                Type::Identity(Box::new(IdentityType {
+                    value: None,
+                    capabilities: vec![CapabilityLevel::Read, CapabilityLevel::Write],
+                    delegatable: false,
+                    constraints: vec![],
+                    type_params: vec![],
+                })),
+                false, // not async
+            ),
+        );
+
         // str_to_lowercase(s: str) -> str
         self.funcs.insert(
             "str_to_lowercase".to_string(),

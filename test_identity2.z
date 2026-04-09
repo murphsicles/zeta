@@ -1,0 +1,9 @@
+fn process<T: Identity<Read>>(x: T) -> i64 {
+    return 42;
+}
+
+fn main() -> i64 {
+    // Create an identity string with read capability using explicit conversion
+    let s = read_only_string("hello");
+    process(s)
+}

@@ -1,0 +1,4 @@
+fn main() -> i64 {
+    let s: string[identity:read] = "hello";
+    42
+}

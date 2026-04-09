@@ -448,6 +448,21 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 Some(Linkage::External),
             );
             module.add_function(
+                "identity_read_only_string",
+                i64_type.fn_type(&[i64_type.into()], false),
+                Some(Linkage::External),
+            );
+            module.add_function(
+                "identity_read_write_string",
+                i64_type.fn_type(&[i64_type.into()], false),
+                Some(Linkage::External),
+            );
+            module.add_function(
+                "identity_owned_string",
+                i64_type.fn_type(&[i64_type.into()], false),
+                Some(Linkage::External),
+            );
+            module.add_function(
                 "init_global_identity_context",
                 void_type.fn_type(&[i64_type.into(), i64_type.into()], false),
                 Some(Linkage::External),
@@ -1235,6 +1250,23 @@ impl<'ctx> LLVMCodegen<'ctx> {
             if let Some(f) = self.module.get_function(&host_name) {
                 return f;
             }
+        }
+        
+        // Handle identity conversion functions
+        if name == "read_only_string" || name == "read_write_string" || name == "owned_string" {
+            #[cfg(feature = "identity")]
+            {
+                // Map to identity_* C functions
+                let identity_name = format!("identity_{}", name);
+                eprintln!("[DEBUG get_function] Mapping identity conversion {} to {}", name, identity_name);
+                if let Some(f) = self.module.get_function(&identity_name) {
+                    return f;
+                }
+            }
+            
+            // If identity feature is not enabled, these functions shouldn't be called
+            // but we'll still panic with a clearer message
+            eprintln!("[DEBUG get_function] Identity conversion function {} not found (identity feature may be disabled)", name);
         }
 
         // Check if it's an external function declared in the module
