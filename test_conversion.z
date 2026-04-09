@@ -1,0 +1,3 @@
+// Test implicit conversion from Str to Identity([Read])
+let s = read_only_string("hello");
+print(s);

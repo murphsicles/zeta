@@ -327,6 +327,42 @@ fn create_c_string(s: &str) -> i64 {
     }
 }
 
+/// Convert a string to an identity string with read-only capability.
+/// read_only_string(value: str) -> identity(value)[read]
+///
+/// # Safety
+/// The input must be a valid pointer to a null-terminated C string.
+#[allow(unsafe_op_in_unsafe_fn)]
+pub unsafe extern "C" fn identity_read_only_string(s: i64) -> i64 {
+    // For now, just return the input string as-is
+    // In a real implementation, this would create an identity string with Read capability
+    s
+}
+
+/// Convert a string to an identity string with read-write capability.
+/// read_write_string(value: str) -> identity(value)[read, write]
+///
+/// # Safety
+/// The input must be a valid pointer to a null-terminated C string.
+#[allow(unsafe_op_in_unsafe_fn)]
+pub unsafe extern "C" fn identity_read_write_string(s: i64) -> i64 {
+    // For now, just return the input string as-is
+    // In a real implementation, this would create an identity string with Read+Write capability
+    s
+}
+
+/// Convert a string to an identity string with full ownership.
+/// owned_string(value: str) -> identity(value)[read, write, owned]
+///
+/// # Safety
+/// The input must be a valid pointer to a null-terminated C string.
+#[allow(unsafe_op_in_unsafe_fn)]
+pub unsafe extern "C" fn identity_owned_string(s: i64) -> i64 {
+    // For now, just return the input string as-is
+    // In a real implementation, this would create an identity string with Read+Write+Owned capability
+    s
+}
+
 /// Reset the global identity context.
 /// This is useful for testing to ensure clean state between tests.
 ///
