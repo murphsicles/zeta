@@ -550,8 +550,14 @@ impl Type {
                     return Type::Named(type_name.trim().to_string(), args);
                 }
 
-                // Simple named type without generics
-                Type::Named(s.to_string(), vec![])
+                // Check if this is a single-letter uppercase name (likely a generic type parameter)
+                if s.len() == 1 && s.chars().next().unwrap().is_ascii_uppercase() {
+                    // Create a fresh type variable for generic parameters like T, U, V
+                    Type::Variable(TypeVar::fresh())
+                } else {
+                    // Simple named type without generics
+                    Type::Named(s.to_string(), vec![])
+                }
             }
         }
     }
