@@ -4,7 +4,7 @@
 # Package name.
 name = "zetac"
 # Current version.
-version = "0.3.64"  # Fix type inference for identity-constrained generic functions
+version = "0.3.65"  # Fix runtime function linking for identity conversion functions
 # Rust edition.
 edition = "2024"
 # Minimum Rust version.

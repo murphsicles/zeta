@@ -12,9 +12,16 @@ use crate::runtime::array::{array_free, array_get, array_len, array_new, array_p
 use crate::runtime::host::{
     host_http_get, host_str_concat, host_str_contains, host_str_ends_with, host_str_len,
     host_str_replace, host_str_starts_with, host_str_to_lowercase, host_str_to_uppercase,
-    host_str_trim, host_tls_handshake,
+    host_str_trim, host_tls_handshake, runtime_malloc,
 };
+use crate::runtime::memory::{runtime_calloc, runtime_realloc};
 use crate::runtime::std::std_free;
+
+#[cfg(feature = "identity")]
+use crate::runtime::identity::integration::{
+    identity_read_only_string, identity_read_write_string, identity_owned_string,
+    init_global_identity_context,
+};
 use inkwell::OptimizationLevel;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::passes::PassManager;
@@ -142,6 +149,34 @@ impl<'ctx> crate::backend::codegen::LLVMCodegen<'ctx> {
         }
         if let Some(f) = self.module.get_function("array_free") {
             ee.add_global_mapping(&f, array_free as *const () as usize);
+        }
+
+        // Memory allocation functions
+        if let Some(f) = self.module.get_function("runtime_malloc") {
+            ee.add_global_mapping(&f, runtime_malloc as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("runtime_calloc") {
+            ee.add_global_mapping(&f, runtime_calloc as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("runtime_realloc") {
+            ee.add_global_mapping(&f, runtime_realloc as *const () as usize);
+        }
+
+        // Identity functions (only when identity feature is enabled)
+        #[cfg(feature = "identity")]
+        {
+            if let Some(f) = self.module.get_function("identity_read_only_string") {
+                ee.add_global_mapping(&f, identity_read_only_string as *const () as usize);
+            }
+            if let Some(f) = self.module.get_function("identity_read_write_string") {
+                ee.add_global_mapping(&f, identity_read_write_string as *const () as usize);
+            }
+            if let Some(f) = self.module.get_function("identity_owned_string") {
+                ee.add_global_mapping(&f, identity_owned_string as *const () as usize);
+            }
+            if let Some(f) = self.module.get_function("init_global_identity_context") {
+                ee.add_global_mapping(&f, init_global_identity_context as *const () as usize);
+            }
         }
 
         Ok(ee)

@@ -19,6 +19,7 @@ static mut GLOBAL_IDENTITY_CONTEXT: Option<IdentityContext> = None;
 /// This function is not thread-safe.
 /// identity_ptr: pointer to identity string (null-terminated C string)
 /// capability: i64 representing capability level (0=Immutable, 1=Read, 2=Write, 3=Owned)
+#[unsafe(no_mangle)]
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn init_global_identity_context(identity_ptr: i64, capability: i64) {
     if identity_ptr == 0 {
@@ -332,6 +333,7 @@ fn create_c_string(s: &str) -> i64 {
 ///
 /// # Safety
 /// The input must be a valid pointer to a null-terminated C string.
+#[unsafe(no_mangle)]
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn identity_read_only_string(s: i64) -> i64 {
     // For now, just return the input string as-is
@@ -344,6 +346,7 @@ pub unsafe extern "C" fn identity_read_only_string(s: i64) -> i64 {
 ///
 /// # Safety
 /// The input must be a valid pointer to a null-terminated C string.
+#[unsafe(no_mangle)]
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn identity_read_write_string(s: i64) -> i64 {
     // For now, just return the input string as-is
@@ -356,6 +359,7 @@ pub unsafe extern "C" fn identity_read_write_string(s: i64) -> i64 {
 ///
 /// # Safety
 /// The input must be a valid pointer to a null-terminated C string.
+#[unsafe(no_mangle)]
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn identity_owned_string(s: i64) -> i64 {
     // For now, just return the input string as-is
