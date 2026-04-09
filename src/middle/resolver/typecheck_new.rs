@@ -142,37 +142,42 @@ impl NewTypeCheck for Resolver {
 
         // Check for identity type: string[identity:read], string[identity:read+write], etc.
         if s.starts_with("string[identity:") && s.ends_with(']') {
-            let inner = &s["string[".len()..s.len() - 1]; // Remove "string[" and "]"
-            if let Some(capabilities_str) = inner.strip_prefix("identity:") {
-                // Parse capabilities
-                let capabilities: Vec<CapabilityLevel> = capabilities_str
-                    .split('+')
-                    .filter_map(|cap| match cap.trim() {
-                        "read" => Some(CapabilityLevel::Read),
-                        "write" => Some(CapabilityLevel::Write),
-                        "immutable" => Some(CapabilityLevel::Immutable),
-                        "owned" => Some(CapabilityLevel::Owned),
-                        "execute" => Some(CapabilityLevel::Execute),
-                        _ => None,
-                    })
-                    .collect();
-                
-                if capabilities.is_empty() {
-                    // No valid capabilities found, treat as named type
-                    return Type::Named(s.to_string(), Vec::new());
-                }
-                
-                // Create identity type
-                let identity_type = IdentityType {
-                    value: None,
-                    capabilities,
-                    delegatable: false,
-                    constraints: Vec::new(),
-                    type_params: Vec::new(),
-                };
-                
-                return Type::Identity(Box::new(identity_type));
+            println!("[DEBUG string_to_type] Parsing identity type: {}", s);
+            let capabilities_str = &s["string[identity:".len()..s.len() - 1]; // Remove "string[identity:" and "]"
+            println!("[DEBUG string_to_type] Capabilities string: '{}'", capabilities_str);
+            
+            // Parse capabilities
+            let capabilities: Vec<CapabilityLevel> = capabilities_str
+                .split('+')
+                .filter_map(|cap| match cap.trim() {
+                    "read" => Some(CapabilityLevel::Read),
+                    "write" => Some(CapabilityLevel::Write),
+                    "immutable" => Some(CapabilityLevel::Immutable),
+                    "owned" => Some(CapabilityLevel::Owned),
+                    "execute" => Some(CapabilityLevel::Execute),
+                    _ => None,
+                })
+                .collect();
+            
+            println!("[DEBUG string_to_type] Parsed capabilities: {:?}", capabilities);
+            
+            if capabilities.is_empty() {
+                // No valid capabilities found, treat as named type
+                println!("[DEBUG string_to_type] No valid capabilities, treating as named type");
+                return Type::Named(s.to_string(), Vec::new());
             }
+            
+            // Create identity type
+            let identity_type = IdentityType {
+                value: None,
+                capabilities,
+                delegatable: false,
+                constraints: Vec::new(),
+                type_params: Vec::new(),
+            };
+            
+            println!("[DEBUG string_to_type] Created identity type");
+            return Type::Identity(Box::new(identity_type));
         }
 
         // Check for array type: [T; N]
