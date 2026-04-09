@@ -12,6 +12,7 @@ use crate::middle::resolver::module_resolver::ModuleResolver;
 use crate::middle::resolver::typecheck_new::NewTypeCheck;
 use crate::middle::types::ArraySize;
 use crate::middle::types::identity::{CapabilityLevel, IdentityType};
+use crate::middle::types::{FuncSignature, TypeParam};
 use crate::middle::specialization::{
     CACHE, MonoKey, MonoValue, is_cache_safe, record_specialization,
 };
@@ -51,7 +52,8 @@ pub struct Resolver {
 }
 
 // Learning: Complex type factored into type definition per clippy suggestion
-type FuncSignature = (Vec<(String, Type)>, Type, bool);
+// type FuncSignature = (Vec<(String, Type)>, Type, bool);
+// Now using the proper FuncSignature struct from types module
 
 impl Resolver {
     pub fn new() -> Self {
@@ -214,11 +216,32 @@ impl Resolver {
             }
             AstNode::FuncDef {
                 ref name,
+                ref generics,
                 ref params,
                 ref ret,
                 ref async_,
                 ..
             } => {
+                // Convert generic parameters from AST to TypeParam
+                let generic_params: Vec<TypeParam> = generics
+                    .iter()
+                    .filter_map(|gp| match gp {
+                        crate::frontend::ast::GenericParam::Type { name, bounds } => {
+                            // Convert bounds from strings to Types
+                            let type_bounds: Vec<Type> = bounds
+                                .iter()
+                                .map(|b| self.string_to_type(b))
+                                .collect();
+                            Some(TypeParam {
+                                name: name.clone(),
+                                bounds: type_bounds,
+                                kind: crate::middle::types::TypeParamKind::Type,
+                            })
+                        }
+                        _ => None, // Skip lifetime parameters for now
+                    })
+                    .collect();
+                
                 // Convert string types to Type enum
                 let typed_params: Vec<(String, Type)> = params
                     .iter()
@@ -226,30 +249,52 @@ impl Resolver {
                     .collect();
                 let typed_ret = self.string_to_type(ret);
                 println!(
-                    "[RESOLVER] Registering function: {} with {} params",
+                    "[RESOLVER] Registering function: {} with {} params and {} generic params",
                     name,
-                    params.len()
+                    params.len(),
+                    generic_params.len()
                 );
                 let name_clone = name.clone();
-                self.funcs
-                    .insert(name_clone.clone(), (typed_params, typed_ret, *async_));
+                let signature = FuncSignature::with_generics(generic_params, typed_params, typed_ret, *async_);
+                self.funcs.insert(name_clone.clone(), signature);
                 self.registered_funcs.insert(name_clone, ast.clone());
             }
             AstNode::ExternFunc {
                 name,
-                generics: _,
+                generics,
                 lifetimes: _,
                 params,
                 ret,
                 where_clauses: _,
             } => {
+                // Convert generic parameters from AST to TypeParam
+                let generic_params: Vec<TypeParam> = generics
+                    .iter()
+                    .filter_map(|gp| match gp {
+                        crate::frontend::ast::GenericParam::Type { name, bounds } => {
+                            // Convert bounds from strings to Types
+                            let type_bounds: Vec<Type> = bounds
+                                .iter()
+                                .map(|b| self.string_to_type(b))
+                                .collect();
+                            Some(TypeParam {
+                                name: name.clone(),
+                                bounds: type_bounds,
+                                kind: crate::middle::types::TypeParamKind::Type,
+                            })
+                        }
+                        _ => None, // Skip lifetime parameters for now
+                    })
+                    .collect();
+                
                 // Convert string types to Type enum
                 let typed_params: Vec<(String, Type)> = params
                     .iter()
                     .map(|(name, ty_str)| (name.clone(), self.string_to_type(ty_str)))
                     .collect();
                 let typed_ret = self.string_to_type(&ret);
-                self.funcs.insert(name, (typed_params, typed_ret, true));
+                let signature = FuncSignature::with_generics(generic_params, typed_params, typed_ret, true);
+                self.funcs.insert(name, signature);
             }
             AstNode::ImplBlock {
                 concept, ty, body, ..
