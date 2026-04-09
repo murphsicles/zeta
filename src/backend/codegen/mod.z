@@ -2,3 +2,4 @@
 pub mod codegen;
 pub mod ir_gen;
 pub mod jit;
+pub mod simd;  // SIMD support

@@ -3,8 +3,44 @@ name: Zeta CI
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.txt'
+      - '**/*.json'
+      - '**/*.yml'
+      - '**/*.yaml'
+      - '**/*.ps1'
+      - '**/*.bat'
+      - '**/*.sh'
+      - '.github/**'
+      - 'docs/**'
+      - 'examples/**'
+      - 'tests/**'
+      - 'benchmarks/**'
+      - 'scripts/**'
+      - 'contamination_backup/**'
+      - 'PrimeZeta-github/**'
+      - 'Primes/**'
   pull_request:
     branches: [ main ]
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.txt'
+      - '**/*.json'
+      - '**/*.yml'
+      - '**/*.yaml'
+      - '**/*.ps1'
+      - '**/*.bat'
+      - '**/*.sh'
+      - '.github/**'
+      - 'docs/**'
+      - 'examples/**'
+      - 'tests/**'
+      - 'benchmarks/**'
+      - 'scripts/**'
+      - 'contamination_backup/**'
+      - 'PrimeZeta-github/**'
+      - 'Primes/**'
 
 jobs:
   verify-structure:
