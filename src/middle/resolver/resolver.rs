@@ -53,7 +53,6 @@ pub struct Resolver {
 
 // Learning: Complex type factored into type definition per clippy suggestion
 type FuncSignature = (Vec<(String, Type)>, Type, bool);
-// Now using the proper FuncSignature struct from types module
 
 impl Resolver {
     pub fn new() -> Self {
