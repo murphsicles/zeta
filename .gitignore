@@ -20,3 +20,21 @@ target
 zeta
 zetac
 *.o
+
+# Workspace directories not part of core repository
+Primes/
+.openclaw/
+AGENTS.md
+HEARTBEAT.md
+IDENTITY.md
+SOUL.md
+TOOLS.md
+USER.md
+*.exe
+*.rs
+contamination_backup/
+doc-workspace/
+solution_1/
+src/*.z
+test_program.exe
+zetac.exe
