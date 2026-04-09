@@ -1,0 +1,199 @@
+name: Branch Protection - MAIN BRANCH GUARD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  enforce-main-branch-purity:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Verify MAIN branch is Zeta v0.5.0 ONLY
+      id: verify-main
+      run: |
+        echo "=== MAIN BRANCH PURITY VERIFICATION ==="
+        echo "Checking for Zeta v0.5.0 purity..."
+        
+        # CRITICAL: MAIN branch must contain ONLY Zeta v0.5.0 files
+        # These files are ALLOWED in main branch:
+        ALLOWED_FILES=(
+          "README.md"
+          "LICENSE"
+          "RELEASE_v0.5.0.md"
+          "zetac-0.5.0.z"
+          ".gitignore"
+          "Cargo.toml"
+          "Cargo.lock"
+          "src/main.rs"
+          "src/lib.rs"
+          "src/backend/**"
+          "src/frontend/**"
+          "src/middle/**"
+          "src/runtime/**"
+          ".github/workflows/ci.yml"
+          ".github/workflows/release.yml"
+        )
+        
+        # These directories/files are FORBIDDEN in main branch:
+        FORBIDDEN_PATTERNS=(
+          "*.ps1"
+          "*.bat"
+          "*.sh"
+          "WORK_QUEUE.md"
+          "AGENT_*.md"
+          "RELEASE_v0.3.*.md"
+          "contamination_backup/**"
+          "PrimeZeta-github/**"
+          "Primes/**"
+          "benchmarks/**"
+          "scripts/**"
+          "tests/**"
+          "examples/**"
+          "docs/**"
+          "bootstrap/**"
+          "design-docs/**"
+          "analysis/**"
+          "competition_submission/**"
+          "memory/**"
+          "AGENTS.md"
+          "SOUL.md"
+          "USER.md"
+          "TOOLS.md"
+          "IDENTITY.md"
+          "HEARTBEAT.md"
+        )
+        
+        # Check for forbidden files
+        VIOLATIONS=0
+        for pattern in "${FORBIDDEN_PATTERNS[@]}"; do
+          if find . -name "$pattern" -type f | grep -q .; then
+            echo "❌ VIOLATION: Found forbidden pattern: $pattern"
+            find . -name "$pattern" -type f | head -5
+            VIOLATIONS=$((VIOLATIONS + 1))
+          fi
+        done
+        
+        if [ $VIOLATIONS -gt 0 ]; then
+          echo "🚨 CRITICAL: $VIOLATIONS protocol violations detected in main branch!"
+          echo "Main branch must contain ONLY Zeta v0.5.0 source code."
+          echo "All agent work, bootstrap code, documentation, and test files belong on DEV branch."
+          echo "::error::MAIN BRANCH CONTAMINATION DETECTED! $VIOLATIONS violations found."
+          exit 1
+        else
+          echo "✅ MAIN branch is pure Zeta v0.5.0"
+          echo "main_pure=true" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Check commit history
+      if: steps.verify-main.outputs.main_pure == 'true'
+      run: |
+        echo "=== COMMIT HISTORY VERIFICATION ==="
+        
+        # Check last 10 commits for contamination
+        COMMIT_COUNT=$(git log --oneline -10 | wc -l)
+        echo "Last $COMMIT_COUNT commits on main branch:"
+        git log --oneline -10
+        
+        # Look for commits that shouldn't be on main
+        BAD_COMMITS=$(git log --oneline -20 --grep="v0.3" --grep="agent" --grep="bootstrap" --grep="WORK_QUEUE" | wc -l)
+        
+        if [ $BAD_COMMITS -gt 0 ]; then
+          echo "⚠️  Warning: Found $BAD_COMMITS commits with v0.3/agent/bootstrap keywords"
+          git log --oneline -20 --grep="v0.3" --grep="agent" --grep="bootstrap" --grep="WORK_QUEUE"
+          echo "::warning::Found historical contamination in commit history"
+        else
+          echo "✅ Commit history looks clean"
+        fi
+    
+    - name: Enforce branch separation
+      run: |
+        echo "=== BRANCH SEPARATION ENFORCEMENT ==="
+        echo ""
+        echo "BRANCH STRUCTURE RULES:"
+        echo "1. MAIN branch: Zeta v0.5.0 ONLY (pure compiler source)"
+        echo "2. DEV branch: v0.3.* development (agents, bootstrap, tests)"
+        echo "3. RELEASE branches: v0.3.* release tags"
+        echo "4. FEATURE branches: Individual feature work"
+        echo ""
+        echo "VIOLATION PENALTY: Force push cleanup + agent termination"
+        echo ""
+        echo "Current branch: ${{ github.ref }}"
+        
+        # If this is a PR to main, check source branch
+        if [ "${{ github.event_name }}" == "pull_request" ]; then
+          echo "PR from: ${{ github.event.pull_request.head.ref }} to main"
+          if [[ "${{ github.event.pull_request.head.ref }}" == dev* || "${{ github.event.pull_request.head.ref }}" == feature* ]]; then
+            echo "✅ Valid PR source branch"
+          else
+            echo "::error::INVALID PR: Direct pushes to main not allowed. Use dev or feature branches."
+            exit 1
+          fi
+        fi
+
+  auto-cleanup-on-violation:
+    runs-on: ubuntu-latest
+    if: failure() && github.event_name == 'push'
+    needs: [enforce-main-branch-purity]
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Attempt automatic cleanup
+      run: |
+        echo "=== ATTEMPTING AUTOMATIC CLEANUP ==="
+        echo "Main branch contamination detected. Attempting cleanup..."
+        
+        # Save current state
+        git checkout -b contamination-backup-$(date +%Y%m%d-%H%M%S)
+        git push origin contamination-backup-$(date +%Y%m%d-%H%M%S)
+        
+        # Switch back to main and reset to known clean state
+        git checkout main
+        
+        # Find the last clean commit (v0.5.0 tag or similar)
+        CLEAN_COMMIT=$(git log --oneline --grep="v0.5.0" --grep="clean" -1 | cut -d' ' -f1)
+        
+        if [ -n "$CLEAN_COMMIT" ]; then
+          echo "Resetting to clean commit: $CLEAN_COMMIT"
+          git reset --hard $CLEAN_COMMIT
+          git push origin main --force
+          echo "✅ Main branch reset to clean state"
+        else
+          echo "❌ Could not find clean commit. Manual intervention required."
+          echo "::error::AUTOMATIC CLEANUP FAILED: Manual intervention required"
+          exit 1
+        fi
+    
+    - name: Notify violation
+      run: |
+        echo "=== PROTOCOL VIOLATION NOTIFICATION ==="
+        echo ""
+        echo "🚨 MAIN BRANCH CONTAMINATION DETECTED AND CLEANED"
+        echo "Violation #14 in 3 days"
+        echo ""
+        echo "OFFENDING COMMIT: ${{ github.sha }}"
+        echo "ACTOR: ${{ github.actor }}"
+        echo "TIME: $(date)"
+        echo ""
+        echo "AUTOMATIC ACTION:"
+        echo "1. Contamination backed up to separate branch"
+        echo "2. Main branch reset to clean state"
+        echo "3. Force push executed"
+        echo ""
+        echo "RECOMMENDED MANUAL ACTION:"
+        echo "1. Identify violating agent/process"
+        echo "2. Terminate violating agent"
+        echo "3. Review branch protection rules"
+        echo "4. Implement stronger safeguards"
