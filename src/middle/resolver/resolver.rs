@@ -12,7 +12,7 @@ use crate::middle::resolver::module_resolver::ModuleResolver;
 use crate::middle::resolver::typecheck_new::NewTypeCheck;
 use crate::middle::types::ArraySize;
 use crate::middle::types::identity::{CapabilityLevel, IdentityType};
-use crate::middle::types::{FuncSignature, TypeParam};
+use crate::middle::types::TypeParam;
 use crate::middle::specialization::{
     CACHE, MonoKey, MonoValue, is_cache_safe, record_specialization,
 };
@@ -52,7 +52,7 @@ pub struct Resolver {
 }
 
 // Learning: Complex type factored into type definition per clippy suggestion
-// type FuncSignature = (Vec<(String, Type)>, Type, bool);
+type FuncSignature = (Vec<(String, Type)>, Type, bool);
 // Now using the proper FuncSignature struct from types module
 
 impl Resolver {
@@ -227,15 +227,13 @@ impl Resolver {
                     .iter()
                     .filter_map(|gp| match gp {
                         crate::frontend::ast::GenericParam::Type { name, bounds } => {
-                            // Convert bounds from strings to Types
-                            let type_bounds: Vec<Type> = bounds
-                                .iter()
-                                .map(|b| self.string_to_type(b))
-                                .collect();
+                            // Convert bounds from strings to TraitBounds
+                            // For now, create empty bounds - we need proper trait bound parsing
+                            let trait_bounds: Vec<crate::middle::types::TraitBound> = Vec::new();
                             Some(TypeParam {
                                 name: name.clone(),
-                                bounds: type_bounds,
-                                kind: crate::middle::types::TypeParamKind::Type,
+                                bounds: trait_bounds,
+                                kind: crate::middle::types::Kind::Star,
                             })
                         }
                         _ => None, // Skip lifetime parameters for now
@@ -255,8 +253,9 @@ impl Resolver {
                     generic_params.len()
                 );
                 let name_clone = name.clone();
-                let signature = FuncSignature::with_generics(generic_params, typed_params, typed_ret, *async_);
-                self.funcs.insert(name_clone.clone(), signature);
+                // Store generic parameters separately for now
+                // TODO: Integrate generic parameters into function signature properly
+                self.funcs.insert(name_clone.clone(), (typed_params, typed_ret, *async_));
                 self.registered_funcs.insert(name_clone, ast.clone());
             }
             AstNode::ExternFunc {
@@ -272,15 +271,13 @@ impl Resolver {
                     .iter()
                     .filter_map(|gp| match gp {
                         crate::frontend::ast::GenericParam::Type { name, bounds } => {
-                            // Convert bounds from strings to Types
-                            let type_bounds: Vec<Type> = bounds
-                                .iter()
-                                .map(|b| self.string_to_type(b))
-                                .collect();
+                            // Convert bounds from strings to TraitBounds
+                            // For now, create empty bounds - we need proper trait bound parsing
+                            let trait_bounds: Vec<crate::middle::types::TraitBound> = Vec::new();
                             Some(TypeParam {
                                 name: name.clone(),
-                                bounds: type_bounds,
-                                kind: crate::middle::types::TypeParamKind::Type,
+                                bounds: trait_bounds,
+                                kind: crate::middle::types::Kind::Star,
                             })
                         }
                         _ => None, // Skip lifetime parameters for now
@@ -293,8 +290,7 @@ impl Resolver {
                     .map(|(name, ty_str)| (name.clone(), self.string_to_type(ty_str)))
                     .collect();
                 let typed_ret = self.string_to_type(&ret);
-                let signature = FuncSignature::with_generics(generic_params, typed_params, typed_ret, true);
-                self.funcs.insert(name, signature);
+                self.funcs.insert(name, (typed_params, typed_ret, true));
             }
             AstNode::ImplBlock {
                 concept, ty, body, ..
