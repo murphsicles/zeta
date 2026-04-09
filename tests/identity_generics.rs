@@ -12,7 +12,7 @@ fn test_identity_constraint_parsing() {
         }
         fn main() -> i64 {
             // Create an identity string with read capability
-            let s: string[identity:read] = "hello";
+            let s = read_only_string("hello");
             process(s)
         }
     "#;
@@ -32,7 +32,7 @@ fn test_identity_multiple_capabilities() {
             return 99;
         }
         fn main() -> i64 {
-            let s: string[identity:read+write] = "test";
+            let s = read_write_string("test");
             process(s)
         }
     "#;
@@ -52,7 +52,7 @@ fn test_combined_constraints() {
             return 123;
         }
         fn main() -> i64 {
-            let s: string[identity:read] = "item";
+            let s = read_only_string("item");
             process_and_clone(s)
         }
     "#;
