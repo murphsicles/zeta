@@ -42,6 +42,9 @@ impl NewTypeCheck for Resolver {
             // Create function type: (param_types) -> ret_ty
             let func_type = Type::Function(param_types, Box::new(ret_ty.clone()));
             
+            // Debug: print function type
+            eprintln!("[TYPECHECK_NEW] Function {} type: {:?}", name, func_type);
+            
             // Add to inference context
             context.add_function(name.clone(), func_type);
         }
@@ -91,6 +94,16 @@ impl NewTypeCheck for Resolver {
 
         // Debug: print what we're parsing
         eprintln!("[DEBUG] string_to_type parsing: '{}'", s);
+        
+        // Special debug for generic parameters
+        if s == "T" || s == "U" || s == "V" || s == "K" || s == "V" {
+            eprintln!("[DEBUG] string_to_type: creating fresh type variable for generic parameter '{}'", s);
+        }
+        
+        // Special debug for identity types
+        if s.starts_with("string[identity:") {
+            eprintln!("[DEBUG] string_to_type: found identity type: '{}'", s);
+        }
         
         // Safety check: prevent infinite recursion
         if s.is_empty() {
@@ -142,9 +155,9 @@ impl NewTypeCheck for Resolver {
 
         // Check for identity type: string[identity:read], string[identity:read+write], etc.
         if s.starts_with("string[identity:") && s.ends_with(']') {
-            println!("[DEBUG string_to_type] Parsing identity type: {}", s);
+            eprintln!("[DEBUG string_to_type] Parsing identity type: {}", s);
             let capabilities_str = &s["string[identity:".len()..s.len() - 1]; // Remove "string[identity:" and "]"
-            println!("[DEBUG string_to_type] Capabilities string: '{}'", capabilities_str);
+            eprintln!("[DEBUG string_to_type] Capabilities string: '{}'", capabilities_str);
             
             // Parse capabilities
             let capabilities: Vec<CapabilityLevel> = capabilities_str

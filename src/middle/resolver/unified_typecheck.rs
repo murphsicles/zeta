@@ -118,6 +118,7 @@ impl UnifiedTypeCheck for super::resolver::Resolver {
 
     fn parse_type_string(&self, s: &str) -> Result<Type, String> {
         use super::typecheck_new::NewTypeCheck;
+        eprintln!("[PARSE_TYPE_STRING] parsing: '{}'", s);
         Ok(self.string_to_type(s))
     }
 

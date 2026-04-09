@@ -39,6 +39,8 @@ pub struct Resolver {
     pub associated_types: HashMap<(String, String), String>,
     pub ctfe_consts: HashMap<AstNode, i64>,
     funcs: HashMap<String, FuncSignature>,
+    /// Generic parameters for functions
+    func_generics: HashMap<String, Vec<TypeParam>>,
     /// Registered function ASTs (including module functions)
     registered_funcs: HashMap<String, AstNode>,
     /// Module resolver for Zorb imports
@@ -64,6 +66,7 @@ impl Resolver {
             associated_types: HashMap::new(),
             ctfe_consts: HashMap::new(),
             funcs: HashMap::new(),
+            func_generics: HashMap::new(),
             registered_funcs: HashMap::new(),
             module_resolver: ModuleResolver::new("."),
             macro_expander: MacroExpander::new(),
@@ -88,6 +91,58 @@ impl Resolver {
                 // Use key directly without clone when possible
                 self.mono_mirs.insert(key.clone(), Mir::default());
                 record_specialization(key, value);
+            }
+        }
+    }
+
+    /// Convert a trait bound string (e.g., "Identity<Read>") to a TraitBound enum
+    fn string_to_trait_bound(&self, bound_str: &str) -> Option<crate::middle::types::TraitBound> {
+        let bound_str = bound_str.trim();
+        
+        println!("[DEBUG string_to_trait_bound] Called with: '{}'", bound_str);
+        
+        // Handle Identity bounds: Identity<Read>, Identity<Read+Write>, etc.
+        if bound_str.starts_with("Identity<") && bound_str.ends_with('>') {
+            let capabilities_str = &bound_str["Identity<".len()..bound_str.len() - 1];
+            println!("[DEBUG string_to_trait_bound] Parsing identity bound: {} -> capabilities: '{}'", bound_str, capabilities_str);
+            
+            // Parse capabilities
+            let capabilities: Vec<CapabilityLevel> = capabilities_str
+                .split('+')
+                .filter_map(|cap| match cap.trim().to_lowercase().as_str() {
+                    "read" => Some(CapabilityLevel::Read),
+                    "write" => Some(CapabilityLevel::Write),
+                    "immutable" => Some(CapabilityLevel::Immutable),
+                    "owned" => Some(CapabilityLevel::Owned),
+                    "execute" => Some(CapabilityLevel::Execute),
+                    _ => None,
+                })
+                .collect();
+            
+            if capabilities.is_empty() {
+                println!("[DEBUG string_to_trait_bound] No valid capabilities found in '{}'", capabilities_str);
+                return None;
+            }
+            
+            println!("[DEBUG string_to_trait_bound] Parsed capabilities: {:?}", capabilities);
+            return Some(crate::middle::types::TraitBound::Identity(capabilities));
+        }
+        
+        // Handle other trait bounds
+        match bound_str {
+            "Clone" => Some(crate::middle::types::TraitBound::Clone),
+            "Copy" => Some(crate::middle::types::TraitBound::Copy),
+            "Debug" => Some(crate::middle::types::TraitBound::Debug),
+            "Default" => Some(crate::middle::types::TraitBound::Default),
+            "PartialEq" => Some(crate::middle::types::TraitBound::PartialEq),
+            "Eq" => Some(crate::middle::types::TraitBound::Eq),
+            "PartialOrd" => Some(crate::middle::types::TraitBound::PartialOrd),
+            "Ord" => Some(crate::middle::types::TraitBound::Ord),
+            "Hash" => Some(crate::middle::types::TraitBound::Hash),
+            "Future" => Some(crate::middle::types::TraitBound::Future),
+            _ => {
+                println!("[DEBUG string_to_trait_bound] Unknown trait bound: '{}'", bound_str);
+                None
             }
         }
     }
@@ -227,8 +282,13 @@ impl Resolver {
                     .filter_map(|gp| match gp {
                         crate::frontend::ast::GenericParam::Type { name, bounds } => {
                             // Convert bounds from strings to TraitBounds
-                            // For now, create empty bounds - we need proper trait bound parsing
-                            let trait_bounds: Vec<crate::middle::types::TraitBound> = Vec::new();
+                            let trait_bounds: Vec<crate::middle::types::TraitBound> = bounds
+                                .iter()
+                                .filter_map(|bound_str| self.string_to_trait_bound(bound_str))
+                                .collect();
+                            
+                            println!("[RESOLVER] Parsed bounds for {}: {:?} -> {:?}", name, bounds, trait_bounds);
+                            
                             Some(TypeParam {
                                 name: name.clone(),
                                 bounds: trait_bounds,
@@ -252,9 +312,13 @@ impl Resolver {
                     generic_params.len()
                 );
                 let name_clone = name.clone();
-                // Store generic parameters separately for now
-                // TODO: Integrate generic parameters into function signature properly
+                // Store function signature
                 self.funcs.insert(name_clone.clone(), (typed_params, typed_ret, *async_));
+                // Store generic parameters
+                if !generic_params.is_empty() {
+                    println!("[RESOLVER] Storing generic params for {}: {:?}", name_clone, generic_params);
+                    self.func_generics.insert(name_clone.clone(), generic_params);
+                }
                 self.registered_funcs.insert(name_clone, ast.clone());
             }
             AstNode::ExternFunc {
@@ -271,8 +335,13 @@ impl Resolver {
                     .filter_map(|gp| match gp {
                         crate::frontend::ast::GenericParam::Type { name, bounds } => {
                             // Convert bounds from strings to TraitBounds
-                            // For now, create empty bounds - we need proper trait bound parsing
-                            let trait_bounds: Vec<crate::middle::types::TraitBound> = Vec::new();
+                            let trait_bounds: Vec<crate::middle::types::TraitBound> = bounds
+                                .iter()
+                                .filter_map(|bound_str| self.string_to_trait_bound(bound_str))
+                                .collect();
+                            
+                            println!("[RESOLVER] Parsed bounds for extern func {}: {:?} -> {:?}", name, bounds, trait_bounds);
+                            
                             Some(TypeParam {
                                 name: name.clone(),
                                 bounds: trait_bounds,
@@ -289,7 +358,12 @@ impl Resolver {
                     .map(|(name, ty_str)| (name.clone(), self.string_to_type(ty_str)))
                     .collect();
                 let typed_ret = self.string_to_type(&ret);
-                self.funcs.insert(name, (typed_params, typed_ret, true));
+                self.funcs.insert(name.clone(), (typed_params, typed_ret, true));
+                // Store generic parameters for extern functions too
+                if !generic_params.is_empty() {
+                    println!("[RESOLVER] Storing generic params for extern func {}: {:?}", name, generic_params);
+                    self.func_generics.insert(name.clone(), generic_params);
+                }
             }
             AstNode::ImplBlock {
                 concept, ty, body, ..
