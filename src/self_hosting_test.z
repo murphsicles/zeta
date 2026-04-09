@@ -1,0 +1,30 @@
+// Self-hosting test for Zeta compiler
+// Tests basic language features
+
+fn add(a: i64, b: i64) -> i64 {
+    a + b
+}
+
+fn multiply(a: i64, b: i64) -> i64 {
+    a * b
+}
+
+fn factorial(n: i64) -> i64 {
+    if n <= 1 {
+        1
+    } else {
+        n * factorial(n - 1)
+    }
+}
+
+fn main() -> i64 {
+    // Test basic arithmetic
+    let x = add(5, 3);
+    let y = multiply(4, 6);
+    
+    // Test recursion
+    let fact = factorial(5);
+    
+    // Return combined result
+    x + y + fact
+}

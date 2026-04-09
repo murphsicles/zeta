@@ -1,0 +1,14 @@
+// Conditional test for Zeta compiler
+
+fn max(a: i64, b: i64) -> i64 {
+    if gt(a, b) {
+        a
+    } else {
+        b
+    }
+}
+
+fn main() -> i64 {
+    let result = max(15, 25);
+    result
+}

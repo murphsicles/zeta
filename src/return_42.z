@@ -1,0 +1,4 @@
+// Simple program that returns 42
+fn main() -> i64 {
+    42
+}

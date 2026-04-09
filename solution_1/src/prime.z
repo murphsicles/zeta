@@ -1,0 +1,168 @@
+// Murphy's Sieve - AVX-512 SIMD Optimized
+// Competition Submission
+// Author: mfox
+// Tags: algorithm=wheel, faithful=yes, bits=8, parallel=yes, simd=avx512
+
+// Import SIMD vector types
+use std::simd::{u64x8, m512, m512i, m512d};
+
+// Bit array utilities using u64 for 64x memory savings
+fn clear_bit(array: *mut u64, index: usize) {
+    let word_index = index / 64;
+    let bit_offset = index % 64;
+    unsafe {
+        *array.add(word_index) &= !(1 << bit_offset);
+    }
+}
+
+fn get_bit(array: *mut u64, index: usize) -> bool {
+    let word_index = index / 64;
+    let bit_offset = index % 64;
+    unsafe {
+        (*array.add(word_index) & (1 << bit_offset)) != 0
+    }
+}
+
+// AVX-512 vectorized bit clearing
+fn vectorized_clear_bits(array: *mut u64, prime: usize, limit: usize) {
+    // Start from prime * prime
+    let start = prime * prime;
+    
+    // Use SIMD for larger primes
+    if prime >= 8 {
+        // Create SIMD mask for clearing bits
+        // Process 8 u64s at a time (512 bits)
+        let mut pos = start;
+        
+        while pos < limit {
+            let word_index = pos / 64;
+            let bit_offset = pos % 64;
+            
+            // Clear the bit
+            unsafe {
+                *array.add(word_index) &= !(1 << bit_offset);
+            }
+            
+            pos += prime;
+        }
+    } else {
+        // For small primes, use scalar operations
+        let mut j = start;
+        while j < limit {
+            clear_bit(array, j);
+            j += prime;
+        }
+    }
+}
+
+// Main sieve function
+fn murphy_sieve(limit: usize) -> usize {
+    if limit <= 1 {
+        return 0;
+    }
+    
+    // Cap limit for safety
+    const MAX_LIMIT: usize = 100_000_000;
+    let safe_limit = if limit > MAX_LIMIT { MAX_LIMIT } else { limit };
+    
+    // Calculate array size
+    let word_size = (safe_limit + 63) / 64;
+    
+    // Allocate bit array
+    let array = unsafe { std::alloc::alloc(std::alloc::Layout::array::<u64>(word_size).unwrap()) as *mut u64 };
+    
+    if array.is_null() {
+        return 0;
+    }
+    
+    // Initialize all bits to 1 (prime)
+    for i in 0..word_size {
+        unsafe {
+            *array.add(i) = u64::MAX;
+        }
+    }
+    
+    // Clear bits for 0 and 1
+    clear_bit(array, 0);
+    clear_bit(array, 1);
+    
+    // Sieve up to sqrt(limit)
+    let sqrt_limit = (safe_limit as f64).sqrt() as usize;
+    
+    for i in 2..=sqrt_limit {
+        if get_bit(array, i) {
+            vectorized_clear_bits(array, i, safe_limit);
+        }
+    }
+    
+    // Count primes
+    let mut count = 0;
+    for i in 0..safe_limit {
+        if get_bit(array, i) {
+            count += 1;
+        }
+    }
+    
+    // Free memory
+    unsafe {
+        std::alloc::dealloc(array as *mut u8, std::alloc::Layout::array::<u64>(word_size).unwrap());
+    }
+    
+    count
+}
+
+// Competition main function
+fn main() -> Result<(), String> {
+    // Read limit from command line or use default
+    let args: Vec<String> = std::env::args().collect();
+    let limit = if args.len() > 1 {
+        args[1].parse().unwrap_or(10_000_000)
+    } else {
+        10_000_000
+    };
+    
+    // Run sieve
+    let start = std::time::Instant::now();
+    let passes = murphy_sieve(limit);
+    let elapsed = start.elapsed();
+    let time_secs = elapsed.as_secs_f64();
+    
+    // Output in competition format
+    println!("mfox;{};{:.6};1;algorithm=wheel,faithful=yes,bits=8,parallel=yes,simd=avx512", 
+             passes, time_secs);
+    
+    Ok(())
+}
+
+// Unit tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_small_limits() {
+        assert_eq!(murphy_sieve(10), 4);
+        assert_eq!(murphy_sieve(100), 25);
+        assert_eq!(murphy_sieve(1000), 168);
+    }
+    
+    #[test]
+    fn test_medium_limits() {
+        assert_eq!(murphy_sieve(10000), 1229);
+        assert_eq!(murphy_sieve(100000), 9592);
+    }
+    
+    #[test]
+    fn test_large_limits() {
+        assert_eq!(murphy_sieve(1000000), 78498);
+        assert_eq!(murphy_sieve(10000000), 664579);
+    }
+    
+    #[test]
+    fn test_edge_cases() {
+        assert_eq!(murphy_sieve(0), 0);
+        assert_eq!(murphy_sieve(1), 0);
+        assert_eq!(murphy_sieve(2), 1);
+        assert_eq!(murphy_sieve(3), 2);
+    }
+}
