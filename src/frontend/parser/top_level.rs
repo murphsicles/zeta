@@ -19,7 +19,7 @@ use nom::multi::{many0, separated_list0};
 use nom::sequence::{delimited, preceded, terminated};
 
 fn parse_param(input: &str) -> IResult<&str, (String, String)> {
-    // eprintln!("[DEBUG parse_param] input: {:?}", input);
+    eprintln!("[DEBUG parse_param] input: {:?}", input);
     // Try to parse &self or &mut self first (must not be followed by :)
     let parse_self = alt((
         // &mut self (must not be followed by :)

@@ -393,7 +393,7 @@ pub fn parse_non_array_type(input: &str) -> IResult<&str, String> {
 }
 
 pub fn parse_type(input: &str) -> IResult<&str, String> {
-    // eprintln!("[DEBUG parse_type] input: {:?}", input);
+    eprintln!("[DEBUG parse_type] input: {:?}", input);
     let (mut input, mut s) = (input, String::new());
 
     // Parse references (can be multiple: &&T)

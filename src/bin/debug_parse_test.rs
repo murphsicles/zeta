@@ -8,6 +8,12 @@ fn main() {
         "fn test(a: i64) -> i64 { a }",
         "fn simple(x: i32) -> i32 { x }",
         "fn works() -> i64 { 42 }",
+        "fn with_ref(x: &i64) -> i64 { *x }",
+        "fn with_mut_ref(x: &mut i64) -> i64 { *x }",
+        "fn with_string(s: String) -> String { s }",
+        "fn with_array(arr: [i64; 10]) -> i64 { arr[0] }",
+        "fn with_tuple(t: (i64, i32)) -> i64 { t.0 }",
+        "fn multiple(a: i64, b: i64) -> i64 { a + b }",
     ];
     
     for (i, code) in test_cases.iter().enumerate() {
