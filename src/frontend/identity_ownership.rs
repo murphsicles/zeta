@@ -6,7 +6,7 @@
 
 use crate::frontend::ast::AstNode;
 use crate::middle::resolver::resolver::{Resolver, Type};
-use crate::middle::types::identity::{IdentityType, CapabilityLevel, IdentityConstraint};
+use crate::middle::types::identity::{IdentityType, CapabilityLevel};
 use crate::middle::types::lifetime::{Lifetime, LifetimeContext};
 use std::collections::{HashMap, HashSet};
 

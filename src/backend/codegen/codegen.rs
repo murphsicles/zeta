@@ -17,7 +17,7 @@ use inkwell::IntPredicate;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::{Linkage, Module};
-use inkwell::types::{BasicMetadataTypeEnum, BasicType, IntType, PointerType, VectorType};
+use inkwell::types::{BasicType, IntType, PointerType, VectorType};
 use inkwell::values::{
     BasicMetadataValueEnum, BasicValueEnum, CallSiteValue, FunctionValue, PointerValue,
 };

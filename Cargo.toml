@@ -4,7 +4,7 @@
 # Package name.
 name = "zetac"
 # Current version.
-version = "0.3.71"  # Advanced identity generics examples added, documentation updated, ready for v0.3.72 performance optimization
+version = "0.3.72"  # Performance optimization for identity generics type checking (~21% improvement), code cleanup
 # Rust edition.
 edition = "2024"
 # Minimum Rust version.

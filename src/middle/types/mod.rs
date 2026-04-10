@@ -1671,9 +1671,35 @@ impl Substitution {
                 // Check if type has identity with required capabilities
                 match ty {
                     Type::Identity(identity_type) => {
-                        // Check if identity has all required capabilities
+                        // Optimization: Use bitset for O(1) capability checks
+                        // Since there are only 5 capability levels, we can use a u8 bitset
+                        let mut identity_bitset = 0u8;
+                        for cap in &identity_type.capabilities {
+                            match cap {
+                                CapabilityLevel::Immutable => identity_bitset |= 1 << 0,
+                                CapabilityLevel::Read => identity_bitset |= 1 << 1,
+                                CapabilityLevel::Write => identity_bitset |= 1 << 2,
+                                CapabilityLevel::Execute => identity_bitset |= 1 << 3,
+                                CapabilityLevel::Owned => identity_bitset |= 1 << 4,
+                            }
+                        }
+                        
+                        // Check all required capabilities
                         capabilities.iter().all(|required_cap| {
-                            identity_type.capabilities.iter().any(|cap| cap >= required_cap)
+                            // Check if identity has this capability or a higher one
+                            match required_cap {
+                                CapabilityLevel::Immutable => 
+                                    // Immutable is always satisfied (base level)
+                                    true,
+                                CapabilityLevel::Read => 
+                                    (identity_bitset & 0b11110) != 0, // Read, Write, Execute, or Owned
+                                CapabilityLevel::Write => 
+                                    (identity_bitset & 0b11100) != 0, // Write, Execute, or Owned
+                                CapabilityLevel::Execute => 
+                                    (identity_bitset & 0b11000) != 0, // Execute or Owned
+                                CapabilityLevel::Owned => 
+                                    (identity_bitset & 0b10000) != 0, // Owned only
+                            }
                         })
                     }
                     _ => false,

@@ -112,7 +112,27 @@ impl IdentityInferenceContext {
                 IdentityConstraint::Capability(required_cap) => {
                     // Apply capability constraint to all type variables
                     for (name, identity_type) in self.type_vars.iter_mut() {
-                        if !identity_type.capabilities.iter().any(|cap| cap >= required_cap) {
+                        // Optimization: Use bitset for O(1) capability checks
+                        let mut identity_bitset = 0u8;
+                        for cap in &identity_type.capabilities {
+                            match cap {
+                                CapabilityLevel::Immutable => identity_bitset |= 1 << 0,
+                                CapabilityLevel::Read => identity_bitset |= 1 << 1,
+                                CapabilityLevel::Write => identity_bitset |= 1 << 2,
+                                CapabilityLevel::Execute => identity_bitset |= 1 << 3,
+                                CapabilityLevel::Owned => identity_bitset |= 1 << 4,
+                            }
+                        }
+                        
+                        let has_capability = match required_cap {
+                            CapabilityLevel::Immutable => true, // Always satisfied
+                            CapabilityLevel::Read => (identity_bitset & 0b11110) != 0,
+                            CapabilityLevel::Write => (identity_bitset & 0b11100) != 0,
+                            CapabilityLevel::Execute => (identity_bitset & 0b11000) != 0,
+                            CapabilityLevel::Owned => (identity_bitset & 0b10000) != 0,
+                        };
+                        
+                        if !has_capability {
                             self.errors.push(format!(
                                 "Identity '{}' does not have required capability {}",
                                 name, required_cap

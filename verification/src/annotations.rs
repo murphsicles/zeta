@@ -85,7 +85,7 @@ pub fn parse_annotations(source: &str) -> Result<AnnotatedAst, String> {
         
         // Check for loop invariants
         if trimmed.contains("@invariant") {
-            if let Some(annotation) = parse_loop_invariant(trimmed, line_num)? {
+            if let Some(annotation) = parse_loop_invariant(trimmed)? {
                 annotations.push(annotation);
                 line_numbers.push(line_num);
             }
@@ -93,7 +93,7 @@ pub fn parse_annotations(source: &str) -> Result<AnnotatedAst, String> {
         
         // Check for assertions
         if trimmed.contains("@assert") {
-            if let Some(annotation) = parse_assertion(trimmed, line_num)? {
+            if let Some(annotation) = parse_assertion(trimmed)? {
                 annotations.push(annotation);
                 line_numbers.push(line_num);
             }
@@ -101,7 +101,7 @@ pub fn parse_annotations(source: &str) -> Result<AnnotatedAst, String> {
         
         // Check for preconditions
         if trimmed.contains("@pre") {
-            if let Some(annotation) = parse_precondition(trimmed, line_num)? {
+            if let Some(annotation) = parse_precondition(trimmed)? {
                 annotations.push(annotation);
                 line_numbers.push(line_num);
             }
@@ -109,7 +109,7 @@ pub fn parse_annotations(source: &str) -> Result<AnnotatedAst, String> {
         
         // Check for postconditions
         if trimmed.contains("@post") {
-            if let Some(annotation) = parse_postcondition(trimmed, line_num)? {
+            if let Some(annotation) = parse_postcondition(trimmed)? {
                 annotations.push(annotation);
                 line_numbers.push(line_num);
             }
@@ -211,7 +211,7 @@ fn parse_params(params_str: &str) -> Result<Vec<Param>, String> {
 }
 
 /// Parse loop invariant annotation
-fn parse_loop_invariant(line: &str, _line_num: usize) -> Result<Option<Annotation>, String> {
+fn parse_loop_invariant(line: &str) -> Result<Option<Annotation>, String> {
     // Extract invariant predicate
     let start = line.find("@invariant").unwrap() + 10;
     let predicate_str = line[start..].trim();
@@ -226,7 +226,7 @@ fn parse_loop_invariant(line: &str, _line_num: usize) -> Result<Option<Annotatio
 }
 
 /// Parse assertion annotation
-fn parse_assertion(line: &str, _line_num: usize) -> Result<Option<Annotation>, String> {
+fn parse_assertion(line: &str) -> Result<Option<Annotation>, String> {
     // Extract assertion predicate
     let start = line.find("@assert").unwrap() + 7;
     let predicate_str = line[start..].trim();
@@ -241,7 +241,7 @@ fn parse_assertion(line: &str, _line_num: usize) -> Result<Option<Annotation>, S
 }
 
 /// Parse precondition annotation
-fn parse_precondition(line: &str, _line_num: usize) -> Result<Option<Annotation>, String> {
+fn parse_precondition(line: &str) -> Result<Option<Annotation>, String> {
     // Extract precondition predicate
     let start = line.find("@pre").unwrap() + 4;
     let predicate_str = line[start..].trim();
@@ -256,7 +256,7 @@ fn parse_precondition(line: &str, _line_num: usize) -> Result<Option<Annotation>
 }
 
 /// Parse postcondition annotation
-fn parse_postcondition(line: &str, _line_num: usize) -> Result<Option<Annotation>, String> {
+fn parse_postcondition(line: &str) -> Result<Option<Annotation>, String> {
     // Extract postcondition predicate
     let start = line.find("@post").unwrap() + 5;
     let predicate_str = line[start..].trim();

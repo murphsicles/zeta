@@ -3,7 +3,7 @@
 //! This module generates verification conditions (VCs) from
 //! annotated Zeta programs.
 
-use crate::refinement::{RefinementType, Predicate, Expr};
+use crate::refinement::{RefinementType, Predicate};
 
 /// Verification condition
 #[derive(Debug, Clone)]
