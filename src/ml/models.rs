@@ -52,11 +52,6 @@ impl MLP {
         
         MLP {
             layers,
-            input_size,
-            hidden_sizes,
-            output_size,
-            dropout_rate,
-            use_batch_norm,
         }
     }
     
@@ -98,12 +93,6 @@ impl Layer for MLP {
 #[derive(Debug)]
 pub struct CNN {
     layers: Sequential,
-    input_channels: usize,
-    conv_channels: Vec<usize>,
-    fc_sizes: Vec<usize>,
-    output_size: usize,
-    dropout_rate: f32,
-    use_batch_norm: bool,
 }
 
 impl CNN {
@@ -173,12 +162,6 @@ impl CNN {
         
         CNN {
             layers,
-            input_channels,
-            conv_channels,
-            fc_sizes,
-            output_size,
-            dropout_rate,
-            use_batch_norm,
         }
     }
     
