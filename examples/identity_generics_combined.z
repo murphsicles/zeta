@@ -1,0 +1,36 @@
+// Combined identity and trait constraints example
+// Demonstrates multiple constraint types
+
+// Trait for cloneable types
+trait Cloneable {
+    fn clone(&self) -> Self;
+}
+
+// Function with combined identity and trait constraints
+fn process_and_clone<T: Identity<Read> + Cloneable>(item: T) -> (T, i64) {
+    // Can read from item and clone it
+    let cloned = item.clone();
+    return (cloned, 123);
+}
+
+// Simple implementation of Cloneable for demonstration
+struct SimpleData {
+    value: i64
+}
+
+impl Cloneable for SimpleData {
+    fn clone(&self) -> SimpleData {
+        return SimpleData { value: self.value };
+    }
+}
+
+// Main function
+fn main() -> i64 {
+    // Create simple data
+    let data = SimpleData { value: 42 };
+    
+    // Note: This example shows the concept, but would need
+    // identity wrapper for SimpleData to work with Identity<Read>
+    // For now, just return a value
+    return 456;
+}

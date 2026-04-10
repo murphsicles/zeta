@@ -1,0 +1,46 @@
+// Identity generics with structs example
+// Demonstrates identity-constrained generic structs
+
+// Struct that stores identity-constrained data
+struct SecureContainer<T: Identity<Read>> {
+    contents: T
+}
+
+// Method implementation for SecureContainer
+impl SecureContainer<T: Identity<Read>> {
+    // Constructor
+    fn new(data: T) -> SecureContainer<T> {
+        return SecureContainer { contents: data };
+    }
+    
+    // Method to process contents (read-only)
+    fn process(&self) -> i64 {
+        // Can read from contents
+        return 100;
+    }
+}
+
+// Function demonstrating multiple capability constraints
+fn process_multiple_caps<T: Identity<Read+Write+Owned>>(data: T) -> i64 {
+    // Has full control over data
+    return 200;
+}
+
+// Main function
+fn main() -> i64 {
+    // Create identity data
+    let read_data = read_only_string("Secure content");
+    let owned_data = owned_string("Fully owned data");
+    
+    // Create secure container
+    let container = SecureContainer::new(read_data);
+    
+    // Process container contents
+    let result1 = container.process();
+    
+    // Process with multiple capabilities
+    let result2 = process_multiple_caps(owned_data);
+    
+    // Return total
+    return result1 + result2;
+}

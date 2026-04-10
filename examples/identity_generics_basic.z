@@ -1,0 +1,28 @@
+// Basic identity generics example
+// Demonstrates identity-constrained generic functions
+
+// Function that requires read capability
+fn process_read_only<T: Identity<Read>>(data: T) -> i64 {
+    // Can read from data but not modify
+    return 42;
+}
+
+// Function that requires read+write capabilities
+fn process_read_write<T: Identity<Read+Write>>(data: T) -> i64 {
+    // Can both read and write to data
+    return 99;
+}
+
+// Main function demonstrating identity generics
+fn main() -> i64 {
+    // Create identity strings with different capabilities
+    let read_only_str = read_only_string("Hello, world!");
+    let read_write_str = read_write_string("Mutable data");
+    
+    // Call functions with appropriate identity types
+    let result1 = process_read_only(read_only_str);
+    let result2 = process_read_write(read_write_str);
+    
+    // Return combined result
+    return result1 + result2;
+}
