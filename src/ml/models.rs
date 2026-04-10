@@ -224,12 +224,6 @@ impl Layer for CNN {
 #[derive(Debug)]
 pub struct RNNModel {
     layers: Sequential,
-    input_size: usize,
-    hidden_size: usize,
-    num_layers: usize,
-    output_size: usize,
-    bidirectional: bool,
-    dropout_rate: f32,
 }
 
 impl RNNModel {
@@ -262,12 +256,6 @@ impl RNNModel {
         
         RNNModel {
             layers,
-            input_size,
-            hidden_size,
-            num_layers,
-            output_size,
-            bidirectional,
-            dropout_rate,
         }
     }
     
@@ -299,12 +287,6 @@ impl RNNModel {
         
         RNNModel {
             layers,
-            input_size,
-            hidden_size,
-            num_layers,
-            output_size,
-            bidirectional,
-            dropout_rate,
         }
     }
     
