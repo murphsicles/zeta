@@ -4,7 +4,7 @@
 # Package name.
 name = "zetac"
 # Current version.
-version = "0.3.68"  # Bootstrap complete - Identity generics support fully implemented and tested
+version = "0.3.70"  # Bootstrap complete - Identity generics support fully implemented and tested, benchmark fixed and running
 # Rust edition.
 edition = "2024"
 # Minimum Rust version.
