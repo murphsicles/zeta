@@ -1,0 +1,13 @@
+// Minimal PrimeZeta test
+fn main() -> u64 {
+    // Simple test - no arrays, no comptime
+    var i: u64 = 0
+    var count: u64 = 0
+    
+    while i < 10 {
+        count += 1
+        i += 1
+    }
+    
+    return count  // Should return 10
+}

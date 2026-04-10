@@ -1,0 +1,13 @@
+fn main() -> i64 {
+    // Test without type annotation
+    let sieve = [true; 1000]
+    if !sieve[0] { return 1 }
+    if !sieve[999] { return 2 }
+    
+    // Test integer array
+    let arr = [0; 500]
+    if arr[0] != 0 { return 3 }
+    if arr[499] != 0 { return 4 }
+    
+    0
+}

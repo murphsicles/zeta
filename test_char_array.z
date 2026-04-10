@@ -1,0 +1,7 @@
+fn main() -> i64 {
+    // Test with char array
+    let arr = ['a'; 4]
+    
+    // Char comparison doesn't work directly in Zeta, so just return 0
+    0
+}

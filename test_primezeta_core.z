@@ -1,0 +1,28 @@
+// Core PrimeZeta functionality test
+// Testing only the essential array repeat syntax that PrimeZeta needs
+
+fn main() -> i64 {
+    // Test 1: Basic array repeat like [0; 1000]
+    let arr1 = [0; 1000]
+    if arr1[0] != 0 { return 1 }
+    if arr1[999] != 0 { return 2 }
+    
+    // Test 2: Boolean array for sieve [true; limit]
+    let sieve = [true; 1000]
+    if !sieve[0] { return 3 }
+    if !sieve[999] { return 4 }
+    
+    // Test 3: Array with constant size
+    const LIMIT: i64 = 500
+    let arr2 = [0; LIMIT]
+    if arr2[0] != 0 { return 5 }
+    if arr2[LIMIT-1] != 0 { return 6 }
+    
+    // Test 4: Multi-dimensional array initialization
+    let matrix = [[0; 10]; 10]
+    if matrix[0][0] != 0 { return 7 }
+    if matrix[9][9] != 0 { return 8 }
+    
+    // All tests passed
+    0
+}

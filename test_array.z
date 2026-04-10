@@ -1,0 +1,6 @@
+const SIZE: usize = 100
+fn test() -> u64 {
+    var arr: [SIZE]u64 = [0; SIZE]
+    var sieve: [1000]bool = [true; 1000]
+    return 1
+}

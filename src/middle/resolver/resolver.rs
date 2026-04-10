@@ -1098,6 +1098,47 @@ impl Resolver {
                 false, // not async
             ),
         );
+
+        // Math functions (CTFE built-ins)
+        // gcd(a: i64, b: i64) -> i64
+        self.funcs.insert(
+            "gcd".to_string(),
+            (
+                vec![("a".to_string(), Type::I64), ("b".to_string(), Type::I64)],
+                Type::I64,
+                false, // not async
+            ),
+        );
+
+        // min(a: i64, b: i64) -> i64
+        self.funcs.insert(
+            "min".to_string(),
+            (
+                vec![("a".to_string(), Type::I64), ("b".to_string(), Type::I64)],
+                Type::I64,
+                false, // not async
+            ),
+        );
+
+        // max(a: i64, b: i64) -> i64
+        self.funcs.insert(
+            "max".to_string(),
+            (
+                vec![("a".to_string(), Type::I64), ("b".to_string(), Type::I64)],
+                Type::I64,
+                false, // not async
+            ),
+        );
+
+        // abs(a: i64) -> i64
+        self.funcs.insert(
+            "abs".to_string(),
+            (
+                vec![("a".to_string(), Type::I64)],
+                Type::I64,
+                false, // not async
+            ),
+        );
         
         println!(
             "[RESOLVER] Registered built-in runtime functions: clone_i64, is_null_i64, to_string_str, to_string_i64, to_string_bool, array_new, array_push, array_len, array_get, array_set, array_free, runtime_malloc, map_get, print_i64, println, Vector::new, vector_make_u64x8, vector_add_i32x4, etc."

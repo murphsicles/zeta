@@ -1,0 +1,13 @@
+fn main() -> i64 {
+    // Test with literal size
+    let arr1 = [0; 4]
+    
+    // Test with boolean
+    let arr2 = [true; 4]
+    
+    // Test accessing elements
+    if arr1[0] != 0 { return 1 }
+    if !arr2[0] { return 2 }
+    
+    0
+}

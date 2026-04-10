@@ -265,8 +265,9 @@ pub fn common_subexpression_elimination(mir: &mut Mir) {
             }
             MirExpr::FieldAccess { base, field } => format!("FieldAccess({}.{})", base, field),
             MirExpr::As { expr, target_type } => format!("As({} as {:?})", expr, target_type),
-            MirExpr::Range { start, end } => {
-                format!("Range({}-{})", start, end)
+            MirExpr::Range { start, end, inclusive } => {
+                let op = if *inclusive { "..=" } else { ".." };
+                format!("Range({} {} {})", start, op, end)
             }
             MirExpr::BinaryOp { op, left, right } => {
                 format!("BinaryOp({} {} {})", left, op, right)

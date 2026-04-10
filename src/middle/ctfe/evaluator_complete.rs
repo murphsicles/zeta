@@ -370,6 +370,7 @@ impl ConstEvaluator {
             "min" => self.eval_builtin_min(args),
             "max" => self.eval_builtin_max(args),
             "abs" => self.eval_builtin_abs(args),
+            "gcd" => self.eval_builtin_gcd(args),
             "size_of" => self.eval_builtin_size_of(args),
             "align_of" => self.eval_builtin_align_of(args),
             _ => self.eval_user_function_call(method, args),
@@ -445,6 +446,48 @@ impl ConstEvaluator {
             _ => Err(CtfeError::TypeMismatch {
                 expected: "integer".to_string(),
                 found: a.type_name().to_string(),
+            }),
+        }
+    }
+
+    /// Evaluate built-in gcd function (Greatest Common Divisor)
+    fn eval_builtin_gcd(&mut self, args: &[AstNode]) -> CtfeResult<ConstValue> {
+        if args.len() != 2 {
+            return Err(CtfeError::ArgumentCountMismatch {
+                expected: 2,
+                found: args.len(),
+            });
+        }
+        
+        let a = self.eval_const_expr(&args[0])?;
+        let b = self.eval_const_expr(&args[1])?;
+        
+        match (a, b) {
+            (ConstValue::Int(mut a_val), ConstValue::Int(mut b_val)) => {
+                // Handle negative values by taking absolute values
+                a_val = a_val.abs();
+                b_val = b_val.abs();
+                
+                // Euclidean algorithm
+                while b_val != 0 {
+                    let temp = b_val;
+                    b_val = a_val % b_val;
+                    a_val = temp;
+                }
+                Ok(ConstValue::Int(a_val))
+            }
+            (ConstValue::UInt(mut a_val), ConstValue::UInt(mut b_val)) => {
+                // Euclidean algorithm for unsigned integers
+                while b_val != 0 {
+                    let temp = b_val;
+                    b_val = a_val % b_val;
+                    a_val = temp;
+                }
+                Ok(ConstValue::UInt(a_val))
+            }
+            (a_val, b_val) => Err(CtfeError::TypeMismatch {
+                expected: "integer".to_string(),
+                found: format!("{} and {}", a_val.type_name(), b_val.type_name()),
             }),
         }
     }

@@ -18,6 +18,7 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::{Linkage, Module};
 use inkwell::types::{BasicMetadataTypeEnum, BasicType, IntType, PointerType, VectorType};
+use inkwell::values::IntValue;
 use inkwell::values::{
     BasicMetadataValueEnum, BasicValueEnum, CallSiteValue, FunctionValue, PointerValue,
 };
@@ -1233,6 +1234,115 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
         }
 
+        // Handle math functions (gcd, min, max, abs)
+        if name == "gcd" || name == "min" || name == "max" || name == "abs" {
+            eprintln!("[DEBUG get_function] Creating math function: {}", name);
+            // Create a simple implementation for these math functions
+            // They take i64 arguments and return i64
+            let param_count = match name {
+                "abs" => 1,
+                _ => 2, // gcd, min, max take 2 arguments
+            };
+            let param_types = vec![self.i64_type.into(); param_count];
+            let fn_type = self.i64_type.fn_type(&param_types, false);
+            let fn_val = self.module.add_function(name, fn_type, Some(Linkage::External));
+            
+            // Create basic blocks
+            let entry = self.context.append_basic_block(fn_val, "entry");
+            let old_builder_position = self.builder.get_insert_block();
+            self.builder.position_at_end(entry);
+            
+            // Get parameters
+            let params: Vec<IntValue> = fn_val.get_params().iter()
+                .map(|p| p.into_int_value())
+                .collect();
+            
+            // Implement the function
+            let result = match name {
+                "gcd" => {
+                    // Euclidean algorithm for GCD
+                    let mut a = params[0];
+                    let mut b = params[1];
+                    let zero = self.i64_type.const_int(0, true);
+                    
+                    // Create loop for Euclidean algorithm
+                    let loop_cond = self.context.append_basic_block(fn_val, "loop_cond");
+                    let loop_body = self.context.append_basic_block(fn_val, "loop_body");
+                    let exit = self.context.append_basic_block(fn_val, "exit");
+                    
+                    self.builder.build_unconditional_branch(loop_cond).unwrap();
+                    self.builder.position_at_end(loop_cond);
+                    
+                    // Check if b == 0
+                    let b_is_zero = self.builder.build_int_compare(
+                        IntPredicate::EQ,
+                        b,
+                        zero,
+                        "b_is_zero"
+                    ).unwrap();
+                    self.builder.build_conditional_branch(b_is_zero, exit, loop_body).unwrap();
+                    
+                    // Loop body: a, b = b, a % b
+                    self.builder.position_at_end(loop_body);
+                    let temp = b;
+                    b = self.builder.build_int_signed_rem(a, b, "mod").unwrap();
+                    a = temp;
+                    self.builder.build_unconditional_branch(loop_cond).unwrap();
+                    
+                    // Exit: return a
+                    self.builder.position_at_end(exit);
+                    a
+                },
+                "min" => {
+                    // min(a, b)
+                    let a = params[0];
+                    let b = params[1];
+                    let a_lt_b = self.builder.build_int_compare(
+                        IntPredicate::SLT,
+                        a,
+                        b,
+                        "a_lt_b"
+                    ).unwrap();
+                    self.builder.build_select(a_lt_b, a, b, "min_result").unwrap().into_int_value()
+                },
+                "max" => {
+                    // max(a, b)
+                    let a = params[0];
+                    let b = params[1];
+                    let a_gt_b = self.builder.build_int_compare(
+                        IntPredicate::SGT,
+                        a,
+                        b,
+                        "a_gt_b"
+                    ).unwrap();
+                    self.builder.build_select(a_gt_b, a, b, "max_result").unwrap().into_int_value()
+                },
+                "abs" => {
+                    // abs(a)
+                    let a = params[0];
+                    let zero = self.i64_type.const_int(0, true);
+                    let a_lt_zero = self.builder.build_int_compare(
+                        IntPredicate::SLT,
+                        a,
+                        zero,
+                        "a_lt_zero"
+                    ).unwrap();
+                    let neg_a = self.builder.build_int_neg(a, "neg_a").unwrap();
+                    self.builder.build_select(a_lt_zero, neg_a, a, "abs_result").unwrap().into_int_value()
+                },
+                _ => unreachable!(),
+            };
+            
+            self.builder.build_return(Some(&result)).unwrap();
+            
+            // Restore original builder position
+            if let Some(block) = old_builder_position {
+                self.builder.position_at_end(block);
+            }
+            
+            return fn_val;
+        }
+
         // Check if it's an external function declared in the module
         eprintln!("[DEBUG get_function] Checking module for function: {}", name);
         if let Some(f) = self.module.get_function(name) {
@@ -2143,7 +2253,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             MirStmt::For { iterator, pattern, var_id, body } => {
                 // For now, implement simple range-based for loop: for i in start..end
                 // We need to get the range expression
-                if let Some(MirExpr::Range { start, end }) = exprs.get(iterator) {
+                if let Some(MirExpr::Range { start, end, inclusive }) = exprs.get(iterator) {
                     let parent_fn = self
                         .builder
                         .get_insert_block()
@@ -2179,13 +2289,22 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         &format!("current_{}", pattern)
                     ).unwrap().into_int_value();
                     
-                    // Check if current_val < end_val
-                    let cond = self.builder.build_int_compare(
-                        IntPredicate::SLT, // Signed less than
-                        current_val,
-                        end_val,
-                        "for.cond"
-                    ).unwrap();
+                    // Check condition: current_val < end_val for exclusive, current_val <= end_val for inclusive
+                    let cond = if *inclusive {
+                        self.builder.build_int_compare(
+                            IntPredicate::SLE, // Signed less than or equal
+                            current_val,
+                            end_val,
+                            "for.cond.inclusive"
+                        ).unwrap()
+                    } else {
+                        self.builder.build_int_compare(
+                            IntPredicate::SLT, // Signed less than
+                            current_val,
+                            end_val,
+                            "for.cond.exclusive"
+                        ).unwrap()
+                    };
                     
                     self.builder
                         .build_conditional_branch(cond, loop_body_bb, loop_exit_bb)
@@ -2539,7 +2658,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let ptr_as_int = self.builder.build_ptr_to_int(alloca, self.i64_type, "array_ptr_to_int").unwrap();
                 ptr_as_int.into()
             }
-            MirExpr::Range { start, end } => {
+            MirExpr::Range { start, end, inclusive: _ } => {
                 // For now, just return the start value
                 // TODO: Implement proper range type
                 self.gen_expr(&exprs[start], exprs, None)

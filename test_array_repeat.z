@@ -1,0 +1,31 @@
+comptime fn test_array_repeat() -> [4]i64 {
+    [0; 4]
+}
+
+comptime fn test_bool_array() -> [10]bool {
+    [true; 10]
+}
+
+comptime fn test_nested_array() -> [[3]i64; 2] {
+    [[0; 3]; 2]
+}
+
+fn main() -> i64 {
+    let arr1 = test_array_repeat()
+    let arr2 = test_bool_array()
+    let arr3 = test_nested_array()
+    
+    // Check first array
+    if arr1[0] != 0 { return 1 }
+    if arr1[3] != 0 { return 2 }
+    
+    // Check second array
+    if !arr2[0] { return 3 }
+    if !arr2[9] { return 4 }
+    
+    // Check nested array
+    if arr3[0][0] != 0 { return 5 }
+    if arr3[1][2] != 0 { return 6 }
+    
+    0
+}

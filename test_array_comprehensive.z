@@ -1,0 +1,73 @@
+// Comprehensive array repeat syntax test
+// Testing all PrimeZeta requirements
+
+// Test 1: Basic array repeat
+fn test_basic() -> i64 {
+    let arr = [0; 10]
+    if arr[0] != 0 { return 1 }
+    if arr[9] != 0 { return 2 }
+    0
+}
+
+// Test 2: Boolean array (for prime sieve)
+fn test_bool_array() -> i64 {
+    let sieve = [true; 100]
+    if !sieve[0] { return 1 }
+    if !sieve[99] { return 2 }
+    
+    // Test false initialization
+    let false_arr = [false; 50]
+    if false_arr[0] { return 3 }
+    if false_arr[49] { return 4 }
+    0
+}
+
+// Test 3: Array with constant size
+const SIZE: i64 = 20
+fn test_const_size() -> i64 {
+    let arr = [42; SIZE]
+    if arr[0] != 42 { return 1 }
+    if arr[SIZE-1] != 42 { return 2 }
+    0
+}
+
+// Test 4: Multi-dimensional array
+fn test_multi_dimensional() -> i64 {
+    let arr = [[0; 3]; 2]  // 2x3 array
+    if arr[0][0] != 0 { return 1 }
+    if arr[1][2] != 0 { return 2 }
+    0
+}
+
+// Test 5: Large array (should use heap allocation)
+fn test_large_array() -> i64 {
+    let arr = [7; 2000]  // Larger than stack limit (1024)
+    if arr[0] != 7 { return 1 }
+    if arr[1999] != 7 { return 2 }
+    0
+}
+
+// Test 6: Array in function return (simplified)
+fn get_array() -> [5]i64 {
+    [99; 5]
+}
+
+fn test_function_return() -> i64 {
+    let arr = get_array()
+    if arr[0] != 99 { return 1 }
+    if arr[4] != 99 { return 2 }
+    0
+}
+
+// Main test runner
+fn main() -> i64 {
+    if test_basic() != 0 { return 100 }
+    if test_bool_array() != 0 { return 200 }
+    if test_const_size() != 0 { return 300 }
+    if test_multi_dimensional() != 0 { return 400 }
+    if test_large_array() != 0 { return 500 }
+    if test_function_return() != 0 { return 600 }
+    
+    // All tests passed
+    0
+}

@@ -1,0 +1,9 @@
+fn main() -> i64 {
+    let arr = [true; 4]
+    
+    // Test subscript without !
+    let elem = arr[0]
+    
+    // Just return 0
+    0
+}

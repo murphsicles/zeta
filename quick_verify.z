@@ -1,0 +1,12 @@
+// Quick verification of range loops for v0.3.25
+fn main() -> i64 {
+    // Test PrimeZeta-style loop (with variable instead of const)
+    let modulus = 100;
+    let mut sum = 0;
+    
+    for i in 1..modulus {
+        sum = sum + i;
+    }
+    
+    return sum;
+}

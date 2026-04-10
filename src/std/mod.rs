@@ -39,8 +39,8 @@ pub fn get_std_functions() -> ::std::collections::HashMap<&'static str, usize> {
     let mut map = ::std::collections::HashMap::new();
     
     // Core memory management (non-generic versions)
-    map.insert("malloc", std::std_malloc as *const () as usize);
-    map.insert("free", std::std_free as *const () as usize);
+    // These are now registered through alloc::register_functions
+    // to ensure consistency
     
     // Basic I/O
     map.insert("print", std::std_print as *const () as usize);

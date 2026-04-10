@@ -1,0 +1,6 @@
+fn main() -> i64 {
+    let arr = [0; 4]
+    if arr[0] != 0 { return 1 }
+    if arr[3] != 0 { return 2 }
+    0
+}

@@ -1,0 +1,8 @@
+fn main() -> i64 {
+    let n = 5;
+    let mut sum = 0;
+    for i in 1..n {
+        sum = sum + i;
+    }
+    return sum;
+}

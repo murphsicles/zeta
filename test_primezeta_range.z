@@ -1,0 +1,35 @@
+// Test PrimeZeta-style range loop
+const MODULUS: i64 = 100;
+
+fn main() -> i64 {
+    let mut sum = 0;
+    
+    // This is what PrimeZeta needs: for i in 1..MODULUS
+    for i in 1..MODULUS {
+        sum = sum + i;
+    }
+    
+    return sum;
+}
+
+// Test with inclusive range
+fn test_inclusive_range() -> i64 {
+    let mut sum = 0;
+    
+    for i in 1..=10 {
+        sum = sum + i;
+    }
+    
+    return sum;
+}
+
+// Test with variable bounds
+fn test_variable_range(start: i64, end: i64) -> i64 {
+    let mut sum = 0;
+    
+    for i in start..end {
+        sum = sum + i;
+    }
+    
+    return sum;
+}

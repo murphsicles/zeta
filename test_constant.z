@@ -1,0 +1,9 @@
+const MODULUS: i64 = 5;
+
+fn main() -> i64 {
+    let mut sum = 0;
+    for i in 1..MODULUS {
+        sum = sum + i;
+    }
+    return sum;
+}

@@ -1,0 +1,26 @@
+// Integration test for stdlib imports
+// Tests that PrimeZeta can import and use stdlib functions
+
+use std::malloc
+use std::free
+
+// Simple test that uses malloc and free
+fn test_memory_allocation() -> i64 {
+    // Allocate memory
+    let ptr = malloc(100);
+    
+    // Check that allocation succeeded (non-zero pointer)
+    if ptr == 0 {
+        return 1 // Allocation failed
+    }
+    
+    // Free memory
+    free(ptr);
+    
+    return 0 // Success
+}
+
+// Main function
+fn main() -> i64 {
+    return test_memory_allocation()
+}

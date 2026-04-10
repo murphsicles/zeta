@@ -113,6 +113,7 @@ pub enum MirExpr {
     Range {
         start: u32,
         end: u32,
+        inclusive: bool,
     },
     // Binary operation
     BinaryOp {

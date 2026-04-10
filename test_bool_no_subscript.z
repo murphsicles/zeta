@@ -1,0 +1,7 @@
+fn main() -> i64 {
+    // Test boolean array without subscripting
+    let arr = [true; 4]
+    
+    // Just return 0, don't access array
+    0
+}

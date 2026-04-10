@@ -1,0 +1,12 @@
+// Simple test for stdlib imports
+use std::malloc
+use std::free
+
+fn main() -> i64 {
+    // Test malloc and free
+    let ptr = malloc(100);
+    free(ptr);
+    
+    // Return success
+    0
+}

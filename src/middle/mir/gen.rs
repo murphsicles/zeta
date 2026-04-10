@@ -422,12 +422,12 @@ impl MirGen {
                 // }
 
                 // Check if expr is a range expression (BinaryOp with ".." or AstNode::Range)
-                let (start_expr, end_expr) = match &**expr {
+                let (start_expr, end_expr, inclusive) = match &**expr {
                     AstNode::BinaryOp { op, left, right } if op == ".." => {
-                        (left, right)
+                        (left, right, false)
                     }
-                    AstNode::Range { start, end, inclusive: _ } => {
-                        (start, end)
+                    AstNode::Range { start, end, inclusive } => {
+                        (start, end, *inclusive)
                     }
                     _ => {
                         // TODO: Handle other iterator types
@@ -460,6 +460,7 @@ impl MirGen {
                     self.exprs.insert(range_id, MirExpr::Range {
                         start: start_id,
                         end: end_id,
+                        inclusive,
                     });
                     self.type_map.insert(range_id, Type::Range);
                     
@@ -542,10 +543,11 @@ impl MirGen {
                 let dest = self.next_id();
                 
                 if op == ".." {
-                    // Range expression for for loops
+                    // Range expression for for loops (exclusive)
                     self.exprs.insert(dest, MirExpr::Range {
                         start: left_id,
                         end: right_id,
+                        inclusive: false,
                     });
                     self.type_map.insert(dest, Type::Range);
                 } else if op == "+" {
@@ -587,7 +589,7 @@ impl MirGen {
                 return dest;
             }
             
-            AstNode::Range { start, end, inclusive: _ } => {
+            AstNode::Range { start, end, inclusive } => {
                 let start_id = self.lower_expr(start);
                 let end_id = self.lower_expr(end);
                 let dest = self.next_id();
@@ -596,6 +598,7 @@ impl MirGen {
                 self.exprs.insert(dest, MirExpr::Range {
                     start: start_id,
                     end: end_id,
+                    inclusive: *inclusive,
                 });
                 self.type_map.insert(dest, Type::Range);
                 return dest;

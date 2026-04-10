@@ -1,0 +1,19 @@
+// Minimal PrimeZeta test with array repeat syntax
+const MODULUS: u64 = 30030
+const NUM_RESIDUES: usize = 5760
+
+fn main() -> i64 {
+    // Test array repeat syntax
+    let arr1: [NUM_RESIDUES]u64 = [0; NUM_RESIDUES]
+    let arr2: [MODULUS]u8 = [0; MODULUS]
+    
+    // Check array access
+    if arr1[0] != 0 { return 1 }
+    if arr2[0] != 0 { return 2 }
+    
+    // Test boolean array (for prime sieve)
+    let sieve: [1000]bool = [true; 1000]
+    if !sieve[0] { return 3 }
+    
+    0
+}
