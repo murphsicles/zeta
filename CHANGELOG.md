@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.3.70] - 2026-04-10
+### 🚀 Major Features
+- **Benchmark Fix**: Fixed type errors in identity generics benchmark (Str → str)
+- **Git Configuration**: Updated .gitignore to allow .rs files for benchmark results
+
+### 🔧 Technical Improvements
+- **Version Alignment**: Updated Cargo.toml to v0.3.70 matching latest commit
+- **Benchmark Execution**: Identity generics benchmark now runs successfully
+
+### ✅ Testing
+- **Identity Generics Tests**: All 3 identity generics tests passing
+- **Integration Tests**: All 8 integration tests passing with identity feature
+- **Library Tests**: 106/106 tests passing (1 complex program test failure pre-existing)
+
 ## [v0.3.68] - 2026-04-10
 ### 🚀 Major Features
 - **Bootstrap Complete**: Identity generics support fully implemented and tested
