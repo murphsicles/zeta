@@ -1,8 +1,7 @@
-// Test simple if
-fn main() -> u64 {
-    let j = 3u64
-    if j < 5 {
-        return 42
+fn main() -> i64 {
+    if (1 < 2) {
+        123
+    } else {
+        456
     }
-    return 0
 }
