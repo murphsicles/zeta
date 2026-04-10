@@ -1,0 +1,42 @@
+// Murphy's Sieve using for loops (which work!)
+// Returns 78498 for limit=1,000,000
+
+fn main() -> i64 {
+    let limit = 1000000
+    let mut count = 0
+    
+    // Count 2 separately
+    if limit >= 2 {
+        count = 1
+    }
+    
+    // Check odd numbers from 3 to limit
+    for n in 3..limit {
+        // Skip even numbers
+        if n % 2 == 0 {
+            continue
+        }
+        
+        let mut is_prime = 1  // 1 = true
+        
+        // Check divisibility by odd numbers from 3 to sqrt(n)
+        for d in 3..n {
+            if d * d > n {
+                break
+            }
+            if d % 2 == 0 {
+                continue
+            }
+            if n % d == 0 {
+                is_prime = 0
+                break
+            }
+        }
+        
+        if is_prime == 1 {
+            count = count + 1
+        }
+    }
+    
+    count
+}

@@ -1,0 +1,56 @@
+// Murphy's Sieve using for loops (which work!)
+// Simple trial division algorithm
+
+fn main() -> i64 {
+    let limit = 1000000
+    let mut count = 0
+    
+    // Count 2 separately
+    if limit >= 2 {
+        count = 1
+    }
+    
+    // Check odd numbers from 3 to limit
+    // We need to simulate a for loop with range
+    // for n in 3..limit step 2
+    
+    // Actually, let me check if step syntax works
+    // We'll do it manually with a while loop but use for if possible
+    
+    // Let me try a different approach: use for loop with if continue
+    
+    // First, let's test a simpler version with small limit
+    let test_limit = 100
+    let mut test_count = 0
+    
+    if test_limit >= 2 {
+        test_count = 1
+    }
+    
+    // Use for loop
+    for n in 3..test_limit {
+        // Skip even numbers
+        if n % 2 == 0 {
+            continue
+        }
+        
+        let mut is_prime = 1
+        
+        // Check divisibility
+        for d in 3..n {
+            if d * d > n {
+                break
+            }
+            if n % d == 0 {
+                is_prime = 0
+                break
+            }
+        }
+        
+        if is_prime == 1 {
+            test_count = test_count + 1
+        }
+    }
+    
+    test_count
+}
