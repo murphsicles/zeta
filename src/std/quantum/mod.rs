@@ -592,7 +592,7 @@ impl OptimizationStrategy {
     fn commute_gates(&self, circuit: &mut QuantumCircuit) {
         // Reorder gates to enable more optimizations
         // This is a simplified implementation
-        let mut new_gates = circuit.gates.clone();
+        let new_gates = circuit.gates.clone();
         circuit.gates = new_gates;
     }
 }

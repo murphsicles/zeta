@@ -4,7 +4,6 @@
 //! allowing strings to have associated capabilities (Read, Write, Execute, Owned).
 
 use super::{CapabilityLevel, IdentityType};
-use crate::middle::types::Type;
 
 /// String with identity capabilities
 #[derive(Debug, Clone, PartialEq)]
@@ -227,7 +226,7 @@ impl StringWithIdentity {
     }
     
     /// Get an iterator over the characters (requires Read capability)
-    pub fn chars(&self) -> std::str::Chars {
+    pub fn chars(&self) -> std::str::Chars<'_> {
         if !self.identity.has_capability(CapabilityLevel::Read) {
             panic!("String requires Read capability for chars()");
         }

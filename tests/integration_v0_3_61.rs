@@ -5,7 +5,7 @@
 
 #[cfg(test)]
 mod integration_tests {
-    use std::sync::Arc;
+    
     
     // Note: These are placeholder tests that will need to be implemented
     // when the actual compiler API is available.

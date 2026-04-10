@@ -3,8 +3,8 @@
 //! This is the hybrid approach (Option C) - enhancing existing std_malloc with novel safety layers
 #![allow(unsafe_code)]
 
-use std::alloc::{alloc, dealloc, Layout};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::alloc::{dealloc, Layout};
+use std::sync::atomic::AtomicU64;
 use std::sync::Mutex;
 use std::collections::HashMap;
 use std::sync::OnceLock;

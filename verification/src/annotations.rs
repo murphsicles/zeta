@@ -124,7 +124,7 @@ pub fn parse_annotations(source: &str) -> Result<AnnotatedAst, String> {
 }
 
 /// Parse function contract annotation
-fn parse_function_contract(line: &str, line_num: usize) -> Result<Option<Annotation>, String> {
+fn parse_function_contract(line: &str, _line_num: usize) -> Result<Option<Annotation>, String> {
     // Extract function name
     let fn_start = line.find("fn ").unwrap() + 3;
     let fn_rest = &line[fn_start..];

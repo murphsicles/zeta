@@ -4,8 +4,7 @@
 //! Extends the ownership system with identity capabilities for Phase 4.3.
 //! Integrates identity types with ownership tracking and borrowing rules.
 
-use crate::frontend::ast::AstNode;
-use crate::middle::resolver::resolver::{Resolver, Type};
+use crate::middle::resolver::resolver::Type;
 use crate::middle::types::identity::{IdentityType, CapabilityLevel};
 use crate::middle::types::lifetime::{Lifetime, LifetimeContext};
 use std::collections::{HashMap, HashSet};

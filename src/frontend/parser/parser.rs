@@ -11,7 +11,6 @@ use nom::multi::{many0, many1, separated_list0, separated_list1};
 use nom::sequence::{delimited, pair, preceded, terminated};
 
 use crate::frontend::ast::GenericParam;
-use crate::frontend::parser::expr::parse_expr;
 use crate::frontend::parser::identity_type::parse_string_with_identity;
 
 pub fn line_comment(input: &str) -> IResult<&str, ()> {

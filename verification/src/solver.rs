@@ -4,7 +4,7 @@
 //! discharging verification conditions.
 
 use std::process::{Command, Stdio};
-use std::io::{Write, Read};
+use std::io::Write;
 
 /// SMT solver result
 #[derive(Debug, Clone, PartialEq)]

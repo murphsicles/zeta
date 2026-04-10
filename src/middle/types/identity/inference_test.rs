@@ -1,6 +1,5 @@
 //! Tests for identity-aware type inference
 
-use super::*;
 use crate::middle::types::identity::{CapabilityLevel, IdentityConstraint, IdentityType};
 use crate::middle::types::identity::inference::IdentityInferenceContext;
 

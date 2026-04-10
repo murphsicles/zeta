@@ -17,7 +17,7 @@ use inkwell::IntPredicate;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::{Linkage, Module};
-use inkwell::types::{BasicType, IntType, PointerType, VectorType};
+use inkwell::types::{IntType, PointerType, VectorType};
 use inkwell::values::{
     BasicMetadataValueEnum, BasicValueEnum, CallSiteValue, FunctionValue, PointerValue,
 };
@@ -1538,7 +1538,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     // Convert array pointer (i64) to LLVM pointer
                     let array_ptr = self.builder.build_int_to_ptr(
                         array_ptr_val,
-                        self.i64_type.ptr_type(AddressSpace::default()),
+                        self.context.ptr_type(AddressSpace::default()),
                         "array_ptr"
                     ).unwrap();
                     
@@ -1924,7 +1924,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     // Convert array pointer (i64) to LLVM pointer
                     let array_ptr = self.builder.build_int_to_ptr(
                         array_ptr_val,
-                        self.i64_type.ptr_type(AddressSpace::default()),
+                        self.context.ptr_type(AddressSpace::default()),
                         "array_ptr"
                     ).unwrap();
                     

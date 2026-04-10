@@ -9,7 +9,7 @@ use crate::frontend::ast::{AstNode, MatchArm};
 use nom::IResult;
 use nom::Parser;
 use nom::branch::alt;
-use nom::bytes::complete::{tag, take_while};
+use nom::bytes::complete::tag;
 use nom::combinator::{map, opt};
 use nom::error::Error as NomError;
 use nom::multi::{separated_list0, separated_list1};

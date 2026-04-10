@@ -3,7 +3,7 @@
 //! Inference rules for identity types and capability checking.
 
 use super::*;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 /// Inference context for identity types
 #[derive(Debug, Clone, Default)]

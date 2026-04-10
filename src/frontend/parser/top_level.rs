@@ -5,7 +5,7 @@
 #![allow(unused_variables)]
 use super::expr::parse_full_expr;
 use super::parser::{
-    parse_attributes, parse_generic_params, parse_generic_params_as_enum, parse_ident, parse_path, parse_type, parse_trait_bounds, parse_where_clause, skip_ws_and_comments, ws,
+    parse_attributes, parse_generic_params_as_enum, parse_ident, parse_path, parse_type, parse_trait_bounds, parse_where_clause, skip_ws_and_comments, ws,
 };
 use super::stmt::parse_block_body;
 use crate::frontend::ast::AstNode;

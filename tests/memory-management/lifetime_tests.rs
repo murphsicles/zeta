@@ -91,7 +91,7 @@ fn test_lifetime_context() {
     println!("✓ Can solve simple lifetime constraints");
     
     // Test 2: Check substitution after solving
-    let subst = ctx.substitution();
+    let _subst = ctx.substitution();
     // No variables were used, so substitution should be empty
     // Note: mapping field is private, so we can't check it directly
     println!("✓ Empty substitution for constraint-only context");

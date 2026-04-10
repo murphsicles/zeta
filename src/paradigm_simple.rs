@@ -170,7 +170,7 @@ pub mod reality {
 /// 5. META-COMPILATION
 /// Compiler that improves itself during compilation
 pub mod meta {
-    use rand::prelude::*;
+    
     
     #[derive(Debug, Clone)]
     pub struct MetaCompiler {

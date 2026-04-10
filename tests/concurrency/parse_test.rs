@@ -40,7 +40,7 @@ async fn compute() -> i32 {
     let result = zetac::parse_zeta(code);
     assert!(result.is_ok(), "Failed to parse async with await: {:?}", result);
     
-    let (remaining, asts) = result.unwrap();
+    let (remaining, _asts) = result.unwrap();
     assert!(remaining.trim().is_empty(), "Incomplete parse: '{}'", remaining);
     
     println!("Successfully parsed async with await expressions");

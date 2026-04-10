@@ -159,7 +159,7 @@ comptime fn count_coprimes() -> i64 {
     "#;
     
     match parse_zeta(code) {
-        Ok((remaining, ast)) => {
+        Ok((_remaining, ast)) => {
             println!("✅ Parsed PrimeZeta residue test");
             println!("  AST nodes: {}", ast.len());
             

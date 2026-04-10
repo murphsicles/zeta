@@ -1,7 +1,7 @@
 extern crate zetac;
 
 use zetac::frontend::parser::top_level::parse_zeta;
-use zetac::middle::const_eval::{ConstEvaluator, ConstValue};
+use zetac::middle::const_eval::ConstEvaluator;
 
 fn main() {
     println!("=== Testing array operations in comptime ===");

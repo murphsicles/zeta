@@ -8,10 +8,10 @@ use nom::IResult;
 use nom::Parser;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
-use nom::character::complete::{alpha1, alphanumeric1, multispace0, digit1};
+use nom::character::complete::{alpha1, alphanumeric1, digit1};
 use nom::combinator::{opt, map, recognize};
 use nom::multi::{separated_list0, separated_list1};
-use nom::sequence::{delimited, pair, preceded, tuple};
+use nom::sequence::{delimited, pair, preceded};
 
 use crate::frontend::parser::parser::ws;
 use crate::middle::types::identity::{IdentityConstraint, CapabilityLevel};
@@ -58,11 +58,11 @@ pub fn parse_constraint(input: &str) -> IResult<&str, IdentityConstraint> {
     
     // Parse length constraint
     let length_constraint = map(
-        tuple((
+        (
             tag("length"),
             ws(alt((tag(">="), tag("<=")))),
             ws(digit1),
-        )),
+        ),
         |(_, op, num): (&str, &str, &str)| {
             let length = num.parse::<usize>().unwrap_or(0);
             match op {
@@ -75,12 +75,12 @@ pub fn parse_constraint(input: &str) -> IResult<&str, IdentityConstraint> {
     
     // Parse pattern constraint
     let pattern_constraint = map(
-        tuple((
+        (
             tag("matches"),
             ws(tag("'")),
             alphanumeric1,
             ws(tag("'")),
-        )),
+        ),
         |(_, _, pattern, _): (&str, &str, &str, &str)| {
             IdentityConstraint::Pattern(pattern.to_string())
         },

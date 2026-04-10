@@ -380,7 +380,7 @@ pub unsafe extern "C" fn reset_global_identity_context() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::middle::types::identity::{CapabilityLevel, IdentityType};
+    
     
     #[test]
     fn test_identity_aware_functions() {

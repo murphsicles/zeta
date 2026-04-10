@@ -3,7 +3,6 @@
 //! Compile-time verification of identity capabilities and constraints.
 
 use crate::frontend::ast::AstNode;
-use crate::middle::types::identity::{IdentityType, CapabilityLevel, IdentityConstraint};
 use crate::middle::types::identity::inference::{CapabilityInferencer, IdentityInferenceContext};
 
 /// Identity verification pass

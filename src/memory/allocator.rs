@@ -1,7 +1,6 @@
 //! Minimal allocator stub for compilation
 
-use crate::memory::capability::{MemoryCapability, create_capability, free_capability, READ_RIGHT, WRITE_RIGHT, FREE_RIGHT, RESIZE_RIGHT};
-use crate::memory::region::{register_allocation, unregister_allocation, root_region_id, validate_region_active};
+use crate::memory::capability::MemoryCapability;
 use crate::memory::error::{MemoryError, MemoryResult};
 
 /// Allocate memory with specific rights

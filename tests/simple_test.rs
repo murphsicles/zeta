@@ -13,7 +13,7 @@ comptime fn test() -> i64 {
     "#;
     
     match parse_zeta(code) {
-        Ok((remaining, ast)) => {
+        Ok((_remaining, ast)) => {
             println!("Parsed successfully, AST has {} nodes", ast.len());
             
             // Find the test function

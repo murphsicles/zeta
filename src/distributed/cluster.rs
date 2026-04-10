@@ -648,7 +648,7 @@ impl HealthChecker {
 
 /// Cluster discovery module
 pub mod discovery {
-    use super::*;
+    
     
     /// Initialize cluster discovery
     pub fn init() -> Result<(), String> {

@@ -9,7 +9,6 @@ use super::unified_typecheck::{TypeCheckResult, UnifiedTypeCheck};
 use crate::frontend::ast::AstNode;
 use crate::middle::passes::identity_verification::verify_identities;
 use crate::middle::types::identity::{CapabilityLevel, IdentityType};
-use crate::middle::types::{TypeParam, TypeVar};
 
 impl Resolver {
     pub fn typecheck(&mut self, asts: &[AstNode]) -> bool {

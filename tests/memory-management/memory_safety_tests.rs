@@ -79,7 +79,7 @@ fn test_reference_safety_rules() {
     
     // Create test scenarios that would violate these rules
     let mut checker = BorrowChecker::new();
-    let resolver = Resolver::new();
+    let _resolver = Resolver::new();
     
     // Scenario that would violate Rule 1 if implemented
     checker.declare("x".to_string(), BorrowState::Owned, Type::I32);
@@ -120,7 +120,7 @@ fn test_lifetime_elision_implementation() {
     println!("  Expected: Compiler error - ambiguous lifetimes");
     
     // Test with actual type representations
-    let resolver = Resolver::new();
+    let _resolver = Resolver::new();
     
     // Create function type with references
     let str_ref = Type::Ref(

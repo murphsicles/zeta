@@ -1,8 +1,7 @@
 //! Integration test for Zeta v0.3.35 memory management
 //! Demonstrates ownership, borrowing, and lifetimes working together.
 
-use zetac::frontend::ast::AstNode;
-use zetac::frontend::borrow_enhanced::{EnhancedBorrowChecker, OwnershipState};
+use zetac::frontend::borrow_enhanced::EnhancedBorrowChecker;
 use zetac::middle::resolver::resolver::{Resolver, Type};
 use zetac::middle::types::Mutability;
 use zetac::middle::types::lifetime::Lifetime;
@@ -12,7 +11,7 @@ fn test_complete_memory_management_workflow() {
     println!("=== Testing Complete Memory Management Workflow ===");
     
     let mut checker = EnhancedBorrowChecker::new();
-    let resolver = Resolver::new();
+    let _resolver = Resolver::new();
     
     // Phase 1: Ownership and Move Semantics
     println!("\n--- Phase 1: Ownership and Move Semantics ---");
@@ -135,7 +134,7 @@ fn test_rust_like_memory_safety_examples() {
     println!("\n=== Testing Rust-like Memory Safety Examples ===");
     
     let mut checker = EnhancedBorrowChecker::new();
-    let resolver = Resolver::new();
+    let _resolver = Resolver::new();
     
     // Example 1: Iterator invalidation prevention
     println!("\n--- Example 1: Iterator Invalidation Prevention ---");
@@ -213,7 +212,7 @@ fn test_advanced_lifetime_scenarios() {
     // Return value tied to first parameter's lifetime
     
     let param1_lifetime = Lifetime::Named("a".to_string());
-    let param2_lifetime = Lifetime::Named("b".to_string());
+    let _param2_lifetime = Lifetime::Named("b".to_string());
     let return_lifetime = Lifetime::Named("a".to_string()); // Same as first param
     
     checker.add_lifetime_constraint(return_lifetime.clone(), param1_lifetime.clone());
