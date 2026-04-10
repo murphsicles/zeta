@@ -1,10 +1,8 @@
-fn main() -> u64 {
-    let a = 3
-    let b = 5
-    
-    if a < b {
-        return 42
+fn main() -> i64 {
+    let x = 5
+    if (x == 5) {
+        123
+    } else {
+        0
     }
-    
-    return 0
 }
