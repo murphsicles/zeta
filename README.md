@@ -26,11 +26,11 @@ Zeta is a systems programming language inspired by Elements of Programming (EOP)
 - **Self-hosting in ~3,400 lines of code**
 - **Very low cyclomatic complexity**
 
-Zeta v0.3.65 marks the completion of our bootstrap phase with full identity generics support. This release includes breakthrough competitive advantage: 1.43x faster than C on Core i9 13900H hardware, plus advanced capability-based type system for security and performance.
+Zeta v0.3.68 marks the completion of our bootstrap phase with full identity generics support. This release includes breakthrough competitive advantage: 1.43x faster than C on Core i9 13900H hardware, plus advanced capability-based type system for security and performance.
 
 ## 🚀 Current Development Status
 
-**🎯 BREAKTHROUGH RELEASE: v0.3.65 - "Bootstrap Complete"**
+**🎯 BREAKTHROUGH RELEASE: v0.3.68 - "Bootstrap Complete"**
 - **Competitive Advantage**: 1.43x faster than C on Core i9 13900H
 - **Identity Generics**: Full support for capability-constrained generic types
 - **Compiler Stability**: 106/106 tests passing (100% success rate)
@@ -56,7 +56,7 @@ Zeta v0.3.65 marks the completion of our bootstrap phase with full identity gene
 - ✅ Machine learning integration
 
 ### Identity Generics - Capability-Based Type System
-Zeta v0.3.65 introduces identity generics, a powerful capability-based type system that enables fine-grained access control:
+Zeta v0.3.68 introduces identity generics, a powerful capability-based type system that enables fine-grained access control:
 
 ```zeta
 // Function requiring read capability
