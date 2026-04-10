@@ -1,0 +1,12 @@
+fn main() -> i64 {
+    let x = 5
+    let y = 10
+    let z = 15
+    
+    // Test chained comparison like Python
+    if (x < y < z) {
+        return 1
+    }
+    
+    return 0
+}
