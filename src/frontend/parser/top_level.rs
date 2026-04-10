@@ -19,7 +19,16 @@ use nom::multi::{many0, separated_list0};
 use nom::sequence::{delimited, preceded, terminated};
 
 fn parse_param(input: &str) -> IResult<&str, (String, String)> {
-    // Try to parse &self or &mut self first (must not be followed by :)
+    // Parse a function parameter.
+    // Two forms are supported:
+    // 1. Self parameters: `self`, `&self`, `&mut self` (without explicit type)
+    //    These must NOT be followed by `:` (checked via peek).
+    //    Returns ("self"|"&self"|"&mut self", "Self").
+    // 2. Regular parameters: `ident: type`
+    //    Returns (ident, type_string).
+    // 
+    // Note: Patterns (e.g., `(x, y): (i64, i64)`) are not supported in function
+    // parameters by this parser, matching the AST representation.
     let parse_self = alt((
         // &mut self (must not be followed by :)
         map(

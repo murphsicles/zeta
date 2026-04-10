@@ -1,0 +1,22 @@
+// Test to debug LLVM IR generation
+fn main() -> i64 {
+    // Simple comparison
+    let cmp1 = 1 < 2;
+    
+    // Simple if with comparison
+    let if1 = if (1 < 2) { 100 } else { 200 };
+    
+    // Nested if with comparisons
+    let nested = if (1 < 2) {
+        if (3 < 4) {
+            123
+        } else {
+            0
+        }
+    } else {
+        0
+    };
+    
+    // Return all results
+    cmp1 + if1 + nested
+}

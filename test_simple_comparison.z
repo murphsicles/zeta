@@ -1,9 +1,9 @@
 fn main() -> i64 {
-    let a = 5;
-    let b = 10;
-    if a < b {
-        return 1;
-    } else {
-        return 0;
-    }
+    // Simple comparison
+    let a = 1 < 2;
+    
+    // Use in if condition
+    let b = if a { 1 } else { 0 };
+    
+    b
 }

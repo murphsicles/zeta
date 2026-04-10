@@ -2128,7 +2128,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 cond,
                 then,
                 else_,
-                dest,
+                dest: _,
             } => {
                 let cond_i64 = self.gen_expr_safe(cond, exprs).into_int_value();
                 let cond_i1 = self
@@ -2158,14 +2158,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 for s in then {
                     self.gen_stmt(s, exprs);
                 }
-                // Get the value from then block if there's a destination
-                let then_value = if let Some(dest_id) = dest {
-                    // Load the value that was stored to dest in the then branch
-                    let alloca = *self.locals.get(&dest_id).unwrap();
-                    Some(self.builder.build_load(self.i64_type, alloca, "then_val").unwrap())
-                } else {
-                    None
-                };
                 // Only branch to merge if block doesn't end with return
                 if !then.iter().any(|s| matches!(s, MirStmt::Return { .. })) {
                     self.builder.build_unconditional_branch(merge_bb).unwrap();
@@ -2176,14 +2168,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 for s in else_ {
                     self.gen_stmt(s, exprs);
                 }
-                // Get the value from else block if there's a destination
-                let else_value = if let Some(dest_id) = dest {
-                    // Load the value that was stored to dest in the else branch
-                    let alloca = *self.locals.get(&dest_id).unwrap();
-                    Some(self.builder.build_load(self.i64_type, alloca, "else_val").unwrap())
-                } else {
-                    None
-                };
                 // Only branch to merge if block doesn't end with return
                 if !else_.iter().any(|s| matches!(s, MirStmt::Return { .. })) {
                     self.builder.build_unconditional_branch(merge_bb).unwrap();
@@ -2191,15 +2175,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
                 // Continue at merge block
                 self.builder.position_at_end(merge_bb);
-                
-                // Create phi node if there's a destination
-                if let (Some(dest_id), Some(then_val), Some(else_val)) = (dest, then_value, else_value) {
-                    let phi = self.builder.build_phi(self.i64_type, "if_result").unwrap();
-                    phi.add_incoming(&[(&then_val, then_bb), (&else_val, else_bb)]);
-                    let phi_val = phi.as_basic_value().into_int_value();
-                    let alloca = *self.locals.get(&dest_id).unwrap();
-                    self.builder.build_store(alloca, phi_val).unwrap();
-                }
+                // dest is handled by assignments in the branches
             }
             MirStmt::While { cond, body } => {
                 let parent_fn = self
