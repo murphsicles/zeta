@@ -32,6 +32,10 @@ pub use family::{
 pub mod identity;
 pub use identity::{CapabilityLevel, IdentityConstraint, IdentityContext, IdentityOp, IdentityType};
 
+// Re-export SIMD types
+pub mod simd;
+pub use simd::{SimdTypeInfo, SimdMask};
+
 /// Type variable for inference
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeVar(pub u32);
@@ -1305,6 +1309,29 @@ impl Substitution {
             // Dynamic array types
             (Type::DynamicArray(inner1), Type::DynamicArray(inner2)) => {
                 self.unify(inner1, inner2)
+            }
+
+            // Slice types
+            (Type::Slice(inner1), Type::Slice(inner2)) => {
+                self.unify(inner1, inner2)
+            }
+
+            // Slice-array unification (allow zero-sized arrays to unify with slices)
+            (Type::Slice(inner1), Type::Array(inner2, size2)) => {
+                // Allow zero-sized arrays to unify with slices
+                if matches!(size2, ArraySize::Literal(0)) {
+                    self.unify(inner1, inner2)
+                } else {
+                    Err(UnifyError::Mismatch(t1, t2))
+                }
+            }
+            (Type::Array(inner1, size1), Type::Slice(inner2)) => {
+                // Allow zero-sized arrays to unify with slices
+                if matches!(size1, ArraySize::Literal(0)) {
+                    self.unify(inner1, inner2)
+                } else {
+                    Err(UnifyError::Mismatch(t1, t2))
+                }
             }
 
             // Vector types

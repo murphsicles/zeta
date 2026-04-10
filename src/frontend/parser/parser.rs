@@ -65,7 +65,7 @@ pub fn parse_ident(input: &str) -> IResult<&str, String> {
         )),
         |s: &str| {
             ![
-                "let", "mut", "if", "else", "for", "in", "loop", "unsafe", "return", "break",
+                "let", "mut", "if", "else", "for", "in", "loop", "while", "unsafe", "return", "break",
                 "continue", "fn", "concept", "impl", "enum", "struct", "type", "use", "extern",
                 "dyn", "box", "as", "true", "false", "comptime", "const", "async", "pub",
                 // Built-in types that shouldn't be parsed as identifiers
@@ -73,9 +73,8 @@ pub fn parse_ident(input: &str) -> IResult<&str, String> {
                 "u8", "u16", "u32", "u64", "usize",
                 "f32", "f64",
                 "bool", "char", "str", "String",
-                // TODO: re-add these when we implement logical operators
-                // or when the self-hosted parser (parser.z) becomes the default
-                // "and", "or", "not"
+                // Logical operator keywords (should not be parsed as identifiers)
+                "and", "or", "not"
             ]
             .contains(&s)
         },
@@ -107,9 +106,13 @@ pub fn parse_type_path(input: &str) -> IResult<&str, String> {
 }
 
 pub fn parse_tuple_type(input: &str) -> IResult<&str, String> {
+    parse_tuple_type_with_depth(input, 0)
+}
+
+pub fn parse_tuple_type_with_depth(input: &str, depth: usize) -> IResult<&str, String> {
     let (input, _) = ws(tag("(")).parse(input)?;
     let (input, items) = terminated(
-        separated_list0(ws(tag(",")), ws(parse_type)),
+        separated_list0(ws(tag(",")), ws(|i| parse_type_with_depth(i, depth + 1))),
         opt(ws(tag(","))),
     )
     .parse(input)?;
@@ -133,8 +136,12 @@ pub fn parse_tuple_type(input: &str) -> IResult<&str, String> {
 ///
 /// Returns: "[T; N]" format for consistency, or "[T]" for unsized
 pub fn parse_array_type(input: &str) -> IResult<&str, String> {
+    parse_array_type_with_depth(input, 0)
+}
+
+pub fn parse_array_type_with_depth(input: &str, depth: usize) -> IResult<&str, String> {
     // Helper function for PrimeZeta style parsing
-    fn parse_primezeta_array(input: &str) -> IResult<&str, (String, String)> {
+    fn parse_primezeta_array(input: &str, depth: usize) -> IResult<&str, (String, String)> {
         let (input, _) = ws(tag("[")).parse(input)?;
         // Parse size expression (could be digit or identifier)
         let (input, size) = ws(alt((
@@ -146,23 +153,23 @@ pub fn parse_array_type(input: &str) -> IResult<&str, String> {
         .parse(input)?;
         let (input, _) = ws(tag("]")).parse(input)?;
         // Parse element type
-        let (input, elem_type) = ws(parse_type).parse(input)?;
+        let (input, elem_type) = ws(|i| parse_type_with_depth(i, depth + 1)).parse(input)?;
         Ok((input, (size, elem_type)))
     }
     
     // Helper function for dynamic array parsing: [dynamic]T
-    fn parse_dynamic_array(input: &str) -> IResult<&str, String> {
+    fn parse_dynamic_array(input: &str, depth: usize) -> IResult<&str, String> {
         let (input, _) = ws(tag("[")).parse(input)?;
         let (input, _) = ws(tag("dynamic")).parse(input)?;
         let (input, _) = ws(tag("]")).parse(input)?;
-        let (input, elem_type) = ws(parse_type).parse(input)?;
+        let (input, elem_type) = ws(|i| parse_type_with_depth(i, depth + 1)).parse(input)?;
         Ok((input, format!("[dynamic]{}", elem_type))) // Return as dynamic array
     }
     
     // Helper function for Zeta style parsing
-    fn parse_zeta_array(input: &str) -> IResult<&str, String> {
+    fn parse_zeta_array(input: &str, depth: usize) -> IResult<&str, String> {
         let (input, _) = ws(tag("[")).parse(input)?;
-        let (input, elem_type) = ws(parse_type).parse(input)?;
+        let (input, elem_type) = ws(|i| parse_type_with_depth(i, depth + 1)).parse(input)?;
 
         // Check for optional size
         let (input, size_opt) = opt(preceded(
@@ -191,17 +198,17 @@ pub fn parse_array_type(input: &str) -> IResult<&str, String> {
     let original_input = input;
     
     // First, try dynamic array (special case: [dynamic]T)
-    match parse_dynamic_array(original_input) {
+    match parse_dynamic_array(original_input, depth) {
         Ok(result) => return Ok(result),
         Err(_) => {
             // Dynamic array failed, try PrimeZeta style first (for [limit]bool syntax)
-            match complete(parse_primezeta_array)(original_input) {
+            match complete(|i| parse_primezeta_array(i, depth))(original_input) {
                 Ok((remaining, (size, elem_type))) => {
                     return Ok((remaining, format!("[{}; {}]", elem_type, size)));
                 }
                 Err(_) => {
                     // PrimeZeta style failed, try Zeta style
-                    match parse_zeta_array(original_input) {
+                    match parse_zeta_array(original_input, depth) {
                         Ok(result) => return Ok(result),
                         Err(e) => {
                             // All failed, return the error
@@ -215,6 +222,10 @@ pub fn parse_array_type(input: &str) -> IResult<&str, String> {
 }
 
 pub fn parse_fn_type(input: &str) -> IResult<&str, String> {
+    parse_fn_type_with_depth(input, 0)
+}
+
+pub fn parse_fn_type_with_depth(input: &str, depth: usize) -> IResult<&str, String> {
     let (input, extern_opt) = opt(delimited(
         ws(tag("extern")),
         ws(tag("\"C\"")),
@@ -230,14 +241,14 @@ pub fn parse_fn_type(input: &str) -> IResult<&str, String> {
     let (input, params) = delimited(
         ws(tag("(")),
         terminated(
-            separated_list0(ws(tag(",")), ws(parse_type)),
+            separated_list0(ws(tag(",")), ws(|i| parse_type_with_depth(i, depth + 1))),
             opt(ws(tag(","))),
         ),
         ws(tag(")")),
     )
     .parse(input)?;
     let (input, _) = ws(tag("->")).parse(input)?;
-    let (input, ret) = ws(parse_type).parse(input)?;
+    let (input, ret) = ws(|i| parse_type_with_depth(i, depth + 1)).parse(input)?;
     let params_str = params.join(", ");
     Ok((
         input,
@@ -247,18 +258,26 @@ pub fn parse_fn_type(input: &str) -> IResult<&str, String> {
 
 /// Parse pointer types: *const T, *mut T
 pub fn parse_pointer_type(input: &str) -> IResult<&str, String> {
+    parse_pointer_type_with_depth(input, 0)
+}
+
+pub fn parse_pointer_type_with_depth(input: &str, depth: usize) -> IResult<&str, String> {
     let (input, pointer_type) = alt((
         ws(tag("*const")).map(|_| "*const"),
         ws(tag("*mut")).map(|_| "*mut"),
     ))
     .parse(input)?;
 
-    let (input, inner_type) = ws(parse_type).parse(input)?;
+    let (input, inner_type) = ws(|i| parse_type_with_depth(i, depth + 1)).parse(input)?;
     Ok((input, format!("{} {}", pointer_type, inner_type)))
 }
 
 /// Parse SIMD vector types: u64x8, f32x4, Vector<u64, 8>
 pub fn parse_simd_type<'a>(input: &'a str) -> IResult<&'a str, String> {
+    parse_simd_type_with_depth(input, 0)
+}
+
+pub fn parse_simd_type_with_depth<'a>(input: &'a str, depth: usize) -> IResult<&'a str, String> {
     // Try shorthand syntax first: u64x8, f32x4, etc.
     let shorthand_parser = move |input: &'a str| -> IResult<&'a str, String> {
         // Parse base type: i8, i16, i32, i64, u8, u16, u32, u64, f32, f64
@@ -293,7 +312,7 @@ pub fn parse_simd_type<'a>(input: &'a str) -> IResult<&'a str, String> {
         let (input, _) = ws(tag("<")).parse(input)?;
         
         // Parse element type
-        let (input, elem_type) = ws(parse_type).parse(input)?;
+        let (input, elem_type) = ws(|i| parse_type_with_depth(i, depth + 1)).parse(input)?;
         
         let (input, _) = ws(tag(",")).parse(input)?;
         
@@ -317,6 +336,18 @@ pub fn parse_simd_type<'a>(input: &'a str) -> IResult<&'a str, String> {
 }
 
 pub fn parse_type(input: &str) -> IResult<&str, String> {
+    parse_type_with_depth(input, 0)
+}
+
+pub fn parse_type_with_depth(input: &str, depth: usize) -> IResult<&str, String> {
+    const MAX_DEPTH: usize = 10;
+    if depth > MAX_DEPTH {
+        return Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::TooLarge,
+        )));
+    }
+    
     let (mut input, mut s) = (input, String::new());
 
     // Parse references (can be multiple: &&T)
@@ -352,13 +383,13 @@ pub fn parse_type(input: &str) -> IResult<&str, String> {
     // First try special types
     let special_types = alt((
         tag("_").map(|_| "_".to_string()),
-        parse_tuple_type,
-        parse_fn_type,
-        parse_array_type,
-        parse_pointer_type,
+        |i| parse_tuple_type_with_depth(i, depth),
+        |i| parse_fn_type_with_depth(i, depth),
+        |i| parse_array_type_with_depth(i, depth),
+        |i| parse_pointer_type_with_depth(i, depth),
         preceded(ws(tag("dyn")), ws(parse_type_path)).map(|p| format!("dyn {}", p)),
-        parse_simd_type,
-        parse_lt_type,
+        |i| parse_simd_type_with_depth(i, depth),
+        |i| parse_lt_type_with_depth(i, depth),
     ));
     
     // Then try built-in types
@@ -409,18 +440,22 @@ pub fn parse_type_args(input: &str) -> IResult<&str, Vec<String>> {
 
 /// Parse generic argument text (now parses a full type)
 pub fn parse_generic_arg_text(input: &str) -> IResult<&str, String> {
-    parse_type(input)
+    parse_type_with_depth(input, 0)
 }
 
 /// Parse Zeta's lt() syntax for generic types: lt(Result, i64)
 pub fn parse_lt_type(input: &str) -> IResult<&str, String> {
+    parse_lt_type_with_depth(input, 0)
+}
+
+pub fn parse_lt_type_with_depth(input: &str, depth: usize) -> IResult<&str, String> {
     let (input, _) = ws(tag("lt")).parse(input)?;
     let (input, _) = ws(tag("(")).parse(input)?;
     let (input, type_name) = ws(parse_ident).parse(input)?;
     let (input, type_args) = delimited(
         ws(tag(",")),
         terminated(
-            separated_list0(ws(tag(",")), ws(parse_type)),
+            separated_list0(ws(tag(",")), ws(|i| parse_type_with_depth(i, depth + 1))),
             opt(ws(tag(","))),
         ),
         ws(tag(")")),
@@ -493,7 +528,7 @@ pub fn parse_generic_param_as_string(input: &str) -> IResult<&str, String> {
             ws(tag("const")),
             ws(parse_ident),
             ws(tag(":")),
-            ws(parse_type),
+            ws(|i| parse_type_with_depth(i, 0)),
         ),
         |(_, name, _, ty)| format!("const {}: {}", name, ty),
     );
@@ -524,7 +559,7 @@ pub fn parse_generic_param_as_enum(input: &str) -> IResult<&str, GenericParam> {
             ws(tag("const")),
             ws(parse_ident),
             ws(tag(":")),
-            ws(parse_type),
+            ws(|i| parse_type_with_depth(i, 0)),
         ),
         |(_, name, _, ty)| GenericParam::Const { name, ty },
     );

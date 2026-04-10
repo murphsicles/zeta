@@ -229,7 +229,7 @@ impl Resolver {
                                     }
                                 } // Close match on module_ast
                             } // Close for loop
-                        }
+                        } // Close Ok(module_asts) arm
                         Err(e) => {
                             eprintln!(
                                 "Warning: Failed to process use statement {}: {}",
@@ -376,6 +376,17 @@ impl Resolver {
                             let mut new_item = item.clone();
                             if let AstNode::EnumDef { ref mut name, .. } = new_item {
                                 // For enums, we need to register the enum itself and its variants
+                                *name = format!("{}::{}", module_name, enum_name);
+                            }
+                            new_item
+                        }
+                        // For other AST nodes, use as-is
+                        _ => item.clone(),
+                    };
+                    
+                    // Register the qualified item
+                    self.register(qualified_item);
+                }
             }
             AstNode::ModDecl {
                 name: module_name,
@@ -401,43 +412,6 @@ impl Resolver {
                 
                 // Create an empty module entry
                 self.modules.insert(module_name.clone(), vec![]);
-                                *name = format!("{}::{}", module_name, enum_name);
-                            }
-                            new_item
-                        }
-                        AstNode::StructDef {
-                            name: struct_name, ..
-                        } => {
-                            let mut new_item = item.clone();
-                            if let AstNode::StructDef { ref mut name, .. } = new_item {
-                                *name = format!("{}::{}", module_name, struct_name);
-                            }
-                            new_item
-                        }
-                        AstNode::TypeAlias {
-                            name: alias_name, ..
-                        } => {
-                            let mut new_item = item.clone();
-                            if let AstNode::TypeAlias { ref mut name, .. } = new_item {
-                                *name = format!("{}::{}", module_name, alias_name);
-                            }
-                            new_item
-                        }
-                        AstNode::ConstDef {
-                            name: const_name,
-                            comptime_,
-                            ..
-                        } => {
-                            let mut new_item = item.clone();
-                            if let AstNode::ConstDef { ref mut name, .. } = new_item {
-                                *name = format!("{}::{}", module_name, const_name);
-                            }
-                            new_item
-                        }
-                        _ => item.clone(),
-                    };
-                    self.register(qualified_item);
-                }
             }
             AstNode::MacroDef { name, patterns } => {
                 // Parse and register the macro

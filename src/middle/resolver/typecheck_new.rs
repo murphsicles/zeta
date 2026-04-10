@@ -111,6 +111,7 @@ impl NewTypeCheck for Resolver {
             "u16" => return Type::U16,
             "u32" => return Type::U32,
             "u64" => return Type::U64,
+            "usize" => return Type::Usize,
             "f32" => return Type::F32,
             "f64" => return Type::F64,
             "char" => return Type::Char,
@@ -267,7 +268,7 @@ impl NewTypeCheck for Resolver {
             let type_name = &s[..open_angle];
             
             // Safety check: type_name must not be empty and must not be a primitive type
-            if type_name.is_empty() || matches!(type_name, "i64" | "i32" | "bool" | "str" | "i8" | "i16" | "u8" | "u16" | "u32" | "u64" | "f32" | "f64" | "char") {
+            if type_name.is_empty() || matches!(type_name, "i64" | "i32" | "bool" | "str" | "i8" | "i16" | "u8" | "u16" | "u32" | "u64" | "usize" | "f32" | "f64" | "char") {
                 // This is not a valid generic type, fall back to named type
                 return Type::Named(s.to_string(), Vec::new());
             }

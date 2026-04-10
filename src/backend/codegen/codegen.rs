@@ -23,6 +23,9 @@ use inkwell::values::{
 };
 use std::collections::HashMap;
 
+// Import SIMD codegen
+use super::simd::SimdCodegen;
+
 /// The complete LLVM code generator for Zeta.
 pub struct LLVMCodegen<'ctx> {
     pub context: &'ctx Context,
@@ -2587,6 +2590,112 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 // For now, just return the start value
                 // TODO: Implement proper range type
                 self.gen_expr(&exprs[start], exprs, None)
+            }
+            // SIMD expressions
+            MirExpr::SimdVector { element_type, elements, lane_count } => {
+                // Create SIMD vector from elements
+                let simd_codegen = SimdCodegen::new(self.context, &self.builder);
+                let llvm_element_type = self.type_to_llvm_type(element_type);
+                
+                // Build vector from elements
+                let mut vector = self.builder.build_undef(
+                    llvm_element_type.into_vector_type().vec_type(*lane_count as u32)
+                );
+                
+                for (i, &elem_id) in elements.iter().enumerate() {
+                    let elem_val = self.gen_expr(&exprs[&elem_id], exprs, None);
+                    vector = self.builder.build_insert_element(
+                        vector,
+                        elem_val,
+                        self.context.i32_type().const_int(i as u64, false),
+                        &format!("insert_{}", i)
+                    ).unwrap();
+                }
+                
+                vector.into()
+            }
+            MirExpr::SimdSplat { value, element_type, lane_count } => {
+                // Create splat vector
+                let simd_codegen = SimdCodegen::new(self.context, &self.builder);
+                let llvm_element_type = self.type_to_llvm_type(element_type);
+                let value_val = self.gen_expr(&exprs[value], exprs, None);
+                
+                let splat_vector = simd_codegen.create_splat(
+                    llvm_element_type.into_vector_type(),
+                    value_val,
+                    *lane_count
+                );
+                
+                splat_vector.into()
+            }
+            MirExpr::SimdBinaryOp { op, left, right, simd_type } => {
+                // SIMD binary operation
+                let simd_codegen = SimdCodegen::new(self.context, &self.builder);
+                let left_val = self.gen_expr(&exprs[left], exprs, None).into_vector_value();
+                let right_val = self.gen_expr(&exprs[right], exprs, None).into_vector_value();
+                
+                let result = match op.as_str() {
+                    "add" => simd_codegen.vector_add(left_val, right_val, "simd_add"),
+                    "sub" => simd_codegen.vector_sub(left_val, right_val, "simd_sub"),
+                    "mul" => simd_codegen.vector_mul(left_val, right_val, "simd_mul"),
+                    "div" => simd_codegen.vector_div(left_val, right_val, "simd_div"),
+                    "and" => simd_codegen.vector_and(left_val, right_val, "simd_and"),
+                    "or" => simd_codegen.vector_or(left_val, right_val, "simd_or"),
+                    "xor" => simd_codegen.vector_xor(left_val, right_val, "simd_xor"),
+                    _ => panic!("Unsupported SIMD binary operation: {}", op),
+                };
+                
+                result.into()
+            }
+            MirExpr::SimdLoad { ptr, aligned, simd_type } => {
+                // SIMD load from memory
+                let simd_codegen = SimdCodegen::new(self.context, &self.builder);
+                let ptr_val = self.gen_expr(&exprs[ptr], exprs, None).into_pointer_value();
+                let llvm_simd_type = self.type_to_llvm_type(simd_type).into_vector_type();
+                
+                let load_result = if *aligned {
+                    simd_codegen.vector_load_aligned(ptr_val, llvm_simd_type, "simd_load_aligned")
+                } else {
+                    simd_codegen.vector_load_unaligned(ptr_val, llvm_simd_type, "simd_load_unaligned")
+                };
+                
+                load_result.into()
+            }
+            MirExpr::SimdStore { vec, ptr, aligned } => {
+                // SIMD store to memory
+                let simd_codegen = SimdCodegen::new(self.context, &self.builder);
+                let vec_val = self.gen_expr(&exprs[vec], exprs, None).into_vector_value();
+                let ptr_val = self.gen_expr(&exprs[ptr], exprs, None).into_pointer_value();
+                
+                if *aligned {
+                    simd_codegen.vector_store_aligned(vec_val, ptr_val);
+                } else {
+                    simd_codegen.vector_store_unaligned(vec_val, ptr_val);
+                }
+                
+                // Store returns void, return zero
+                self.context.i64_type().const_zero().into()
+            }
+            MirExpr::SimdReduce { op, vec, simd_type } => {
+                // SIMD reduction operation
+                let simd_codegen = SimdCodegen::new(self.context, &self.builder);
+                let vec_val = self.gen_expr(&exprs[vec], exprs, None).into_vector_value();
+                
+                let result = match op.as_str() {
+                    "add" => simd_codegen.vector_reduce_add(vec_val, "simd_reduce_add"),
+                    "mul" => simd_codegen.vector_reduce_mul(vec_val, "simd_reduce_mul"),
+                    "min" => simd_codegen.vector_reduce_min(vec_val, "simd_reduce_min"),
+                    "max" => simd_codegen.vector_reduce_max(vec_val, "simd_reduce_max"),
+                    _ => panic!("Unsupported SIMD reduction operation: {}", op),
+                };
+                
+                result
+            }
+            // TODO: Implement SimdGather, SimdScatter, SimdMask, SimdBlend
+            _ => {
+                // For unimplemented SIMD expressions, return zero
+                println!("[CODEGEN] Warning: Unimplemented SIMD expression: {:?}", expr);
+                self.context.i64_type().const_zero().into()
             }
         }
     }

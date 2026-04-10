@@ -1,0 +1,165 @@
+// SIMD Example for Zeta
+// Demonstrates AVX-512 SIMD operations
+
+// Import SIMD type aliases
+use std::simd::{f32x16, f64x8, i32x16, i64x8};
+
+// Function to add two arrays using SIMD
+fn simd_add(a: [f32; 16], b: [f32; 16]) -> [f32; 16] {
+    // Load arrays into SIMD vectors
+    let vec_a = f32x16::load_aligned(&a);
+    let vec_b = f32x16::load_aligned(&b);
+    
+    // Perform SIMD addition
+    let vec_result = vec_a + vec_b;
+    
+    // Store result back to array
+    let mut result = [0.0; 16];
+    vec_result.store_aligned(&mut result);
+    result
+}
+
+// Function to compute dot product using SIMD
+fn simd_dot_product(a: [f32; 16], b: [f32; 16]) -> f32 {
+    // Load arrays into SIMD vectors
+    let vec_a = f32x16::load_aligned(&a);
+    let vec_b = f32x16::load_aligned(&b);
+    
+    // Multiply vectors element-wise
+    let vec_mul = vec_a * vec_b;
+    
+    // Horizontal sum (reduce add)
+    vec_mul.reduce_add()
+}
+
+// Function to find maximum value using SIMD
+fn simd_max(a: [f32; 16]) -> f32 {
+    let vec_a = f32x16::load_aligned(&a);
+    vec_a.reduce_max()
+}
+
+// Function to find minimum value using SIMD
+fn simd_min(a: [f32; 16]) -> f32 {
+    let vec_a = f32x16::load_aligned(&a);
+    vec_a.reduce_min()
+}
+
+// Function to blend vectors based on mask
+fn simd_blend(a: [f32; 16], b: [f32; 16], mask: [bool; 16]) -> [f32; 16] {
+    let vec_a = f32x16::load_aligned(&a);
+    let vec_b = f32x16::load_aligned(&b);
+    
+    // Create mask from boolean array
+    let mask_vec = f32x16::mask_from_bools(&mask);
+    
+    // Blend vectors
+    let vec_result = vec_a.blend(mask_vec, vec_b);
+    
+    let mut result = [0.0; 16];
+    vec_result.store_aligned(&mut result);
+    result
+}
+
+// Function to demonstrate gather operation
+fn simd_gather(base: [f32; 100], indices: [i32; 16]) -> [f32; 16] {
+    let indices_vec = i32x16::load_aligned(&indices);
+    let vec_result = f32x16::gather(&base, indices_vec, 1);
+    
+    let mut result = [0.0; 16];
+    vec_result.store_aligned(&mut result);
+    result
+}
+
+// Function to demonstrate scatter operation
+fn simd_scatter(values: [f32; 16], base: &mut [f32; 100], indices: [i32; 16]) {
+    let values_vec = f32x16::load_aligned(&values);
+    let indices_vec = i32x16::load_aligned(&indices);
+    values_vec.scatter(base, indices_vec, 1);
+}
+
+// Main function to test SIMD operations
+fn main() {
+    // Test data
+    let a = [
+        1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+        9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0
+    ];
+    
+    let b = [
+        16.0, 15.0, 14.0, 13.0, 12.0, 11.0, 10.0, 9.0,
+        8.0, 7.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0
+    ];
+    
+    // Test SIMD addition
+    let sum = simd_add(a, b);
+    println("SIMD Addition Result:");
+    for i in 0..16 {
+        println("  sum[{}] = {}", i, sum[i]);
+    }
+    
+    // Test dot product
+    let dot = simd_dot_product(a, b);
+    println("\nDot Product: {}", dot);
+    
+    // Test max/min
+    let max_val = simd_max(a);
+    let min_val = simd_min(a);
+    println("\nMax value: {}", max_val);
+    println("Min value: {}", min_val);
+    
+    // Test blend
+    let mask = [
+        true, false, true, false, true, false, true, false,
+        true, false, true, false, true, false, true, false
+    ];
+    let blended = simd_blend(a, b, mask);
+    println("\nBlended Result:");
+    for i in 0..16 {
+        println("  blended[{}] = {}", i, blended[i]);
+    }
+    
+    // Test gather
+    let mut base_array = [0.0; 100];
+    for i in 0..100 {
+        base_array[i] = i as f32;
+    }
+    
+    let indices = [
+        0, 10, 20, 30, 40, 50, 60, 70,
+        80, 90, 1, 11, 21, 31, 41, 51
+    ];
+    
+    let gathered = simd_gather(base_array, indices);
+    println("\nGathered Result:");
+    for i in 0..16 {
+        println("  gathered[{}] = {}", i, gathered[i]);
+    }
+    
+    // Test scatter
+    let values = [
+        100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0,
+        108.0, 109.0, 110.0, 111.0, 112.0, 113.0, 114.0, 115.0
+    ];
+    
+    let scatter_indices = [
+        0, 1, 2, 3, 4, 5, 6, 7,
+        8, 9, 10, 11, 12, 13, 14, 15
+    ];
+    
+    let mut scatter_base = [0.0; 100];
+    simd_scatter(values, &mut scatter_base, scatter_indices);
+    
+    println("\nScattered Result (first 16 elements):");
+    for i in 0..16 {
+        println("  scatter_base[{}] = {}", i, scatter_base[i]);
+    }
+    
+    // Performance comparison
+    println("\nPerformance Comparison:");
+    println("SIMD operations should provide 3-7x speedup for vectorized workloads.");
+    println("Actual speedup depends on:");
+    println("  - Data alignment");
+    println("  - Vector width (128/256/512 bits)");
+    println("  - CPU support for AVX-512");
+    println("  - Memory access patterns");
+}

@@ -125,6 +125,62 @@ pub enum MirExpr {
         elements: Vec<u32>,
         size: usize,
     },
+    // SIMD vector operations
+    SimdVector {
+        element_type: Type,
+        elements: Vec<u32>,
+        lane_count: usize,
+    },
+    SimdSplat {
+        value: u32,
+        element_type: Type,
+        lane_count: usize,
+    },
+    SimdBinaryOp {
+        op: String, // "add", "sub", "mul", "div", "and", "or", "xor"
+        left: u32,
+        right: u32,
+        simd_type: Type,
+    },
+    SimdLoad {
+        ptr: u32,
+        aligned: bool,
+        simd_type: Type,
+    },
+    SimdStore {
+        vec: u32,
+        ptr: u32,
+        aligned: bool,
+    },
+    SimdGather {
+        base_ptr: u32,
+        indices: u32,
+        scale: u32,
+        simd_type: Type,
+    },
+    SimdScatter {
+        vec: u32,
+        base_ptr: u32,
+        indices: u32,
+        scale: u32,
+    },
+    SimdReduce {
+        op: String, // "add", "mul", "min", "max"
+        vec: u32,
+        simd_type: Type,
+    },
+    SimdMask {
+        cmp_op: String, // "eq", "ne", "gt", "ge", "lt", "le"
+        left: u32,
+        right: u32,
+        simd_type: Type,
+    },
+    SimdBlend {
+        a: u32,
+        b: u32,
+        mask: u32,
+        simd_type: Type,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
