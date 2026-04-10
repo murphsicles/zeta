@@ -227,31 +227,20 @@ impl Layer for Conv2d {
 pub struct BatchNorm2d {
     gamma: Tensor,  // Scale parameter
     beta: Tensor,   // Shift parameter
-    running_mean: Tensor,
-    running_var: Tensor,
     num_features: usize,
-    eps: f32,
-    momentum: f32,
     training: bool,
 }
 
 impl BatchNorm2d {
     /// Create a new BatchNorm2d layer
-    pub fn new(num_features: usize, eps: f32, momentum: f32) -> Self {
+    pub fn new(num_features: usize) -> Self {
         let gamma = Tensor::ones(vec![num_features], true);  // Learnable scale
         let beta = Tensor::zeros(vec![num_features], true);  // Learnable shift
-        
-        let running_mean = Tensor::zeros(vec![num_features], false);
-        let running_var = Tensor::ones(vec![num_features], false);
         
         BatchNorm2d {
             gamma,
             beta,
-            running_mean,
-            running_var,
             num_features,
-            eps,
-            momentum,
             training: true,
         }
     }

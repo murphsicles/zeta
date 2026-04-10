@@ -137,7 +137,7 @@ impl CNN {
             ));
             
             if use_batch_norm {
-                layers = layers.add(BatchNorm2d::new(channels, 1e-5, 0.1));
+                layers = layers.add(BatchNorm2d::new(channels));
             }
             
             // ReLU activation
