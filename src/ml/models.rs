@@ -15,11 +15,6 @@ use super::tensor::Tensor;
 #[derive(Debug)]
 pub struct MLP {
     layers: Sequential,
-    input_size: usize,
-    hidden_sizes: Vec<usize>,
-    output_size: usize,
-    dropout_rate: f32,
-    use_batch_norm: bool,
 }
 
 impl MLP {
