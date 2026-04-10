@@ -23,7 +23,7 @@ fn main() {
 
 fn demo_manifest_parsing() {
     println!("1. Manifest Parsing and Creation");
-    println!("=".repeat(40));
+    println!("========================================");
     
     // Create a manifest programmatically
     let mut manifest = Manifest::default_for_crate("demo-library");
@@ -59,7 +59,7 @@ fn demo_manifest_parsing() {
 
 fn demo_dependency_management() {
     println!("2. Dependency Management");
-    println!("=".repeat(40));
+    println!("========================================");
     
     // Create a simple registry
     let mut registry = PackageRegistry::new();
@@ -103,7 +103,7 @@ fn demo_dependency_management() {
 
 fn demo_version_requirements() {
     println!("3. Version Requirement Matching");
-    println!("=".repeat(40));
+    println!("========================================");
     
     let test_cases = vec![
         ("1.2.3", "1.2.3", true, "Exact version match"),
@@ -128,7 +128,7 @@ fn demo_version_requirements() {
 
 fn demo_real_world_workflow() {
     println!("4. Real-World Development Workflow");
-    println!("=".repeat(40));
+    println!("========================================");
     
     println!("Typical workflow with Zeta Package Manager:");
     println!();
