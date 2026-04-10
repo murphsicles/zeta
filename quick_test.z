@@ -1,0 +1,14 @@
+// Test function with typed parameters
+fn simple(a: i64, b: i64) -> i64 {
+    a + b
+}
+
+// Test with different types
+fn string_param(s: String) -> String {
+    s
+}
+
+// Test with reference
+fn ref_param(x: &i64) -> i64 {
+    *x
+}
