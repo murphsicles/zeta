@@ -1,6 +1,0 @@
-// Test various whitespace cases
-fn no_space(x:i64)->i64{x}
-fn space_before_colon(x :i64)->i64{x}
-fn space_after_colon(x: i64)->i64{x}
-fn space_both(x : i64)->i64{x}
-fn multiple_spaces(x   :   i64) -> i64 { x }

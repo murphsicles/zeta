@@ -1,4 +1,0 @@
-// This might fail
-fn with_pattern((x, y): (i64, i64)) -> i64 {
-    x + y
-}
