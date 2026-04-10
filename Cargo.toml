@@ -285,3 +285,11 @@ name = "integration_bench"
 path = "benches/integration_bench.rs"
 # Disable default harness.
 harness = false
+
+[[bench]]
+# Benchmark name.
+name = "identity_generics_bench"
+# Path to benchmark file.
+path = "benches/identity_generics_bench.rs"
+# Disable default harness.
+harness = false
