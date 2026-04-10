@@ -1,0 +1,100 @@
+// Advanced identity generics: Associated types
+// Demonstrates identity constraints with associated types in traits
+
+// Trait for data sources with identity constraints
+trait DataSource {
+    type Item: Identity<Read>;
+    
+    fn read_next(&mut self) -> Option<Self::Item>;
+    fn has_more(&self) -> bool;
+}
+
+// Trait for data processors with identity constraints
+trait DataProcessor {
+    type Input: Identity<Read>;
+    type Output: Identity<Write>;
+    
+    fn process(&self, input: Self::Input) -> Self::Output;
+    fn get_stats(&self) -> i64;
+}
+
+// Concrete implementation of DataSource
+struct StringDataSource {
+    data: Vec<String>,
+    position: i64
+}
+
+impl DataSource for StringDataSource {
+    type Item = String; // Would need Identity<Read> wrapper in real implementation
+    
+    fn read_next(&mut self) -> Option<Self::Item> {
+        if self.position < self.data.len() as i64 {
+            let item = self.data[self.position as usize].clone();
+            self.position = self.position + 1;
+            return Some(item);
+        }
+        return None;
+    }
+    
+    fn has_more(&self) -> bool {
+        return self.position < self.data.len() as i64;
+    }
+}
+
+// Concrete implementation of DataProcessor
+struct UppercaseProcessor {
+    processed_count: i64
+}
+
+impl DataProcessor for UppercaseProcessor {
+    type Input = String; // Would need Identity<Read> wrapper
+    type Output = String; // Would need Identity<Write> wrapper
+    
+    fn process(&self, input: Self::Input) -> Self::Output {
+        // Convert to uppercase (simplified)
+        return input; // In real implementation, would convert to uppercase
+    }
+    
+    fn get_stats(&self) -> i64 {
+        return self.processed_count;
+    }
+}
+
+// Function that uses both traits with identity constraints
+fn process_data_source<P: DataProcessor, S: DataSource>(
+    processor: P,
+    source: &mut S
+) -> i64 {
+    let mut total_processed = 0;
+    
+    while source.has_more() {
+        match source.read_next() {
+            Some(data) => {
+                let _processed = processor.process(data);
+                total_processed = total_processed + 1;
+            }
+            None => break
+        }
+    }
+    
+    return total_processed;
+}
+
+// Main function demonstrating associated types with identity
+fn main() -> i64 {
+    // Create data source
+    let mut source = StringDataSource {
+        data: vec!["hello".to_string(), "world".to_string(), "test".to_string()],
+        position: 0
+    };
+    
+    // Create processor
+    let processor = UppercaseProcessor {
+        processed_count: 0
+    };
+    
+    // Process data
+    let processed_count = process_data_source(processor, &mut source);
+    
+    return processed_count;
+}

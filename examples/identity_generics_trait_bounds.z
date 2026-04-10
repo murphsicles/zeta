@@ -1,0 +1,165 @@
+// Advanced identity generics: Complex trait bounds
+// Demonstrates identity constraints in complex trait hierarchies
+
+// Base trait for all secure operations
+trait SecureOperation {
+    fn get_security_level(&self) -> i64;
+}
+
+// Trait for operations that need read access
+trait ReadOperation: SecureOperation {
+    type Data: Identity<Read>;
+    
+    fn execute_read(&self, data: Self::Data) -> i64;
+}
+
+// Trait for operations that need write access
+trait WriteOperation: SecureOperation {
+    type Data: Identity<Write>;
+    
+    fn execute_write(&mut self, data: Self::Data) -> bool;
+}
+
+// Trait for operations that need both read and write
+trait ReadWriteOperation: ReadOperation + WriteOperation
+where
+    Self::Data: Identity<Read+Write>
+{
+    fn execute_read_write(&mut self, data: Self::Data) -> i64 {
+        // Default implementation that does both
+        let result = self.execute_read(data);
+        // Note: Would need to handle the data differently in real implementation
+        return result;
+    }
+}
+
+// Concrete implementation: Log processor
+struct LogProcessor {
+    security_level: i64,
+    processed_count: i64
+}
+
+impl SecureOperation for LogProcessor {
+    fn get_security_level(&self) -> i64 {
+        return self.security_level;
+    }
+}
+
+impl ReadOperation for LogProcessor {
+    type Data = String; // Would need Identity<Read> wrapper
+    
+    fn execute_read(&self, data: Self::Data) -> i64 {
+        // Process log data (read-only)
+        let lines = 10; // Simplified
+        return lines;
+    }
+}
+
+// Concrete implementation: Config updater
+struct ConfigUpdater {
+    security_level: i64,
+    update_count: i64
+}
+
+impl SecureOperation for ConfigUpdater {
+    fn get_security_level(&self) -> i64 {
+        return self.security_level;
+    }
+}
+
+impl WriteOperation for ConfigUpdater {
+    type Data = String; // Would need Identity<Write> wrapper
+    
+    fn execute_write(&mut self, data: Self::Data) -> bool {
+        // Update configuration (write operation)
+        self.update_count = self.update_count + 1;
+        return true;
+    }
+}
+
+// Concrete implementation: Data transformer (needs both read and write)
+struct DataTransformer {
+    security_level: i64,
+    transform_count: i64
+}
+
+impl SecureOperation for DataTransformer {
+    fn get_security_level(&self) -> i64 {
+        return self.security_level;
+    }
+}
+
+impl ReadOperation for DataTransformer {
+    type Data = String; // Would need Identity<Read> wrapper
+    
+    fn execute_read(&self, data: Self::Data) -> i64 {
+        // Read and analyze data
+        return data.len() as i64;
+    }
+}
+
+impl WriteOperation for DataTransformer {
+    type Data = String; // Would need Identity<Write> wrapper
+    
+    fn execute_write(&mut self, data: Self::Data) -> bool {
+        // Transform and write data
+        self.transform_count = self.transform_count + 1;
+        return true;
+    }
+}
+
+// Function that works with any read operation
+fn process_readable<R: ReadOperation>(operation: &R, data: R::Data) -> i64 {
+    let result = operation.execute_read(data);
+    let security = operation.get_security_level();
+    return result * security;
+}
+
+// Function that works with any write operation
+fn process_writable<W: WriteOperation>(operation: &mut W, data: W::Data) -> bool {
+    return operation.execute_write(data);
+}
+
+// Function that requires both read and write capabilities
+fn process_duplex<RW: ReadWriteOperation>(operation: &mut RW, data: RW::Data) -> i64
+where
+    RW::Data: Identity<Read+Write>
+{
+    // Can use both read and write methods
+    let read_result = operation.execute_read(data);
+    // Note: In real implementation, would handle data differently
+    return read_result * 2;
+}
+
+// Main function demonstrating complex trait bounds
+fn main() -> i64 {
+    // Create operations
+    let log_processor = LogProcessor {
+        security_level: 1,
+        processed_count: 0
+    };
+    
+    let mut config_updater = ConfigUpdater {
+        security_level: 2,
+        update_count: 0
+    };
+    
+    let mut data_transformer = DataTransformer {
+        security_level: 3,
+        transform_count: 0
+    };
+    
+    // Process with read operation
+    let log_data = "log entry".to_string(); // Would need Identity<Read> wrapper
+    let log_result = process_readable(&log_processor, log_data);
+    println!("Log processing result: " + log_result.to_string());
+    
+    // Process with write operation
+    let config_data = "config update".to_string(); // Would need Identity<Write> wrapper
+    let config_success = process_writable(&mut config_updater, config_data);
+    println!("Config update success: " + config_success.to_string());
+    
+    // Note: The duplex processing would need actual Identity<Read+Write> data
+    // For this example, we'll just return a value
+    return log_result + (if config_success { 100 } else { 0 });
+}

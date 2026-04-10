@@ -1,0 +1,72 @@
+// Advanced identity generics: Nested constraints
+// Demonstrates identity constraints with nested generics and complex capability requirements
+
+// Struct with nested identity constraints
+struct SecureProcessor<T: Identity<Read>, U: Identity<Write>> {
+    input: T,
+    output: U
+}
+
+impl<T: Identity<Read>, U: Identity<Write>> SecureProcessor<T, U> {
+    // Constructor
+    fn new(input: T, output: U) -> SecureProcessor<T, U> {
+        return SecureProcessor { input: input, output: output };
+    }
+    
+    // Process data from input to output
+    fn process(&self) -> i64 {
+        // Can read from input and write to output
+        // In a real implementation, this would transfer data
+        return 500;
+    }
+}
+
+// Function with conditional identity constraints
+fn conditional_process<T: Identity<Read>>(data: T, needs_write: bool) -> i64 {
+    if needs_write {
+        // Would need Write capability here
+        // This shows how capabilities can be conditional
+        return 200;
+    } else {
+        // Only needs Read capability
+        return 100;
+    }
+}
+
+// Function demonstrating capability inheritance
+fn process_with_inheritance<T: Identity<Read+Write>>(data: T) -> i64 {
+    // This function requires both Read and Write
+    // It can call functions that only need Read
+    let read_result = read_only_helper(data);
+    return read_result + 50;
+}
+
+// Helper function with fewer capabilities
+fn read_only_helper<T: Identity<Read>>(data: T) -> i64 {
+    // Only needs Read capability
+    return 75;
+}
+
+// Main function demonstrating nested identity constraints
+fn main() -> i64 {
+    // Create identity data with different capabilities
+    let input_data = read_only_string("Input data for processing");
+    let output_data = read_write_string("Output buffer");
+    
+    // Create secure processor
+    let processor = SecureProcessor::new(input_data, output_data);
+    
+    // Process data
+    let result1 = processor.process();
+    
+    // Test conditional processing
+    let read_only_data = read_only_string("Read-only test");
+    let result2 = conditional_process(read_only_data, false);
+    
+    // Test capability inheritance
+    let read_write_data = read_write_string("Read-write test");
+    let result3 = process_with_inheritance(read_write_data);
+    
+    // Return total
+    return result1 + result2 + result3;
+}

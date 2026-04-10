@@ -1,0 +1,152 @@
+// Real-world example: File system operations with identity generics
+// Demonstrates practical use of identity constraints for security
+
+// File handle with identity capabilities
+struct FileHandle<T: Identity<Read>> {
+    path: String,
+    data: T
+}
+
+impl<T: Identity<Read>> FileHandle<T> {
+    // Constructor
+    fn new(path: String, data: T) -> FileHandle<T> {
+        return FileHandle { path: path, data: data };
+    }
+    
+    // Read from file (requires Read capability)
+    fn read_all(&self) -> String {
+        // In real implementation, would read from data
+        return "File contents".to_string();
+    }
+    
+    // Get file metadata (requires Read capability)
+    fn get_size(&self) -> i64 {
+        return 1024; // Example size
+    }
+}
+
+// File handle with write capability
+struct WritableFileHandle<T: Identity<Read+Write>> {
+    path: String,
+    data: T
+}
+
+impl<T: Identity<Read+Write>> WritableFileHandle<T> {
+    // Constructor
+    fn new(path: String, data: T) -> WritableFileHandle<T> {
+        return WritableFileHandle { path: path, data: data };
+    }
+    
+    // Write to file (requires Write capability)
+    fn write(&mut self, content: String) -> bool {
+        // In real implementation, would write to data
+        return true;
+    }
+    
+    // Append to file (requires Write capability)
+    fn append(&mut self, content: String) -> bool {
+        // In real implementation, would append to data
+        return true;
+    }
+}
+
+// File system operations with capability-based security
+struct FileSystem;
+
+impl FileSystem {
+    // Open file for reading (returns read-only handle)
+    fn open_read<T: Identity<Read>>(path: String, data: T) -> FileHandle<T> {
+        return FileHandle::new(path, data);
+    }
+    
+    // Open file for writing (returns writable handle)
+    fn open_write<T: Identity<Read+Write>>(path: String, data: T) -> WritableFileHandle<T> {
+        return WritableFileHandle::new(path, data);
+    }
+    
+    // Copy file (needs read from source, write to destination)
+    fn copy_file<S: Identity<Read>, D: Identity<Write>>(
+        source: &FileHandle<S>,
+        dest: &mut WritableFileHandle<D>
+    ) -> bool {
+        let content = source.read_all();
+        return dest.write(content);
+    }
+    
+    // Process file contents (read-only operation)
+    fn process_file<T: Identity<Read>>(file: &FileHandle<T>) -> i64 {
+        let content = file.read_all();
+        return content.len() as i64;
+    }
+}
+
+// Security policy enforcement
+struct SecurityPolicy {
+    allowed_read_paths: Vec<String>,
+    allowed_write_paths: Vec<String>
+}
+
+impl SecurityPolicy {
+    fn can_read(&self, path: &String) -> bool {
+        return self.allowed_read_paths.contains(path);
+    }
+    
+    fn can_write(&self, path: &String) -> bool {
+        return self.allowed_write_paths.contains(path);
+    }
+    
+    // Create read-only file handle with policy check
+    fn open_with_policy_read<T: Identity<Read>>(
+        &self,
+        path: String,
+        data: T
+    ) -> Option<FileHandle<T>> {
+        if self.can_read(&path) {
+            return Some(FileHandle::new(path, data));
+        }
+        return None;
+    }
+    
+    // Create writable file handle with policy check
+    fn open_with_policy_write<T: Identity<Read+Write>>(
+        &self,
+        path: String,
+        data: T
+    ) -> Option<WritableFileHandle<T>> {
+        if self.can_write(&path) {
+            return Some(WritableFileHandle::new(path, data));
+        }
+        return None;
+    }
+}
+
+// Main function demonstrating real-world file operations
+fn main() -> i64 {
+    // Create security policy
+    let policy = SecurityPolicy {
+        allowed_read_paths: vec!["/etc/config".to_string(), "/var/log".to_string()],
+        allowed_write_paths: vec!["/tmp".to_string(), "/home/user".to_string()]
+    };
+    
+    // Try to open files with policy enforcement
+    let config_path = "/etc/config".to_string();
+    let config_data = read_only_string("config data");
+    
+    match policy.open_with_policy_read(config_path, config_data) {
+        Some(file) => {
+            let size = file.get_size();
+            println!("Config file size: " + size.to_string());
+            
+            // Process file (read-only operation)
+            let fs = FileSystem;
+            let processed = fs.process_file(&file);
+            println!("Processed bytes: " + processed.to_string());
+            
+            return processed;
+        }
+        None => {
+            println!("Access denied to config file");
+            return -1;
+        }
+    }
+}
