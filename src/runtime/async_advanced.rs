@@ -56,7 +56,6 @@ impl Task {
     {
         let id = TaskId::new();
         let waker = Arc::new(TaskWaker {
-            id,
             ready: AtomicBool::new(false),
         });
         
@@ -91,10 +90,6 @@ impl Task {
         }
     }
     
-    fn is_completed(&self) -> bool {
-        matches!(*self.state.read().unwrap(), TaskState::Completed | TaskState::Cancelled)
-    }
-    
     fn state(&self) -> TaskState {
         *self.state.read().unwrap()
     }
@@ -102,7 +97,6 @@ impl Task {
 
 /// Waker implementation for tasks
 struct TaskWaker {
-    id: TaskId,
     ready: AtomicBool,
 }
 

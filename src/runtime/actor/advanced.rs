@@ -40,7 +40,6 @@ pub trait Actor: Send + Sync + 'static {
 pub struct ActorContext {
     id: ActorId,
     system: Arc<ActorSystem>,
-    sender: mpsc::UnboundedSender<ActorMessage>,
 }
 
 impl ActorContext {
@@ -129,7 +128,6 @@ impl ActorSystem {
         let context = ActorContext {
             id,
             system: Arc::clone(&system),
-            sender: sender.clone(),
         };
         
         // Store actor handle
@@ -198,7 +196,6 @@ impl ActorSystem {
         let context = ActorContext {
             id,
             system: Arc::clone(&system),
-            sender: sender.clone(),
         };
         
         // Store actor handle
