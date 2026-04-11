@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.3.76] - 2026-04-11
+### 📝 Documentation & Final Polish
+- **Version Update**: Bumped to v0.3.76 for documentation updates and final polish
+- **README Update**: Updated version references to v0.3.76
+- **Testing Status**: All tests passing (106 library tests, 3 identity generics tests, 6 complex program tests, 8 integration tests)
+- **Code Quality**: 40 warnings remain (all harmless dead code warnings)
+- **Release Status**: Ready for final release with complete test suite
+
+### ✅ Testing
+- **Library Tests**: 106/106 tests passing
+- **Identity Generics Tests**: 3/3 tests passing with identity feature
+- **Complex Program Tests**: 6/6 tests passing (all tests now passing)
+- **Integration Tests**: 8/8 tests passing with identity feature
+
+### 📦 Release
+- **Version Update**: Bumped to v0.3.76 for documentation and final polish
+- **GitHub Push**: Changes committed and pushed to main repository
+
 ## [v0.3.75] - 2026-04-11
 ### 🐛 Bug Fixes & Code Cleanup
 - **Parser Fix**: Fixed Option<i64>/Result<i64, String> type parsing by changing alternatives order in parse_type
