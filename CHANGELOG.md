@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.3.75] - 2026-04-11
+### 🐛 Bug Fixes & Code Cleanup
+- **Parser Fix**: Fixed Option<i64>/Result<i64, String> type parsing by changing alternatives order in parse_type
+- **Complex Program Tests**: Now 6/6 passing (previously 5/6)
+- **Warning Reduction**: Reduced warnings from 53 to 41 (12 warnings fixed)
+- **Model Simplification**: Simplified RNN/LSTM constructors by removing unused num_layers and nonlinearity parameters
+- **Unused Code Removal**: Removed unused imports, fields, and commented out unused parser functions
+- **Code Cleanup**: Updated model calls to match new constructors, cleaned up dead code
+
+### ✅ Testing
+- **Library Tests**: 106/106 tests passing
+- **Identity Generics Tests**: 3/3 tests passing with identity feature
+- **Complex Program Tests**: 6/6 tests passing (all tests now passing)
+- **Integration Tests**: 8/8 tests passing with identity feature
+
+### 📦 Release
+- **Version Update**: Bumped to v0.3.75 for parser fixes and warning reduction
+- **GitHub Push**: Changes committed and pushed to main repository
+
+## [v0.3.74] - 2026-04-10
+### 📝 Documentation
+- **Version Alignment**: Updated Cargo.toml and README.md to v0.3.74
+
+### 📦 Release
+- **Version Update**: Bumped to v0.3.74 for documentation consistency
+- **GitHub Push**: Version updates committed and pushed
+
 ## [v0.3.73] - 2026-04-10
 ### 🔧 Technical Improvements
 - **Code Cleanup**: Applied `cargo fix` to main crate and verification module
