@@ -396,28 +396,28 @@ pub mod combinators {
 /// Example async functions for testing
 pub async fn async_add(a: i64, b: i64) -> i64 {
     // Simulate async work
-    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    std::thread::sleep(std::time::Duration::from_millis(10));
     a + b
 }
 
 pub async fn async_multiply(a: i64, b: i64) -> i64 {
     // Simulate async work
-    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    std::thread::sleep(std::time::Duration::from_millis(20));
     a * b
 }
 
 pub async fn async_delayed_value(value: i64, delay_ms: u64) -> i64 {
-    tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+    std::thread::sleep(std::time::Duration::from_millis(delay_ms));
     value
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::time::{sleep, Duration};
+    use std::time::Duration;
     
-    #[tokio::test]
-    async fn test_async_runtime() {
+    #[test]
+    fn test_async_runtime() {
         println!("Testing async runtime with work stealing");
         
         let runtime = AsyncRuntime::new(2);
@@ -425,21 +425,22 @@ mod tests {
         // Spawn some tasks
         let task1 = runtime.spawn_high(async {
             println!("High priority task starting");
-            sleep(Duration::from_millis(50)).await;
+            // Simulate async work without tokio
+            std::thread::sleep(Duration::from_millis(50));
             println!("High priority task completed");
             100
         });
         
         let task2 = runtime.spawn_normal(async {
             println!("Normal priority task starting");
-            sleep(Duration::from_millis(30)).await;
+            std::thread::sleep(Duration::from_millis(30));
             println!("Normal priority task completed");
             200
         });
         
         let task3 = runtime.spawn_low(async {
             println!("Low priority task starting");
-            sleep(Duration::from_millis(20)).await;
+            std::thread::sleep(Duration::from_millis(20));
             println!("Low priority task completed");
             300
         });
@@ -447,7 +448,7 @@ mod tests {
         println!("Spawned tasks: {:?}, {:?}, {:?}", task1, task2, task3);
         
         // Wait for tasks to complete
-        sleep(Duration::from_millis(200)).await;
+        std::thread::sleep(Duration::from_millis(200));
         
         runtime.shutdown();
         
