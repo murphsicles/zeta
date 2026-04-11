@@ -4,8 +4,8 @@
 
 **The Zeta compiler bootstrap is now complete!** Identity generics support has been fully implemented and tested.
 
-### ✅ **Cron Accountability Check (April 11, 2026 - 08:30 UTC) - v0.3.74 STATUS VERIFIED, READY FOR v0.3.75 DEVELOPMENT**
-- **Time**: Saturday, April 11th, 2026 - 08:30 (Europe/London) / 2026-04-11 07:30 UTC
+### ✅ **Cron Accountability Check (April 11, 2026 - 09:00 UTC) - v0.3.74 STATUS VERIFIED, READY FOR v0.3.75 DEVELOPMENT**
+- **Time**: Saturday, April 11th, 2026 - 09:00 (Europe/London) / 2026-04-11 08:00 UTC
 - **Progress**: ✅ **v0.3.74 STATUS VERIFIED** - All tests passing except complex program parser issue, repository clean and up to date with GitHub
 - **Compiler Status**: ✅ **v0.3.74 STABLE** - Compiler builds successfully with 54 warnings remaining
 - **Library Tests**: ✅ **106/106 PASSING** - All library tests passing (verified with `cargo test --lib --tests -- --test-threads=1`)
@@ -52,6 +52,44 @@
   - **Parser improvement**: Fix `parse_generic_params_as_enum` to handle function parameters correctly
   - **Benchmark verification**: Run clean performance benchmarks to confirm bitset optimization benefits
   - **v0.3.75 preparation**: Update version, documentation, and prepare for release
+
+### 🎯 **v0.3.75 Development Plan - Final Code Cleanup and Parser Fix**
+- **Target Release**: v0.3.75 - Final code quality improvements and parser fix
+- **Primary Goals**:
+  1. **Eliminate remaining warnings** - Address 54 warnings (unused fields in ML modules, LSP protocol structs, and parser functions)
+  2. **Fix parser issue** - Resolve `Option<i64>` and `Result<i64, String>` parsing in complex_program_test_suite
+  3. **Performance verification** - Run clean benchmarks to confirm v0.3.72 bitset optimization benefits
+  4. **Prepare stable release** - Update version, documentation, and prepare for v0.3.75 release
+- **Remaining Warnings Analysis**:
+  - **ML modules**: Unused fields in neural network structures (running_mean, running_var, eps, momentum)
+  - **LSP protocol structs**: Unused fields in language server protocol structures
+  - **Parser functions**: Unused parameters and functions in parser modules
+  - **Other warnings**: Various unused imports and variables across codebase
+- **Parser Issue Analysis**:
+  - **Problem**: `parse_generic_params_as_enum` incorrectly parses `Option<i64>` and `Result<i64, String>`
+  - **Debug output**: Shows parser trying to parse function parameters as generic parameters
+  - **Root cause**: Parser confusion between generic type parameters and function parameters with generic types
+  - **Test impact**: `test_error_handling_scenarios` fails (50% success rate, needs 75%)
+  - **Solution**: Fix `parse_generic_params_as_enum` to not be called for function parameters
+- **Performance Verification Plan**:
+  - **Goal**: Confirm v0.3.72 bitset optimization eliminated 21% type checking regression
+  - **Method**: Run clean identity generics benchmarks
+  - **Metrics**: Compare type checking performance before/after optimization
+  - **Expected outcome**: Type checking performance should be comparable to or better than baseline
+- **Implementation Plan**:
+  1. **Run `cargo fix`** - Apply automatic fixes for remaining warnings
+  2. **Manual cleanup** - Address warnings that can't be fixed automatically (unused fields)
+  3. **Parser debugging** - Add targeted debug output to trace `Option<i64>` and `Result<i64, String>` parsing
+  4. **Parser fix** - Adjust `parse_generic_params_as_enum` to handle nested generic types correctly
+  5. **Performance verification** - Run clean benchmarks to confirm bitset optimization benefits
+  6. **Test verification** - Run all tests to ensure no regressions
+  7. **CHANGELOG update** - Add v0.3.75 entry
+- **Expected Outcome**:
+  - **Compiler warnings**: Significantly reduced (target: < 20 warnings)
+  - **Complex program tests**: 6/6 tests passing (currently 5/6)
+  - **Benchmark verification**: Confirmed benefits from v0.3.72 bitset optimization
+  - **Code quality**: Cleaner, more maintainable codebase
+  - **v0.3.75 release**: Stable release with improved code quality and fixed parser issues
 
 ### ✅ **Cron Accountability Check (April 10, 2026 - 18:00 UTC) - v0.3.73 STATUS VERIFIED, READY FOR v0.3.74 DEVELOPMENT**
 - **Time**: Friday, April 10th, 2026 - 18:00 (Europe/London) / 2026-04-10 17:00 UTC
