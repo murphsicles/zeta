@@ -336,8 +336,6 @@ impl Layer for RNNModel {
 pub struct Autoencoder {
     encoder: Sequential,
     decoder: Sequential,
-    latent_dim: usize,
-    input_size: usize,
 }
 
 impl Autoencoder {
@@ -377,8 +375,6 @@ impl Autoencoder {
         Autoencoder {
             encoder,
             decoder,
-            latent_dim,
-            input_size,
         }
     }
     
@@ -438,8 +434,6 @@ impl Layer for Autoencoder {
 pub struct GAN {
     generator: Sequential,
     discriminator: Sequential,
-    latent_dim: usize,
-    output_size: usize,
 }
 
 impl GAN {
@@ -482,8 +476,6 @@ impl GAN {
         GAN {
             generator,
             discriminator,
-            latent_dim,
-            output_size,
         }
     }
     

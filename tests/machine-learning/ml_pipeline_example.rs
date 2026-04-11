@@ -232,7 +232,7 @@ pub fn example_model_serving() {
     
     // Step 4: Demonstrate quantization
     println!("4. Demonstrating quantization...");
-    let quantizer = inference::Quantizer::new(8, true, false);
+    let quantizer = inference::Quantizer::new(8, true);
     let sample_tensor = tensor::Tensor::rand(vec![1, 100], false);
     
     let quantized = quantizer.quantize(&sample_tensor);

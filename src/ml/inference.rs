@@ -185,17 +185,15 @@ pub struct CacheStats {
 pub struct Quantizer {
     bits: usize,  // 8, 16, or 32
     symmetric: bool,
-    per_channel: bool,
 }
 
 impl Quantizer {
     /// Create a new quantizer
-    pub fn new(bits: usize, symmetric: bool, per_channel: bool) -> Self {
+    pub fn new(bits: usize, symmetric: bool) -> Self {
         assert!(bits == 8 || bits == 16 || bits == 32, "Bits must be 8, 16, or 32");
         Quantizer {
             bits,
             symmetric,
-            per_channel,
         }
     }
     

@@ -155,7 +155,7 @@ fn test_quantization_pruning_integration() {
     let tensor = ml::tensor::Tensor::new(vec![1.0, 2.0, 3.0, 4.0], vec![2, 2], false);
     
     // Quantization
-    let quantizer = ml::inference::Quantizer::new(8, true, false);
+    let quantizer = ml::inference::Quantizer::new(8, true);
     let quantized = quantizer.quantize(&tensor);
     assert!(quantized.compression_ratio() > 1.0);
     

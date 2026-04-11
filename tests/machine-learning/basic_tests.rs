@@ -235,7 +235,7 @@ fn test_inference_engine() {
 #[test]
 fn test_quantization() {
     // Test tensor quantization
-    let quantizer = inference::Quantizer::new(8, true, false);
+    let quantizer = inference::Quantizer::new(8, true);
     let tensor = tensor::Tensor::new(vec![1.0, -1.0, 0.5, -0.5], vec![2, 2], false);
     
     let quantized = quantizer.quantize(&tensor);

@@ -406,8 +406,6 @@ impl ImageAugmentation {
 pub struct CSVDataset {
     data: Vec<Vec<f32>>,
     labels: Vec<f32>,
-    feature_names: Vec<String>,
-    label_name: String,
 }
 
 impl CSVDataset {
@@ -418,15 +416,10 @@ impl CSVDataset {
         
         let mut data = Vec::new();
         let mut labels = Vec::new();
-        let mut feature_names = Vec::new();
         
-        // Read headers if present
+        // Read headers if present (skip them)
         if has_header {
-            if let Ok(headers) = reader.headers() {
-                for header in headers.iter() {
-                    feature_names.push(header.to_string());
-                }
-            }
+            let _ = reader.headers();
         }
         
         // Read records
@@ -456,8 +449,6 @@ impl CSVDataset {
         Ok(CSVDataset {
             data,
             labels,
-            feature_names,
-            label_name: if label_column.is_some() { "label".to_string() } else { "".to_string() },
         })
     }
     
