@@ -97,23 +97,7 @@ pub struct Notification {
     pub params: Value,
 }
 
-/// Position in a text document
-#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
-pub struct Position {
-    /// Line position in a document (zero-based)
-    pub line: u32,
-    /// Character offset on a line (zero-based)
-    pub character: u32,
-}
 
-/// Range in a text document
-#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
-pub struct Range {
-    /// Start position
-    pub start: Position,
-    /// End position
-    pub end: Position,
-}
 
 /// Completion item
 #[derive(Debug, Clone, Deserialize, Serialize)]
