@@ -1,4 +1,4 @@
-fn main() -> u64 {
-    let arr = [1, 2, 3]
-    return arr[0]
+fn main() -> i64 {
+    let arr = [1, 2, 3, 4, 5]
+    arr[2]  // Should return 3
 }
