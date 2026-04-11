@@ -2160,11 +2160,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
                 // Only branch to merge if block doesn't end with return
                 if !then.iter().any(|s| matches!(s, MirStmt::Return { .. })) {
-                    // Ensure destination is initialized if needed
-                    if let Some(dest_id) = dest {
-                        let alloca = *self.locals.get(dest_id).unwrap();
-                        self.builder.build_store(alloca, self.i64_type.const_zero()).unwrap();
-                    }
                     self.builder.build_unconditional_branch(merge_bb).unwrap();
                 }
 

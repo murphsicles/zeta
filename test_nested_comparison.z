@@ -1,12 +1,11 @@
 fn main() -> i64 {
-    let x = 5
-    let y = 10
-    let z = 15
-    
-    // Test nested comparison
-    if (x < y && y < z) {
-        return 1
+    if (1 < 2) {
+        if (3 < 4) {
+            123
+        } else {
+            0
+        }
+    } else {
+        0
     }
-    
-    return 0
 }
