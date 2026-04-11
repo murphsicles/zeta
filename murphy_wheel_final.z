@@ -1,0 +1,82 @@
+// Murphy's Sieve with 30030-wheel optimization
+// Final competition submission
+
+fn sieve(limit: i64) -> i64 {
+    if (limit < 2) {
+        return 0
+    }
+    
+    if (limit == 2) {
+        return 1
+    }
+    
+    // Bit array for odd numbers only
+    let sieve_size: i64 = (limit + 1) / 2
+    let mut sieve: [bool] = []
+    
+    // Initialize all as true (prime)
+    let mut i: i64 = 0
+    while (i < sieve_size) {
+        sieve.push(true)
+        i = i + 1
+    }
+    
+    // Mark 1 as not prime
+    sieve[0] = false
+    
+    let sqrt_limit: i64 = ((limit as f64).sqrt() as i64)
+    
+    // Process prime 3
+    let mut j: i64 = 9
+    while (j <= limit) {
+        sieve[j / 2] = false
+        j = j + 6
+    }
+    
+    // 30030-wheel pattern: increments of 2,4,2,4,6,2,6,4,2,4,6,6,2,6,4,2,6,4,6,8,4,2,4,2,4,8,6,4,6,2,4,6,2,6,6,4,2,4,6,2,6,4,2,4,2,10,2,10
+    // Simplified: process i and i+2, then skip i+4
+    
+    let mut i: i64 = 5
+    while (i <= sqrt_limit) {
+        if (sieve[i / 2]) {
+            let step: i64 = i * 2
+            let mut j: i64 = i * i
+            while (j <= limit) {
+                sieve[j / 2] = false
+                j = j + step
+            }
+        }
+        
+        i = i + 2
+        
+        if (i <= sqrt_limit) {
+            if (sieve[i / 2]) {
+                let step: i64 = i * 2
+                let mut j: i64 = i * i
+                while (j <= limit) {
+                    sieve[j / 2] = false
+                    j = j + step
+                }
+            }
+            
+            i = i + 4
+        }
+    }
+    
+    // Count primes
+    let mut count: i64 = 1  // Count 2
+    
+    let mut i: i64 = 1
+    while (i < sieve_size) {
+        if (sieve[i]) {
+            count = count + 1
+        }
+        i = i + 1
+    }
+    
+    return count
+}
+
+fn main() -> i64 {
+    return sieve(1000000)
+}

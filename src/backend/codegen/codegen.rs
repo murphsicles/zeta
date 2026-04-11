@@ -2128,7 +2128,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 cond,
                 then,
                 else_,
-                dest: _,
+                dest,
             } => {
                 let cond_i64 = self.gen_expr_safe(cond, exprs).into_int_value();
                 let cond_i1 = self
