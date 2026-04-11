@@ -1,0 +1,12 @@
+fn main() -> i64 {
+    // Debug: what values do we get?
+    let a = 1 < 2;  // Should be 1 (true)
+    let b = 3 < 4;  // Should be 1 (true)
+    
+    // Simple if with variable
+    if (a) {
+        100
+    } else {
+        200
+    }
+}

@@ -1,0 +1,15 @@
+fn main() -> i64 {
+    let a = 1 < 2;  // true
+    let b = 3 < 4;  // true
+    
+    // Nested if with variables
+    if (a) {
+        if (b) {
+            123
+        } else {
+            0
+        }
+    } else {
+        0
+    }
+}
