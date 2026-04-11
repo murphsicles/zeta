@@ -1093,64 +1093,7 @@ impl Substitution {
         }
     }
     
-    /// Unify two array sizes
-    fn unify_array_size(&mut self, size1: &ArraySize, size2: &ArraySize) -> Result<(), UnifyError> {
-        match (size1, size2) {
-            // Literal sizes must match exactly
-            (ArraySize::Literal(n1), ArraySize::Literal(n2)) => {
-                if n1 == n2 {
-                    Ok(())
-                } else {
-                    // Create dummy array types for error reporting
-                    let t1 = Type::Array(Box::new(Type::Error), size1.clone());
-                    let t2 = Type::Array(Box::new(Type::Error), size2.clone());
-                    Err(UnifyError::Mismatch(t1, t2))
-                }
-            }
-            
-            // Const parameter can unify with literal or another const parameter
-            (ArraySize::ConstParam(name1), ArraySize::ConstParam(name2)) => {
-                if name1 == name2 {
-                    Ok(())
-                } else {
-                    // Different const parameters don't unify
-                    let t1 = Type::Array(Box::new(Type::Error), size1.clone());
-                    let t2 = Type::Array(Box::new(Type::Error), size2.clone());
-                    Err(UnifyError::Mismatch(t1, t2))
-                }
-            }
-            
-            // Const parameter can unify with literal (const parameter gets bound to literal)
-            // This is a simplification - in full const generics, we'd need to track const parameter values
-            (ArraySize::ConstParam(_), ArraySize::Literal(_)) => {
-                // For now, allow unification (const parameter can have any value)
-                Ok(())
-            }
-            (ArraySize::Literal(_), ArraySize::ConstParam(_)) => {
-                // Symmetric case
-                Ok(())
-            }
-            
-            // Expressions are more complex - for now, require exact match
-            (ArraySize::Expr(e1), ArraySize::Expr(e2)) => {
-                if e1 == e2 {
-                    Ok(())
-                } else {
-                    let t1 = Type::Array(Box::new(Type::Error), size1.clone());
-                    let t2 = Type::Array(Box::new(Type::Error), size2.clone());
-                    Err(UnifyError::Mismatch(t1, t2))
-                }
-            }
-            
-            // Mixed expression with literal/const - for now, don't unify
-            // In a full implementation, we'd need to evaluate/simplify expressions
-            _ => {
-                let t1 = Type::Array(Box::new(Type::Error), size1.clone());
-                let t2 = Type::Array(Box::new(Type::Error), size2.clone());
-                Err(UnifyError::Mismatch(t1, t2))
-            }
-        }
-    }
+
 }
 
 /// Unification errors

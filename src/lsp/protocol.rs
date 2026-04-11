@@ -115,15 +115,6 @@ pub struct Range {
     pub end: Position,
 }
 
-/// Location in a document
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct Location {
-    /// URI of the document
-    pub uri: String,
-    /// Range within the document
-    pub range: Range,
-}
-
 /// Completion item
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CompletionItem {
@@ -171,38 +162,3 @@ pub enum CompletionItemKind {
     TypeParameter = 25,
 }
 
-/// Hover information
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct Hover {
-    /// Contents of the hover
-    pub contents: HoverContents,
-    /// Optional range
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub range: Option<Range>,
-}
-
-/// Hover contents
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(untagged)]
-pub enum HoverContents {
-    PlainText(String),
-    Markup(MarkupContent),
-}
-
-/// Markup content for documentation
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct MarkupContent {
-    /// Markup kind
-    pub kind: MarkupKind,
-    /// Content as string
-    pub value: String,
-}
-
-/// Markup kind
-#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
-pub enum MarkupKind {
-    #[serde(rename = "plaintext")]
-    PlainText,
-    #[serde(rename = "markdown")]
-    Markdown,
-}
