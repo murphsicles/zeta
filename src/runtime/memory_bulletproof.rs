@@ -47,9 +47,9 @@ fn get_allocation_map() -> &'static Mutex<HashMap<u64, AllocationInfo>> {
 }
 
 #[derive(Clone)]
-struct AllocationInfo {
-    size: usize,
-    timestamp: std::time::Instant,
+pub struct AllocationInfo {
+    pub size: usize,
+    pub timestamp: std::time::Instant,
 }
 
 /// Initialize the bulletproof memory system

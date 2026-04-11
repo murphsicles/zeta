@@ -401,12 +401,12 @@ pub fn parse_type(input: &str) -> IResult<&str, String> {
     // Try capability expression (for Identity<Read+Write>)
     let capability_expr = parse_capability_expression;
     
-    // Try special types first, then built-in types, then capability expressions, then type paths
+    // Try special types first, then built-in types, then type paths, then capability expressions
     let (input, base) = alt((
         special_types,
         builtin_types,
-        capability_expr,
         parse_type_path,
+        capability_expr,
     )).parse(input)?;
     s += &base;
     Ok((input, s))
@@ -704,6 +704,7 @@ fn parse_angle_bracketed_content_inner_slice(input: &str) -> IResult<&str, &str>
     Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::TakeUntil)))
 }
 
+/*
 /// Helper to parse angle-bracketed content, handling nested angle brackets
 fn parse_angle_bracketed_content(input: &str) -> IResult<&str, String> {
     let mut depth = 0;
@@ -781,6 +782,7 @@ fn split_top_level_commas(input: &str) -> Vec<&str> {
     result.push(&input[start..]);
     result
 }
+*/
 
 /// Parse zero or more attributes
 pub fn parse_attributes(input: &str) -> IResult<&str, Vec<String>> {

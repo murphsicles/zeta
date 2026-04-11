@@ -6,7 +6,7 @@
 
 use crate::middle::resolver::resolver::Type;
 use crate::middle::types::identity::{IdentityType, CapabilityLevel};
-use crate::middle::types::lifetime::{Lifetime, LifetimeContext};
+use crate::middle::types::lifetime::Lifetime;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -114,8 +114,6 @@ pub struct IdentityAwareBorrowChecker {
     scope_depth: usize,
     /// Stack of scopes for tracking borrows
     scope_stack: Vec<HashSet<String>>,
-    /// Lifetime context for reference tracking
-    lifetime_context: LifetimeContext,
     /// Errors collected during checking
     errors: Vec<String>,
 }
@@ -126,7 +124,6 @@ impl IdentityAwareBorrowChecker {
             variables: HashMap::new(),
             scope_depth: 0,
             scope_stack: vec![HashSet::new()],
-            lifetime_context: LifetimeContext::new(),
             errors: Vec::new(),
         }
     }

@@ -206,7 +206,6 @@ pub struct Preprocessor {
     std: Option<Vec<f32>>,
     min: Option<Vec<f32>>,
     max: Option<Vec<f32>>,
-    feature_range: Option<(f32, f32)>,
 }
 
 impl Preprocessor {
@@ -217,7 +216,6 @@ impl Preprocessor {
             std: None,
             min: None,
             max: None,
-            feature_range: None,
         }
     }
     

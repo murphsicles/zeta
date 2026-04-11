@@ -327,19 +327,15 @@ impl Layer for Dropout {
 pub struct RNN {
     input_size: usize,
     hidden_size: usize,
-    num_layers: usize,
-    nonlinearity: String,  // "tanh" or "relu"
     training: bool,
 }
 
 impl RNN {
     /// Create a new RNN layer
-    pub fn new(input_size: usize, hidden_size: usize, num_layers: usize, nonlinearity: &str) -> Self {
+    pub fn new(input_size: usize, hidden_size: usize) -> Self {
         RNN {
             input_size,
             hidden_size,
-            num_layers,
-            nonlinearity: nonlinearity.to_string(),
             training: true,
         }
     }
@@ -381,17 +377,15 @@ impl Layer for RNN {
 pub struct LSTM {
     input_size: usize,
     hidden_size: usize,
-    num_layers: usize,
     training: bool,
 }
 
 impl LSTM {
     /// Create a new LSTM layer
-    pub fn new(input_size: usize, hidden_size: usize, num_layers: usize) -> Self {
+    pub fn new(input_size: usize, hidden_size: usize) -> Self {
         LSTM {
             input_size,
             hidden_size,
-            num_layers,
             training: true,
         }
     }

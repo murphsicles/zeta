@@ -47,10 +47,7 @@ pub struct Resolver {
     module_resolver: ModuleResolver,
     /// Macro expander for macro processing
     macro_expander: MacroExpander,
-    /// Identity inference context for capability-based type inference
-    identity_inference: crate::middle::types::identity::inference::IdentityInferenceContext,
-    /// Capability inferencer for identity-aware type inference
-    capability_inferencer: crate::middle::types::identity::inference::CapabilityInferencer,
+
 }
 
 // Learning: Complex type factored into type definition per clippy suggestion
@@ -70,8 +67,6 @@ impl Resolver {
             registered_funcs: HashMap::new(),
             module_resolver: ModuleResolver::new("."),
             macro_expander: MacroExpander::new(),
-            identity_inference: crate::middle::types::identity::inference::IdentityInferenceContext::new(),
-            capability_inferencer: crate::middle::types::identity::inference::CapabilityInferencer::new(),
         };
 
         // Register built-in runtime functions

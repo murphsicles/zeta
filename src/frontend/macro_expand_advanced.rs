@@ -80,7 +80,6 @@ pub struct AdvancedMacroExpander {
     declarative_macros: HashMap<String, DeclarativeMacro>,
     proc_macro_registry: ProcMacroRegistry,
     hygiene_counter: u64,
-    compile_time_info: CompileTimeInfo,
 }
 
 /// Compile-time information for reflection
@@ -228,11 +227,6 @@ impl AdvancedMacroExpander {
             declarative_macros: HashMap::new(),
             proc_macro_registry: registry,
             hygiene_counter: 0,
-            compile_time_info: CompileTimeInfo {
-                type_registry: HashMap::new(),
-                trait_registry: HashMap::new(),
-                const_values: HashMap::new(),
-            },
         }
     }
     

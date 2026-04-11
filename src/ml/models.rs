@@ -242,8 +242,6 @@ impl RNNModel {
         layers = layers.add(RNN::new(
             input_size,
             hidden_size,
-            num_layers,
-            "tanh",
         ));
         
         if dropout_rate > 0.0 {
@@ -274,7 +272,6 @@ impl RNNModel {
         layers = layers.add(LSTM::new(
             input_size,
             hidden_size,
-            num_layers,
         ));
         
         if dropout_rate > 0.0 {

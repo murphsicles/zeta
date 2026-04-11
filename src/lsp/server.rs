@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::lsp::protocol::{LspMessage, Request, Response, Notification};
 use crate::lsp::handlers;
-use crate::lsp::capabilities::ServerCapabilities;
+
 use crate::lsp::LspResult;
 
 /// LSP server state
@@ -14,10 +14,6 @@ use crate::lsp::LspResult;
 pub struct ServerState {
     /// Open documents with their content
     pub documents: HashMap<String, String>,
-    /// Server capabilities
-    pub capabilities: ServerCapabilities,
-    /// Workspace root path
-    pub root_path: Option<String>,
 }
 
 impl ServerState {
@@ -25,8 +21,6 @@ impl ServerState {
     pub fn new() -> Self {
         Self {
             documents: HashMap::new(),
-            capabilities: ServerCapabilities::default(),
-            root_path: None,
         }
     }
 }
