@@ -387,8 +387,11 @@ impl Optimizer for Adagrad {
 pub struct Adadelta {
     parameters: Vec<Tensor>,
     lr: f32,
+    #[allow(dead_code)]
     rho: f32,
+    #[allow(dead_code)]
     eps: f32,
+    #[allow(dead_code)]
     weight_decay: f32,
     
     // State
