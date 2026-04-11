@@ -549,11 +549,6 @@ impl Layer for GAN {
 pub struct Transformer {
     // Note: Simplified placeholder - full transformer is complex
     layers: Sequential,
-    d_model: usize,
-    nhead: usize,
-    num_layers: usize,
-    dim_feedforward: usize,
-    dropout: f32,
 }
 
 impl Transformer {
@@ -578,11 +573,6 @@ impl Transformer {
         
         Transformer {
             layers,
-            d_model,
-            nhead,
-            num_layers,
-            dim_feedforward,
-            dropout,
         }
     }
 }
