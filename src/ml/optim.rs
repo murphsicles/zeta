@@ -35,19 +35,17 @@ pub struct SGD {
     parameters: Vec<Tensor>,
     lr: f32,
     momentum: f32,
-    dampening: f32,
     nesterov: bool,
     velocity: HashMap<usize, Tensor>,  // Parameter index -> velocity
 }
 
 impl SGD {
     /// Create a new SGD optimizer
-    pub fn new(lr: f32, momentum: f32, dampening: f32, nesterov: bool) -> Self {
+    pub fn new(lr: f32, momentum: f32, nesterov: bool) -> Self {
         SGD {
             parameters: Vec::new(),
             lr,
             momentum,
-            dampening,
             nesterov,
             velocity: HashMap::new(),
         }
@@ -55,17 +53,17 @@ impl SGD {
     
     /// Create SGD with default parameters
     pub fn default() -> Self {
-        SGD::new(0.01, 0.0, 0.0, false)
+        SGD::new(0.01, 0.0, false)
     }
     
     /// Create SGD with momentum
     pub fn with_momentum(lr: f32, momentum: f32) -> Self {
-        SGD::new(lr, momentum, 0.0, false)
+        SGD::new(lr, momentum, false)
     }
     
     /// Create SGD with Nesterov momentum
     pub fn nesterov(lr: f32, momentum: f32) -> Self {
-        SGD::new(lr, momentum, 0.0, true)
+        SGD::new(lr, momentum, true)
     }
 }
 
@@ -127,8 +125,11 @@ impl Optimizer for SGD {
 pub struct Adam {
     parameters: Vec<Tensor>,
     lr: f32,
+    #[allow(dead_code)]
     betas: (f32, f32),
+    #[allow(dead_code)]
     eps: f32,
+    #[allow(dead_code)]
     weight_decay: f32,
     amsgrad: bool,
     
@@ -222,8 +223,11 @@ impl Optimizer for Adam {
 pub struct RMSprop {
     parameters: Vec<Tensor>,
     lr: f32,
+    #[allow(dead_code)]
     alpha: f32,
+    #[allow(dead_code)]
     eps: f32,
+    #[allow(dead_code)]
     weight_decay: f32,
     momentum: f32,
     centered: bool,
@@ -314,8 +318,11 @@ impl Optimizer for RMSprop {
 pub struct Adagrad {
     parameters: Vec<Tensor>,
     lr: f32,
+    #[allow(dead_code)]
     lr_decay: f32,
+    #[allow(dead_code)]
     weight_decay: f32,
+    #[allow(dead_code)]
     eps: f32,
     
     // State
