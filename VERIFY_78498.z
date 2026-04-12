@@ -1,0 +1,43 @@
+// Verification: Returns 78498 for limit=1,000,000
+// Same algorithm as FINAL_DOMINATION.z but without infinite loop
+
+fn main() -> i64 {
+    let limit = 1000000
+    
+    if limit < 2 {
+        return 0
+    }
+    if limit < 3 {
+        return 1
+    }
+    
+    let mut count = 1  // prime 2
+    
+    let mut n = 3
+    while n <= limit {
+        let mut prime = 1
+        
+        let mut d = 3
+        loop {
+            let quotient = n / d
+            if d > quotient {
+                break
+            }
+            
+            if n % d == 0 {
+                prime = 0
+                break
+            }
+            
+            d = d + 2
+        }
+        
+        if prime == 1 {
+            count = count + 1
+        }
+        
+        n = n + 2
+    }
+    
+    return count  // Should be 78498
+}

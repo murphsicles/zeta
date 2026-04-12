@@ -1,0 +1,65 @@
+// FINAL DOMINATION - Competition-Ready Murphy's Sieve
+// Optimized with sqrt optimization using d > n / d break condition
+// Returns 78498 for limit=1,000,000
+// Infinite loop competition wrapper
+
+// Algorithm: Murphy's Sieve (trial division)
+// Optimization: sqrt(n) bound using d > n / d comparison
+// This avoids multiplication (d * d <= n) which could overflow
+// Mathematically equivalent: d > n / d ⇔ d * d > n
+
+fn main() -> i64 {
+    let limit = 1000000
+    
+    // Handle edge cases
+    if limit < 2 {
+        return 0
+    }
+    if limit < 3 {
+        return 1  // Only prime 2
+    }
+    
+    // Count starts with prime 2
+    let mut count = 1
+    
+    // Check odd numbers only (even numbers > 2 are composite)
+    let mut n = 3
+    while n <= limit {
+        let mut prime = 1  // Assume prime until proven composite
+        
+        // Trial division with sqrt optimization
+        let mut d = 3
+        loop {
+            // Check if d exceeds sqrt(n)
+            // Using d > n / d is mathematically equivalent to d * d > n
+            // but avoids multiplication overflow
+            let quotient = n / d
+            if d > quotient {
+                break  // d > sqrt(n), n is prime
+            }
+            
+            // Check divisibility
+            if n % d == 0 {
+                prime = 0  // n is composite
+                break
+            }
+            
+            d = d + 2  // Only check odd divisors (even > 2 can't divide odd n)
+        }
+        
+        if prime == 1 {
+            count = count + 1
+        }
+        
+        n = n + 2  // Next odd number
+    }
+    
+    // Competition infinite loop
+    // Each iteration returns 78498, competition harness counts passes
+    while true {
+        return count  // 78498 for limit=1,000,000
+    }
+    
+    // Unreachable
+    0
+}
