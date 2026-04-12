@@ -8,14 +8,14 @@ trait SecureOperation {
 
 // Trait for operations that need read access
 trait ReadOperation: SecureOperation {
-    type Data: Identity<Read>;
+    type Data: Identity<read>;
     
     fn execute_read(&self, data: Self::Data) -> i64;
 }
 
 // Trait for operations that need write access
 trait WriteOperation: SecureOperation {
-    type Data: Identity<Write>;
+    type Data: Identity<write>;
     
     fn execute_write(&mut self, data: Self::Data) -> bool;
 }
@@ -23,7 +23,7 @@ trait WriteOperation: SecureOperation {
 // Trait for operations that need both read and write
 trait ReadWriteOperation: ReadOperation + WriteOperation
 where
-    Self::Data: Identity<Read+Write>
+    Self::Data: Identity<read+write>
 {
     fn execute_read_write(&mut self, data: Self::Data) -> i64 {
         // Default implementation that does both
@@ -46,7 +46,7 @@ impl SecureOperation for LogProcessor {
 }
 
 impl ReadOperation for LogProcessor {
-    type Data = String; // Would need Identity<Read> wrapper
+    type Data = String; // Would need Identity<read> wrapper
     
     fn execute_read(&self, data: Self::Data) -> i64 {
         // Process log data (read-only)
@@ -68,7 +68,7 @@ impl SecureOperation for ConfigUpdater {
 }
 
 impl WriteOperation for ConfigUpdater {
-    type Data = String; // Would need Identity<Write> wrapper
+    type Data = String; // Would need Identity<write> wrapper
     
     fn execute_write(&mut self, data: Self::Data) -> bool {
         // Update configuration (write operation)
@@ -90,7 +90,7 @@ impl SecureOperation for DataTransformer {
 }
 
 impl ReadOperation for DataTransformer {
-    type Data = String; // Would need Identity<Read> wrapper
+    type Data = String; // Would need Identity<read> wrapper
     
     fn execute_read(&self, data: Self::Data) -> i64 {
         // Read and analyze data
@@ -99,7 +99,7 @@ impl ReadOperation for DataTransformer {
 }
 
 impl WriteOperation for DataTransformer {
-    type Data = String; // Would need Identity<Write> wrapper
+    type Data = String; // Would need Identity<write> wrapper
     
     fn execute_write(&mut self, data: Self::Data) -> bool {
         // Transform and write data
@@ -123,7 +123,7 @@ fn process_writable<W: WriteOperation>(operation: &mut W, data: W::Data) -> bool
 // Function that requires both read and write capabilities
 fn process_duplex<RW: ReadWriteOperation>(operation: &mut RW, data: RW::Data) -> i64
 where
-    RW::Data: Identity<Read+Write>
+    RW::Data: Identity<read+write>
 {
     // Can use both read and write methods
     let read_result = operation.execute_read(data);
@@ -150,16 +150,16 @@ fn main() -> i64 {
     };
     
     // Process with read operation
-    let log_data = "log entry".to_string(); // Would need Identity<Read> wrapper
+    let log_data = "log entry".to_string(); // Would need Identity<read> wrapper
     let log_result = process_readable(&log_processor, log_data);
     println!("Log processing result: " + log_result.to_string());
     
     // Process with write operation
-    let config_data = "config update".to_string(); // Would need Identity<Write> wrapper
+    let config_data = "config update".to_string(); // Would need Identity<write> wrapper
     let config_success = process_writable(&mut config_updater, config_data);
     println!("Config update success: " + config_success.to_string());
     
-    // Note: The duplex processing would need actual Identity<Read+Write> data
+    // Note: The duplex processing would need actual Identity<read+write> data
     // For this example, we'll just return a value
     return log_result + (if config_success { 100 } else { 0 });
 }

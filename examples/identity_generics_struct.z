@@ -2,12 +2,12 @@
 // Demonstrates identity-constrained generic structs
 
 // Struct that stores identity-constrained data
-struct SecureContainer<T: Identity<Read>> {
+struct SecureContainer<T: Identity<read>> {
     contents: T
 }
 
 // Method implementation for SecureContainer
-impl SecureContainer<T: Identity<Read>> {
+impl SecureContainer<T: Identity<read>> {
     // Constructor
     fn new(data: T) -> SecureContainer<T> {
         return SecureContainer { contents: data };
@@ -21,7 +21,7 @@ impl SecureContainer<T: Identity<Read>> {
 }
 
 // Function demonstrating multiple capability constraints
-fn process_multiple_caps<T: Identity<Read+Write+Owned>>(data: T) -> i64 {
+fn process_multiple_caps<T: Identity<read+write+Owned>>(data: T) -> i64 {
     // Has full control over data
     return 200;
 }

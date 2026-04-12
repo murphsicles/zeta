@@ -7,7 +7,7 @@ trait Cloneable {
 }
 
 // Function with combined identity and trait constraints
-fn process_and_clone<T: Identity<Read> + Cloneable>(item: T) -> (T, i64) {
+fn process_and_clone<T: Identity<read> + Cloneable>(item: T) -> (T, i64) {
     // Can read from item and clone it
     let cloned = item.clone();
     return (cloned, 123);
@@ -30,7 +30,7 @@ fn main() -> i64 {
     let data = SimpleData { value: 42 };
     
     // Note: This example shows the concept, but would need
-    // identity wrapper for SimpleData to work with Identity<Read>
+    // identity wrapper for SimpleData to work with Identity<read>
     // For now, just return a value
     return 456;
 }

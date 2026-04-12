@@ -2,12 +2,12 @@
 // Demonstrates identity constraints with nested generics and complex capability requirements
 
 // Struct with nested identity constraints
-struct SecureProcessor<T: Identity<Read>, U: Identity<Write>> {
+struct SecureProcessor<T: Identity<read>, U: Identity<write>> {
     input: T,
     output: U
 }
 
-impl<T: Identity<Read>, U: Identity<Write>> SecureProcessor<T, U> {
+impl<T: Identity<read>, U: Identity<write>> SecureProcessor<T, U> {
     // Constructor
     fn new(input: T, output: U) -> SecureProcessor<T, U> {
         return SecureProcessor { input: input, output: output };
@@ -22,7 +22,7 @@ impl<T: Identity<Read>, U: Identity<Write>> SecureProcessor<T, U> {
 }
 
 // Function with conditional identity constraints
-fn conditional_process<T: Identity<Read>>(data: T, needs_write: bool) -> i64 {
+fn conditional_process<T: Identity<read>>(data: T, needs_write: bool) -> i64 {
     if needs_write {
         // Would need Write capability here
         // This shows how capabilities can be conditional
@@ -34,7 +34,7 @@ fn conditional_process<T: Identity<Read>>(data: T, needs_write: bool) -> i64 {
 }
 
 // Function demonstrating capability inheritance
-fn process_with_inheritance<T: Identity<Read+Write>>(data: T) -> i64 {
+fn process_with_inheritance<T: Identity<read+write>>(data: T) -> i64 {
     // This function requires both Read and Write
     // It can call functions that only need Read
     let read_result = read_only_helper(data);
@@ -42,7 +42,7 @@ fn process_with_inheritance<T: Identity<Read+Write>>(data: T) -> i64 {
 }
 
 // Helper function with fewer capabilities
-fn read_only_helper<T: Identity<Read>>(data: T) -> i64 {
+fn read_only_helper<T: Identity<read>>(data: T) -> i64 {
     // Only needs Read capability
     return 75;
 }

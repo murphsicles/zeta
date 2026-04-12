@@ -3,7 +3,7 @@
 
 // Trait for data sources with identity constraints
 trait DataSource {
-    type Item: Identity<Read>;
+    type Item: Identity<read>;
     
     fn read_next(&mut self) -> Option<Self::Item>;
     fn has_more(&self) -> bool;
@@ -11,8 +11,8 @@ trait DataSource {
 
 // Trait for data processors with identity constraints
 trait DataProcessor {
-    type Input: Identity<Read>;
-    type Output: Identity<Write>;
+    type Input: Identity<read>;
+    type Output: Identity<write>;
     
     fn process(&self, input: Self::Input) -> Self::Output;
     fn get_stats(&self) -> i64;
@@ -25,7 +25,7 @@ struct StringDataSource {
 }
 
 impl DataSource for StringDataSource {
-    type Item = String; // Would need Identity<Read> wrapper in real implementation
+    type Item = String; // Would need Identity<read> wrapper in real implementation
     
     fn read_next(&mut self) -> Option<Self::Item> {
         if self.position < self.data.len() as i64 {
@@ -47,8 +47,8 @@ struct UppercaseProcessor {
 }
 
 impl DataProcessor for UppercaseProcessor {
-    type Input = String; // Would need Identity<Read> wrapper
-    type Output = String; // Would need Identity<Write> wrapper
+    type Input = String; // Would need Identity<read> wrapper
+    type Output = String; // Would need Identity<write> wrapper
     
     fn process(&self, input: Self::Input) -> Self::Output {
         // Convert to uppercase (simplified)
