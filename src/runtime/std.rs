@@ -267,3 +267,196 @@ pub unsafe extern "C" fn simd_insert_i32x4(vec: i64, value: i64, index: i64) -> 
     // Return a dummy vector value
     0x1007 as i64
 }
+
+// ============================================================================
+// Bit Operations and Intrinsics
+// ============================================================================
+
+/// Counts trailing zeros (tzcnt) in a u64 value.
+/// Returns 64 if the input is 0.
+///
+/// # Safety
+/// No safety concerns.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn intrinsic_tzcnt_u64(value: u64) -> u32 {
+    value.trailing_zeros()
+}
+
+/// Counts leading zeros (lzcnt) in a u64 value.
+/// Returns 64 if the input is 0.
+///
+/// # Safety
+/// No safety concerns.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn intrinsic_lzcnt_u64(value: u64) -> u32 {
+    value.leading_zeros()
+}
+
+/// Counts set bits (popcnt) in a u64 value.
+///
+/// # Safety
+/// No safety concerns.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn intrinsic_popcnt_u64(value: u64) -> u32 {
+    value.count_ones()
+}
+
+/// Performs bit scan forward (bsf) on a u64 value.
+/// Returns the index of the least significant set bit.
+/// Returns u32::MAX if the input is 0.
+///
+/// # Safety
+/// No safety concerns.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn intrinsic_bsf_u64(value: u64) -> u32 {
+    if value == 0 {
+        u32::MAX
+    } else {
+        value.trailing_zeros()
+    }
+}
+
+/// Performs bit scan reverse (bsr) on a u64 value.
+/// Returns the index of the most significant set bit.
+/// Returns u32::MAX if the input is 0.
+///
+/// # Safety
+/// No safety concerns.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn intrinsic_bsr_u64(value: u64) -> u32 {
+    if value == 0 {
+        u32::MAX
+    } else {
+        63 - value.leading_zeros()
+    }
+}
+
+/// Rotates a u64 value left by the specified count.
+///
+/// # Safety
+/// No safety concerns.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn intrinsic_rotl_u64(value: u64, count: u32) -> u64 {
+    value.rotate_left(count)
+}
+
+/// Rotates a u64 value right by the specified count.
+///
+/// # Safety
+/// No safety concerns.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn intrinsic_rotr_u64(value: u64, count: u32) -> u64 {
+    value.rotate_right(count)
+}
+
+/// Performs byte swap (bswap) on a u64 value.
+///
+/// # Safety
+/// No safety concerns.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn intrinsic_bswap_u64(value: u64) -> u64 {
+    value.swap_bytes()
+}
+
+/// Performs cache line flush (clflush) on the specified memory address.
+/// This is a stub implementation that does nothing.
+///
+/// # Safety
+/// ptr must be a valid pointer.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn intrinsic_clflush(ptr: i64) {
+    // Stub implementation - does nothing
+    // In a real implementation, this would use _mm_clflush
+}
+
+/// Memory fence (mfence) instruction.
+/// This is a stub implementation that does nothing.
+///
+/// # Safety
+/// No safety concerns.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn intrinsic_mfence() {
+    // Stub implementation - does nothing
+    // In a real implementation, this would use _mm_mfence
+}
+
+/// Load fence (lfence) instruction.
+/// This is a stub implementation that does nothing.
+///
+/// # Safety
+/// No safety concerns.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn intrinsic_lfence() {
+    // Stub implementation - does nothing
+    // In a real implementation, this would use _mm_lfence
+}
+
+/// Store fence (sfence) instruction.
+/// This is a stub implementation that does nothing.
+///
+/// # Safety
+/// No safety concerns.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn intrinsic_sfence() {
+    // Stub implementation - does nothing
+    // In a real implementation, this would use _mm_sfence
+}
+
+/// Pause instruction for spin loops.
+/// This is a stub implementation that does nothing.
+///
+/// # Safety
+/// No safety concerns.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn intrinsic_pause() {
+    // Stub implementation - does nothing
+    // In a real implementation, this would use _mm_pause
+}
+
+/// Test function for intrinsics
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn test_intrinsics() -> i64 {
+    // Test tzcnt
+    let tzcnt_result = intrinsic_tzcnt_u64(0b1000u64);
+    if tzcnt_result != 3 {
+        return -1;
+    }
+    
+    // Test popcnt
+    let popcnt_result = intrinsic_popcnt_u64(0b10101u64);
+    if popcnt_result != 3 {
+        return -2;
+    }
+    
+    // Test bsf
+    let bsf_result = intrinsic_bsf_u64(0b1000u64);
+    if bsf_result != 3 {
+        return -3;
+    }
+    
+    // Test bsr
+    let bsr_result = intrinsic_bsr_u64(0b1000u64);
+    if bsr_result != 3 {
+        return -4;
+    }
+    
+    // Test rotl
+    let rotl_result = intrinsic_rotl_u64(0b1u64, 1);
+    if rotl_result != 0b10u64 {
+        return -5;
+    }
+    
+    // Test rotr
+    let rotr_result = intrinsic_rotr_u64(0b10u64, 1);
+    if rotr_result != 0b1u64 {
+        return -6;
+    }
+    
+    // Test bswap
+    let bswap_result = intrinsic_bswap_u64(0x1122334455667788u64);
+    if bswap_result != 0x8877665544332211u64 {
+        return -7;
+    }
+    
+    0 // Success
+}

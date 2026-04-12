@@ -2,21 +2,21 @@
 
 ## Solution Details
 
-**Algorithm**: Murphy's Sieve with 30030-wheel optimization  
+**Algorithm**: Murphy's Sieve with trial division optimization  
 **Faithful**: yes  
-**Bits per candidate**: 8  
+**Bits per candidate**: 64 (uses i64 integers)  
 **Parallel**: no
 
-**Tags**: algorithm=wheel, faithful=yes, bits=8, parallel=no  
+**Tags**: algorithm=trial-division, faithful=yes, bits=64, parallel=no  
 
 ## Implementation
 
-This submission implements Murphy's Sieve, a highly optimized prime counting algorithm that uses:
+This submission implements Murphy's Sieve, a prime counting algorithm that uses:
 
-1. **Bit-packed arrays**: 1 bit per odd number candidate
-2. **30030-wheel optimization**: Eliminates multiples of 2, 3, 5, 7, 11, 13 (77% of candidates)
-3. **Segment processing**: Processes in 32KB segments for L1 cache efficiency
-4. **Incremental marking**: Marks only odd multiples using p² + 2kp pattern
+1. **Odd-only optimization**: Skips even numbers (50% reduction)
+2. **Square root bound**: Checks divisors only up to √n
+3. **Incremental divisor checking**: Uses d <= n / d comparison
+4. **Pure Zeta implementation**: Demonstrates Zeta language capabilities
 
 ## Performance Characteristics
 

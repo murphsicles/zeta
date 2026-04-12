@@ -206,6 +206,102 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
         ee.add_global_mapping(&f, fn_ptr);
     }
 
+    // Map bit operation intrinsics
+    if let Some(f) = codegen.module.get_function("intrinsic_tzcnt_u64") {
+        let fn_ptr = crate::runtime::std::intrinsic_tzcnt_u64 as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("intrinsic_lzcnt_u64") {
+        let fn_ptr = crate::runtime::std::intrinsic_lzcnt_u64 as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("intrinsic_popcnt_u64") {
+        let fn_ptr = crate::runtime::std::intrinsic_popcnt_u64 as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("intrinsic_bsf_u64") {
+        let fn_ptr = crate::runtime::std::intrinsic_bsf_u64 as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("intrinsic_bsr_u64") {
+        let fn_ptr = crate::runtime::std::intrinsic_bsr_u64 as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("intrinsic_rotl_u64") {
+        let fn_ptr = crate::runtime::std::intrinsic_rotl_u64 as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("intrinsic_rotr_u64") {
+        let fn_ptr = crate::runtime::std::intrinsic_rotr_u64 as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("intrinsic_bswap_u64") {
+        let fn_ptr = crate::runtime::std::intrinsic_bswap_u64 as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("intrinsic_clflush") {
+        let fn_ptr = crate::runtime::std::intrinsic_clflush as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("intrinsic_mfence") {
+        let fn_ptr = crate::runtime::std::intrinsic_mfence as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("intrinsic_lfence") {
+        let fn_ptr = crate::runtime::std::intrinsic_lfence as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("intrinsic_sfence") {
+        let fn_ptr = crate::runtime::std::intrinsic_sfence as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("intrinsic_pause") {
+        let fn_ptr = crate::runtime::std::intrinsic_pause as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+
+    // Map SIMD runtime functions
+    if let Some(f) = codegen.module.get_function("simd_splat_i32x4") {
+        let fn_ptr = crate::runtime::std::simd_splat_i32x4 as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("simd_splat_i64x2") {
+        let fn_ptr = crate::runtime::std::simd_splat_i64x2 as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("simd_splat_f32x4") {
+        let fn_ptr = crate::runtime::std::simd_splat_f32x4 as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("simd_add_i32x4") {
+        let fn_ptr = crate::runtime::std::simd_add_i32x4 as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("simd_mul_i32x4") {
+        let fn_ptr = crate::runtime::std::simd_mul_i32x4 as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("simd_sub_i32x4") {
+        let fn_ptr = crate::runtime::std::simd_sub_i32x4 as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("simd_load_i32x4") {
+        let fn_ptr = crate::runtime::std::simd_load_i32x4 as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("simd_store_i32x4") {
+        let fn_ptr = crate::runtime::std::simd_store_i32x4 as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("simd_extract_i32x4") {
+        let fn_ptr = crate::runtime::std::simd_extract_i32x4 as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+    if let Some(f) = codegen.module.get_function("simd_insert_i32x4") {
+        let fn_ptr = crate::runtime::std::simd_insert_i32x4 as *const () as usize;
+        ee.add_global_mapping(&f, fn_ptr);
+    }
+
     // Map atomic operations (commented out until implemented)
     // if let Some(f) = codegen.module.get_function("host_atomic_bool_new") {
     //     let fn_ptr = crate::runtime::sync::host_atomic_bool_new as *const () as usize;

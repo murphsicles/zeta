@@ -7,7 +7,9 @@ use crate::frontend::ast::AstNode;
 
 use super::context::ConstContext;
 use super::value::ConstValue;
-use super::error::{CtfeError, CtfeResult};
+use super::error::CtfeResult;
+
+use crate::ctfe_error;
 
 /// Constant evaluator for compile-time evaluation
 #[derive(Debug, Clone, Default)]
@@ -65,6 +67,23 @@ impl ConstEvaluator {
                                 comptime_: *comptime_,
                             });
                         }
+                        Ok(ConstValue::UInt(val)) => {
+                            // For unsigned integers, we need to handle them differently
+                            // since AST only has Lit(i64). We'll convert if it fits.
+                            if val <= i64::MAX as u64 {
+                                result.push(AstNode::ConstDef {
+                                    name: name.clone(),
+                                    ty: ty.clone(),
+                                    value: Box::new(AstNode::Lit(val as i64)),
+                                    attrs: attrs.clone(),
+                                    pub_: *pub_,
+                                    comptime_: *comptime_,
+                                });
+                            } else {
+                                // Keep as-is if it doesn't fit in i64
+                                result.push(ast.clone());
+                            }
+                        }
                         Ok(ConstValue::Bool(val)) => {
                             result.push(AstNode::ConstDef {
                                 name: name.clone(),
@@ -74,6 +93,49 @@ impl ConstEvaluator {
                                 pub_: *pub_,
                                 comptime_: *comptime_,
                             });
+                        }
+                        Ok(ConstValue::Array(arr)) => {
+                            // Convert array to array literal if all elements are simple
+                            let mut all_simple = true;
+                            let mut elements = Vec::new();
+                            
+                            for val in arr {
+                                match val {
+                                    ConstValue::Int(n) => {
+                                        elements.push(AstNode::Lit(n));
+                                    }
+                                    ConstValue::UInt(n) => {
+                                        if n <= i64::MAX as u64 {
+                                            elements.push(AstNode::Lit(n as i64));
+                                        } else {
+                                            all_simple = false;
+                                            break;
+                                        }
+                                    }
+                                    ConstValue::Bool(b) => {
+                                        elements.push(AstNode::Bool(b));
+                                    }
+                                    _ => {
+                                        all_simple = false;
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            if all_simple {
+                                // Create array literal
+                                result.push(AstNode::ConstDef {
+                                    name: name.clone(),
+                                    ty: ty.clone(),
+                                    value: Box::new(AstNode::ArrayLit(elements)),
+                                    attrs: attrs.clone(),
+                                    pub_: *pub_,
+                                    comptime_: *comptime_,
+                                });
+                            } else {
+                                // Keep as-is
+                                result.push(ast.clone());
+                            }
                         }
                         Ok(_) => {
                             // Non-simple constant value - keep as-is for now
@@ -100,331 +162,119 @@ impl ConstEvaluator {
             AstNode::Lit(n) => Ok(ConstValue::Int(*n)),
             AstNode::Bool(b) => Ok(ConstValue::Bool(*b)),
             
+            // Variables
+            AstNode::Var(name) => self.context.lookup_variable(name),
+            
             // Binary operations
             AstNode::BinaryOp { op, left, right } => {
-                self.eval_binary_op(op, left, right)
+                let left_val = self.eval_const_expr(left)?;
+                let right_val = self.eval_const_expr(right)?;
+                
+                match left_val.binary_op(op, &right_val) {
+                    Ok(val) => Ok(val),
+                    Err(msg) => ctfe_error!(UnsupportedOperation, msg),
+                }
             }
             
             // Unary operations
-            AstNode::UnaryOp { op, expr } => {
-                self.eval_unary_op(op, expr)
+            AstNode::UnaryOp { op, expr: inner } => {
+                let val = self.eval_const_expr(inner)?;
+                match val.unary_op(op) {
+                    Ok(result) => Ok(result),
+                    Err(msg) => ctfe_error!(UnsupportedOperation, msg),
+                }
             }
             
-            // Variables
-            AstNode::Var(name) => {
-                self.eval_variable(name)
+            // Call expressions (function calls)
+            AstNode::Call { receiver, method, args, .. } => {
+                // For now, only handle simple function calls without receiver
+                if receiver.is_none() {
+                    self.try_eval_const_call_by_name(method, args)
+                } else {
+                    ctfe_error!(UnsupportedOperation, format!("method calls not supported in CTFE"))
+                }
             }
             
-            // Function calls
-            AstNode::Call {
-                receiver,
-                method,
-                args,
-                ..
-            } => {
-                self.eval_function_call(receiver.as_ref(), method, args)
-            }
-            
-            // Arrays
+            // Array literals
             AstNode::ArrayLit(elements) => {
-                self.eval_array_literal(elements)
+                let mut arr = Vec::new();
+                for elem in elements {
+                    arr.push(self.eval_const_expr(elem)?);
+                }
+                Ok(ConstValue::Array(arr))
             }
             
-            // If expressions
-            AstNode::If { cond, then, else_ } => {
-                self.eval_if_expr(cond, then, else_.as_ref())
-            }
-            
-            // Blocks
-            AstNode::Block { body } => {
-                self.eval_block(body)
-            }
-            
-            // Let bindings
-            AstNode::Let { mut_, pattern, ty: _, expr } => {
-                self.eval_let_binding(*mut_, pattern, expr)
-            }
-            
-            // Const definitions
-            AstNode::ConstDef { value, .. } => {
-                self.eval_const_expr(value)
+            // Return statements
+            AstNode::Return(expr) => {
+                self.eval_const_expr(expr)
             }
             
             // Unsupported expressions
-            _ => Err(CtfeError::UnsupportedExpression(
-                format!("{:?}", expr)
-            )),
+            _ => ctfe_error!(NotConstant),
         }
     }
 
-    /// Evaluate a binary operation
-    fn eval_binary_op(&mut self, op: &str, left: &AstNode, right: &AstNode) -> CtfeResult<ConstValue> {
-        let left_val = self.eval_const_expr(left)?;
-        let right_val = self.eval_const_expr(right)?;
-        
-        left_val.binary_op(op, &right_val)
-            .map_err(|e| CtfeError::InvalidOperation {
-                op: op.to_string(),
-                left_type: left_val.type_name().to_string(),
-                right_type: Some(right_val.type_name().to_string()),
-            })
-    }
-
-    /// Evaluate a unary operation
-    fn eval_unary_op(&mut self, op: &str, expr: &AstNode) -> CtfeResult<ConstValue> {
-        let val = self.eval_const_expr(expr)?;
-        
-        val.unary_op(op)
-            .map_err(|e| CtfeError::InvalidOperation {
-                op: op.to_string(),
-                left_type: val.type_name().to_string(),
-                right_type: None,
-            })
-    }
-
-    /// Evaluate a variable reference
-    fn eval_variable(&self, name: &str) -> CtfeResult<ConstValue> {
-        // Check local variables first
-        if let Some(value) = self.context.get_variable(name) {
-            return Ok(value.clone());
-        }
-        
-        // Check constants
-        if let Some(value) = self.context.get_constant(name) {
-            return Ok(value.clone());
-        }
-        
-        Err(CtfeError::UndefinedVariable(name.to_string()))
-    }
-
-    /// Evaluate a function call
-    fn eval_function_call(
+    /// Try to evaluate a const function call by name
+    pub fn try_eval_const_call_by_name(
         &mut self,
-        receiver: Option<&AstNode>,
-        method: &str,
+        name: &str,
         args: &[AstNode],
     ) -> CtfeResult<ConstValue> {
-        // Method calls not supported yet
-        if receiver.is_some() {
-            return Err(CtfeError::UnsupportedExpression(
-                "method calls not supported in const context".to_string()
-            ));
-        }
-
-        // Check built-in functions first
-        match method {
-            "min" => self.eval_builtin_min(args),
-            "max" => self.eval_builtin_max(args),
-            "abs" => self.eval_builtin_abs(args),
-            _ => self.eval_user_function_call(method, args),
-        }
+        let func = self.context.lookup_function(name)?.clone();
+        self.try_eval_const_call(&func, args)
     }
 
-    /// Evaluate built-in min function
-    fn eval_builtin_min(&mut self, args: &[AstNode]) -> CtfeResult<ConstValue> {
-        if args.len() != 2 {
-            return Err(CtfeError::ArgumentCountMismatch {
-                expected: 2,
-                found: args.len(),
-            });
-        }
-        
-        let a = self.eval_const_expr(&args[0])?;
-        let b = self.eval_const_expr(&args[1])?;
-        
-        match (a, b) {
-            (ConstValue::Int(a_val), ConstValue::Int(b_val)) => {
-                Ok(ConstValue::Int(a_val.min(b_val)))
-            }
-            (a_val, b_val) => Err(CtfeError::TypeMismatch {
-                expected: "integer".to_string(),
-                found: format!("{} and {}", a_val.type_name(), b_val.type_name()),
-            }),
-        }
-    }
-
-    /// Evaluate built-in max function
-    fn eval_builtin_max(&mut self, args: &[AstNode]) -> CtfeResult<ConstValue> {
-        if args.len() != 2 {
-            return Err(CtfeError::ArgumentCountMismatch {
-                expected: 2,
-                found: args.len(),
-            });
-        }
-        
-        let a = self.eval_const_expr(&args[0])?;
-        let b = self.eval_const_expr(&args[1])?;
-        
-        match (a, b) {
-            (ConstValue::Int(a_val), ConstValue::Int(b_val)) => {
-                Ok(ConstValue::Int(a_val.max(b_val)))
-            }
-            (a_val, b_val) => Err(CtfeError::TypeMismatch {
-                expected: "integer".to_string(),
-                found: format!("{} and {}", a_val.type_name(), b_val.type_name()),
-            }),
-        }
-    }
-
-    /// Evaluate built-in abs function
-    fn eval_builtin_abs(&mut self, args: &[AstNode]) -> CtfeResult<ConstValue> {
-        if args.len() != 1 {
-            return Err(CtfeError::ArgumentCountMismatch {
-                expected: 1,
-                found: args.len(),
-            });
-        }
-        
-        let a = self.eval_const_expr(&args[0])?;
-        
-        match a {
-            ConstValue::Int(a_val) => Ok(ConstValue::Int(a_val.abs())),
-            _ => Err(CtfeError::TypeMismatch {
-                expected: "integer".to_string(),
-                found: a.type_name().to_string(),
-            }),
-        }
-    }
-
-    /// Evaluate user-defined function call
-    fn eval_user_function_call(&mut self, name: &str, args: &[AstNode]) -> CtfeResult<ConstValue> {
-        // Get function definition
-        let func = self.context.get_function(name)
-            .ok_or_else(|| CtfeError::FunctionNotFound(name.to_string()))?;
-        
-        // Check if it's a const/comptime function
-        match func {
-            AstNode::FuncDef {
-                const_,
-                comptime_,
-                params,
-                body,
-                ret_expr,
-                ..
-            } => {
-                if !*const_ && !*comptime_ {
-                    return Err(CtfeError::FunctionCallFailed(
-                        format!("function '{}' is not const or comptime", name)
-                    ));
-                }
-                
-                // Enter function scope
-                self.context.enter_const_fn();
-                self.context.enter_scope(false);
-                
-                // Bind arguments to parameters
-                if params.len() != args.len() {
-                    return Err(CtfeError::ArgumentCountMismatch {
-                        expected: params.len(),
-                        found: args.len(),
-                    });
-                }
-                
-                for (i, (param_name, _param_type)) in params.iter().enumerate() {
-                    let arg_value = self.eval_const_expr(&args[i])?;
-                    self.context.define_variable(param_name.clone(), arg_value)?;
-                }
-                
-                // Evaluate function body
-                let result = if let Some(expr) = ret_expr {
-                    // Evaluate body statements first
-                    for stmt in body {
-                        self.eval_const_expr(stmt)?;
-                    }
-                    // Then evaluate return expression
-                    self.eval_const_expr(expr)
-                } else if !body.is_empty() {
-                    // Evaluate statements, last expression is result
-                    let mut last_value = ConstValue::Unit;
-                    for stmt in body {
-                        last_value = self.eval_const_expr(stmt)?;
-                    }
-                    Ok(last_value)
-                } else {
-                    Ok(ConstValue::Unit)
-                };
-                
-                // Exit function scope
-                self.context.exit_scope()?;
-                self.context.exit_const_fn();
-                
-                result
-            }
-            _ => Err(CtfeError::FunctionCallFailed(
-                format!("expected function definition for '{}'", name)
-            )),
-        }
-    }
-
-    /// Evaluate an array literal
-    fn eval_array_literal(&mut self, elements: &[AstNode]) -> CtfeResult<ConstValue> {
-        let mut const_elements = Vec::new();
-        for elem in elements {
-            const_elements.push(self.eval_const_expr(elem)?);
-        }
-        Ok(ConstValue::Array(const_elements))
-    }
-
-    /// Evaluate an if expression
-    fn eval_if_expr(
+    /// Try to evaluate a const function call
+    pub fn try_eval_const_call(
         &mut self,
-        cond: &AstNode,
-        then_branch: &[AstNode],
-        else_branch: Option<&AstNode>,
+        func: &AstNode,
+        args: &[AstNode],
     ) -> CtfeResult<ConstValue> {
-        let cond_val = self.eval_const_expr(cond)?;
-        let cond_bool = cond_val.as_bool()
-            .ok_or_else(|| CtfeError::TypeMismatch {
-                expected: "bool".to_string(),
-                found: cond_val.type_name().to_string(),
-            })?;
-        
-        if cond_bool {
-            self.context.enter_scope(false);
-            let result = self.eval_block(then_branch);
-            self.context.exit_scope()?;
-            result
-        } else if let Some(else_expr) = else_branch {
-            self.context.enter_scope(false);
-            let result = self.eval_const_expr(else_expr);
+        if let AstNode::FuncDef {
+            params,
+            body,
+            ret_expr,
+            ..
+        } = func {
+            // Evaluate arguments
+            let mut arg_values = Vec::new();
+            for arg in args {
+                arg_values.push(self.eval_const_expr(arg)?);
+            }
+            
+            // Enter new scope for function evaluation
+            self.context.enter_scope();
+            
+            // Bind parameters to arguments
+            for (i, (param_name, _)) in params.iter().enumerate() {
+                if i < arg_values.len() {
+                    self.context.define_variable(param_name.clone(), arg_values[i].clone())?;
+                }
+            }
+            
+            // Evaluate function body
+            let result = if let Some(expr) = ret_expr {
+                // Evaluate body statements first (for side effects)
+                for stmt in body {
+                    self.eval_const_expr(stmt)?;
+                }
+                // Then evaluate return expression
+                self.eval_const_expr(expr)
+            } else if !body.is_empty() {
+                // Evaluate statements, last expression is result
+                let mut last_value = ConstValue::Unit;
+                for stmt in body {
+                    last_value = self.eval_const_expr(stmt)?;
+                }
+                Ok(last_value)
+            } else {
+                Ok(ConstValue::Unit)
+            };
+            
             self.context.exit_scope()?;
             result
         } else {
-            Ok(ConstValue::Unit)
-        }
-    }
-
-    /// Evaluate a block
-    fn eval_block(&mut self, body: &[AstNode]) -> CtfeResult<ConstValue> {
-        self.context.enter_scope(false);
-        let mut last_value = ConstValue::Unit;
-        
-        for stmt in body {
-            last_value = self.eval_const_expr(stmt)?;
-        }
-        
-        self.context.exit_scope()?;
-        Ok(last_value)
-    }
-
-    /// Evaluate a let binding
-    fn eval_let_binding(
-        &mut self,
-        mutable: bool,
-        pattern: &AstNode,
-        expr: &AstNode,
-    ) -> CtfeResult<ConstValue> {
-        let value = self.eval_const_expr(expr)?;
-        
-        // For now, only support simple variable patterns
-        match pattern {
-            AstNode::Var(name) => {
-                self.context.define_variable(name.clone(), value.clone())?;
-                Ok(value)
-            }
-            _ => Err(CtfeError::UnsupportedExpression(
-                "complex patterns not supported in const let bindings".to_string()
-            )),
+            ctfe_error!(UnsupportedOperation, "not a function".to_string())
         }
     }
 }

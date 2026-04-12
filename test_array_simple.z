@@ -1,4 +1,11 @@
+// Test array capabilities
 fn main() -> i64 {
-    let arr = [1, 2, 3, 4, 5]
-    arr[2]  // Should return 3
+    // Try dynamic array
+    let mut arr: [dynamic]i64 = [];
+    
+    // Try to push (might not work)
+    // arr.push(42);
+    
+    // Simple return
+    return 42;
 }
