@@ -21,7 +21,6 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 
 // Constants
-const GUARD_PAGE_SIZE: usize = 4096; // Typical page size
 const ALLOC_HEADER_SIZE: usize = 64; // Space for metadata
 const CANARY_VALUE: u64 = 0xDEADBEEFCAFEBABE;
 const MAGIC_VALUE: u64 = 0xB4D455054; // "BULLET" in hex (B=0x42, U=0x55, L=0x4C, L=0x4C, E=0x45, T=0x54)

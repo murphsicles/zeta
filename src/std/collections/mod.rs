@@ -43,6 +43,7 @@ pub fn register_functions(map: &mut std::collections::HashMap<&'static str, usiz
 
 /// Vec structure for dynamic arrays
 pub struct Vec<T> {
+    #[allow(dead_code)]
     data: *mut T,
     len: usize,
     capacity: usize,

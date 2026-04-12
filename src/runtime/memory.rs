@@ -14,7 +14,6 @@ const HEADER_SIZE: usize = 32; // Space for metadata
 const CANARY_VALUE: u64 = 0xDEADBEEFCAFEBABE;
 const MAGIC_VALUE: u64 = 0xB4D455054; // "BULLET" in hex
 const FREED_PATTERN: u8 = 0xFD;
-const UNINIT_PATTERN: u8 = 0xCD;
 
 // Allocation metadata header
 #[repr(C)]

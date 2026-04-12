@@ -312,6 +312,7 @@ pub unsafe extern "C" fn identity_host_str_replace(s: i64, old: i64, new: i64) -
 }
 
 /// Helper function to create a C string from Rust string.
+#[allow(dead_code)]
 fn create_c_string(s: &str) -> i64 {
     match CString::new(s) {
         Ok(cstring) => {
