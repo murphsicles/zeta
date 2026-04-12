@@ -1,0 +1,12 @@
+fn main() -> i64 {
+    let x = if (1 < 2) {
+        if (3 < 4) {
+            123
+        } else {
+            0
+        }
+    } else {
+        0
+    };
+    return x
+}

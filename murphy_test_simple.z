@@ -1,0 +1,41 @@
+// Simple Murphy's Sieve test - count primes up to 1,000,000
+fn main() -> i64 {
+    let limit = 1000000
+    
+    if limit < 2 {
+        return 0
+    }
+    if limit == 2 {
+        return 1
+    }
+    
+    // Start count with prime number 2
+    let mut count = 1
+    
+    // Check odd numbers only
+    let mut n = 3
+    while n <= limit {
+        let mut is_prime = 1
+        
+        // Trial division up to sqrt(n)
+        let mut d = 3
+        while d * d <= n {
+            // Check divisibility
+            let remainder = n % d
+            if remainder == 0 {
+                is_prime = 0
+            }
+            d = d + 2
+        }
+        
+        // Count if prime
+        if is_prime == 1 {
+            count = count + 1
+        }
+        
+        // Next odd number
+        n = n + 2
+    }
+    
+    return count
+}
