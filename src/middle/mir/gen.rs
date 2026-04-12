@@ -692,21 +692,31 @@ impl MirGen {
                 let mir_type_args: Vec<Type> =
                     type_args.iter().map(|t| Type::from_string(t)).collect();
 
-                self.stmts.push(MirStmt::Call {
-                    func: func.clone(),
-                    args: arg_ids,
-                    dest: id,
-                    type_args: mir_type_args,
-                });
-                self.exprs.insert(id, MirExpr::Var(id));
-                // For array methods, set appropriate return type
-                if is_array_len {
-                    self.type_map.insert(id, Type::I64);
-                } else if is_array_push {
-                    // push returns void
+                // Special handling for println - should be VoidCall
+                if method == "println" {
+                    self.stmts.push(MirStmt::VoidCall {
+                        func: func.clone(),
+                        args: arg_ids,
+                    });
+                    // println returns void
                     self.type_map.insert(id, Type::Tuple(vec![]));
                 } else {
-                    self.type_map.insert(id, Type::I64);
+                    self.stmts.push(MirStmt::Call {
+                        func: func.clone(),
+                        args: arg_ids,
+                        dest: id,
+                        type_args: mir_type_args,
+                    });
+                    self.exprs.insert(id, MirExpr::Var(id));
+                    // For array methods, set appropriate return type
+                    if is_array_len {
+                        self.type_map.insert(id, Type::I64);
+                    } else if is_array_push {
+                        // push returns void
+                        self.type_map.insert(id, Type::Tuple(vec![]));
+                    } else {
+                        self.type_map.insert(id, Type::I64);
+                    }
                 }
             }
             AstNode::Match { scrutinee, arms } => {

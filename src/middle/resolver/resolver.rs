@@ -1061,11 +1061,11 @@ impl Resolver {
             ),
         );
         
-        // println() -> void
+        // println(value: i64) -> void
         self.funcs.insert(
             "println".to_string(),
             (
-                vec![],
+                vec![("value".to_string(), Type::I64)],
                 Type::Tuple(vec![]), // void
                 false, // not async
             ),

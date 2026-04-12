@@ -1899,15 +1899,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 if func == "println" && !args.is_empty() {
                     let val = self.gen_expr_safe(&args[0], exprs);
                     let format_str = self.create_global_string("%lld\n");
-                    let format_ptr = self
-                        .builder
-                        .build_ptr_to_int(format_str, self.i64_type, "format_ptr")
-                        .unwrap();
+                    // printf expects pointer to format string, not i64
                     let _ = self
                         .builder
                         .build_call(
                             self.module.get_function("printf").unwrap(),
-                            &[format_ptr.into(), val.into()],
+                            &[format_str.into(), val.into()],
                             "println_call",
                         )
                         .unwrap();
