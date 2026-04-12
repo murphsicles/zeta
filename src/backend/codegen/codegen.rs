@@ -1106,8 +1106,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 | "not_i64"
                 | "shl_i64"
                 | "shr_i64"
-                | "and_i64"
-                | "or_i64"
                 | "xor_i64"
         )
     }
@@ -1762,7 +1760,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             }
 
                             // Logical operators (treat i64 as boolean: 0=false, non-zero=true)
-                            "&&" | "and" | "and_i64" => {
+                            "&&" | "and" => {
                                 // Convert to boolean (0 or 1) then logical AND
                                 let left_bool = self
                                     .builder
@@ -1790,7 +1788,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                     .build_int_z_extend(bool_and, self.i64_type, "and_ext")
                                     .unwrap()
                             }
-                            "||" | "or" | "or_i64" => {
+                            "||" | "or" => {
                                 // Convert to boolean (0 or 1) then logical OR
                                 let left_bool = self
                                     .builder
