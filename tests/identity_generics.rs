@@ -6,8 +6,9 @@ use zetac::compile_and_run_zeta;
 #[test]
 fn test_identity_constraint_parsing() {
     // Simple generic function with identity constraint
+    // Correct Zeta syntax: Identity<T: read>
     let code = r#"
-        fn process<T: Identity<Read>>(x: T) -> i64 {
+        fn process<T: Identity<read>>(x: T) -> i64 {
             return 42;
         }
         fn main() -> i64 {
@@ -28,7 +29,7 @@ fn test_identity_constraint_parsing() {
 #[test]
 fn test_identity_multiple_capabilities() {
     let code = r#"
-        fn process<T: Identity<Read+Write>>(x: T) -> i64 {
+        fn process<T: Identity<read+write>>(x: T) -> i64 {
             return 99;
         }
         fn main() -> i64 {
@@ -48,7 +49,7 @@ fn test_combined_constraints() {
     // This test might fail until combined constraints are fully implemented
     // We'll accept compilation error for now
     let code = r#"
-        fn process_and_clone<T: Identity<Read> + Clone>(item: T) -> i64 {
+        fn process_and_clone<T: Identity<read> + Clone>(item: T) -> i64 {
             return 123;
         }
         fn main() -> i64 {
