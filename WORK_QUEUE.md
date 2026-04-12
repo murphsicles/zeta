@@ -102,9 +102,12 @@
 - **Key Findings**:
   1. ✅ **Stable codebase**: Compiler builds successfully, library tests all passing
   2. ✅ **Warning reduction**: Warning count reduced from 100 to 95 (5 warnings fixed)
-  3. ⚠️ **Persistent test issue**: Identity generics tests still failing with "No main function" error
-  4. ⚠️ **Test target verification needed**: Integration test targets need verification
-  5. ⚠️ **Zeta submodule configuration**: zeta/ directory exists but is not properly configured as git submodule
+  3. ✅ **Concrete identity types verified**: `string[identity:read]` syntax works correctly (tested and confirmed)
+  4. ⚠️ **Persistent test issue**: Identity generics tests still failing with "No main function" error
+  5. ⚠️ **Test target verification needed**: Integration test targets need verification
+  6. ⚠️ **Zeta submodule configuration**: zeta/ directory exists but is not properly configured as git submodule
+  7. ⚠️ **Identity-constrained generics**: `T: Identity<read>` syntax may not be fully implemented in type system
+  8. ⚠️ **Example file syntax mismatch**: Example files in zeta/ directory use uppercase `Read` but parser expects lowercase `read`
 - **Issues Identified**:
   1. **Identity generics test framework**: Tests failing due to "No main function" error - likely test framework issue
   2. **Warning cleanup**: 95 warnings remain to be addressed
@@ -124,6 +127,10 @@
   4. **Fix submodule configuration**: Properly configure zeta/ as git submodule
   5. **Document syntax standard**: Update documentation with lowercase capability syntax
   6. **Investigate test compilation**: Check why identity generics tests fail with "No main function" error
+  7. **Investigate identity-constrained generics implementation**: Check if `T: Identity<read>` syntax is fully implemented in type system
+  8. **Update test files**: Fix example files in zeta/ directory to use lowercase capabilities
+  9. **Run concrete identity type tests**: Verify that `string[identity:read]` works correctly
+  10. **Create minimal test case**: Create a simple test to isolate the identity generics issue
 - **Immediate Next Steps**:
   1. **Investigate identity generics test failure**: Examine test compilation pipeline and error messages
   2. **Run available integration tests**: Verify with correct test target names
