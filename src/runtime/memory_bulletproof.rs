@@ -47,7 +47,7 @@ fn get_allocation_map() -> &'static Mutex<HashMap<u64, AllocationInfo>> {
 }
 
 #[derive(Clone)]
-struct AllocationInfo {
+pub struct AllocationInfo {
     size: usize,
     timestamp: std::time::Instant,
 }

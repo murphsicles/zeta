@@ -2653,21 +2653,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
     }
 
-    fn create_global_string(&self, s: &str) -> PointerValue<'ctx> {
-        let bytes = s.as_bytes();
-        let array_type = self.context.i8_type().array_type((bytes.len() + 1) as u32);
-        let global = self.module.add_global(array_type, None, "printf_fmt");
-        global.set_linkage(inkwell::module::Linkage::Private);
-        global.set_constant(true);
-        let mut values = vec![];
-        for &b in bytes {
-            values.push(self.context.i8_type().const_int(b as u64, false));
-        }
-        values.push(self.context.i8_type().const_int(0, false));
-        global.set_initializer(&self.context.i8_type().const_array(&values));
-        global.as_pointer_value()
-    }
-
     /// Convert a Zeta type to an LLVM type
     pub fn type_to_llvm_type(&self, ty: &Type) -> inkwell::types::BasicTypeEnum<'ctx> {
         match ty {

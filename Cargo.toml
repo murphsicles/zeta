@@ -4,7 +4,7 @@
 # Package name.
 name = "zetac"
 # Current version.
-version = "0.3.80"  # Git cleanup, test verification, warning reduction, integration test investigation
+version = "0.3.81"  # Warning cleanup, code quality improvements, test verification
 # Rust edition.
 edition = "2024"
 # Minimum Rust version.
