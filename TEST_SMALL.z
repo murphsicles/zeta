@@ -1,48 +1,31 @@
-// Test with small limit to verify algorithm
+// Test with small limit
 fn main() -> i64 {
-    let limit = 30
+    let limit = 1000;
+    let mut count = 0;
     
-    // Handle small limits
-    if limit < 2 {
-        return 0
-    }
-    if limit < 3 {
-        return 1
-    }
-    
-    // Count starts with prime 2
-    let mut count = 1
-    
-    // Check odd numbers only
-    let mut n = 3
-    while n <= limit {
-        let mut prime = 1
+    if limit >= 2 {
+        count = 1; // Prime 2
         
-        // Trial division with sqrt optimization
-        // Use d > n / d instead of d * d <= n
-        let mut d = 3
-        loop {
-            // Check if d exceeds sqrt(n)
-            let quotient = n / d
-            if d > quotient {
-                break
+        let mut n = 3;
+        while n <= limit {
+            let mut prime = 1;
+            let mut d = 3;
+            
+            while d * d <= n {
+                if n % d == 0 {
+                    prime = 0;
+                    break;
+                }
+                d = d + 2;
             }
             
-            // Check divisibility
-            if n % d == 0 {
-                prime = 0
-                break
+            if prime == 1 {
+                count = count + 1;
             }
-            
-            d = d + 2
+            n = n + 2;
         }
-        
-        if prime == 1 {
-            count = count + 1
-        }
-        
-        n = n + 2
     }
     
-    return count
+    println_i64(count); // Should be 168
+    return count;
 }
