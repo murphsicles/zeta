@@ -4,7 +4,7 @@
 # Package name.
 name = "zetac"
 # Current version.
-version = "0.3.77"  # Identity generics support with parser fixes for multiple capabilities, warning cleanup ongoing
+version = "0.3.78"  # Identity generics syntax fixes - lowercase capabilities, example updates, warning cleanup ongoing
 # Rust edition.
 edition = "2024"
 # Minimum Rust version.
