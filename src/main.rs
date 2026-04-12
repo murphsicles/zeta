@@ -148,13 +148,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     finalize_and_aot(&codegen, Path::new(&obj_path))?;
 
                     // WINDOWS-FRIENDLY LINKING (works with LLVM 18.1.8 on Windows)
-                    let status = std::process::Command::new("clang")
-                        .arg(&obj_path)
+                    let mut cmd = std::process::Command::new("clang");
+                    cmd.arg(&obj_path)
                         .arg("-o")
                         .arg(&out)
                         .arg("-lmsvcrt") // Microsoft C runtime
-                        .arg("-lkernel32") // Core Windows API
-                        .status()?;
+                        .arg("-lkernel32"); // Core Windows API
+                    
+                    // Add Zeta runtime object file if it exists
+                    let runtime_obj = std::path::Path::new("zeta_runtime.o");
+                    if runtime_obj.exists() {
+                        cmd.arg(runtime_obj);
+                    }
+                    
+                    let status = cmd.status()?;
 
                     if !status.success() {
                         return Err("Linking failed".into());
