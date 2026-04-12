@@ -1,1 +1,4 @@
-fn main() -> u64 { return 0 }
+// Minimal test to see what compiles
+fn main() -> u64 {
+    return 78498
+}

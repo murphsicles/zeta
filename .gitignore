@@ -124,3 +124,7 @@ build_*
 run_*
 simple_*
 final_*
+
+# Performance reports and algorithm documentation
+*_WHEEL_DELIVERABLE.md
+PERFORMANCE_*.md
