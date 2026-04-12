@@ -105,3 +105,6 @@ runtime.c
 runtime_lib/
 
 *.backup
+
+# doc-workspace directory (separate git repository)
+doc-workspace/
