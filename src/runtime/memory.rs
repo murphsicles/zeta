@@ -25,6 +25,7 @@ struct AllocationHeader {
 }
 
 // Global allocation tracker
+#[allow(dead_code)]
 static ALLOCATION_COUNTER: AtomicU64 = AtomicU64::new(1);
 static ALLOCATION_MAP: OnceLock<Mutex<HashMap<u64, usize>>> = OnceLock::new();
 
