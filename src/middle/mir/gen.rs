@@ -259,7 +259,9 @@ impl MirGen {
             }
             AstNode::If { cond, then, else_ } => {
                 println!("[MIR-GEN DEBUG lower_ast] Processing If statement/expression");
+                println!("[MIR-GEN DEBUG lower_ast] then len={}, else len={}", then.len(), else_.len());
                 let cond_id = self.lower_expr(cond);
+                println!("[MIR-GEN DEBUG lower_ast] cond_id={}", cond_id);
 
                 // Check if this is expression if (branches produce values) or statement if
                 // Simple heuristic: if any branch contains return, treat as statement
@@ -283,12 +285,17 @@ impl MirGen {
                     }
                 }
 
+                println!("[MIR-GEN DEBUG lower_ast] is_statement_if={}, then_has_return={}, else_has_return={}", 
+                    is_statement_if, then_has_return, else_has_return);
+
                 let dest_id = if is_statement_if {
                     // Statement if: no destination needed
+                    println!("[MIR-GEN DEBUG lower_ast] Statement if, no dest");
                     None
                 } else {
                     // Expression if: create destination
                     let id = self.next_id();
+                    println!("[MIR-GEN DEBUG lower_ast] Expression if, dest_id={}", id);
 
                     self.exprs.insert(id, MirExpr::Var(id));
                     self.type_map.insert(id, Type::I64);
@@ -318,15 +325,26 @@ impl MirGen {
                         && !then_has_return
                         && let Some(last_stmt) = then_stmts.last()
                     {
+                        println!("[MIR-GEN DEBUG lower_ast] then block last_stmt: {:?}", last_stmt);
                         match last_stmt {
                             MirStmt::Assign { lhs, .. } => {
+                                println!("[MIR-GEN DEBUG lower_ast]   Assigning lhs={} to dest={}", lhs, dest);
                                 // Add assignment to dest
                                 then_stmts.push(MirStmt::Assign {
                                     lhs: dest,
                                     rhs: *lhs,
                                 });
                             }
+                            MirStmt::If { dest: Some(if_dest), .. } => {
+                                println!("[MIR-GEN DEBUG lower_ast]   Found If with dest={}, assigning to dest={}", if_dest, dest);
+                                // Block ends with if expression - use its destination
+                                then_stmts.push(MirStmt::Assign {
+                                    lhs: dest,
+                                    rhs: *if_dest,
+                                });
+                            }
                             _ => {
+                                println!("[MIR-GEN DEBUG lower_ast]   No value-producing statement, assigning 0 to dest={}", dest);
                                 // No value-producing statement found
                                 let zero_id = self.next_id_with_lit(0);
                                 then_stmts.push(MirStmt::Assign {
@@ -360,15 +378,26 @@ impl MirGen {
                         && !else_has_return
                         && let Some(last_stmt) = else_stmts.last()
                     {
+                        println!("[MIR-GEN DEBUG lower_ast] else block last_stmt: {:?}", last_stmt);
                         match last_stmt {
                             MirStmt::Assign { lhs, .. } => {
+                                println!("[MIR-GEN DEBUG lower_ast]   Assigning lhs={} to dest={}", lhs, dest);
                                 // Add assignment to dest
                                 else_stmts.push(MirStmt::Assign {
                                     lhs: dest,
                                     rhs: *lhs,
                                 });
                             }
+                            MirStmt::If { dest: Some(if_dest), .. } => {
+                                println!("[MIR-GEN DEBUG lower_ast]   Found If with dest={}, assigning to dest={}", if_dest, dest);
+                                // Block ends with if expression - use its destination
+                                else_stmts.push(MirStmt::Assign {
+                                    lhs: dest,
+                                    rhs: *if_dest,
+                                });
+                            }
                             _ => {
+                                println!("[MIR-GEN DEBUG lower_ast]   No value-producing statement, assigning 0 to dest={}", dest);
                                 // No value-producing statement found
                                 let zero_id = self.next_id_with_lit(0);
                                 else_stmts.push(MirStmt::Assign {
