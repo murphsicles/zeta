@@ -1568,7 +1568,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     // Convert array pointer (i64) to LLVM pointer
                     let array_ptr = self.builder.build_int_to_ptr(
                         array_ptr_val,
-                        self.i64_type.ptr_type(AddressSpace::default()),
+                        self.context.ptr_type(AddressSpace::default()),
                         "array_ptr"
                     ).unwrap();
                     
@@ -1958,7 +1958,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     // Convert array pointer (i64) to LLVM pointer
                     let array_ptr = self.builder.build_int_to_ptr(
                         array_ptr_val,
-                        self.i64_type.ptr_type(AddressSpace::default()),
+                        self.context.ptr_type(AddressSpace::default()),
                         "array_ptr"
                     ).unwrap();
                     
