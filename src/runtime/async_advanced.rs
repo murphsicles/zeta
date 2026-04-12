@@ -42,8 +42,10 @@ impl TaskId {
 
 /// Task wrapper for the executor
 struct Task {
+    #[allow(dead_code)]
     id: TaskId,
     future: Mutex<Pin<Box<dyn Future<Output = i64> + Send + Sync>>>,
+    #[allow(dead_code)]
     priority: Priority,
     state: RwLock<TaskState>,
     waker: Arc<TaskWaker>,
@@ -203,6 +205,7 @@ impl Worker {
 /// Advanced async runtime with work stealing
 pub struct AsyncRuntime {
     workers: Arc<Mutex<Vec<Arc<Worker>>>>,
+    #[allow(dead_code)]
     global_queue: Arc<WorkStealingDeque>,
     next_task_id: AtomicUsize,
     running: AtomicBool,
@@ -326,7 +329,9 @@ pub mod combinators {
     
     /// Map combinator: transform future result
     pub struct Map<Fut, F> {
+        #[allow(dead_code)]
         future: Fut,
+        #[allow(dead_code)]
         mapper: Option<F>,
     }
     
@@ -345,7 +350,9 @@ pub mod combinators {
     
     /// Then combinator: chain futures
     pub struct Then<Fut, F> {
+        #[allow(dead_code)]
         future: Fut,
+        #[allow(dead_code)]
         transformer: Option<F>,
     }
     
@@ -365,11 +372,17 @@ pub mod combinators {
     
     /// Join combinator: run futures concurrently
     pub struct Join<Fut1, Fut2> {
+        #[allow(dead_code)]
         future1: Fut1,
+        #[allow(dead_code)]
         future2: Fut2,
+        #[allow(dead_code)]
         completed1: bool,
+        #[allow(dead_code)]
         completed2: bool,
+        #[allow(dead_code)]
         result1: Option<i64>,
+        #[allow(dead_code)]
         result2: Option<i64>,
     }
     

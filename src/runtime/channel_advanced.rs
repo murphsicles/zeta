@@ -23,7 +23,9 @@ pub trait Channel<T>: Send + Sync {
     fn recv(&self) -> Result<T, ChannelError>;
     fn try_recv(&self) -> Result<T, ChannelError>;
     fn recv_timeout(&self, timeout: Duration) -> Result<T, ChannelError>;
+    #[allow(dead_code)]
     fn len(&self) -> usize;
+    #[allow(dead_code)]
     fn is_empty(&self) -> bool;
     fn capacity(&self) -> Option<usize>;
     fn is_closed(&self) -> bool;
@@ -33,6 +35,7 @@ pub trait Channel<T>: Send + Sync {
 /// Unbounded MPSC channel
 pub struct UnboundedChannel<T> {
     sender: mpsc::UnboundedSender<T>,
+    #[allow(dead_code)]
     receiver: mpsc::UnboundedReceiver<T>,
     closed: AtomicBool,
 }
