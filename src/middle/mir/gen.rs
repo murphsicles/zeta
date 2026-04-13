@@ -174,9 +174,9 @@ impl MirGen {
                         match size {
                             ArraySize::Literal(n) if n <= 1024 => {
                                 // Small fixed-size array - treat as stack array
-                                // Use stack_array_set for direct memory access
+                                // Use array_set for direct memory access (stack arrays handled in runtime)
                                 self.stmts.push(MirStmt::VoidCall {
-                                    func: "stack_array_set".to_string(),
+                                    func: "array_set".to_string(),
                                     args: vec![base_id, index_id, rhs_id],
                                 });
                             }
@@ -1402,10 +1402,10 @@ impl MirGen {
                     match size {
                         ArraySize::Literal(n) if n <= 1024 => {
                             // Small fixed-size array - treat as stack array
-                            // Use stack_array_get for direct memory access
-                            println!("[MIR GEN DEBUG] Using stack_array_get for stack array subscript (size={})", n);
+                            // Use array_get for direct memory access (stack arrays handled in runtime)
+                            println!("[MIR GEN DEBUG] Using array_get for stack array subscript (size={})", n);
                             self.stmts.push(MirStmt::Call {
-                                func: "stack_array_get".to_string(),
+                                func: "array_get".to_string(),
                                 args: vec![bid, iid],
                                 dest: id,
                                 type_args: vec![],

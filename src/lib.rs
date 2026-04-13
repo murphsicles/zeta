@@ -163,6 +163,11 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
         let args_fn = crate::runtime::std::std_args as *const () as usize;
         ee.add_global_mapping(&f, args_fn);
     }
+    // Map map_get function for const arrays
+    if let Some(f) = codegen.module.get_function("map_get") {
+        let map_get_fn = crate::runtime::map::map_get as *const () as usize;
+        ee.add_global_mapping(&f, map_get_fn);
+    }
     // Map Option runtime functions
     if let Some(f) = codegen.module.get_function("option_make_some") {
         let fn_ptr = crate::runtime::option::option_make_some as *const () as usize;

@@ -1,11 +1,26 @@
-// Test array capabilities
+// Test array initialization
 fn main() -> i64 {
-    // Try dynamic array
-    let mut arr: [dynamic]i64 = [];
+    // Small array on stack
+    let arr: [3]i64 = [1, 2, 3];
     
-    // Try to push (might not work)
-    // arr.push(42);
+    // Check each element
+    if arr[0] == 1 {
+        println_i64(100);
+    } else {
+        println_i64(0);
+    }
     
-    // Simple return
-    return 42;
+    if arr[1] == 2 {
+        println_i64(200);
+    } else {
+        println_i64(0);
+    }
+    
+    if arr[2] == 3 {
+        println_i64(300);
+    } else {
+        println_i64(0);
+    }
+    
+    return arr[0] + arr[1] + arr[2]; // Should be 6
 }

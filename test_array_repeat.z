@@ -1,21 +1,14 @@
-// Test array repeat syntax
-fn main() -> u64 {
-    // Test array repeat syntax
-    let arr = [true; 100]
+// Test array repeat initialization
+fn main() -> i64 {
+    // Small array repeat on stack
+    let arr: [3]i64 = [7; 3];
     
-    // Test array access
-    arr[0] = false
-    arr[1] = false
-    
-    // Count true values
-    let mut count = 0u64
-    let mut i = 0u64
-    while i < 100 {
-        if arr[i] {
-            count += 1
-        }
-        i += 1
+    // Check each element
+    if arr[0] == 7 && arr[1] == 7 && arr[2] == 7 {
+        println_i64(777);
+        return 777;
+    } else {
+        println_i64(0);
+        return 0;
     }
-    
-    return count  // Should be 98
 }

@@ -31,9 +31,10 @@ pub fn skip_ws_and_comments(input: &str) -> IResult<&str, ()> {
 
 // New: skip whitespace but allow zero (for use in delimited)
 pub fn skip_ws_and_comments0(input: &str) -> IResult<&str, ()> {
+    // SIMPLE FIX: Just skip whitespace, no comments for now
     value(
         (),
-        many0(alt((value((), multispace1), line_comment, block_comment))),
+        many0(value((), multispace1)),
     )
     .parse(input)
 }

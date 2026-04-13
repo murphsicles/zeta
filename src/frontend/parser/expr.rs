@@ -599,8 +599,8 @@ pub fn parse_primary(input: &str) -> IResult<&str, AstNode> {
         parse_lit,
         parse_string_lit,
         parse_match_expr,   // Try match expression before identifier
-        parse_path_expr,    // Try full path parser (handles struct literals)
-        parse_simple_ident, // Fall back to simple ident
+        parse_simple_ident, // Try SIMPLE ident FIRST (no generic args)
+        parse_path_expr,    // Then full path parser (handles struct literals)
         parse_array_lit,
         parse_bool,
         parse_closure,
@@ -828,6 +828,7 @@ fn parse_logical_and(input: &str) -> IResult<&str, AstNode> {
 
 // Parse comparison (==, !=, <, >, <=, >=)
 fn parse_comparison(input: &str) -> IResult<&str, AstNode> {
+    eprintln!("[DEBUG parse_comparison] input: {:?}", input);
     let (mut input, mut term) = parse_additive(input)?;
     loop {
         // Try to parse comparison operator
@@ -839,6 +840,7 @@ fn parse_comparison(input: &str) -> IResult<&str, AstNode> {
         // Try without whitespace first
         for &op in &comparison_ops {
             if remaining_input.starts_with(op) {
+                eprintln!("[DEBUG parse_comparison] found op '{}' without whitespace", op);
                 found_op = Some(op);
                 remaining_input = &remaining_input[op.len()..];
                 break;
@@ -849,15 +851,21 @@ fn parse_comparison(input: &str) -> IResult<&str, AstNode> {
         if found_op.is_none() {
             match skip_ws_and_comments0(remaining_input) {
                 Ok((i, _)) => {
+                    // DEBUG: Print what we're looking at
+                    eprintln!("[DEBUG parse_comparison] after skip_ws, i: {:?}", i);
+                    eprintln!("[DEBUG parse_comparison] i bytes: {:?}", i.as_bytes());
                     for &op in &comparison_ops {
+                        eprintln!("[DEBUG parse_comparison] checking op '{}' against i: {:?}", op, i);
                         if i.starts_with(op) {
+                            eprintln!("[DEBUG parse_comparison] found op '{}' with whitespace", op);
                             found_op = Some(op);
                             remaining_input = &i[op.len()..];
                             break;
                         }
                     }
                 }
-                Err(_) => {
+                Err(e) => {
+                    eprintln!("[DEBUG parse_comparison] skip_ws_and_comments0 failed: {:?}", e);
                     // No whitespace or comments, continue
                 }
             }
