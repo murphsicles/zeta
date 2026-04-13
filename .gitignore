@@ -116,6 +116,7 @@ doc-workspace/
 *.rs
 *.a
 *.lib
+*.exp
 competition_*
 murphy_*
 zeta_*
