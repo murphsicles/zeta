@@ -47,6 +47,7 @@ pub enum MessageType {
 
 /// Connection state
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 enum ConnectionState {
     /// Connection is connecting
     Connecting,
@@ -65,6 +66,7 @@ struct Connection {
     /// TCP stream
     stream: Option<TcpStream>,
     /// Remote address
+    #[allow(dead_code)]
     remote_addr: SocketAddr,
     /// Message sender
     sender: mpsc::UnboundedSender<NetworkMessage>,
@@ -140,6 +142,7 @@ impl Connection {
     }
     
     /// Receive message from connection
+    #[allow(dead_code)]
     async fn receive_message(stream: &mut TcpStream) -> Result<NetworkMessage, String> {
         // Read message length
         let mut len_bytes = [0u8; 4];
@@ -241,6 +244,7 @@ pub struct NetworkTransport {
     /// Connection pool
     connection_pool: Arc<ConnectionPool>,
     /// TCP listener for incoming connections
+    #[allow(dead_code)]
     listener: Option<TcpListener>,
     /// Registered actors for message routing
     actors: Arc<RwLock<HashMap<ActorRef, mpsc::UnboundedSender<ActorMessage>>>>,
@@ -290,6 +294,7 @@ impl NetworkTransport {
     }
     
     /// Handle incoming connection
+    #[allow(dead_code)]
     async fn handle_connection(&self, mut stream: TcpStream, addr: SocketAddr) {
         println!("New connection from {}", addr);
         

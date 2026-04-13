@@ -102,6 +102,7 @@ pub struct ClusterManager {
     /// Event sender for membership events
     event_sender: mpsc::UnboundedSender<MembershipEvent>,
     /// Event receiver for membership events
+    #[allow(dead_code)]
     event_receiver: mpsc::UnboundedReceiver<MembershipEvent>,
     /// Leader node ID (if any)
     leader: Arc<RwLock<Option<NodeId>>>,
@@ -593,6 +594,7 @@ impl ServiceDiscovery {
 /// Health check for nodes
 pub struct HealthChecker {
     /// Check interval
+    #[allow(dead_code)]
     check_interval: Duration,
     /// Health check endpoints
     endpoints: Arc<RwLock<HashMap<NodeId, String>>>,

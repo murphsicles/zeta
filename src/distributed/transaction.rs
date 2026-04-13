@@ -166,6 +166,7 @@ pub struct SagaStep {
 
 /// Saga execution result
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct SagaResult {
     /// Saga identifier
     pub saga_id: u64,
