@@ -394,3 +394,15 @@ pub unsafe extern "C" fn array_free(ptr: i64) {
         unsafe { dealloc(block_ptr, layout) };
     }
 }
+
+/// Alias for stack_array_get
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn stack_array_get(ptr: i64, index: i64) -> i64 {
+    unsafe { array_get(ptr, index) }
+}
+
+/// Alias for stack_array_set
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn stack_array_set(ptr: i64, index: i64, value: i64) {
+    unsafe { array_set(ptr, index, value) }
+}

@@ -1,5 +1,6 @@
 //! Map runtime functions
 #![allow(unsafe_code)]
+#![allow(unused_attributes)]
 
 use std::collections::HashMap;
 use std::sync::Mutex;
