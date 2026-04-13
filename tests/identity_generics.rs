@@ -1,4 +1,6 @@
 //! Integration tests for identity-constrained generics
+//! These tests require the `identity` feature flag to be enabled.
+#![cfg(feature = "identity")]
 
 use zetac::compile_and_run_zeta;
 
