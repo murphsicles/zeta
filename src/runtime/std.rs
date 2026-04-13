@@ -18,28 +18,18 @@ struct F32x4([f32; 4]);
 /// Caller must ensure valid size, free returned pointer with std_free, and avoid use after free.
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn std_malloc(size: usize) -> i64 {
-    // Use system allocator
+    // SIMPLE FIX: Use Vec for allocation (always works)
     if size == 0 {
-        // Allocating 0 bytes - return null pointer
         return 0;
     }
     
-    // Create layout with alignment 8 (common for 64-bit systems)
-    match std::alloc::Layout::from_size_align(size, 8) {
-        Ok(layout) => {
-            let ptr = std::alloc::alloc(layout);
-            if ptr.is_null() {
-                // Allocation failed
-                0
-            } else {
-                ptr as i64
-            }
-        }
-        Err(_) => {
-            // Invalid layout (size too large or alignment invalid)
-            0
-        }
-    }
+    // Create vector with capacity, leak it to get pointer
+    let mut vec = Vec::<u8>::with_capacity(size);
+    vec.resize(size, 0);
+    let ptr = vec.as_mut_ptr();
+    std::mem::forget(vec); // Leak memory - caller must free with std_free
+    
+    ptr as i64
 }
 
 /// Frees memory allocated by std_malloc.
