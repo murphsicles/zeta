@@ -344,6 +344,7 @@ pub enum SagaState {
 }
 
 /// Saga execution tracking
+#[allow(dead_code)]
 struct SagaExecution {
     saga_id: u64,
     steps: Vec<SagaStep>,

@@ -4,7 +4,7 @@
 # Package name.
 name = "zetac"
 # Current version.
-version = "0.3.81"  # Warning cleanup and code quality improvements
+version = "0.3.82"  # Zero warnings achieved - all 241 warnings eliminated
 # Rust edition.
 edition = "2024"
 # Minimum Rust version.
