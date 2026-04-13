@@ -20,16 +20,16 @@ comptime fn test_gcd() -> i64 {
     "#;
     
     match parse_zeta(code) {
-        Ok((remaining, ast)) => {
+        Ok((_remaining, ast)) => {
             println!("✅ Parsed successfully");
             println!("  AST has {} nodes", ast.len());
-            println!("  Remaining: '{}'", remaining);
+            println!("  Remaining: '{}'", _remaining);
             
             // Find the test_gcd function
             let test_func = ast.iter().find(|node| {
                 match node {
                     zetac::frontend::ast::AstNode::FuncDef { name, .. } => {
-                        name.as_ref().map(|s: &String| s.as_str()) == Some("test_gcd")
+                        name.as_deref() == Some("test_gcd")
                     }
                     _ => false,
                 }
@@ -100,9 +100,9 @@ comptime fn test_negative_gcd() -> i64 {
     "#;
     
     match parse_zeta(code) {
-        Ok((remaining, ast)) => {
+        Ok((_remaining, ast)) => {
             println!("✅ Parsed negative GCD test");
-            println!("  Remaining: '{}'", remaining);
+            println!("  Remaining: '{}'", _remaining);
             
             // Check that we can parse while loops and if expressions
             let has_while = ast.iter().any(|node| {
@@ -159,7 +159,7 @@ comptime fn count_coprimes() -> i64 {
     "#;
     
     match parse_zeta(code) {
-        Ok((remaining, ast)) => {
+        Ok((_remaining, ast)) => {
             println!("✅ Parsed PrimeZeta residue test");
             println!("  AST nodes: {}", ast.len());
             
