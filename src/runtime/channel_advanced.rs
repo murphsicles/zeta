@@ -367,7 +367,6 @@ pub struct ChannelSelector {
 }
 
 struct SelectorEntry {
-    id: usize,
     ready: bool,
     priority: i32,
 }
@@ -385,7 +384,6 @@ impl ChannelSelector {
         let mut channels = self.channels.write().unwrap();
         let id = channels.len();
         channels.push(SelectorEntry {
-            id,
             ready: false,
             priority,
         });

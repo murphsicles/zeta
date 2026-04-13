@@ -110,6 +110,7 @@ pub struct DistributedActorSystem {
     /// Network transport for remote communication
     transport: Arc<NetworkTransport>,
     /// Message receiver
+    #[allow(dead_code)]
     receiver: mpsc::UnboundedReceiver<(ActorRef, ActorMessage)>,
     /// Message sender
     sender: mpsc::UnboundedSender<(ActorRef, ActorMessage)>,
@@ -145,6 +146,7 @@ impl DistributedActorSystem {
     }
     
     /// Handle incoming message
+    #[allow(dead_code)]
     async fn handle_message(&self, actor_ref: ActorRef, message: ActorMessage) {
         // Check if actor is local
         if actor_ref.node.is_none() {
@@ -249,6 +251,7 @@ impl DistributedActorSystem {
 
 /// Local actor handle
 struct LocalActorHandle {
+    #[allow(dead_code)]
     actor: Box<dyn DistributedActor>,
 }
 

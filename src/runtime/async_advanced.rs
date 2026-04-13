@@ -139,11 +139,13 @@ impl WorkStealingDeque {
         tasks.pop_front()
     }
     
+    #[allow(dead_code)]
     fn len(&self) -> usize {
         let tasks = self.tasks.lock().unwrap();
         tasks.len()
     }
     
+    #[allow(dead_code)]
     fn is_empty(&self) -> bool {
         let tasks = self.tasks.lock().unwrap();
         tasks.is_empty()
