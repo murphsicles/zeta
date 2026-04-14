@@ -323,11 +323,16 @@ impl<'ctx> LLVMCodegen<'ctx> {
             i64_type.fn_type(&[i64_type.into()], false),
             Some(Linkage::External),
         );
-        module.add_function(
+        let array_get_fn = module.add_function(
             "array_get",
             i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
             Some(Linkage::External),
         );
+        #[cfg(target_os = "windows")]
+        {
+            // Note: Calling convention setting disabled - can't find correct API in inkwell 0.8.0
+            // array_get_fn.set_call_conventions(...);
+        }
         module.add_function(
             "stack_array_get",
             i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
@@ -476,11 +481,16 @@ impl<'ctx> LLVMCodegen<'ctx> {
             i64_type.fn_type(&[i64_type.into()], false),
             Some(Linkage::External),
         );
-        module.add_function(
+        let array_get_fn2 = module.add_function(
             "array_get",
             i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
             Some(Linkage::External),
         );
+        #[cfg(target_os = "windows")]
+        {
+            // Note: Calling convention setting disabled - can't find correct API in inkwell 0.8.0
+            // array_get_fn2.set_call_conventions(...);
+        }
         module.add_function(
             "stack_array_get",
             i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
@@ -560,6 +570,43 @@ impl<'ctx> LLVMCodegen<'ctx> {
         module.add_function(
             "println_i64",
             i64_type.fn_type(&[i64_type.into()], false), // takes i64, returns void
+            Some(Linkage::External),
+        );
+        
+        // Zeta runtime functions (temporary bridge)
+        module.add_function(
+            "zeta_array_get_i64",
+            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "zeta_array_set_i64",
+            void_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "zeta_array_get_bool",
+            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "zeta_array_set_bool",
+            void_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "zeta_sieve_new",
+            i64_type.fn_type(&[i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "zeta_print_i64",
+            void_type.fn_type(&[i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "zeta_println_i64",
+            void_type.fn_type(&[i64_type.into()], false),
             Some(Linkage::External),
         );
 
@@ -1582,6 +1629,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
 
                 // Handle array_get and stack_array_get specially for direct memory access
+                // DISABLED: Causing crashes on Windows - using runtime call instead
+                // Original code commented out:
+                /*
                 if (func == "array_get" || func == "stack_array_get") && args.len() == 2 {
                     // Get array pointer and index
                     let array_ptr_val = self.gen_expr_safe(&args[0], exprs).into_int_value();
@@ -1612,6 +1662,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     self.builder.build_store(dest_alloca, value).unwrap();
                     return;
                 }
+                */
                 
                 // Handle operator functions inline
                 if self.is_operator(func) {

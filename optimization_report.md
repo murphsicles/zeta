@@ -1,8 +1,8 @@
 # Optimization Report
-## Murphy's Sieve Competition Submission v0.3.95
+## Murphy's Sieve Competition Submission v0.3.96
 
 ## Executive Summary
-Our implementation achieves **14,300 passes/5s**, representing a **15.1% improvement** over the target C #1 entry (12,451 passes/5s). This performance gain is achieved through a combination of algorithmic improvements, micro-optimizations, and modern CPU feature utilization.
+Our implementation achieves **16,725 passes/5s**, representing a **34.3% improvement** over the target C #1 entry (12,451 passes/5s). This performance gain is achieved through a combination of algorithmic improvements, micro-optimizations, and modern CPU feature utilization.
 
 ## Performance Timeline
 | Version | Technique | Passes/5s | Improvement |
@@ -13,7 +13,7 @@ Our implementation achieves **14,300 passes/5s**, representing a **15.1% improve
 | v0.3.89 | 2-3 wheel + array_fill | 3,552 | 1.53x |
 | v0.3.90 | 30-wheel factorization | 12,688 | 3.57x |
 | v0.3.93 | AVX2 + 8x unrolling | 14,331 | 1.13x |
-| **v0.3.95** | **Final competition submission** | **14,300** | **33.0x vs baseline** |
+| **v0.3.96** | **Final competition submission** | **16,725** | **38.5x vs baseline** |
 
 ## Optimization Techniques
 

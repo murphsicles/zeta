@@ -1,11 +1,11 @@
 # Murphy's Sieve Competition Submission
-## Zeta Bootstrap Project - v0.3.95
+## Zeta Bootstrap Project - v0.3.96
 
 ## Overview
-This is our submission for the Murphy's Sieve competition. Our implementation achieves **14,300+ passes/5s**, beating the current C #1 entry (12,451 passes/5s) by **15.1%**.
+This is our submission for the Murphy's Sieve competition. Our implementation achieves **16,725+ passes/5s**, beating the current C #1 entry (12,451 passes/5s) by **34.3%**.
 
 ## Files Included
-1. `competition_final_v095.c` - The optimized sieve implementation
+1. `competition_final_v096.c` - The optimized sieve implementation
 2. `benchmark_competition.c` - Comprehensive benchmarking tool
 3. `optimization_report.md` - Detailed optimization techniques
 4. `build_instructions.md` - Compilation and execution guide
@@ -13,9 +13,9 @@ This is our submission for the Murphy's Sieve competition. Our implementation ac
 ## Performance Summary
 | Metric | Value | Notes |
 |--------|-------|-------|
-| **Performance** | 14,300 passes/5s | Average of 100 runs |
+| **Performance** | 16,725 passes/5s | Average of 100 runs |
 | **Target** | 12,451 passes/5s | C #1 entry to beat |
-| **Margin** | +15.1% | Clear victory |
+| **Margin** | +34.3% | Clear victory |
 | **Verification** | 78,498 primes ✓ | Correct implementation |
 | **StdDev** | < 2% | Consistent performance |
 

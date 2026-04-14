@@ -16,3 +16,4 @@ pub mod memory_bulletproof;
 pub mod io;
 pub mod map;
 pub mod identity;
+pub mod zeta_runtime;
