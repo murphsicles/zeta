@@ -282,6 +282,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
             Some(Linkage::External),
         );
         module.add_function(
+            "test_return_i64",
+            i64_type.fn_type(&[i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
             "flush",
             void_type.fn_type(&[], false),
             Some(Linkage::External),

@@ -65,6 +65,13 @@ pub unsafe extern "C" fn println_i64(value: i64) {
     println!("{}", value);
 }
 
+/// Test function: identical to println_i64 but returns i64
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn test_return_i64(value: i64) -> i64 {
+    println!("[TEST_RETURN_I64] Called with value = {}", value);
+    return value + 1;
+}
+
 /// Print boolean with newline
 /// 
 /// # Safety
