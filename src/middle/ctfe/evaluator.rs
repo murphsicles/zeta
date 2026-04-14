@@ -8,6 +8,7 @@ use crate::frontend::ast::AstNode;
 use super::context::ConstContext;
 use super::value::ConstValue;
 use super::error::{CtfeError, CtfeResult};
+use crate::ctfe_error;
 
 /// Constant evaluator for compile-time evaluation
 #[derive(Debug, Clone, Default)]
@@ -58,7 +59,7 @@ impl ConstEvaluator {
                         Ok(ConstValue::Int(val)) => {
                             println!("DEBUG: Constant {} evaluated to Int({})", name, val);
                             // Store the value in context for other constants to reference
-                            self.context.set_global(name.clone(), ConstValue::Int(val));
+                            self.context.set_global(name.clone(), ConstValue::Int(val))?;
                             // Replace with a literal if evaluation succeeds
                             result.push(AstNode::ConstDef {
                                 name: name.clone(),
@@ -68,25 +69,6 @@ impl ConstEvaluator {
                                 pub_: *pub_,
                                 comptime_: *comptime_,
                             });
-                        }
-                        Ok(ConstValue::UInt(val)) => {
-                            // Store the value in context for other constants to reference
-                            self.context.set_global(name.clone(), ConstValue::UInt(val));
-                            // For unsigned integers, we need to handle them differently
-                            // since AST only has Lit(i64). We'll convert if it fits.
-                            if val <= i64::MAX as u64 {
-                                result.push(AstNode::ConstDef {
-                                    name: name.clone(),
-                                    ty: ty.clone(),
-                                    value: Box::new(AstNode::Lit(val as i64)),
-                                    attrs: attrs.clone(),
-                                    pub_: *pub_,
-                                    comptime_: *comptime_,
-                                });
-                            } else {
-                                // Keep as-is if it doesn't fit in i64
-                                result.push(ast.clone());
-                            }
                         }
                         Ok(ConstValue::Bool(val)) => {
                             // Store the value in context for other constants to reference
@@ -109,14 +91,6 @@ impl ConstEvaluator {
                                 match val {
                                     ConstValue::Int(n) => {
                                         elements.push(AstNode::Lit(n));
-                                    }
-                                    ConstValue::UInt(n) => {
-                                        if n <= i64::MAX as u64 {
-                                            elements.push(AstNode::Lit(n as i64));
-                                        } else {
-                                            all_simple = false;
-                                            break;
-                                        }
                                     }
                                     ConstValue::Bool(b) => {
                                         elements.push(AstNode::Bool(b));
@@ -173,7 +147,11 @@ impl ConstEvaluator {
             AstNode::Bool(b) => Ok(ConstValue::Bool(*b)),
             
             // Variables
-            AstNode::Var(name) => self.context.lookup_variable(name),
+            AstNode::Var(name) => {
+                self.context.lookup_variable(name)
+                    .cloned()
+                    .ok_or_else(|| format!("Undefined variable: {}", name))
+            },
             
             // Binary operations
             AstNode::BinaryOp { op, left, right } => {
@@ -230,7 +208,9 @@ impl ConstEvaluator {
         name: &str,
         args: &[AstNode],
     ) -> CtfeResult<ConstValue> {
-        let func = self.context.lookup_function(name)?.clone();
+        let func = self.context.lookup_function(name)
+            .ok_or_else(|| format!("Undefined function: {}", name))?
+            .clone();
         self.try_eval_const_call(&func, args)
     }
 

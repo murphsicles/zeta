@@ -5,10 +5,11 @@
 //! the new CTFE engine implementation while maintaining backward
 //! compatibility.
 
-pub use crate::middle::ctfe::{
-    ConstContext, ConstEvaluator, ConstValue, CtfeError, CtfeResult,
-    evaluate_constants,
-};
+pub use crate::middle::ctfe::context::ConstContext;
+pub use crate::middle::ctfe::evaluator::ConstEvaluator;
+pub use crate::middle::ctfe::value::ConstValue;
+pub use crate::middle::ctfe::error::{CtfeError, CtfeResult};
+pub use crate::middle::ctfe::evaluator::evaluate_constants;
 
 // Re-export the legacy types and functions for backward compatibility
 pub use crate::middle::ctfe::value::ConstValue as LegacyConstValue;

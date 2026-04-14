@@ -4,7 +4,7 @@
 # Package name.
 name = "zetac"
 # Current version.
-version = "0.3.88"  # Hardware popcount intrinsic + array reuse, competition sieve 2,324 passes/5s
+version = "0.4.9"  # Compilation fixes & CTFE implementation
 # Rust edition.
 edition = "2024"
 # Minimum Rust version.
