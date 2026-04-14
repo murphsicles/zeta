@@ -1,8 +1,0 @@
-// Test simple while without +=
-fn main() -> u64 {
-    let mut i = 0
-    while i < 5 {
-        i = i + 1
-    }
-    return i
-}

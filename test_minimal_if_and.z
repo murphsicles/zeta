@@ -1,6 +1,0 @@
-fn main() -> u64 {
-    if 1 < 2 && 3 > 0 {
-        return 42
-    }
-    return 0
-}

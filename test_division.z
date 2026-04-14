@@ -1,7 +1,0 @@
-// Test division only
-fn main() -> u64 {
-    let a = 100
-    let b = 2
-    let c = a / b
-    return c
-}

@@ -1,7 +1,0 @@
-// Test subtraction only
-fn main() -> u64 {
-    let a = 10
-    let b = 3
-    let c = a - b
-    return c
-}

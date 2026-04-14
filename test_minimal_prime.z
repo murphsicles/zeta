@@ -1,8 +1,0 @@
-fn main() -> u64 {
-    let mut count = 0
-    let n = 2
-    if n == 2 {
-        count = 1
-    }
-    return count
-}

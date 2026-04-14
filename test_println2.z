@@ -1,6 +1,0 @@
-fn main() -> i32 {
-    println(123);
-    println(456);
-    println(789);
-    0
-}

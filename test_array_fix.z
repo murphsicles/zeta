@@ -1,5 +1,0 @@
-// Test array fix: let arr: [u8] = []
-fn main() -> u64 {
-    let arr: [u8] = []
-    return 0
-}

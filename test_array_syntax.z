@@ -1,4 +1,0 @@
-fn main() -> u64 {
-    let wheel_primes: [u64] = [2, 3, 5, 7, 11, 13]
-    return 0
-}

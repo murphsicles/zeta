@@ -1,6 +1,0 @@
-fn main() -> u64 {
-    let i = 5
-    while i < 10 {
-        return 42
-    }
-}

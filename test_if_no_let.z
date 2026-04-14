@@ -1,7 +1,0 @@
-// Test if without let
-fn main() -> u64 {
-    if 3 < 5 {
-        return 42
-    }
-    return 0
-}

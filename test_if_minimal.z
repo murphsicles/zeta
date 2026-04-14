@@ -1,7 +1,0 @@
-fn main() -> u64 {
-    if true && false {
-        42
-    } else {
-        0
-    }
-}

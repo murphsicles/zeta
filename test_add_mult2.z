@@ -1,7 +1,0 @@
-fn main() -> u64 {
-    let a = 10
-    let b = 3
-    let c = 2
-    let d = b * c
-    return a + d
-}

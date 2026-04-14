@@ -1,6 +1,0 @@
-fn main() -> u64 {
-    // Try to compute something
-    let n = 1000
-    let square = n * n
-    return square
-}

@@ -1,7 +1,0 @@
-// Test bitwise AND with decimal numbers
-fn main() -> u64 {
-    let a = 12  // 0b1100
-    let b = 10  // 0b1010
-    let c = a & b   // Should be 0b1000 = 8
-    return c
-}

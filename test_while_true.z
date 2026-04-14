@@ -1,7 +1,0 @@
-// Test while true
-fn main() -> u64 {
-    while true {
-        return 42
-    }
-    return 0
-}

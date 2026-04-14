@@ -1,6 +1,0 @@
-fn main() -> u64 {
-    let a = 10
-    let b = 3
-    let quot = a / b
-    return quot
-}

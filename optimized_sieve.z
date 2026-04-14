@@ -1,4 +1,0 @@
-// Optimized sieve - minimal code for fastest execution
-fn main() -> u64 {
-    return 78498
-}

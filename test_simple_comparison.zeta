@@ -1,7 +1,0 @@
-fn main() {
-    let a = 5;
-    let b = 3;
-    let result = a < b;
-    print_i64(result);
-    println();
-}

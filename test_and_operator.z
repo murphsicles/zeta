@@ -1,8 +1,0 @@
-// Test && operator fix
-fn main() -> u64 {
-    let j = 3u64
-    if j < 5 && j >= 0 {
-        return 42
-    }
-    return 0
-}

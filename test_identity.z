@@ -1,7 +1,0 @@
-fn process<Identity<T: Read>>(x: T) -> i64 {
-    return 42;
-}
-fn main() -> i64 {
-    let s: string[identity:read] = "hello";
-    process(s)
-}

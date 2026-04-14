@@ -1,4 +1,0 @@
-fn main() -> u64 {
-    let arr = [1, 2, 3]
-    return arr[0]
-}

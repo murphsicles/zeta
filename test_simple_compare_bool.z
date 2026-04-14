@@ -1,4 +1,0 @@
-fn main() -> bool {
-    // Direct comparison returning bool
-    1 < 2
-}

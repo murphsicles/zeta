@@ -1,7 +1,0 @@
-fn main() -> u64 {
-    let mut i = 0
-    while i < 5 {
-        i += 1
-    }
-    i
-}

@@ -1,9 +1,0 @@
-fn count_primes(n: u64, limit: u64) -> u64 {
-    // Base case: if n > limit, return 0
-    // But we can't compare...
-    return 0
-}
-
-fn main() -> u64 {
-    return count_primes(2, 1000000)
-}

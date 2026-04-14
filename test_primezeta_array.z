@@ -1,4 +1,0 @@
-fn main() -> u64 {
-    let mut sieve: [100]bool
-    return 0
-}

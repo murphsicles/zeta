@@ -1,7 +1,0 @@
-fn foo(x: [u64]) -> u64 {
-    return 0;
-}
-
-fn main() -> u64 {
-    return 0;
-}

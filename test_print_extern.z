@@ -1,6 +1,0 @@
-extern fn print_i64(i64) -> ();
-
-fn main() -> i64 {
-    print_i64(42);
-    return 42;
-}

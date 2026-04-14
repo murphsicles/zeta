@@ -1,9 +1,0 @@
-// Test comptime
-fn main() -> u64 {
-    comptime {
-        let x = 2 + 3
-        return x
-    }
-    
-    0
-}

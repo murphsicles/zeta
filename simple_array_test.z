@@ -1,7 +1,0 @@
-fn main() -> u64 {
-    // Simple static array
-    let arr: [5]u64 = [1, 2, 3, 4, 5]
-    
-    // Return sum
-    return arr[0] + arr[1] + arr[2] + arr[3] + arr[4]
-}

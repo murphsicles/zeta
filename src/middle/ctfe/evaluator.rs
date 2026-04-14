@@ -7,9 +7,7 @@ use crate::frontend::ast::AstNode;
 
 use super::context::ConstContext;
 use super::value::ConstValue;
-use super::error::CtfeResult;
-
-use crate::ctfe_error;
+use super::error::{CtfeError, CtfeResult};
 
 /// Constant evaluator for compile-time evaluation
 #[derive(Debug, Clone, Default)]
@@ -301,4 +299,9 @@ pub fn eval_const_expr(expr: &AstNode) -> CtfeResult<ConstValue> {
 pub fn evaluate_program(asts: &[AstNode]) -> CtfeResult<Vec<AstNode>> {
     let mut evaluator = ConstEvaluator::new();
     evaluator.evaluate_program(asts)
+}
+
+/// Evaluate constants in a program
+pub fn evaluate_constants(asts: &[AstNode]) -> CtfeResult<Vec<AstNode>> {
+    evaluate_program(asts)
 }

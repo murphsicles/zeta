@@ -1,6 +1,0 @@
-// Test left shift
-fn main() -> u64 {
-    let a = 1
-    let b = a << 3  // Should be 8
-    return b
-}

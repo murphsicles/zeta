@@ -1,5 +1,0 @@
-fn main() -> i64 {
-    // What type does this if expression have?
-    let x: i64 = if (1 < 2) { 123 } else { 456 };
-    x
-}

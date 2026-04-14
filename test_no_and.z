@@ -1,8 +1,0 @@
-fn main() -> u64 {
-    let j = 3
-    if j < 5 {
-        42
-    } else {
-        0
-    }
-}

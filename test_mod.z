@@ -1,7 +1,0 @@
-// Test % operator
-fn main() -> u64 {
-    let n = 10
-    let d = 3
-    let r = n % d
-    return r
-}

@@ -1,6 +1,0 @@
-// Simple test without comparisons
-fn main() -> i64 {
-    let a = 5i64
-    let b = 10i64
-    return a + b
-}

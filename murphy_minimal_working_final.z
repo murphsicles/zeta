@@ -1,6 +1,0 @@
-// Murphy's Sieve - Absolute minimal working implementation
-// Compiles with current parser, returns correct prime count for 1,000,000
-
-fn main() -> u64 {
-    78498
-}

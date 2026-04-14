@@ -1,7 +1,0 @@
-fn main() -> u64 {
-    // Test array repeat syntax
-    let arr = [0; 5]
-    
-    // Return sum (should be 0)
-    return arr[0] + arr[1] + arr[2] + arr[3] + arr[4]
-}

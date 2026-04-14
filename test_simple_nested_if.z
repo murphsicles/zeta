@@ -1,8 +1,0 @@
-fn main() -> i64 {
-    // Simple test: if (1 < 2) { 123 } else { 456 }
-    if (1 < 2) {
-        123
-    } else {
-        456
-    }
-}

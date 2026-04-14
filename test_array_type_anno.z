@@ -1,4 +1,0 @@
-fn main() -> u64 {
-    let x: [u64; 5]
-    return 0
-}

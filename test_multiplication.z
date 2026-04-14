@@ -1,6 +1,0 @@
-fn main() -> i64 {
-    // Test multiplication
-    let x = 3
-    let y = x * x
-    return y
-}

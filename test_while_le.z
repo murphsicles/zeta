@@ -1,8 +1,0 @@
-// Test while loop with <=
-fn main() -> u64 {
-    let mut i = 0
-    while i <= 9 {
-        i = i + 1
-    }
-    return i
-}

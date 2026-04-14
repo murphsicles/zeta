@@ -1,4 +1,0 @@
-fn main() -> u64 {
-    let count = 1
-    return count
-}

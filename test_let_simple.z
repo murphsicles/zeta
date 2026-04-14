@@ -1,4 +1,0 @@
-fn main() -> u64 {
-    let a = 78498
-    return a
-}

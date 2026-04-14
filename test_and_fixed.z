@@ -1,8 +1,0 @@
-// Test && operator in while loop
-fn main() -> u64 {
-    let mut j = 0
-    while j < 5 && j >= 0 {
-        j += 1
-    }
-    j
-}
