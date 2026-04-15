@@ -1,8 +1,0 @@
-//! Stub for serde_json
-pub fn to_string<T>(_value: &T) -> Result<String, ()> {
-    Ok("{}".to_string())
-}
-
-pub fn from_str<T>(_s: &str) -> Result<T, ()> {
-    unimplemented!()
-}

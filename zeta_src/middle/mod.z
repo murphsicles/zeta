@@ -1,4 +1,0 @@
-// zeta_src/middle/mod.z
-pub mod mir;
-pub mod resolver;
-pub mod specialization;
