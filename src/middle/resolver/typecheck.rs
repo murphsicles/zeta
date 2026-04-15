@@ -321,7 +321,7 @@ impl Resolver {
         // Try to get constant value by name if it's a variable reference
         if let AstNode::Var(name) = node {
             if let Some(const_val) = self.ctfe_consts.get(name) {
-                return const_val.as_int().ok();
+                return const_val.as_int();
             }
         }
         

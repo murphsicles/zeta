@@ -9,7 +9,7 @@ pub use crate::middle::ctfe::context::ConstContext;
 pub use crate::middle::ctfe::evaluator::ConstEvaluator;
 pub use crate::middle::ctfe::value::ConstValue;
 pub use crate::middle::ctfe::error::{CtfeError, CtfeResult};
-pub use crate::middle::ctfe::evaluator::evaluate_constants;
+pub use crate::middle::ctfe::evaluate_constants;
 
 // Re-export the legacy types and functions for backward compatibility
 pub use crate::middle::ctfe::value::ConstValue as LegacyConstValue;
@@ -17,7 +17,8 @@ pub use crate::middle::ctfe::evaluator::ConstEvaluator as LegacyConstEvaluator;
 
 /// Legacy evaluate_constants function for backward compatibility
 pub fn legacy_evaluate_constants(asts: &[crate::frontend::ast::AstNode]) -> Result<Vec<crate::frontend::ast::AstNode>, String> {
-    match evaluate_constants(asts) {
+    let result: CtfeResult<_> = evaluate_constants(asts);
+    match result {
         Ok(result) => Ok(result),
         Err(e) => Err(e.to_string()),
     }
@@ -47,7 +48,7 @@ impl LegacyCompatConstEvaluator {
         func: &crate::frontend::ast::AstNode,
         args: &[crate::frontend::ast::AstNode],
     ) -> Result<Option<ConstValue>, String> {
-        self.inner.try_eval_const_call(func, args).map(|v| Some(v)).map_err(|e| e.to_string())
+        self.inner.try_eval_const_call(func, args).map(|v| Some(v)).map_err(|e: CtfeError| e.to_string())
     }
 }
 

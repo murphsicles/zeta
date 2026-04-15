@@ -63,6 +63,7 @@ unsafe fn check_canary(header: *const ArrayHeader) -> bool {
 /// 
 /// # Safety
 /// Returns a pointer to data (after ArrayHeader), not to header
+#[allow(unreachable_code)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn array_new(capacity: usize) -> i64 {
     // Just return a constant, no function calls
