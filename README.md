@@ -1,6 +1,6 @@
 # [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta: The Final Systems Language
 
-[<img alt="Zeta Logo" width="128px" src="https://z-lang.org/assets/images/z128.png" />](https://z-lang.org) [![Crates.io](https://img.shields.io/crates/v/zetac.svg)](https://crates.io/crates/zetac) [![Latest Release](https://img.shields.io/github/v/release/murphsicles/zeta)](https://github.com/murphsicles/zeta/releases) [![Dependencies](https://deps.rs/repo/github/murphsicles/zeta/status.svg)](https://deps.rs/repo/github/murphsicles/zeta)[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[<img alt="Zeta Logo" width="128px" src="https://z-lang.org/assets/images/z128.png" />](https://z-lang.org) [![Latest Release](https://img.shields.io/github/v/release/murphsicles/zeta)](https://github.com/murphsicles/zeta/releases) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Zeta is a systems programming language inspired by Elements of Programming (EOP) algebraic foundations, by Alexander Stepanov, the Godfather of the C++ Standard Template Library. Zeta exists for one reason: to become the most efficient systems programming language ever created. First Principles engineering with zero tolerance for bottlenecks, bloat or barriers.
 
@@ -43,7 +43,7 @@ Zeta v0.6.0 delivers a competition-ready compiler with comprehensive test suite 
 ### 📁 **Project Organization**
 ```
 zeta/
-├── src/              # Compiler source (Rust)
+├── src/              # Zeta source examples
 ├── tests/            # Organized test suite (Zeta code)
 │   ├── language/     # Language feature tests
 │   ├── algorithms/   # Algorithm implementations
@@ -68,15 +68,12 @@ zeta/
 git clone https://github.com/murphsicles/zeta.git
 cd zeta
 
-# Build the compiler
-cargo build --release
+# Use the pre-built compiler binary (Windows)
+bin/zetac.exe showcase/ctfe_demo.z -o demo.out
+./demo.out
 
-# Run a test
-./target/release/zetac tests/language/basic_arithmetic.z -o test.out
-./test.out
-
-# Explore the test suite
-cat tests/README.md
+# Explore Zeta source examples
+cat src/arithmetic_operators_test.z
 ```
 
 ## 📚 **Language Features**
@@ -110,9 +107,9 @@ fn main() -> i64 {
 Zeta v0.6.0 features a clean, professional structure:
 
 ### **Source Code (`src/`)**
-- Compiler implementation in Rust
-- Modular architecture with clear separation
-- Optimized for performance and maintainability
+- Zeta source examples demonstrating language features
+- Example programs for learning and testing
+- Organized by feature category
 
 ### **Test Suite (`tests/`)**
 - Organized by category (language, algorithms, competition)
@@ -132,35 +129,41 @@ Zeta v0.6.0 features a clean, professional structure:
 ## 🔧 **Building & Running**
 
 ### **Requirements**
-- Rust 1.70+ (for compiler development)
-- LLVM 15+ (for code generation)
-- Standard build tools (make, cmake)
+- Windows (or compatible platform for the pre-built binary)
+- Git (for cloning the repository)
 
 ### **Quick Start**
 ```bash
-# Build the compiler
-cargo build --release
+# Clone the repository
+git clone https://github.com/murphsicles/zeta.git
+cd zeta
 
-# The compiler binary will be at:
-# ./target/release/zetac
+# Use the pre-built compiler binary (Windows)
+bin/zetac.exe showcase/ctfe_demo.z -o demo.out
+./demo.out
 
-# Compile and run a Zeta program
-./target/release/zetac examples/hello.z -o hello
-./hello
+# Compile and run other Zeta programs
+bin/zetac.exe src/arithmetic_operators_test.z -o test.out
+./test.out
 ```
 
 ### **Running Tests**
 ```bash
-# Run all tests
-cargo test
-
-# Run specific test category
-cargo test --test language_tests
-
 # Compile and run Zeta test files
-./target/release/zetac tests/language/basic_arithmetic.z -o test.out
+bin/zetac.exe tests/simple.z -o test.out
 ./test.out
+
+# Explore the test suite
+ls tests/
 ```
+
+### **Advanced Usage**
+The `zetac.exe` compiler supports the following options:
+- `-o <output>`: Specify output executable name
+- `--help`: Show help message
+- `--version`: Show compiler version
+
+For more examples, see the `showcase/` directory.
 
 ## 🤝 **Contributing**
 
