@@ -47,7 +47,9 @@ reqwest = { version = "0.13.1", features = ["blocking", "json", "rustls"], defau
 # TLS library for reqwest
 rustls = "0.23.36"
 # Serialization framework.
-serde = { version = "1.0.228", features = ["derive"] }
+serde = { version = "1.0.227", features = ["derive"] }
+# Core serialization library
+serde_core = "1.0.226"
 # Formal verification system
 zeta-verification = { path = "verification" }
 # JSON handling.
