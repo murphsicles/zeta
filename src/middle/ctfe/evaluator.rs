@@ -43,54 +43,108 @@ impl ConstEvaluator {
         // Second pass: evaluate constants and transform AST
         let mut result = Vec::new();
         for ast in asts {
-            match ast {
-                AstNode::ConstDef {
-                    name,
-                    ty,
-                    value,
-                    attrs,
-                    pub_,
-                    comptime_,
-                } => {
-                    // Try to evaluate the constant
-                    match self.eval_const_expr(value) {
-                        Ok(ConstValue::Int(val)) => {
-                            // Replace with a literal if evaluation succeeds
-                            result.push(AstNode::ConstDef {
-                                name: name.clone(),
-                                ty: ty.clone(),
-                                value: Box::new(AstNode::Lit(val)),
-                                attrs: attrs.clone(),
-                                pub_: *pub_,
-                                comptime_: *comptime_,
-                            });
-                        }
-                        Ok(ConstValue::Bool(val)) => {
-                            result.push(AstNode::ConstDef {
-                                name: name.clone(),
-                                ty: ty.clone(),
-                                value: Box::new(AstNode::Bool(val)),
-                                attrs: attrs.clone(),
-                                pub_: *pub_,
-                                comptime_: *comptime_,
-                            });
-                        }
-                        Ok(_) => {
-                            // Non-simple constant value - keep as-is for now
-                            result.push(ast.clone());
-                        }
-                        Err(e) => {
-                            // Keep as-is if evaluation fails
-                            eprintln!("Warning: Could not evaluate constant {}: {}", name, e);
-                            result.push(ast.clone());
-                        }
-                    }
-                }
-                _ => result.push(ast.clone()),
-            }
+            let transformed = self.transform_ast_node(ast)?;
+            result.push(transformed);
         }
 
         Ok(result)
+    }
+
+    /// Recursively transform an AST node, evaluating const expressions
+    fn transform_ast_node(&mut self, node: &AstNode) -> CtfeResult<AstNode> {
+        match node {
+            AstNode::ConstDef {
+                name,
+                ty,
+                value,
+                attrs,
+                pub_,
+                comptime_,
+            } => {
+                // Try to evaluate the constant
+                match self.eval_const_expr(value) {
+                    Ok(ConstValue::Int(val)) => {
+                        // Replace with a literal if evaluation succeeds
+                        Ok(AstNode::ConstDef {
+                            name: name.clone(),
+                            ty: ty.clone(),
+                            value: Box::new(AstNode::Lit(val)),
+                            attrs: attrs.clone(),
+                            pub_: *pub_,
+                            comptime_: *comptime_,
+                        })
+                    }
+                    Ok(ConstValue::Bool(val)) => {
+                        Ok(AstNode::ConstDef {
+                            name: name.clone(),
+                            ty: ty.clone(),
+                            value: Box::new(AstNode::Bool(val)),
+                            attrs: attrs.clone(),
+                            pub_: *pub_,
+                            comptime_: *comptime_,
+                        })
+                    }
+                    Ok(_) => {
+                        // Non-simple constant value - keep as-is for now
+                        Ok(node.clone())
+                    }
+                    Err(e) => {
+                        // Keep as-is if evaluation fails
+                        eprintln!("Warning: Could not evaluate constant {}: {}", name, e);
+                        Ok(node.clone())
+                    }
+                }
+            }
+            AstNode::FuncDef {
+                name,
+                generics,
+                lifetimes,
+                params,
+                ret,
+                body,
+                attrs,
+                ret_expr,
+                single_line,
+                doc,
+                pub_,
+                async_,
+                const_,
+                comptime_,
+                where_clauses,
+            } => {
+                // Transform function body
+                let mut transformed_body = Vec::new();
+                for stmt in body {
+                    transformed_body.push(self.transform_ast_node(stmt)?);
+                }
+                
+                let transformed_ret_expr = if let Some(expr) = ret_expr {
+                    Some(Box::new(self.transform_ast_node(expr)?))
+                } else {
+                    None
+                };
+                
+                Ok(AstNode::FuncDef {
+                    name: name.clone(),
+                    generics: generics.clone(),
+                    lifetimes: lifetimes.clone(),
+                    params: params.clone(),
+                    ret: ret.clone(),
+                    body: transformed_body,
+                    attrs: attrs.clone(),
+                    ret_expr: transformed_ret_expr,
+                    single_line: *single_line,
+                    doc: doc.clone(),
+                    pub_: *pub_,
+                    async_: *async_,
+                    const_: *const_,
+                    comptime_: *comptime_,
+                    where_clauses: where_clauses.clone(),
+                })
+            }
+            // For now, return unchanged for other node types
+            _ => Ok(node.clone()),
+        }
     }
 
     /// Evaluate a const expression to a ConstValue

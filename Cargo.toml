@@ -123,6 +123,10 @@ name = "integration_error_handling"
 path = "tests/integration/integration_error_handling.rs"
 
 [[test]]
+name = "ctfe_integration"
+path = "tests/integration/ctfe_integration.rs"
+
+[[test]]
 name = "comptime_eval"
 path = "tests/comptime/test_runner.rs"
 
