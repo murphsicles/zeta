@@ -435,10 +435,20 @@ impl ConstEvaluator {
         func: &AstNode,
         args: &[AstNode],
     ) -> CtfeResult<ConstValue> {
-        // For now, return unsupported operation error
-        Err(CtfeError::UnsupportedOperation(
-            "try_eval_const_call not implemented".to_string(),
-        ))
+        // Extract function name from FuncDef
+        match func {
+            AstNode::FuncDef { name, .. } => {
+                // Register the function if not already registered
+                if !self.context.get_function(name).is_some() {
+                    self.context.register_function(name.clone(), func.clone());
+                }
+                // Evaluate the function call
+                self.eval_user_function_call(name, args)
+            }
+            _ => Err(CtfeError::UnsupportedExpression(
+                "try_eval_const_call requires a FuncDef node".to_string(),
+            )),
+        }
     }
 }
 
