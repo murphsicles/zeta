@@ -1,5 +1,5 @@
 // src/lib.rs
-//! # Zeta Compiler Library (v0.3.4 Foundation Release)
+//! # Zeta Compiler Library (v0.3.83 CTFE Foundation Release)
 //!
 //! The core library for the Zeta systems programming language.
 //! This crate provides a complete pipeline:

@@ -4,7 +4,7 @@
 # Package name.
 name = "zetac"
 # Current version.
-version = "0.6.0"  # CTFE compilation fixes & competition-ready release
+version = "0.3.83"  # CTFE foundation release - complete implementation
 # Rust edition.
 edition = "2024"
 # Minimum Rust version.
