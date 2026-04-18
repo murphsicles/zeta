@@ -831,7 +831,7 @@ fn parse_logical_and(input: &str) -> IResult<&str, AstNode> {
 
 // Parse comparison (==, !=, <, >, <=, >=)
 fn parse_comparison(input: &str) -> IResult<&str, AstNode> {
-    eprintln!("[DEBUG parse_comparison] input: {:?}", input);
+    // eprintln!("[DEBUG parse_comparison] input: {:?}", input);
     let (mut input, mut term) = parse_additive(input)?;
     loop {
         // Try to parse comparison operator

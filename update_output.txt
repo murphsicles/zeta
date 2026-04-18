@@ -1,0 +1,24 @@
+﻿cargo :     Updating crates.io index
+At line:1 char:10
++ cd zeta; cargo update 2>&1 | Out-File -FilePath update_output.txt -En ...
++          ~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (    Updating crates.io index:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+     Locking 710 packages to latest Rust 1.92.0 compatible versions
+      Adding bincode v1.3.3 (available: v3.0.0)
+      Adding bip39 v1.2.0 (available: v2.2.2)
+      Adding curve25519-dalek v3.2.0 (available: v3.2.1)
+      Adding dirs v5.0.1 (available: v6.0.0)
+      Adding generic-array v0.14.7 (available: v0.14.9)
+      Adding inkwell v0.8.0 (available: v0.9.0)
+      Adding rand v0.8.6 (available: v0.10.1)
+      Adding rand_distr v0.4.3 (available: v0.6.0)
+      Adding sha2 v0.10.9 (available: v0.11.0)
+      Adding solana-client v2.3.13 (available: v3.1.12)
+      Adding solana-program v2.3.0 (available: v4.0.0)
+      Adding solana-sdk v2.3.1 (available: v4.0.1)
+      Adding thiserror v1.0.69 (available: v2.0.18)
+      Adding toml v0.8.23 (available: v1.1.2+spec-1.1.0)
+      Adding unicode-normalization v0.1.9 (available: v0.1.25)
+      Adding which v6.0.3 (available: v8.0.2)

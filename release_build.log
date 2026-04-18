@@ -1,0 +1,943 @@
+﻿cargo :    Compiling proc-macro2 v1.0.106
+At line:1 char:10
++ cd zeta; cargo build --release 2>&1 | Out-File -FilePath release_buil ...
++          ~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (   Compiling proc-macro2 v1.0.106:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+   Compiling unicode-ident v1.0.24
+   Compiling quote v1.0.45
+   Compiling cfg-if v1.0.4
+   Compiling windows-link v0.2.1
+   Compiling getrandom v0.3.4
+   Compiling typenum v1.19.0
+   Compiling memchr v2.8.0
+   Compiling version_check v0.9.5
+   Compiling shlex v1.3.0
+   Compiling find-msvc-tools v0.1.9
+   Compiling smallvec v1.15.1
+   Compiling subtle v2.6.1
+   Compiling pin-project-lite v0.2.17
+   Compiling serde_core v1.0.228
+   Compiling stable_deref_trait v1.2.1
+   Compiling once_cell v1.21.4
+   Compiling log v0.4.29
+   Compiling dunce v1.0.5
+   Compiling windows-sys v0.61.2
+   Compiling getrandom v0.2.17
+   Compiling fs_extra v1.3.0
+   Compiling serde v1.0.228
+   Compiling bytes v1.11.1
+   Compiling parking_lot_core v0.9.12
+   Compiling scopeguard v1.2.0
+   Compiling rand_core v0.6.4
+   Compiling itoa v1.0.18
+   Compiling futures-core v0.3.32
+   Compiling semver v1.0.28
+   Compiling zeroize v1.8.2
+   Compiling lock_api v0.4.14
+   Compiling tracing-core v0.1.36
+   Compiling regex-syntax v0.8.10
+   Compiling generic-array v0.14.7
+   Compiling aws-lc-rs v1.16.3
+   Compiling writeable v0.6.3
+   Compiling futures-sink v0.3.32
+   Compiling cpufeatures v0.2.17
+   Compiling litemap v0.8.2
+   Compiling jobserver v0.1.34
+   Compiling icu_properties_data v2.2.0
+   Compiling utf8_iter v1.0.4
+   Compiling anyhow v1.0.102
+   Compiling icu_normalizer_data v2.2.0
+   Compiling aho-corasick v1.1.4
+   Compiling parking_lot v0.12.5
+   Compiling libc v0.2.185
+   Compiling cc v1.2.60
+   Compiling rustls-pki-types v1.14.0
+   Compiling zerocopy v0.8.48
+   Compiling futures-task v0.3.32
+   Compiling http v1.4.0
+   Compiling rustls v0.23.38
+   Compiling untrusted v0.9.0
+   Compiling windows_x86_64_msvc v0.48.5
+   Compiling hashbrown v0.17.0
+   Compiling equivalent v1.0.2
+   Compiling crossbeam-utils v0.8.21
+   Compiling httparse v1.10.1
+   Compiling slab v0.4.12
+   Compiling futures-io v0.3.32
+   Compiling syn v2.0.117
+   Compiling futures-util v0.3.32
+   Compiling try-lock v0.2.5
+   Compiling autocfg v1.5.0
+   Compiling libm v0.2.16
+   Compiling lazy_static v1.5.0
+   Compiling percent-encoding v2.3.2
+   Compiling regex-lite v0.1.9
+   Compiling bitflags v2.11.1
+   Compiling cmake v0.1.58
+   Compiling http-body v1.0.1
+   Compiling tower-service v0.3.3
+   Compiling indexmap v2.14.0
+   Compiling either v1.15.0
+   Compiling maybe-uninit v2.0.0
+   Compiling num-traits v0.2.19
+   Compiling regex-automata v0.4.14
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+   Compiling inout v0.1.4
+   Compiling sharded-slab v0.1.7
+   Compiling digest v0.10.7
+   Compiling want v0.3.1
+   Compiling tracing-log v0.2.0
+   Compiling rustc_version v0.4.1
+   Compiling futures-channel v0.3.32
+   Compiling thread_local v1.1.9
+   Compiling atomic-waker v1.1.2
+   Compiling zmij v1.0.21
+   Compiling curve25519-dalek v4.1.3
+   Compiling windows-targets v0.48.5
+   Compiling crossbeam-epoch v0.9.18
+   Compiling aws-lc-sys v0.40.0
+   Compiling llvm-sys v211.0.1
+   Compiling cipher v0.4.4
+   Compiling universal-hash v0.5.1
+   Compiling sync_wrapper v1.0.2
+   Compiling tower-layer v0.3.3
+   Compiling utf8parse v0.2.2
+   Compiling once_cell_polyfill v1.70.2
+   Compiling opaque-debug v0.3.1
+   Compiling rayon-core v1.13.0
+   Compiling thiserror v2.0.18
+   Compiling anstyle v1.0.14
+   Compiling ipnet v2.12.0
+   Compiling serde_json v1.0.149
+   Compiling base64 v0.22.1
+   Compiling fixedbitset v0.4.2
+   Compiling anstyle-parse v1.0.0
+   Compiling polyval v0.6.2
+   Compiling petgraph v0.6.5
+   Compiling crossbeam-deque v0.8.6
+   Compiling windows-sys v0.48.0
+   Compiling smallvec v0.6.14
+   Compiling itertools v0.12.1
+   Compiling form_urlencoded v1.2.2
+   Compiling ena v0.14.4
+   Compiling signature v2.2.0
+   Compiling inkwell v0.8.0
+   Compiling iri-string v0.7.12
+   Compiling option-ext v0.2.0
+   Compiling winnow v0.7.15
+   Compiling base64ct v1.8.3
+   Compiling toml_write v0.1.2
+   Compiling rustc-hash v1.1.0
+   Compiling colorchoice v1.0.5
+   Compiling is_terminal_polyfill v1.70.2
+   Compiling thiserror v1.0.69
+   Compiling unicode-normalization v0.1.9
+   Compiling password-hash v0.5.0
+   Compiling dirs-sys v0.4.1
+   Compiling ghash v0.5.1
+   Compiling ctr v0.9.2
+   Compiling aes v0.8.4
+   Compiling blake2 v0.10.6
+   Compiling sha2 v0.10.9
+   Compiling aead v0.5.2
+   Compiling http-body-util v0.1.3
+   Compiling csv-core v0.1.13
+   Compiling synstructure v0.13.2
+   Compiling winsafe v0.0.19
+   Compiling ryu v1.0.23
+   Compiling jiff v0.2.23
+   Compiling bitcoin_hashes v0.11.0
+   Compiling rand_core v0.4.2
+   Compiling csv v1.4.0
+   Compiling aes-gcm v0.10.3
+   Compiling argon2 v0.5.3
+   Compiling dirs v5.0.1
+   Compiling rayon v1.12.0
+   Compiling nom v8.0.0
+   Compiling zeta-verification v0.1.0 (C:\Users\mummy\.openclaw\workspace\zeta\verification)
+   Compiling matchers v0.2.0
+   Compiling regex v1.12.3
+   Compiling num_cpus v1.17.0
+   Compiling ripemd160 v0.10.0
+   Compiling bs58 v0.5.1
+   Compiling env_filter v1.0.1
+   Compiling ppv-lite86 v0.2.21
+   Compiling mio v1.2.0
+   Compiling socket2 v0.6.3
+   Compiling nu-ansi-term v0.50.3
+   Compiling rand_chacha v0.3.1
+   Compiling anstyle-wincon v3.0.11
+   Compiling anstyle-query v1.1.5
+   Compiling rand v0.8.6
+   Compiling anstream v1.0.0
+   Compiling zerofrom-derive v0.1.7
+   Compiling yoke-derive v0.8.2
+   Compiling zerovec-derive v0.11.3
+   Compiling displaydoc v0.2.5
+   Compiling serde_derive v1.0.228
+   Compiling tokio-macros v2.7.0
+   Compiling tracing-attributes v0.1.31
+   Compiling chalk-derive v0.104.0
+   Compiling curve25519-dalek-derive v0.1.1
+   Compiling thiserror-impl v2.0.18
+   Compiling inkwell_internals v0.13.0
+   Compiling thiserror-impl v1.0.69
+   Compiling tokio v1.52.1
+   Compiling home v0.5.12
+   Compiling rand_distr v0.4.3
+   Compiling chalk-ir v0.104.0
+   Compiling which v6.0.3
+   Compiling env_logger v0.11.10
+   Compiling zerofrom v0.1.7
+   Compiling yoke v0.8.2
+   Compiling tracing v0.1.44
+   Compiling zerovec v0.11.6
+   Compiling zerotrie v0.2.4
+   Compiling tracing-subscriber v0.3.23
+   Compiling tinystr v0.8.3
+   Compiling potential_utf v0.1.5
+   Compiling icu_locale_core v2.2.0
+   Compiling icu_collections v2.2.0
+   Compiling tracing-tree v0.3.1
+   Compiling icu_provider v2.2.0
+   Compiling toml_datetime v0.6.11
+   Compiling icu_normalizer v2.2.0
+   Compiling icu_properties v2.2.0
+   Compiling serde_spanned v0.6.9
+   Compiling ed25519 v2.2.3
+   Compiling toml_edit v0.22.27
+   Compiling chalk-solve v0.104.0
+   Compiling ed25519-dalek v2.2.0
+   Compiling bip39 v1.2.0
+   Compiling chrono v0.4.44
+   Compiling bincode v1.3.3
+   Compiling idna_adapter v1.2.1
+   Compiling idna v1.1.0
+   Compiling url v2.5.8
+   Compiling chalk-recursive v0.104.0
+   Compiling toml v0.8.23
+   Compiling hyper v1.9.0
+   Compiling tower v0.5.3
+   Compiling tower-http v0.6.8
+   Compiling hyper-util v0.1.20
+   Compiling rustls-webpki v0.103.12
+   Compiling tokio-rustls v0.26.4
+   Compiling rustls-platform-verifier v0.6.2
+   Compiling hyper-rustls v0.27.9
+   Compiling reqwest v0.13.2
+   Compiling zetac v0.3.83 (C:\Users\mummy\.openclaw\workspace\zeta)
+warning: unused import: `crate::runtime::std`
+ --> src\std\bit\mod.rs:3:5
+  |
+3 | use crate::runtime::std;
+  |     ^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `crate::runtime::std`
+ --> src\std\simd\mod.rs:3:5
+  |
+3 | use crate::runtime::std;
+  |     ^^^^^^^^^^^^^^^^^^^
+
+warning: field `lifetime_context` is never read
+   --> src\frontend\identity_ownership.rs:118:5
+    |
+110 | pub struct IdentityAwareBorrowChecker {
+    |            -------------------------- field in this struct
+...
+118 |     lifetime_context: LifetimeContext,
+    |     ^^^^^^^^^^^^^^^^
+    |
+    = note: `IdentityAwareBorrowChecker` has derived impls for the traits `Clone` and `Debug`, but these are 
+intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `compile_time_info` is never read
+  --> src\frontend\macro_expand_advanced.rs:83:5
+   |
+79 | pub struct AdvancedMacroExpander {
+   |            --------------------- field in this struct
+...
+83 |     compile_time_info: CompileTimeInfo,
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: function `parse_angle_bracketed_content` is never used
+   --> src\frontend\parser\parser.rs:770:4
+    |
+770 | fn parse_angle_bracketed_content(input: &str) -> IResult<&str, String> {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `parse_angle_bracketed_content_inner` is never used
+   --> src\frontend\parser\parser.rs:799:4
+    |
+799 | fn parse_angle_bracketed_content_inner(input: &str) -> IResult<&str, String> {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `split_top_level_commas` is never used
+   --> src\frontend\parser\parser.rs:827:4
+    |
+827 | fn split_top_level_commas(input: &str) -> Vec<&str> {
+    |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `parse_associated_type` is never used
+   --> src\frontend\parser\top_level.rs:299:4
+    |
+299 | fn parse_associated_type(input: &str) -> IResult<&str, AstNode> {
+    |    ^^^^^^^^^^^^^^^^^^^^^
+
+warning: fields `capabilities` and `root_path` are never read
+  --> src\lsp\server.rs:18:9
+   |
+14 | pub struct ServerState {
+   |            ----------- fields in this struct
+...
+18 |     pub capabilities: ServerCapabilities,
+   |         ^^^^^^^^^^^^
+19 |     /// Workspace root path
+20 |     pub root_path: Option<String>,
+   |         ^^^^^^^^^
+   |
+   = note: `ServerState` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code 
+analysis
+
+warning: struct `Position` is never constructed
+   --> src\lsp\protocol.rs:102:12
+    |
+102 | pub struct Position {
+    |            ^^^^^^^^
+
+warning: struct `Range` is never constructed
+   --> src\lsp\protocol.rs:111:12
+    |
+111 | pub struct Range {
+    |            ^^^^^
+
+warning: struct `Location` is never constructed
+   --> src\lsp\protocol.rs:120:12
+    |
+120 | pub struct Location {
+    |            ^^^^^^^^
+
+warning: struct `Hover` is never constructed
+   --> src\lsp\protocol.rs:176:12
+    |
+176 | pub struct Hover {
+    |            ^^^^^
+
+warning: enum `HoverContents` is never used
+   --> src\lsp\protocol.rs:187:10
+    |
+187 | pub enum HoverContents {
+    |          ^^^^^^^^^^^^^
+
+warning: struct `MarkupContent` is never constructed
+   --> src\lsp\protocol.rs:194:12
+    |
+194 | pub struct MarkupContent {
+    |            ^^^^^^^^^^^^^
+
+warning: enum `MarkupKind` is never used
+   --> src\lsp\protocol.rs:203:10
+    |
+203 | pub enum MarkupKind {
+    |          ^^^^^^^^^^
+
+warning: fields `identity_inference` and `capability_inferencer` are never read
+  --> src\middle\resolver\resolver.rs:48:5
+   |
+33 | pub struct Resolver {
+   |            -------- fields in this struct
+...
+48 |     identity_inference: crate::middle::types::identity::inference::IdentityInferenceContext,
+   |     ^^^^^^^^^^^^^^^^^^
+49 |     /// Capability inferencer for identity-aware type inference
+50 |     capability_inferencer: crate::middle::types::identity::inference::CapabilityInferencer,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `infer_identity_type` and `get_required_capabilities` are never used
+   --> src\middle\resolver\typecheck.rs:431:8
+    |
+ 13 | impl Resolver {
+    | ------------- methods in this implementation
+...
+431 |     fn infer_identity_type(&self, node: &AstNode, context_capabilities: &[CapabilityLevel]) -> Option<Type> {
+    |        ^^^^^^^^^^^^^^^^^^^
+...
+454 |     fn get_required_capabilities(&self, func_name: &str, arg_index: usize) -> Vec<CapabilityLevel> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `unify_array_size` is never used
+    --> src\middle\types\mod.rs:1107:8
+     |
+1045 | impl Substitution {
+     | ----------------- method in this implementation
+...
+1107 |     fn unify_array_size(&mut self, size1: &ArraySize, size2: &ArraySize) -> Result<(), UnifyError> {
+     |        ^^^^^^^^^^^^^^^^
+
+warning: fields `running_mean`, `running_var`, `eps`, and `momentum` are never read
+   --> src\ml\nn.rs:230:5
+    |
+227 | pub struct BatchNorm2d {
+    |            ----------- fields in this struct
+...
+230 |     running_mean: Tensor,
+    |     ^^^^^^^^^^^^
+231 |     running_var: Tensor,
+    |     ^^^^^^^^^^^
+232 |     num_features: usize,
+233 |     eps: f32,
+    |     ^^^
+234 |     momentum: f32,
+    |     ^^^^^^^^
+    |
+    = note: `BatchNorm2d` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code 
+analysis
+
+warning: fields `num_layers` and `nonlinearity` are never read
+   --> src\ml\nn.rs:341:5
+    |
+338 | pub struct RNN {
+    |            --- fields in this struct
+...
+341 |     num_layers: usize,
+    |     ^^^^^^^^^^
+342 |     nonlinearity: String,  // "tanh" or "relu"
+    |     ^^^^^^^^^^^^
+    |
+    = note: `RNN` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: field `num_layers` is never read
+   --> src\ml\nn.rs:395:5
+    |
+392 | pub struct LSTM {
+    |            ---- field in this struct
+...
+395 |     num_layers: usize,
+    |     ^^^^^^^^^^
+    |
+    = note: `LSTM` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code 
+analysis
+
+warning: field `dampening` is never read
+  --> src\ml\optim.rs:38:5
+   |
+34 | pub struct SGD {
+   |            --- field in this struct
+...
+38 |     dampening: f32,
+   |     ^^^^^^^^^
+   |
+   = note: `SGD` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: fields `betas`, `eps`, and `weight_decay` are never read
+   --> src\ml\optim.rs:130:5
+    |
+127 | pub struct Adam {
+    |            ---- fields in this struct
+...
+130 |     betas: (f32, f32),
+    |     ^^^^^
+131 |     eps: f32,
+    |     ^^^
+132 |     weight_decay: f32,
+    |     ^^^^^^^^^^^^
+    |
+    = note: `Adam` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code 
+analysis
+
+warning: fields `alpha`, `eps`, and `weight_decay` are never read
+   --> src\ml\optim.rs:225:5
+    |
+222 | pub struct RMSprop {
+    |            ------- fields in this struct
+...
+225 |     alpha: f32,
+    |     ^^^^^
+226 |     eps: f32,
+    |     ^^^
+227 |     weight_decay: f32,
+    |     ^^^^^^^^^^^^
+    |
+    = note: `RMSprop` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code 
+analysis
+
+warning: fields `lr_decay`, `weight_decay`, and `eps` are never read
+   --> src\ml\optim.rs:317:5
+    |
+314 | pub struct Adagrad {
+    |            ------- fields in this struct
+...
+317 |     lr_decay: f32,
+    |     ^^^^^^^^
+318 |     weight_decay: f32,
+    |     ^^^^^^^^^^^^
+319 |     eps: f32,
+    |     ^^^
+    |
+    = note: `Adagrad` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code 
+analysis
+
+warning: fields `rho`, `eps`, and `weight_decay` are never read
+   --> src\ml\optim.rs:383:5
+    |
+380 | pub struct Adadelta {
+    |            -------- fields in this struct
+...
+383 |     rho: f32,
+    |     ^^^
+384 |     eps: f32,
+    |     ^^^
+385 |     weight_decay: f32,
+    |     ^^^^^^^^^^^^
+    |
+    = note: `Adadelta` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code 
+analysis
+
+warning: field `feature_range` is never read
+   --> src\ml\data.rs:209:5
+    |
+204 | pub struct Preprocessor {
+    |            ------------ field in this struct
+...
+209 |     feature_range: Option<(f32, f32)>,
+    |     ^^^^^^^^^^^^^
+
+warning: fields `feature_names` and `label_name` are never read
+   --> src\ml\data.rs:411:5
+    |
+408 | pub struct CSVDataset {
+    |            ---------- fields in this struct
+...
+411 |     feature_names: Vec<String>,
+    |     ^^^^^^^^^^^^^
+412 |     label_name: String,
+    |     ^^^^^^^^^^
+
+warning: field `per_channel` is never read
+   --> src\ml\inference.rs:188:5
+    |
+185 | pub struct Quantizer {
+    |            --------- field in this struct
+...
+188 |     per_channel: bool,
+    |     ^^^^^^^^^^^
+
+warning: fields `input_size`, `hidden_sizes`, `output_size`, `dropout_rate`, and `use_batch_norm` are never read
+  --> src\ml\models.rs:18:5
+   |
+16 | pub struct MLP {
+   |            --- fields in this struct
+17 |     layers: Sequential,
+18 |     input_size: usize,
+   |     ^^^^^^^^^^
+19 |     hidden_sizes: Vec<usize>,
+   |     ^^^^^^^^^^^^
+20 |     output_size: usize,
+   |     ^^^^^^^^^^^
+21 |     dropout_rate: f32,
+   |     ^^^^^^^^^^^^
+22 |     use_batch_norm: bool,
+   |     ^^^^^^^^^^^^^^
+   |
+   = note: `MLP` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: fields `input_channels`, `conv_channels`, `fc_sizes`, `output_size`, `dropout_rate`, and `use_batch_norm` are 
+never read
+   --> src\ml\models.rs:106:5
+    |
+104 | pub struct CNN {
+    |            --- fields in this struct
+105 |     layers: Sequential,
+106 |     input_channels: usize,
+    |     ^^^^^^^^^^^^^^
+107 |     conv_channels: Vec<usize>,
+    |     ^^^^^^^^^^^^^
+108 |     fc_sizes: Vec<usize>,
+    |     ^^^^^^^^
+109 |     output_size: usize,
+    |     ^^^^^^^^^^^
+110 |     dropout_rate: f32,
+    |     ^^^^^^^^^^^^
+111 |     use_batch_norm: bool,
+    |     ^^^^^^^^^^^^^^
+    |
+    = note: `CNN` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: fields `input_size`, `hidden_size`, `num_layers`, `output_size`, `bidirectional`, and `dropout_rate` are 
+never read
+   --> src\ml\models.rs:249:5
+    |
+247 | pub struct RNNModel {
+    |            -------- fields in this struct
+248 |     layers: Sequential,
+249 |     input_size: usize,
+    |     ^^^^^^^^^^
+250 |     hidden_size: usize,
+    |     ^^^^^^^^^^^
+251 |     num_layers: usize,
+    |     ^^^^^^^^^^
+252 |     output_size: usize,
+    |     ^^^^^^^^^^^
+253 |     bidirectional: bool,
+    |     ^^^^^^^^^^^^^
+254 |     dropout_rate: f32,
+    |     ^^^^^^^^^^^^
+    |
+    = note: `RNNModel` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code 
+analysis
+
+warning: fields `latent_dim` and `input_size` are never read
+   --> src\ml\models.rs:382:5
+    |
+379 | pub struct Autoencoder {
+    |            ----------- fields in this struct
+...
+382 |     latent_dim: usize,
+    |     ^^^^^^^^^^
+383 |     input_size: usize,
+    |     ^^^^^^^^^^
+    |
+    = note: `Autoencoder` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code 
+analysis
+
+warning: fields `latent_dim` and `output_size` are never read
+   --> src\ml\models.rs:484:5
+    |
+481 | pub struct GAN {
+    |            --- fields in this struct
+...
+484 |     latent_dim: usize,
+    |     ^^^^^^^^^^
+485 |     output_size: usize,
+    |     ^^^^^^^^^^^
+    |
+    = note: `GAN` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: fields `d_model`, `nhead`, `num_layers`, `dim_feedforward`, and `dropout` are never read
+   --> src\ml\models.rs:592:5
+    |
+589 | pub struct Transformer {
+    |            ----------- fields in this struct
+...
+592 |     d_model: usize,
+    |     ^^^^^^^
+593 |     nhead: usize,
+    |     ^^^^^
+594 |     num_layers: usize,
+    |     ^^^^^^^^^^
+595 |     dim_feedforward: usize,
+    |     ^^^^^^^^^^^^^^^
+596 |     dropout: f32,
+    |     ^^^^^^^
+    |
+    = note: `Transformer` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code 
+analysis
+
+warning: field `sender` is never read
+  --> src\runtime\actor\advanced.rs:43:5
+   |
+40 | pub struct ActorContext {
+   |            ------------ field in this struct
+...
+43 |     sender: mpsc::UnboundedSender<ActorMessage>,
+   |     ^^^^^^
+   |
+   = note: `ActorContext` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code 
+analysis
+
+warning: field `priority` is never read
+  --> src\runtime\async_advanced.rs:47:5
+   |
+44 | struct Task {
+   |        ---- field in this struct
+...
+47 |     priority: Priority,
+   |     ^^^^^^^^
+
+warning: method `is_completed` is never used
+  --> src\runtime\async_advanced.rs:94:8
+   |
+52 | impl Task {
+   | --------- method in this implementation
+...
+94 |     fn is_completed(&self) -> bool {
+   |        ^^^^^^^^^^^^
+
+warning: field `id` is never read
+   --> src\runtime\async_advanced.rs:105:5
+    |
+104 | struct TaskWaker {
+    |        --------- field in this struct
+105 |     id: TaskId,
+    |     ^^
+
+warning: methods `len` and `is_empty` are never used
+   --> src\runtime\async_advanced.rs:146:8
+    |
+124 | impl WorkStealingDeque {
+    | ---------------------- methods in this implementation
+...
+146 |     fn len(&self) -> usize {
+    |        ^^^
+...
+151 |     fn is_empty(&self) -> bool {
+    |        ^^^^^^^^
+
+warning: field `global_queue` is never read
+   --> src\runtime\async_advanced.rs:212:5
+    |
+210 | pub struct AsyncRuntime {
+    |            ------------ field in this struct
+211 |     workers: Arc<Mutex<Vec<Arc<Worker>>>>,
+212 |     global_queue: Arc<WorkStealingDeque>,
+    |     ^^^^^^^^^^^^
+
+warning: fields `future` and `mapper` are never read
+   --> src\runtime\async_advanced.rs:335:9
+    |
+334 |     pub struct Map<Fut, F> {
+    |                --- fields in this struct
+335 |         future: Fut,
+    |         ^^^^^^
+336 |         mapper: Option<F>,
+    |         ^^^^^^
+
+warning: fields `future` and `transformer` are never read
+   --> src\runtime\async_advanced.rs:354:9
+    |
+353 |     pub struct Then<Fut, F> {
+    |                ---- fields in this struct
+354 |         future: Fut,
+    |         ^^^^^^
+355 |         transformer: Option<F>,
+    |         ^^^^^^^^^^^
+
+warning: fields `future1`, `future2`, `completed1`, `completed2`, `result1`, and `result2` are never read
+   --> src\runtime\async_advanced.rs:374:9
+    |
+373 |     pub struct Join<Fut1, Fut2> {
+    |                ---- fields in this struct
+374 |         future1: Fut1,
+    |         ^^^^^^^
+375 |         future2: Fut2,
+    |         ^^^^^^^
+376 |         completed1: bool,
+    |         ^^^^^^^^^^
+377 |         completed2: bool,
+    |         ^^^^^^^^^^
+378 |         result1: Option<i64>,
+    |         ^^^^^^^
+379 |         result2: Option<i64>,
+    |         ^^^^^^^
+
+warning: field `receiver` is never read
+  --> src\runtime\channel_advanced.rs:36:5
+   |
+34 | pub struct UnboundedChannel<T> {
+   |            ---------------- field in this struct
+35 |     sender: mpsc::UnboundedSender<T>,
+36 |     receiver: mpsc::UnboundedReceiver<T>,
+   |     ^^^^^^^^
+
+warning: field `id` is never read
+   --> src\runtime\channel_advanced.rs:367:5
+    |
+366 | struct SelectorEntry {
+    |        ------------- field in this struct
+367 |     id: usize,
+    |     ^^
+
+warning: constant `UNINIT_PATTERN` is never used
+  --> src\runtime\memory.rs:17:7
+   |
+17 | const UNINIT_PATTERN: u8 = 0xCD;
+   |       ^^^^^^^^^^^^^^
+
+warning: static `ALLOCATION_COUNTER` is never used
+  --> src\runtime\memory.rs:29:8
+   |
+29 | static ALLOCATION_COUNTER: AtomicU64 = AtomicU64::new(1);
+   |        ^^^^^^^^^^^^^^^^^^
+
+warning: constant `GUARD_PAGE_SIZE` is never used
+  --> src\runtime\memory_bulletproof.rs:24:7
+   |
+24 | const GUARD_PAGE_SIZE: usize = 4096; // Typical page size
+   |       ^^^^^^^^^^^^^^^
+
+warning: field `timestamp` is never read
+  --> src\runtime\memory_bulletproof.rs:52:5
+   |
+50 | pub struct AllocationInfo {
+   |            -------------- field in this struct
+51 |     size: usize,
+52 |     timestamp: std::time::Instant,
+   |     ^^^^^^^^^
+   |
+   = note: `AllocationInfo` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead 
+code analysis
+
+warning: function `create_c_string` is never used
+   --> src\runtime\identity\integration.rs:314:4
+    |
+314 | fn create_c_string(s: &str) -> i64 {
+    |    ^^^^^^^^^^^^^^^
+
+warning: field `data` is never read
+  --> src\std\collections\mod.rs:46:5
+   |
+45 | pub struct Vec<T> {
+   |            --- field in this struct
+46 |     data: *mut T,
+   |     ^^^^
+
+warning: field `receiver` is never read
+   --> src\distributed\actor.rs:113:5
+    |
+107 | pub struct DistributedActorSystem {
+    |            ---------------------- field in this struct
+...
+113 |     receiver: mpsc::UnboundedReceiver<(ActorRef, ActorMessage)>,
+    |     ^^^^^^^^
+
+warning: method `handle_message` is never used
+   --> src\distributed\actor.rs:148:14
+    |
+118 | impl DistributedActorSystem {
+    | --------------------------- method in this implementation
+...
+148 |     async fn handle_message(&self, actor_ref: ActorRef, message: ActorMessage) {
+    |              ^^^^^^^^^^^^^^
+
+warning: field `actor` is never read
+   --> src\distributed\actor.rs:252:5
+    |
+251 | struct LocalActorHandle {
+    |        ---------------- field in this struct
+252 |     actor: Box<dyn DistributedActor>,
+    |     ^^^^^
+
+warning: field `saga_id` is never read
+   --> src\distributed\transaction.rs:347:5
+    |
+346 | struct SagaExecution {
+    |        ------------- field in this struct
+347 |     saga_id: u64,
+    |     ^^^^^^^
+
+warning: field `event_receiver` is never read
+   --> src\distributed\cluster.rs:105:5
+    |
+ 95 | pub struct ClusterManager {
+    |            -------------- field in this struct
+...
+105 |     event_receiver: mpsc::UnboundedReceiver<MembershipEvent>,
+    |     ^^^^^^^^^^^^^^
+
+warning: field `check_interval` is never read
+   --> src\distributed\cluster.rs:596:5
+    |
+594 | pub struct HealthChecker {
+    |            ------------- field in this struct
+595 |     /// Check interval
+596 |     check_interval: Duration,
+    |     ^^^^^^^^^^^^^^
+
+warning: variants `Connecting` and `Closing` are never constructed
+  --> src\distributed\transport.rs:52:5
+   |
+50 | enum ConnectionState {
+   |      --------------- variants in this enum
+51 |     /// Connection is connecting
+52 |     Connecting,
+   |     ^^^^^^^^^^
+...
+56 |     Closing,
+   |     ^^^^^^^
+   |
+   = note: `ConnectionState` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored 
+during dead code analysis
+
+warning: field `remote_addr` is never read
+  --> src\distributed\transport.rs:68:5
+   |
+62 | struct Connection {
+   |        ---------- field in this struct
+...
+68 |     remote_addr: SocketAddr,
+   |     ^^^^^^^^^^^
+
+warning: associated function `receive_message` is never used
+   --> src\distributed\transport.rs:143:14
+    |
+ 75 | impl Connection {
+    | --------------- associated function in this implementation
+...
+143 |     async fn receive_message(stream: &mut TcpStream) -> Result<NetworkMessage, String> {
+    |              ^^^^^^^^^^^^^^^
+
+warning: field `listener` is never read
+   --> src\distributed\transport.rs:244:5
+    |
+240 | pub struct NetworkTransport {
+    |            ---------------- field in this struct
+...
+244 |     listener: Option<TcpListener>,
+    |     ^^^^^^^^
+
+warning: unused `Result` that must be used
+   --> src\middle\ctfe\evaluator.rs:314:17
+    |
+314 |                 self.context.enter_scope(false);
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: this `Result` may be an `Err` variant, which should be handled
+    = note: `#[warn(unused_must_use)]` (part of `#[warn(unused)]`) on by default
+help: use `let _ = ...` to ignore the resulting value
+    |
+314 |                 let _ = self.context.enter_scope(false);
+    |                 +++++++
+
+warning: unused `Result` that must be used
+   --> src\middle\ctfe\evaluator.rs:384:13
+    |
+384 |             self.context.enter_scope(false);
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: this `Result` may be an `Err` variant, which should be handled
+help: use `let _ = ...` to ignore the resulting value
+    |
+384 |             let _ = self.context.enter_scope(false);
+    |             +++++++
+
+warning: unused `Result` that must be used
+   --> src\middle\ctfe\evaluator.rs:389:13
+    |
+389 |             self.context.enter_scope(false);
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: this `Result` may be an `Err` variant, which should be handled
+help: use `let _ = ...` to ignore the resulting value
+    |
+389 |             let _ = self.context.enter_scope(false);
+    |             +++++++
+
+warning: unused `Result` that must be used
+   --> src\middle\ctfe\evaluator.rs:400:9
+    |
+400 |         self.context.enter_scope(false);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: this `Result` may be an `Err` variant, which should be handled
+help: use `let _ = ...` to ignore the resulting value
+    |
+400 |         let _ = self.context.enter_scope(false);
+    |         +++++++
+
+warning: `zetac` (lib) generated 67 warnings (run `cargo fix --lib -p zetac` to apply 2 suggestions)
+    Finished `release` profile [optimized] target(s) in 1m 12s

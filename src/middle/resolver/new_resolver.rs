@@ -87,7 +87,10 @@ impl InferContext {
     }
 
     /// Helper to add equality constraint (backward compatibility)
+    #[track_caller]
     fn constrain_eq(&mut self, t1: Type, t2: Type) {
+        let location = std::panic::Location::caller();
+        eprintln!("[DEBUG] constrain_eq at {}:{}: {} == {}", location.file(), location.line(), t1.display_name(), t2.display_name());
         self.constrain(Constraint::Equality(t1, t2));
     }
 
@@ -735,7 +738,10 @@ impl InferContext {
             AstNode::Let {
                 pattern, ty, expr, ..
             } => {
+                eprintln!("[DEBUG] Let expr node type: {:?}", expr);
                 let expr_ty = self.infer(expr)?;
+                eprintln!("[DEBUG] Let expression type: {:?}", expr_ty);
+                eprintln!("[DEBUG] pattern: {:?}", pattern);
 
                 // If type annotation provided, constrain to it
                 if let Some(type_str) = ty {
@@ -787,6 +793,9 @@ impl InferContext {
                 comptime_,
                 ..
             } => {
+                eprintln!("[DEBUG] FuncDef: {} return type: {}", name, ret);
+                eprintln!("[DEBUG] body length: {}", body.len());
+                eprintln!("[DEBUG] ret_expr present: {}", ret_expr.is_some());
                 // Parse generic type parameters if present
                 let type_params = if !generics.is_empty() {
                     // Parse "T: Clone + Copy" style bounds
@@ -848,15 +857,61 @@ impl InferContext {
                 }
 
                 // Type check function body
-                for stmt in body {
-                    self.infer(stmt)?;
+                let len = body.len();
+                let mut last_stmt_type = Type::Tuple(vec![]); // default unit
+                
+                for (i, stmt) in body.iter().enumerate() {
+                    let is_last = i == len - 1;
+                    let stmt_type = self.infer(stmt)?;
+                    
+                    if is_last {
+                        // For the last statement, check if it's an expression statement
+                        // that should be treated as implicit return
+                        match stmt {
+                            AstNode::ExprStmt { expr: _ } => {
+                                // Expression statement normally returns unit,
+                                // but for implicit return we need the expression's type
+                                // We already have stmt_type which is unit.
+                                // We need to get the expression type separately.
+                                // For now, we'll handle this in the constraint below.
+                                last_stmt_type = stmt_type;
+                            }
+                            _ => {
+                                last_stmt_type = stmt_type;
+                            }
+                        }
+                    }
                 }
 
                 // Type check return expression if present
                 if let Some(expr) = ret_expr {
                     let expr_ty = self.infer(expr)?;
+                    eprintln!("[DEBUG] ret_expr expr type: {:?}", expr_ty);
+                    eprintln!("[DEBUG] expr node: {:?}", expr);
                     // Constrain return expression type to match function return type
                     self.constrain_eq(expr_ty, return_ty);
+                } else if !body.is_empty() {
+                    // Implicit return: constrain last statement type to match function return type
+                    // If last statement is ExprStmt, we need to get the expression type
+                    let last_node = &body[len - 1];
+                    eprintln!("[DEBUG] last_node type: {:?}", last_node);
+                    eprintln!("[DEBUG] last_stmt_type: {:?}", last_stmt_type);
+                    eprintln!("[DEBUG] return_ty: {:?}", return_ty);
+                    let implicit_return_ty = match last_node {
+                        AstNode::ExprStmt { expr } => {
+                            // Re-infer the expression type (we already have it from earlier inference)
+                            // But we need to get the type of the expression, not the statement
+                            let expr_ty = self.infer(expr)?;
+                            eprintln!("[DEBUG] ExprStmt expr type: {:?}", expr_ty);
+                            expr_ty
+                        }
+                        _ => {
+                            eprintln!("[DEBUG] Not ExprStmt, using last_stmt_type");
+                            last_stmt_type
+                        },
+                    };
+                    eprintln!("[DEBUG] implicit_return_ty: {:?}", implicit_return_ty);
+                    self.constrain_eq(implicit_return_ty, return_ty);
                 }
 
                 // Exit generic scope
@@ -1347,6 +1402,7 @@ impl InferContext {
             }
 
             AstNode::If { cond, then, else_ } => {
+                eprintln!("[DEBUG] If inference, then len: {}, else len: {}", then.len(), else_.len());
                 // Type check the condition - must be boolean or integer (C-style)
                 let cond_ty = self.infer(cond)?;
                 // Allow bool or i64 (0 = false, non-zero = true)
@@ -1354,17 +1410,28 @@ impl InferContext {
                     return Err("If condition must be boolean or integer".to_string());
                 }
 
-                // Type check the then branch
-                let mut then_ty = Type::Tuple(vec![]); // Default to unit
-                for stmt in then {
-                    then_ty = self.infer(stmt)?;
-                }
+                // Compute branch type, treating last element specially
+                let mut branch_type = |stmts: &[AstNode]| -> Result<Type, String> {
+                    let len = stmts.len();
+                    if len == 0 {
+                        Ok(Type::Tuple(vec![]))
+                    } else {
+                        // Check all statements except the last
+                        for stmt in &stmts[..len-1] {
+                            self.infer(stmt)?;
+                        }
+                        // Last element determines the branch type
+                        let last = &stmts[len-1];
+                        match last {
+                            AstNode::ExprStmt { expr } => self.infer(expr),
+                            _ => self.infer(last),
+                        }
+                    }
+                };
 
-                // Type check the else branch if present
-                let mut else_ty = Type::Tuple(vec![]); // Default to unit
-                for stmt in else_ {
-                    else_ty = self.infer(stmt)?;
-                }
+                let then_ty = branch_type(then)?;
+                let else_ty = branch_type(else_)?;
+                eprintln!("[DEBUG] then_ty: {:?}, else_ty: {:?}", then_ty, else_ty);
 
                 if else_.is_empty() {
                     // If there's no else branch, the if statement has unit type
@@ -1520,6 +1587,38 @@ impl InferContext {
                 // In the future, we should constrain them to be the same numeric type
                 Ok(Type::Range)
             }
+
+            AstNode::Block { body } => {
+                eprintln!("[DEBUG] Block inference, body len: {}", body.len());
+                // Type check block body and return type of last expression
+                let len = body.len();
+                if len == 0 {
+                    // Empty block has unit type
+                    Ok(Type::Tuple(vec![]))
+                } else {
+                    // Check all statements except the last
+                    for stmt in &body[..len-1] {
+                        self.infer(stmt)?;
+                    }
+                    // The last element determines the block's type
+                    let last_node = &body[len-1];
+                    eprintln!("[DEBUG] last_node: {:?}", last_node);
+                    match last_node {
+                        AstNode::ExprStmt { expr } => {
+                            // Expression statement: the block's value is the expression's type
+                            let ty = self.infer(expr);
+                            eprintln!("[DEBUG] ExprStmt expr type: {:?}", ty);
+                            ty
+                        }
+                        _ => {
+                            // Any other statement: block's type is the statement's type
+                            let ty = self.infer(last_node);
+                            eprintln!("[DEBUG] other node type: {:?}", ty);
+                            ty
+                        }
+                    }
+                }
+            },
 
             _ => {
                 // Default to error for unimplemented nodes
