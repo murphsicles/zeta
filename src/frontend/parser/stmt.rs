@@ -1,7 +1,7 @@
 // src/frontend/parser/stmt.rs
 //! Module for parsing statements in the Zeta language.
 
-use super::expr::parse_full_expr;
+use super::expr::{parse_condition, parse_full_expr};
 use super::parser::{parse_type, skip_ws_and_comments, ws};
 use super::pattern::parse_pattern;
 use super::top_level::parse_type_alias;
@@ -98,7 +98,8 @@ fn parse_loop(input: &str) -> IResult<&str, AstNode> {
 
 fn parse_while(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("while")).parse(input)?;
-    let (input, cond) = ws(parse_full_expr).parse(input)?;
+    let (input, cond) = ws(parse_condition).parse(input)?;
+    eprintln!("[DEBUG parse_while] after condition, remaining: {:?}", input);
     let (input, body) = delimited(ws(tag("{")), parse_block_body, ws(tag("}"))).parse(input)?;
     Ok((
         input,

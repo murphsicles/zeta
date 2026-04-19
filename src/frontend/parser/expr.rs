@@ -251,7 +251,7 @@ fn parse_path_expr(input: &str) -> IResult<&str, AstNode> {
         Ok((input, AstNode::MacroCall { name: method, args }))
     } else {
         let (input, type_args_opt) =
-            opt(ws(preceded(opt(tag("::")), parse_type_args))).parse(input)?;
+            opt(ws(preceded(tag("::"), parse_type_args))).parse(input)?;
         let type_args: Vec<String> = type_args_opt.unwrap_or_default();
 
         // Check if there's another :: for a method call
@@ -433,7 +433,7 @@ fn parse_comptime_block(input: &str) -> IResult<&str, AstNode> {
     }
 }
 
-fn parse_condition(input: &str) -> IResult<&str, AstNode> {
+pub fn parse_condition(input: &str) -> IResult<&str, AstNode> {
     // Parse condition for if/while - stops at '{' or other block delimiters
     parse_expr_no_if(input)
 }
