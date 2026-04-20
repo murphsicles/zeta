@@ -7,6 +7,7 @@
 use super::resolver::{Resolver, Type};
 use super::unified_typecheck::{TypeCheckResult, UnifiedTypeCheck};
 use crate::frontend::ast::AstNode;
+use crate::middle::ctfe::value::ConstValue;
 use crate::middle::passes::identity_verification::verify_identities;
 use crate::middle::types::identity::{CapabilityLevel, IdentityType};
 
