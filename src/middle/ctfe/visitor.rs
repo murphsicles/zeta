@@ -1,6 +1,6 @@
 //! AST Visitor pattern for CTFE transformations
 
-use super::error::{CtfeError, CtfeResult};
+use super::error::CtfeResult;
 use crate::frontend::ast::AstNode;
 
 /// Visitor trait for AST traversal

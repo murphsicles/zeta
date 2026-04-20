@@ -20,7 +20,7 @@ pub fn legacy_evaluate_constants(asts: &[crate::frontend::ast::AstNode]) -> Resu
     let result: CtfeResult<Vec<crate::frontend::ast::AstNode>> = evaluate_constants(asts);
     match result {
         Ok(result) => Ok(result),
-        Err(e: CtfeError) => Err(e.to_string()),
+        Err(e) => Err(e.to_string()),
     }
 }
 
@@ -39,7 +39,7 @@ impl LegacyCompatConstEvaluator {
     pub fn eval_const_expr(&mut self, expr: &crate::frontend::ast::AstNode) -> Result<ConstValue, String> {
         match self.inner.eval_const_expr(expr) {
             Ok(value) => Ok(value),
-            Err(e: CtfeError) => Err(e.to_string()),
+            Err(e) => Err(e.to_string()),
         }
     }
     

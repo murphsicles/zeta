@@ -1,7 +1,5 @@
 //! Bit manipulation functions
 
-use crate::runtime::std;
-
 /// Initialize bit module
 pub fn init() {
     // No initialization needed

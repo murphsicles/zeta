@@ -1,7 +1,5 @@
 //! SIMD (Single Instruction, Multiple Data) functions
 
-use crate::runtime::std;
-
 /// Initialize SIMD module
 pub fn init() {
     // No initialization needed
