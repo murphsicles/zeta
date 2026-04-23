@@ -16,6 +16,7 @@ pub use value::ConstValue;
 
 /// Evaluate constants in a program, replacing them with their computed values
 pub fn evaluate_constants(asts: &[crate::frontend::ast::AstNode]) -> CtfeResult<Vec<crate::frontend::ast::AstNode>> {
+    eprintln!("[CTFE] evaluate_constants called with {} AST nodes", asts.len());
     let mut evaluator = ConstEvaluator::new();
     evaluator.evaluate_program(asts)
 }

@@ -28,6 +28,7 @@ use zetac::middle::specialization::{
 use zetac::runtime::actor::scheduler;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("[MAIN] Starting zetac");
     scheduler::init_runtime();
 
     let args: Vec<String> = std::env::args().collect();
@@ -52,11 +53,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         i += 1;
     }
-
+    eprintln!("[MAIN] Input: {:?}", input);
     if let Some(file) = input {
         let code = fs::read_to_string(&file)?;
         // Strip UTF-8 BOM if present
         let code = code.trim_start_matches('\u{FEFF}');
+        println!("[MAIN] Parsing file: {}, size: {}", file, code.len());
         let result = parse_zeta(code);
         match result {
             Ok((remaining, asts)) => {
@@ -64,6 +66,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("Incomplete parse. Remaining: {}", remaining);
                 }
                 let mut resolver = Resolver::new();
+                eprintln!("[MAIN] Resolver created");
                 for ast in &asts {
                     resolver.register(ast.clone());
                 }
@@ -73,10 +76,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     return Err("Typecheck failed".into());
                 }
 
+                println!("[MAIN] Typecheck passed, getting registered funcs");
                 let func_asts = resolver.get_registered_funcs();
+                println!("[MAIN] Got {} registered funcs", func_asts.len());
+                for ast in &func_asts {
+                    if let AstNode::FuncDef { name, .. } = ast {
+                        println!("[MAIN] Function: {}", name);
+                    }
+                }
+                println!("[MAIN] Generating MIR for {} funcs", func_asts.len());
                 let mir_map: HashMap<String, Mir> = func_asts
                     .iter()
                     .filter_map(|ast| {
+                        eprintln!("[MAIN] Processing func_ast: {:?}", ast);
                         if let AstNode::FuncDef { name, .. } = ast {
                             Some((name.clone(), resolver.lower_to_mir(ast)))
                         } else {
@@ -121,6 +133,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 type_args: spec.clone(),
                             };
                             let mono_ast = resolver.monomorphize(key.clone(), base_ast);
+                            eprintln!("[MAIN] Monomorphizing {} with spec {:?}", fn_name, spec);
                             let mono_mir = resolver.lower_to_mir(&mono_ast);
                             resolver.record_mono(key, mono_mir);
                         }

@@ -1121,6 +1121,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     /// Check if a function name is an operator that should be handled inline
     fn is_operator(&self, name: &str) -> bool {
+        eprintln!("[CODEGEN DEBUG] is_operator called with name='{}'", name);
         matches!(
             name,
             "+" | "-"
@@ -1606,6 +1607,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
     }
 
     fn gen_stmt(&mut self, stmt: &MirStmt, exprs: &HashMap<u32, MirExpr>) {
+        eprintln!("[CODEGEN DEBUG] gen_stmt: {:?}", stmt);
         match stmt {
             MirStmt::Assign { lhs, rhs } => {
                 let val = self.gen_expr_safe(rhs, exprs);
@@ -1618,6 +1620,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 dest,
                 type_args,
             } => {
+                eprintln!("[CODEGEN DEBUG] MirStmt::Call: func={}, args={}", func, args.len());
                 // Handle call_i64 - actual function call dispatch
                 if func == "call_i64" && args.len() >= 2 {
                     // call_i64(func_ptr: i64, arg: i64) -> i64
@@ -1625,6 +1628,18 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let arg_val = self.gen_expr_safe(&args[1], exprs);
                     let dest_alloca = *self.locals.get(dest).unwrap();
                     self.builder.build_store(dest_alloca, arg_val).unwrap();
+                    return;
+                }
+
+                // Handle unary minus before operator check
+                println!("[CODEGEN DEBUG] Checking unary minus: func={}, args={}", func, args.len());
+                if args.len() == 1 && (func == "-" || func == "unary_minus") {
+                    println!("[CODEGEN DEBUG] Special unary minus handler for func={}", func);
+                    let operand = self.gen_expr_safe(&args[0], exprs);
+                    let zero = self.i64_type.const_zero();
+                    let result = self.builder.build_int_sub(zero, operand.into_int_value(), "neg").unwrap();
+                    let alloca = *self.locals.get(dest).unwrap();
+                    self.builder.build_store(alloca, result).unwrap();
                     return;
                 }
 
@@ -1663,9 +1678,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     return;
                 }
                 */
-                
+                eprintln!("[CODEGEN DEBUG] Reached operator block, func={}, args={}", func, args.len());
                 // Handle operator functions inline
                 if self.is_operator(func) {
+                    eprintln!("[CODEGEN DEBUG] Operator call: func={}, args={}", func, args.len());
                     // Handle unary operators
                     if args.len() == 1 && func == "!" {
                         let operand = self.gen_expr_safe(&args[0], exprs);
@@ -1682,6 +1698,22 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         let result = self
                             .builder
                             .build_int_z_extend(is_false, self.i64_type, "not_ext")
+                            .unwrap();
+
+                        let alloca = *self.locals.get(dest).unwrap();
+                        self.builder.build_store(alloca, result).unwrap();
+                        return;
+                    }
+                    
+                    // Handle unary minus
+                    eprintln!("[CODEGEN DEBUG] Unary minus detected");
+                    if args.len() == 1 && func == "-" {
+                        let operand = self.gen_expr_safe(&args[0], exprs);
+                        // Unary minus: 0 - operand
+                        let zero = self.i64_type.const_zero();
+                        let result = self
+                            .builder
+                            .build_int_sub(zero, operand.into_int_value(), "neg")
                             .unwrap();
 
                         let alloca = *self.locals.get(dest).unwrap();
@@ -1892,6 +1924,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
                             // Not an operator we handle inline
                             _ => {
+                                eprintln!("[CODEGEN DEBUG] Operator not handled inline: func={}, args={}", func, args.len());
                                 let callee = self.get_function_with_types(func, type_args);
                                 let arg_vals: Vec<BasicMetadataValueEnum> = args
                                     .iter()
@@ -1911,6 +1944,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         self.builder.build_store(alloca, result).unwrap();
                     } else {
                         // Operator with wrong number of arguments, fall through to regular function call
+                        println!("[CODEGEN DEBUG] Operator fallback: func={}, args={}", func, args.len());
                         let callee = self.get_function_with_types(func, type_args);
                         let arg_vals: Vec<BasicMetadataValueEnum> = args
                             .iter()
@@ -1943,6 +1977,16 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 } else {
                     // Regular function call
                     eprintln!("[CODEGEN DEBUG] Regular Call func={}, args={}", func, args.len());
+                    // Handle unary minus before looking up function
+                    if args.len() == 1 && (func == "-" || func == "unary_minus") {
+                        eprintln!("[CODEGEN DEBUG] Handling unary minus in regular call path");
+                        let operand = self.gen_expr_safe(&args[0], exprs);
+                        let zero = self.i64_type.const_zero();
+                        let result = self.builder.build_int_sub(zero, operand.into_int_value(), "neg").unwrap();
+                        let alloca = *self.locals.get(dest).unwrap();
+                        self.builder.build_store(alloca, result).unwrap();
+                        return;
+                    }
                     let callee = self.get_function_with_types(func, type_args);
 
                     // Check if this is a runtime function that takes pointer arguments

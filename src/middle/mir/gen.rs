@@ -40,6 +40,7 @@ impl MirGen {
     }
 
     pub fn lower_to_mir(&mut self, ast: &AstNode) -> Mir {
+        eprintln!("[MIR GEN] lower_to_mir called with ast: {:?}", ast);
         self.name_to_id.clear();
         self.stmts.clear();
         self.exprs.clear();
@@ -111,6 +112,7 @@ impl MirGen {
                 // Handle different pattern types
                 match &**pattern {
                     AstNode::Var(name) => {
+                        eprintln!("[MIR GEN LET] Let var {} expr: {:?}", name, expr);
                         let rhs_id = self.lower_expr(expr);
                         let lhs_id = self.next_id();
                         self.stmts.push(MirStmt::Assign {
@@ -541,11 +543,22 @@ impl MirGen {
                     body: body_stmts,
                 });
             }
+            AstNode::Unsafe { body } => {
+                for stmt in body {
+                    self.lower_ast(stmt);
+                }
+            }
+            AstNode::ComptimeBlock { body } => {
+                for stmt in body {
+                    self.lower_ast(stmt);
+                }
+            }
             _ => {}
         }
     }
 
     fn lower_expr(&mut self, expr: &AstNode) -> u32 {
+        eprintln!("[MIR GEN DEBUG] lower_expr: {:?}", expr);
         let id = self.next_id();
         match expr {
             AstNode::Var(name) => {
@@ -1541,26 +1554,42 @@ impl MirGen {
                 return array_ptr; // Return the array pointer ID, not a new ID
             }
             AstNode::UnaryOp { op, expr } => {
+                eprintln!("[MIR GEN DEBUG] UnaryOp: op={}, expr={:?}", op, expr);
+                eprintln!("[MIR GEN DEBUG] UNARYOP REACHED - processing");
                 // Handle unary operators like ! (not)
                 let expr_id = self.lower_expr(expr);
                 let dest = self.next_id();
                 
                 if op == "!" {
                     // Logical NOT operator
-                    self.stmts.push(MirStmt::Call {
+                    let stmt = MirStmt::Call {
                         func: "!".to_string(),
                         args: vec![expr_id],
                         dest,
                         type_args: vec![],
-                    });
+                    };
+                    eprintln!("[MIR GEN DEBUG] Created NOT stmt: {:?}", stmt);
+                    self.stmts.push(stmt);
+                } else if op == "-" {
+                    // Unary minus - use special function name to avoid conflict with binary minus
+                    let stmt = MirStmt::Call {
+                        func: "unary_minus".to_string(),
+                        args: vec![expr_id],
+                        dest,
+                        type_args: vec![],
+                    };
+                    eprintln!("[MIR GEN DEBUG] Created unary minus stmt: {:?}", stmt);
+                    self.stmts.push(stmt);
                 } else {
-                    // Other unary operators (unary minus, etc.)
-                    self.stmts.push(MirStmt::Call {
+                    // Other unary operators (unary plus?, etc.)
+                    let stmt = MirStmt::Call {
                         func: op.clone(),
                         args: vec![expr_id],
                         dest,
                         type_args: vec![],
-                    });
+                    };
+                    eprintln!("[MIR GEN DEBUG] Created unary stmt: {:?}", stmt);
+                    self.stmts.push(stmt);
                 }
                 
                 self.exprs.insert(dest, MirExpr::Var(dest));

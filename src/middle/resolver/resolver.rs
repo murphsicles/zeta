@@ -446,6 +446,7 @@ impl Resolver {
     }
 
     pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
+        println!("[RESOLVER] lower_to_mir called with ast: {:?}", ast);
         let mut mir_gen = crate::middle::mir::r#gen::MirGen::new()
             .with_global_consts(self.ctfe_consts.clone());
         mir_gen.lower_to_mir(ast)

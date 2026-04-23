@@ -27,6 +27,7 @@ impl ConstEvaluator {
 
     /// Evaluate a program (list of AST nodes)
     pub fn evaluate_program(&mut self, asts: &[AstNode]) -> CtfeResult<Vec<AstNode>> {
+        eprintln!("[CTFE] evaluate_program called with {} ASTs", asts.len());
         // First pass: register all const/comptime functions
         for ast in asts {
             if let AstNode::FuncDef {
@@ -251,24 +252,46 @@ impl ConstEvaluator {
             
             // Unary operation
             AstNode::UnaryOp { op, expr } => {
+                eprintln!("[CTFE DEBUG] Processing UnaryOp {{ op: {:?}, expr: {:?} }}", op, expr);
                 let transformed_expr = self.transform_expr(expr)?;
+                eprintln!("[CTFE DEBUG] transformed_expr: {:?}", transformed_expr);
                 
                 // Try to evaluate if operand is a literal
                 match &transformed_expr {
                     AstNode::Lit(_) | AstNode::Bool(_) => {
+                        eprintln!("[CTFE DEBUG] Attempting eval_unary_op for {:?}", op);
                         match self.eval_unary_op(op, &transformed_expr) {
-                            Ok(ConstValue::Int(result)) => AstNode::Lit(result),
-                            Ok(ConstValue::Bool(result)) => AstNode::Bool(result),
-                            _ => AstNode::UnaryOp {
-                                op: op.clone(),
-                                expr: Box::new(transformed_expr),
-                            },
+                            Ok(ConstValue::Int(result)) => {
+                                eprintln!("[CTFE DEBUG] eval_unary_op succeeded, result: {:?}", result);
+                                AstNode::Lit(result)
+                            }
+                            Ok(ConstValue::Bool(result)) => {
+                                eprintln!("[CTFE DEBUG] eval_unary_op succeeded, result: {:?}", result);
+                                AstNode::Bool(result)
+                            }
+                            Ok(_) => {
+                                eprintln!("[CTFE DEBUG] eval_unary_op returned unsupported type, keeping UnaryOp");
+                                AstNode::UnaryOp {
+                                    op: op.clone(),
+                                    expr: Box::new(transformed_expr),
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("[CTFE DEBUG] eval_unary_op failed: {:?}", e);
+                                AstNode::UnaryOp {
+                                    op: op.clone(),
+                                    expr: Box::new(transformed_expr),
+                                }
+                            }
                         }
                     }
-                    _ => AstNode::UnaryOp {
-                        op: op.clone(),
-                        expr: Box::new(transformed_expr),
-                    },
+                    _ => {
+                        eprintln!("[CTFE DEBUG] operand not literal, keeping UnaryOp");
+                        AstNode::UnaryOp {
+                            op: op.clone(),
+                            expr: Box::new(transformed_expr),
+                        }
+                    }
                 }
             }
             
@@ -611,14 +634,18 @@ impl ConstEvaluator {
 
     /// Evaluate a unary operation
     fn eval_unary_op(&mut self, op: &str, expr: &AstNode) -> CtfeResult<ConstValue> {
+        eprintln!("[CTFE DEBUG] eval_unary_op called with op={:?}, expr={:?}", op, expr);
         let val = self.eval_const_expr(expr)?;
+        eprintln!("[CTFE DEBUG] val = {:?}", val);
         
-        val.unary_op(op)
+        let result = val.unary_op(op)
             .map_err(|e| CtfeError::InvalidOperation {
                 op: op.to_string(),
                 left_type: val.type_name().to_string(),
                 right_type: None,
-            })
+            });
+        eprintln!("[CTFE DEBUG] unary_op result = {:?}", result);
+        result
     }
 
     /// Evaluate a variable reference

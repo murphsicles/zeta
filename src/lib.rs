@@ -78,8 +78,10 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
         .map_err(|e| format!("Macro expansion error: {}", e))?;
 
     // Evaluate constants at compile time
+    eprintln!("[LIB] Calling evaluate_constants with {} ASTs", expanded_asts.len());
     let const_evaluated_asts = crate::middle::const_eval::evaluate_constants(&expanded_asts)
         .map_err(|e: CtfeError| format!("Const evaluation error: {}", e))?;
+    eprintln!("[LIB] evaluate_constants returned {} ASTs", const_evaluated_asts.len());
 
     for ast in &const_evaluated_asts {
         resolver.register(ast.clone());
