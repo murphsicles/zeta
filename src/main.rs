@@ -161,7 +161,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     finalize_and_aot(&codegen, Path::new(&obj_path))?;
 
                     // Platform-specific linking
-                    let mut cmd = std::process::Command::new("clang");
+                    let mut cmd = std::process::Command::new("gcc");
                     cmd.arg(&obj_path)
                         .arg("-o")
                         .arg(&out);
