@@ -278,6 +278,13 @@ pub fn common_subexpression_elimination(mir: &mut Mir) {
                     .join(",");
                 format!("StackArray(size={}, elements=[{}])", size, elements_str)
             }
+            MirExpr::SemiringFold { op, values } => {
+                let values_str = values.iter()
+                    .map(|v| v.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",");
+                format!("SemiringFold({:?}, [{}])", op, values_str)
+            }
         };
         
         // Check if we've seen this expression before

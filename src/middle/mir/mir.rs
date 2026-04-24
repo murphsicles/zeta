@@ -140,6 +140,13 @@ pub enum MirExpr {
         elements: Vec<u32>,
         size: usize,
     },
+    // Semiring fold (arithmetic) — evaluated inline so while-loop
+    // conditions can compute them directly instead of loading from
+    // a slot written by a side-effect statement inside the body.
+    SemiringFold {
+        op: SemiringOp,
+        values: Vec<u32>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

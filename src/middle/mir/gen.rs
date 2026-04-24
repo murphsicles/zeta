@@ -524,23 +524,26 @@ impl MirGen {
                 }
             }
             AstNode::While { cond, body } => {
+                // Must capture stmts BEFORE lowering the condition,
+                // because lower_expr(cond) can emit SemiringFold side-effects
+                // (e.g. multiplication in `p * p < n`). Those need to be
+                // re-evaluated each iteration, so they must go in the body.
+                let stmts_before_cond = self.stmts.len();
                 let cond_id = self.lower_expr(cond);
-                
-                // Save current statements to restore after loop body
-                let stmts_before_body = self.stmts.len();
                 
                 // Generate loop body
                 for stmt in body {
                     self.lower_ast(stmt);
                 }
                 
-                // Get body statements
-                let body_stmts = self.stmts.split_off(stmts_before_body);
+                // Grab all statements emitted for this while (cond + body)
+                let while_stmts = self.stmts.split_off(stmts_before_cond);
                 
-                // Create While statement in MIR
+                // Create While statement in MIR — all cond side-effects
+                // are inside the body so they re-execute each iteration
                 self.stmts.push(MirStmt::While {
                     cond: cond_id,
-                    body: body_stmts,
+                    body: while_stmts,
                 });
             }
             AstNode::Unsafe { body } => {
@@ -659,7 +662,10 @@ impl MirGen {
                         values: vec![left_id, right_id],
                         result: dest,
                     });
-                    self.exprs.insert(dest, MirExpr::Var(dest));
+                    self.exprs.insert(dest, MirExpr::SemiringFold {
+                        op: SemiringOp::Add,
+                        values: vec![left_id, right_id],
+                    });
                     self.type_map.insert(dest, Type::I64);
                 } else if op == "*" {
                     self.stmts.push(MirStmt::SemiringFold {
@@ -667,7 +673,10 @@ impl MirGen {
                         values: vec![left_id, right_id],
                         result: dest,
                     });
-                    self.exprs.insert(dest, MirExpr::Var(dest));
+                    self.exprs.insert(dest, MirExpr::SemiringFold {
+                        op: SemiringOp::Mul,
+                        values: vec![left_id, right_id],
+                    });
                     self.type_map.insert(dest, Type::I64);
                 } else {
                     // For comparison operators used in loop conditions, create BinaryOp expression

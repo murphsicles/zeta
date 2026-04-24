@@ -315,7 +315,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         // Array functions
         module.add_function(
             "array_new",
-            i64_type.fn_type(&[i64_type.into()], false),
+            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
             Some(Linkage::External),
         );
         module.add_function(
@@ -1114,6 +1114,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
             MirExpr::TimingOwned(inner_id) => {
                 ids.insert(*inner_id);
+            }
+            MirExpr::SemiringFold { values, .. } => {
+                for &v in values {
+                    if let Some(e) = exprs.get(&v) {
+                        self.collect_ids_from_expr_safe(e, ids, exprs);
+                    }
+                }
             }
             _ => {}
         }
@@ -2471,6 +2478,29 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 res
             }
             MirExpr::ConstEval(n) => self.i64_type.const_int(*n as u64, true).into(),
+            MirExpr::SemiringFold { op, values } => {
+                // Evaluate inline — doesn't depend on a body-side statement
+                // having already stored to an alloca. This is essential for
+                // while-loop conditions where the SemiringFold statement is
+                // in the loop body but the condition check happens before it.
+                let left = self.gen_expr(&exprs[&values[0]], exprs, None).into_int_value();
+                if values.len() == 1 {
+                    // Unary (e.g. unary minus)
+                    match op {
+                        crate::middle::mir::mir::SemiringOp::Mul | crate::middle::mir::mir::SemiringOp::Add => {
+                            // Identity: return value unchanged
+                            left.into()
+                        }
+                    }
+                } else {
+                    let right = self.gen_expr(&exprs[&values[1]], exprs, None).into_int_value();
+                    let result = match op {
+                        crate::middle::mir::mir::SemiringOp::Add => self.builder.build_int_add(left, right, "sef_add"),
+                        crate::middle::mir::mir::SemiringOp::Mul => self.builder.build_int_mul(left, right, "sef_mul"),
+                    };
+                    result.unwrap().into()
+                }
+            }
             MirExpr::TimingOwned(inner_id) => {
                 let ptr = *self.locals.get(inner_id).unwrap();
                 self.builder
