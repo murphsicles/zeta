@@ -905,8 +905,14 @@ impl InferContext {
                             eprintln!("[DEBUG] ExprStmt expr type: {:?}", expr_ty);
                             expr_ty
                         }
+                        AstNode::Return(expr) => {
+                            // Return statement: use the inner expression's type
+                            let expr_ty = self.infer(expr)?;
+                            eprintln!("[DEBUG] Return expr type: {:?}", expr_ty);
+                            expr_ty
+                        }
                         _ => {
-                            eprintln!("[DEBUG] Not ExprStmt, using last_stmt_type");
+                            eprintln!("[DEBUG] Not ExprStmt/Return, using last_stmt_type");
                             last_stmt_type
                         },
                     };

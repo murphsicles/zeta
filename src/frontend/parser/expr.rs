@@ -96,6 +96,41 @@ pub fn parse_lit(input: &str) -> IResult<&str, AstNode> {
 
     // Parse integer with optional underscores
     let bytes = input.as_bytes();
+
+    // Check for hex literal (0x/0X), octal (0o/0O), or binary (0b/0B)
+    if bytes.len() >= 2 && bytes[0] == b'0' {
+        let prefix = bytes[1];
+        if prefix == b'x' || prefix == b'X' || prefix == b'o' || prefix == b'O' || prefix == b'b' || prefix == b'B' {
+            let (radix, valid_chars): (u32, fn(u8) -> bool) = match prefix {
+                b'x' | b'X' => (16, |c: u8| c.is_ascii_hexdigit() || c == b'_'),
+                b'o' | b'O' => (8, |c: u8| (c >= b'0' && c <= b'7') || c == b'_'),
+                b'b' | b'B' => (2, |c: u8| c == b'0' || c == b'1' || c == b'_'),
+                _ => unreachable!(),
+            };
+            let mut pos = 2;
+            let mut has_digit = false;
+            while pos < bytes.len() && valid_chars(bytes[pos]) {
+                if bytes[pos] != b'_' {
+                    has_digit = true;
+                }
+                pos += 1;
+            }
+            if !has_digit {
+                return Err(nom::Err::Error(NomError::new(
+                    input,
+                    nom::error::ErrorKind::Digit,
+                )));
+            }
+            let num_str = &input[..pos];
+            let remaining = &input[pos..];
+            // Remove underscores and parse with appropriate radix
+            let clean: String = num_str[2..].chars().filter(|c| *c != '_').collect();
+            let value = i64::from_str_radix(&clean, radix).unwrap_or(0);
+            return Ok((remaining, AstNode::Lit(value)));
+        }
+    }
+
+    // Regular decimal integer
     let mut pos = 0;
     let mut has_digit = false;
     
