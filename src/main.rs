@@ -65,6 +65,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if !remaining.is_empty() {
                     println!("Incomplete parse. Remaining: {}", remaining);
                 }
+
+                // Run CTFE evaluation on parsed ASTs
+                println!("[MAIN] Running CTFE evaluation on {} AST nodes", asts.len());
+                let asts = match zetac::middle::const_eval::evaluate_constants(&asts) {
+                    Ok(ctfe_asts) => {
+                        println!("[MAIN] CTFE evaluation complete, {} nodes remaining", ctfe_asts.len());
+                        // After CTFE, filter out comptime-only function definitions
+                        // (they've been evaluated and are no longer needed for codegen)
+                        let runtime_asts: Vec<_> = ctfe_asts.into_iter().filter(|ast| {
+                            let is_comptime = matches!(ast, AstNode::FuncDef { comptime_: true, .. } | AstNode::FuncDef { const_: true, .. });
+                            if is_comptime {
+                                println!("[MAIN] Filtering out comptime function after CTFE");
+                            }
+                            !is_comptime
+                        }).collect();
+                        println!("[MAIN] After filtering, {} runtime nodes remain", runtime_asts.len());
+                        runtime_asts
+                    }
+                    Err(e) => {
+                        eprintln!("[MAIN] CTFE evaluation failed (non-fatal): {}", e);
+                        asts
+                    }
+                };
+
                 let mut resolver = Resolver::new();
                 eprintln!("[MAIN] Resolver created");
                 for ast in &asts {

@@ -15,6 +15,8 @@ use super::visitor::{AstVisitor, AstTransformer};
 pub struct ConstEvaluator {
     /// Evaluation context
     context: ConstContext,
+    /// Set when a Return statement is evaluated — used for early exit from function bodies
+    returned_value: Option<ConstValue>,
 }
 
 impl ConstEvaluator {
@@ -22,6 +24,7 @@ impl ConstEvaluator {
     pub fn new() -> Self {
         Self {
             context: ConstContext::new(),
+            returned_value: None,
         }
     }
 
@@ -39,6 +42,7 @@ impl ConstEvaluator {
                 if *const_ || *comptime_ {
                     self.context.register_function(name.clone(), ast.clone());
                 }
+            } else {
             }
         }
 
@@ -252,32 +256,25 @@ impl ConstEvaluator {
             
             // Unary operation
             AstNode::UnaryOp { op, expr } => {
-                eprintln!("[CTFE DEBUG] Processing UnaryOp {{ op: {:?}, expr: {:?} }}", op, expr);
                 let transformed_expr = self.transform_expr(expr)?;
-                eprintln!("[CTFE DEBUG] transformed_expr: {:?}", transformed_expr);
                 
                 // Try to evaluate if operand is a literal
                 match &transformed_expr {
                     AstNode::Lit(_) | AstNode::Bool(_) => {
-                        eprintln!("[CTFE DEBUG] Attempting eval_unary_op for {:?}", op);
                         match self.eval_unary_op(op, &transformed_expr) {
                             Ok(ConstValue::Int(result)) => {
-                                eprintln!("[CTFE DEBUG] eval_unary_op succeeded, result: {:?}", result);
                                 AstNode::Lit(result)
                             }
                             Ok(ConstValue::Bool(result)) => {
-                                eprintln!("[CTFE DEBUG] eval_unary_op succeeded, result: {:?}", result);
                                 AstNode::Bool(result)
                             }
                             Ok(_) => {
-                                eprintln!("[CTFE DEBUG] eval_unary_op returned unsupported type, keeping UnaryOp");
                                 AstNode::UnaryOp {
                                     op: op.clone(),
                                     expr: Box::new(transformed_expr),
                                 }
                             }
                             Err(e) => {
-                                eprintln!("[CTFE DEBUG] eval_unary_op failed: {:?}", e);
                                 AstNode::UnaryOp {
                                     op: op.clone(),
                                     expr: Box::new(transformed_expr),
@@ -286,7 +283,6 @@ impl ConstEvaluator {
                         }
                     }
                     _ => {
-                        eprintln!("[CTFE DEBUG] operand not literal, keeping UnaryOp");
                         AstNode::UnaryOp {
                             op: op.clone(),
                             expr: Box::new(transformed_expr),
@@ -313,23 +309,25 @@ impl ConstEvaluator {
                 // Check if this is a comptime function call with no receiver
                 if receiver.is_none() {
                     // Try to evaluate as a const function call
-                    match self.context.get_function(method) {
+                    let func_opt = self.context.get_function(method);
+                    match func_opt {
                         Some(func) => {
                             // Check if it's a const/comptime function
                             match func {
                                 AstNode::FuncDef { const_, comptime_, .. } => {
                                     if *const_ || *comptime_ {
                                         // Try to evaluate the call
-                                        match self.eval_function_call(None, method, &transformed_args) {
+                                        let eval_result = self.eval_function_call(None, method, &transformed_args);
+                                        match eval_result {
                                             Ok(ConstValue::Int(result)) => {
                                                 return Ok(AstNode::Lit(result));
                                             }
                                             Ok(ConstValue::Bool(result)) => {
                                                 return Ok(AstNode::Bool(result));
                                             }
-                                            _ => {
-                                                // Evaluation failed or returned non-literal
-                                                // Keep the transformed call
+                                            Ok(val) => {
+                                            }
+                                            Err(e) => {
                                             }
                                         }
                                     }
@@ -612,6 +610,13 @@ impl ConstEvaluator {
                 self.eval_for_loop(pattern, expr, body)
             }
             
+            // Return expressions — evaluate the inner value and signal early exit
+            AstNode::Return(expr) => {
+                let val = self.eval_const_expr(expr)?;
+                self.returned_value = Some(val.clone());
+                Ok(val)
+            }
+            
             // Unsupported expressions
             _ => Err(CtfeError::UnsupportedExpression(
                 format!("{:?}", expr)
@@ -634,9 +639,7 @@ impl ConstEvaluator {
 
     /// Evaluate a unary operation
     fn eval_unary_op(&mut self, op: &str, expr: &AstNode) -> CtfeResult<ConstValue> {
-        eprintln!("[CTFE DEBUG] eval_unary_op called with op={:?}, expr={:?}", op, expr);
         let val = self.eval_const_expr(expr)?;
-        eprintln!("[CTFE DEBUG] val = {:?}", val);
         
         let result = val.unary_op(op)
             .map_err(|e| CtfeError::InvalidOperation {
@@ -644,7 +647,6 @@ impl ConstEvaluator {
                 left_type: val.type_name().to_string(),
                 right_type: None,
             });
-        eprintln!("[CTFE DEBUG] unary_op result = {:?}", result);
         result
     }
 
@@ -754,7 +756,6 @@ impl ConstEvaluator {
 
     /// Evaluate user-defined function call
     fn eval_user_function_call(&mut self, name: &str, args: &[AstNode]) -> CtfeResult<ConstValue> {
-        eprintln!("[CTFE DEBUG] eval_user_function_call called for {}", name);
         
         // Get function definition
         let func = self.context.get_function(name)
@@ -797,21 +798,38 @@ impl ConstEvaluator {
                     self.context.define_variable(param_name.clone(), arg_value)?;
                 }
                 
+                // Reset returned_value before entering function body
+                self.returned_value = None;
+                
                 // Evaluate function body
                 let result = if let Some(expr) = ret_expr {
                     // Evaluate body statements first
                     for stmt in body.iter() {
                         self.eval_const_expr(stmt)?;
+                        if self.returned_value.is_some() {
+                            break;
+                        }
                     }
-                    // Then evaluate return expression
-                    self.eval_const_expr(&expr)
+                    // Then evaluate return expression (if we didn't already return)
+                    if self.returned_value.is_some() {
+                        Ok(self.returned_value.take().unwrap())
+                    } else {
+                        self.eval_const_expr(&expr)
+                    }
                 } else if !body.is_empty() {
-                    // Evaluate statements, last expression is result
+                    // Evaluate statements, respecting Return as early exit
                     let mut last_value = ConstValue::Unit;
                     for stmt in body.iter() {
                         last_value = self.eval_const_expr(stmt)?;
+                        if self.returned_value.is_some() {
+                            break;
+                        }
                     }
-                    Ok(last_value)
+                    if let Some(ret_val) = self.returned_value.take() {
+                        Ok(ret_val)
+                    } else {
+                        Ok(last_value)
+                    }
                 } else {
                     Ok(ConstValue::Unit)
                 };
@@ -846,11 +864,15 @@ impl ConstEvaluator {
         else_branch: Option<&AstNode>,
     ) -> CtfeResult<ConstValue> {
         let cond_val = self.eval_const_expr(cond)?;
-        let cond_bool = cond_val.as_bool()
-            .ok_or_else(|| CtfeError::TypeMismatch {
-                expected: "bool".to_string(),
+        // Accept either Bool or Int (non-zero = true)
+        let cond_bool = match cond_val {
+            ConstValue::Bool(b) => b,
+            ConstValue::Int(i) => i != 0,
+            _ => return Err(CtfeError::TypeMismatch {
+                expected: "bool or int".to_string(),
                 found: cond_val.type_name().to_string(),
-            })?;
+            }),
+        };
         
         if cond_bool {
             let _ = self.context.enter_scope(false);
@@ -874,6 +896,9 @@ impl ConstEvaluator {
         
         for stmt in body {
             last_value = self.eval_const_expr(stmt)?;
+            if self.returned_value.is_some() {
+                break;
+            }
         }
         
         self.context.exit_scope()?;
@@ -890,7 +915,13 @@ impl ConstEvaluator {
         let value = self.eval_const_expr(expr)?;
         
         // For now, only support simple variable patterns
-        match pattern {
+        // Unwrap TypeAnnotatedPattern to get the inner pattern
+        let inner_pattern = match pattern {
+            AstNode::TypeAnnotatedPattern { pattern: inner, .. } => inner,
+            other => other,
+        };
+        
+        match inner_pattern {
             AstNode::Var(name) => {
 
                 self.context.define_variable(name.clone(), value.clone())?;
@@ -926,7 +957,7 @@ impl ConstEvaluator {
     /// Evaluate a while loop at compile time
     fn eval_while_loop(&mut self, cond: &AstNode, body: &[AstNode]) -> CtfeResult<ConstValue> {
         let mut loop_count = 0;
-        const MAX_LOOP_ITERATIONS: usize = 10000;
+        const MAX_LOOP_ITERATIONS: usize = 10000000;
         
 
         loop {
@@ -934,13 +965,16 @@ impl ConstEvaluator {
                 return Err(CtfeError::LoopTooManyIterations);
             }
             
-            // Evaluate condition
+            // Evaluate condition — accept either Bool or Int (non-zero = true)
             let cond_val = self.eval_const_expr(cond)?;
-            let cond_bool = cond_val.as_bool()
-                .ok_or_else(|| CtfeError::TypeMismatch {
-                    expected: "bool".to_string(),
+            let cond_bool = match cond_val {
+                ConstValue::Bool(b) => b,
+                ConstValue::Int(i) => i != 0,
+                _ => return Err(CtfeError::TypeMismatch {
+                    expected: "bool or int".to_string(),
                     found: cond_val.type_name().to_string(),
-                })?;
+                }),
+            };
             
 
             

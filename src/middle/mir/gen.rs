@@ -556,6 +556,11 @@ impl MirGen {
                     self.lower_ast(stmt);
                 }
             }
+            // Expression-as-statement nodes: lower the expression, discard the result value
+            // (side effects through self.stmts are what matter)
+            AstNode::Call { .. } | AstNode::PathCall { .. } => {
+                self.lower_expr(ast);
+            }
             _ => {}
         }
     }
