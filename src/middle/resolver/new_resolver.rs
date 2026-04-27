@@ -2078,6 +2078,5 @@ mod tests {
         // The result should be a Point type
         // Note: We can't easily check the exact type since we don't have
         // a Type::Named constructor in the test, but we can verify it doesn't fail
-        println!("Static method type checking succeeded!");
     }
 }

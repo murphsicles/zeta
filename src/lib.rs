@@ -78,10 +78,8 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
         .map_err(|e| format!("Macro expansion error: {}", e))?;
 
     // Evaluate constants at compile time
-    eprintln!("[LIB] Calling evaluate_constants with {} ASTs", expanded_asts.len());
     let const_evaluated_asts = crate::middle::const_eval::evaluate_constants(&expanded_asts)
         .map_err(|e: CtfeError| format!("Const evaluation error: {}", e))?;
-    eprintln!("[LIB] evaluate_constants returned {} ASTs", const_evaluated_asts.len());
 
     for ast in &const_evaluated_asts {
         resolver.register(ast.clone());
@@ -98,18 +96,11 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
 
     // Get all registered function ASTs (including module functions)
     let registered_funcs = resolver.get_registered_funcs();
-    println!(
-        "[LIB DEBUG] Got {} registered functions",
-        registered_funcs.len()
-    );
 
     for ast in registered_funcs {
         if let AstNode::FuncDef { name, .. } = &ast {
-            println!("[LIB] Generating MIR for registered function: {}", name);
             let mir = resolver.lower_to_mir(&ast);
             mirs.push(mir);
-        } else {
-            println!("[LIB DEBUG] Registered AST is not a FuncDef: {:?}", ast);
         }
     }
 
