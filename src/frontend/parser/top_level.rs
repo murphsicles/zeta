@@ -98,21 +98,34 @@ fn parse_visibility(input: &str) -> IResult<&str, bool> {
     Ok((input, pub_opt.is_some()))
 }
 
-fn parse_func(input: &str) -> IResult<&str, AstNode> {
-    // eprintln!("[DEBUG parse_func] input: {:?}", input); // Disabled for performance
-    // Parse attributes first
-    let (input, attrs) = parse_attributes(input)?;
+pub(crate) fn parse_func(input: &str) -> IResult<&str, AstNode> {
+    // PARSE FUNC STEP DEBUG
 
-    // Parse visibility
-    let (input, pub_) = parse_visibility(input)?;
+    
+    let (input, attrs) = match parse_attributes(input) {
+        Ok(r) => r,
+        Err(e) => { return Err(e); }
+    };
+
+    let (input, pub_) = match parse_visibility(input) {
+        Ok(r) => r,
+        Err(e) => { return Err(e); }
+    };
 
     let (input, comptime_opt) = opt(ws(tag("comptime"))).parse(input)?;
     let (input, const_opt) = opt(ws(tag("const"))).parse(input)?;
     let (input, async_opt) = opt(ws(tag("async"))).parse(input)?;
     let (input, extern_opt) = opt(ws(tag("extern"))).parse(input)?;
-    let (input, _) = ws(tag("fn")).parse(input)?;
-    let (input, path) = ws(parse_path).parse(input)?;
+    let (input, _) = match ws(tag("fn")).parse(input) {
+        Ok(r) => r,
+        Err(e) => { return Err(e); }
+    };
+    let (input, path) = match ws(parse_path).parse(input) {
+        Ok(r) => r,
+        Err(e) => { return Err(e); }
+    };
     let name = path.join("::");
+
     let (input, generics_opt) = opt(ws(parse_generic_params_as_enum)).parse(input)?;
     let mut lifetimes = Vec::new();
     let mut generics = Vec::new();
@@ -130,7 +143,7 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
         }
     }
     
-    let (input, params) = delimited(
+    let (input, params) = match delimited(
         ws(tag("(")),
         terminated(
             separated_list0(ws(tag(",")), ws(parse_param)),
@@ -138,16 +151,28 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
         ),
         ws(tag(")")),
     )
-    .parse(input)?;
-    let (input, ret_opt) = opt(preceded(ws(tag("->")), ws(parse_type))).parse(input)?;
+    .parse(input) {
+        Ok(r) => r,
+        Err(e) => { return Err(e); }
+    };
+
+    let (input, ret_opt) = match opt(preceded(ws(tag("->")), ws(parse_type))).parse(input) {
+        Ok(r) => r,
+        Err(e) => { return Err(e); }
+    };
+
     // Parse where clause if present
     let (input, where_clauses_opt) = opt(ws(parse_where_clause)).parse(input)?;
     let where_clauses = where_clauses_opt.unwrap_or_default();
     let (input, (body, ret_expr, single_line)) = if extern_opt.is_some() {
-        let (input, _) = ws(tag(";")).parse(input)?;
+        let (input, _) = match ws(tag(";")).parse(input) {
+            Ok(r) => r,
+            Err(e) => { return Err(e); }
+        };
         (input, (vec![], None, false))
     } else {
-        alt((
+
+        let body_result = alt((
             map(
                 delimited(ws(tag("{")), parse_block_body, ws(tag("}"))),
                 |mut b| {
@@ -167,7 +192,11 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
                 (vec![], Some(Box::new(e)), true)
             }),
         ))
-        .parse(input)?
+        .parse(input);
+        match body_result {
+            Ok(r) => r,
+            Err(e) => { return Err(e); }
+        }
     };
     let input = if single_line {
         let (i, _) = ws(tag(";")).parse(input)?;
@@ -175,7 +204,7 @@ fn parse_func(input: &str) -> IResult<&str, AstNode> {
     } else {
         input
     };
-    let ret = ret_opt.unwrap_or_else(|| "i64".to_string());
+    let ret = ret_opt.unwrap_or_else(|| "()".to_string());
     let ast = if extern_opt.is_some() {
         AstNode::ExternFunc {
             name,
@@ -372,7 +401,7 @@ fn parse_method_sig(input: &str) -> IResult<&str, AstNode> {
         (input, None)
     };
     
-    let ret = ret_opt.unwrap_or_else(|| "i64".to_string());
+    let ret = ret_opt.unwrap_or_else(|| "()".to_string());
     Ok((
         input,
         AstNode::Method {
@@ -594,7 +623,7 @@ fn parse_struct(input: &str) -> IResult<&str, AstNode> {
     ))
 }
 
-fn parse_const(input: &str) -> IResult<&str, AstNode> {
+pub(crate) fn parse_const(input: &str) -> IResult<&str, AstNode> {
     // Parse attributes
     let (input, attrs) = parse_attributes(input)?;
 

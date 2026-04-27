@@ -4,7 +4,7 @@
 use super::expr::{parse_condition, parse_full_expr};
 use super::parser::{parse_type, skip_ws_and_comments, ws};
 use super::pattern::parse_pattern;
-use super::top_level::parse_type_alias;
+use super::top_level::{parse_type_alias, parse_const, parse_func};
 use crate::frontend::ast::AstNode;
 use nom::IResult;
 use nom::Parser;
@@ -35,6 +35,7 @@ pub fn parse_block_body(input: &str) -> IResult<&str, Vec<AstNode>> {
         }
 
         if let Ok((next_stmt, stmt)) = parse_stmt(next) {
+            let name = match &stmt { AstNode::FuncDef { name, .. } => Some(name.as_str()), AstNode::ConstDef { name, .. } => Some(name.as_str()), _ => None };
             body.push(stmt);
             current = next_stmt;
             continue;
@@ -99,7 +100,6 @@ fn parse_loop(input: &str) -> IResult<&str, AstNode> {
 fn parse_while(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("while")).parse(input)?;
     let (input, cond) = ws(parse_condition).parse(input)?;
-    eprintln!("[DEBUG parse_while] after condition, remaining: {:?}", input);
     let (input, body) = delimited(ws(tag("{")), parse_block_body, ws(tag("}"))).parse(input)?;
     Ok((
         input,
@@ -172,10 +172,10 @@ fn parse_if(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_assign(input: &str) -> IResult<&str, AstNode> {
-    use super::expr::parse_postfix;
+    use super::expr::parse_unary;
     
-    // First try to parse as a postfix expression (which includes primary)
-    let (input, lhs) = ws(parse_postfix).parse(input)?;
+    // First try to parse the left-hand side (which includes unary prefix and postfix)
+    let (input, lhs) = ws(parse_unary).parse(input)?;
     
     // Try to parse compound assignment operators first, then simple assignment
     let (input, op) = alt((
@@ -256,6 +256,8 @@ pub fn parse_stmt(input: &str) -> IResult<&str, AstNode> {
         parse_let,
         parse_assign,
         parse_type_alias,
+        parse_const,
+        parse_func,
         parse_expr_stmt,
     ))
     .parse(input)

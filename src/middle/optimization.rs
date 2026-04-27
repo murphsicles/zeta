@@ -133,6 +133,11 @@ pub fn dead_code_elimination(mir: &mut Mir) {
                 };
                 dead_code_elimination(&mut nested_mir);
             }
+            MirStmt::Store { addr_id, val_id } => {
+                // Both addr and val are used
+                mark_expr_used(*addr_id, &mut used, &mir.exprs);
+                mark_expr_used(*val_id, &mut used, &mir.exprs);
+            }
         }
     }
 
@@ -150,9 +155,10 @@ pub fn dead_code_elimination(mir: &mut Mir) {
     // Remove unused expressions
     mir.exprs.retain(|id, _| used.contains_key(id));
 
-    // Remove dead assignments
+    // Remove dead assignments and stores
     mir.stmts.retain(|stmt| match stmt {
         MirStmt::Assign { lhs, .. } => used.contains_key(lhs),
+        MirStmt::Store { addr_id, .. } => used.contains_key(addr_id),
         _ => true,
     });
 }

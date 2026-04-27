@@ -103,29 +103,23 @@ impl Resolver {
     pub fn register(&mut self, ast: AstNode) {
         match ast {
             AstNode::Use { path } => {
-                println!("[RESOLVER] Processing use statement: {}", path.join("::"));
+                ;
                 // Process use statement to load module
                 match self.module_resolver.process_use_statement(&path) {
                     Ok(module_asts) => {
-                        println!(
-                            "[RESOLVER] Successfully loaded module, got {} ASTs",
-                            module_asts.len()
-                        );
+                        ;
                         // Register only enum/struct definitions, not impl blocks
                         for module_ast in module_asts {
                             match &module_ast {
                                 AstNode::EnumDef { name, variants, .. } => {
-                                    println!("[RESOLVER] Registering enum from module: {}", name);
+                                    ;
                                     self.register(module_ast.clone());
 
                                     // Also register enum variant constructors as functions
                                     for (variant_name, variant_params) in variants {
                                         // Create a function name like "Option::Some"
                                         let func_name = format!("{}::{}", name, variant_name);
-                                        println!(
-                                            "[RESOLVER] Registering enum variant constructor: {}",
-                                            func_name
-                                        );
+                                        ;
 
                                         // Create a fake function AST for the variant constructor
                                         // The return type is the enum with its type parameters
@@ -170,35 +164,26 @@ impl Resolver {
                                     }
                                 }
                                 AstNode::StructDef { name, .. } => {
-                                    println!("[RESOLVER] Registering struct from module: {}", name);
+                                    ;
                                     self.register(module_ast);
                                 }
                                 AstNode::TypeAlias { name, .. } => {
-                                    println!(
-                                        "[RESOLVER] Registering type alias from module: {}",
-                                        name
-                                    );
+                                    ;
                                     self.register(module_ast);
                                 }
                                 AstNode::ConstDef { name, comptime_, .. } => {
-                                    println!("[RESOLVER] Registering const from module: {}", name);
+                                    ;
                                     self.register(module_ast);
                                 }
                                 AstNode::FuncDef { name, .. } => {
-                                    println!(
-                                        "[RESOLVER] Registering function from module: {}",
-                                        name
-                                    );
+                                    ;
                                     // When importing via `use std::malloc`, register with simple name
                                     // The function will be available as `malloc` in current scope
                                     self.register(module_ast);
                                 }
                                 // Skip impl blocks for now - they cause issues
                                 _ => {
-                                    println!(
-                                        "[RESOLVER] Skipping non-export AST from module: {:?}",
-                                        module_ast
-                                    );
+                                    ;
                                 }
                             }
                         }
@@ -225,11 +210,7 @@ impl Resolver {
                     .map(|(name, ty_str)| (name.clone(), self.string_to_type(ty_str)))
                     .collect();
                 let typed_ret = self.string_to_type(ret);
-                // println!(
-                //     "[RESOLVER] Registering function: {} with {} params", // Disabled for performance
-                //     name,
-                //     params.len()
-                // );
+                // ;
                 let name_clone = name.clone();
                 self.funcs
                     .insert(name_clone.clone(), (typed_params, typed_ret, *async_));
@@ -325,10 +306,7 @@ impl Resolver {
                 ..
             } => {
                 // Register module and its items
-                println!(
-                    "[RESOLVER] Registering module: {} (pub: {})",
-                    module_name, pub_
-                );
+                ;
                 // Register all items in the module with module-qualified names
                 for item in items {
                     // Create a copy with module-qualified name if needed
@@ -411,14 +389,11 @@ impl Resolver {
     /// Get function signature for type checking
     #[allow(clippy::type_complexity)]
     pub fn get_func_signature(&self, name: &str) -> Option<&(Vec<(String, Type)>, Type, bool)> {
-        println!("[RESOLVER] Looking up function: {}", name);
+        ;
         let result = self.funcs.get(name);
         if result.is_none() {
-            println!("[RESOLVER] Function not found: {}", name);
-            println!(
-                "[RESOLVER] Available functions: {:?}",
-                self.funcs.keys().collect::<Vec<_>>()
-            );
+            ;
+            ;
         }
         result
     }
@@ -446,7 +421,7 @@ impl Resolver {
     }
 
     pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
-        println!("[RESOLVER] lower_to_mir called with ast: {:?}", ast);
+        ;
         let mut mir_gen = crate::middle::mir::r#gen::MirGen::new()
             .with_global_consts(self.ctfe_consts.clone());
         mir_gen.lower_to_mir(ast)
@@ -632,8 +607,59 @@ impl Resolver {
                 // Expand macro call
                 self.macro_expander.expand_macro_call(name, args)
             }
-            AstNode::FuncDef { attrs, .. }
-            | AstNode::StructDef { attrs, .. }
+            AstNode::FuncDef { attrs, name, generics, lifetimes, params, ret, body, ret_expr, single_line, doc, pub_, async_, const_, comptime_, where_clauses } => {
+                // Recursively expand macros inside the function body
+                let mut expanded_body = Vec::new();
+                for stmt in body {
+                    let expanded = self.expand_macros_in_node(stmt)?;
+                    expanded_body.extend(expanded);
+                }
+                // Expand macros in ret_expr; statements from expansion go into body
+                let mut final_ret_expr = None;
+                if let Some(re) = ret_expr {
+                    let mut expanded = self.expand_macros_in_node(re)?;
+                    let mut had_expr_stmt = false;
+                    for node in expanded.drain(..) {
+                        match node {
+                            AstNode::ExprStmt { .. } | AstNode::Let { .. } => {
+                                // Statement goes into the body
+                                expanded_body.push(node);
+                                had_expr_stmt = true;
+                            }
+                            node => {
+                                // Expression goes into ret_expr
+                                final_ret_expr = Some(Box::new(node));
+                            }
+                        }
+                    }
+                    if !had_expr_stmt && final_ret_expr.is_none() {
+                        final_ret_expr = None;
+                    }
+                }
+                let expanded_func = AstNode::FuncDef {
+                    attrs: attrs.clone(),
+                    name: name.clone(),
+                    generics: generics.clone(),
+                    lifetimes: lifetimes.clone(),
+                    params: params.clone(),
+                    ret: ret.clone(),
+                    body: expanded_body,
+                    ret_expr: final_ret_expr,
+                    single_line: *single_line,
+                    doc: doc.clone(),
+                    pub_: *pub_,
+                    async_: *async_,
+                    const_: *const_,
+                    comptime_: *comptime_,
+                    where_clauses: where_clauses.clone(),
+                };
+                let mut nodes = vec![expanded_func];
+                let attr_expansions =
+                    crate::frontend::macro_expand::process_attributes(attrs, node)?;
+                nodes.extend(attr_expansions);
+                Ok(nodes)
+            }
+            AstNode::StructDef { attrs, .. }
             | AstNode::EnumDef { attrs, .. }
             | AstNode::ConceptDef { attrs, .. }
             | AstNode::ImplBlock { attrs, .. } => {
@@ -662,18 +688,53 @@ impl Resolver {
 
     /// Get all registered function ASTs
     pub fn get_registered_funcs(&self) -> Vec<AstNode> {
-        println!(
-            "[RESOLVER DEBUG] Returning {} registered functions",
-            self.registered_funcs.len()
-        );
+        ;
         for (name, _) in &self.registered_funcs {
-            println!("[RESOLVER DEBUG] Registered function: {}", name);
+            ;
         }
         self.registered_funcs.values().cloned().collect()
     }
 
     /// Register built-in runtime functions that are required for compilation
     fn register_builtin_functions(&mut self) {
+        // malloc(size: i64) -> i64 (allocate memory)
+        self.register(AstNode::FuncDef {
+            name: "malloc".to_string(),
+            generics: vec![],
+            lifetimes: vec![],
+            params: vec![("size".to_string(), "i64".to_string())],
+            ret: "i64".to_string(),
+            body: vec![],
+            attrs: vec![],
+            ret_expr: None,
+            single_line: false,
+            doc: "Allocate memory".to_string(),
+            pub_: true,
+            async_: false,
+            const_: false,
+            comptime_: false,
+            where_clauses: vec![],
+        });
+        
+        // free(ptr: i64) -> () (free memory)
+        self.register(AstNode::FuncDef {
+            name: "free".to_string(),
+            generics: vec![],
+            lifetimes: vec![],
+            params: vec![("ptr".to_string(), "i64".to_string())],
+            ret: "()".to_string(),
+            body: vec![],
+            attrs: vec![],
+            ret_expr: None,
+            single_line: false,
+            doc: "Free memory".to_string(),
+            pub_: true,
+            async_: false,
+            const_: false,
+            comptime_: false,
+            where_clauses: vec![],
+        });
+        
         // clone_i64(value: i64) -> i64
         self.funcs.insert(
             "clone_i64".to_string(),
@@ -1251,7 +1312,6 @@ impl Resolver {
                 false, // not async
             ),
         );
-        // println!("[RESOLVER] Registered runtime_malloc"); // Disabled for performance
 
         // map_get(map: i64, key: i64) -> i64
         self.funcs.insert(
@@ -1453,9 +1513,7 @@ impl Resolver {
         );
 
         // Disabled for performance
-        // println!(
-        //     "[RESOLVER] Registered built-in runtime functions: clone_i64, is_null_i64, to_string_str, to_string_i64, to_string_bool, array_new, array_push, array_len, array_get, array_set, array_free, runtime_malloc, map_get, print_i64, println, Vector::new, vector_make_u64x8, vector_add_i32x4, etc."
-        // );
+        // ;
     }
 }
 

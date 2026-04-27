@@ -105,12 +105,31 @@ impl MacroExpander {
 
         // For now, simple expansion to a function call
         // In a full implementation, this would handle format strings
-        let call = AstNode::Call {
-            receiver: None,
-            method: "println".to_string(),
-            args: args.to_vec(),
-            type_args: Vec::new(),
-            structural: false,
+        // Strip the format string and pass only the value arguments
+        let value_args: Vec<AstNode> = if let Some(AstNode::StringLit(_)) = args.first() {
+            args[1..].to_vec()
+        } else {
+            args.to_vec()
+        };
+
+        let call = if value_args.len() == 1 && matches!(&value_args[0], AstNode::Var(_) | AstNode::Lit(_) | AstNode::Call { .. }) {
+            // Simple single-value println: generate void call directly to println_i64
+            AstNode::Call {
+                receiver: None,
+                method: "println_i64".to_string(),
+                args: value_args,
+                type_args: Vec::new(),
+                structural: false,
+            }
+        } else {
+            // Fallback: use generic println (codegen will handle it)
+            AstNode::Call {
+                receiver: None,
+                method: "println".to_string(),
+                args: value_args,
+                type_args: Vec::new(),
+                structural: false,
+            }
         };
 
         Ok(vec![AstNode::ExprStmt {

@@ -28,7 +28,6 @@ use zetac::middle::specialization::{
 use zetac::runtime::actor::scheduler;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("[MAIN] Starting zetac");
     scheduler::init_runtime();
 
     let args: Vec<String> = std::env::args().collect();
@@ -53,66 +52,58 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         i += 1;
     }
-    eprintln!("[MAIN] Input: {:?}", input);
     if let Some(file) = input {
         let code = fs::read_to_string(&file)?;
         // Strip UTF-8 BOM if present
         let code = code.trim_start_matches('\u{FEFF}');
-        println!("[MAIN] Parsing file: {}, size: {}", file, code.len());
         let result = parse_zeta(code);
         match result {
-            Ok((remaining, asts)) => {
-                if !remaining.is_empty() {
-                    println!("Incomplete parse. Remaining: {}", remaining);
-                }
-
+            Ok((_remaining, asts)) => {
                 // Run CTFE evaluation on parsed ASTs
-                println!("[MAIN] Running CTFE evaluation on {} AST nodes", asts.len());
                 let asts = match zetac::middle::const_eval::evaluate_constants(&asts) {
                     Ok(ctfe_asts) => {
-                        println!("[MAIN] CTFE evaluation complete, {} nodes remaining", ctfe_asts.len());
                         // After CTFE, filter out comptime-only function definitions
                         // (they've been evaluated and are no longer needed for codegen)
                         let runtime_asts: Vec<_> = ctfe_asts.into_iter().filter(|ast| {
                             let is_comptime = matches!(ast, AstNode::FuncDef { comptime_: true, .. } | AstNode::FuncDef { const_: true, .. });
-                            if is_comptime {
-                                println!("[MAIN] Filtering out comptime function after CTFE");
-                            }
                             !is_comptime
                         }).collect();
-                        println!("[MAIN] After filtering, {} runtime nodes remain", runtime_asts.len());
                         runtime_asts
                     }
-                    Err(e) => {
-                        eprintln!("[MAIN] CTFE evaluation failed (non-fatal): {}", e);
+                    Err(_e) => {
                         asts
                     }
                 };
 
                 let mut resolver = Resolver::new();
-                eprintln!("[MAIN] Resolver created");
-                for ast in &asts {
+
+                // Expand macros before registration
+                let expanded_asts = match resolver.expand_macros(&asts) {
+                    Ok(ea) => {
+                        ea
+                    }
+                    Err(e) => {
+                        eprintln!("Macro expansion warning (non-fatal): {}", e);
+                        asts.clone()
+                    }
+                };
+
+                for ast in &expanded_asts {
                     resolver.register(ast.clone());
                 }
 
-                let type_ok = resolver.typecheck(&asts);
+                // Use expanded ASTs for typechecking
+                let typecheck_asts = &expanded_asts;
+
+                let type_ok = resolver.typecheck(&expanded_asts);
                 if !type_ok {
                     return Err("Typecheck failed".into());
                 }
 
-                println!("[MAIN] Typecheck passed, getting registered funcs");
                 let func_asts = resolver.get_registered_funcs();
-                println!("[MAIN] Got {} registered funcs", func_asts.len());
-                for ast in &func_asts {
-                    if let AstNode::FuncDef { name, .. } = ast {
-                        println!("[MAIN] Function: {}", name);
-                    }
-                }
-                println!("[MAIN] Generating MIR for {} funcs", func_asts.len());
                 let mir_map: HashMap<String, Mir> = func_asts
                     .iter()
                     .filter_map(|ast| {
-                        eprintln!("[MAIN] Processing func_ast: {:?}", ast);
                         if let AstNode::FuncDef { name, .. } = ast {
                             Some((name.clone(), resolver.lower_to_mir(ast)))
                         } else {
@@ -157,7 +148,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 type_args: spec.clone(),
                             };
                             let mono_ast = resolver.monomorphize(key.clone(), base_ast);
-                            eprintln!("[MAIN] Monomorphizing {} with spec {:?}", fn_name, spec);
                             let mono_mir = resolver.lower_to_mir(&mono_ast);
                             resolver.record_mono(key, mono_mir);
                         }
@@ -256,7 +246,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map_err(|e| format!("Parse error: {:?}", e))?
             .1; // take only owned ASTs, discard remaining slice
 
-        println!("Parsed {} nodes from selfhost.z", asts.len());
 
         let mut resolver = Resolver::new();
         for ast in &asts {

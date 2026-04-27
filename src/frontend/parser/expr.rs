@@ -262,9 +262,7 @@ fn parse_path_expr(input: &str) -> IResult<&str, AstNode> {
     };
 
     if is_macro.is_some() {
-        eprintln!("[DEBUG macro] path: {:?}, input: {:?}", method, input);
         let (input, delim_start) = ws(alt((tag("("), tag("["), tag("{")))).parse(input)?;
-        eprintln!("[DEBUG macro] delim_start: {:?}", delim_start);
         let close = match delim_start {
             "(" => ")",
             "[" => "]",
@@ -281,7 +279,6 @@ fn parse_path_expr(input: &str) -> IResult<&str, AstNode> {
             opt(ws(tag(","))),
         )
         .parse(input)?;
-        eprintln!("[DEBUG macro] args: {:?}", args);
         let (input, _) = ws(tag(close)).parse(input)?;
         Ok((input, AstNode::MacroCall { name: method, args }))
     } else {
@@ -378,15 +375,47 @@ fn parse_path_expr(input: &str) -> IResult<&str, AstNode> {
             }
         } else {
             // No arguments, check for struct literal
-            let (input, fields_opt) = opt(delimited(
-                ws(tag("{")),
-                terminated(
-                    separated_list1(ws(tag(",")), ws(parse_field_expr)),
-                    opt(ws(tag(","))),
-                ),
-                ws(tag("}")),
-            ))
-            .parse(input)?;
+            // IMPORTANT: if { ... } is followed by "else", it's an if-then block
+            // (not a struct literal), so we must NOT consume the braces.
+            // Pre-check: if { is followed by } else, this is definitely a block, not struct
+            let is_else_after_brace = {
+                let mut check = input;
+                // Quick scan for matching } then check for "else"
+                if let Ok((after_open, _)) = ws(tag("{")).parse(check) {
+                    let mut depth = 1;
+                    let mut pos = 0;
+                    let bytes = after_open.as_bytes();
+                    while pos < bytes.len() && depth > 0 {
+                        if bytes[pos] == b'{' { depth += 1; }
+                        else if bytes[pos] == b'}' { depth -= 1; }
+                        pos += 1;
+                    }
+                    if depth == 0 {
+                        let after_close = &after_open[pos..];
+                        let trimmed = skip_ws_and_comments0(after_close)
+                            .unwrap_or((after_close, ())).0;
+                        trimmed.starts_with("else")
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            };
+            let fields_opt = if is_else_after_brace {
+                None
+            } else {
+                opt(delimited(
+                    ws(tag("{")),
+                    terminated(
+                        separated_list1(ws(tag(",")), ws(parse_field_expr)),
+                        opt(ws(tag(","))),
+                    ),
+                    ws(tag("}")),
+                ))
+                .parse(input)?
+                .1
+            };
 
             if let Some(fields) = fields_opt {
                 Ok((
@@ -596,7 +625,7 @@ fn parse_bool(input: &str) -> IResult<&str, AstNode> {
     .parse(input)
 }
 
-fn parse_unary(input: &str) -> IResult<&str, AstNode> {
+pub(crate) fn parse_unary(input: &str) -> IResult<&str, AstNode> {
     // Check for "!" but NOT followed by "=" (which would be != operator)
     let (input, op_opt) = if input.starts_with("!") && !input.starts_with("!=") {
         // It's a unary !, not !=
@@ -610,7 +639,7 @@ fn parse_unary(input: &str) -> IResult<&str, AstNode> {
     let (input, expr) = if op_opt.is_some() {
         ws(parse_unary).parse(input)?
     } else {
-        parse_primary(input)?
+        ws(parse_postfix).parse(input)?
     };
     if let Some(op) = op_opt {
         Ok((
@@ -652,7 +681,7 @@ pub fn parse_primary(input: &str) -> IResult<&str, AstNode> {
 }
 
 pub(crate) fn parse_postfix(input: &str) -> IResult<&str, AstNode> {
-    let (mut input, mut expr) = parse_unary(input)?;
+    let (mut input, mut expr) = parse_primary(input)?;
     loop {
         // Check if this is a range operator ".." or "..=" before parsing as field access
         // We need to look ahead to see if the dot is followed by another dot or equals
@@ -866,7 +895,6 @@ fn parse_logical_and(input: &str) -> IResult<&str, AstNode> {
 
 // Parse comparison (==, !=, <, >, <=, >=)
 fn parse_comparison(input: &str) -> IResult<&str, AstNode> {
-    // eprintln!("[DEBUG parse_comparison] input: {:?}", input);
     let (mut input, mut term) = parse_additive(input)?;
     loop {
         // Try to parse comparison operator
@@ -878,7 +906,6 @@ fn parse_comparison(input: &str) -> IResult<&str, AstNode> {
         // Try without whitespace first
         for &op in &comparison_ops {
             if remaining_input.starts_with(op) {
-                eprintln!("[DEBUG parse_comparison] found op '{}' without whitespace", op);
                 found_op = Some(op);
                 remaining_input = &remaining_input[op.len()..];
                 break;
@@ -890,12 +917,8 @@ fn parse_comparison(input: &str) -> IResult<&str, AstNode> {
             match skip_ws_and_comments0(remaining_input) {
                 Ok((i, _)) => {
                     // DEBUG: Print what we're looking at
-                    eprintln!("[DEBUG parse_comparison] after skip_ws, i: {:?}", i);
-                    eprintln!("[DEBUG parse_comparison] i bytes: {:?}", i.as_bytes());
                     for &op in &comparison_ops {
-                        eprintln!("[DEBUG parse_comparison] checking op '{}' against i: {:?}", op, i);
                         if i.starts_with(op) {
-                            eprintln!("[DEBUG parse_comparison] found op '{}' with whitespace", op);
                             found_op = Some(op);
                             remaining_input = &i[op.len()..];
                             break;
@@ -903,7 +926,6 @@ fn parse_comparison(input: &str) -> IResult<&str, AstNode> {
                     }
                 }
                 Err(e) => {
-                    eprintln!("[DEBUG parse_comparison] skip_ws_and_comments0 failed: {:?}", e);
                     // No whitespace or comments, continue
                 }
             }
@@ -1241,7 +1263,7 @@ fn parse_multiplicative(input: &str) -> IResult<&str, AstNode> {
 
 // Parse range (.., ..=) - higher precedence than other binary ops
 fn parse_range(input: &str) -> IResult<&str, AstNode> {
-    let (input, term) = parse_postfix(input)?;
+    let (input, term) = parse_unary(input)?;
     
     // Check for range operators
     let mut current_input = input;
@@ -1278,7 +1300,7 @@ fn parse_range(input: &str) -> IResult<&str, AstNode> {
                 Ok((j, _)) => j,
                 Err(_) => remaining_input,
             };
-            let (j, right) = parse_postfix(j)?;
+            let (j, right) = parse_unary(j)?;
             
             current_term = AstNode::Range {
                 start: Box::new(current_term),

@@ -55,6 +55,20 @@ fn vectorized_clear_bits(array: *mut u64, prime: usize, limit: usize) {
     }
 }
 
+// Integer square root (Newton's method) — avoids f64.sqrt() dependency
+fn integer_sqrt(n: usize) -> usize {
+    if n < 2 {
+        return n;
+    }
+    let mut x = n;
+    let mut y = (x + 1) / 2;
+    while y < x {
+        x = y;
+        y = (x + n / x) / 2;
+    }
+    x
+}
+
 // Main sieve function
 fn murphy_sieve(limit: usize) -> usize {
     if limit <= 1 {
@@ -68,17 +82,13 @@ fn murphy_sieve(limit: usize) -> usize {
     // Calculate array size
     let word_size = (safe_limit + 63) / 64;
     
-    // Allocate bit array
-    let array = unsafe { std::alloc::alloc(std::alloc::Layout::array::<u64>(word_size).unwrap()) as *mut u64 };
-    
-    if array.is_null() {
-        return 0;
-    }
+    // Allocate bit array (word_size u64s = word_size * 8 bytes)
+    let array = malloc((word_size * 8) as i64) as *mut u64;
     
     // Initialize all bits to 1 (prime)
     for i in 0..word_size {
         unsafe {
-            *array.add(i) = u64::MAX;
+            *array.add(i) = -1;
         }
     }
     
@@ -87,7 +97,7 @@ fn murphy_sieve(limit: usize) -> usize {
     clear_bit(array, 1);
     
     // Sieve up to sqrt(limit)
-    let sqrt_limit = (safe_limit as f64).sqrt() as usize;
+    let sqrt_limit = integer_sqrt(safe_limit);
     
     for i in 2..=sqrt_limit {
         if get_bit(array, i) {
@@ -104,34 +114,18 @@ fn murphy_sieve(limit: usize) -> usize {
     }
     
     // Free memory
-    unsafe {
-        std::alloc::dealloc(array as *mut u8, std::alloc::Layout::array::<u64>(word_size).unwrap());
-    }
+    free(array as i64);
     
     count
 }
 
 // Competition main function
-fn main() -> Result<(), String> {
-    // Read limit from command line or use default
-    let args: Vec<String> = std::env::args().collect();
-    let limit = if args.len() > 1 {
-        args[1].parse().unwrap_or(10_000_000)
-    } else {
-        10_000_000
-    };
+fn main() {
+    // Run sieve with default limit (1,000,000)
+    let passes = murphy_sieve(1_000_000);
     
-    // Run sieve
-    let start = std::time::Instant::now();
-    let passes = murphy_sieve(limit);
-    let elapsed = start.elapsed();
-    let time_secs = elapsed.as_secs_f64();
-    
-    // Output in competition format
-    println!("mfox;{};{:.6};1;algorithm=wheel,faithful=yes,bits=8,parallel=yes,simd=avx512", 
-             passes, time_secs);
-    
-    Ok(())
+    // Output passes for competition harness
+    println!("{}", passes);
 }
 
 // Unit tests

@@ -85,10 +85,7 @@ impl ModuleResolver {
             } else {
                 // For regular zeta crate imports, treat like crate:: imports
                 // but relative to zeta_src/ directory
-                println!(
-                    "[MODULE RESOLVER] Handling zeta:: crate import: {}",
-                    path.join("::")
-                );
+                ;
                 
                 // Skip "zeta" prefix and remove item name
                 let module_path = if path.len() > 1 {
@@ -128,10 +125,7 @@ impl ModuleResolver {
 
         // Check for crate-relative imports: `use crate::middle::mir::Mir;`
         if !path.is_empty() && path[0] == "crate" {
-            println!(
-                "[MODULE RESOLVER] Handling crate:: import: {}",
-                path.join("::")
-            );
+            ;
             // For crate-relative imports, we need to resolve relative to zeta_src/
             // For `use crate::middle::mir::Mir;`, path is ["crate", "middle", "mir", "Mir"]
             // We need to resolve ["middle", "mir"] to zeta_src/middle/mir.z or zeta_src/middle/mir/mod.z
@@ -142,10 +136,7 @@ impl ModuleResolver {
                 &path[1..] // Skip "crate" only (shouldn't happen for valid crate:: imports)
             };
 
-            println!(
-                "[MODULE RESOLVER] Module path after removing crate:: and item: {:?}",
-                module_path
-            );
+            ;
 
             let mut crate_path = PathBuf::from("zeta_src");
 
@@ -173,10 +164,7 @@ impl ModuleResolver {
                     submodule_path.push(format!("{}.z", dir_name));
 
                     if submodule_path.exists() {
-                        println!(
-                            "[MODULE RESOLVER] Found submodule file: {}",
-                            submodule_path.display()
-                        );
+                        ;
                         return Ok(submodule_path);
                     }
                 }
@@ -216,10 +204,7 @@ impl ModuleResolver {
             // We create single .z files like stub_types/std/collections.z
 
             // If not found, create a minimal stub
-            println!(
-                "[MODULE RESOLVER] Creating stub for std module: {}",
-                module_path.join("::")
-            );
+            ;
             return self.create_std_stub(module_path);
         }
 
@@ -259,10 +244,7 @@ impl ModuleResolver {
             // We create single .z files like stub_types/external/reqwest.z
 
             // If not found, create a minimal stub
-            println!(
-                "[MODULE RESOLVER] Creating stub for external crate: {}",
-                module_path.join("::")
-            );
+            ;
             return self.create_external_stub(module_path);
         }
 
@@ -299,10 +281,7 @@ impl ModuleResolver {
             // We create single .z files like stub_types/external/reqwest.z
 
             // If not found, create a minimal stub
-            println!(
-                "[MODULE RESOLVER] Creating stub for external crate (no zorb:: prefix): {}",
-                module_path.join("::")
-            );
+            ;
             return self.create_external_stub(module_path);
         }
 
@@ -356,10 +335,7 @@ impl ModuleResolver {
             };
             
             if is_package_manager_module {
-                println!(
-                    "[MODULE RESOLVER] Handling zorb package manager import: {}",
-                    path.join("::")
-                );
+                ;
                 
                 // For zorb package manager imports, we need to resolve to zorb/ directory
                 // For `use zorb::package::Package;`, path is ["zorb", "package", "Package"]
@@ -449,23 +425,23 @@ impl ModuleResolver {
     /// Load a module from file
     pub fn load_module(&mut self, path: &Path) -> Result<&Module, String> {
         let path_str = path.to_string_lossy().to_string();
-        println!("[MODULE RESOLVER] Loading module from: {}", path.display());
+        ;
 
         // Check cache first
         if self.modules.contains_key(&path_str) {
-            println!("[MODULE RESOLVER] Module already cached");
+            ;
             return Ok(self.modules.get(&path_str).unwrap());
         }
 
         // Check if this is a virtual module for zeta:: imports
         if path_str.starts_with("zeta_virtual/") {
-            println!("[MODULE RESOLVER] Loading virtual module for zeta:: import");
+            ;
             return self.load_virtual_module(&path_str);
         }
 
         // Check if this is a std module (handle specially for PrimeZeta)
         if path_str.contains("stub_types\\std") || path_str.contains("stub_types/std") {
-            println!("[MODULE RESOLVER] Loading std module for PrimeZeta");
+            ;
             return self.load_std_module();
         }
 
@@ -473,20 +449,12 @@ impl ModuleResolver {
         let content = fs::read_to_string(path)
             .map_err(|e| format!("Failed to read module file {}: {}", path.display(), e))?;
 
-        println!(
-            "[MODULE RESOLVER] Read {} bytes from {}",
-            content.len(),
-            path.display()
-        );
+        ;
 
         let (remaining, asts) = parse_zeta(&content)
             .map_err(|e| format!("Failed to parse module {}: {:?}", path.display(), e))?;
 
-        println!(
-            "[MODULE RESOLVER] Parsed {} ASTs from {}",
-            asts.len(),
-            path.display()
-        );
+        ;
 
         if !remaining.is_empty() {
             return Err(format!(
@@ -502,57 +470,42 @@ impl ModuleResolver {
             match ast {
                 AstNode::EnumDef { name, pub_, .. } => {
                     if *pub_ {
-                        println!("[MODULE RESOLVER] Found public enum export: {}", name);
+                        ;
                         exports.insert(name.clone(), ast.clone());
                     } else {
-                        println!(
-                            "[MODULE RESOLVER] Found private enum (not exported): {}",
-                            name
-                        );
+                        ;
                     }
                 }
                 AstNode::StructDef { name, pub_, .. } => {
                     if *pub_ {
-                        println!("[MODULE RESOLVER] Found public struct export: {}", name);
+                        ;
                         exports.insert(name.clone(), ast.clone());
                     } else {
-                        println!(
-                            "[MODULE RESOLVER] Found private struct (not exported): {}",
-                            name
-                        );
+                        ;
                     }
                 }
                 AstNode::FuncDef { name, pub_, .. } => {
                     if *pub_ {
-                        println!("[MODULE RESOLVER] Found public func export: {}", name);
+                        ;
                         exports.insert(name.clone(), ast.clone());
                     } else {
-                        println!(
-                            "[MODULE RESOLVER] Found private func (not exported): {}",
-                            name
-                        );
+                        ;
                     }
                 }
                 AstNode::TypeAlias { name, pub_, .. } => {
                     if *pub_ {
-                        println!("[MODULE RESOLVER] Found public type alias export: {}", name);
+                        ;
                         exports.insert(name.clone(), ast.clone());
                     } else {
-                        println!(
-                            "[MODULE RESOLVER] Found private type alias (not exported): {}",
-                            name
-                        );
+                        ;
                     }
                 }
                 AstNode::ConstDef { name, pub_, comptime_, .. } => {
                     if *pub_ {
-                        println!("[MODULE RESOLVER] Found public const export: {}", name);
+                        ;
                         exports.insert(name.clone(), ast.clone());
                     } else {
-                        println!(
-                            "[MODULE RESOLVER] Found private const (not exported): {}",
-                            name
-                        );
+                        ;
                     }
                 }
                 _ => {}
@@ -574,7 +527,7 @@ impl ModuleResolver {
         };
 
         self.modules.insert(path_str.clone(), module);
-        println!("[MODULE RESOLVER] Module loaded successfully: {}", name);
+        ;
         Ok(self.modules.get(&path_str).unwrap())
     }
 
@@ -584,7 +537,7 @@ impl ModuleResolver {
 
         // Check cache first
         if self.modules.contains_key(path_str) {
-            println!("[MODULE RESOLVER] std module already cached");
+            ;
             return Ok(self.modules.get(path_str).unwrap());
         }
 
@@ -706,7 +659,7 @@ impl ModuleResolver {
         };
 
         self.modules.insert(path_str.to_string(), module);
-        println!("[MODULE RESOLVER] Created virtual std module for PrimeZeta");
+        ;
         Ok(self.modules.get(path_str).unwrap())
     }
 
@@ -763,7 +716,7 @@ impl ModuleResolver {
 
                     asts.push(ast_node_enum.clone());
                     exports.insert("AstNode".to_string(), ast_node_enum);
-                    println!("[MODULE RESOLVER] Created virtual module for zeta::frontend::ast");
+                    ;
                 }
                 ["zeta", "frontend", "parser", "top_level"] => {
                     // Create parse_zeta function
@@ -786,9 +739,7 @@ impl ModuleResolver {
                     };
                     asts.push(parse_zeta_func.clone());
                     exports.insert("parse_zeta".to_string(), parse_zeta_func);
-                    println!(
-                        "[MODULE RESOLVER] Created virtual module for zeta::frontend::parser::top_level"
-                    );
+                    ;
                 }
                 ["zeta", "middle", "resolver", "resolver"] => {
                     // Create Resolver struct
@@ -804,9 +755,7 @@ impl ModuleResolver {
                     };
                     asts.push(resolver_struct.clone());
                     exports.insert("Resolver".to_string(), resolver_struct);
-                    println!(
-                        "[MODULE RESOLVER] Created virtual module for zeta::middle::resolver::resolver"
-                    );
+                    ;
                 }
                 ["zeta", "middle", "mir", "mir"] => {
                     // Create Mir struct
@@ -822,7 +771,7 @@ impl ModuleResolver {
                     };
                     asts.push(mir_struct.clone());
                     exports.insert("Mir".to_string(), mir_struct);
-                    println!("[MODULE RESOLVER] Created virtual module for zeta::middle::mir::mir");
+                    ;
                 }
                 ["zeta", "middle", "specialization"] => {
                     // Create all specialization functions
@@ -894,9 +843,7 @@ impl ModuleResolver {
                         "record_specialization".to_string(),
                         record_specialization_func,
                     );
-                    println!(
-                        "[MODULE RESOLVER] Created virtual module for zeta::middle::specialization"
-                    );
+                    ;
                 }
                 ["zeta", "backend", "codegen", "codegen"] => {
                     // Create LLVMCodegen struct
@@ -912,9 +859,7 @@ impl ModuleResolver {
                     };
                     asts.push(llvmcodegen_struct.clone());
                     exports.insert("LLVMCodegen".to_string(), llvmcodegen_struct);
-                    println!(
-                        "[MODULE RESOLVER] Created virtual module for zeta::backend::codegen::codegen"
-                    );
+                    ;
                 }
                 ["zeta", "runtime", "actor", "channel"] => {
                     // Create Channel struct (generic)
@@ -933,9 +878,7 @@ impl ModuleResolver {
                     };
                     asts.push(channel_struct.clone());
                     exports.insert("Channel".to_string(), channel_struct);
-                    println!(
-                        "[MODULE RESOLVER] Created virtual module for zeta::runtime::actor::channel"
-                    );
+                    ;
                 }
                 ["zeta", "runtime", "actor", "scheduler"] => {
                     // Create Scheduler struct
@@ -951,15 +894,10 @@ impl ModuleResolver {
                     };
                     asts.push(scheduler_struct.clone());
                     exports.insert("Scheduler".to_string(), scheduler_struct);
-                    println!(
-                        "[MODULE RESOLVER] Created virtual module for zeta::runtime::actor::scheduler"
-                    );
+                    ;
                 }
                 _ => {
-                    println!(
-                        "[MODULE RESOLVER] Unknown zeta:: import pattern: {}",
-                        module_path
-                    );
+                    ;
                 }
             }
         }
@@ -1034,10 +972,7 @@ impl ModuleResolver {
         fs::write(&stub_path, stub_content)
             .map_err(|e| format!("Failed to write stub file: {}", e))?;
 
-        println!(
-            "[MODULE RESOLVER] Created std stub at: {}",
-            stub_path.display()
-        );
+        ;
         Ok(stub_path)
     }
 
@@ -1121,10 +1056,7 @@ pub enum c_void {
         fs::write(&stub_path, stub_content)
             .map_err(|e| format!("Failed to write external stub file: {}", e))?;
 
-        println!(
-            "[MODULE RESOLVER] Created external stub at: {}",
-            stub_path.display()
-        );
+        ;
         Ok(stub_path)
     }
 
@@ -1206,10 +1138,7 @@ pub fn from_str<T>(_s: &str) -> Result<T, ()> {
         fs::write(&stub_path, stub_content)
             .map_err(|e| format!("Failed to write zorb stub file: {}", e))?;
 
-        println!(
-            "[MODULE RESOLVER] Created zorb package stub at: {}",
-            stub_path.display()
-        );
+        ;
         Ok(stub_path)
     }
 

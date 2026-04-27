@@ -63,11 +63,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
             i64_type.fn_type(&[], false),
             Some(Linkage::External),
         );
-        module.add_function(
-            "free",
-            void_type.fn_type(&[ptr_type.into()], false),
-            Some(Linkage::External),
-        );
+        // free is NOT declared here — user-declared extern fn free(ptr: i64) -> ()
+        // provides the declaration with i64-compatible types that the codegen uses.
         module.add_function(
             "channel_send",
             void_type.fn_type(&[i64_type.into(), i64_type.into()], false),
@@ -271,11 +268,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
             void_type.fn_type(&[i64_type.into()], false),
             Some(Linkage::External),
         );
-        module.add_function(
-            "println",
-            void_type.fn_type(&[], false),
-            Some(Linkage::External),
- );
+        // println(no-args) is NOT declared here — the println! macro goes to
+        // println_i64, and user-declared extern fn println(msg: i64) -> ()
+        // provides its own declaration.
         module.add_function(
             "println_i64",
             void_type.fn_type(&[i64_type.into()], false),
@@ -598,11 +593,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
         // === PRINTLN SUPPORT (the fix) ===
         let printf_type = context.i32_type().fn_type(&[ptr_type.into()], true); // variadic
         module.add_function("printf", printf_type, Some(Linkage::External));
-        module.add_function(
-            "println",
-            i64_type.fn_type(&[ptr_type.into()], true), // variadic, takes string pointer first
-            Some(Linkage::External),
-        );
+        // println is NOT declared here — the println! macro goes to
+        // println_i64, and user-declared extern fn println(msg: i64) provides
+        // its own declaration.
         module.add_function(
             "println_i64",
             i64_type.fn_type(&[i64_type.into()], false), // takes i64, returns void
@@ -935,7 +928,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .map(|_| self.i64_type.into())
                     .collect();
                 let fn_type = self.i64_type.fn_type(&param_types, false);
-                println!("[CODEGEN] Adding function to module: {}", fn_name);
                 let fn_val = self.module.add_function(&fn_name, fn_type, None);
                 self.fns.insert(fn_name.clone(), fn_val);
             }
@@ -953,6 +945,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
     fn gen_fn(&mut self, mir: &Mir) {
         let fn_name = mir.name.as_ref().cloned().unwrap_or("anon".to_string());
         let fn_val = self.get_function(&fn_name);
+
+        // If function has no body (extern/FFI declaration), mark as
+        // external linkage and skip body generation — the linker will
+        // resolve the symbol at link time instead of producing a stub.
+        if mir.stmts.is_empty() {
+            fn_val.set_linkage(Linkage::External);
+            return;
+        }
+
         let entry = self.context.append_basic_block(fn_val, "entry");
         self.builder.position_at_end(entry);
         self.locals.clear();
@@ -961,7 +962,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         for &id in &all_ids {
             let alloca = self
                 .builder
-                .build_alloca(self.i64_type, &format!("local_{}", id))
+                .build_alloca(self.i64_type, &"")
                 .unwrap();
             self.locals.insert(id, alloca);
         }
@@ -1119,6 +1120,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
             MirStmt::ParamInit { param_id, .. } => {
                 ids.insert(*param_id);
             }
+            MirStmt::Store { addr_id, val_id } => {
+                ids.insert(*addr_id);
+                if let Some(e) = exprs.get(val_id) {
+                    self.collect_ids_from_expr_safe(e, ids, exprs);
+                }
+            }
             _ => {}
         }
     }
@@ -1164,7 +1171,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     /// Check if a function name is an operator that should be handled inline
     fn is_operator(&self, name: &str) -> bool {
-        eprintln!("[CODEGEN DEBUG] is_operator called with name='{}'", name);
         matches!(
             name,
             "+" | "-"
@@ -1226,20 +1232,17 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     /// Check if a function name is a SIMD operation
     fn is_simd_operation(&self, name: &str) -> bool {
-        name.starts_with("simd_") || name.contains("x") // e.g., i32x4, f32x4
+        name.starts_with("simd_") // e.g., i32x4, f32x4
     }
 
     fn get_function(&self, name: &str) -> FunctionValue<'ctx> {
-        eprintln!("[DEBUG get_function START] name = {}", name);
         if let Some(&f) = self.fns.get(name) {
-            eprintln!("[DEBUG get_function] Found {} in fns cache", name);
             return f;
         }
 
         // Handle Type::method names (static methods)
         if name.contains("::") {
             let mangled = name.replace("::", "_");
-            println!("[CODEGEN DEBUG] Mangled {} to {}", name, mangled);
             // Try the mangled name first
             if let Some(&f) = self.fns.get(&mangled) {
                 return f;
@@ -1257,7 +1260,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
             // Try with std:: prefix (for imported stdlib functions)
             let std_name = format!("std::{}", name);
             if let Some(&f) = self.fns.get(&std_name) {
-                println!("[CODEGEN DEBUG] Found {} as {}", name, std_name);
                 return f;
             }
         }
@@ -1270,6 +1272,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
         if let Some(&f) = self.fns.get(&mangled) {
             return f;
         }
+        // Check the module before doing the split('_') fallback to avoid
+        // matching println_i64 to println, print_i64 to print, etc.
+        if let Some(f) = self.module.get_function(name) {
+            return f;
+        }
+
         let base = name.split('_').next().unwrap_or(name);
         if let Some(&f) = self.fns.get(base) {
             return f;
@@ -1351,20 +1359,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
         // Handle Vector::new constructor
         // Note: This is a hack - we assume Vector<u64, 8> for now
         // In a real implementation, we would need to know the actual vector type
-        eprintln!("[DEBUG get_function BEFORE CHECK] name = {}", name);
         if name == "Vector::new" {
-            eprintln!("[DEBUG get_function] Handling Vector::new");
             // Try to find vector_make_u64x8 function (most common for Murphy's Sieve)
             if let Some(f) = self.module.get_function("vector_make_u64x8") {
-                eprintln!("[DEBUG get_function] Found vector_make_u64x8");
                 return f;
             }
             // Fall back to i32x4
             if let Some(f) = self.module.get_function("vector_make_i32x4") {
-                eprintln!("[DEBUG get_function] Found vector_make_i32x4");
                 return f;
             }
-            eprintln!("[DEBUG get_function] vector_make not found, creating dummy");
             // If not found, create a dummy function
             // Note: This is a hack to avoid crashing
             // In a real implementation, we would generate proper SIMD code
@@ -1377,13 +1380,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
         // Handle Vector::splat
         if name == "Vector::splat" {
-            eprintln!("[DEBUG get_function] Handling Vector::splat");
             // Try to find vector_splat function
             if let Some(f) = self.module.get_function("vector_splat") {
-                eprintln!("[DEBUG get_function] Found vector_splat");
                 return f;
             }
-            eprintln!("[DEBUG get_function] vector_splat not found, creating dummy");
             // Create a dummy function
             let dummy_fn = self.module.add_function(
                 "vector_splat_dummy",
@@ -1398,7 +1398,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
             {
                 // Try identity-aware version first if identity feature is enabled
                 let identity_host_name = format!("identity_host_{}", name);
-                eprintln!("[DEBUG get_function] Trying identity-aware mapping {} to {}", name, identity_host_name);
                 if let Some(f) = self.module.get_function(&identity_host_name) {
                     return f;
                 }
@@ -1406,16 +1405,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
             
             // Fall back to regular host function
             let host_name = format!("host_{}", name);
-            eprintln!("[DEBUG get_function] Mapping {} to {}", name, host_name);
             if let Some(f) = self.module.get_function(&host_name) {
                 return f;
             }
         }
 
         // Check if it's an external function declared in the module
-        eprintln!("[DEBUG get_function] Checking module for function: {} (original name)", name);
         if let Some(f) = self.module.get_function(name) {
-            eprintln!("[DEBUG get_function] Found {} in module, function type: {:?}", name, f.get_type());
             return f;
         }
         
@@ -1641,6 +1637,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 key_id: *key_id,
                 dest: *dest,
             },
+            MirStmt::Store {
+                addr_id,
+                val_id,
+            } => MirStmt::Store {
+                addr_id: *addr_id,
+                val_id: *val_id,
+            },
             // TODO: Handle other MIR statement variants
             _ => todo!(
                 "MIR statement variant not yet implemented in substitute_stmt: {:?}",
@@ -1650,7 +1653,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
     }
 
     fn gen_stmt(&mut self, stmt: &MirStmt, exprs: &HashMap<u32, MirExpr>) {
-        eprintln!("[CODEGEN DEBUG] gen_stmt: {:?}", stmt);
         match stmt {
             MirStmt::Assign { lhs, rhs } => {
                 let val = self.gen_expr_safe(rhs, exprs);
@@ -1663,7 +1665,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 dest,
                 type_args,
             } => {
-                eprintln!("[CODEGEN DEBUG] MirStmt::Call: func={}, args={}", func, args.len());
                 // Handle call_i64 - actual function call dispatch
                 if func == "call_i64" && args.len() >= 2 {
                     // call_i64(func_ptr: i64, arg: i64) -> i64
@@ -1675,14 +1676,23 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
 
                 // Handle unary minus before operator check
-                println!("[CODEGEN DEBUG] Checking unary minus: func={}, args={}", func, args.len());
                 if args.len() == 1 && (func == "-" || func == "unary_minus") {
-                    println!("[CODEGEN DEBUG] Special unary minus handler for func={}", func);
                     let operand = self.gen_expr_safe(&args[0], exprs);
                     let zero = self.i64_type.const_zero();
                     let result = self.builder.build_int_sub(zero, operand.into_int_value(), "neg").unwrap();
                     let alloca = *self.locals.get(dest).unwrap();
                     self.builder.build_store(alloca, result).unwrap();
+                    return;
+                }
+
+                // Handle pointer dereference (*ptr)
+                if args.len() == 1 && func == "deref" {
+                    let ptr_as_i64 = self.gen_expr_safe(&args[0], exprs).into_int_value();
+                    let ptr_type = self.context.ptr_type(inkwell::AddressSpace::default());
+                    let ptr = self.builder.build_int_to_ptr(ptr_as_i64, ptr_type, "deref_ptr").unwrap();
+                    let val = self.builder.build_load(self.i64_type, ptr, "deref_val").unwrap();
+                    let alloca = *self.locals.get(dest).unwrap();
+                    self.builder.build_store(alloca, val).unwrap();
                     return;
                 }
 
@@ -1721,26 +1731,19 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     return;
                 }
                 */
-                eprintln!("[CODEGEN DEBUG] Reached operator block, func={}, args={}", func, args.len());
                 // Handle operator functions inline
                 if self.is_operator(func) {
-                    eprintln!("[CODEGEN DEBUG] Operator call: func={}, args={}", func, args.len());
                     // Handle unary operators
                     if args.len() == 1 && func == "!" {
                         let operand = self.gen_expr_safe(&args[0], exprs);
-                        // Logical NOT: (operand == 0)
-                        let is_false = self
-                            .builder
-                            .build_int_compare(
-                                inkwell::IntPredicate::EQ,
-                                operand.into_int_value(),
-                                self.i64_type.const_zero(),
-                                "is_false",
-                            )
-                            .unwrap();
+                        // Bitwise NOT: operand ^ -1 (all 1s)
                         let result = self
                             .builder
-                            .build_int_z_extend(is_false, self.i64_type, "not_ext")
+                            .build_xor(
+                                operand.into_int_value(),
+                                self.i64_type.const_int(-1i64 as u64, true),
+                                "bitnot",
+                            )
                             .unwrap();
 
                         let alloca = *self.locals.get(dest).unwrap();
@@ -1749,7 +1752,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     }
                     
                     // Handle unary minus
-                    eprintln!("[CODEGEN DEBUG] Unary minus detected");
                     if args.len() == 1 && func == "-" {
                         let operand = self.gen_expr_safe(&args[0], exprs);
                         // Unary minus: 0 - operand
@@ -1967,7 +1969,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
                             // Not an operator we handle inline
                             _ => {
-                                eprintln!("[CODEGEN DEBUG] Operator not handled inline: func={}, args={}", func, args.len());
                                 let callee = self.get_function_with_types(func, type_args);
                                 let arg_vals: Vec<BasicMetadataValueEnum> = args
                                     .iter()
@@ -1975,7 +1976,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                     .collect();
                                 let call = self
                                     .builder
-                                    .build_call(callee, &arg_vals, &format!("call_{dest}"))
+                                    .build_call(callee, &arg_vals, "")
                                     .unwrap();
                                 // Convert BasicValueEnum to IntValue
                                 let basic_val = Self::call_site_to_basic_value(call).unwrap();
@@ -1987,7 +1988,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         self.builder.build_store(alloca, result).unwrap();
                     } else {
                         // Operator with wrong number of arguments, fall through to regular function call
-                        println!("[CODEGEN DEBUG] Operator fallback: func={}, args={}", func, args.len());
                         let callee = self.get_function_with_types(func, type_args);
                         let arg_vals: Vec<BasicMetadataValueEnum> = args
                             .iter()
@@ -1995,7 +1995,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             .collect();
                         let call = self
                             .builder
-                            .build_call(callee, &arg_vals, &format!("call_{dest}"))
+                            .build_call(callee, &arg_vals, "")
                             .unwrap();
                         if let Some(val) = Self::call_site_to_basic_value(call) {
                             let alloca = *self.locals.get(dest).unwrap();
@@ -2011,7 +2011,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         .collect();
                     let call = self
                         .builder
-                        .build_call(callee, &arg_vals, &format!("simd_call_{dest}"))
+                        .build_call(callee, &arg_vals, "")
                         .unwrap();
                     if let Some(val) = Self::call_site_to_basic_value(call) {
                         let alloca = *self.locals.get(dest).unwrap();
@@ -2019,10 +2019,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     }
                 } else {
                     // Regular function call
-                    eprintln!("[CODEGEN DEBUG] Regular Call func={}, args={}", func, args.len());
                     // Handle unary minus before looking up function
                     if args.len() == 1 && (func == "-" || func == "unary_minus") {
-                        eprintln!("[CODEGEN DEBUG] Handling unary minus in regular call path");
                         let operand = self.gen_expr_safe(&args[0], exprs);
                         let zero = self.i64_type.const_zero();
                         let result = self.builder.build_int_sub(zero, operand.into_int_value(), "neg").unwrap();
@@ -2068,7 +2066,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         .collect();
                     let call = self
                         .builder
-                        .build_call(callee, &arg_vals, &format!("call_{dest}"))
+                        .build_call(callee, &arg_vals, "")
                         .unwrap();
                     if let Some(val) = Self::call_site_to_basic_value(call) {
                         // If function returns a pointer, convert it to i64
@@ -2089,11 +2087,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
             MirStmt::VoidCall { func, args } => {
                 // DEBUG
-                eprintln!("[CODEGEN DEBUG] VoidCall func={}, args={}", func, args.len());
                 
                 // === NEW: println(i64) support via println_i64 (bypasses get_function) ===
                 if func == "println" && !args.is_empty() {
-                    eprintln!("[CODEGEN DEBUG] Handling println with {} args", args.len());
                     let val = self.gen_expr_safe(&args[0], exprs);
                     // Call Zeta runtime function println_i64 (no C dependencies)
                     if let Some(println_i64_fn) = self.module.get_function("println_i64") {
@@ -2103,7 +2099,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             .unwrap();
                     } else {
                         // Fallback (should not happen)
-                        eprintln!("[CODEGEN ERROR] println_i64 not found!");
                     }
                     return;
                 }
@@ -2271,6 +2266,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 else_,
                 dest,
             } => {
+                for (i, s) in then.iter().enumerate() {
+                }
+                for (i, s) in else_.iter().enumerate() {
+                }
                 let cond_i64 = self.gen_expr_safe(cond, exprs).into_int_value();
                 let cond_i1 = self
                     .builder
@@ -2311,11 +2310,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
                 // Only branch to merge if block doesn't end with return
                 if !else_.iter().any(|s| matches!(s, MirStmt::Return { .. })) {
-                    // Ensure destination is initialized if needed
-                    if let Some(dest_id) = dest {
-                        let alloca = *self.locals.get(dest_id).unwrap();
-                        self.builder.build_store(alloca, self.i64_type.const_zero()).unwrap();
-                    }
                     self.builder.build_unconditional_branch(merge_bb).unwrap();
                 }
 
@@ -2405,7 +2399,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let current_val = self.builder.build_load(
                         self.i64_type,
                         loop_var_ptr,
-                        &format!("current_{}", pattern)
+                        ""
                     ).unwrap().into_int_value();
                     
                     // Check if current_val < end_val
@@ -2435,13 +2429,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let current_val_after = self.builder.build_load(
                         self.i64_type,
                         loop_var_ptr,
-                        &format!("current_{}_after", pattern)
+                        ""
                     ).unwrap().into_int_value();
                     
                     let next_val = self.builder.build_int_add(
                         current_val_after,
                         self.i64_type.const_int(1, false),
-                        &format!("next_{}", pattern)
+                        ""
                     ).unwrap();
                     
                     self.builder.build_store(loop_var_ptr, next_val).unwrap();
@@ -2453,8 +2447,17 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     self.builder.position_at_end(loop_exit_bb);
                 } else {
                     // Not a range iterator - for now, just skip
-                    eprintln!("[CODEGEN WARNING] For loop with non-range iterator not implemented");
                 }
+            }
+            MirStmt::Store { addr_id, val_id } => {
+                // *addr = val — store val through the pointer
+                let addr_i64 = self.gen_expr_safe(addr_id, exprs).into_int_value();
+                let val = self.gen_expr_safe(val_id, exprs);
+                let ptr_type = self.context.ptr_type(inkwell::AddressSpace::default());
+                let ptr = self.builder.build_int_to_ptr(
+                    addr_i64, ptr_type, "store_ptr",
+                ).unwrap();
+                self.builder.build_store(ptr, val).unwrap();
             }
             MirStmt::ParamInit { .. } => {} // handled at entry
             _ => {}
@@ -2547,50 +2550,57 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let left_val = self.gen_expr(&exprs[left], exprs, None).into_int_value();
                 let right_val = self.gen_expr(&exprs[right], exprs, None).into_int_value();
                 
-                let cmp = match op.as_str() {
-                    "<" => self.builder.build_int_compare(
-                        IntPredicate::SLT,
-                        left_val,
-                        right_val,
-                        "cmp_lt",
-                    ).unwrap(),
-                    ">" => self.builder.build_int_compare(
-                        IntPredicate::SGT,
-                        left_val,
-                        right_val,
-                        "cmp_gt",
-                    ).unwrap(),
-                    "<=" => self.builder.build_int_compare(
-                        IntPredicate::SLE,
-                        left_val,
-                        right_val,
-                        "cmp_le",
-                    ).unwrap(),
-                    ">=" => self.builder.build_int_compare(
-                        IntPredicate::SGE,
-                        left_val,
-                        right_val,
-                        "cmp_ge",
-                    ).unwrap(),
-                    "==" => self.builder.build_int_compare(
-                        IntPredicate::EQ,
-                        left_val,
-                        right_val,
-                        "cmp_eq",
-                    ).unwrap(),
-                    "!=" => self.builder.build_int_compare(
-                        IntPredicate::NE,
-                        left_val,
-                        right_val,
-                        "cmp_ne",
-                    ).unwrap(),
+                match op.as_str() {
+                    "<" => {
+                        let cmp = self.builder.build_int_compare(
+                            IntPredicate::SLT, left_val, right_val, "cmp_lt",
+                        ).unwrap();
+                        self.builder.build_int_z_extend(cmp, self.i64_type, "cmp_ext").unwrap().into()
+                    }
+                    ">" => {
+                        let cmp = self.builder.build_int_compare(
+                            IntPredicate::SGT, left_val, right_val, "cmp_gt",
+                        ).unwrap();
+                        self.builder.build_int_z_extend(cmp, self.i64_type, "cmp_ext").unwrap().into()
+                    }
+                    "<=" => {
+                        let cmp = self.builder.build_int_compare(
+                            IntPredicate::SLE, left_val, right_val, "cmp_le",
+                        ).unwrap();
+                        self.builder.build_int_z_extend(cmp, self.i64_type, "cmp_ext").unwrap().into()
+                    }
+                    ">=" => {
+                        let cmp = self.builder.build_int_compare(
+                            IntPredicate::SGE, left_val, right_val, "cmp_ge",
+                        ).unwrap();
+                        self.builder.build_int_z_extend(cmp, self.i64_type, "cmp_ext").unwrap().into()
+                    }
+                    "==" => {
+                        let cmp = self.builder.build_int_compare(
+                            IntPredicate::EQ, left_val, right_val, "cmp_eq",
+                        ).unwrap();
+                        self.builder.build_int_z_extend(cmp, self.i64_type, "cmp_ext").unwrap().into()
+                    }
+                    "!=" => {
+                        let cmp = self.builder.build_int_compare(
+                            IntPredicate::NE, left_val, right_val, "cmp_ne",
+                        ).unwrap();
+                        self.builder.build_int_z_extend(cmp, self.i64_type, "cmp_ext").unwrap().into()
+                    }
+                    "+" => self.builder.build_int_add(left_val, right_val, "add").unwrap().into(),
+                    "-" => self.builder.build_int_sub(left_val, right_val, "sub").unwrap().into(),
+                    "*" => self.builder.build_int_mul(left_val, right_val, "mul").unwrap().into(),
+                    "/" => self.builder.build_int_signed_div(left_val, right_val, "div").unwrap().into(),
+                    "%" => self.builder.build_int_signed_rem(left_val, right_val, "mod").unwrap().into(),
+                    "&" => self.builder.build_and(left_val, right_val, "bitand").unwrap().into(),
+                    "|" => self.builder.build_or(left_val, right_val, "bitor").unwrap().into(),
+                    "^" => self.builder.build_xor(left_val, right_val, "bitxor").unwrap().into(),
+                    "<<" => self.builder.build_left_shift(left_val, right_val, "shl").unwrap().into(),
+                    ">>" => self.builder.build_right_shift(left_val, right_val, true, "shr").unwrap().into(),
                     _ => {
-                        // For other operators, we should have created a Call statement instead
-                        // This shouldn't happen for comparison operators
                         panic!("Unsupported binary operator in BinaryOp: {}", op);
                     }
-                };
-                self.builder.build_int_z_extend(cmp, self.i64_type, "cmp_ext").unwrap().into()
+                }
             }
             MirExpr::Struct { variant, fields } => {
                 // Allocate struct on stack and store field values
@@ -2625,7 +2635,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             struct_type,
                             alloca,
                             i as u32,
-                            &format!("field_{}_ptr", field_name),
+                            "",
                         )
                         .unwrap();
 
@@ -2708,7 +2718,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .build_extract_value(
                         loaded_struct.into_struct_value(),
                         field_index,
-                        &format!("extract_{}", field),
+                        "",
                     )
                     .unwrap()
             }
@@ -2757,12 +2767,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
             MirExpr::StackArray { elements, size } => {
                 // Allocate stack array and initialize with elements
-                println!("[CODEGEN] Generating StackArray with {} elements, size = {}", elements.len(), size);
                 
                 // Always use i64 for array elements to match runtime expectations
                 // This wastes memory for bool arrays but ensures compatibility
                 let elem_type = self.i64_type;
-                println!("[CODEGEN] Creating array with i64 elements (size={})", size);
                 
                 // Create array type
                 let array_type = elem_type.array_type(*size as u32);
@@ -2781,7 +2789,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 self.i64_type.const_int(0, false),
                                 self.i64_type.const_int(i as u64, false)
                             ],
-                            &format!("elem_{}_ptr", i)
+                            ""
                         ).unwrap()
                     };
                     self.builder.build_store(element_ptr, element_val).unwrap();
@@ -2802,7 +2810,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
     fn load_local(&self, id: u32) -> BasicValueEnum<'ctx> {
         let ptr = *self.locals.get(&id).unwrap();
         self.builder
-            .build_load(self.i64_type, ptr, &format!("load_{id}"))
+            .build_load(self.i64_type, ptr, "")
             .unwrap()
     }
 

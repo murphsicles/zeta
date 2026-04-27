@@ -30,7 +30,6 @@ impl ConstEvaluator {
 
     /// Evaluate a program (list of AST nodes)
     pub fn evaluate_program(&mut self, asts: &[AstNode]) -> CtfeResult<Vec<AstNode>> {
-        eprintln!("[CTFE] evaluate_program called with {} ASTs", asts.len());
         // First pass: register all const/comptime functions
         for ast in asts {
             if let AstNode::FuncDef {

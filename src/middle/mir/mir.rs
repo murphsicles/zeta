@@ -100,6 +100,11 @@ pub enum MirStmt {
         cond: u32,       // Condition expression
         body: Vec<MirStmt>,
     },
+    // Store through pointer: *addr = value
+    Store {
+        addr_id: u32,
+        val_id: u32,
+    },
 }
 
 #[derive(Debug, Clone)]
