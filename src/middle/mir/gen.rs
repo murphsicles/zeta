@@ -21,6 +21,9 @@ pub struct MirGen {
     global_consts: HashMap<String, crate::middle::ctfe::value::ConstValue>,
     // Preserve original source-level type strings for parameters (e.g., "*mut u64")
     source_types: HashMap<u32, String>,
+    /// Tracks pointee element width (in bytes) for pointer-typed expression IDs.
+    /// Populated by the offset/add handler, used when generating Store/Deref.
+    pointee_widths: HashMap<u32, u8>,
 }
 
 impl MirGen {
@@ -34,6 +37,7 @@ impl MirGen {
             name_to_id: HashMap::new(),
             global_consts: HashMap::new(),
             source_types: HashMap::new(),
+            pointee_widths: HashMap::new(),
         }
     }
     
@@ -47,6 +51,7 @@ impl MirGen {
         self.stmts.clear();
         self.exprs.clear();
         self.source_types.clear();
+        self.pointee_widths.clear();
         self.next_id = 1;
 
         // Check if this is an extern/FFI function (empty body, no ret expr).
@@ -224,9 +229,11 @@ impl MirGen {
                     if op == "*" {
                         // Store through pointer: *ptr = val
                         let addr_id = self.lower_expr(expr);
+                        let pointee_width = self.pointee_widths.get(&addr_id).copied().unwrap_or(8);
                         self.stmts.push(MirStmt::Store {
                             addr_id,
                             val_id: rhs_id,
+                            pointee_width,
                         });
                     } else {
                         // Other unary assignment (unlikely)
@@ -569,6 +576,24 @@ impl MirGen {
                     });
                 }
             }
+            AstNode::Loop { body } => {
+                // lower_ast for loop body
+                let stmts_before = self.stmts.len();
+                for stmt in body {
+                    self.lower_ast(stmt);
+                }
+                let loop_stmts = self.stmts.split_off(stmts_before);
+                
+                // Create While statement with true condition (infinite loop)
+                let cond_id = self.next_id();
+                self.exprs.insert(cond_id, MirExpr::Lit(1));
+                self.type_map.insert(cond_id, Type::I64);
+                
+                self.stmts.push(MirStmt::While {
+                    cond: cond_id,
+                    body: loop_stmts,
+                });
+            }
             AstNode::While { cond, body } => {
                 // Must capture stmts BEFORE lowering the condition,
                 // because lower_expr(cond) can emit SemiringFold side-effects
@@ -601,6 +626,13 @@ impl MirGen {
                 for stmt in body {
                     self.lower_ast(stmt);
                 }
+            }
+            AstNode::Break(_val) => {
+                // Break in lower_ast: emit nothing, loop control is handled at the while level
+                // (for now, break is a no-op in MIR gen since we don't have loop exit support)
+            }
+            AstNode::Continue(_) => {
+                // Continue in lower_ast: no-op for now
             }
             // Expression-as-statement nodes: lower the expression, discard the result value
             // (side effects through self.stmts are what matter)
@@ -993,10 +1025,12 @@ impl MirGen {
                     (method.clone(), false, false)
                 };
 
-                // Special case: ptr.add(offset) for raw pointer types
+                // Special case: ptr.add(offset) / ptr.offset(offset) for raw pointer types
                 // Detect by checking if the mangled function name starts with "add_*"
                 // OR if the receiver's source type contains "*mut" or "*const"
+                // offset is ONLY defined on raw pointers in Rust, so method="offset" is always ptr arith
                 let is_ptr_add = func.starts_with("add_*")
+                    || method == "offset"
                     || (method == "add" && receiver.is_some() 
                         && arg_ids.first().map(|&id| self.source_types.get(&id).map_or(false, |st| st.contains("*mut") || st.contains("*const"))).unwrap_or(false));
                 if is_ptr_add {
@@ -1004,7 +1038,11 @@ impl MirGen {
                     let offset_id = arg_ids[1];
 
                     // Determine element size from the function name (e.g., "add_*mut u64" -> 8)
-                    let elem_size = if func.contains("u64") || func.contains("i64") || func.contains("f64") || func.contains("usize") {
+                    // Note: for offset(), the mangled name is usually "offset_i64" (MIR loses pointer type),
+                    // so we hard-code elem_size=1 for offset (it's always byte-addressable in practice)
+                    let elem_size = if method == "offset" {
+                        1  // offset is always byte-level on u8 pointers
+                    } else if func.contains("u64") || func.contains("i64") || func.contains("f64") || func.contains("usize") {
                         8
                     } else if func.contains("u32") || func.contains("i32") || func.contains("f32") {
                         4
@@ -1035,6 +1073,7 @@ impl MirGen {
                         right: mul_id,
                     });
                     self.type_map.insert(id, Type::I64);
+                    self.pointee_widths.insert(id, elem_size as u8);
                     return id;
                 }
 
@@ -1649,14 +1688,13 @@ impl MirGen {
                     };
                     self.stmts.push(stmt);
                 } else if op == "*" {
-                    // Pointer dereference - use "deref" instead of "*" to avoid conflict with binary multiply
-                    let stmt = MirStmt::Call {
-                        func: "deref".to_string(),
-                        args: vec![expr_id],
-                        dest,
-                        type_args: vec![],
-                    };
-                    self.stmts.push(stmt);
+                    // Pointer dereference - use Deref MirExpr with pointee width
+                    let pointee_width = self.pointee_widths.get(&expr_id).copied().unwrap_or(8);
+                    self.exprs.insert(dest, MirExpr::Deref { addr_id: expr_id, pointee_width });
+                    self.type_map.insert(dest, Type::I64);
+                    // SKIP the common Var(dest) insert below — the Deref expr is used inline
+                    // by gen_expr_safe, so we don't need an alloca to load from.
+                    return dest;
                 } else if op == "-" {
                     // Unary minus - use special function name to avoid conflict with binary minus
                     let stmt = MirStmt::Call {

@@ -133,7 +133,7 @@ pub fn dead_code_elimination(mir: &mut Mir) {
                 };
                 dead_code_elimination(&mut nested_mir);
             }
-            MirStmt::Store { addr_id, val_id } => {
+            MirStmt::Store { addr_id, val_id, .. } => {
                 // Both addr and val are used
                 mark_expr_used(*addr_id, &mut used, &mir.exprs);
                 mark_expr_used(*val_id, &mut used, &mir.exprs);
@@ -260,6 +260,7 @@ pub fn common_subexpression_elimination(mir: &mut Mir) {
                     .join(",");
                 format!("FString([{}])", parts_str)
             }
+            MirExpr::Deref { addr_id, .. } => format!("Deref({})", addr_id),
             MirExpr::TimingOwned(inner_id) => format!("TimingOwned({})", inner_id),
             MirExpr::StringLit(s) => format!("StringLit({})", s),
             MirExpr::Struct { variant, fields, .. } => {

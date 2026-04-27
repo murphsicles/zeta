@@ -101,9 +101,11 @@ pub enum MirStmt {
         body: Vec<MirStmt>,
     },
     // Store through pointer: *addr = value
+    // pointee_width: 1 for *mut u8, 8 for *mut u64/i64, etc.
     Store {
         addr_id: u32,
         val_id: u32,
+        pointee_width: u8,
     },
 }
 
@@ -133,6 +135,12 @@ pub enum MirExpr {
     Range {
         start: u32,
         end: u32,
+    },
+    // Pointer dereference: load through a pointer with explicit element width
+    // pointee_width: 1 for *mut u8, 8 for *mut u64/i64, etc.
+    Deref {
+        addr_id: u32,
+        pointee_width: u8,
     },
     // Binary operation
     BinaryOp {

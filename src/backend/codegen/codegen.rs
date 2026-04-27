@@ -1120,7 +1120,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             MirStmt::ParamInit { param_id, .. } => {
                 ids.insert(*param_id);
             }
-            MirStmt::Store { addr_id, val_id } => {
+            MirStmt::Store { addr_id, val_id, .. } => {
                 ids.insert(*addr_id);
                 if let Some(e) = exprs.get(val_id) {
                     self.collect_ids_from_expr_safe(e, ids, exprs);
@@ -1157,6 +1157,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
             MirExpr::TimingOwned(inner_id) => {
                 ids.insert(*inner_id);
+            }
+            MirExpr::Deref { addr_id, .. } => {
+                if let Some(e) = exprs.get(addr_id) {
+                    self.collect_ids_from_expr_safe(e, ids, exprs);
+                }
             }
             MirExpr::SemiringFold { values, .. } => {
                 for &v in values {
@@ -1640,9 +1645,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
             MirStmt::Store {
                 addr_id,
                 val_id,
+                pointee_width,
             } => MirStmt::Store {
                 addr_id: *addr_id,
                 val_id: *val_id,
+                pointee_width: *pointee_width,
             },
             // TODO: Handle other MIR statement variants
             _ => todo!(
@@ -1682,17 +1689,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let result = self.builder.build_int_sub(zero, operand.into_int_value(), "neg").unwrap();
                     let alloca = *self.locals.get(dest).unwrap();
                     self.builder.build_store(alloca, result).unwrap();
-                    return;
-                }
-
-                // Handle pointer dereference (*ptr)
-                if args.len() == 1 && func == "deref" {
-                    let ptr_as_i64 = self.gen_expr_safe(&args[0], exprs).into_int_value();
-                    let ptr_type = self.context.ptr_type(inkwell::AddressSpace::default());
-                    let ptr = self.builder.build_int_to_ptr(ptr_as_i64, ptr_type, "deref_ptr").unwrap();
-                    let val = self.builder.build_load(self.i64_type, ptr, "deref_val").unwrap();
-                    let alloca = *self.locals.get(dest).unwrap();
-                    self.builder.build_store(alloca, val).unwrap();
                     return;
                 }
 
@@ -2449,17 +2445,23 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     // Not a range iterator - for now, just skip
                 }
             }
-            MirStmt::Store { addr_id, val_id } => {
+                        MirStmt::Store { addr_id, val_id, pointee_width } => {
                 // *addr = val — store val through the pointer
                 let addr_i64 = self.gen_expr_safe(addr_id, exprs).into_int_value();
                 let val = self.gen_expr_safe(val_id, exprs);
-                let ptr_type = self.context.ptr_type(inkwell::AddressSpace::default());
+                let pointee_llvm_type = self.context.custom_width_int_type((*pointee_width as u32) * 8);
+                let pointed_ptr_type = pointee_llvm_type.ptr_type(inkwell::AddressSpace::default());
                 let ptr = self.builder.build_int_to_ptr(
-                    addr_i64, ptr_type, "store_ptr",
+                    addr_i64, pointed_ptr_type, "store_ptr",
                 ).unwrap();
-                self.builder.build_store(ptr, val).unwrap();
-            }
-            MirStmt::ParamInit { .. } => {} // handled at entry
+                // Truncate the i64 value to the pointee width before storing
+                let narrowed = self.builder.build_int_truncate(
+                    val.into_int_value(),
+                    pointee_llvm_type,
+                    "store_trunc",
+                ).unwrap();
+                self.builder.build_store(ptr, narrowed).unwrap();
+            }            MirStmt::ParamInit { .. } => {} // handled at entry
             _ => {}
         }
     }
@@ -2804,8 +2806,25 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 // TODO: Implement proper range type
                 self.gen_expr(&exprs[start], exprs, None)
             }
+            MirExpr::Deref { addr_id, pointee_width } => {
+                // *ptr — load through pointer with given element width
+                let ptr_as_i64 = self.gen_expr_safe(addr_id, exprs).into_int_value();
+                let pointee_llvm_type = self.context.custom_width_int_type((*pointee_width as u32) * 8);
+                let pointed_ptr_type = pointee_llvm_type.ptr_type(inkwell::AddressSpace::default());
+                let ptr = self.builder.build_int_to_ptr(
+                    ptr_as_i64, pointed_ptr_type, "deref_ptr",
+                ).unwrap();
+                let val = self.builder.build_load(pointee_llvm_type, ptr, "deref_val").unwrap();
+                // Zero-extend back to i64
+                self.builder.build_int_z_extend(
+                    val.into_int_value(),
+                    self.i64_type,
+                    "deref_ext",
+                ).unwrap().into()
+            }
         }
     }
+
 
     fn load_local(&self, id: u32) -> BasicValueEnum<'ctx> {
         let ptr = *self.locals.get(&id).unwrap();
