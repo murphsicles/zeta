@@ -293,6 +293,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
             Some(Linkage::External),
         );
         module.add_function(
+            "time_is_up",
+            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
             "print_result",
             void_type.fn_type(&[i64_type.into(), i64_type.into()], false),
             Some(Linkage::External),
