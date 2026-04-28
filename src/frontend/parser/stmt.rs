@@ -210,9 +210,14 @@ fn parse_assign(input: &str) -> IResult<&str, AstNode> {
 
 fn parse_return(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("return")).parse(input)?;
-    let (input, inner) = ws(parse_full_expr).parse(input)?;
+    let (input, inner) = opt(ws(parse_full_expr)).parse(input)?;
     let (input, _) = opt(ws(tag(";"))).parse(input)?;
-    Ok((input, AstNode::Return(Box::new(inner))))
+    if let Some(expr) = inner {
+        Ok((input, AstNode::Return(Box::new(expr))))
+    } else {
+        // return; without expression - use Lit(0) as default
+        Ok((input, AstNode::Return(Box::new(AstNode::Lit(0)))))
+    }
 }
 
 fn parse_break(input: &str) -> IResult<&str, AstNode> {
