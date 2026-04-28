@@ -43,6 +43,11 @@ pub enum CtfeError {
     ScopeError(String),
     /// Loop exceeded maximum allowed iterations
     LoopTooManyIterations,
+    /// Index out of bounds in array access
+    IndexOutOfBounds {
+        index: usize,
+        length: usize,
+    },
 }
 
 impl fmt::Display for CtfeError {
@@ -72,6 +77,9 @@ impl fmt::Display for CtfeError {
             CtfeError::UnsupportedOperation(msg) => write!(f, "unsupported operation: {}", msg),
             CtfeError::ScopeError(msg) => write!(f, "scope error: {}", msg),
             CtfeError::LoopTooManyIterations => write!(f, "loop exceeded maximum allowed iterations"),
+            CtfeError::IndexOutOfBounds { index, length } => {
+                write!(f, "index out of bounds: index {}, length {}", index, length)
+            }
         }
     }
 }

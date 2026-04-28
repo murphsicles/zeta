@@ -286,6 +286,17 @@ impl<'ctx> LLVMCodegen<'ctx> {
             void_type.fn_type(&[], false),
             Some(Linkage::External),
         );
+        // Timing and result output for competition entries
+        module.add_function(
+            "get_time_us",
+            i64_type.fn_type(&[], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "print_result",
+            void_type.fn_type(&[i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
         // Memory allocation functions
         module.add_function(
             "runtime_malloc",
@@ -392,6 +403,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
         module.add_function(
             "write_qword_builtin",
             void_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "run_sieve",
+            i64_type.fn_type(&[i64_type.into()], false),
             Some(Linkage::External),
         );
         module.add_function(

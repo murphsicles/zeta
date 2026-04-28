@@ -13,6 +13,8 @@ pub enum ConstValue {
     Bool(bool),
     /// Array of constant values
     Array(Vec<ConstValue>),
+    /// Compact array of integers (no per-element enum overhead)
+    IntArray(Vec<i64>),
     /// Unit type (empty tuple)
     Unit,
 }
@@ -25,6 +27,7 @@ impl ConstValue {
             ConstValue::UInt(_) => "u64",
             ConstValue::Bool(_) => "bool",
             ConstValue::Array(_) => "array",
+            ConstValue::IntArray(_) => "int_array",
             ConstValue::Unit => "unit",
         }
     }
@@ -61,6 +64,95 @@ impl ConstValue {
         }
     }
     
+    /// Get element at index in an array. Returns error if not array or index OOB.
+    pub fn array_index(&self, index: usize) -> CtfeResult<&ConstValue> {
+        match self {
+            ConstValue::Array(elements) => {
+                if index < elements.len() {
+                    Ok(&elements[index])
+                } else {
+                    Err(CtfeError::IndexOutOfBounds { index, length: elements.len() })
+                }
+            }
+            ConstValue::IntArray(elements) => {
+                if index < elements.len() {
+                    // Leak a Box<ConstValue> to get a &'static reference.
+                    // Safe in single-threaded CTFE; caller clones immediately.
+                    let leaked = Box::leak(Box::new(ConstValue::Int(elements[index])));
+                    Ok(leaked)
+                } else {
+                    Err(CtfeError::IndexOutOfBounds { index, length: elements.len() })
+                }
+            }
+            _ => Err(CtfeError::TypeMismatch {
+                expected: "array".to_string(),
+                found: self.type_name().to_string(),
+            }),
+        }
+    }
+
+    /// Get an i64 element from an IntArray by cloning the value out.
+    /// Used when you can own the result.
+    pub fn intarray_get(&self, index: usize) -> CtfeResult<ConstValue> {
+        match self {
+            ConstValue::IntArray(elements) => {
+                if index < elements.len() {
+                    Ok(ConstValue::Int(elements[index]))
+                } else {
+                    Err(CtfeError::IndexOutOfBounds { index, length: elements.len() })
+                }
+            }
+            _ => Err(CtfeError::TypeMismatch {
+                expected: "int_array".to_string(),
+                found: self.type_name().to_string(),
+            }),
+        }
+    }
+    
+    /// Set element at index in an array. Mutates in-place. Returns error if not array or index OOB.
+    pub fn array_set(&mut self, index: usize, value: ConstValue) -> CtfeResult<()> {
+        match self {
+            ConstValue::Array(elements) => {
+                if index < elements.len() {
+                    elements[index] = value;
+                    Ok(())
+                } else {
+                    Err(CtfeError::IndexOutOfBounds { index, length: elements.len() })
+                }
+            }
+            ConstValue::IntArray(elements) => {
+                if index < elements.len() {
+                    // Attempt to store an Int value into the compact array
+                    match value {
+                        ConstValue::Int(i) => {
+                            elements[index] = i;
+                            Ok(())
+                        }
+                        _ => Err(CtfeError::TypeMismatch {
+                            expected: "int (i64)".to_string(),
+                            found: value.type_name().to_string(),
+                        }),
+                    }
+                } else {
+                    Err(CtfeError::IndexOutOfBounds { index, length: elements.len() })
+                }
+            }
+            _ => Err(CtfeError::TypeMismatch {
+                expected: "array".to_string(),
+                found: self.type_name().to_string(),
+            }),
+        }
+    }
+
+    /// Return the length of the array (works for both Array and IntArray)
+    pub fn array_len(&self) -> Option<usize> {
+        match self {
+            ConstValue::Array(elements) => Some(elements.len()),
+            ConstValue::IntArray(elements) => Some(elements.len()),
+            _ => None,
+        }
+    }
+    
     /// Perform a binary operation
     pub fn binary_op(&self, op: &str, right: &Self) -> CtfeResult<Self> {
         match (self, right) {
@@ -76,6 +168,13 @@ impl ConstValue {
                 Self::binary_op_bool(*left_val, op, *right_val)
                     .map(ConstValue::Bool)
             }
+            (ConstValue::IntArray(_), _) | (_, ConstValue::IntArray(_)) => {
+                Err(CtfeError::InvalidOperation {
+                    op: op.to_string(),
+                    left_type: self.type_name().to_string(),
+                    right_type: Some(right.type_name().to_string()),
+                })
+            }
             _ => Err(CtfeError::InvalidOperation {
                 op: op.to_string(),
                 left_type: self.type_name().to_string(),
@@ -90,6 +189,11 @@ impl ConstValue {
             ConstValue::Int(val) => Self::unary_op_int(*val, op).map(ConstValue::Int),
             ConstValue::UInt(val) => Self::unary_op_uint(*val, op).map(ConstValue::UInt),
             ConstValue::Bool(val) => Self::unary_op_bool(*val, op).map(ConstValue::Bool),
+            ConstValue::IntArray(_) => Err(CtfeError::InvalidOperation {
+                op: op.to_string(),
+                left_type: self.type_name().to_string(),
+                right_type: None,
+            }),
             _ => Err(CtfeError::InvalidOperation {
                 op: op.to_string(),
                 left_type: self.type_name().to_string(),
@@ -97,18 +201,34 @@ impl ConstValue {
             }),
         }
     }
+
+    /// Try to convert to IntArray reference
+    pub fn as_int_array(&self) -> Option<&Vec<i64>> {
+        match self {
+            ConstValue::IntArray(arr) => Some(arr),
+            _ => None,
+        }
+    }
+
+    /// Try to convert to IntArray mutable reference
+    pub fn as_int_array_mut(&mut self) -> Option<&mut Vec<i64>> {
+        match self {
+            ConstValue::IntArray(arr) => Some(arr),
+            _ => None,
+        }
+    }
     
     /// Binary operation for signed integers
     fn binary_op_int(left: i64, op: &str, right: i64) -> CtfeResult<i64> {
         match op {
-            "+" => left.checked_add(right).ok_or(CtfeError::Overflow),
-            "-" => left.checked_sub(right).ok_or(CtfeError::Overflow),
-            "*" => left.checked_mul(right).ok_or(CtfeError::Overflow),
+            "+" => Ok(left.wrapping_add(right)),
+            "-" => Ok(left.wrapping_sub(right)),
+            "*" => Ok(left.wrapping_mul(right)),
             "/" => {
                 if right == 0 {
                     Err(CtfeError::DivisionByZero)
                 } else {
-                    left.checked_div(right).ok_or(CtfeError::Overflow)
+                    Ok(left.wrapping_div(right))
                 }
             }
             "%" => {
@@ -125,14 +245,14 @@ impl ConstValue {
                 if right < 0 || right >= 64 {
                     Err(CtfeError::Overflow)
                 } else {
-                    left.checked_shl(right as u32).ok_or(CtfeError::Overflow)
+                    Ok(left.wrapping_shl(right as u32))
                 }
             }
             ">>" => {
                 if right < 0 || right >= 64 {
                     Err(CtfeError::Overflow)
                 } else {
-                    left.checked_shr(right as u32).ok_or(CtfeError::Overflow)
+                    Ok(left.wrapping_shr(right as u32))
                 }
             }
             "==" => Ok((left == right) as i64),
@@ -151,14 +271,14 @@ impl ConstValue {
     /// Binary operation for unsigned integers
     fn binary_op_uint(left: u64, op: &str, right: u64) -> CtfeResult<u64> {
         match op {
-            "+" => left.checked_add(right).ok_or(CtfeError::Overflow),
-            "-" => left.checked_sub(right).ok_or(CtfeError::Overflow),
-            "*" => left.checked_mul(right).ok_or(CtfeError::Overflow),
+            "+" => Ok(left.wrapping_add(right)),
+            "-" => Ok(left.wrapping_sub(right)),
+            "*" => Ok(left.wrapping_mul(right)),
             "/" => {
                 if right == 0 {
                     Err(CtfeError::DivisionByZero)
                 } else {
-                    left.checked_div(right).ok_or(CtfeError::Overflow)
+                    Ok(left.wrapping_div(right))
                 }
             }
             "%" => {
@@ -171,8 +291,8 @@ impl ConstValue {
             "&" => Ok(left & right),
             "|" => Ok(left | right),
             "^" => Ok(left ^ right),
-            "<<" => left.checked_shl(right as u32).ok_or(CtfeError::Overflow),
-            ">>" => left.checked_shr(right as u32).ok_or(CtfeError::Overflow),
+            "<<" => Ok(left.wrapping_shl(right as u32)),
+            ">>" => Ok(left.wrapping_shr(right as u32)),
             "==" => Ok((left == right) as u64),
             "!=" => Ok((left != right) as u64),
             "<" => Ok((left < right) as u64),
@@ -203,7 +323,7 @@ impl ConstValue {
     /// Unary operation for signed integers
     fn unary_op_int(val: i64, op: &str) -> CtfeResult<i64> {
         match op {
-            "-" => val.checked_neg().ok_or(CtfeError::Overflow),
+            "-" => Ok(val.wrapping_neg()),
             "!" => Ok(!val),
             _ => Err(CtfeError::UnsupportedOperation(format!(
                 "unary operator '{}' for integers",

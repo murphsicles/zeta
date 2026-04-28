@@ -198,15 +198,13 @@ fn parse_assign(input: &str) -> IResult<&str, AstNode> {
     if op == "=" {
         Ok((input, AstNode::Assign(Box::new(lhs), Box::new(rhs))))
     } else {
-        // For compound assignment, create x = x op rhs
-        // Remove the = from the operator
+        // Compound assignment: produce AssignOp with the base operator (without =)
         let bin_op = op.trim_end_matches('=').to_string();
-        let new_rhs = AstNode::BinaryOp {
+        Ok((input, AstNode::AssignOp {
             op: bin_op,
-            left: Box::new(lhs.clone()),
-            right: Box::new(rhs),
-        };
-        Ok((input, AstNode::Assign(Box::new(lhs), Box::new(new_rhs))))
+            target: Box::new(lhs),
+            value: Box::new(rhs),
+        }))
     }
 }
 

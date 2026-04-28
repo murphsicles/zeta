@@ -17,14 +17,34 @@ pub struct ConstEvaluator {
     context: ConstContext,
     /// Set when a Return statement is evaluated — used for early exit from function bodies
     returned_value: Option<ConstValue>,
+    /// Recursion depth counter to prevent stack overflow on recursive comptime functions
+    recursion_depth: u32,
 }
 
 impl ConstEvaluator {
+    /// Check if an AST node contains variable references.
+    /// Used to determine if eager CTFE evaluation is safe.
+    fn contains_variable(node: &AstNode) -> bool {
+        match node {
+            AstNode::Var(_) => true,
+            AstNode::BinaryOp { left, right, .. } => {
+                Self::contains_variable(left) || Self::contains_variable(right)
+            }
+            AstNode::UnaryOp { expr, .. } => Self::contains_variable(expr),
+            AstNode::Call { args, .. } => args.iter().any(|a| Self::contains_variable(a)),
+            AstNode::Subscript { base, index, .. } => {
+                Self::contains_variable(base) || Self::contains_variable(index)
+            }
+            _ => false,
+        }
+    }
+
     /// Create a new const evaluator
     pub fn new() -> Self {
         Self {
             context: ConstContext::new(),
             returned_value: None,
+            recursion_depth: 0,
         }
     }
 
@@ -184,6 +204,7 @@ impl ConstEvaluator {
             | AstNode::FieldAccess { .. }
             | AstNode::FString(_)
             | AstNode::Assign(_, _)
+            | AstNode::AssignOp { .. }
             | AstNode::IfLet { .. }
             | AstNode::Tuple(_)
             | AstNode::StructPattern { .. }
@@ -305,36 +326,30 @@ impl ConstEvaluator {
                     .collect();
                 let transformed_args = transformed_args?;
                 
-                // Check if this is a comptime function call with no receiver
+                // Check if this is a comptime function call with no receiver.
+                // Try to evaluate eagerly. If evaluation fails because variables
+                // aren't bound yet (we're inside a function body being transformed),
+                // just skip — the call will be evaluated when the outer function
+                // is actually invoked.
                 if receiver.is_none() {
-                    // Try to evaluate as a const function call
                     let func_opt = self.context.get_function(method);
-                    match func_opt {
-                        Some(func) => {
-                            // Check if it's a const/comptime function
-                            match func {
-                                AstNode::FuncDef { const_, comptime_, .. } => {
-                                    if *const_ || *comptime_ {
-                                        // Try to evaluate the call
-                                        let eval_result = self.eval_function_call(None, method, &transformed_args);
-                                        match eval_result {
-                                            Ok(ConstValue::Int(result)) => {
-                                                return Ok(AstNode::Lit(result));
-                                            }
-                                            Ok(ConstValue::Bool(result)) => {
-                                                return Ok(AstNode::Bool(result));
-                                            }
-                                            Ok(val) => {
-                                            }
-                                            Err(e) => {
-                                            }
-                                        }
+                    if let Some(func) = func_opt {
+                        if let AstNode::FuncDef { const_, comptime_, .. } = func {
+                            if *const_ || *comptime_ {
+                                // Check if all args are simple (no variable references).
+                                // If any arg references a variable, skip eager eval —
+                                // we're inside a function body and vars aren't bound yet.
+                                let has_vars = transformed_args.iter().any(|a| Self::contains_variable(a));
+                                if !has_vars {
+                                    match self.eval_function_call(None, method, &transformed_args) {
+                                        Ok(ConstValue::Int(n)) => { return Ok(AstNode::Lit(n)); }
+                                        Ok(ConstValue::Bool(b)) => { return Ok(AstNode::Bool(b)); }
+                                        Ok(val) => { }
+                                        Err(e) => { }
                                     }
                                 }
-                                _ => {}
                             }
                         }
-                        None => {}
                     }
                 }
                 
@@ -569,9 +584,14 @@ impl ConstEvaluator {
                 self.eval_array_literal(elements)
             }
             
+            // Expression statements — unwrap and evaluate inner expression
+            AstNode::ExprStmt { expr } => {
+                self.eval_const_expr(expr)
+            }
+            
             // If expressions
             AstNode::If { cond, then, else_ } => {
-                self.eval_if_expr(cond, then, else_.last())
+                self.eval_if_expr_with_else(cond, then, else_)
             }
             
             // Blocks
@@ -587,6 +607,17 @@ impl ConstEvaluator {
             // Assignment expressions
             AstNode::Assign(target, value) => {
                 self.eval_assignment(target, value)
+            }
+            
+            // Compound assignment expressions: desugar to target = target op value
+            AstNode::AssignOp { op, target, value } => {
+                let lhs = target.as_ref().clone();
+                let rhs = AstNode::BinaryOp {
+                    op: op.clone(),
+                    left: Box::new(lhs),
+                    right: value.clone(),
+                };
+                self.eval_assignment(target, &rhs)
             }
             
             // Const definitions
@@ -614,6 +645,64 @@ impl ConstEvaluator {
                 let val = self.eval_const_expr(expr)?;
                 self.returned_value = Some(val.clone());
                 Ok(val)
+            }
+            
+
+            // Array subscript access: array[index]
+            AstNode::Subscript { base, index } => {
+                let index_val = self.eval_const_expr(index)?;
+                
+                let idx = index_val.as_int().ok_or_else(|| CtfeError::TypeMismatch {
+                    expected: "integer index".to_string(),
+                    found: index_val.type_name().to_string(),
+                })?;
+                
+                if idx < 0 {
+                    return Err(CtfeError::InvalidOperation {
+                        op: "array_index".to_string(),
+                        left_type: "".to_string(),
+                        right_type: None,
+                    });
+                }
+                
+                // Fast path: if base is a simple variable, use reference-based lookup
+                if let AstNode::Var(name) = base.as_ref() {
+                    self.context.get_array_element(name, idx as usize)
+                } else {
+                    let base_val = self.eval_const_expr(base)?;
+                    base_val.array_index(idx as usize).cloned()
+                }
+            }
+            
+            // Array repeat literal: [value; size]
+            AstNode::ArrayRepeat { value, size } => {
+                let val = self.eval_const_expr(value)?;
+                let size_val = self.eval_const_expr(size)?;
+                
+                let count = size_val.as_int().ok_or_else(|| CtfeError::TypeMismatch {
+                    expected: "integer size".to_string(),
+                    found: size_val.type_name().to_string(),
+                })?;
+                
+                if count < 0 {
+                    return Err(CtfeError::InvalidOperation {
+                        op: "array_repeat".to_string(),
+                        left_type: "".to_string(),
+                        right_type: None,
+                    });
+                }
+                
+                let mut elements = Vec::with_capacity(count as usize);
+                for _ in 0..count {
+                    elements.push(val.clone());
+                }
+                // Auto-convert to IntArray if repeated value is Int
+                if let ConstValue::Int(_) = val {
+                    let int_val = val.as_int().unwrap();
+                    let ints = vec![int_val; count as usize];
+                    return Ok(ConstValue::IntArray(ints));
+                }
+                Ok(ConstValue::Array(elements))
             }
             
             // Unsupported expressions
@@ -755,6 +844,14 @@ impl ConstEvaluator {
 
     /// Evaluate user-defined function call
     fn eval_user_function_call(&mut self, name: &str, args: &[AstNode]) -> CtfeResult<ConstValue> {
+        // Recursion depth limit to prevent stack overflow
+        const MAX_RECURSION_DEPTH: u32 = 1024;
+        if self.recursion_depth >= MAX_RECURSION_DEPTH {
+            return Err(CtfeError::FunctionCallFailed(
+                format!("recursion depth limit ({}) exceeded for '{}'", MAX_RECURSION_DEPTH, name)
+            ));
+        }
+        self.recursion_depth += 1;
         
         // Get function definition
         let func = self.context.get_function(name)
@@ -791,10 +888,15 @@ impl ConstEvaluator {
                     });
                 }
                 
+                // Evaluate ALL arguments first before binding ANY parameter.
+                // This prevents variable shadowing: args[1] (like n*acc) must
+                // see the PARENT's n and acc, not the current function's n.
+                let mut arg_values = Vec::with_capacity(args.len());
+                for i in 0..args.len() {
+                    arg_values.push(self.eval_const_expr(&args[i])?);
+                }
                 for (i, (param_name, _param_type)) in params.iter().enumerate() {
-                    let arg_value = self.eval_const_expr(&args[i])?;
-
-                    self.context.define_variable(param_name.clone(), arg_value)?;
+                    self.context.define_variable(param_name.clone(), arg_values[i].clone())?;
                 }
                 
                 // Reset returned_value before entering function body
@@ -837,7 +939,9 @@ impl ConstEvaluator {
                 self.context.exit_scope()?;
                 self.context.exit_const_fn();
                 
-
+                // Decrement recursion depth
+                self.recursion_depth = self.recursion_depth.saturating_sub(1);
+                
                 result
             }
             _ => Err(CtfeError::FunctionCallFailed(
@@ -851,6 +955,11 @@ impl ConstEvaluator {
         let mut const_elements = Vec::new();
         for elem in elements {
             const_elements.push(self.eval_const_expr(elem)?);
+        }
+        // Auto-convert to IntArray if all elements are Int
+        if const_elements.iter().all(|e| matches!(e, ConstValue::Int(_))) {
+            let ints: Vec<i64> = const_elements.iter().map(|e| e.as_int().unwrap()).collect();
+            return Ok(ConstValue::IntArray(ints));
         }
         Ok(ConstValue::Array(const_elements))
     }
@@ -874,23 +983,81 @@ impl ConstEvaluator {
         };
         
         if cond_bool {
-            let _ = self.context.enter_scope(false);
+            let then_needs_scope = Self::body_has_let_decls(then_branch);
+            if then_needs_scope {
+                let _ = self.context.enter_scope(false);
+            }
             let result = self.eval_block(then_branch);
-            self.context.exit_scope()?;
+            if then_needs_scope {
+                self.context.exit_scope()?;
+            }
             result
         } else if let Some(else_expr) = else_branch {
-            let _ = self.context.enter_scope(false);
+            // else branch is a single expression, not a block — it can't have let declarations
+            // so we always skip scope management for it
             let result = self.eval_const_expr(else_expr);
-            self.context.exit_scope()?;
             result
         } else {
             Ok(ConstValue::Unit)
         }
     }
 
+    /// Evaluate an if expression with the full else block (vector of statements).
+    /// This properly handles else branches that contain multiple statements
+    /// (wrapped in ExprStmt or other statement types).
+    fn eval_if_expr_with_else(
+        &mut self,
+        cond: &AstNode,
+        then_branch: &[AstNode],
+        else_branch: &[AstNode],
+    ) -> CtfeResult<ConstValue> {
+        let cond_val = self.eval_const_expr(cond)?;
+        let cond_bool = match cond_val {
+            ConstValue::Bool(b) => b,
+            ConstValue::Int(i) => i != 0,
+            _ => return Err(CtfeError::TypeMismatch {
+                expected: "bool or int".to_string(),
+                found: cond_val.type_name().to_string(),
+            }),
+        };
+        
+        if cond_bool {
+            let then_needs_scope = Self::body_has_let_decls(then_branch);
+            if then_needs_scope {
+                let _ = self.context.enter_scope(false);
+            }
+            let result = self.eval_block(then_branch);
+            if then_needs_scope {
+                self.context.exit_scope()?;
+            }
+            result
+        } else if !else_branch.is_empty() {
+            let else_needs_scope = Self::body_has_let_decls(else_branch);
+            if else_needs_scope {
+                let _ = self.context.enter_scope(false);
+            }
+            let result = self.eval_block(else_branch);
+            if else_needs_scope {
+                self.context.exit_scope()?;
+            }
+            result
+        } else {
+            Ok(ConstValue::Unit)
+        }
+    }
+
+    /// Check if a list of AST nodes contains any `let` declarations.
+    /// Used to skip scope management overhead for blocks without local variables.
+    fn body_has_let_decls(body: &[AstNode]) -> bool {
+        body.iter().any(|stmt| matches!(stmt, AstNode::Let { .. }))
+    }
+
     /// Evaluate a block
     fn eval_block(&mut self, body: &[AstNode]) -> CtfeResult<ConstValue> {
-        let _ = self.context.enter_scope(false);
+        let needs_scope = Self::body_has_let_decls(body);
+        if needs_scope {
+            let _ = self.context.enter_scope(false);
+        }
         let mut last_value = ConstValue::Unit;
         
         for stmt in body {
@@ -900,7 +1067,9 @@ impl ConstEvaluator {
             }
         }
         
-        self.context.exit_scope()?;
+        if needs_scope {
+            self.context.exit_scope()?;
+        }
         Ok(last_value)
     }
 
@@ -942,6 +1111,33 @@ impl ConstEvaluator {
         
         // For now, only support simple variable assignments
         match target {
+            // Array element assignment: array[index] = value
+            AstNode::Subscript { base, index } => {
+                let base_var = match base.as_ref() {
+                    AstNode::Var(name) => name.clone(),
+                    other => return Err(CtfeError::UnsupportedExpression(
+                        format!("complex array subscript target not supported: {:?}", other)
+                    )),
+                };
+                
+                let index_val = self.eval_const_expr(index)?;
+                let idx = index_val.as_int().ok_or_else(|| CtfeError::TypeMismatch {
+                    expected: "integer index".to_string(),
+                    found: index_val.type_name().to_string(),
+                })?;
+                
+                if idx < 0 {
+                    return Err(CtfeError::InvalidOperation {
+                        op: "array_set".to_string(),
+                        left_type: "".to_string(),
+                        right_type: None,
+                    });
+                }
+                
+                // Fast path: mutate array element in-place without cloning the whole array
+                self.context.assign_array_element(&base_var, idx as usize, val.clone())?;
+                Ok(val)
+            }
             AstNode::Var(name) => {
 
                 self.context.assign_variable(name, val.clone())?;
@@ -981,13 +1177,11 @@ impl ConstEvaluator {
                 break;
             }
             
-            // Evaluate body
-            let _ = self.context.enter_scope(false);
+            // Evaluate body (no per-iteration scope overhead — outer scope already exists)
             let mut _last_value = ConstValue::Unit;
             for stmt in body {
                 _last_value = self.eval_const_expr(stmt)?;
             }
-            self.context.exit_scope()?;
             
             loop_count += 1;
         }
@@ -1008,11 +1202,65 @@ impl ConstEvaluator {
 
     /// Evaluate a for loop at compile time
     fn eval_for_loop(&mut self, pattern: &AstNode, expr: &AstNode, body: &[AstNode]) -> CtfeResult<ConstValue> {
-        // For loops require iterating over a range or collection
-        // Complex for now
-        Err(CtfeError::UnsupportedExpression(
-            "for loops not supported in const context".to_string()
-        ))
+        // Extract the range expression: start..end
+        // For loops like: for i in start..end { body }
+        let (start_expr, end_expr, inclusive) = match expr {
+            AstNode::Range { start, end, inclusive } => (start.as_ref(), end.as_ref(), *inclusive),
+            AstNode::BinaryOp { op, left, right, .. } if op == ".." => {
+                (left.as_ref(), right.as_ref(), false)
+            }
+            _ => {
+                return Err(CtfeError::UnsupportedExpression(
+                    format!("for loop range must be start..end or start..=end, got: {:?}", expr)
+                ));
+            }
+        };
+
+        // Evaluate start and end
+        let start_val = self.eval_const_expr(start_expr)?;
+        let end_val = self.eval_const_expr(end_expr)?;
+
+        let start = start_val.as_int().ok_or_else(|| CtfeError::TypeMismatch {
+            expected: "integer".to_string(),
+            found: start_val.type_name().to_string(),
+        })?;
+        let end = end_val.as_int().ok_or_else(|| CtfeError::TypeMismatch {
+            expected: "integer".to_string(),
+            found: end_val.type_name().to_string(),
+        })?;
+
+        // Extract variable name from pattern
+        let var_name = match pattern {
+            AstNode::Var(name) => name.clone(),
+            _ => {
+                return Err(CtfeError::UnsupportedExpression(
+                    "for loop variable pattern must be a simple variable".to_string()
+                ));
+            }
+        };
+
+        let mut loop_count: u64 = 0;
+        const MAX_LOOP_ITERATIONS: usize = 10000000;
+
+        let range_end = if inclusive { end + 1 } else { end };
+
+        for i in start..range_end {
+            if loop_count as usize >= MAX_LOOP_ITERATIONS {
+                return Err(CtfeError::LoopTooManyIterations);
+            }
+
+            // Bind loop variable
+            self.context.define_variable(var_name.clone(), ConstValue::Int(i))?;
+
+            // Evaluate body
+            for stmt in body {
+                self.eval_const_expr(stmt)?;
+            }
+
+            loop_count += 1;
+        }
+
+        Ok(ConstValue::Unit)
     }
 
     /// Try to evaluate a const function call (legacy compatibility)

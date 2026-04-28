@@ -151,4 +151,55 @@ impl ConstContext {
     pub fn in_const_fn(&self) -> bool {
         self.in_const_fn
     }
+
+    /// Assign to an array element directly in-place, without cloning the whole array.
+    /// Works for both `Array(Vec<ConstValue>)` and `IntArray(Vec<i64>)`.
+    pub fn assign_array_element(&mut self, name: &str, index: usize, value: ConstValue) -> CtfeResult<()> {
+        if self.scopes.is_empty() {
+            return Err(CtfeError::ScopeError("no active scope".to_string()));
+        }
+
+        // Search scopes from innermost to outermost
+        for scope in self.scopes.iter_mut().rev() {
+            if let Some(current) = scope.variables.get_mut(name) {
+                return current.array_set(index, value);
+            }
+        }
+
+        Err(CtfeError::UndefinedVariable(name.to_string()))
+    }
+
+    /// Get a single element from an array variable without cloning the whole array.
+    /// Returns the element as a ConstValue. For IntArray, returns ConstValue::Int.
+    pub fn get_array_element(&self, name: &str, index: usize) -> CtfeResult<ConstValue> {
+        // Search scopes from innermost to outermost
+        for scope in self.scopes.iter().rev() {
+            if let Some(current) = scope.variables.get(name) {
+                match current {
+                    ConstValue::Array(elements) => {
+                        if index < elements.len() {
+                            return Ok(elements[index].clone());
+                        } else {
+                            return Err(CtfeError::IndexOutOfBounds { index, length: elements.len() });
+                        }
+                    }
+                    ConstValue::IntArray(elements) => {
+                        if index < elements.len() {
+                            return Ok(ConstValue::Int(elements[index]));
+                        } else {
+                            return Err(CtfeError::IndexOutOfBounds { index, length: elements.len() });
+                        }
+                    }
+                    _ => {
+                        return Err(CtfeError::TypeMismatch {
+                            expected: "array or int_array".to_string(),
+                            found: current.type_name().to_string(),
+                        });
+                    }
+                }
+            }
+        }
+
+        Err(CtfeError::UndefinedVariable(name.to_string()))
+    }
 }

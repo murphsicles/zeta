@@ -165,6 +165,12 @@ pub enum AstNode {
     Var(String),
     /// Assignment to a target (variable or subscript).
     Assign(Box<AstNode>, Box<AstNode>),
+    /// Compound assignment (+=, -=, *=, /=, %=).
+    AssignOp {
+        op: String,
+        target: Box<AstNode>,
+        value: Box<AstNode>,
+    },
     /// Binary operation between two expressions.
     BinaryOp {
         op: String,

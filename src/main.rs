@@ -64,13 +64,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Ok(ctfe_asts) => {
                         // After CTFE, filter out comptime-only function definitions
                         // (they've been evaluated and are no longer needed for codegen)
+                        // const fns are kept — they may still be needed at runtime if
+                        // CTFE couldn't fully inline all call sites.
                         let runtime_asts: Vec<_> = ctfe_asts.into_iter().filter(|ast| {
-                            let is_comptime = matches!(ast, AstNode::FuncDef { comptime_: true, .. } | AstNode::FuncDef { const_: true, .. });
-                            !is_comptime
+                            !matches!(ast, AstNode::FuncDef { comptime_: true, .. })
                         }).collect();
                         runtime_asts
                     }
-                    Err(_e) => {
+                    Err(e) => {
+                        eprintln!("CTFE warning (non-fatal): {}", e);
                         asts
                     }
                 };

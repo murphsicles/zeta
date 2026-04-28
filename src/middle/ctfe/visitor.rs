@@ -53,6 +53,11 @@ pub trait AstVisitor {
                 self.visit(left)?;
                 self.visit(right)?;
             }
+            // Compound assignment
+            AstNode::AssignOp { target, value, .. } => {
+                self.visit(target)?;
+                self.visit(value)?;
+            }
             // If statement
             AstNode::If { cond, then, else_ } => {
                 self.visit(cond)?;
@@ -137,6 +142,16 @@ pub trait AstVisitor {
             // Expression statement
             AstNode::ExprStmt { expr } => {
                 self.visit(expr)?;
+            }
+            // Subscript access (array indexing)
+            AstNode::Subscript { base, index } => {
+                self.visit(base)?;
+                self.visit(index)?;
+            }
+            // Array repeat literal: [value; size]
+            AstNode::ArrayRepeat { value, size } => {
+                self.visit(value)?;
+                self.visit(size)?;
             }
             // Leaf nodes with no children
             AstNode::Lit(_)

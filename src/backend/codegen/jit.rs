@@ -167,6 +167,11 @@ impl<'ctx> crate::backend::codegen::LLVMCodegen<'ctx> {
         if let Some(f) = self.module.get_function("zeta_println_i64") {
             ee.add_global_mapping(&f, zeta_println_i64 as *const () as usize);
         }
+        // Map user-visible println_i64 to the runtime implementation
+        // (compiler emits calls to println_i64, which is separate from zeta_println_i64)
+        if let Some(f) = self.module.get_function("println_i64") {
+            ee.add_global_mapping(&f, zeta_println_i64 as *const () as usize);
+        }
 
         Ok(ee)
     }

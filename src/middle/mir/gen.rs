@@ -251,6 +251,16 @@ impl MirGen {
                     });
                 }
             }
+            AstNode::AssignOp { op, target, value } => {
+                // Desugar: target op= value → target = target op value
+                let new_rhs = Box::new(AstNode::BinaryOp {
+                    op: op.clone(),
+                    left: target.clone(),
+                    right: value.clone(),
+                });
+                let assign = AstNode::Assign(target.clone(), new_rhs);
+                self.lower_ast(&assign);
+            }
             AstNode::Return(inner) => {
                 let val = self.lower_expr(inner);
                 self.stmts.push(MirStmt::Return { val });
