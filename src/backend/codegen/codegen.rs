@@ -411,6 +411,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
             Some(Linkage::External),
         );
         module.add_function(
+            "parallel_sieve",
+            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
             "host_str_concat",
             i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
             Some(Linkage::External),
