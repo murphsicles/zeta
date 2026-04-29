@@ -1,7 +1,7 @@
 //! Debug information generation and management
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Source location
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -123,34 +123,34 @@ impl DebugInfo {
             types: HashMap::new(),
         }
     }
-    
+
     /// Add a source file
     pub fn add_source_file(&mut self, file_path: &str) {
         self.source_files.push(file_path.to_string());
     }
-    
+
     /// Add a function
     pub fn add_function(&mut self, function: FunctionInfo) {
         self.functions.insert(function.name.clone(), function);
     }
-    
+
     /// Add a global variable
     pub fn add_global(&mut self, variable: VariableInfo) {
         self.globals.insert(variable.name.clone(), variable);
     }
-    
+
     /// Add a type
     pub fn add_type(&mut self, type_info: TypeInfo) {
         self.types.insert(type_info.name.clone(), type_info);
     }
-    
+
     /// Find function by address
     pub fn find_function_by_address(&self, address: u64) -> Option<&FunctionInfo> {
-        self.functions.values().find(|func| {
-            func.instruction_map.keys().any(|&addr| addr == address)
-        })
+        self.functions
+            .values()
+            .find(|func| func.instruction_map.keys().any(|&addr| addr == address))
     }
-    
+
     /// Find source location for address
     pub fn find_source_location(&self, address: u64) -> Option<SourceLocation> {
         for function in self.functions.values() {
@@ -160,14 +160,14 @@ impl DebugInfo {
         }
         None
     }
-    
+
     /// Get variable information
     pub fn get_variable_info(&self, name: &str, scope: &str) -> Option<&VariableInfo> {
         // First check globals
         if let Some(var) = self.globals.get(name) {
             return Some(var);
         }
-        
+
         // Then check function locals
         for function in self.functions.values() {
             if function.name == scope {
@@ -179,15 +179,15 @@ impl DebugInfo {
                 }
             }
         }
-        
+
         None
     }
-    
+
     /// Serialize to JSON
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string_pretty(self)
     }
-    
+
     /// Deserialize from JSON
     pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
         serde_json::from_str(json)

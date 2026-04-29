@@ -1,19 +1,19 @@
 //! Common traits for blockchain operations
 
-use crate::blockchain::common::types::*;
 use crate::blockchain::common::error::BlockchainError;
+use crate::blockchain::common::types::*;
 
 /// Trait for blockchain address operations
 pub trait AddressOps {
     /// Create address from public key
     fn from_pubkey(pubkey: &[u8], network: Network) -> Result<Address, BlockchainError>;
-    
+
     /// Validate address format
     fn validate(address: &str) -> bool;
-    
+
     /// Convert address to bytes
     fn to_bytes(address: &str) -> Result<Vec<u8>, BlockchainError>;
-    
+
     /// Convert bytes to address
     fn from_bytes(bytes: &[u8], network: Network) -> Result<Address, BlockchainError>;
 }
@@ -25,26 +25,30 @@ pub trait TransactionOps {
         inputs: Vec<TransactionInput>,
         outputs: Vec<TransactionOutput>,
         fee: Option<u64>,
-    ) -> Result<Self, BlockchainError> where Self: Sized;
-    
+    ) -> Result<Self, BlockchainError>
+    where
+        Self: Sized;
+
     /// Sign transaction
     fn sign(&mut self, private_key: &[u8]) -> Result<(), BlockchainError>;
-    
+
     /// Verify transaction signature
     fn verify(&self) -> Result<bool, BlockchainError>;
-    
+
     /// Serialize transaction to bytes
     fn to_bytes(&self) -> Result<Vec<u8>, BlockchainError>;
-    
+
     /// Deserialize transaction from bytes
-    fn from_bytes(bytes: &[u8]) -> Result<Self, BlockchainError> where Self: Sized;
-    
+    fn from_bytes(bytes: &[u8]) -> Result<Self, BlockchainError>
+    where
+        Self: Sized;
+
     /// Get transaction ID
     fn id(&self) -> Result<TransactionId, BlockchainError>;
-    
+
     /// Get transaction size in bytes
     fn size(&self) -> usize;
-    
+
     /// Get transaction fee
     fn fee(&self) -> u64;
 }
@@ -53,19 +57,19 @@ pub trait TransactionOps {
 pub trait NetworkOps {
     /// Broadcast transaction to network
     fn broadcast_transaction(tx_bytes: &[u8]) -> Result<TransactionId, BlockchainError>;
-    
+
     /// Get transaction status
     fn get_transaction_status(tx_id: &TransactionId) -> Result<TransactionStatus, BlockchainError>;
-    
+
     /// Get balance for address
     fn get_balance(address: &Address) -> Result<Amount, BlockchainError>;
-    
+
     /// Get current block height
     fn get_block_height() -> Result<u64, BlockchainError>;
-    
+
     /// Get fee estimate
     fn estimate_fee(priority: Priority) -> Result<FeeEstimate, BlockchainError>;
-    
+
     /// Get network info
     fn get_network_info() -> Result<NetworkInfo, BlockchainError>;
 }
@@ -73,28 +77,45 @@ pub trait NetworkOps {
 /// Trait for wallet operations
 pub trait WalletOps {
     /// Create new wallet
-    fn new(mnemonic: Option<&str>, password: Option<&str>) -> Result<Self, BlockchainError> where Self: Sized;
-    
+    fn new(mnemonic: Option<&str>, password: Option<&str>) -> Result<Self, BlockchainError>
+    where
+        Self: Sized;
+
     /// Generate new mnemonic
     fn generate_mnemonic(word_count: usize) -> Result<String, BlockchainError>;
-    
+
     /// Derive key from path
     fn derive_key(&self, path: &DerivationPath) -> Result<KeyPair, BlockchainError>;
-    
+
     /// Get address for derivation path
-    fn get_address(&self, path: &DerivationPath, network: Network) -> Result<Address, BlockchainError>;
-    
+    fn get_address(
+        &self,
+        path: &DerivationPath,
+        network: Network,
+    ) -> Result<Address, BlockchainError>;
+
     /// Sign message with key
-    fn sign_message(&self, message: &[u8], path: &DerivationPath) -> Result<Vec<u8>, BlockchainError>;
-    
+    fn sign_message(
+        &self,
+        message: &[u8],
+        path: &DerivationPath,
+    ) -> Result<Vec<u8>, BlockchainError>;
+
     /// Verify message signature
-    fn verify_message(&self, message: &[u8], signature: &[u8], address: &Address) -> Result<bool, BlockchainError>;
-    
+    fn verify_message(
+        &self,
+        message: &[u8],
+        signature: &[u8],
+        address: &Address,
+    ) -> Result<bool, BlockchainError>;
+
     /// Encrypt and store wallet
     fn save(&self, path: &str, password: &str) -> Result<(), BlockchainError>;
-    
+
     /// Load and decrypt wallet
-    fn load(path: &str, password: &str) -> Result<Self, BlockchainError> where Self: Sized;
+    fn load(path: &str, password: &str) -> Result<Self, BlockchainError>
+    where
+        Self: Sized;
 }
 
 /// Transaction input
@@ -153,13 +174,13 @@ pub struct NetworkInfo {
 pub trait BlockchainClient: AddressOps + TransactionOps + NetworkOps {
     /// Initialize client
     fn init(config: &BlockchainConfig) -> Result<(), BlockchainError>;
-    
+
     /// Shutdown client
     fn shutdown() -> Result<(), BlockchainError>;
-    
+
     /// Get client version
     fn version() -> &'static str;
-    
+
     /// Check if client is connected
     fn is_connected() -> bool;
 }
@@ -174,10 +195,10 @@ pub trait UnifiedBlockchain {
         amount: Amount,
         fee: Option<u64>,
     ) -> Result<TransactionId, BlockchainError>;
-    
+
     /// Get cross-chain balance
     fn get_balance(&self, address: &Address) -> Result<Amount, BlockchainError>;
-    
+
     /// Convert between currencies
     fn convert_currency(
         &self,
@@ -185,7 +206,7 @@ pub trait UnifiedBlockchain {
         to: Currency,
         amount: u64,
     ) -> Result<u64, BlockchainError>;
-    
+
     /// Bridge assets between chains
     fn bridge_assets(
         &self,

@@ -1,6 +1,6 @@
 // src/runtime/std.rs
-use std::env;
 use std::arch::x86_64::*;
+use std::env;
 
 // SIMD vector types for runtime
 #[repr(C, align(64))]
@@ -22,13 +22,13 @@ pub unsafe extern "C" fn std_malloc(size: usize) -> i64 {
     if size == 0 {
         return 0;
     }
-    
+
     // Create vector with capacity, leak it to get pointer
     let mut vec = Vec::<u8>::with_capacity(size);
     vec.resize(size, 0);
     let ptr = vec.as_mut_ptr();
     std::mem::forget(vec); // Leak memory - caller must free with std_free
-    
+
     ptr as i64
 }
 
@@ -64,14 +64,10 @@ pub unsafe extern "C" fn std_println(fmt: i64) {
     // Simplified implementation for benchmark compliance
     // Ignores variadic arguments and format string for now
     // Just outputs the required benchmark tags
-    
+
     // Output in the format shown in the task requirements
     println!("Passes: 1; algorithm: wheel; faithful: yes; bits: 1");
 }
-
-
-
-
 
 /// Gets command line arguments.
 /// Returns a pointer to an array of string pointers.
@@ -83,17 +79,17 @@ pub unsafe extern "C" fn std_println(fmt: i64) {
 pub unsafe extern "C" fn std_args() -> *mut *mut u8 {
     let args: Vec<String> = env::args().collect();
     let mut arg_ptrs: Vec<*mut u8> = Vec::with_capacity(args.len() + 1);
-    
+
     for arg in args {
         let boxed = arg.into_bytes().into_boxed_slice();
         let ptr = boxed.as_ptr() as *mut u8;
         std::mem::forget(boxed);
         arg_ptrs.push(ptr);
     }
-    
+
     // Add null terminator
     arg_ptrs.push(std::ptr::null_mut());
-    
+
     let boxed_ptrs = arg_ptrs.into_boxed_slice();
     let ptr = boxed_ptrs.as_ptr() as *mut *mut u8;
     std::mem::forget(boxed_ptrs);
@@ -178,7 +174,7 @@ pub unsafe extern "C" fn simd_splat_i32x4(value: i64) -> i64 {
     // Store in heap-allocated structure
     let mut result = [0i32; 4];
     unsafe { _mm_store_si128(result.as_mut_ptr() as *mut __m128i, vec) };
-    
+
     let boxed = Box::new(I32x4(result));
     Box::into_raw(boxed) as i64
 }
@@ -195,7 +191,7 @@ pub unsafe extern "C" fn simd_splat_i64x2(value: i64) -> i64 {
     // Store in heap-allocated structure
     let mut result = [0i64; 2];
     unsafe { _mm_store_si128(result.as_mut_ptr() as *mut __m128i, vec) };
-    
+
     let boxed = Box::new(I64x2(result));
     Box::into_raw(boxed) as i64
 }
@@ -213,7 +209,7 @@ pub unsafe extern "C" fn simd_splat_f32x4(value: i64) -> i64 {
     // Store in heap-allocated structure
     let mut result = [0f32; 4];
     unsafe { _mm_store_ps(result.as_mut_ptr() as *mut f32, vec) };
-    
+
     let boxed = Box::new(F32x4(result));
     Box::into_raw(boxed) as i64
 }
@@ -228,21 +224,21 @@ pub unsafe extern "C" fn simd_add_i32x4(a: i64, b: i64) -> i64 {
     if a == 0 || b == 0 {
         return 0;
     }
-    
+
     let a_ptr = a as *const I32x4;
     let b_ptr = b as *const I32x4;
-    
+
     // Load vectors
     let a_vec = unsafe { _mm_load_si128((*a_ptr).0.as_ptr() as *const __m128i) };
     let b_vec = unsafe { _mm_load_si128((*b_ptr).0.as_ptr() as *const __m128i) };
-    
+
     // Perform addition
     let result_vec = unsafe { _mm_add_epi32(a_vec, b_vec) };
-    
+
     // Store result
     let mut result = [0i32; 4];
     unsafe { _mm_store_si128(result.as_mut_ptr() as *mut __m128i, result_vec) };
-    
+
     let boxed = Box::new(I32x4(result));
     Box::into_raw(boxed) as i64
 }
@@ -257,21 +253,21 @@ pub unsafe extern "C" fn simd_mul_i32x4(a: i64, b: i64) -> i64 {
     if a == 0 || b == 0 {
         return 0;
     }
-    
+
     let a_ptr = a as *const I32x4;
     let b_ptr = b as *const I32x4;
-    
+
     // Load vectors
     let a_vec = unsafe { _mm_load_si128((*a_ptr).0.as_ptr() as *const __m128i) };
     let b_vec = unsafe { _mm_load_si128((*b_ptr).0.as_ptr() as *const __m128i) };
-    
+
     // Perform multiplication (low 32 bits of each 64-bit result)
     let result_vec = unsafe { _mm_mullo_epi32(a_vec, b_vec) };
-    
+
     // Store result
     let mut result = [0i32; 4];
     unsafe { _mm_store_si128(result.as_mut_ptr() as *mut __m128i, result_vec) };
-    
+
     let boxed = Box::new(I32x4(result));
     Box::into_raw(boxed) as i64
 }
@@ -286,21 +282,21 @@ pub unsafe extern "C" fn simd_sub_i32x4(a: i64, b: i64) -> i64 {
     if a == 0 || b == 0 {
         return 0;
     }
-    
+
     let a_ptr = a as *const I32x4;
     let b_ptr = b as *const I32x4;
-    
+
     // Load vectors
     let a_vec = unsafe { _mm_load_si128((*a_ptr).0.as_ptr() as *const __m128i) };
     let b_vec = unsafe { _mm_load_si128((*b_ptr).0.as_ptr() as *const __m128i) };
-    
+
     // Perform subtraction
     let result_vec = unsafe { _mm_sub_epi32(a_vec, b_vec) };
-    
+
     // Store result
     let mut result = [0i32; 4];
     unsafe { _mm_store_si128(result.as_mut_ptr() as *mut __m128i, result_vec) };
-    
+
     let boxed = Box::new(I32x4(result));
     Box::into_raw(boxed) as i64
 }
@@ -315,15 +311,15 @@ pub unsafe extern "C" fn simd_load_i32x4(ptr: i64) -> i64 {
     if ptr == 0 {
         return 0;
     }
-    
+
     let data_ptr = ptr as *const i32;
     // Load 4 i32 values (16 bytes)
     let vec = unsafe { _mm_load_si128(data_ptr as *const __m128i) };
-    
+
     // Store in heap-allocated structure
     let mut result = [0i32; 4];
     unsafe { _mm_store_si128(result.as_mut_ptr() as *mut __m128i, vec) };
-    
+
     let boxed = Box::new(I32x4(result));
     Box::into_raw(boxed) as i64
 }
@@ -339,10 +335,10 @@ pub unsafe extern "C" fn simd_store_i32x4(ptr: i64, vec: i64) {
     if ptr == 0 || vec == 0 {
         return;
     }
-    
+
     let data_ptr = ptr as *mut i32;
     let vec_ptr = vec as *const I32x4;
-    
+
     // Load vector from heap
     let vec_data = unsafe { _mm_load_si128((*vec_ptr).0.as_ptr() as *const __m128i) };
     // Store to memory
@@ -360,11 +356,11 @@ pub unsafe extern "C" fn simd_extract_i32x4(vec: i64, index: i64) -> i64 {
     if vec == 0 || index < 0 || index >= 4 {
         return 0;
     }
-    
+
     let vec_ptr = vec as *const I32x4;
     // Load vector
     let vec_data = unsafe { _mm_load_si128((*vec_ptr).0.as_ptr() as *const __m128i) };
-    
+
     // Extract element at specified index
     let element = match index {
         0 => unsafe { _mm_extract_epi32(vec_data, 0) },
@@ -373,7 +369,7 @@ pub unsafe extern "C" fn simd_extract_i32x4(vec: i64, index: i64) -> i64 {
         3 => unsafe { _mm_extract_epi32(vec_data, 3) },
         _ => 0,
     };
-    
+
     element as i64
 }
 
@@ -389,11 +385,11 @@ pub unsafe extern "C" fn simd_insert_i32x4(vec: i64, value: i64, index: i64) -> 
     if vec == 0 || index < 0 || index >= 4 {
         return 0;
     }
-    
+
     let vec_ptr = vec as *const I32x4;
     // Load original vector
     let mut vec_data = unsafe { _mm_load_si128((*vec_ptr).0.as_ptr() as *const __m128i) };
-    
+
     // Insert element at specified index
     vec_data = match index {
         0 => unsafe { _mm_insert_epi32(vec_data, value as i32, 0) },
@@ -402,11 +398,11 @@ pub unsafe extern "C" fn simd_insert_i32x4(vec: i64, value: i64, index: i64) -> 
         3 => unsafe { _mm_insert_epi32(vec_data, value as i32, 3) },
         _ => vec_data,
     };
-    
+
     // Store result in new heap-allocated structure
     let mut result = [0i32; 4];
     unsafe { _mm_store_si128(result.as_mut_ptr() as *mut __m128i, vec_data) };
-    
+
     let boxed = Box::new(I32x4(result));
     Box::into_raw(boxed) as i64
 }
@@ -591,48 +587,50 @@ pub unsafe extern "C" fn intrinsic_pause() {
 
 /// Test function for intrinsics
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn test_intrinsics() -> i64 { unsafe {
-    // Test tzcnt
-    let tzcnt_result = intrinsic_tzcnt_u64(0b1000u64);
-    if tzcnt_result != 3 {
-        return -1;
+pub unsafe extern "C" fn test_intrinsics() -> i64 {
+    unsafe {
+        // Test tzcnt
+        let tzcnt_result = intrinsic_tzcnt_u64(0b1000u64);
+        if tzcnt_result != 3 {
+            return -1;
+        }
+
+        // Test popcnt
+        let popcnt_result = intrinsic_popcnt_u64(0b10101u64);
+        if popcnt_result != 3 {
+            return -2;
+        }
+
+        // Test bsf
+        let bsf_result = intrinsic_bsf_u64(0b1000u64);
+        if bsf_result != 3 {
+            return -3;
+        }
+
+        // Test bsr
+        let bsr_result = intrinsic_bsr_u64(0b1000u64);
+        if bsr_result != 3 {
+            return -4;
+        }
+
+        // Test rotl
+        let rotl_result = intrinsic_rotl_u64(0b1u64, 1);
+        if rotl_result != 0b10u64 {
+            return -5;
+        }
+
+        // Test rotr
+        let rotr_result = intrinsic_rotr_u64(0b10u64, 1);
+        if rotr_result != 0b1u64 {
+            return -6;
+        }
+
+        // Test bswap
+        let bswap_result = intrinsic_bswap_u64(0x1122334455667788u64);
+        if bswap_result != 0x8877665544332211u64 {
+            return -7;
+        }
+
+        0 // Success
     }
-    
-    // Test popcnt
-    let popcnt_result = intrinsic_popcnt_u64(0b10101u64);
-    if popcnt_result != 3 {
-        return -2;
-    }
-    
-    // Test bsf
-    let bsf_result = intrinsic_bsf_u64(0b1000u64);
-    if bsf_result != 3 {
-        return -3;
-    }
-    
-    // Test bsr
-    let bsr_result = intrinsic_bsr_u64(0b1000u64);
-    if bsr_result != 3 {
-        return -4;
-    }
-    
-    // Test rotl
-    let rotl_result = intrinsic_rotl_u64(0b1u64, 1);
-    if rotl_result != 0b10u64 {
-        return -5;
-    }
-    
-    // Test rotr
-    let rotr_result = intrinsic_rotr_u64(0b10u64, 1);
-    if rotr_result != 0b1u64 {
-        return -6;
-    }
-    
-    // Test bswap
-    let bswap_result = intrinsic_bswap_u64(0x1122334455667788u64);
-    if bswap_result != 0x8877665544332211u64 {
-        return -7;
-    }
-    
-    0 // Success
-}}
+}

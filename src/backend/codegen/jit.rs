@@ -9,13 +9,16 @@ use crate::runtime::actor::map::{host_map_get, host_map_insert, host_map_new};
 use crate::runtime::actor::result::{host_result_get_data, host_result_is_ok};
 use crate::runtime::actor::scheduler::host_spawn;
 use crate::runtime::array::{array_free, array_get, array_len, array_new, array_push, array_set};
-use crate::runtime::zeta_runtime::{zeta_array_get_bool, zeta_array_get_i64, zeta_array_set_bool, zeta_array_set_i64, zeta_print_i64, zeta_println_i64, zeta_sieve_new};
-use crate::runtime::host::{ 
+use crate::runtime::host::{
     host_http_get, host_str_concat, host_str_contains, host_str_ends_with, host_str_len,
     host_str_replace, host_str_starts_with, host_str_to_lowercase, host_str_to_uppercase,
     host_str_trim, host_tls_handshake,
 };
 use crate::runtime::std::std_free;
+use crate::runtime::zeta_runtime::{
+    zeta_array_get_bool, zeta_array_get_i64, zeta_array_set_bool, zeta_array_set_i64,
+    zeta_print_i64, zeta_println_i64, zeta_sieve_new,
+};
 use inkwell::OptimizationLevel;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::passes::PassManager;
@@ -26,7 +29,7 @@ use std::fs;
 use std::path::Path;
 
 /// Run LLVM's -O3 IR optimization pipeline using the new pass manager.
-/// This promotes allocas to SSA (mem2reg), runs instcombine, GVN, 
+/// This promotes allocas to SSA (mem2reg), runs instcombine, GVN,
 /// loop optimizations, and the full -O3 pipeline.
 /// Uses LLVMRunPasses C API directly (LLVM 17+ new PM).
 fn optimize_module<'ctx>(module: &inkwell::module::Module<'ctx>, target_machine: &TargetMachine) {
@@ -34,18 +37,20 @@ fn optimize_module<'ctx>(module: &inkwell::module::Module<'ctx>, target_machine:
     unsafe {
         let pipeline = CString::new("default<O3>").unwrap();
         let options = llvm_sys::transforms::pass_builder::LLVMCreatePassBuilderOptions();
-        
+
         let err = llvm_sys::transforms::pass_builder::LLVMRunPasses(
             module.as_mut_ptr(),
             pipeline.as_ptr(),
             target_machine.as_mut_ptr(),
             options,
         );
-        
+
         if !err.is_null() {
             // Get error message from LLVMErrorRef
             let msg_ptr = llvm_sys::error::LLVMGetErrorMessage(err);
-            let msg = std::ffi::CStr::from_ptr(msg_ptr).to_string_lossy().into_owned();
+            let msg = std::ffi::CStr::from_ptr(msg_ptr)
+                .to_string_lossy()
+                .into_owned();
             llvm_sys::error::LLVMConsumeError(err);
             eprintln!("[LLVM opt warning: {}]", msg);
         }
@@ -147,7 +152,7 @@ impl<'ctx> crate::backend::codegen::LLVMCodegen<'ctx> {
                 crate::runtime::actor::scheduler::init_runtime as *const () as usize,
             );
         }
-        
+
         // Array runtime functions
         if let Some(f) = self.module.get_function("array_new") {
             ee.add_global_mapping(&f, array_new as *const () as usize);
@@ -167,7 +172,7 @@ impl<'ctx> crate::backend::codegen::LLVMCodegen<'ctx> {
         if let Some(f) = self.module.get_function("array_free") {
             ee.add_global_mapping(&f, array_free as *const () as usize);
         }
-        
+
         // Zeta runtime mapping
         if let Some(f) = self.module.get_function("zeta_array_get_i64") {
             ee.add_global_mapping(&f, zeta_array_get_i64 as *const () as usize);

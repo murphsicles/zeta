@@ -5,16 +5,18 @@
 //! borrow checking coordination, and MIR lowering.
 
 use crate::frontend::ast::AstNode;
+use crate::frontend::ast::GenericParam;
 use crate::frontend::borrow::BorrowChecker;
 use crate::frontend::macro_expand::MacroExpander;
 use crate::middle::mir::mir::Mir;
 use crate::middle::resolver::module_resolver::ModuleResolver;
 use crate::middle::resolver::typecheck_new::NewTypeCheck;
-use crate::middle::types::ArraySize;
-use crate::middle::types::identity::{CapabilityLevel, IdentityType};
 use crate::middle::specialization::{
     CACHE, MonoKey, MonoValue, is_cache_safe, record_specialization,
 };
+use crate::middle::types::ArraySize;
+use crate::middle::types::TypeVar;
+use crate::middle::types::identity::{CapabilityLevel, IdentityType};
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -66,8 +68,10 @@ impl Resolver {
             registered_funcs: HashMap::new(),
             module_resolver: ModuleResolver::new("."),
             macro_expander: MacroExpander::new(),
-            identity_inference: crate::middle::types::identity::inference::IdentityInferenceContext::new(),
-            capability_inferencer: crate::middle::types::identity::inference::CapabilityInferencer::new(),
+            identity_inference:
+                crate::middle::types::identity::inference::IdentityInferenceContext::new(),
+            capability_inferencer:
+                crate::middle::types::identity::inference::CapabilityInferencer::new(),
         };
 
         // Register built-in runtime functions
@@ -103,32 +107,40 @@ impl Resolver {
     pub fn register(&mut self, ast: AstNode) {
         match ast {
             AstNode::Use { path } => {
-                ;
                 // Process use statement to load module
                 match self.module_resolver.process_use_statement(&path) {
                     Ok(module_asts) => {
-                        ;
                         // Register only enum/struct definitions, not impl blocks
                         for module_ast in module_asts {
                             match &module_ast {
-                                AstNode::EnumDef { name, variants, .. } => {
-                                    ;
+                                AstNode::EnumDef {
+                                    name,
+                                    variants,
+                                    generics,
+                                    lifetimes,
+                                    ..
+                                } => {
                                     self.register(module_ast.clone());
 
                                     // Also register enum variant constructors as functions
                                     for (variant_name, variant_params) in variants {
                                         // Create a function name like "Option::Some"
                                         let func_name = format!("{}::{}", name, variant_name);
-                                        ;
 
-                                        // Create a fake function AST for the variant constructor
-                                        // The return type is the enum with its type parameters
-                                        let ret_type = if variant_params.is_empty() {
+                                        // For generic enums, include type parameters in return type
+                                        let generic_vars: Vec<String> = generics
+                                            .iter()
+                                            .filter_map(|g| match g {
+                                                GenericParam::Type { name: n, .. } => {
+                                                    Some(n.clone())
+                                                }
+                                                _ => None,
+                                            })
+                                            .collect();
+                                        let ret_type = if generic_vars.is_empty() {
                                             name.clone()
                                         } else {
-                                            // For generic enums like Option<T>, we need to handle type parameters
-                                            // For now, just use the base name
-                                            name.clone()
+                                            format!("{}<{}>", name, generic_vars.join(", "))
                                         };
 
                                         // Create parameter types from variant params
@@ -143,8 +155,8 @@ impl Resolver {
                                         // Create a fake function definition for the variant constructor
                                         let variant_func = AstNode::FuncDef {
                                             name: func_name.clone(),
-                                            generics: vec![], // TODO: Handle generics
-                                            lifetimes: vec![], // TODO: Handle lifetimes
+                                            generics: generics.clone(),
+                                            lifetimes: lifetimes.clone(),
                                             params,
                                             ret: ret_type,
                                             body: vec![],
@@ -164,27 +176,23 @@ impl Resolver {
                                     }
                                 }
                                 AstNode::StructDef { name, .. } => {
-                                    ;
                                     self.register(module_ast);
                                 }
                                 AstNode::TypeAlias { name, .. } => {
-                                    ;
                                     self.register(module_ast);
                                 }
-                                AstNode::ConstDef { name, comptime_, .. } => {
-                                    ;
+                                AstNode::ConstDef {
+                                    name, comptime_, ..
+                                } => {
                                     self.register(module_ast);
                                 }
                                 AstNode::FuncDef { name, .. } => {
-                                    ;
                                     // When importing via `use std::malloc`, register with simple name
                                     // The function will be available as `malloc` in current scope
                                     self.register(module_ast);
                                 }
                                 // Skip impl blocks for now - they cause issues
-                                _ => {
-                                    ;
-                                }
+                                _ => {}
                             }
                         }
                     }
@@ -277,7 +285,7 @@ impl Resolver {
                 ref name,
                 ref ty,
                 ref value,
-                attrs: _, 
+                attrs: _,
                 pub_: _,
                 comptime_: _,
             } => {
@@ -290,12 +298,26 @@ impl Resolver {
                 let typed_ret = self.string_to_type(ty);
                 self.funcs.insert(name.clone(), (vec![], typed_ret, false));
             }
-            AstNode::EnumDef { name, variants, .. } => {
+            AstNode::EnumDef {
+                name,
+                variants,
+                ref generics,
+                ..
+            } => {
                 // Register enum and its variants
                 // For now, we'll register each variant as a function-like entity
                 for (variant_name, _) in variants {
                     let full_name = name.clone() + "::" + &variant_name;
-                    let typed_ret = Type::Named(name.clone(), vec![]);
+                    // Type::Named with generic type variables so lookup can match
+                    let generic_vars: Vec<Type> = generics
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, g)| match g {
+                            GenericParam::Type { .. } => Some(Type::Variable(TypeVar(i as u32))),
+                            _ => None,
+                        })
+                        .collect();
+                    let typed_ret = Type::Named(name.clone(), generic_vars);
                     self.funcs.insert(full_name, (vec![], typed_ret, false));
                 }
             }
@@ -306,7 +328,6 @@ impl Resolver {
                 ..
             } => {
                 // Register module and its items
-                ;
                 // Register all items in the module with module-qualified names
                 for item in items {
                     // Create a copy with module-qualified name if needed
@@ -389,12 +410,8 @@ impl Resolver {
     /// Get function signature for type checking
     #[allow(clippy::type_complexity)]
     pub fn get_func_signature(&self, name: &str) -> Option<&(Vec<(String, Type)>, Type, bool)> {
-        ;
         let result = self.funcs.get(name);
-        if result.is_none() {
-            ;
-            ;
-        }
+        if result.is_none() {}
         result
     }
 
@@ -421,12 +438,11 @@ impl Resolver {
     }
 
     pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
-        ;
-        let mut mir_gen = crate::middle::mir::r#gen::MirGen::new()
-            .with_global_consts(self.ctfe_consts.clone());
+        let mut mir_gen =
+            crate::middle::mir::r#gen::MirGen::new().with_global_consts(self.ctfe_consts.clone());
         mir_gen.lower_to_mir(ast)
     }
-    
+
     /// Convert AST node to ConstValue if it's a simple constant expression
     fn ast_to_const_value(&self, ast: &AstNode) -> Option<crate::middle::ctfe::value::ConstValue> {
         match ast {
@@ -441,7 +457,9 @@ impl Resolver {
                         return None;
                     }
                 }
-                Some(crate::middle::ctfe::value::ConstValue::Array(const_elements))
+                Some(crate::middle::ctfe::value::ConstValue::Array(
+                    const_elements,
+                ))
             }
             AstNode::ArrayRepeat { value, size } => {
                 // Handle [value; size]
@@ -453,7 +471,9 @@ impl Resolver {
                         for _ in 0..size_val {
                             const_elements.push(const_val.clone());
                         }
-                        return Some(crate::middle::ctfe::value::ConstValue::Array(const_elements));
+                        return Some(crate::middle::ctfe::value::ConstValue::Array(
+                            const_elements,
+                        ));
                     }
                 }
                 None
@@ -607,7 +627,23 @@ impl Resolver {
                 // Expand macro call
                 self.macro_expander.expand_macro_call(name, args)
             }
-            AstNode::FuncDef { attrs, name, generics, lifetimes, params, ret, body, ret_expr, single_line, doc, pub_, async_, const_, comptime_, where_clauses } => {
+            AstNode::FuncDef {
+                attrs,
+                name,
+                generics,
+                lifetimes,
+                params,
+                ret,
+                body,
+                ret_expr,
+                single_line,
+                doc,
+                pub_,
+                async_,
+                const_,
+                comptime_,
+                where_clauses,
+            } => {
                 // Recursively expand macros inside the function body
                 let mut expanded_body = Vec::new();
                 for stmt in body {
@@ -688,10 +724,7 @@ impl Resolver {
 
     /// Get all registered function ASTs
     pub fn get_registered_funcs(&self) -> Vec<AstNode> {
-        ;
-        for (name, _) in &self.registered_funcs {
-            ;
-        }
+        for (name, _) in &self.registered_funcs {}
         self.registered_funcs.values().cloned().collect()
     }
 
@@ -715,7 +748,7 @@ impl Resolver {
             comptime_: false,
             where_clauses: vec![],
         });
-        
+
         // free(ptr: i64) -> () (free memory)
         self.register(AstNode::FuncDef {
             name: "free".to_string(),
@@ -734,7 +767,7 @@ impl Resolver {
             comptime_: false,
             where_clauses: vec![],
         });
-        
+
         // clone_i64(value: i64) -> i64
         self.funcs.insert(
             "clone_i64".to_string(),
@@ -830,7 +863,7 @@ impl Resolver {
             (
                 vec![("value".to_string(), Type::I64)],
                 Type::Tuple(vec![]), // void
-                false, // not async
+                false,               // not async
             ),
         );
 
@@ -840,7 +873,7 @@ impl Resolver {
             (
                 vec![("value".to_string(), Type::I64)],
                 Type::Tuple(vec![]), // void
-                false, // not async
+                false,               // not async
             ),
         );
 
@@ -867,7 +900,11 @@ impl Resolver {
                 vec![("value".to_string(), Type::Str)],
                 Type::Identity(Box::new(IdentityType {
                     value: None,
-                    capabilities: vec![CapabilityLevel::Read, CapabilityLevel::Write, CapabilityLevel::Owned],
+                    capabilities: vec![
+                        CapabilityLevel::Read,
+                        CapabilityLevel::Write,
+                        CapabilityLevel::Owned,
+                    ],
                     delegatable: false,
                     constraints: vec![],
                     type_params: vec![],
@@ -910,7 +947,10 @@ impl Resolver {
         self.funcs.insert(
             "str_starts_with".to_string(),
             (
-                vec![("haystack".to_string(), Type::Str), ("needle".to_string(), Type::Str)],
+                vec![
+                    ("haystack".to_string(), Type::Str),
+                    ("needle".to_string(), Type::Str),
+                ],
                 Type::Bool,
                 false, // not async
             ),
@@ -920,7 +960,10 @@ impl Resolver {
         self.funcs.insert(
             "str_ends_with".to_string(),
             (
-                vec![("haystack".to_string(), Type::Str), ("needle".to_string(), Type::Str)],
+                vec![
+                    ("haystack".to_string(), Type::Str),
+                    ("needle".to_string(), Type::Str),
+                ],
                 Type::Bool,
                 false, // not async
             ),
@@ -930,7 +973,10 @@ impl Resolver {
         self.funcs.insert(
             "str_contains".to_string(),
             (
-                vec![("haystack".to_string(), Type::Str), ("needle".to_string(), Type::Str)],
+                vec![
+                    ("haystack".to_string(), Type::Str),
+                    ("needle".to_string(), Type::Str),
+                ],
                 Type::Bool,
                 false, // not async
             ),
@@ -940,7 +986,11 @@ impl Resolver {
         self.funcs.insert(
             "str_replace".to_string(),
             (
-                vec![("s".to_string(), Type::Str), ("old".to_string(), Type::Str), ("new".to_string(), Type::Str)],
+                vec![
+                    ("s".to_string(), Type::Str),
+                    ("old".to_string(), Type::Str),
+                    ("new".to_string(), Type::Str),
+                ],
                 Type::Str,
                 false, // not async
             ),
@@ -1256,9 +1306,12 @@ impl Resolver {
         self.funcs.insert(
             "array_push".to_string(),
             (
-                vec![("arr".to_string(), Type::I64), ("value".to_string(), Type::I64)],
+                vec![
+                    ("arr".to_string(), Type::I64),
+                    ("value".to_string(), Type::I64),
+                ],
                 Type::Tuple(vec![]), // void
-                false, // not async
+                false,               // not async
             ),
         );
 
@@ -1276,7 +1329,10 @@ impl Resolver {
         self.funcs.insert(
             "array_get".to_string(),
             (
-                vec![("arr".to_string(), Type::I64), ("index".to_string(), Type::I64)],
+                vec![
+                    ("arr".to_string(), Type::I64),
+                    ("index".to_string(), Type::I64),
+                ],
                 Type::I64,
                 false, // not async
             ),
@@ -1286,9 +1342,13 @@ impl Resolver {
         self.funcs.insert(
             "array_set".to_string(),
             (
-                vec![("arr".to_string(), Type::I64), ("index".to_string(), Type::I64), ("value".to_string(), Type::I64)],
+                vec![
+                    ("arr".to_string(), Type::I64),
+                    ("index".to_string(), Type::I64),
+                    ("value".to_string(), Type::I64),
+                ],
                 Type::Tuple(vec![]), // void
-                false, // not async
+                false,               // not async
             ),
         );
 
@@ -1298,7 +1358,7 @@ impl Resolver {
             (
                 vec![("arr".to_string(), Type::I64)],
                 Type::Tuple(vec![]), // void
-                false, // not async
+                false,               // not async
             ),
         );
 
@@ -1317,7 +1377,10 @@ impl Resolver {
         self.funcs.insert(
             "map_get".to_string(),
             (
-                vec![("map".to_string(), Type::I64), ("key".to_string(), Type::I64)],
+                vec![
+                    ("map".to_string(), Type::I64),
+                    ("key".to_string(), Type::I64),
+                ],
                 Type::I64,
                 false, // not async
             ),
@@ -1329,7 +1392,7 @@ impl Resolver {
             (
                 vec![("value".to_string(), Type::I64)],
                 Type::Tuple(vec![]), // void
-                false, // not async
+                false,               // not async
             ),
         );
 
@@ -1339,7 +1402,7 @@ impl Resolver {
             (
                 vec![],
                 Type::Tuple(vec![]), // void
-                false, // not async
+                false,               // not async
             ),
         );
 
@@ -1348,14 +1411,16 @@ impl Resolver {
         self.funcs.insert(
             "Vector::new".to_string(),
             (
-                vec![("a0".to_string(), Type::U64),
-                     ("a1".to_string(), Type::U64),
-                     ("a2".to_string(), Type::U64),
-                     ("a3".to_string(), Type::U64),
-                     ("a4".to_string(), Type::U64),
-                     ("a5".to_string(), Type::U64),
-                     ("a6".to_string(), Type::U64),
-                     ("a7".to_string(), Type::U64)],
+                vec![
+                    ("a0".to_string(), Type::U64),
+                    ("a1".to_string(), Type::U64),
+                    ("a2".to_string(), Type::U64),
+                    ("a3".to_string(), Type::U64),
+                    ("a4".to_string(), Type::U64),
+                    ("a5".to_string(), Type::U64),
+                    ("a6".to_string(), Type::U64),
+                    ("a7".to_string(), Type::U64),
+                ],
                 Type::Vector(Box::new(Type::U64), ArraySize::Literal(8)),
                 false, // not async
             ),
@@ -1374,16 +1439,18 @@ impl Resolver {
         self.funcs.insert(
             "vector_make_u64x8".to_string(),
             (
-                vec![("a0".to_string(), Type::I64),
-                     ("a1".to_string(), Type::I64),
-                     ("a2".to_string(), Type::I64),
-                     ("a3".to_string(), Type::I64),
-                     ("a4".to_string(), Type::I64),
-                     ("a5".to_string(), Type::I64),
-                     ("a6".to_string(), Type::I64),
-                     ("a7".to_string(), Type::I64)],
+                vec![
+                    ("a0".to_string(), Type::I64),
+                    ("a1".to_string(), Type::I64),
+                    ("a2".to_string(), Type::I64),
+                    ("a3".to_string(), Type::I64),
+                    ("a4".to_string(), Type::I64),
+                    ("a5".to_string(), Type::I64),
+                    ("a6".to_string(), Type::I64),
+                    ("a7".to_string(), Type::I64),
+                ],
                 Type::I64, // Returns pointer to vector
-                false, // not async
+                false,     // not async
             ),
         );
         self.funcs.insert(
@@ -1391,7 +1458,7 @@ impl Resolver {
             (
                 vec![("value".to_string(), Type::I64)],
                 Type::I64, // Returns pointer to vector
-                false, // not async
+                false,     // not async
             ),
         );
         self.funcs.insert(
@@ -1399,7 +1466,7 @@ impl Resolver {
             (
                 vec![("a".to_string(), Type::I64), ("b".to_string(), Type::I64)],
                 Type::I64, // Returns pointer to new vector
-                false, // not async
+                false,     // not async
             ),
         );
         self.funcs.insert(
@@ -1407,7 +1474,7 @@ impl Resolver {
             (
                 vec![("a".to_string(), Type::I64), ("b".to_string(), Type::I64)],
                 Type::I64, // Returns pointer to new vector
-                false, // not async
+                false,     // not async
             ),
         );
         self.funcs.insert(
@@ -1415,23 +1482,30 @@ impl Resolver {
             (
                 vec![("a".to_string(), Type::I64), ("b".to_string(), Type::I64)],
                 Type::I64, // Returns pointer to new vector
-                false, // not async
+                false,     // not async
             ),
         );
         self.funcs.insert(
             "vector_get_u64x8".to_string(),
             (
-                vec![("ptr".to_string(), Type::I64), ("index".to_string(), Type::I64)],
+                vec![
+                    ("ptr".to_string(), Type::I64),
+                    ("index".to_string(), Type::I64),
+                ],
                 Type::I64, // Returns element value
-                false, // not async
+                false,     // not async
             ),
         );
         self.funcs.insert(
             "vector_set_u64x8".to_string(),
             (
-                vec![("ptr".to_string(), Type::I64), ("index".to_string(), Type::I64), ("value".to_string(), Type::I64)],
+                vec![
+                    ("ptr".to_string(), Type::I64),
+                    ("index".to_string(), Type::I64),
+                    ("value".to_string(), Type::I64),
+                ],
                 Type::Tuple(vec![]), // void
-                false, // not async
+                false,               // not async
             ),
         );
         self.funcs.insert(
@@ -1439,7 +1513,7 @@ impl Resolver {
             (
                 vec![("ptr".to_string(), Type::I64)],
                 Type::Tuple(vec![]), // void
-                false, // not async
+                false,               // not async
             ),
         );
 
@@ -1447,12 +1521,14 @@ impl Resolver {
         self.funcs.insert(
             "vector_make_i32x4".to_string(),
             (
-                vec![("a0".to_string(), Type::I64),
-                     ("a1".to_string(), Type::I64),
-                     ("a2".to_string(), Type::I64),
-                     ("a3".to_string(), Type::I64)],
+                vec![
+                    ("a0".to_string(), Type::I64),
+                    ("a1".to_string(), Type::I64),
+                    ("a2".to_string(), Type::I64),
+                    ("a3".to_string(), Type::I64),
+                ],
                 Type::I64, // Returns pointer to vector
-                false, // not async
+                false,     // not async
             ),
         );
         self.funcs.insert(
@@ -1460,7 +1536,7 @@ impl Resolver {
             (
                 vec![("value".to_string(), Type::I64)],
                 Type::I64, // Returns pointer to vector
-                false, // not async
+                false,     // not async
             ),
         );
         self.funcs.insert(
@@ -1468,7 +1544,7 @@ impl Resolver {
             (
                 vec![("a".to_string(), Type::I64), ("b".to_string(), Type::I64)],
                 Type::I64, // Returns pointer to new vector
-                false, // not async
+                false,     // not async
             ),
         );
         self.funcs.insert(
@@ -1476,7 +1552,7 @@ impl Resolver {
             (
                 vec![("a".to_string(), Type::I64), ("b".to_string(), Type::I64)],
                 Type::I64, // Returns pointer to new vector
-                false, // not async
+                false,     // not async
             ),
         );
         self.funcs.insert(
@@ -1484,23 +1560,30 @@ impl Resolver {
             (
                 vec![("a".to_string(), Type::I64), ("b".to_string(), Type::I64)],
                 Type::I64, // Returns pointer to new vector
-                false, // not async
+                false,     // not async
             ),
         );
         self.funcs.insert(
             "vector_get_i32x4".to_string(),
             (
-                vec![("ptr".to_string(), Type::I64), ("index".to_string(), Type::I64)],
+                vec![
+                    ("ptr".to_string(), Type::I64),
+                    ("index".to_string(), Type::I64),
+                ],
                 Type::I64, // Returns element value
-                false, // not async
+                false,     // not async
             ),
         );
         self.funcs.insert(
             "vector_set_i32x4".to_string(),
             (
-                vec![("ptr".to_string(), Type::I64), ("index".to_string(), Type::I64), ("value".to_string(), Type::I64)],
+                vec![
+                    ("ptr".to_string(), Type::I64),
+                    ("index".to_string(), Type::I64),
+                    ("value".to_string(), Type::I64),
+                ],
                 Type::Tuple(vec![]), // void
-                false, // not async
+                false,               // not async
             ),
         );
         self.funcs.insert(
@@ -1508,7 +1591,7 @@ impl Resolver {
             (
                 vec![("ptr".to_string(), Type::I64)],
                 Type::Tuple(vec![]), // void
-                false, // not async
+                false,               // not async
             ),
         );
 

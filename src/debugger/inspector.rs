@@ -46,7 +46,8 @@ impl VariableValue {
                 format!("[{}]", items.join(", "))
             }
             VariableValue::Struct(fields) => {
-                let field_strs: Vec<String> = fields.iter()
+                let field_strs: Vec<String> = fields
+                    .iter()
                     .map(|(name, value)| format!("{}: {}", name, value.format()))
                     .collect();
                 format!("{{{}}}", field_strs.join(", "))
@@ -73,12 +74,12 @@ impl VariableInspector {
             cache: std::collections::HashMap::new(),
         }
     }
-    
+
     /// Inspect a variable by name
     pub fn inspect(&self, name: &str) -> Result<String, DebuggerError> {
         // For now, return cached value or simulate inspection
         // In a real implementation, this would read from memory/debug info
-        
+
         if let Some(value) = self.cache.get(name) {
             Ok(value.format())
         } else {
@@ -89,30 +90,31 @@ impl VariableInspector {
                 "flag" | "enabled" | "active" => Ok("true".to_string()),
                 "name" | "text" | "message" => Ok("\"Hello, World!\"".to_string()),
                 "ptr" | "address" => Ok("0x7fff1234".to_string()),
-                _ => Err(DebuggerError::InspectionError(
-                    format!("Variable '{}' not found", name)
-                )),
+                _ => Err(DebuggerError::InspectionError(format!(
+                    "Variable '{}' not found",
+                    name
+                ))),
             }
         }
     }
-    
+
     /// Evaluate an expression
     pub fn evaluate(&self, expression: &str) -> Result<VariableValue, DebuggerError> {
         // Simple expression evaluator
         // In a real implementation, this would parse and evaluate the expression
-        
+
         let expr = expression.trim();
-        
+
         // Check for integer literal
         if let Ok(i) = expr.parse::<i64>() {
             return Ok(VariableValue::Integer(i));
         }
-        
+
         // Check for float literal
         if let Ok(f) = expr.parse::<f64>() {
             return Ok(VariableValue::Float(f));
         }
-        
+
         // Check for boolean literal
         if expr == "true" {
             return Ok(VariableValue::Boolean(true));
@@ -120,31 +122,31 @@ impl VariableInspector {
         if expr == "false" {
             return Ok(VariableValue::Boolean(false));
         }
-        
+
         // Check for null
         if expr == "null" {
             return Ok(VariableValue::Null);
         }
-        
+
         // Check for string literal
         if expr.starts_with('"') && expr.ends_with('"') {
             let s = &expr[1..expr.len() - 1];
             return Ok(VariableValue::String(s.to_string()));
         }
-        
+
         // Check for variable reference
         if self.cache.contains_key(expr) {
             return Ok(self.cache.get(expr).unwrap().clone());
         }
-        
+
         // Try to evaluate simple arithmetic
         if let Some(pos) = expr.find('+') {
             let left = &expr[..pos].trim();
             let right = &expr[pos + 1..].trim();
-            
+
             let left_val = self.evaluate(left)?;
             let right_val = self.evaluate(right)?;
-            
+
             match (left_val, right_val) {
                 (VariableValue::Integer(a), VariableValue::Integer(b)) => {
                     return Ok(VariableValue::Integer(a + b));
@@ -155,25 +157,27 @@ impl VariableInspector {
                 _ => {}
             }
         }
-        
-        Err(DebuggerError::InspectionError(
-            format!("Cannot evaluate expression: {}", expression)
-        ))
+
+        Err(DebuggerError::InspectionError(format!(
+            "Cannot evaluate expression: {}",
+            expression
+        )))
     }
-    
+
     /// Update variable cache
     pub fn update_cache(&mut self, name: String, value: VariableValue) {
         self.cache.insert(name, value);
     }
-    
+
     /// Clear cache
     pub fn clear_cache(&mut self) {
         self.cache.clear();
     }
-    
+
     /// Get all cached variables
     pub fn get_cached_variables(&self) -> Vec<(String, String)> {
-        self.cache.iter()
+        self.cache
+            .iter()
             .map(|(name, value)| (name.clone(), value.format()))
             .collect()
     }

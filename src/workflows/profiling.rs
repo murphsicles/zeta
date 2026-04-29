@@ -1,8 +1,8 @@
 //! Performance profiling tools
 
+use crate::workflows::WorkflowError;
 use std::path::Path;
 use std::time::{Duration, Instant};
-use crate::workflows::WorkflowError;
 
 /// Profile metric
 #[derive(Debug, Clone)]
@@ -14,11 +14,7 @@ pub enum ProfileMetric {
     /// CPU usage percentage
     CpuUsage(f64),
     /// Cache hits/misses
-    CacheStats {
-        hits: u64,
-        misses: u64,
-        ratio: f64,
-    },
+    CacheStats { hits: u64, misses: u64, ratio: f64 },
     /// Throughput (operations per second)
     Throughput(f64),
 }
@@ -43,21 +39,24 @@ impl ProfileResult {
             timestamp: chrono::Local::now(),
         }
     }
-    
+
     /// Add a metric
     pub fn add_metric(&mut self, metric: ProfileMetric) {
         self.metrics.push(metric);
     }
-    
+
     /// Format as markdown
     pub fn to_markdown(&self) -> String {
         let mut md = String::new();
         md.push_str(&format!("## {}\n\n", self.name));
-        md.push_str(&format!("*Timestamp: {}*\n\n", self.timestamp.format("%Y-%m-%d %H:%M:%S")));
-        
+        md.push_str(&format!(
+            "*Timestamp: {}*\n\n",
+            self.timestamp.format("%Y-%m-%d %H:%M:%S")
+        ));
+
         md.push_str("| Metric | Value |\n");
         md.push_str("|--------|-------|\n");
-        
+
         for metric in &self.metrics {
             match metric {
                 ProfileMetric::ExecutionTime(duration) => {
@@ -71,7 +70,11 @@ impl ProfileResult {
                 ProfileMetric::CpuUsage(percent) => {
                     md.push_str(&format!("| CPU Usage | {:.1}% |\n", percent));
                 }
-                ProfileMetric::CacheStats { hits, misses, ratio } => {
+                ProfileMetric::CacheStats {
+                    hits,
+                    misses,
+                    ratio,
+                } => {
                     md.push_str(&format!("| Cache Hits | {} |\n", hits));
                     md.push_str(&format!("| Cache Misses | {} |\n", misses));
                     md.push_str(&format!("| Cache Hit Ratio | {:.2}% |\n", ratio * 100.0));
@@ -81,10 +84,10 @@ impl ProfileResult {
                 }
             }
         }
-        
+
         md
     }
-    
+
     /// Format as JSON
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
         #[derive(serde::Serialize)]
@@ -92,16 +95,16 @@ impl ProfileResult {
             metric_type: String,
             value: serde_json::Value,
         }
-        
+
         #[derive(serde::Serialize)]
         struct JsonResult {
             name: String,
             timestamp: String,
             metrics: Vec<JsonMetric>,
         }
-        
+
         let mut json_metrics = Vec::new();
-        
+
         for metric in &self.metrics {
             match metric {
                 ProfileMetric::ExecutionTime(duration) => {
@@ -109,16 +112,14 @@ impl ProfileResult {
                         metric_type: "execution_time".to_string(),
                         value: serde_json::Value::Number(
                             serde_json::Number::from_f64(duration.as_secs_f64())
-                                .unwrap_or(serde_json::Number::from(0))
+                                .unwrap_or(serde_json::Number::from(0)),
                         ),
                     });
                 }
                 ProfileMetric::MemoryUsage(bytes) => {
                     json_metrics.push(JsonMetric {
                         metric_type: "memory_usage".to_string(),
-                        value: serde_json::Value::Number(
-                            serde_json::Number::from(*bytes)
-                        ),
+                        value: serde_json::Value::Number(serde_json::Number::from(*bytes)),
                     });
                 }
                 ProfileMetric::CpuUsage(percent) => {
@@ -126,11 +127,15 @@ impl ProfileResult {
                         metric_type: "cpu_usage".to_string(),
                         value: serde_json::Value::Number(
                             serde_json::Number::from_f64(*percent)
-                                .unwrap_or(serde_json::Number::from(0))
+                                .unwrap_or(serde_json::Number::from(0)),
                         ),
                     });
                 }
-                ProfileMetric::CacheStats { hits, misses, ratio } => {
+                ProfileMetric::CacheStats {
+                    hits,
+                    misses,
+                    ratio,
+                } => {
                     json_metrics.push(JsonMetric {
                         metric_type: "cache_stats".to_string(),
                         value: serde_json::json!({
@@ -145,19 +150,19 @@ impl ProfileResult {
                         metric_type: "throughput".to_string(),
                         value: serde_json::Value::Number(
                             serde_json::Number::from_f64(*ops_per_sec)
-                                .unwrap_or(serde_json::Number::from(0))
+                                .unwrap_or(serde_json::Number::from(0)),
                         ),
                     });
                 }
             }
         }
-        
+
         let result = JsonResult {
             name: self.name.clone(),
             timestamp: self.timestamp.to_rfc3339(),
             metrics: json_metrics,
         };
-        
+
         serde_json::to_string_pretty(&result)
     }
 }
@@ -178,44 +183,44 @@ impl Profiler {
             warmup_iterations: 10,
         }
     }
-    
+
     /// Profile a function
     pub fn profile<F, R>(&self, name: &str, f: F) -> ProfileResult
     where
         F: Fn() -> R,
     {
         let mut result = ProfileResult::new(name);
-        
+
         // Warmup
         for _ in 0..self.warmup_iterations {
             let _ = f();
         }
-        
+
         // Actual profiling
         let start = Instant::now();
         for _ in 0..self.iterations {
             let _ = f();
         }
         let duration = start.elapsed();
-        
+
         let avg_duration = duration / self.iterations;
         result.add_metric(ProfileMetric::ExecutionTime(avg_duration));
-        
+
         // Calculate throughput
         let ops_per_sec = self.iterations as f64 / duration.as_secs_f64();
         result.add_metric(ProfileMetric::Throughput(ops_per_sec));
-        
+
         // Simulate memory usage (in real implementation, would measure actual memory)
         let memory_usage = 1024 * 1024; // 1 MB simulated
         result.add_metric(ProfileMetric::MemoryUsage(memory_usage));
-        
+
         // Simulate CPU usage (in real implementation, would measure actual CPU)
         let cpu_usage = 15.5; // 15.5% simulated
         result.add_metric(ProfileMetric::CpuUsage(cpu_usage));
-        
+
         result
     }
-    
+
     /// Profile with custom setup/teardown
     pub fn profile_with_setup<F, S, T, R>(
         &self,
@@ -230,14 +235,14 @@ impl Profiler {
         F: Fn() -> R,
     {
         let mut result = ProfileResult::new(name);
-        
+
         // Warmup with setup/teardown
         for _ in 0..self.warmup_iterations {
             setup();
             let _ = f();
             teardown();
         }
-        
+
         // Actual profiling
         let start = Instant::now();
         for _ in 0..self.iterations {
@@ -246,13 +251,13 @@ impl Profiler {
             teardown();
         }
         let duration = start.elapsed();
-        
+
         let avg_duration = duration / self.iterations;
         result.add_metric(ProfileMetric::ExecutionTime(avg_duration));
-        
+
         let ops_per_sec = self.iterations as f64 / duration.as_secs_f64();
         result.add_metric(ProfileMetric::Throughput(ops_per_sec));
-        
+
         result
     }
 }
@@ -264,7 +269,7 @@ pub fn run_profiler(
     target: &str,
 ) -> Result<Vec<ProfileResult>, WorkflowError> {
     let mut results = Vec::new();
-    
+
     match target {
         "build" => {
             // Profile build process
@@ -304,36 +309,37 @@ pub fn run_profiler(
             results.push(result);
         }
         _ => {
-            return Err(WorkflowError::ProfilingError(
-                format!("Unknown profiling target: {}", target)
-            ));
+            return Err(WorkflowError::ProfilingError(format!(
+                "Unknown profiling target: {}",
+                target
+            )));
         }
     }
-    
+
     // Save results
     let profile_dir = project_root.join("profiles");
     std::fs::create_dir_all(&profile_dir)?;
-    
+
     let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
     let report_path = profile_dir.join(format!("profile_{}_{}.md", target, timestamp));
-    
+
     let mut report = String::new();
     report.push_str("# Performance Profile Report\n\n");
-    
+
     for result in &results {
         report.push_str(&result.to_markdown());
         report.push_str("\n\n");
-        
+
         // Also save individual JSON results
         let json_path = profile_dir.join(format!("{}_{}.json", result.name, timestamp));
         if let Ok(json) = result.to_json() {
             let _ = std::fs::write(json_path, json);
         }
     }
-    
+
     std::fs::write(report_path, report)?;
-    
+
     println!("Profiling completed. Results saved to profiles/ directory.");
-    
+
     Ok(results)
 }

@@ -79,17 +79,20 @@ pub enum Severity {
 /// Warning level configuration
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WarningLevel {
-    Allow,    // Don't emit warning
-    Warn,     // Emit warning but continue
-    Deny,     // Treat warning as error
-    Forbid,   // Same as deny but cannot be overridden
+    Allow,  // Don't emit warning
+    Warn,   // Emit warning but continue
+    Deny,   // Treat warning as error
+    Forbid, // Same as deny but cannot be overridden
 }
 
 impl WarningLevel {
     pub fn should_emit(&self) -> bool {
-        matches!(self, WarningLevel::Warn | WarningLevel::Deny | WarningLevel::Forbid)
+        matches!(
+            self,
+            WarningLevel::Warn | WarningLevel::Deny | WarningLevel::Forbid
+        )
     }
-    
+
     pub fn is_error(&self) -> bool {
         matches!(self, WarningLevel::Deny | WarningLevel::Forbid)
     }
@@ -280,12 +283,12 @@ impl DiagnosticReporter {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     pub fn with_warning_level(mut self, level: WarningLevel) -> Self {
         self.default_warning_level = level;
         self
     }
-    
+
     pub fn configure_warning(&mut self, code: &str, level: WarningLevel, description: &str) {
         self.warning_config.insert(
             code.to_string(),
@@ -295,7 +298,7 @@ impl DiagnosticReporter {
             },
         );
     }
-    
+
     pub fn get_warning_level(&self, code: &str) -> WarningLevel {
         self.warning_config
             .get(code)
@@ -312,7 +315,7 @@ impl DiagnosticReporter {
         if diagnostic.severity == Severity::Warning {
             if let Some(code) = &diagnostic.code {
                 let warning_level = self.get_warning_level(code);
-                
+
                 match warning_level {
                     WarningLevel::Allow => {
                         // Don't add the warning
@@ -326,10 +329,7 @@ impl DiagnosticReporter {
                         // Upgrade to error
                         let mut error_diagnostic = diagnostic;
                         error_diagnostic.severity = Severity::Error;
-                        error_diagnostic.message = format!(
-                            "[deny] {}",
-                            error_diagnostic.message
-                        );
+                        error_diagnostic.message = format!("[deny] {}", error_diagnostic.message);
                         self.diagnostics.push(error_diagnostic);
                     }
                 }

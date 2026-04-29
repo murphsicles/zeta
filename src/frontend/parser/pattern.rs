@@ -34,18 +34,22 @@ pub fn parse_pattern(input: &str) -> IResult<&str, AstNode> {
         parse_ident.map(AstNode::Var),
     ))
     .parse(input)?;
-    
+
     // Then check for type annotation
     let (input, ty_opt) = opt(preceded(
         ws(tag(":")),
         ws(crate::frontend::parser::parser::parse_type),
-    )).parse(input)?;
-    
+    ))
+    .parse(input)?;
+
     if let Some(ty) = ty_opt {
-        Ok((input, AstNode::TypeAnnotatedPattern {
-            pattern: Box::new(pattern),
-            ty,
-        }))
+        Ok((
+            input,
+            AstNode::TypeAnnotatedPattern {
+                pattern: Box::new(pattern),
+                ty,
+            },
+        ))
     } else {
         Ok((input, pattern))
     }
@@ -158,12 +162,15 @@ fn parse_range_pattern(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("..")).parse(input)?;
     let (input, inclusive): (_, Option<&str>) = opt(ws(tag("="))).parse(input)?;
     let (input, end) = parse_lit(input)?;
-    
-    Ok((input, AstNode::RangePattern {
-        start: Box::new(start),
-        end: Box::new(end),
-        inclusive: inclusive.is_some(),
-    }))
+
+    Ok((
+        input,
+        AstNode::RangePattern {
+            start: Box::new(start),
+            end: Box::new(end),
+            inclusive: inclusive.is_some(),
+        },
+    ))
 }
 
 /// Parse a bind pattern: `ident @ pattern`
@@ -171,27 +178,29 @@ fn parse_bind_pattern(input: &str) -> IResult<&str, AstNode> {
     let (input, name) = parse_ident(input)?;
     let (input, _) = ws(tag("@")).parse(input)?;
     let (input, pattern) = parse_pattern(input)?;
-    
-    Ok((input, AstNode::BindPattern {
-        name,
-        pattern: Box::new(pattern),
-    }))
+
+    Ok((
+        input,
+        AstNode::BindPattern {
+            name,
+            pattern: Box::new(pattern),
+        },
+    ))
 }
 
 /// Parse an or-pattern: `pattern | pattern | ...`
 fn parse_or_pattern(input: &str) -> IResult<&str, AstNode> {
     let (input, first) = parse_simple_pattern(input)?;
-    let (input, patterns) = nom::multi::many0(
-        preceded(ws(tag("|")), ws(parse_simple_pattern))
-    ).parse(input)?;
-    
+    let (input, patterns) =
+        nom::multi::many0(preceded(ws(tag("|")), ws(parse_simple_pattern))).parse(input)?;
+
     // If there are no additional patterns, this isn't really an or-pattern
     if patterns.is_empty() {
         Ok((input, first))
     } else {
         let mut all_patterns = vec![first];
         all_patterns.extend(patterns);
-        
+
         Ok((input, AstNode::OrPattern(all_patterns)))
     }
 }

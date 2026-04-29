@@ -55,28 +55,46 @@ impl ModuleResolver {
             // First check if this is a self-compilation import (zeta crate importing itself)
             // For self-compilation, we create virtual modules
             // For regular crate imports, we need to resolve to actual .z files
-            
+
             // Get the module path without the item name
             let module_path = if path.len() > 1 {
                 &path[..path.len() - 1] // Remove the last component (the item name)
             } else {
                 path // Keep all if only 1 component (shouldn't happen for valid imports)
             };
-            
+
             // Check if this is a self-compilation pattern (zeta importing its own modules)
             // These are typically internal compiler modules
             let is_self_compilation = match &module_path[..] {
                 [a, b, c] if a == "zeta" && b == "frontend" && c == "ast" => true,
-                [a, b, c, d] if a == "zeta" && b == "frontend" && c == "parser" && d == "top_level" => true,
-                [a, b, c, d] if a == "zeta" && b == "middle" && c == "resolver" && d == "resolver" => true,
+                [a, b, c, d]
+                    if a == "zeta" && b == "frontend" && c == "parser" && d == "top_level" =>
+                {
+                    true
+                }
+                [a, b, c, d]
+                    if a == "zeta" && b == "middle" && c == "resolver" && d == "resolver" =>
+                {
+                    true
+                }
                 [a, b, c, d] if a == "zeta" && b == "middle" && c == "mir" && d == "mir" => true,
                 [a, b, c] if a == "zeta" && b == "middle" && c == "specialization" => true,
-                [a, b, c, d] if a == "zeta" && b == "backend" && c == "codegen" && d == "codegen" => true,
-                [a, b, c, d] if a == "zeta" && b == "runtime" && c == "actor" && d == "channel" => true,
-                [a, b, c, d] if a == "zeta" && b == "runtime" && c == "actor" && d == "scheduler" => true,
+                [a, b, c, d]
+                    if a == "zeta" && b == "backend" && c == "codegen" && d == "codegen" =>
+                {
+                    true
+                }
+                [a, b, c, d] if a == "zeta" && b == "runtime" && c == "actor" && d == "channel" => {
+                    true
+                }
+                [a, b, c, d]
+                    if a == "zeta" && b == "runtime" && c == "actor" && d == "scheduler" =>
+                {
+                    true
+                }
                 _ => false,
             };
-            
+
             if is_self_compilation {
                 // For self-compilation, create virtual module
                 let module_name = module_path.join("::");
@@ -85,37 +103,36 @@ impl ModuleResolver {
             } else {
                 // For regular zeta crate imports, treat like crate:: imports
                 // but relative to zeta_src/ directory
-                ;
-                
+
                 // Skip "zeta" prefix and remove item name
                 let module_path = if path.len() > 1 {
                     &path[1..path.len() - 1] // Skip "zeta" and remove the last component
                 } else {
                     &path[1..] // Skip "zeta" only
                 };
-                
+
                 let mut zeta_path = PathBuf::from("zeta_src");
-                
+
                 for component in module_path {
                     zeta_path.push(component);
                 }
-                
+
                 // Try with .z extension first
                 let mut z_path = zeta_path.clone();
                 z_path.set_extension("z");
-                
+
                 if z_path.exists() {
                     return Ok(z_path);
                 }
-                
+
                 // Try as directory with mod.z
                 let mut mod_path = zeta_path.clone();
                 mod_path.push("mod.z");
-                
+
                 if mod_path.exists() {
                     return Ok(mod_path);
                 }
-                
+
                 // If not found, create a virtual module for common zeta crate items
                 let module_name = module_path.join("::");
                 let virtual_path = PathBuf::from(format!("zeta_virtual/{}", module_name));
@@ -125,7 +142,6 @@ impl ModuleResolver {
 
         // Check for crate-relative imports: `use crate::middle::mir::Mir;`
         if !path.is_empty() && path[0] == "crate" {
-            ;
             // For crate-relative imports, we need to resolve relative to zeta_src/
             // For `use crate::middle::mir::Mir;`, path is ["crate", "middle", "mir", "Mir"]
             // We need to resolve ["middle", "mir"] to zeta_src/middle/mir.z or zeta_src/middle/mir/mod.z
@@ -135,8 +151,6 @@ impl ModuleResolver {
             } else {
                 &path[1..] // Skip "crate" only (shouldn't happen for valid crate:: imports)
             };
-
-            ;
 
             let mut crate_path = PathBuf::from("zeta_src");
 
@@ -164,7 +178,6 @@ impl ModuleResolver {
                     submodule_path.push(format!("{}.z", dir_name));
 
                     if submodule_path.exists() {
-                        ;
                         return Ok(submodule_path);
                     }
                 }
@@ -333,43 +346,41 @@ impl ModuleResolver {
                 "package" | "manifest" | "registry" | "dependency" | "lockfile" | "config" => true,
                 _ => false,
             };
-            
+
             if is_package_manager_module {
-                ;
-                
                 // For zorb package manager imports, we need to resolve to zorb/ directory
                 // For `use zorb::package::Package;`, path is ["zorb", "package", "Package"]
                 // We need to resolve ["zorb", "package"] to zorb/package.z or zorb/package/mod.z
-                
+
                 let module_path = if path.len() > 2 {
                     &path[..path.len() - 1] // Remove the last component (the item name)
                 } else {
                     path // Keep all if only 2 components
                 };
-                
+
                 let mut zorb_path = PathBuf::from("zorb");
-                
+
                 // Add all components (including "zorb" prefix)
                 for component in module_path {
                     zorb_path.push(component);
                 }
-                
+
                 // Try with .z extension
                 let mut z_path = zorb_path.clone();
                 z_path.set_extension("z");
-                
+
                 if z_path.exists() {
                     return Ok(z_path);
                 }
-                
+
                 // Try as directory with mod.z
                 let mut mod_path = zorb_path.clone();
                 mod_path.push("mod.z");
-                
+
                 if mod_path.exists() {
                     return Ok(mod_path);
                 }
-                
+
                 // If not found, create a virtual module for common package manager items
                 return self.create_zorb_package_stub(&module_path);
             }
@@ -425,23 +436,19 @@ impl ModuleResolver {
     /// Load a module from file
     pub fn load_module(&mut self, path: &Path) -> Result<&Module, String> {
         let path_str = path.to_string_lossy().to_string();
-        ;
 
         // Check cache first
         if self.modules.contains_key(&path_str) {
-            ;
             return Ok(self.modules.get(&path_str).unwrap());
         }
 
         // Check if this is a virtual module for zeta:: imports
         if path_str.starts_with("zeta_virtual/") {
-            ;
             return self.load_virtual_module(&path_str);
         }
 
         // Check if this is a std module (handle specially for PrimeZeta)
         if path_str.contains("stub_types\\std") || path_str.contains("stub_types/std") {
-            ;
             return self.load_std_module();
         }
 
@@ -449,12 +456,8 @@ impl ModuleResolver {
         let content = fs::read_to_string(path)
             .map_err(|e| format!("Failed to read module file {}: {}", path.display(), e))?;
 
-        ;
-
         let (remaining, asts) = parse_zeta(&content)
             .map_err(|e| format!("Failed to parse module {}: {:?}", path.display(), e))?;
-
-        ;
 
         if !remaining.is_empty() {
             return Err(format!(
@@ -470,42 +473,37 @@ impl ModuleResolver {
             match ast {
                 AstNode::EnumDef { name, pub_, .. } => {
                     if *pub_ {
-                        ;
                         exports.insert(name.clone(), ast.clone());
                     } else {
-                        ;
                     }
                 }
                 AstNode::StructDef { name, pub_, .. } => {
                     if *pub_ {
-                        ;
                         exports.insert(name.clone(), ast.clone());
                     } else {
-                        ;
                     }
                 }
                 AstNode::FuncDef { name, pub_, .. } => {
                     if *pub_ {
-                        ;
                         exports.insert(name.clone(), ast.clone());
                     } else {
-                        ;
                     }
                 }
                 AstNode::TypeAlias { name, pub_, .. } => {
                     if *pub_ {
-                        ;
                         exports.insert(name.clone(), ast.clone());
                     } else {
-                        ;
                     }
                 }
-                AstNode::ConstDef { name, pub_, comptime_, .. } => {
+                AstNode::ConstDef {
+                    name,
+                    pub_,
+                    comptime_,
+                    ..
+                } => {
                     if *pub_ {
-                        ;
                         exports.insert(name.clone(), ast.clone());
                     } else {
-                        ;
                     }
                 }
                 _ => {}
@@ -527,7 +525,6 @@ impl ModuleResolver {
         };
 
         self.modules.insert(path_str.clone(), module);
-        ;
         Ok(self.modules.get(&path_str).unwrap())
     }
 
@@ -537,7 +534,6 @@ impl ModuleResolver {
 
         // Check cache first
         if self.modules.contains_key(path_str) {
-            ;
             return Ok(self.modules.get(path_str).unwrap());
         }
 
@@ -659,7 +655,6 @@ impl ModuleResolver {
         };
 
         self.modules.insert(path_str.to_string(), module);
-        ;
         Ok(self.modules.get(path_str).unwrap())
     }
 
@@ -716,7 +711,6 @@ impl ModuleResolver {
 
                     asts.push(ast_node_enum.clone());
                     exports.insert("AstNode".to_string(), ast_node_enum);
-                    ;
                 }
                 ["zeta", "frontend", "parser", "top_level"] => {
                     // Create parse_zeta function
@@ -739,7 +733,6 @@ impl ModuleResolver {
                     };
                     asts.push(parse_zeta_func.clone());
                     exports.insert("parse_zeta".to_string(), parse_zeta_func);
-                    ;
                 }
                 ["zeta", "middle", "resolver", "resolver"] => {
                     // Create Resolver struct
@@ -755,7 +748,6 @@ impl ModuleResolver {
                     };
                     asts.push(resolver_struct.clone());
                     exports.insert("Resolver".to_string(), resolver_struct);
-                    ;
                 }
                 ["zeta", "middle", "mir", "mir"] => {
                     // Create Mir struct
@@ -771,7 +763,6 @@ impl ModuleResolver {
                     };
                     asts.push(mir_struct.clone());
                     exports.insert("Mir".to_string(), mir_struct);
-                    ;
                 }
                 ["zeta", "middle", "specialization"] => {
                     // Create all specialization functions
@@ -843,7 +834,6 @@ impl ModuleResolver {
                         "record_specialization".to_string(),
                         record_specialization_func,
                     );
-                    ;
                 }
                 ["zeta", "backend", "codegen", "codegen"] => {
                     // Create LLVMCodegen struct
@@ -859,7 +849,6 @@ impl ModuleResolver {
                     };
                     asts.push(llvmcodegen_struct.clone());
                     exports.insert("LLVMCodegen".to_string(), llvmcodegen_struct);
-                    ;
                 }
                 ["zeta", "runtime", "actor", "channel"] => {
                     // Create Channel struct (generic)
@@ -878,7 +867,6 @@ impl ModuleResolver {
                     };
                     asts.push(channel_struct.clone());
                     exports.insert("Channel".to_string(), channel_struct);
-                    ;
                 }
                 ["zeta", "runtime", "actor", "scheduler"] => {
                     // Create Scheduler struct
@@ -894,11 +882,8 @@ impl ModuleResolver {
                     };
                     asts.push(scheduler_struct.clone());
                     exports.insert("Scheduler".to_string(), scheduler_struct);
-                    ;
                 }
-                _ => {
-                    ;
-                }
+                _ => {}
             }
         }
 
@@ -971,8 +956,6 @@ impl ModuleResolver {
 
         fs::write(&stub_path, stub_content)
             .map_err(|e| format!("Failed to write stub file: {}", e))?;
-
-        ;
         Ok(stub_path)
     }
 
@@ -1055,8 +1038,6 @@ pub enum c_void {
 
         fs::write(&stub_path, stub_content)
             .map_err(|e| format!("Failed to write external stub file: {}", e))?;
-
-        ;
         Ok(stub_path)
     }
 
@@ -1137,8 +1118,6 @@ pub fn from_str<T>(_s: &str) -> Result<T, ()> {
 
         fs::write(&stub_path, stub_content)
             .map_err(|e| format!("Failed to write zorb stub file: {}", e))?;
-
-        ;
         Ok(stub_path)
     }
 
@@ -1148,8 +1127,7 @@ pub fn from_str<T>(_s: &str) -> Result<T, ()> {
         let last_component = module_path.last().map(|s| s.as_str()).unwrap_or("");
 
         match last_component {
-            "package" => {
-                r#"//! Stub for zorb::package::Package
+            "package" => r#"//! Stub for zorb::package::Package
 pub struct Package {
     name: String,
     version: String,
@@ -1171,10 +1149,8 @@ impl Package {
         &self.version
     }
 }"#
-                .to_string()
-            }
-            "manifest" => {
-                r#"//! Stub for zorb::manifest::Manifest
+            .to_string(),
+            "manifest" => r#"//! Stub for zorb::manifest::Manifest
 pub struct Manifest {
     package: Package,
     dependencies: Vec<Dependency>,
@@ -1200,10 +1176,8 @@ impl Manifest {
         });
     }
 }"#
-                .to_string()
-            }
-            "registry" => {
-                r#"//! Stub for zorb::registry::Registry
+            .to_string(),
+            "registry" => r#"//! Stub for zorb::registry::Registry
 pub struct Registry {}
 
 impl Registry {
@@ -1215,8 +1189,7 @@ impl Registry {
         Ok(())
     }
 }"#
-                .to_string()
-            }
+            .to_string(),
             _ => {
                 // Generic stub
                 format!(

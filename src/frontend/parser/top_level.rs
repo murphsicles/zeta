@@ -5,7 +5,8 @@
 #![allow(unused_variables)]
 use super::expr::parse_full_expr;
 use super::parser::{
-    parse_attributes, parse_generic_params_as_enum, parse_ident, parse_path, parse_type, parse_trait_bounds, parse_where_clause, skip_ws_and_comments, ws,
+    parse_attributes, parse_generic_params_as_enum, parse_ident, parse_path, parse_trait_bounds,
+    parse_type, parse_where_clause, skip_ws_and_comments, ws,
 };
 use super::stmt::parse_block_body;
 use crate::frontend::ast::AstNode;
@@ -26,7 +27,7 @@ fn parse_param(input: &str) -> IResult<&str, (String, String)> {
     //    Returns ("self"|"&self"|"&mut self", "Self").
     // 2. Regular parameters: `ident: type`
     //    Returns (ident, type_string).
-    // 
+    //
     // Note: Patterns (e.g., `(x, y): (i64, i64)`) are not supported in function
     // parameters by this parser, matching the AST representation.
     let parse_self = alt((
@@ -101,15 +102,18 @@ fn parse_visibility(input: &str) -> IResult<&str, bool> {
 pub(crate) fn parse_func(input: &str) -> IResult<&str, AstNode> {
     // PARSE FUNC STEP DEBUG
 
-    
     let (input, attrs) = match parse_attributes(input) {
         Ok(r) => r,
-        Err(e) => { return Err(e); }
+        Err(e) => {
+            return Err(e);
+        }
     };
 
     let (input, pub_) = match parse_visibility(input) {
         Ok(r) => r,
-        Err(e) => { return Err(e); }
+        Err(e) => {
+            return Err(e);
+        }
     };
 
     let (input, comptime_opt) = opt(ws(tag("comptime"))).parse(input)?;
@@ -118,18 +122,22 @@ pub(crate) fn parse_func(input: &str) -> IResult<&str, AstNode> {
     let (input, extern_opt) = opt(ws(tag("extern"))).parse(input)?;
     let (input, _) = match ws(tag("fn")).parse(input) {
         Ok(r) => r,
-        Err(e) => { return Err(e); }
+        Err(e) => {
+            return Err(e);
+        }
     };
     let (input, path) = match ws(parse_path).parse(input) {
         Ok(r) => r,
-        Err(e) => { return Err(e); }
+        Err(e) => {
+            return Err(e);
+        }
     };
     let name = path.join("::");
 
     let (input, generics_opt) = opt(ws(parse_generic_params_as_enum)).parse(input)?;
     let mut lifetimes = Vec::new();
     let mut generics = Vec::new();
-    
+
     if let Some(params) = generics_opt {
         for param in params {
             match param {
@@ -142,7 +150,7 @@ pub(crate) fn parse_func(input: &str) -> IResult<&str, AstNode> {
             }
         }
     }
-    
+
     let (input, params) = match delimited(
         ws(tag("(")),
         terminated(
@@ -151,14 +159,19 @@ pub(crate) fn parse_func(input: &str) -> IResult<&str, AstNode> {
         ),
         ws(tag(")")),
     )
-    .parse(input) {
+    .parse(input)
+    {
         Ok(r) => r,
-        Err(e) => { return Err(e); }
+        Err(e) => {
+            return Err(e);
+        }
     };
 
     let (input, ret_opt) = match opt(preceded(ws(tag("->")), ws(parse_type))).parse(input) {
         Ok(r) => r,
-        Err(e) => { return Err(e); }
+        Err(e) => {
+            return Err(e);
+        }
     };
 
     // Parse where clause if present
@@ -167,11 +180,12 @@ pub(crate) fn parse_func(input: &str) -> IResult<&str, AstNode> {
     let (input, (body, ret_expr, single_line)) = if extern_opt.is_some() {
         let (input, _) = match ws(tag(";")).parse(input) {
             Ok(r) => r,
-            Err(e) => { return Err(e); }
+            Err(e) => {
+                return Err(e);
+            }
         };
         (input, (vec![], None, false))
     } else {
-
         let body_result = alt((
             map(
                 delimited(ws(tag("{")), parse_block_body, ws(tag("}"))),
@@ -195,7 +209,9 @@ pub(crate) fn parse_func(input: &str) -> IResult<&str, AstNode> {
         .parse(input);
         match body_result {
             Ok(r) => r,
-            Err(e) => { return Err(e); }
+            Err(e) => {
+                return Err(e);
+            }
         }
     };
     let input = if single_line {
@@ -263,7 +279,7 @@ fn parse_concept(input: &str) -> IResult<&str, AstNode> {
     let (input, generics_opt) = opt(ws(parse_generic_params_as_enum)).parse(input)?;
     let mut lifetimes = Vec::new();
     let mut generics = Vec::new();
-    
+
     if let Some(params) = generics_opt {
         for param in params {
             match param {
@@ -276,7 +292,7 @@ fn parse_concept(input: &str) -> IResult<&str, AstNode> {
             }
         }
     }
-    
+
     // Parse supertraits (concept inheritance) if present
     let (input, supertraits) = if let Ok((input, _)) = ws(tag(":")).parse(input) {
         // Parse trait bounds without the leading ':'
@@ -293,19 +309,19 @@ fn parse_concept(input: &str) -> IResult<&str, AstNode> {
             bounds.push(bound);
             input = new_input;
         }
-        
+
         (input, bounds)
     } else {
         (input, Vec::new())
     };
-    
+
     // Parse where clause if present
     let (input, where_clauses_opt) = opt(ws(parse_where_clause)).parse(input)?;
     let where_clauses = where_clauses_opt.unwrap_or_default();
     // Parse concept body - can contain methods
     let (input, methods) =
         delimited(ws(tag("{")), many0(ws(parse_method_sig)), ws(tag("}"))).parse(input)?;
-    
+
     // For now, we don't parse associated types
     let associated_types = Vec::new();
     Ok((
@@ -328,14 +344,14 @@ fn parse_concept(input: &str) -> IResult<&str, AstNode> {
 fn parse_associated_type(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("type")).parse(input)?;
     let (input, name) = ws(parse_ident).parse(input)?;
-    
+
     // Parse optional trait bounds: type Name: Bound1 + Bound2
     let (input, bounds) = if let Ok((input, _)) = ws(tag(":")).parse(input) {
         parse_trait_bounds(input)?
     } else {
         (input, Vec::new())
     };
-    
+
     // Parse optional default type: type Name = DefaultType
     let (input, default) = if let Ok((input, _)) = ws(tag("=")).parse(input) {
         let (input, default_ty) = ws(parse_type).parse(input)?;
@@ -343,9 +359,9 @@ fn parse_associated_type(input: &str) -> IResult<&str, AstNode> {
     } else {
         (input, None)
     };
-    
+
     let (input, _) = ws(tag(";")).parse(input)?;
-    
+
     Ok((
         input,
         AstNode::AssociatedType {
@@ -365,7 +381,7 @@ fn parse_method_sig(input: &str) -> IResult<&str, AstNode> {
     let (input, generics_opt) = opt(ws(parse_generic_params_as_enum)).parse(input)?;
     let mut lifetimes = Vec::new();
     let mut generics = Vec::new();
-    
+
     if let Some(params) = generics_opt {
         for param in params {
             match param {
@@ -391,7 +407,7 @@ fn parse_method_sig(input: &str) -> IResult<&str, AstNode> {
     // Parse where clause if present
     let (input, where_clauses_opt) = opt(ws(parse_where_clause)).parse(input)?;
     let where_clauses = where_clauses_opt.unwrap_or_default();
-    
+
     // Check if there's a body (default implementation) or just a signature
     let (input, body) = if let Ok((input, body)) = parse_block_body(input) {
         (input, Some(body))
@@ -400,7 +416,7 @@ fn parse_method_sig(input: &str) -> IResult<&str, AstNode> {
         let (input, _) = ws(tag(";")).parse(input)?;
         (input, None)
     };
-    
+
     let ret = ret_opt.unwrap_or_else(|| "()".to_string());
     Ok((
         input,
@@ -426,7 +442,7 @@ fn parse_impl(input: &str) -> IResult<&str, AstNode> {
     let (input, generics_opt) = opt(ws(parse_generic_params_as_enum)).parse(input)?;
     let mut lifetimes = Vec::new();
     let mut generics = Vec::new();
-    
+
     if let Some(params) = generics_opt {
         for param in params {
             match param {
@@ -518,7 +534,7 @@ fn parse_enum(input: &str) -> IResult<&str, AstNode> {
     let (input, generics_opt) = opt(ws(parse_generic_params_as_enum)).parse(input)?;
     let mut lifetimes = Vec::new();
     let mut generics = Vec::new();
-    
+
     if let Some(params) = generics_opt {
         for param in params {
             match param {
@@ -580,7 +596,7 @@ fn parse_struct(input: &str) -> IResult<&str, AstNode> {
     let (input, generics_opt) = opt(ws(parse_generic_params_as_enum)).parse(input)?;
     let mut lifetimes = Vec::new();
     let mut generics = Vec::new();
-    
+
     if let Some(params) = generics_opt {
         for param in params {
             match param {

@@ -1,5 +1,5 @@
 //! Zeta runtime support module
-//! 
+//!
 //! Placeholder for runtime functionality.
 
 /// Runtime context

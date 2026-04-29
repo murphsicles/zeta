@@ -3,7 +3,9 @@
 
 use super::resolver::Resolver;
 use crate::frontend::ast::AstNode;
-use crate::middle::types::{ArraySize, Substitution, Type, UnifyError, IdentityType, CapabilityLevel};
+use crate::middle::types::{
+    ArraySize, CapabilityLevel, IdentityType, Substitution, Type, UnifyError,
+};
 
 /// Extended resolver with new type checking
 pub trait NewTypeCheck {
@@ -20,7 +22,7 @@ pub trait NewTypeCheck {
 impl NewTypeCheck for Resolver {
     fn typecheck_new(&mut self, asts: &[AstNode]) -> Result<Substitution, Vec<UnifyError>> {
         use crate::middle::resolver::new_resolver;
-        
+
         let mut context = new_resolver::InferContext::new();
 
         // Add built-in functions from resolver to the inference context
@@ -29,10 +31,10 @@ impl NewTypeCheck for Resolver {
         for (name, (params, ret_ty, _is_async)) in funcs {
             // Convert parameter types to a vector of Types
             let param_types: Vec<Type> = params.iter().map(|(_, ty)| ty.clone()).collect();
-            
+
             // Create function type: (param_types) -> ret_ty
             let func_type = Type::Function(param_types, Box::new(ret_ty.clone()));
-            
+
             // Add to inference context
             context.add_function(name.clone(), func_type);
         }
@@ -77,12 +79,12 @@ impl NewTypeCheck for Resolver {
 
         // Debug: print what we're parsing (disabled for performance)
         // eprintln!("[DEBUG] string_to_type parsing: '{}'", s);
-        
+
         // Safety check: prevent infinite recursion
         if s.is_empty() {
             return Type::Named("".to_string(), Vec::new());
         }
-        
+
         // Simple types should not recurse
         match s {
             "i64" => return Type::I64,
@@ -142,12 +144,12 @@ impl NewTypeCheck for Resolver {
                         _ => None,
                     })
                     .collect();
-                
+
                 if capabilities.is_empty() {
                     // No valid capabilities found, treat as named type
                     return Type::Named(s.to_string(), Vec::new());
                 }
-                
+
                 // Create identity type
                 let identity_type = IdentityType {
                     value: None,
@@ -156,7 +158,7 @@ impl NewTypeCheck for Resolver {
                     constraints: Vec::new(),
                     type_params: Vec::new(),
                 };
-                
+
                 return Type::Identity(Box::new(identity_type));
             }
         }
@@ -251,13 +253,30 @@ impl NewTypeCheck for Resolver {
             && open_angle < close_angle
         {
             let type_name = &s[..open_angle];
-            
+
             // Safety check: type_name must not be empty and must not be a primitive type
-            if type_name.is_empty() || matches!(type_name, "i64" | "i32" | "bool" | "str" | "i8" | "i16" | "u8" | "u16" | "u32" | "u64" | "f32" | "f64" | "char") {
+            if type_name.is_empty()
+                || matches!(
+                    type_name,
+                    "i64"
+                        | "i32"
+                        | "bool"
+                        | "str"
+                        | "i8"
+                        | "i16"
+                        | "u8"
+                        | "u16"
+                        | "u32"
+                        | "u64"
+                        | "f32"
+                        | "f64"
+                        | "char"
+                )
+            {
                 // This is not a valid generic type, fall back to named type
                 return Type::Named(s.to_string(), Vec::new());
             }
-            
+
             let inner = &s[open_angle + 1..close_angle];
 
             // Parse type arguments, handling nested generics

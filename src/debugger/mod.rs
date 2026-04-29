@@ -3,12 +3,12 @@
 //! This module provides debug information generation, breakpoint support,
 //! step debugging, and variable inspection capabilities.
 
-mod debug_info;
 mod breakpoints;
+mod debug_info;
 mod inspector;
 
-pub use debug_info::DebugInfo;
 pub use breakpoints::{Breakpoint, BreakpointManager};
+pub use debug_info::DebugInfo;
 pub use inspector::{VariableInspector, VariableValue};
 
 /// Debugger error types
@@ -94,39 +94,39 @@ impl DebuggerSession {
             inspector: VariableInspector::new(),
         }
     }
-    
+
     /// Load debug information
     pub fn load_debug_info(&mut self, debug_info: DebugInfo) {
         self.debug_info = Some(debug_info);
     }
-    
+
     /// Set a breakpoint
     pub fn set_breakpoint(&mut self, location: &str) -> DebuggerResult<usize> {
         self.breakpoints.add_breakpoint(location)
     }
-    
+
     /// Remove a breakpoint
     pub fn remove_breakpoint(&mut self, breakpoint_id: usize) -> DebuggerResult<()> {
         self.breakpoints.remove_breakpoint(breakpoint_id)
     }
-    
+
     /// List all breakpoints
     pub fn list_breakpoints(&self) -> Vec<&Breakpoint> {
         self.breakpoints.list_breakpoints()
     }
-    
+
     /// Start debugging
     pub fn start(&mut self) -> DebuggerResult<()> {
         self.state = DebuggerState::Running;
         Ok(())
     }
-    
+
     /// Stop debugging
     pub fn stop(&mut self) -> DebuggerResult<()> {
         self.state = DebuggerState::Stopped;
         Ok(())
     }
-    
+
     /// Continue execution
     pub fn continue_execution(&mut self) -> DebuggerResult<()> {
         match self.state {
@@ -139,7 +139,7 @@ impl DebuggerSession {
             )),
         }
     }
-    
+
     /// Step into
     pub fn step_into(&mut self) -> DebuggerResult<()> {
         self.state = DebuggerState::Stepping {
@@ -147,7 +147,7 @@ impl DebuggerSession {
         };
         Ok(())
     }
-    
+
     /// Step over
     pub fn step_over(&mut self) -> DebuggerResult<()> {
         self.state = DebuggerState::Stepping {
@@ -155,7 +155,7 @@ impl DebuggerSession {
         };
         Ok(())
     }
-    
+
     /// Step out
     pub fn step_out(&mut self) -> DebuggerResult<()> {
         self.state = DebuggerState::Stepping {
@@ -163,17 +163,17 @@ impl DebuggerSession {
         };
         Ok(())
     }
-    
+
     /// Get current state
     pub fn state(&self) -> &DebuggerState {
         &self.state
     }
-    
+
     /// Inspect variable
     pub fn inspect_variable(&self, name: &str) -> DebuggerResult<String> {
         self.inspector.inspect(name)
     }
-    
+
     /// Get call stack
     pub fn call_stack(&self) -> DebuggerResult<Vec<String>> {
         // This would be implemented with actual stack trace

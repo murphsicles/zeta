@@ -2,10 +2,10 @@
 //! Migration from string-based types to algebraic types
 
 use crate::frontend::ast::AstNode;
+use crate::middle::types::identity::{CapabilityLevel, IdentityType};
 use crate::middle::types::{
     ArraySize, GenericContext, Kind, Substitution, TraitBound, Type, TypeParam, TypeVar, UnifyError,
 };
-use crate::middle::types::identity::{CapabilityLevel, IdentityType};
 use std::collections::HashMap;
 
 /// Type inference constraint
@@ -131,25 +131,31 @@ impl InferContext {
                 let inner_type = self.parse_type_string(type_part.trim())?;
                 return Ok(Type::DynamicArray(Box::new(inner_type)));
             }
-            
+
             // Regular array/slice must end with ]
             if !s.ends_with(']') {
                 return Err("Array/slice type missing closing ']'".to_string());
             }
 
             let inner = &s[1..s.len() - 1]; // Remove brackets
-            
+
             if let Some((type_part, size_part)) = inner.split_once(';') {
                 let inner_type = self.parse_type_string(type_part.trim())?;
                 let size_str = size_part.trim();
-                
+
                 // Try to parse as literal usize first
                 if let Ok(size) = size_str.parse::<usize>() {
-                    return Ok(Type::Array(Box::new(inner_type), crate::middle::types::ArraySize::Literal(size)));
+                    return Ok(Type::Array(
+                        Box::new(inner_type),
+                        crate::middle::types::ArraySize::Literal(size),
+                    ));
                 }
-                
+
                 // If not a literal, treat as const parameter
-                return Ok(Type::Array(Box::new(inner_type), crate::middle::types::ArraySize::ConstParam(size_str.to_string())));
+                return Ok(Type::Array(
+                    Box::new(inner_type),
+                    crate::middle::types::ArraySize::ConstParam(size_str.to_string()),
+                ));
             } else {
                 // Slice type: [T]
                 let inner_type = self.parse_type_string(inner.trim())?;
@@ -222,12 +228,12 @@ impl InferContext {
         // Check for Vector<T, N> type (special case - second argument is a number)
         if s.starts_with("Vector<") && s.ends_with('>') {
             let inner = &s[7..s.len() - 1]; // Remove "Vector<" and ">"
-            
+
             // Parse element type and size
             let mut parts = Vec::new();
             let mut current = String::new();
             let mut depth = 0;
-            
+
             for ch in inner.chars() {
                 match ch {
                     '<' => {
@@ -247,22 +253,26 @@ impl InferContext {
                     _ => current.push(ch),
                 }
             }
-            
+
             if !current.is_empty() {
                 parts.push(current.trim().to_string());
             }
-            
+
             if parts.len() != 2 {
-                return Err(format!("Vector type expects 2 arguments (element type and size), got {}", parts.len()));
+                return Err(format!(
+                    "Vector type expects 2 arguments (element type and size), got {}",
+                    parts.len()
+                ));
             }
-            
+
             let elem_type = self.parse_type_string(&parts[0])?;
-            let size = parts[1].parse::<usize>()
+            let size = parts[1]
+                .parse::<usize>()
                 .map_err(|e| format!("Invalid vector size '{}': {}", parts[1], e))?;
-            
+
             return Ok(Type::Vector(Box::new(elem_type), ArraySize::Literal(size)));
         }
-        
+
         // Check for generic type: Vec<i32>, Option<T>, Result<T, E>
         // Look for < followed by > with content in between
         if let Some(open_angle) = s.find('<')
@@ -377,11 +387,12 @@ impl InferContext {
             // Extract capabilities from between [identity: and ]
             let start_idx = "string[identity:".len();
             let capabilities_str = &s[start_idx..s.len() - 1];
-            
+
             // Parse capabilities
             let mut capabilities = Vec::new();
-            let capability_parts: Vec<&str> = capabilities_str.split('+').map(|p| p.trim()).collect();
-            
+            let capability_parts: Vec<&str> =
+                capabilities_str.split('+').map(|p| p.trim()).collect();
+
             for cap_str in capability_parts {
                 match cap_str.to_lowercase().as_str() {
                     "immutable" => capabilities.push(CapabilityLevel::Immutable),
@@ -392,10 +403,10 @@ impl InferContext {
                     _ => return Err(format!("Unknown capability: {}", cap_str)),
                 }
             }
-            
+
             // Create identity type
             let identity_type = IdentityType::new(capabilities);
-            
+
             return Ok(Type::Identity(Box::new(identity_type)));
         }
 
@@ -539,13 +550,13 @@ impl InferContext {
             AstNode::TypeAnnotatedPattern { pattern, ty } => {
                 // Type-annotated pattern: check that the pattern matches the annotated type,
                 // and that the annotated type is compatible with the expected type
-                
+
                 // First, parse the type string to get a Type
                 let annotated_ty = self.parse_type_string(ty)?;
-                
+
                 // Check that the annotated type is compatible with the expected type
                 self.constrain_eq(expected_ty.clone(), annotated_ty.clone());
-                
+
                 // Check the pattern against the annotated type
                 self.check_pattern(pattern, &annotated_ty)
             }
@@ -576,31 +587,37 @@ impl InferContext {
                     // Empty array - we don't know the element type
                     // Create a type variable for the element type
                     let elem_var = Type::Variable(TypeVar::fresh());
-                    Ok(Type::Array(Box::new(elem_var), crate::middle::types::ArraySize::Literal(0)))
+                    Ok(Type::Array(
+                        Box::new(elem_var),
+                        crate::middle::types::ArraySize::Literal(0),
+                    ))
                 } else {
                     // Infer type of first element
                     let first_ty = self.infer(&elements[0])?;
-                    
+
                     // Constrain all elements to have the same type
                     for element in elements.iter().skip(1) {
                         let elem_ty = self.infer(element)?;
                         self.constrain_eq(first_ty.clone(), elem_ty);
                     }
-                    
-                    Ok(Type::Array(Box::new(first_ty), crate::middle::types::ArraySize::Literal(elements.len())))
+
+                    Ok(Type::Array(
+                        Box::new(first_ty),
+                        crate::middle::types::ArraySize::Literal(elements.len()),
+                    ))
                 }
-            },
+            }
 
             AstNode::ArrayRepeat { value, size } => {
                 // Infer type of the value
                 let value_ty = self.infer(value)?;
-                
+
                 // Infer type of the size (should be integer)
                 let size_ty = self.infer(size)?;
-                
+
                 // Size should be an integer type
                 self.constrain_eq(size_ty, Type::I64);
-                
+
                 // Try to get the size value if it's a literal
                 let array_size = if let AstNode::Lit(size_val) = size.as_ref() {
                     // Convert i64 to usize
@@ -609,24 +626,28 @@ impl InferContext {
                     // Not a literal, use 0 as placeholder
                     crate::middle::types::ArraySize::Literal(0)
                 };
-                
+
                 // Return array type with repeated value
                 Ok(Type::Array(Box::new(value_ty), array_size))
-            },
+            }
 
-            AstNode::DynamicArrayLit { elem_type, elements } => {
+            AstNode::DynamicArrayLit {
+                elem_type,
+                elements,
+            } => {
                 // Parse the element type string into a Type
-                let parsed_type = self.parse_type_string(elem_type)
+                let parsed_type = self
+                    .parse_type_string(elem_type)
                     .map_err(|e| format!("Failed to parse type '{}': {}", elem_type, e))?;
-                
+
                 // Check that all elements have the correct type
                 for element in elements {
                     let elem_ty = self.infer(element)?;
                     self.constrain_eq(parsed_type.clone(), elem_ty);
                 }
-                
+
                 Ok(Type::DynamicArray(Box::new(parsed_type)))
-            },
+            }
 
             AstNode::Var(name) => Ok(self
                 .lookup(name)
@@ -693,11 +714,11 @@ impl InferContext {
             AstNode::Await(expr) => {
                 // Await expression: expr.await where expr must be a Future
                 let expr_ty = self.infer(expr)?;
-                
+
                 // Check if the expression type is a Future
                 // For now, we'll assume any async function returns a Future
                 // In a complete implementation, we would check if expr_ty implements Future trait
-                
+
                 // The await expression returns the inner type of the Future
                 // For simplicity, we'll return the expression type itself for now
                 // TODO: Implement proper Future trait checking
@@ -707,7 +728,7 @@ impl InferContext {
             AstNode::Cast { expr, ty } => {
                 let expr_ty = self.infer(expr)?;
                 let target_ty = self.parse_type_string(ty)?;
-                
+
                 // Check if conversion is valid
                 // For now, allow all numeric conversions
                 // TODO: Add proper conversion validation
@@ -793,8 +814,9 @@ impl InferContext {
                 let type_params = if !generics.is_empty() {
                     // Parse "T: Clone + Copy" style bounds
                     // Convert GenericParam to strings
-                    let generic_strings: Vec<String> = generics.iter().map(|gp| {
-                        match gp {
+                    let generic_strings: Vec<String> = generics
+                        .iter()
+                        .map(|gp| match gp {
                             crate::frontend::ast::GenericParam::Type { name, bounds } => {
                                 if bounds.is_empty() {
                                     name.clone()
@@ -803,9 +825,11 @@ impl InferContext {
                                 }
                             }
                             crate::frontend::ast::GenericParam::Lifetime { name } => name.clone(),
-                            crate::frontend::ast::GenericParam::Const { name, ty } => format!("const {}: {}", name, ty),
-                        }
-                    }).collect();
+                            crate::frontend::ast::GenericParam::Const { name, ty } => {
+                                format!("const {}: {}", name, ty)
+                            }
+                        })
+                        .collect();
                     self.parse_generic_params(&generic_strings)?
                 } else {
                     Vec::new()
@@ -823,7 +847,10 @@ impl InferContext {
                     // can be evaluated at compile time
                     // TODO: Implement proper compile-time evaluation checking
                     // For now, we just mark it as comptime and continue
-                    eprintln!("Note: Comptime function '{}' - compile-time evaluation not fully implemented yet", name);
+                    eprintln!(
+                        "Note: Comptime function '{}' - compile-time evaluation not fully implemented yet",
+                        name
+                    );
                 }
 
                 // Register function signature as a proper function type
@@ -852,11 +879,11 @@ impl InferContext {
                 // Type check function body
                 let len = body.len();
                 let mut last_stmt_type = Type::Tuple(vec![]); // default unit
-                
+
                 for (i, stmt) in body.iter().enumerate() {
                     let is_last = i == len - 1;
                     let stmt_type = self.infer(stmt)?;
-                    
+
                     if is_last {
                         // For the last statement, check if it's an expression statement
                         // that should be treated as implicit return
@@ -897,9 +924,7 @@ impl InferContext {
                             let expr_ty = self.infer(expr)?;
                             expr_ty
                         }
-                        _ => {
-                            last_stmt_type
-                        },
+                        _ => last_stmt_type,
                     };
                     self.constrain_eq(implicit_return_ty, return_ty);
                 }
@@ -986,8 +1011,9 @@ impl InferContext {
                 let type_params = if !generics.is_empty() {
                     // Parse "T: Clone + Copy" style bounds
                     // Convert GenericParam to strings
-                    let generic_strings: Vec<String> = generics.iter().map(|gp| {
-                        match gp {
+                    let generic_strings: Vec<String> = generics
+                        .iter()
+                        .map(|gp| match gp {
                             crate::frontend::ast::GenericParam::Type { name, bounds } => {
                                 if bounds.is_empty() {
                                     name.clone()
@@ -996,9 +1022,11 @@ impl InferContext {
                                 }
                             }
                             crate::frontend::ast::GenericParam::Lifetime { name } => name.clone(),
-                            crate::frontend::ast::GenericParam::Const { name, ty } => format!("const {}: {}", name, ty),
-                        }
-                    }).collect();
+                            crate::frontend::ast::GenericParam::Const { name, ty } => {
+                                format!("const {}: {}", name, ty)
+                            }
+                        })
+                        .collect();
                     self.parse_generic_params(&generic_strings)?
                 } else {
                     Vec::new()
@@ -1045,8 +1073,9 @@ impl InferContext {
                 let type_params = if !generics.is_empty() {
                     // Parse "T: Clone + Copy" style bounds
                     // Convert GenericParam to strings
-                    let generic_strings: Vec<String> = generics.iter().map(|gp| {
-                        match gp {
+                    let generic_strings: Vec<String> = generics
+                        .iter()
+                        .map(|gp| match gp {
                             crate::frontend::ast::GenericParam::Type { name, bounds } => {
                                 if bounds.is_empty() {
                                     name.clone()
@@ -1055,9 +1084,11 @@ impl InferContext {
                                 }
                             }
                             crate::frontend::ast::GenericParam::Lifetime { name } => name.clone(),
-                            crate::frontend::ast::GenericParam::Const { name, ty } => format!("const {}: {}", name, ty),
-                        }
-                    }).collect();
+                            crate::frontend::ast::GenericParam::Const { name, ty } => {
+                                format!("const {}: {}", name, ty)
+                            }
+                        })
+                        .collect();
                     self.parse_generic_params(&generic_strings)?
                 } else {
                     Vec::new()
@@ -1160,13 +1191,13 @@ impl InferContext {
             AstNode::Subscript { base, index } => {
                 let base_ty = self.infer(base)?;
                 let index_ty = self.infer(index)?;
-                
+
                 // Constrain index to be integer
                 self.constrain_eq(index_ty, Type::I64);
-                
+
                 // Create a fresh type variable for the element type
                 let elem_var = Type::Variable(TypeVar::fresh());
-                
+
                 // Constrain base type to be an array type with element type elem_var
                 // We don't care about the size for subscripting
                 // Create a fresh type variable to represent any array size
@@ -1176,7 +1207,7 @@ impl InferContext {
                 // This is a hack - we need a better solution
                 let array_type = Type::Array(Box::new(elem_var.clone()), ArraySize::Literal(0));
                 self.constrain_eq(base_ty, array_type);
-                
+
                 // Return the element type
                 Ok(elem_var)
             }
@@ -1270,7 +1301,11 @@ impl InferContext {
                             // Instance methods will be handled differently
                         }
                         AstNode::FuncDef {
-                            name, params, ret, async_, ..
+                            name,
+                            params,
+                            ret,
+                            async_,
+                            ..
                         } => {
                             // Parse the return type
                             let return_ty = self.parse_type_string(ret)?;
@@ -1395,7 +1430,10 @@ impl InferContext {
                 // Type check the condition - must be boolean or integer (C-style)
                 let cond_ty = self.infer(cond)?;
                 // Allow bool or i64 (0 = false, non-zero = true)
-                if !matches!(cond_ty, Type::Bool | Type::I64 | Type::I32 | Type::U64 | Type::U32) {
+                if !matches!(
+                    cond_ty,
+                    Type::Bool | Type::I64 | Type::I32 | Type::U64 | Type::U32
+                ) {
                     return Err("If condition must be boolean or integer".to_string());
                 }
 
@@ -1406,11 +1444,11 @@ impl InferContext {
                         Ok(Type::Tuple(vec![]))
                     } else {
                         // Check all statements except the last
-                        for stmt in &stmts[..len-1] {
+                        for stmt in &stmts[..len - 1] {
                             self.infer(stmt)?;
                         }
                         // Last element determines the branch type
-                        let last = &stmts[len-1];
+                        let last = &stmts[len - 1];
                         match last {
                             AstNode::ExprStmt { expr } => self.infer(expr),
                             _ => self.infer(last),
@@ -1537,13 +1575,17 @@ impl InferContext {
                 Ok(Type::Tuple(vec![]))
             }
 
-            AstNode::For { pattern, expr, body } => {
+            AstNode::For {
+                pattern,
+                expr,
+                body,
+            } => {
                 // Type check the expression - it should be a range
                 let expr_ty = self.infer(expr)?;
-                
+
                 // Check that the expression is actually a Range type
                 self.constrain_eq(expr_ty, Type::Range);
-                
+
                 // Check the pattern (loop variable)
                 // For simple variable patterns, we need to infer the type from the range
                 // For now, we'll use i64 as the default loop variable type
@@ -1555,21 +1597,25 @@ impl InferContext {
                     // Complex pattern - for now, just check it
                     self.check_pattern(pattern, &Type::I64)?;
                 }
-                
+
                 // Type check the body
                 for stmt in body {
                     self.infer(stmt)?;
                 }
-                
+
                 // For loops have unit type
                 Ok(Type::Tuple(vec![]))
             }
 
-            AstNode::Range { start, end, inclusive } => {
+            AstNode::Range {
+                start,
+                end,
+                inclusive,
+            } => {
                 // Type check the start and end expressions
                 let start_ty = self.infer(start)?;
                 let end_ty = self.infer(end)?;
-                
+
                 // Both start and end should be numeric types
                 // For now, we'll accept any type and return Range
                 // In the future, we should constrain them to be the same numeric type
@@ -1584,11 +1630,11 @@ impl InferContext {
                     Ok(Type::Tuple(vec![]))
                 } else {
                     // Check all statements except the last
-                    for stmt in &body[..len-1] {
+                    for stmt in &body[..len - 1] {
                         self.infer(stmt)?;
                     }
                     // The last element determines the block's type
-                    let last_node = &body[len-1];
+                    let last_node = &body[len - 1];
                     match last_node {
                         AstNode::ExprStmt { expr } => {
                             // Expression statement: the block's value is the expression's type
@@ -1602,7 +1648,7 @@ impl InferContext {
                         }
                     }
                 }
-            },
+            }
 
             _ => {
                 // Default to error for unimplemented nodes
@@ -1742,34 +1788,51 @@ impl InferContext {
                         "Ord" => bounds.push(TraitBound::Ord),
                         "Hash" => bounds.push(TraitBound::Hash),
                         "Future" => bounds.push(TraitBound::Future),
-                        bound_str if bound_str.starts_with("Identity<") && bound_str.ends_with(">") => {
+                        bound_str
+                            if bound_str.starts_with("Identity<") && bound_str.ends_with(">") =>
+                        {
                             // Parse Identity<Read> or Identity<Read+Write>
-                            let inner = &bound_str[9..bound_str.len()-1]; // Remove "Identity<" and ">"
-                            let capabilities: Result<Vec<_>, _> = inner.split('+')
+                            let inner = &bound_str[9..bound_str.len() - 1]; // Remove "Identity<" and ">"
+                            let capabilities: Result<Vec<_>, _> = inner
+                                .split('+')
                                 .map(|cap| cap.trim())
-                                .map(|cap_str| {
-                                    match cap_str.to_lowercase().as_str() {
-                                        "read" => Ok(crate::middle::types::identity::CapabilityLevel::Read),
-                                        "write" => Ok(crate::middle::types::identity::CapabilityLevel::Write),
-                                        "execute" => Ok(crate::middle::types::identity::CapabilityLevel::Execute),
-                                        "owned" => Ok(crate::middle::types::identity::CapabilityLevel::Owned),
-                                        "immutable" => Ok(crate::middle::types::identity::CapabilityLevel::Immutable),
-                                        _ => Err(format!("Unknown capability: {}", cap_str)),
+                                .map(|cap_str| match cap_str.to_lowercase().as_str() {
+                                    "read" => {
+                                        Ok(crate::middle::types::identity::CapabilityLevel::Read)
                                     }
+                                    "write" => {
+                                        Ok(crate::middle::types::identity::CapabilityLevel::Write)
+                                    }
+                                    "execute" => {
+                                        Ok(crate::middle::types::identity::CapabilityLevel::Execute)
+                                    }
+                                    "owned" => {
+                                        Ok(crate::middle::types::identity::CapabilityLevel::Owned)
+                                    }
+                                    "immutable" => Ok(
+                                        crate::middle::types::identity::CapabilityLevel::Immutable,
+                                    ),
+                                    _ => Err(format!("Unknown capability: {}", cap_str)),
                                 })
                                 .collect();
-                            
+
                             match capabilities {
                                 Ok(caps) => bounds.push(TraitBound::Identity(caps)),
-                                Err(e) => return Err(format!("Invalid identity constraint: {}", e)),
+                                Err(e) => {
+                                    return Err(format!("Invalid identity constraint: {}", e));
+                                }
                             }
-                        },
+                        }
                         _ => return Err(format!("Unknown trait bound: {}", bound_str)),
                     }
                 }
             }
 
-            type_params.push(TypeParam { name, bounds, kind: Kind::Star });
+            type_params.push(TypeParam {
+                name,
+                bounds,
+                kind: Kind::Star,
+            });
         }
 
         Ok(type_params)
@@ -1969,11 +2032,17 @@ mod tests {
         // Test array types
         assert_eq!(
             ctx.parse_type_string("[i32; 10]").unwrap(),
-            Type::Array(Box::new(Type::I32), crate::middle::types::ArraySize::Literal(10))
+            Type::Array(
+                Box::new(Type::I32),
+                crate::middle::types::ArraySize::Literal(10)
+            )
         );
         assert_eq!(
             ctx.parse_type_string("[bool; 5]").unwrap(),
-            Type::Array(Box::new(Type::Bool), crate::middle::types::ArraySize::Literal(5))
+            Type::Array(
+                Box::new(Type::Bool),
+                crate::middle::types::ArraySize::Literal(5)
+            )
         );
 
         // Test slice types
@@ -2003,7 +2072,10 @@ mod tests {
         // Test nested types
         assert_eq!(
             ctx.parse_type_string("[(i32, bool); 3]").unwrap(),
-            Type::Array(Box::new(Type::Tuple(vec![Type::I32, Type::Bool])), crate::middle::types::ArraySize::Literal(3))
+            Type::Array(
+                Box::new(Type::Tuple(vec![Type::I32, Type::Bool])),
+                crate::middle::types::ArraySize::Literal(3)
+            )
         );
 
         // Test error cases

@@ -6,19 +6,11 @@
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum GenericParam {
     /// Type parameter with optional trait bounds (e.g., T, T: Clone + Debug)
-    Type {
-        name: String,
-        bounds: Vec<String>,
-    },
+    Type { name: String, bounds: Vec<String> },
     /// Lifetime parameter (e.g., 'a, 'static)
-    Lifetime {
-        name: String,
-    },
+    Lifetime { name: String },
     /// Const parameter with type (e.g., const N: usize, const SIZE: u32)
-    Const {
-        name: String,
-        ty: String,
-    },
+    Const { name: String, ty: String },
 }
 
 /// Match expression arm with pattern and body.
@@ -338,15 +330,9 @@ pub enum AstNode {
         inclusive: bool,
     },
     /// Binding pattern with @ (e.g., x @ 1..=10)
-    BindPattern {
-        name: String,
-        pattern: Box<AstNode>,
-    },
+    BindPattern { name: String, pattern: Box<AstNode> },
     /// Or pattern for multiple alternatives (e.g., 1 | 2 | 3)
     OrPattern(Vec<AstNode>),
     /// Type-annotated pattern (e.g., x: i32, s: string[identity:read])
-    TypeAnnotatedPattern {
-        pattern: Box<AstNode>,
-        ty: String,
-    },
+    TypeAnnotatedPattern { pattern: Box<AstNode>, ty: String },
 }

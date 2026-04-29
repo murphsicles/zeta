@@ -53,7 +53,7 @@ impl Resolver {
                 ok
             }
         };
-        
+
         // Run identity verification pass if type checking succeeded
         if typecheck_result {
             self.run_identity_verification(asts)
@@ -62,7 +62,7 @@ impl Resolver {
         }
     }
 
-    fn check_node(&self, node: &AstNode) -> bool {
+    pub(crate) fn check_node(&self, node: &AstNode) -> bool {
         let mut ok = true;
         match node {
             AstNode::Call { method, args, .. } => {
@@ -110,18 +110,28 @@ impl Resolver {
                     }
                 }
             }
-            AstNode::BinaryOp { op, left, right, .. } => {
+            AstNode::BinaryOp {
+                op, left, right, ..
+            } => {
                 let lty = self.infer_type(left);
                 let rty = self.infer_type(right);
-                
+
                 // For logical operators (&&, ||), both operands must be bool
                 if op == "&&" || op == "||" {
                     if lty != Type::Bool {
-                        eprintln!("Error: Left operand of '{}' must be bool, got {}", op, lty.display_name());
+                        eprintln!(
+                            "Error: Left operand of '{}' must be bool, got {}",
+                            op,
+                            lty.display_name()
+                        );
                         ok = false;
                     }
                     if rty != Type::Bool {
-                        eprintln!("Error: Right operand of '{}' must be bool, got {}", op, rty.display_name());
+                        eprintln!(
+                            "Error: Right operand of '{}' must be bool, got {}",
+                            op,
+                            rty.display_name()
+                        );
                         ok = false;
                     }
                 } else if lty != rty {
@@ -129,23 +139,38 @@ impl Resolver {
                     // Check for SIMD vector operations
                     if lty.is_vector() && rty.is_vector() {
                         // Both are vectors, check if they have same element type and size
-                        if let (Some((l_inner, l_size)), Some((r_inner, r_size))) = (lty.as_vector(), rty.as_vector()) {
+                        if let (Some((l_inner, l_size)), Some((r_inner, r_size))) =
+                            (lty.as_vector(), rty.as_vector())
+                        {
                             if l_inner != r_inner {
-                                eprintln!("Error: SIMD vector element type mismatch in '{}': {} vs {}", op, l_inner.display_name(), r_inner.display_name());
+                                eprintln!(
+                                    "Error: SIMD vector element type mismatch in '{}': {} vs {}",
+                                    op,
+                                    l_inner.display_name(),
+                                    r_inner.display_name()
+                                );
                                 ok = false;
                             } else if l_size != r_size {
-                                eprintln!("Error: SIMD vector size mismatch in '{}': {} vs {}", op, l_size, r_size);
+                                eprintln!(
+                                    "Error: SIMD vector size mismatch in '{}': {} vs {}",
+                                    op, l_size, r_size
+                                );
                                 ok = false;
                             }
                             // If types match, operation is valid
                         }
                     } else {
                         // Not both vectors, types must match exactly
-                        eprintln!("Error: Type mismatch in binary operation '{}': {} vs {}", op, lty.display_name(), rty.display_name());
+                        eprintln!(
+                            "Error: Type mismatch in binary operation '{}': {} vs {}",
+                            op,
+                            lty.display_name(),
+                            rty.display_name()
+                        );
                         ok = false;
                     }
                 }
-                
+
                 if !self.check_node(left) {
                     ok = false;
                 }
@@ -187,7 +212,10 @@ impl Resolver {
                 // Check condition - should be bool
                 let cond_type = self.infer_type(&cond);
                 if cond_type != Type::Bool {
-                    eprintln!("Error: While condition must be bool, got {}", cond_type.display_name());
+                    eprintln!(
+                        "Error: While condition must be bool, got {}",
+                        cond_type.display_name()
+                    );
                     ok = false;
                 }
                 if !self.check_node(&cond) {
@@ -266,20 +294,22 @@ impl Resolver {
                 } else if op == "&&" || op == "||" {
                     // Logical operators return bool
                     Type::Bool
-                } else if op == "==" || op == "!=" || op == "<" || op == ">" || op == "<=" || op == ">=" {
+                } else if op == "=="
+                    || op == "!="
+                    || op == "<"
+                    || op == ">"
+                    || op == "<="
+                    || op == ">="
+                {
                     // Comparison operators return bool
                     Type::Bool
                 } else {
                     // For other operators, return type of left operand
                     // For SIMD vectors, return vector type
                     let lty = self.infer_type(left);
-                    if lty.is_vector() {
-                        lty
-                    } else {
-                        lty
-                    }
+                    if lty.is_vector() { lty } else { lty }
                 }
-            },
+            }
             AstNode::Call { method, .. } => {
                 // Get the return type from the function signature
                 if let Some(sig) = self.get_func_signature(method) {
@@ -288,7 +318,7 @@ impl Resolver {
                     // Default to i64 for unknown functions
                     Type::I64
                 }
-            },
+            }
             AstNode::DictLit { entries } => {
                 if entries.is_empty() {
                     // For now, return a named type for Map<i64, i64>
@@ -325,7 +355,7 @@ impl Resolver {
                 return const_val.as_int();
             }
         }
-        
+
         match node {
             AstNode::Lit(n) => Some(*n),
             AstNode::BinaryOp { op, left, right } => {
@@ -354,7 +384,12 @@ impl Resolver {
     }
 
     /// Check if two types are compatible, allowing some implicit conversions
-    pub fn types_compatible(&self, expr_type: &Type, annotated_type: &Type, expr: &AstNode) -> bool {
+    pub fn types_compatible(
+        &self,
+        expr_type: &Type,
+        annotated_type: &Type,
+        expr: &AstNode,
+    ) -> bool {
         // Exact match is always compatible
         if expr_type == annotated_type {
             return true;
@@ -401,11 +436,11 @@ impl Resolver {
         // TODO: Add more compatibility rules as needed
         false
     }
-    
+
     /// Run identity verification pass on the AST
     fn run_identity_verification(&self, asts: &[AstNode]) -> bool {
         let mut all_ok = true;
-        
+
         for ast in asts {
             match verify_identities(ast) {
                 Ok(warnings) => {
@@ -424,12 +459,16 @@ impl Resolver {
                 }
             }
         }
-        
+
         all_ok
     }
-    
+
     /// Infer identity type for an expression based on usage context
-    fn infer_identity_type(&self, node: &AstNode, context_capabilities: &[CapabilityLevel]) -> Option<Type> {
+    fn infer_identity_type(
+        &self,
+        node: &AstNode,
+        context_capabilities: &[CapabilityLevel],
+    ) -> Option<Type> {
         match node {
             AstNode::StringLit(s) => {
                 // Create an identity type with the required capabilities
@@ -450,7 +489,7 @@ impl Resolver {
             _ => None,
         }
     }
-    
+
     /// Get required capabilities for a function argument
     fn get_required_capabilities(&self, func_name: &str, arg_index: usize) -> Vec<CapabilityLevel> {
         // Check if this is an identity-aware function

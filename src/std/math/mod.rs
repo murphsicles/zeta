@@ -1,5 +1,5 @@
 //! Math module for Zeta standard library.
-//! 
+//!
 //! Provides mathematical operations and constants:
 //! - Mathematical constants (PI, E, etc.)
 //! - Trigonometric functions
@@ -27,7 +27,7 @@ pub fn register_functions(map: &mut std::collections::HashMap<&'static str, usiz
     map.insert("math_log10_e", math_log10_e as *const () as usize);
     map.insert("math_sqrt2", math_sqrt2 as *const () as usize);
     map.insert("math_sqrt3", math_sqrt3 as *const () as usize);
-    
+
     // Trigonometric functions
     map.insert("math_sin", math_sin as *const () as usize);
     map.insert("math_cos", math_cos as *const () as usize);
@@ -36,7 +36,7 @@ pub fn register_functions(map: &mut std::collections::HashMap<&'static str, usiz
     map.insert("math_acos", math_acos as *const () as usize);
     map.insert("math_atan", math_atan as *const () as usize);
     map.insert("math_atan2", math_atan2 as *const () as usize);
-    
+
     // Exponential and logarithmic functions
     map.insert("math_exp", math_exp as *const () as usize);
     map.insert("math_exp2", math_exp2 as *const () as usize);
@@ -44,13 +44,13 @@ pub fn register_functions(map: &mut std::collections::HashMap<&'static str, usiz
     map.insert("math_log10", math_log10 as *const () as usize);
     map.insert("math_log2", math_log2 as *const () as usize);
     map.insert("math_log", math_log as *const () as usize);
-    
+
     // Power and root functions
     map.insert("math_pow", math_pow as *const () as usize);
     map.insert("math_sqrt", math_sqrt as *const () as usize);
     map.insert("math_cbrt", math_cbrt as *const () as usize);
     map.insert("math_hypot", math_hypot as *const () as usize);
-    
+
     // Hyperbolic functions
     map.insert("math_sinh", math_sinh as *const () as usize);
     map.insert("math_cosh", math_cosh as *const () as usize);
@@ -58,7 +58,7 @@ pub fn register_functions(map: &mut std::collections::HashMap<&'static str, usiz
     map.insert("math_asinh", math_asinh as *const () as usize);
     map.insert("math_acosh", math_acosh as *const () as usize);
     map.insert("math_atanh", math_atanh as *const () as usize);
-    
+
     // Special functions
     map.insert("math_abs", math_abs as *const () as usize);
     map.insert("math_floor", math_floor as *const () as usize);
@@ -67,13 +67,16 @@ pub fn register_functions(map: &mut std::collections::HashMap<&'static str, usiz
     map.insert("math_trunc", math_trunc as *const () as usize);
     map.insert("math_fract", math_fract as *const () as usize);
     map.insert("math_signum", math_signum as *const () as usize);
-    
+
     // PrimeZeta specific math functions
     map.insert("math_gcd", math_gcd as *const () as usize);
     map.insert("math_lcm", math_lcm as *const () as usize);
     map.insert("math_is_prime", math_is_prime as *const () as usize);
     map.insert("math_next_prime", math_next_prime as *const () as usize);
-    map.insert("math_prime_factors", math_prime_factors as *const () as usize);
+    map.insert(
+        "math_prime_factors",
+        math_prime_factors as *const () as usize,
+    );
 }
 
 // ============================================================================
@@ -344,13 +347,13 @@ pub unsafe extern "C" fn math_signum(x: f64) -> f64 {
 pub unsafe extern "C" fn math_gcd(a: i64, b: i64) -> i64 {
     let mut x = a.abs();
     let mut y = b.abs();
-    
+
     while y != 0 {
         let temp = y;
         y = x % y;
         x = temp;
     }
-    
+
     x
 }
 
@@ -360,7 +363,7 @@ pub unsafe extern "C" fn math_lcm(a: i64, b: i64) -> i64 {
     if a == 0 || b == 0 {
         return 0;
     }
-    
+
     let gcd = unsafe { math_gcd(a, b) };
     (a / gcd).abs() * b.abs()
 }
@@ -377,7 +380,7 @@ pub unsafe extern "C" fn math_is_prime(n: i64) -> bool {
     if n % 2 == 0 || n % 3 == 0 {
         return false;
     }
-    
+
     let mut i = 5;
     while i * i <= n {
         if n % i == 0 || n % (i + 2) == 0 {
@@ -385,7 +388,7 @@ pub unsafe extern "C" fn math_is_prime(n: i64) -> bool {
         }
         i += 6;
     }
-    
+
     true
 }
 
@@ -393,7 +396,7 @@ pub unsafe extern "C" fn math_is_prime(n: i64) -> bool {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn math_next_prime(n: i64) -> i64 {
     let mut candidate = if n < 2 { 2 } else { n + 1 };
-    
+
     loop {
         if unsafe { math_is_prime(candidate) } {
             return candidate;
@@ -403,7 +406,7 @@ pub unsafe extern "C" fn math_next_prime(n: i64) -> i64 {
 }
 
 /// Gets the prime factors of a number.
-/// 
+///
 /// # Safety
 /// Returns a pointer to an array of i64 pairs (prime, exponent).
 /// The array is terminated by a pair of zeros.
@@ -418,10 +421,10 @@ pub unsafe extern "C" fn math_prime_factors(n: i64) -> *mut i64 {
         std::mem::forget(boxed);
         return ptr;
     }
-    
+
     let mut factors = Vec::new();
     let mut divisor = 2;
-    
+
     while divisor * divisor <= num {
         if num % divisor == 0 {
             let mut count = 0;
@@ -434,16 +437,16 @@ pub unsafe extern "C" fn math_prime_factors(n: i64) -> *mut i64 {
         }
         divisor += if divisor == 2 { 1 } else { 2 };
     }
-    
+
     if num > 1 {
         factors.push(num);
         factors.push(1);
     }
-    
+
     // Add terminator
     factors.push(0);
     factors.push(0);
-    
+
     let boxed = factors.into_boxed_slice();
     let ptr = boxed.as_ptr() as *mut i64;
     std::mem::forget(boxed);

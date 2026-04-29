@@ -8,7 +8,7 @@
 use crate::frontend::ast::AstNode;
 use crate::middle::mir::mir::{Mir, MirExpr, MirStmt, SemiringOp};
 use crate::middle::specialization::MonoKey;
-use crate::middle::types::{Type, ArraySize};
+use crate::middle::types::{ArraySize, Type};
 use std::collections::HashMap;
 
 /// Type declaration metadata registered during MIR lowering.
@@ -25,9 +25,7 @@ pub enum TypeDecl {
         generics: Vec<crate::frontend::ast::GenericParam>,
     },
     /// A type alias.
-    Alias {
-        target: String,
-    },
+    Alias { target: String },
 }
 
 pub struct MirGen {
@@ -62,8 +60,11 @@ impl MirGen {
             type_decls: HashMap::new(),
         }
     }
-    
-    pub fn with_global_consts(mut self, consts: HashMap<String, crate::middle::ctfe::value::ConstValue>) -> Self {
+
+    pub fn with_global_consts(
+        mut self,
+        consts: HashMap<String, crate::middle::ctfe::value::ConstValue>,
+    ) -> Self {
         self.global_consts = consts;
         self
     }
@@ -104,7 +105,9 @@ impl MirGen {
         if is_extern {
             // Ensure clean state
             self.stmts.clear();
-        } else if self.stmts.is_empty() || !matches!(self.stmts.last(), Some(MirStmt::Return { .. })) {
+        } else if self.stmts.is_empty()
+            || !matches!(self.stmts.last(), Some(MirStmt::Return { .. }))
+        {
             let ret_val = if let Some(last) = self.stmts.last() {
                 match last {
                     MirStmt::Call { dest, .. } => *dest,
@@ -170,7 +173,10 @@ impl MirGen {
                             self.type_map.insert(lhs_id, Type::I64);
                         }
                     }
-                    AstNode::TypeAnnotatedPattern { pattern: inner_pattern, ty: _ } => {
+                    AstNode::TypeAnnotatedPattern {
+                        pattern: inner_pattern,
+                        ty: _,
+                    } => {
                         // For type-annotated patterns, extract the inner pattern
                         // The type checking should have been done by the type checker
                         if let AstNode::Var(name) = &**inner_pattern {
@@ -212,7 +218,7 @@ impl MirGen {
                 if let AstNode::Subscript { base, index } = &**lhs {
                     let base_id = self.lower_expr(base);
                     let index_id = self.lower_expr(index);
-                    
+
                     // Check if base is an array type
                     let base_ty = self.type_map.get(&base_id).cloned().unwrap_or(Type::I64);
                     if let Type::DynamicArray(_) = base_ty {
@@ -405,14 +411,19 @@ impl MirGen {
                                         rhs: *lhs,
                                     });
                                 }
-                                MirStmt::If { dest: Some(if_dest), .. } => {
+                                MirStmt::If {
+                                    dest: Some(if_dest),
+                                    ..
+                                } => {
                                     // Block ends with if expression - use its destination
                                     then_stmts.push(MirStmt::Assign {
                                         lhs: dest,
                                         rhs: *if_dest,
                                     });
                                 }
-                                MirStmt::Call { dest: call_dest, .. } => {
+                                MirStmt::Call {
+                                    dest: call_dest, ..
+                                } => {
                                     // Block ends with function call - use its result
                                     then_stmts.push(MirStmt::Assign {
                                         lhs: dest,
@@ -470,14 +481,19 @@ impl MirGen {
                                         rhs: *lhs,
                                     });
                                 }
-                                MirStmt::If { dest: Some(if_dest), .. } => {
+                                MirStmt::If {
+                                    dest: Some(if_dest),
+                                    ..
+                                } => {
                                     // Block ends with if expression - use its destination
                                     else_stmts.push(MirStmt::Assign {
                                         lhs: dest,
                                         rhs: *if_dest,
                                     });
                                 }
-                                MirStmt::Call { dest: call_dest, .. } => {
+                                MirStmt::Call {
+                                    dest: call_dest, ..
+                                } => {
                                     // Block ends with function call - use its result
                                     else_stmts.push(MirStmt::Assign {
                                         lhs: dest,
@@ -549,18 +565,18 @@ impl MirGen {
 
                 // Check if expr is a range expression (BinaryOp with ".." or AstNode::Range)
                 let (start_expr, end_expr) = match &**expr {
-                    AstNode::BinaryOp { op, left, right } if op == ".." => {
-                        (left, right)
-                    }
-                    AstNode::Range { start, end, inclusive: _ } => {
-                        (start, end)
-                    }
+                    AstNode::BinaryOp { op, left, right } if op == ".." => (left, right),
+                    AstNode::Range {
+                        start,
+                        end,
+                        inclusive: _,
+                    } => (start, end),
                     _ => {
                         // TODO: Handle other iterator types
                         return;
                     }
                 };
-                
+
                 // Get variable name from pattern
                 if let AstNode::Var(var_name) = &**pattern {
                     // Lower start and end expressions
@@ -583,12 +599,15 @@ impl MirGen {
                     // For range start..end, we need to create an iterator
                     // For now, we'll create a simple representation
                     let range_id = self.next_id();
-                    self.exprs.insert(range_id, MirExpr::Range {
-                        start: start_id,
-                        end: end_id,
-                    });
+                    self.exprs.insert(
+                        range_id,
+                        MirExpr::Range {
+                            start: start_id,
+                            end: end_id,
+                        },
+                    );
                     self.type_map.insert(range_id, Type::Range);
-                    
+
                     // Save current statements to restore after loop body
                     let stmts_before_body = self.stmts.len();
 
@@ -599,7 +618,7 @@ impl MirGen {
 
                     // Get body statements
                     let body_stmts = self.stmts.split_off(stmts_before_body);
-                    
+
                     // Create For statement in MIR
                     self.stmts.push(MirStmt::For {
                         iterator: range_id,
@@ -616,12 +635,12 @@ impl MirGen {
                     self.lower_ast(stmt);
                 }
                 let loop_stmts = self.stmts.split_off(stmts_before);
-                
+
                 // Create While statement with true condition (infinite loop)
                 let cond_id = self.next_id();
                 self.exprs.insert(cond_id, MirExpr::Lit(1));
                 self.type_map.insert(cond_id, Type::I64);
-                
+
                 self.stmts.push(MirStmt::While {
                     cond: cond_id,
                     body: loop_stmts,
@@ -634,15 +653,15 @@ impl MirGen {
                 // re-evaluated each iteration, so they must go in the body.
                 let stmts_before_cond = self.stmts.len();
                 let cond_id = self.lower_expr(cond);
-                
+
                 // Generate loop body
                 for stmt in body {
                     self.lower_ast(stmt);
                 }
-                
+
                 // Grab all statements emitted for this while (cond + body)
                 let while_stmts = self.stmts.split_off(stmts_before_cond);
-                
+
                 // Create While statement in MIR — all cond side-effects
                 // are inside the body so they re-execute each iteration
                 self.stmts.push(MirStmt::While {
@@ -673,10 +692,16 @@ impl MirGen {
                 // CTFE should have already evaluated `value` to a Lit/Bool by this point
                 match &**value {
                     AstNode::Lit(n) => {
-                        self.global_consts.insert(name.clone(), crate::middle::ctfe::value::ConstValue::Int(*n));
+                        self.global_consts.insert(
+                            name.clone(),
+                            crate::middle::ctfe::value::ConstValue::Int(*n),
+                        );
                     }
                     AstNode::Bool(b) => {
-                        self.global_consts.insert(name.clone(), crate::middle::ctfe::value::ConstValue::Bool(*b));
+                        self.global_consts.insert(
+                            name.clone(),
+                            crate::middle::ctfe::value::ConstValue::Bool(*b),
+                        );
                     }
                     _ => {
                         // Try CTFE evaluation at MIR gen time
@@ -731,14 +756,13 @@ impl MirGen {
             }
             AstNode::TypeAlias { name, ty, .. } => {
                 // Register the type alias so type resolution works at MIR level.
-                self.type_decls.insert(
-                    name.clone(),
-                    TypeDecl::Alias {
-                        target: ty.clone(),
-                    },
-                );
+                self.type_decls
+                    .insert(name.clone(), TypeDecl::Alias { target: ty.clone() });
             }
-            AstNode::Method { body: Some(method_body), .. } => {
+            AstNode::Method {
+                body: Some(method_body),
+                ..
+            } => {
                 // Lower default method bodies (inside concepts/traits).
                 for stmt in method_body {
                     self.lower_ast(stmt);
@@ -871,7 +895,7 @@ impl MirGen {
                 if let Some(&existing) = self.name_to_id.get(name) {
                     return existing;
                 }
-                
+
                 // Check if this is a global constant
                 if let Some(const_val) = self.global_consts.get(name) {
                     match const_val {
@@ -884,7 +908,7 @@ impl MirGen {
                             // For array constants, create a StackArray expression
                             let array_size = elements.len();
                             let mut element_ids = Vec::new();
-                            
+
                             // Extract integer values first to avoid borrow issues
                             let mut int_values = Vec::new();
                             for elem in elements {
@@ -900,7 +924,7 @@ impl MirGen {
                                     }
                                 }
                             }
-                            
+
                             // Now create MIR expressions (can mutate self)
                             for n in int_values {
                                 let elem_id = self.next_id();
@@ -908,12 +932,21 @@ impl MirGen {
                                 self.type_map.insert(elem_id, Type::I64);
                                 element_ids.push(elem_id);
                             }
-                            
-                            self.exprs.insert(id, MirExpr::StackArray {
-                                elements: element_ids,
-                                size: array_size,
-                            });
-                            self.type_map.insert(id, Type::Array(Box::new(Type::I64), crate::middle::types::ArraySize::Literal(array_size)));
+
+                            self.exprs.insert(
+                                id,
+                                MirExpr::StackArray {
+                                    elements: element_ids,
+                                    size: array_size,
+                                },
+                            );
+                            self.type_map.insert(
+                                id,
+                                Type::Array(
+                                    Box::new(Type::I64),
+                                    crate::middle::types::ArraySize::Literal(array_size),
+                                ),
+                            );
                             return id;
                         }
                         _ => {
@@ -924,7 +957,13 @@ impl MirGen {
                     }
                 } else if name.ends_with("::MAX") || name == "true" || name == "false" {
                     // Built-in constants (u64::MAX, usize::MAX, etc. in expression context)
-                    let val = if name.ends_with("::MAX") { -1 } else if name == "true" { 1 } else { 0 };
+                    let val = if name.ends_with("::MAX") {
+                        -1
+                    } else if name == "true" {
+                        1
+                    } else {
+                        0
+                    };
                     self.exprs.insert(id, MirExpr::Lit(val));
                     self.type_map.insert(id, Type::I64);
                 } else {
@@ -956,13 +995,16 @@ impl MirGen {
                 let left_id = self.lower_expr(left);
                 let right_id = self.lower_expr(right);
                 let dest = self.next_id();
-                
+
                 if op == ".." {
                     // Range expression for for loops
-                    self.exprs.insert(dest, MirExpr::Range {
-                        start: left_id,
-                        end: right_id,
-                    });
+                    self.exprs.insert(
+                        dest,
+                        MirExpr::Range {
+                            start: left_id,
+                            end: right_id,
+                        },
+                    );
                     self.type_map.insert(dest, Type::Range);
                 } else if op == "+" {
                     self.stmts.push(MirStmt::SemiringFold {
@@ -970,10 +1012,13 @@ impl MirGen {
                         values: vec![left_id, right_id],
                         result: dest,
                     });
-                    self.exprs.insert(dest, MirExpr::SemiringFold {
-                        op: SemiringOp::Add,
-                        values: vec![left_id, right_id],
-                    });
+                    self.exprs.insert(
+                        dest,
+                        MirExpr::SemiringFold {
+                            op: SemiringOp::Add,
+                            values: vec![left_id, right_id],
+                        },
+                    );
                     self.type_map.insert(dest, Type::I64);
                 } else if op == "*" {
                     self.stmts.push(MirStmt::SemiringFold {
@@ -981,20 +1026,32 @@ impl MirGen {
                         values: vec![left_id, right_id],
                         result: dest,
                     });
-                    self.exprs.insert(dest, MirExpr::SemiringFold {
-                        op: SemiringOp::Mul,
-                        values: vec![left_id, right_id],
-                    });
+                    self.exprs.insert(
+                        dest,
+                        MirExpr::SemiringFold {
+                            op: SemiringOp::Mul,
+                            values: vec![left_id, right_id],
+                        },
+                    );
                     self.type_map.insert(dest, Type::I64);
                 } else {
                     // For comparison operators used in loop conditions, create BinaryOp expression
                     // instead of caching the result in a variable
-                    if op == "<" || op == ">" || op == "<=" || op == ">=" || op == "==" || op == "!=" {
-                        self.exprs.insert(dest, MirExpr::BinaryOp {
-                            op: op.clone(),
-                            left: left_id,
-                            right: right_id,
-                        });
+                    if op == "<"
+                        || op == ">"
+                        || op == "<="
+                        || op == ">="
+                        || op == "=="
+                        || op == "!="
+                    {
+                        self.exprs.insert(
+                            dest,
+                            MirExpr::BinaryOp {
+                                op: op.clone(),
+                                left: left_id,
+                                right: right_id,
+                            },
+                        );
                     } else {
                         self.stmts.push(MirStmt::Call {
                             func: op.clone(),
@@ -1008,38 +1065,45 @@ impl MirGen {
                 }
                 return dest;
             }
-            
+
             AstNode::If { cond, then, else_ } => {
                 // If expression - generate control flow with destination
                 let cond_id = self.lower_expr(cond);
                 let dest_id = self.next_id();
-                
+
                 // Create destination for expression result
                 self.exprs.insert(dest_id, MirExpr::Var(dest_id));
                 self.type_map.insert(dest_id, Type::I64);
-                
+
                 // Helper function to process block
-                fn process_block(mir_gen: &mut MirGen, block: &[AstNode], dest: u32) -> Vec<MirStmt> {
+                fn process_block(
+                    mir_gen: &mut MirGen,
+                    block: &[AstNode],
+                    dest: u32,
+                ) -> Vec<MirStmt> {
                     if block.is_empty() {
                         // Empty block - assign 0
                         let zero_id = mir_gen.next_id_with_lit(0);
-                        return vec![MirStmt::Assign { lhs: dest, rhs: zero_id }];
+                        return vec![MirStmt::Assign {
+                            lhs: dest,
+                            rhs: zero_id,
+                        }];
                     }
-                    
+
                     // Save current statements
                     let saved_stmts = std::mem::take(&mut mir_gen.stmts);
-                    
+
                     // Generate block statements
                     for s in block {
                         mir_gen.lower_ast(s);
                     }
-                    
+
                     // Take generated statements
                     let mut block_stmts = std::mem::take(&mut mir_gen.stmts);
-                    
+
                     // Restore original statements
                     mir_gen.stmts = saved_stmts;
-                    
+
                     // Capture last expression value if block produces value
                     if let Some(last_stmt) = block_stmts.last() {
                         match last_stmt {
@@ -1050,7 +1114,10 @@ impl MirGen {
                                     rhs: *lhs,
                                 });
                             }
-                            MirStmt::If { dest: Some(if_dest), .. } => {
+                            MirStmt::If {
+                                dest: Some(if_dest),
+                                ..
+                            } => {
                                 // Block ends with if expression - use its destination
                                 block_stmts.push(MirStmt::Assign {
                                     lhs: dest,
@@ -1061,7 +1128,9 @@ impl MirGen {
                                 // Block ends with return - can't assign to dest
                                 // (function returns, dest unused)
                             }
-                            MirStmt::Call { dest: call_dest, .. } => {
+                            MirStmt::Call {
+                                dest: call_dest, ..
+                            } => {
                                 // Block ends with function call - use its result
                                 block_stmts.push(MirStmt::Assign {
                                     lhs: dest,
@@ -1096,14 +1165,14 @@ impl MirGen {
                             });
                         }
                     }
-                    
+
                     block_stmts
                 }
-                
+
                 // Process then and else blocks
                 let then_stmts = process_block(self, then, dest_id);
                 let else_stmts = process_block(self, else_, dest_id);
-                
+
                 // Create If statement with destination
                 self.stmts.push(MirStmt::If {
                     cond: cond_id,
@@ -1111,20 +1180,27 @@ impl MirGen {
                     else_: else_stmts,
                     dest: Some(dest_id),
                 });
-                
+
                 return dest_id;
             }
-            
-            AstNode::Range { start, end, inclusive: _ } => {
+
+            AstNode::Range {
+                start,
+                end,
+                inclusive: _,
+            } => {
                 let start_id = self.lower_expr(start);
                 let end_id = self.lower_expr(end);
                 let dest = self.next_id();
-                
+
                 // Range expression for for loops
-                self.exprs.insert(dest, MirExpr::Range {
-                    start: start_id,
-                    end: end_id,
-                });
+                self.exprs.insert(
+                    dest,
+                    MirExpr::Range {
+                        start: start_id,
+                        end: end_id,
+                    },
+                );
                 self.type_map.insert(dest, Type::Range);
                 return dest;
             }
@@ -1141,12 +1217,12 @@ impl MirGen {
                     for a in args {
                         arg_ids.push(self.lower_expr(a));
                     }
-                    
+
                     self.stmts.push(MirStmt::VoidCall {
                         func: "println".to_string(),
                         args: arg_ids,
                     });
-                    
+
                     // Unit return
                     let unit_id = self.next_id();
                     self.exprs.insert(unit_id, MirExpr::Lit(0));
@@ -1198,7 +1274,7 @@ impl MirGen {
                 for a in args {
                     arg_ids.push(self.lower_expr(a));
                 }
-                
+
                 // Check if this is a method call on a dynamic array
                 let (func, is_array_len, is_array_push) = if let Some(ref rty) = receiver_ty {
                     // Check if receiver is a dynamic array type
@@ -1234,8 +1310,16 @@ impl MirGen {
                 // offset is ONLY defined on raw pointers in Rust, so method="offset" is always ptr arith
                 let is_ptr_add = func.starts_with("add_*")
                     || method == "offset"
-                    || (method == "add" && receiver.is_some() 
-                        && arg_ids.first().map(|&id| self.source_types.get(&id).map_or(false, |st| st.contains("*mut") || st.contains("*const"))).unwrap_or(false));
+                    || (method == "add"
+                        && receiver.is_some()
+                        && arg_ids
+                            .first()
+                            .map(|&id| {
+                                self.source_types.get(&id).map_or(false, |st| {
+                                    st.contains("*mut") || st.contains("*const")
+                                })
+                            })
+                            .unwrap_or(false));
                 if is_ptr_add {
                     let ptr_id = arg_ids[0];
                     let offset_id = arg_ids[1];
@@ -1244,8 +1328,12 @@ impl MirGen {
                     // Note: for offset(), the mangled name is usually "offset_i64" (MIR loses pointer type),
                     // so we hard-code elem_size=1 for offset (it's always byte-addressable in practice)
                     let elem_size = if method == "offset" {
-                        1  // offset is always byte-level on u8 pointers
-                    } else if func.contains("u64") || func.contains("i64") || func.contains("f64") || func.contains("usize") {
+                        1 // offset is always byte-level on u8 pointers
+                    } else if func.contains("u64")
+                        || func.contains("i64")
+                        || func.contains("f64")
+                        || func.contains("usize")
+                    {
                         8
                     } else if func.contains("u32") || func.contains("i32") || func.contains("f32") {
                         4
@@ -1261,20 +1349,26 @@ impl MirGen {
                     self.exprs.insert(size_id, MirExpr::Lit(elem_size));
 
                     let mul_id = self.next_id();
-                    self.exprs.insert(mul_id, MirExpr::BinaryOp {
-                        op: "*".to_string(),
-                        left: offset_id,
-                        right: size_id,
-                    });
+                    self.exprs.insert(
+                        mul_id,
+                        MirExpr::BinaryOp {
+                            op: "*".to_string(),
+                            left: offset_id,
+                            right: size_id,
+                        },
+                    );
 
                     // Store the pointer arithmetic directly as an inline expression.
                     // Must NOT use a Var indirection — Var(X) calls load_local(X) in codegen,
                     // but intermediate IDs' allocas are never written to, loading garbage.
-                    self.exprs.insert(id, MirExpr::BinaryOp {
-                        op: "+".to_string(),
-                        left: ptr_id,
-                        right: mul_id,
-                    });
+                    self.exprs.insert(
+                        id,
+                        MirExpr::BinaryOp {
+                            op: "+".to_string(),
+                            left: ptr_id,
+                            right: mul_id,
+                        },
+                    );
                     self.type_map.insert(id, Type::I64);
                     self.pointee_widths.insert(id, elem_size as u8);
                     return id;
@@ -1493,7 +1587,10 @@ impl MirGen {
                                 self.type_map.insert(cond_id, Type::Bool);
                             }
                         }
-                        AstNode::TypeAnnotatedPattern { pattern: inner_pattern, ty: _ } => {
+                        AstNode::TypeAnnotatedPattern {
+                            pattern: inner_pattern,
+                            ty: _,
+                        } => {
                             // For type-annotated patterns, extract the inner pattern
                             // The type checking should have been done by the type checker
                             match &**inner_pattern {
@@ -1522,8 +1619,7 @@ impl MirGen {
                                 let sub_lit_id = self.next_id();
                                 match sub_pat {
                                     AstNode::Lit(val) => {
-                                        self.exprs
-                                            .insert(sub_lit_id, MirExpr::Lit(*val));
+                                        self.exprs.insert(sub_lit_id, MirExpr::Lit(*val));
                                         self.type_map.insert(sub_lit_id, Type::I64);
                                         self.stmts.push(MirStmt::Call {
                                             func: "==".to_string(),
@@ -1543,8 +1639,7 @@ impl MirGen {
                                         self.type_map.insert(sub_pat_id, Type::Bool);
                                     }
                                 }
-                                self.exprs
-                                    .insert(sub_pat_id, MirExpr::Var(sub_pat_id));
+                                self.exprs.insert(sub_pat_id, MirExpr::Var(sub_pat_id));
                                 self.type_map.insert(sub_pat_id, Type::Bool);
 
                                 if let Some(prev) = or_cond {
@@ -1556,12 +1651,8 @@ impl MirGen {
                                         dest: or_result_id,
                                         type_args: vec![],
                                     });
-                                    self.exprs.insert(
-                                        or_result_id,
-                                        MirExpr::Var(or_result_id),
-                                    );
-                                    self.type_map
-                                        .insert(or_result_id, Type::Bool);
+                                    self.exprs.insert(or_result_id, MirExpr::Var(or_result_id));
+                                    self.type_map.insert(or_result_id, Type::Bool);
                                     or_cond = Some(or_result_id);
                                 } else {
                                     or_cond = Some(sub_pat_id);
@@ -1576,7 +1667,10 @@ impl MirGen {
                             self.exprs.insert(cond_id, MirExpr::Var(cond_val));
                             self.type_map.insert(cond_id, Type::Bool);
                         }
-                        AstNode::BindPattern { name, pattern: inner } => {
+                        AstNode::BindPattern {
+                            name,
+                            pattern: inner,
+                        } => {
                             // x @ pattern: bind name to scrutinee, then match inner pattern.
                             self.name_to_id.insert(name.clone(), scrutinee_id);
                             // Check the inner pattern
@@ -1612,12 +1706,8 @@ impl MirGen {
                                         dest: and_id,
                                         type_args: vec![],
                                     });
-                                    self.exprs.insert(
-                                        inner_cond_id,
-                                        MirExpr::Var(and_id),
-                                    );
-                                    self.type_map
-                                        .insert(inner_cond_id, Type::Bool);
+                                    self.exprs.insert(inner_cond_id, MirExpr::Var(and_id));
+                                    self.type_map.insert(inner_cond_id, Type::Bool);
                                 }
                                 _ => {
                                     // Other inner patterns: match by lowering.
@@ -1628,12 +1718,9 @@ impl MirGen {
                                         dest: inner_cond_id,
                                         type_args: vec![],
                                     });
-                                    self.exprs.insert(
-                                        inner_cond_id,
-                                        MirExpr::Var(inner_cond_id),
-                                    );
-                                    self.type_map
-                                        .insert(inner_cond_id, Type::Bool);
+                                    self.exprs
+                                        .insert(inner_cond_id, MirExpr::Var(inner_cond_id));
+                                    self.type_map.insert(inner_cond_id, Type::Bool);
                                 }
                             }
                             self.exprs.insert(cond_id, MirExpr::Var(inner_cond_id));
@@ -1819,44 +1906,54 @@ impl MirGen {
                 let target_type = Type::from_string(ty);
                 self.type_map.insert(id, target_type.clone());
                 // Create As expression node
-                self.exprs.insert(id, MirExpr::As {
-                    expr: expr_id,
-                    target_type,
-                });
+                self.exprs.insert(
+                    id,
+                    MirExpr::As {
+                        expr: expr_id,
+                        target_type,
+                    },
+                );
             }
             AstNode::ArrayLit(elements) => {
                 // Create an array using ArrayHeader API
-                
+
                 let size = elements.len();
-                
+
                 // HYBRID MEMORY SYSTEM: Check if this should be a stack array
                 // For small, fixed-size arrays, use stack allocation
-                if size <= 20000 { // Reasonable stack size limit
-                    
+                if size <= 20000 {
+                    // Reasonable stack size limit
+
                     // Lower each element expression
                     let mut element_ids = Vec::new();
                     for element in elements {
                         let elem_id = self.lower_expr(element);
                         element_ids.push(elem_id);
                     }
-                    
+
                     // Clone element_ids before moving it
                     let element_ids_clone = element_ids.clone();
-                    
+
                     // Create StackArray expression
-                    self.exprs.insert(id, MirExpr::StackArray {
-                        elements: element_ids,
-                        size,
-                    });
-                    
+                    self.exprs.insert(
+                        id,
+                        MirExpr::StackArray {
+                            elements: element_ids,
+                            size,
+                        },
+                    );
+
                     // Determine element type from elements
                     let elem_type = self.get_common_element_type(&element_ids_clone);
-                    
+
                     // Set the type to Array(elem_type, size) for subscript access
-                    self.type_map.insert(id, Type::Array(Box::new(elem_type), ArraySize::Literal(size)));
+                    self.type_map.insert(
+                        id,
+                        Type::Array(Box::new(elem_type), ArraySize::Literal(size)),
+                    );
                 } else {
                     // Large array, use heap allocation
-                    
+
                     // Call array_new with capacity = size
                     let array_data_ptr = self.next_id();
                     let capacity_id = self.next_id();
@@ -1867,7 +1964,7 @@ impl MirGen {
                         dest: array_data_ptr,
                         type_args: vec![],
                     });
-                    
+
                     // For heap arrays, we need to set the length
                     let len_id = self.next_id();
                     self.exprs.insert(len_id, MirExpr::Lit(size as i64));
@@ -1875,7 +1972,7 @@ impl MirGen {
                         func: "array_set_len".to_string(),
                         args: vec![array_data_ptr, len_id],
                     });
-                    
+
                     // Set each element at its index and collect element IDs
                     let mut heap_element_ids = Vec::new();
                     for (i, element) in elements.iter().enumerate() {
@@ -1888,55 +1985,66 @@ impl MirGen {
                             args: vec![array_data_ptr, index_id, elem_id],
                         });
                     }
-                    
+
                     // Clone heap_element_ids before using it
                     let heap_element_ids_clone = heap_element_ids.clone();
-                    
+
                     // Return the data pointer (after header)
                     self.exprs.insert(id, MirExpr::Var(array_data_ptr));
                     // Determine element type from elements
                     let elem_type = self.get_common_element_type(&heap_element_ids_clone);
                     // Set the type to Array(elem_type, size) for subscript access
-                    self.type_map.insert(id, Type::Array(Box::new(elem_type), ArraySize::Literal(size)));
+                    self.type_map.insert(
+                        id,
+                        Type::Array(Box::new(elem_type), ArraySize::Literal(size)),
+                    );
                 }
             }
             AstNode::ArrayRepeat { value, size } => {
                 let value_id = self.lower_expr(value);
-                
+
                 // Get the type of the value expression
                 let elem_type = self.type_map.get(&value_id).cloned().unwrap_or(Type::I64);
-                
+
                 // Check if size is a literal by examining the AST node directly
                 // We need to pattern match on the boxed value
                 match size.as_ref() {
                     AstNode::Lit(size_lit) => {
                         let size_val = *size_lit as usize;
-                        
+
                         // HYBRID MEMORY SYSTEM: Use StackArray for small fixed-size arrays
-                        if size_val <= 20000 { // Reasonable stack size limit
-                            
+                        if size_val <= 20000 {
+                            // Reasonable stack size limit
+
                             // Create StackArray expression with repeated value
-                            self.exprs.insert(id, MirExpr::StackArray {
-                                elements: vec![value_id; size_val],
-                                size: size_val,
-                            });
-                            
+                            self.exprs.insert(
+                                id,
+                                MirExpr::StackArray {
+                                    elements: vec![value_id; size_val],
+                                    size: size_val,
+                                },
+                            );
+
                             // Set the type to Array(elem_type, size) for subscript access
-                            self.type_map.insert(id, Type::Array(Box::new(elem_type), ArraySize::Literal(size_val)));
+                            self.type_map.insert(
+                                id,
+                                Type::Array(Box::new(elem_type), ArraySize::Literal(size_val)),
+                            );
                         } else {
                             // Large array, use heap allocation
-                            
+
                             // Allocate array using array_new with capacity = size
                             let array_ptr = self.next_id();
                             let capacity_id = self.next_id();
-                            self.exprs.insert(capacity_id, MirExpr::Lit(size_val as i64));
+                            self.exprs
+                                .insert(capacity_id, MirExpr::Lit(size_val as i64));
                             self.stmts.push(MirStmt::Call {
                                 func: "array_new".to_string(),
                                 args: vec![capacity_id],
                                 dest: array_ptr,
                                 type_args: vec![],
                             });
-                            
+
                             // Set array length first
                             let len_id = self.next_id();
                             self.exprs.insert(len_id, MirExpr::Lit(size_val as i64));
@@ -1944,7 +2052,7 @@ impl MirGen {
                                 func: "array_set_len".to_string(),
                                 args: vec![array_ptr, len_id],
                             });
-                            
+
                             // Fill array with value using array_set for each position
                             // Note: This is inefficient for large arrays but works for now
                             // TODO: Optimize with memset for zero initialization
@@ -1956,11 +2064,14 @@ impl MirGen {
                                     args: vec![array_ptr, idx_id, value_id],
                                 });
                             }
-                            
+
                             // Return the array pointer
                             self.exprs.insert(id, MirExpr::Var(array_ptr));
                             // Set the type to Array(elem_type, size) for subscript access
-                            self.type_map.insert(id, Type::Array(Box::new(elem_type), ArraySize::Literal(size_val)));
+                            self.type_map.insert(
+                                id,
+                                Type::Array(Box::new(elem_type), ArraySize::Literal(size_val)),
+                            );
                         }
                     }
                     _ => {
@@ -1974,7 +2085,7 @@ impl MirGen {
             AstNode::Subscript { base, index } => {
                 let bid = self.lower_expr(base);
                 let iid = self.lower_expr(index);
-                
+
                 // Check if base is an array type (dynamic or static)
                 let base_ty = self.type_map.get(&bid).cloned().unwrap_or(Type::I64);
                 if let Type::DynamicArray(_) = base_ty {
@@ -2019,11 +2130,15 @@ impl MirGen {
                 self.exprs.insert(id, MirExpr::Var(id));
                 self.type_map.insert(id, Type::I64);
             }
-            AstNode::DynamicArrayLit { elem_type, elements } => {
+            AstNode::DynamicArrayLit {
+                elem_type,
+                elements,
+            } => {
                 // Call array_new with capacity = number of elements
                 let array_ptr = self.next_id();
                 let capacity_id = self.next_id();
-                self.exprs.insert(capacity_id, MirExpr::Lit(elements.len() as i64));
+                self.exprs
+                    .insert(capacity_id, MirExpr::Lit(elements.len() as i64));
                 self.stmts.push(MirStmt::Call {
                     func: "array_new".to_string(),
                     args: vec![capacity_id],
@@ -2033,7 +2148,7 @@ impl MirGen {
                 self.exprs.insert(array_ptr, MirExpr::Var(array_ptr));
                 let array_type = Type::DynamicArray(Box::new(Type::from_string(elem_type)));
                 self.type_map.insert(array_ptr, array_type.clone());
-                
+
                 // Push each element to the array
                 for element in elements {
                     let elem_id = self.lower_expr(element);
@@ -2045,7 +2160,7 @@ impl MirGen {
                         type_args: vec![],
                     });
                 }
-                
+
                 // Return the array pointer (use array_ptr as the result)
                 self.exprs.insert(id, MirExpr::Var(array_ptr));
                 self.type_map.insert(id, array_type);
@@ -2055,7 +2170,7 @@ impl MirGen {
                 // Handle unary operators like ! (not)
                 let expr_id = self.lower_expr(expr);
                 let dest = self.next_id();
-                
+
                 if op == "!" {
                     // Logical NOT operator
                     let stmt = MirStmt::Call {
@@ -2068,7 +2183,13 @@ impl MirGen {
                 } else if op == "*" {
                     // Pointer dereference - use Deref MirExpr with pointee width
                     let pointee_width = self.pointee_widths.get(&expr_id).copied().unwrap_or(8);
-                    self.exprs.insert(dest, MirExpr::Deref { addr_id: expr_id, pointee_width });
+                    self.exprs.insert(
+                        dest,
+                        MirExpr::Deref {
+                            addr_id: expr_id,
+                            pointee_width,
+                        },
+                    );
                     self.type_map.insert(dest, Type::I64);
                     // SKIP the common Var(dest) insert below — the Deref expr is used inline
                     // by gen_expr_safe, so we don't need an alloca to load from.
@@ -2092,7 +2213,7 @@ impl MirGen {
                     };
                     self.stmts.push(stmt);
                 }
-                
+
                 self.exprs.insert(dest, MirExpr::Var(dest));
                 self.type_map.insert(dest, Type::I64);
                 return dest;
@@ -2127,10 +2248,7 @@ impl MirGen {
                         size,
                     },
                 );
-                self.type_map.insert(
-                    id,
-                    Type::Tuple(vec![Type::I64; size]),
-                );
+                self.type_map.insert(id, Type::Tuple(vec![Type::I64; size]));
             }
             AstNode::Ignore => {
                 // Wildcard / ignore expression.
@@ -2148,7 +2266,11 @@ impl MirGen {
                     self.type_map.insert(id, Type::I64);
                 }
             }
-            AstNode::RangePattern { start, end, inclusive: _ } => {
+            AstNode::RangePattern {
+                start,
+                end,
+                inclusive: _,
+            } => {
                 // Range pattern: lower start/end for comparison.
                 let start_id = self.lower_expr(start);
                 let end_id = self.lower_expr(end);
@@ -2169,7 +2291,9 @@ impl MirGen {
                 self.exprs.insert(id, MirExpr::Lit(0));
                 self.type_map.insert(id, Type::I64);
             }
-            AstNode::StructPattern { variant, fields, .. } => {
+            AstNode::StructPattern {
+                variant, fields, ..
+            } => {
                 // Struct pattern in expression position — create struct value.
                 let mut field_ids = Vec::new();
                 for (field_name, field_expr) in fields {
@@ -2229,7 +2353,10 @@ impl MirGen {
     /// If elements is empty, returns Type::I64 as default.
     fn get_common_element_type(&self, element_ids: &[u32]) -> Type {
         if let Some(first_elem_id) = element_ids.first() {
-            self.type_map.get(first_elem_id).cloned().unwrap_or(Type::I64)
+            self.type_map
+                .get(first_elem_id)
+                .cloned()
+                .unwrap_or(Type::I64)
         } else {
             Type::I64
         }

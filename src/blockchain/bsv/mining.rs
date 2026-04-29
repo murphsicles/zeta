@@ -2,19 +2,15 @@
 //!
 //! Implements Teranode mining integration with RPC client.
 
+use crate::blockchain::common::config::BlockchainConfig;
+use crate::blockchain::common::error::BlockchainError;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use crate::blockchain::common::error::BlockchainError;
-use crate::blockchain::common::config::BlockchainConfig;
 
 // Teranode modules
 use crate::blockchain::bsv::teranode::{
-    TeranodeClient, 
-    TeranodeClientConfig,
-    MiningCandidate,
-    MiningSolution,
-    MiningStatus as TeranodeMiningStatus,
-    MiningStats as TeranodeMiningStats,
+    MiningCandidate, MiningSolution, MiningStats as TeranodeMiningStats,
+    MiningStatus as TeranodeMiningStatus, TeranodeClient, TeranodeClientConfig,
 };
 
 /// Mining manager state
@@ -39,65 +35,71 @@ impl MiningManager {
             stats: MiningStats::default(),
         }
     }
-    
+
     /// Initialize mining manager
     async fn init(&mut self) -> Result<(), BlockchainError> {
         log::debug!("Initializing mining manager");
-        
+
         // Create Teranode client
-        let client = TeranodeClient::new(self.config.clone())
-            .map_err(|e| BlockchainError::config(format!("Failed to create Teranode client: {}", e)))?;
-        
+        let client = TeranodeClient::new(self.config.clone()).map_err(|e| {
+            BlockchainError::config(format!("Failed to create Teranode client: {}", e))
+        })?;
+
         // Test connection
-        let connected = client.test_connection().await
+        let connected = client
+            .test_connection()
+            .await
             .map_err(|e| BlockchainError::network(format!("Connection test failed: {}", e)))?;
-        
+
         if !connected {
-            return Err(BlockchainError::network("Failed to connect to Teranode node"));
+            return Err(BlockchainError::network(
+                "Failed to connect to Teranode node",
+            ));
         }
-        
+
         self.client = Some(client);
         log::info!("Mining manager initialized successfully");
         Ok(())
     }
-    
+
     /// Start mining
     async fn start_mining(&mut self) -> Result<(), BlockchainError> {
         if self.is_mining {
             return Err(BlockchainError::mining("Mining already active"));
         }
-        
+
         log::info!("Starting BSV mining via Teranode");
-        
+
         // TODO: Implement actual mining start with threads
         // For now, just mark as mining
         self.is_mining = true;
-        
+
         log::info!("BSV mining started");
         Ok(())
     }
-    
+
     /// Stop mining
     async fn stop_mining(&mut self) -> Result<(), BlockchainError> {
         if !self.is_mining {
             return Err(BlockchainError::mining("Mining not active"));
         }
-        
+
         log::info!("Stopping BSV mining");
-        
+
         // TODO: Stop mining threads
         self.is_mining = false;
-        
+
         log::info!("BSV mining stopped");
         Ok(())
     }
-    
+
     /// Get mining status
     async fn get_status(&self) -> Result<MiningStatus, BlockchainError> {
         if let Some(client) = &self.client {
-            let teranode_status = client.get_mining_status().await
-                .map_err(|e| BlockchainError::mining(format!("Failed to get mining status: {}", e)))?;
-            
+            let teranode_status = client.get_mining_status().await.map_err(|e| {
+                BlockchainError::mining(format!("Failed to get mining status: {}", e))
+            })?;
+
             Ok(MiningStatus {
                 is_mining: self.is_mining,
                 hashes_per_second: teranode_status.hash_rate,
@@ -110,22 +112,27 @@ impl MiningManager {
             Err(BlockchainError::mining("Mining client not initialized"))
         }
     }
-    
+
     /// Get mining candidate
     async fn get_mining_candidate(&self) -> Result<MiningCandidate, BlockchainError> {
         if let Some(client) = &self.client {
-            client.get_mining_candidate().await
-                .map_err(|e| BlockchainError::mining(format!("Failed to get mining candidate: {}", e)))
+            client.get_mining_candidate().await.map_err(|e| {
+                BlockchainError::mining(format!("Failed to get mining candidate: {}", e))
+            })
         } else {
             Err(BlockchainError::mining("Mining client not initialized"))
         }
     }
-    
+
     /// Submit mining solution
-    async fn submit_mining_solution(&self, solution: &MiningSolution) -> Result<bool, BlockchainError> {
+    async fn submit_mining_solution(
+        &self,
+        solution: &MiningSolution,
+    ) -> Result<bool, BlockchainError> {
         if let Some(client) = &self.client {
-            client.submit_mining_solution(solution).await
-                .map_err(|e| BlockchainError::mining(format!("Failed to submit mining solution: {}", e)))
+            client.submit_mining_solution(solution).await.map_err(|e| {
+                BlockchainError::mining(format!("Failed to submit mining solution: {}", e))
+            })
         } else {
             Err(BlockchainError::mining("Mining client not initialized"))
         }
@@ -138,27 +145,27 @@ static MINING_MANAGER: Mutex<Option<Arc<Mutex<MiningManager>>>> = Mutex::new(Non
 /// Initialize mining module
 pub fn init(config: &BlockchainConfig) -> Result<(), BlockchainError> {
     log::debug!("Initializing BSV mining module");
-    
+
     if !config.bsv.enable_teranode {
         log::info!("Teranode mining disabled in configuration");
         return Ok(());
     }
-    
+
     if config.bsv.teranode.mining_address.is_empty() {
         return Err(BlockchainError::config("Mining address not configured"));
     }
-    
+
     // Create Teranode client configuration
     let teranode_config = TeranodeClientConfig {
         rpc_url: "http://localhost:18332".to_string(), // Default Teranode port
-        rpc_username: "".to_string(), // TODO: Get from config
-        rpc_password: "".to_string(), // TODO: Get from config
+        rpc_username: "".to_string(),                  // TODO: Get from config
+        rpc_password: "".to_string(),                  // TODO: Get from config
         ..Default::default()
     };
-    
+
     // Create and initialize mining manager
     let manager = MiningManager::new(teranode_config);
-    
+
     // Store in global instance
     let mut global_manager = tokio::runtime::Runtime::new()
         .map_err(|e| BlockchainError::internal(format!("Failed to create runtime: {}", e)))?
@@ -167,7 +174,7 @@ pub fn init(config: &BlockchainConfig) -> Result<(), BlockchainError> {
             *mgr = Some(Arc::new(Mutex::new(manager)));
             mgr.clone()
         });
-    
+
     // Initialize asynchronously
     if let Some(manager) = global_manager {
         tokio::runtime::Runtime::new()
@@ -177,21 +184,21 @@ pub fn init(config: &BlockchainConfig) -> Result<(), BlockchainError> {
                 mgr.init().await
             })?;
     }
-    
+
     log::info!("BSV mining module initialized with Teranode support");
     log::info!("Mining address: {}", config.bsv.teranode.mining_address);
     log::info!("Thread count: {}", config.bsv.teranode.thread_count);
-    
+
     Ok(())
 }
 
 /// Shutdown mining module
 pub fn shutdown() -> Result<(), BlockchainError> {
     log::debug!("Shutting down BSV mining module");
-    
+
     // Stop mining if active
     let _ = Bitcoin_Mining_stop();
-    
+
     // Clear global instance
     tokio::runtime::Runtime::new()
         .map_err(|e| BlockchainError::internal(format!("Failed to create runtime: {}", e)))?
@@ -200,19 +207,19 @@ pub fn shutdown() -> Result<(), BlockchainError> {
             *mgr = None;
             Ok(())
         })?;
-    
+
     log::info!("BSV mining module shutdown complete");
     Ok(())
 }
 
 /// Start mining
-/// 
+///
 /// # Returns
 /// * `Ok(())` - Mining started successfully
 /// * `Err(BtcError)` - Failed to start mining
 pub fn Bitcoin_Mining_start() -> Result<(), BlockchainError> {
     log::info!("Starting BSV mining");
-    
+
     tokio::runtime::Runtime::new()
         .map_err(|e| BlockchainError::internal(format!("Failed to create runtime: {}", e)))?
         .block_on(async {
@@ -227,12 +234,12 @@ pub fn Bitcoin_Mining_start() -> Result<(), BlockchainError> {
 }
 
 /// Stop mining
-/// 
+///
 /// # Returns
 /// * `Ok(())` - Mining stopped successfully
 pub fn Bitcoin_Mining_stop() -> Result<(), BlockchainError> {
     log::info!("Stopping BSV mining");
-    
+
     tokio::runtime::Runtime::new()
         .map_err(|e| BlockchainError::internal(format!("Failed to create runtime: {}", e)))?
         .block_on(async {
@@ -247,7 +254,7 @@ pub fn Bitcoin_Mining_stop() -> Result<(), BlockchainError> {
 }
 
 /// Get mining status
-/// 
+///
 /// # Returns
 /// * `Ok(MiningStatus)` - Current mining status
 pub fn Bitcoin_Mining_status() -> Result<MiningStatus, BlockchainError> {
@@ -265,12 +272,12 @@ pub fn Bitcoin_Mining_status() -> Result<MiningStatus, BlockchainError> {
 }
 
 /// Get mining statistics
-/// 
+///
 /// # Returns
 /// * `Ok(MiningStats)` - Mining statistics
 pub fn Bitcoin_Mining_stats() -> Result<MiningStats, BlockchainError> {
     // TODO: Implement actual stats collection from Teranode
-    
+
     Ok(MiningStats {
         uptime_seconds: 0,
         total_blocks: 0,
@@ -281,57 +288,62 @@ pub fn Bitcoin_Mining_stats() -> Result<MiningStats, BlockchainError> {
 }
 
 /// Configure mining
-/// 
+///
 /// # Arguments
 /// * `threads` - Number of mining threads
 /// * `difficulty` - Difficulty target
-/// 
+///
 /// # Returns
 /// * `Ok(())` - Configuration updated
 /// * `Err(BtcError)` - Invalid configuration
 pub fn Bitcoin_Mining_configure(threads: u32, difficulty: u32) -> Result<(), BlockchainError> {
     if threads == 0 || threads > 64 {
-        return Err(BlockchainError::config(
-            format!("Invalid thread count: {} (must be 1-64)", threads)
-        ));
+        return Err(BlockchainError::config(format!(
+            "Invalid thread count: {} (must be 1-64)",
+            threads
+        )));
     }
-    
+
     if difficulty == 0 {
         return Err(BlockchainError::config("Difficulty must be greater than 0"));
     }
-    
-    log::info!("Configuring mining: {} threads, difficulty {}", threads, difficulty);
-    
+
+    log::info!(
+        "Configuring mining: {} threads, difficulty {}",
+        threads,
+        difficulty
+    );
+
     // TODO: Apply configuration to mining threads
-    
+
     Ok(())
 }
 
 /// Submit mined block
-/// 
+///
 /// # Arguments
 /// * `block_data` - Serialized block data
-/// 
+///
 /// # Returns
 /// * `Ok(bool)` - True if block accepted
 /// * `Err(BtcError)` - Block submission failed
 pub fn Bitcoin_Mining_submit_block(block_data: &[u8]) -> Result<bool, BlockchainError> {
     log::debug!("Submitting mined block ({} bytes)", block_data.len());
-    
+
     // TODO: Implement actual block submission via Teranode
     // This would involve parsing block data and creating MiningSolution
-    
+
     log::warn!("Block submission not fully implemented - placeholder");
     Ok(true)
 }
 
 /// Get mining pool info
-/// 
+///
 /// # Returns
 /// * `Ok(PoolInfo)` - Mining pool information
 pub fn Bitcoin_Mining_pool_info() -> Result<PoolInfo, BlockchainError> {
     // TODO: Implement actual pool info query from Teranode
-    
+
     Ok(PoolInfo {
         url: "Not connected".to_string(),
         user: "".to_string(),
@@ -343,33 +355,37 @@ pub fn Bitcoin_Mining_pool_info() -> Result<PoolInfo, BlockchainError> {
 }
 
 /// Connect to mining pool
-/// 
+///
 /// # Arguments
 /// * `url` - Pool URL
 /// * `user` - Pool username
 /// * `password` - Pool password
-/// 
+///
 /// # Returns
 /// * `Ok(())` - Connected successfully
 /// * `Err(BtcError)` - Connection failed
-pub fn Bitcoin_Mining_connect_pool(url: &str, user: &str, password: &str) -> Result<(), BlockchainError> {
+pub fn Bitcoin_Mining_connect_pool(
+    url: &str,
+    user: &str,
+    password: &str,
+) -> Result<(), BlockchainError> {
     log::info!("Connecting to mining pool: {}", url);
-    
+
     // TODO: Implement actual pool connection via Teranode
-    
+
     log::warn!("Pool connection not implemented - placeholder");
     Ok(())
 }
 
 /// Disconnect from mining pool
-/// 
+///
 /// # Returns
 /// * `Ok(())` - Disconnected successfully
 pub fn Bitcoin_Mining_disconnect_pool() -> Result<(), BlockchainError> {
     log::info!("Disconnecting from mining pool");
-    
+
     // TODO: Implement actual pool disconnection
-    
+
     Ok(())
 }
 

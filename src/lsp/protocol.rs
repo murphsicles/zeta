@@ -46,7 +46,7 @@ impl Response {
             result: ResponseResult::Success { result },
         }
     }
-    
+
     /// Create an error response
     pub fn error<E: std::fmt::Display>(id: Value, error: E) -> Self {
         Self {
@@ -67,12 +67,8 @@ impl Response {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum ResponseResult {
-    Success {
-        result: Value,
-    },
-    Error {
-        error: ResponseError,
-    },
+    Success { result: Value },
+    Error { error: ResponseError },
 }
 
 /// LSP response error

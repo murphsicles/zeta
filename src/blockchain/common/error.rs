@@ -1,44 +1,44 @@
 //! Common error types for blockchain operations
 
-use std::fmt;
 use std::error::Error;
+use std::fmt;
 
 /// Main error type for all blockchain operations
 #[derive(Debug, Clone)]
 pub enum BlockchainError {
     /// Configuration errors
     Config(String),
-    
+
     /// Network errors
     Network(String),
-    
+
     /// Cryptographic errors
     Crypto(String),
-    
+
     /// Transaction errors
     Transaction(String),
-    
+
     /// Wallet errors
     Wallet(String),
-    
+
     /// Address format errors
     Address(String),
-    
+
     /// Script errors
     Script(String),
-    
+
     /// Key management errors
     Key(String),
-    
+
     /// Storage errors
     Storage(String),
-    
+
     /// Validation errors
     Validation(String),
-    
+
     /// Not implemented errors
     NotImplemented(String),
-    
+
     /// Unknown errors
     Unknown(String),
 }
@@ -72,47 +72,47 @@ impl BlockchainError {
     pub fn config(msg: impl Into<String>) -> Self {
         BlockchainError::Config(msg.into())
     }
-    
+
     pub fn network(msg: impl Into<String>) -> Self {
         BlockchainError::Network(msg.into())
     }
-    
+
     pub fn crypto(msg: impl Into<String>) -> Self {
         BlockchainError::Crypto(msg.into())
     }
-    
+
     pub fn transaction(msg: impl Into<String>) -> Self {
         BlockchainError::Transaction(msg.into())
     }
-    
+
     pub fn wallet(msg: impl Into<String>) -> Self {
         BlockchainError::Wallet(msg.into())
     }
-    
+
     pub fn address(msg: impl Into<String>) -> Self {
         BlockchainError::Address(msg.into())
     }
-    
+
     pub fn script(msg: impl Into<String>) -> Self {
         BlockchainError::Script(msg.into())
     }
-    
+
     pub fn key(msg: impl Into<String>) -> Self {
         BlockchainError::Key(msg.into())
     }
-    
+
     pub fn storage(msg: impl Into<String>) -> Self {
         BlockchainError::Storage(msg.into())
     }
-    
+
     pub fn validation(msg: impl Into<String>) -> Self {
         BlockchainError::Validation(msg.into())
     }
-    
+
     pub fn not_implemented(msg: impl Into<String>) -> Self {
         BlockchainError::NotImplemented(msg.into())
     }
-    
+
     pub fn unknown(msg: impl Into<String>) -> Self {
         BlockchainError::Unknown(msg.into())
     }

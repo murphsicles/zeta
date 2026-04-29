@@ -1,6 +1,6 @@
 //! Common type definitions for blockchain operations
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// Network type for blockchain operations
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -31,7 +31,7 @@ impl Network {
             Network::SolanaDevnet => "solana-devnet",
         }
     }
-    
+
     /// Parse network from string
     pub fn from_str(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
@@ -44,15 +44,21 @@ impl Network {
             _ => None,
         }
     }
-    
+
     /// Check if network is Bitcoin SV
     pub fn is_bsv(&self) -> bool {
-        matches!(self, Network::BsvMainnet | Network::BsvTestnet | Network::BsvStn)
+        matches!(
+            self,
+            Network::BsvMainnet | Network::BsvTestnet | Network::BsvStn
+        )
     }
-    
+
     /// Check if network is Solana
     pub fn is_solana(&self) -> bool {
-        matches!(self, Network::SolanaMainnet | Network::SolanaTestnet | Network::SolanaDevnet)
+        matches!(
+            self,
+            Network::SolanaMainnet | Network::SolanaTestnet | Network::SolanaDevnet
+        )
     }
 }
 
@@ -70,7 +76,7 @@ impl Amount {
     pub fn new(value: u64, currency: Currency) -> Self {
         Self { value, currency }
     }
-    
+
     /// Create BSV amount in satoshis
     pub fn bsv_satoshis(satoshis: u64) -> Self {
         Self {
@@ -78,7 +84,7 @@ impl Amount {
             currency: Currency::Bsv,
         }
     }
-    
+
     /// Create Solana amount in lamports
     pub fn solana_lamports(lamports: u64) -> Self {
         Self {
@@ -86,7 +92,7 @@ impl Amount {
             currency: Currency::Solana,
         }
     }
-    
+
     /// Convert to human-readable string
     pub fn to_string(&self) -> String {
         match self.currency {
@@ -135,7 +141,7 @@ impl Address {
             Address::Solana(addr) => addr,
         }
     }
-    
+
     /// Get network type for this address
     pub fn network(&self) -> Network {
         match self {
@@ -143,14 +149,15 @@ impl Address {
             Address::Solana(_) => Network::SolanaMainnet, // Default to mainnet
         }
     }
-    
+
     /// Validate address format
     pub fn validate(&self) -> bool {
         match self {
             Address::Bsv(addr) => {
                 // Basic BSV address validation (Base58, starts with 1 or 3)
-                addr.len() >= 26 && addr.len() <= 35 && 
-                (addr.starts_with('1') || addr.starts_with('3'))
+                addr.len() >= 26
+                    && addr.len() <= 35
+                    && (addr.starts_with('1') || addr.starts_with('3'))
             }
             Address::Solana(addr) => {
                 // Basic Solana address validation (Base58, 32-44 chars)
@@ -169,12 +176,12 @@ impl TransactionId {
     pub fn new(id: String) -> Self {
         Self(id)
     }
-    
+
     /// Get transaction ID as string
     pub fn as_str(&self) -> &str {
         &self.0
     }
-    
+
     /// Get transaction ID as bytes
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_bytes()
@@ -190,7 +197,7 @@ impl BlockHash {
     pub fn new(hash: String) -> Self {
         Self(hash)
     }
-    
+
     /// Get block hash as string
     pub fn as_str(&self) -> &str {
         &self.0
@@ -245,7 +252,7 @@ impl DerivationPath {
             index,
         }
     }
-    
+
     /// Create Solana derivation path
     pub fn solana(account: u32, change: u32, index: u32) -> Self {
         Self {
@@ -256,14 +263,12 @@ impl DerivationPath {
             index,
         }
     }
-    
+
     /// Convert to string representation
     pub fn to_string(&self) -> String {
-        format!("m/{}'/{}'/{}'/{}/{}", 
-            self.purpose, 
-            self.coin_type, 
-            self.account, 
-            self.change, 
-            self.index)
+        format!(
+            "m/{}'/{}'/{}'/{}/{}",
+            self.purpose, self.coin_type, self.account, self.change, self.index
+        )
     }
 }

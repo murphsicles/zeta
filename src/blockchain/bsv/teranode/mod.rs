@@ -6,15 +6,15 @@
 //! - `submitminingsolution` - Submit mined block to Teranode
 
 pub mod client;
+pub mod config;
 pub mod error;
 pub mod types;
-pub mod config;
 
 // Re-export main components
 pub use client::TeranodeClient;
+pub use config::TeranodeClientConfig;
 pub use error::TeranodeError;
 pub use types::*;
-pub use config::TeranodeClientConfig;
 
 /// Initialize Teranode module
 pub fn init() -> Result<(), TeranodeError> {

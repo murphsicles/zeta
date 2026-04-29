@@ -168,13 +168,16 @@ impl ProcMacroRegistry {
     pub fn register_proc_macro(&mut self, proc_macro: ProcMacro) {
         match proc_macro.macro_type {
             ProcMacroType::Attribute => {
-                self.attribute_macros.insert(proc_macro.name.clone(), proc_macro);
+                self.attribute_macros
+                    .insert(proc_macro.name.clone(), proc_macro);
             }
             ProcMacroType::FunctionLike => {
-                self.function_macros.insert(proc_macro.name.clone(), proc_macro);
+                self.function_macros
+                    .insert(proc_macro.name.clone(), proc_macro);
             }
             ProcMacroType::Derive => {
-                self.derive_macros.insert(proc_macro.name.clone(), proc_macro);
+                self.derive_macros
+                    .insert(proc_macro.name.clone(), proc_macro);
             }
         }
     }
@@ -193,7 +196,7 @@ impl ProcMacroRegistry {
                 hygiene: self.hygiene_context.clone(),
                 metadata: self.create_metadata(),
             };
-            
+
             (macro_def.handler)(&context)
         } else {
             Err(format!("Unknown attribute macro: {}", attr_name))
@@ -213,10 +216,13 @@ impl ProcMacroRegistry {
                 hygiene: self.hygiene_context.clone(),
                 metadata: self.create_metadata(),
             };
-            
+
             (macro_def.handler)(&context)
         } else {
-            Err(format!("Unknown function-like procedural macro: {}", macro_name))
+            Err(format!(
+                "Unknown function-like procedural macro: {}",
+                macro_name
+            ))
         }
     }
 
@@ -233,7 +239,7 @@ impl ProcMacroRegistry {
                 hygiene: self.hygiene_context.clone(),
                 metadata: self.create_metadata(),
             };
-            
+
             (macro_def.handler)(&context)
         } else {
             Err(format!("Unknown derive macro: {}", derive_name))
@@ -244,9 +250,9 @@ impl ProcMacroRegistry {
     pub fn generate_hygienic_id(&mut self, original: &str) -> String {
         let id = self.hygiene_context.unique_id;
         self.hygiene_context.unique_id += 1;
-        
+
         let hygienic = format!("{}__{}", original, id);
-        
+
         self.hygiene_context.bindings.insert(
             original.to_string(),
             HygienicBinding {
@@ -255,14 +261,14 @@ impl ProcMacroRegistry {
                 depth: 0, // TODO: Track scope depth
             },
         );
-        
+
         hygienic
     }
 
     /// Parse attribute arguments into tokens
     fn parse_attribute_args(&self, args: &[String]) -> Result<Vec<ProcMacroToken>, String> {
         let mut tokens = Vec::new();
-        
+
         for arg in args {
             // Simple parsing: split by commas and parse as identifiers/literals
             for part in arg.split(',') {
@@ -270,7 +276,7 @@ impl ProcMacroRegistry {
                 if part.is_empty() {
                     continue;
                 }
-                
+
                 if part.starts_with('"') && part.ends_with('"') {
                     // String literal
                     let content = &part[1..part.len() - 1];
@@ -281,10 +287,12 @@ impl ProcMacroRegistry {
                     if let (Some(key), Some(value)) = (kv_parts.next(), kv_parts.next()) {
                         tokens.push(ProcMacroToken::Ident(key.trim().to_string()));
                         tokens.push(ProcMacroToken::Punct('='));
-                        
+
                         let value = value.trim();
                         if value.starts_with('"') && value.ends_with('"') {
-                            tokens.push(ProcMacroToken::Literal(value[1..value.len() - 1].to_string()));
+                            tokens.push(ProcMacroToken::Literal(
+                                value[1..value.len() - 1].to_string(),
+                            ));
                         } else {
                             tokens.push(ProcMacroToken::Ident(value.to_string()));
                         }
@@ -302,14 +310,14 @@ impl ProcMacroRegistry {
                 }
             }
         }
-        
+
         Ok(tokens)
     }
 
     /// Convert AST nodes to procedural macro tokens
     fn ast_to_proc_macro_tokens(&self, args: &[AstNode]) -> Result<Vec<ProcMacroToken>, String> {
         let mut tokens = Vec::new();
-        
+
         for (i, arg) in args.iter().enumerate() {
             match arg {
                 AstNode::Var(name) => {
@@ -326,7 +334,7 @@ impl ProcMacroRegistry {
                     for (j, elem) in elements.iter().enumerate() {
                         let elem_tokens = self.ast_to_proc_macro_tokens(&[elem.clone()])?;
                         group_tokens.extend(elem_tokens);
-                        
+
                         if j < elements.len() - 1 {
                             group_tokens.push(ProcMacroToken::Punct(','));
                         }
@@ -338,12 +346,12 @@ impl ProcMacroRegistry {
                     tokens.push(ProcMacroToken::Ident(format!("expr_{}", i)));
                 }
             }
-            
+
             if i < args.len() - 1 {
                 tokens.push(ProcMacroToken::Punct(','));
             }
         }
-        
+
         Ok(tokens)
     }
 
@@ -365,13 +373,23 @@ pub mod builtin {
 
     /// Create a test function from #[test] attribute
     pub fn test_attribute(context: &ProcMacroContext) -> Result<Vec<AstNode>, String> {
-        let target_node = context.target_node.as_ref()
+        let target_node = context
+            .target_node
+            .as_ref()
             .ok_or("test attribute requires a target function")?;
-        
+
         match target_node {
-            AstNode::FuncDef { name, params, ret, body, async_, const_, .. } => {
+            AstNode::FuncDef {
+                name,
+                params,
+                ret,
+                body,
+                async_,
+                const_,
+                ..
+            } => {
                 let test_name = format!("test_{}", name);
-                
+
                 Ok(vec![AstNode::FuncDef {
                     name: test_name,
                     generics: Vec::new(),
@@ -396,19 +414,21 @@ pub mod builtin {
 
     /// Create a builder pattern from #[generate_builder] attribute
     pub fn generate_builder(context: &ProcMacroContext) -> Result<Vec<AstNode>, String> {
-        let target_node = context.target_node.as_ref()
+        let target_node = context
+            .target_node
+            .as_ref()
             .ok_or("generate_builder attribute requires a target struct")?;
-        
+
         match target_node {
             AstNode::StructDef { name, fields, .. } => {
                 // Generate builder struct
                 let builder_name = format!("{}Builder", name);
-                
+
                 let mut builder_fields = Vec::new();
                 for (field_name, field_type) in fields {
                     builder_fields.push((field_name.clone(), field_type.clone()));
                 }
-                
+
                 let builder_struct = AstNode::StructDef {
                     name: builder_name.clone(),
                     generics: Vec::new(),
@@ -419,18 +439,20 @@ pub mod builtin {
                     pub_: true,
                     where_clauses: Vec::new(),
                 };
-                
+
                 // Generate builder methods
                 let mut builder_methods = Vec::new();
-                
+
                 for (field_name, field_type) in fields {
                     let method_name = field_name.clone();
                     let method = AstNode::FuncDef {
                         name: method_name,
                         generics: Vec::new(),
                         lifetimes: Vec::new(),
-                        params: vec![("self".to_string(), format!("&mut {}", builder_name)), 
-                                    (field_name.clone(), field_type.clone())],
+                        params: vec![
+                            ("self".to_string(), format!("&mut {}", builder_name)),
+                            (field_name.clone(), field_type.clone()),
+                        ],
                         ret: format!("&mut {}", builder_name),
                         body: vec![
                             AstNode::ExprStmt {
@@ -454,10 +476,10 @@ pub mod builtin {
                         comptime_: false,
                         where_clauses: Vec::new(),
                     };
-                    
+
                     builder_methods.push(method);
                 }
-                
+
                 // Generate build method
                 let build_method = AstNode::FuncDef {
                     name: "build".to_string(),
@@ -465,19 +487,21 @@ pub mod builtin {
                     lifetimes: Vec::new(),
                     params: vec![("self".to_string(), builder_name.clone())],
                     ret: name.clone(),
-                    body: vec![
-                        AstNode::Return(Box::new(AstNode::StructLit {
-                            variant: name.clone(),
-                            fields: fields.iter()
-                                .map(|(field_name, _)| {
-                                    (field_name.clone(), AstNode::FieldAccess {
+                    body: vec![AstNode::Return(Box::new(AstNode::StructLit {
+                        variant: name.clone(),
+                        fields: fields
+                            .iter()
+                            .map(|(field_name, _)| {
+                                (
+                                    field_name.clone(),
+                                    AstNode::FieldAccess {
                                         base: Box::new(AstNode::Var("self".to_string())),
                                         field: field_name.clone(),
-                                    })
-                                })
-                                .collect(),
-                        })),
-                    ],
+                                    },
+                                )
+                            })
+                            .collect(),
+                    }))],
                     attrs: Vec::new(),
                     ret_expr: None,
                     single_line: true,
@@ -488,9 +512,9 @@ pub mod builtin {
                     comptime_: false,
                     where_clauses: Vec::new(),
                 };
-                
+
                 builder_methods.push(build_method);
-                
+
                 // Generate builder() associated function
                 let builder_fn = AstNode::FuncDef {
                     name: "builder".to_string(),
@@ -498,12 +522,10 @@ pub mod builtin {
                     lifetimes: Vec::new(),
                     params: Vec::new(),
                     ret: builder_name.clone(),
-                    body: vec![
-                        AstNode::Return(Box::new(AstNode::StructLit {
-                            variant: builder_name.clone(),
-                            fields: Vec::new(),
-                        })),
-                    ],
+                    body: vec![AstNode::Return(Box::new(AstNode::StructLit {
+                        variant: builder_name.clone(),
+                        fields: Vec::new(),
+                    }))],
                     attrs: Vec::new(),
                     ret_expr: None,
                     single_line: true,
@@ -514,11 +536,11 @@ pub mod builtin {
                     comptime_: false,
                     where_clauses: Vec::new(),
                 };
-                
+
                 let mut result = vec![builder_struct];
                 result.extend(builder_methods);
                 result.push(builder_fn);
-                
+
                 Ok(result)
             }
             _ => Err("#[generate_builder] can only be used on structs".to_string()),
@@ -529,7 +551,7 @@ pub mod builtin {
     pub fn simple_function_macro(context: &ProcMacroContext) -> Result<Vec<AstNode>, String> {
         // This macro just wraps its input in a block
         let input_tokens = &context.input;
-        
+
         // Create a block expression
         Ok(vec![AstNode::ExprStmt {
             expr: Box::new(AstNode::Unsafe {
@@ -542,9 +564,11 @@ pub mod builtin {
 
     /// Derive Debug implementation
     pub fn derive_debug(context: &ProcMacroContext) -> Result<Vec<AstNode>, String> {
-        let target_node = context.target_node.as_ref()
+        let target_node = context
+            .target_node
+            .as_ref()
             .ok_or("derive(Debug) requires a target type")?;
-        
+
         match target_node {
             AstNode::StructDef { name, fields, .. } => {
                 // Generate Debug implementation
@@ -564,7 +588,7 @@ pub mod builtin {
                         ret: "Result".to_string(),
                         body: {
                             let mut body = Vec::new();
-                            
+
                             // Write struct name
                             body.push(AstNode::ExprStmt {
                                 expr: Box::new(AstNode::Call {
@@ -575,7 +599,7 @@ pub mod builtin {
                                     structural: false,
                                 }),
                             });
-                            
+
                             // Write fields
                             for (i, (field_name, _)) in fields.iter().enumerate() {
                                 if i > 0 {
@@ -589,7 +613,7 @@ pub mod builtin {
                                         }),
                                     });
                                 }
-                                
+
                                 body.push(AstNode::ExprStmt {
                                     expr: Box::new(AstNode::Call {
                                         receiver: Some(Box::new(AstNode::Var("f".to_string()))),
@@ -599,7 +623,7 @@ pub mod builtin {
                                         structural: false,
                                     }),
                                 });
-                                
+
                                 body.push(AstNode::ExprStmt {
                                     expr: Box::new(AstNode::Call {
                                         receiver: Some(Box::new(AstNode::Var("f".to_string()))),
@@ -613,7 +637,7 @@ pub mod builtin {
                                     }),
                                 });
                             }
-                            
+
                             // Close struct
                             body.push(AstNode::ExprStmt {
                                 expr: Box::new(AstNode::Call {
@@ -624,7 +648,7 @@ pub mod builtin {
                                     structural: false,
                                 }),
                             });
-                            
+
                             // Return Ok(())
                             body.push(AstNode::Return(Box::new(AstNode::Call {
                                 receiver: Some(Box::new(AstNode::Var("Result".to_string()))),
@@ -633,7 +657,7 @@ pub mod builtin {
                                 type_args: Vec::new(),
                                 structural: false,
                             })));
-                            
+
                             body
                         },
                         attrs: Vec::new(),
@@ -650,7 +674,7 @@ pub mod builtin {
                     doc: format!("Debug implementation for {}", name),
                     where_clauses: Vec::new(),
                 };
-                
+
                 Ok(vec![impl_block])
             }
             AstNode::EnumDef { name, variants, .. } => {
@@ -673,26 +697,32 @@ pub mod builtin {
                             // Match on self
                             AstNode::Match {
                                 scrutinee: Box::new(AstNode::Var("self".to_string())),
-                                arms: variants.iter().map(|(variant_name, fields)| {
-                                    MatchArm {
-                                        pattern: Box::new(if fields.is_empty() {
-                                            AstNode::Var(variant_name.clone())
-                                        } else {
-                                            // TODO: Handle fields in enum variants
-                                            AstNode::Var(variant_name.clone())
-                                        }),
-                                        guard: None,
-                                        body: Box::new(AstNode::Call {
-                                            receiver: Some(Box::new(AstNode::Var("f".to_string()))),
-                                            method: "write_str".to_string(),
-                                            args: vec![AstNode::StringLit(variant_name.clone())],
-                                            type_args: Vec::new(),
-                                            structural: false,
-                                        }),
-                                    }
-                                }).collect(),
+                                arms: variants
+                                    .iter()
+                                    .map(|(variant_name, fields)| {
+                                        MatchArm {
+                                            pattern: Box::new(if fields.is_empty() {
+                                                AstNode::Var(variant_name.clone())
+                                            } else {
+                                                // TODO: Handle fields in enum variants
+                                                AstNode::Var(variant_name.clone())
+                                            }),
+                                            guard: None,
+                                            body: Box::new(AstNode::Call {
+                                                receiver: Some(Box::new(AstNode::Var(
+                                                    "f".to_string(),
+                                                ))),
+                                                method: "write_str".to_string(),
+                                                args: vec![AstNode::StringLit(
+                                                    variant_name.clone(),
+                                                )],
+                                                type_args: Vec::new(),
+                                                structural: false,
+                                            }),
+                                        }
+                                    })
+                                    .collect(),
                             },
-                            
                             // Return Ok(())
                             AstNode::Return(Box::new(AstNode::Call {
                                 receiver: Some(Box::new(AstNode::Var("Result".to_string()))),
@@ -716,7 +746,7 @@ pub mod builtin {
                     doc: format!("Debug implementation for {}", name),
                     where_clauses: Vec::new(),
                 };
-                
+
                 Ok(vec![impl_block])
             }
             _ => Err("derive(Debug) can only be used on structs or enums".to_string()),
@@ -725,9 +755,11 @@ pub mod builtin {
 
     /// Derive Clone implementation
     pub fn derive_clone(context: &ProcMacroContext) -> Result<Vec<AstNode>, String> {
-        let target_node = context.target_node.as_ref()
+        let target_node = context
+            .target_node
+            .as_ref()
             .ok_or("derive(Clone) requires a target type")?;
-        
+
         match target_node {
             AstNode::StructDef { name, fields, .. } => {
                 // Generate Clone implementation
@@ -742,12 +774,14 @@ pub mod builtin {
                         lifetimes: Vec::new(),
                         params: vec![("self".to_string(), format!("&{}", name))],
                         ret: name.clone(),
-                        body: vec![
-                            AstNode::Return(Box::new(AstNode::StructLit {
-                                variant: name.clone(),
-                                fields: fields.iter()
-                                    .map(|(field_name, field_type)| {
-                                        (field_name.clone(), AstNode::Call {
+                        body: vec![AstNode::Return(Box::new(AstNode::StructLit {
+                            variant: name.clone(),
+                            fields: fields
+                                .iter()
+                                .map(|(field_name, field_type)| {
+                                    (
+                                        field_name.clone(),
+                                        AstNode::Call {
                                             receiver: Some(Box::new(AstNode::FieldAccess {
                                                 base: Box::new(AstNode::Var("self".to_string())),
                                                 field: field_name.clone(),
@@ -756,11 +790,11 @@ pub mod builtin {
                                             args: Vec::new(),
                                             type_args: Vec::new(),
                                             structural: false,
-                                        })
-                                    })
-                                    .collect(),
-                            })),
-                        ],
+                                        },
+                                    )
+                                })
+                                .collect(),
+                        }))],
                         attrs: Vec::new(),
                         ret_expr: None,
                         single_line: true,
@@ -775,7 +809,7 @@ pub mod builtin {
                     doc: format!("Clone implementation for {}", name),
                     where_clauses: Vec::new(),
                 };
-                
+
                 Ok(vec![impl_block])
             }
             _ => Err("derive(Clone) can only be used on structs".to_string()),
@@ -785,9 +819,11 @@ pub mod builtin {
     /// Derive Copy implementation
     pub fn derive_copy(context: &ProcMacroContext) -> Result<Vec<AstNode>, String> {
         // Copy is a marker trait - just generate an empty implementation
-        let target_node = context.target_node.as_ref()
+        let target_node = context
+            .target_node
+            .as_ref()
             .ok_or("derive(Copy) requires a target type")?;
-        
+
         match target_node {
             AstNode::StructDef { name, .. } => {
                 let impl_block = AstNode::ImplBlock {
@@ -800,7 +836,7 @@ pub mod builtin {
                     doc: format!("Copy implementation for {}", name),
                     where_clauses: Vec::new(),
                 };
-                
+
                 Ok(vec![impl_block])
             }
             _ => Err("derive(Copy) can only be used on structs".to_string()),

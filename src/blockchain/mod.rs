@@ -8,49 +8,49 @@
 
 // Re-export all blockchain modules
 pub mod bsv;
-pub mod solana;
 pub mod common;
+pub mod solana;
 pub mod wallet;
 
 // Re-export common types and traits
-pub use common::error::BlockchainError;
-pub use common::types::*;
-pub use common::traits::*;
 pub use common::config::BlockchainConfig;
+pub use common::error::BlockchainError;
+pub use common::traits::*;
+pub use common::types::*;
 
 // Re-export BSV functionality
 pub use bsv::address::BtcAddress;
-pub use bsv::transaction::BtcTransaction;
-pub use bsv::script::BtcScript;
 pub use bsv::keys::BtcKeyPair;
+pub use bsv::script::BtcScript;
+pub use bsv::transaction::BtcTransaction;
 
 // Re-export Solana functionality
+#[cfg(feature = "solana")]
+pub use solana::account::SolanaAccount;
 #[cfg(feature = "solana")]
 pub use solana::address::SolanaAddress;
 #[cfg(feature = "solana")]
 pub use solana::transaction::SolanaTransaction;
-#[cfg(feature = "solana")]
-pub use solana::account::SolanaAccount;
 
 // Re-export wallet functionality
-pub use wallet::Wallet;
-pub use wallet::KeyDerivation;
 pub use wallet::EncryptedStorage;
+pub use wallet::KeyDerivation;
+pub use wallet::Wallet;
 
 /// Initialize blockchain subsystem with configuration
 pub fn init(config: BlockchainConfig) -> Result<(), BlockchainError> {
     log::info!("Initializing blockchain subsystem v0.3.50");
-    
+
     // Initialize BSV module
     bsv::init(&config)?;
-    
+
     // Initialize Solana module if enabled
     #[cfg(feature = "solana")]
     solana::init(&config)?;
-    
+
     // Initialize wallet module
     wallet::init(&config)?;
-    
+
     log::info!("Blockchain subsystem initialized successfully");
     Ok(())
 }
@@ -58,17 +58,17 @@ pub fn init(config: BlockchainConfig) -> Result<(), BlockchainError> {
 /// Shutdown blockchain subsystem
 pub fn shutdown() -> Result<(), BlockchainError> {
     log::info!("Shutting down blockchain subsystem");
-    
+
     // Shutdown wallet module
     wallet::shutdown()?;
-    
+
     // Shutdown Solana module if enabled
     #[cfg(feature = "solana")]
     solana::shutdown()?;
-    
+
     // Shutdown BSV module
     bsv::shutdown()?;
-    
+
     log::info!("Blockchain subsystem shutdown complete");
     Ok(())
 }

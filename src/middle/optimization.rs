@@ -121,10 +121,7 @@ pub fn dead_code_elimination(mir: &mut Mir) {
                 };
                 dead_code_elimination(&mut nested_mir);
             }
-            MirStmt::While {
-                cond,
-                body,
-            } => {
+            MirStmt::While { cond, body } => {
                 mark_expr_used(*cond, &mut used, &mir.exprs);
                 // Recursively process nested statements in the loop body
                 let mut nested_mir = Mir {
@@ -133,7 +130,9 @@ pub fn dead_code_elimination(mir: &mut Mir) {
                 };
                 dead_code_elimination(&mut nested_mir);
             }
-            MirStmt::Store { addr_id, val_id, .. } => {
+            MirStmt::Store {
+                addr_id, val_id, ..
+            } => {
                 // Both addr and val are used
                 mark_expr_used(*addr_id, &mut used, &mir.exprs);
                 mark_expr_used(*val_id, &mut used, &mir.exprs);
@@ -246,7 +245,7 @@ pub fn constant_folding(mir: &mut Mir) {
 pub fn common_subexpression_elimination(mir: &mut Mir) {
     let mut expression_map = HashMap::new(); // expression hash -> expression id
     let mut to_remove = Vec::new();
-    
+
     // First pass: identify duplicate expressions
     for (id, expr) in &mir.exprs {
         // Create a hashable representation of the expression
@@ -255,7 +254,8 @@ pub fn common_subexpression_elimination(mir: &mut Mir) {
             MirExpr::Var(var_id) => format!("Var({})", var_id),
             MirExpr::ConstEval(value) => format!("ConstEval({})", value),
             MirExpr::FString(parts) => {
-                let parts_str = parts.iter()
+                let parts_str = parts
+                    .iter()
                     .map(|p| p.to_string())
                     .collect::<Vec<_>>()
                     .join(",");
@@ -264,8 +264,11 @@ pub fn common_subexpression_elimination(mir: &mut Mir) {
             MirExpr::Deref { addr_id, .. } => format!("Deref({})", addr_id),
             MirExpr::TimingOwned(inner_id) => format!("TimingOwned({})", inner_id),
             MirExpr::StringLit(s) => format!("StringLit({})", s),
-            MirExpr::Struct { variant, fields, .. } => {
-                let fields_str = fields.iter()
+            MirExpr::Struct {
+                variant, fields, ..
+            } => {
+                let fields_str = fields
+                    .iter()
                     .map(|(name, id)| format!("{}:{}", name, id))
                     .collect::<Vec<_>>()
                     .join(",");
@@ -280,21 +283,23 @@ pub fn common_subexpression_elimination(mir: &mut Mir) {
                 format!("BinaryOp({} {} {})", left, op, right)
             }
             MirExpr::StackArray { elements, size } => {
-                let elements_str = elements.iter()
+                let elements_str = elements
+                    .iter()
                     .map(|e| e.to_string())
                     .collect::<Vec<_>>()
                     .join(",");
                 format!("StackArray(size={}, elements=[{}])", size, elements_str)
             }
             MirExpr::SemiringFold { op, values } => {
-                let values_str = values.iter()
+                let values_str = values
+                    .iter()
                     .map(|v| v.to_string())
                     .collect::<Vec<_>>()
                     .join(",");
                 format!("SemiringFold({:?}, [{}])", op, values_str)
             }
         };
-        
+
         // Check if we've seen this expression before
         if let Some(&existing_id) = expression_map.get(&expr_hash) {
             // Replace all uses of this expression with the existing one
@@ -320,7 +325,9 @@ pub fn common_subexpression_elimination(mir: &mut Mir) {
                     MirStmt::Return { val } if *val == *id => {
                         *val = existing_id;
                     }
-                    MirStmt::SemiringFold { values, result: _, .. } => {
+                    MirStmt::SemiringFold {
+                        values, result: _, ..
+                    } => {
                         for val in values {
                             if *val == *id {
                                 *val = existing_id;
@@ -330,20 +337,35 @@ pub fn common_subexpression_elimination(mir: &mut Mir) {
                     MirStmt::Consume { id: expr_id } if *expr_id == *id => {
                         *expr_id = existing_id;
                     }
-                    MirStmt::StructNew { fields, dest: _, .. } => {
+                    MirStmt::StructNew {
+                        fields, dest: _, ..
+                    } => {
                         for (_, expr_id) in fields {
                             if *expr_id == *id {
                                 *expr_id = existing_id;
                             }
                         }
                     }
-                    MirStmt::If { cond, then: _, else_: _, dest: _ } if *cond == *id => {
+                    MirStmt::If {
+                        cond,
+                        then: _,
+                        else_: _,
+                        dest: _,
+                    } if *cond == *id => {
                         *cond = existing_id;
                     }
-                    MirStmt::TryProp { expr_id, ok_dest: _, err_dest: _ } if *expr_id == *id => {
+                    MirStmt::TryProp {
+                        expr_id,
+                        ok_dest: _,
+                        err_dest: _,
+                    } if *expr_id == *id => {
                         *expr_id = existing_id;
                     }
-                    MirStmt::DictInsert { map_id, key_id, val_id } => {
+                    MirStmt::DictInsert {
+                        map_id,
+                        key_id,
+                        val_id,
+                    } => {
                         if *map_id == *id {
                             *map_id = existing_id;
                         }
@@ -354,7 +376,11 @@ pub fn common_subexpression_elimination(mir: &mut Mir) {
                             *val_id = existing_id;
                         }
                     }
-                    MirStmt::DictGet { map_id, key_id, dest: _ } => {
+                    MirStmt::DictGet {
+                        map_id,
+                        key_id,
+                        dest: _,
+                    } => {
                         if *map_id == *id {
                             *map_id = existing_id;
                         }
@@ -362,13 +388,18 @@ pub fn common_subexpression_elimination(mir: &mut Mir) {
                             *key_id = existing_id;
                         }
                     }
-                    MirStmt::For { iterator, pattern: _, body: _, var_id: _ } if *iterator == *id => {
+                    MirStmt::For {
+                        iterator,
+                        pattern: _,
+                        body: _,
+                        var_id: _,
+                    } if *iterator == *id => {
                         *iterator = existing_id;
                     }
                     _ => {}
                 }
             }
-            
+
             // Mark for removal
             to_remove.push(*id);
         } else {
@@ -376,7 +407,7 @@ pub fn common_subexpression_elimination(mir: &mut Mir) {
             expression_map.insert(expr_hash, *id);
         }
     }
-    
+
     // Remove duplicate expressions
     for id in to_remove {
         mir.exprs.remove(&id);

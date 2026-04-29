@@ -9,7 +9,7 @@
 //! 5. Advanced code generation
 
 use crate::frontend::ast::AstNode;
-use crate::frontend::proc_macro::{ProcMacroRegistry, ProcMacroType, ProcMacro};
+use crate::frontend::proc_macro::{ProcMacro, ProcMacroRegistry, ProcMacroType};
 use std::collections::HashMap;
 
 /// Represents a declarative macro defined with macro_rules!
@@ -72,7 +72,7 @@ pub enum MacroToken {
     Group(Vec<MacroToken>, char), // tokens and delimiter
     Repetition(Vec<MacroToken>, char, Option<usize>, Option<usize>), // pattern, separator, min, max
     Variable(String, FragmentType), // $name:fragment_type
-    HygienicIdent(String, u64), // identifier with unique hygiene id
+    HygienicIdent(String, u64),   // identifier with unique hygiene id
 }
 
 /// Advanced macro expander with procedural macro support
@@ -220,10 +220,10 @@ impl Default for AdvancedMacroExpander {
 impl AdvancedMacroExpander {
     pub fn new() -> Self {
         let mut registry = ProcMacroRegistry::new();
-        
+
         // Register built-in procedural macros
         Self::register_builtin_proc_macros(&mut registry);
-        
+
         Self {
             declarative_macros: HashMap::new(),
             proc_macro_registry: registry,
@@ -235,7 +235,7 @@ impl AdvancedMacroExpander {
             },
         }
     }
-    
+
     /// Register built-in procedural macros
     fn register_builtin_proc_macros(registry: &mut ProcMacroRegistry) {
         // Test attribute macro
@@ -244,48 +244,44 @@ impl AdvancedMacroExpander {
             macro_type: ProcMacroType::Attribute,
             handler: crate::frontend::proc_macro::builtin::test_attribute,
         });
-        
+
         // Builder generator attribute macro
         registry.register_proc_macro(ProcMacro {
             name: "generate_builder".to_string(),
             macro_type: ProcMacroType::Attribute,
             handler: crate::frontend::proc_macro::builtin::generate_builder,
         });
-        
+
         // Derive macros
         registry.register_proc_macro(ProcMacro {
             name: "Debug".to_string(),
             macro_type: ProcMacroType::Derive,
             handler: crate::frontend::proc_macro::builtin::derive_debug,
         });
-        
+
         registry.register_proc_macro(ProcMacro {
             name: "Clone".to_string(),
             macro_type: ProcMacroType::Derive,
             handler: crate::frontend::proc_macro::builtin::derive_clone,
         });
-        
+
         registry.register_proc_macro(ProcMacro {
             name: "Copy".to_string(),
             macro_type: ProcMacroType::Derive,
             handler: crate::frontend::proc_macro::builtin::derive_copy,
         });
     }
-    
+
     /// Register a declarative macro with hygiene
-    pub fn register_declarative_macro(
-        &mut self,
-        name: String,
-        macro_def: DeclarativeMacro,
-    ) {
+    pub fn register_declarative_macro(&mut self, name: String, macro_def: DeclarativeMacro) {
         self.declarative_macros.insert(name, macro_def);
     }
-    
+
     /// Register a procedural macro
     pub fn register_proc_macro(&mut self, proc_macro: ProcMacro) {
         self.proc_macro_registry.register_proc_macro(proc_macro);
     }
-    
+
     /// Expand a macro call with advanced features
     pub fn expand_macro_call(
         &mut self,
@@ -297,7 +293,7 @@ impl AdvancedMacroExpander {
         if let Ok(result) = self.proc_macro_registry.process_function_macro(name, args) {
             return Ok(self.apply_hygiene(&result, hygiene_scope));
         }
-        
+
         // Check for built-in macros
         match name {
             "println" => self.expand_println(args),
@@ -321,7 +317,7 @@ impl AdvancedMacroExpander {
             }
         }
     }
-    
+
     /// Process attributes with procedural macro support
     pub fn process_attributes(
         &mut self,
@@ -330,23 +326,25 @@ impl AdvancedMacroExpander {
         hygiene_scope: u32,
     ) -> Result<Vec<AstNode>, String> {
         let mut expansions = Vec::new();
-        
+
         for attr in attrs {
             if let Some((attr_name, attr_args)) = Self::parse_attribute(attr) {
                 // Check for procedural attribute macros
-                if let Ok(result) = self.proc_macro_registry
+                if let Ok(result) = self
+                    .proc_macro_registry
                     .process_attribute_macro(&attr_name, &attr_args, node)
                 {
                     expansions.extend(self.apply_hygiene(&result, hygiene_scope));
                     continue;
                 }
-                
+
                 // Handle built-in attributes
                 match attr_name.as_str() {
                     "derive" => {
                         // Process derive macros
                         for derive_name in &attr_args {
-                            if let Ok(result) = self.proc_macro_registry
+                            if let Ok(result) = self
+                                .proc_macro_registry
                                 .process_derive_macro(derive_name, node)
                             {
                                 expansions.extend(self.apply_hygiene(&result, hygiene_scope));
@@ -368,18 +366,21 @@ impl AdvancedMacroExpander {
                 }
             }
         }
-        
+
         Ok(expansions)
     }
-    
+
     /// Parse attribute string into name and arguments
     fn parse_attribute(attr: &str) -> Option<(String, Vec<String>)> {
         if !attr.starts_with('#') {
             return None;
         }
-        
-        let content = attr.trim_start_matches('#').trim_start_matches('[').trim_end_matches(']');
-        
+
+        let content = attr
+            .trim_start_matches('#')
+            .trim_start_matches('[')
+            .trim_end_matches(']');
+
         if let Some(pos) = content.find('(') {
             let name = content[..pos].trim().to_string();
             let args_str = &content[pos + 1..content.len() - 1];
@@ -389,7 +390,7 @@ impl AdvancedMacroExpander {
             Some((content.to_string(), Vec::new()))
         }
     }
-    
+
     /// Parse attribute arguments
     fn parse_attribute_args(args_str: &str) -> Vec<String> {
         let mut args = Vec::new();
@@ -397,7 +398,7 @@ impl AdvancedMacroExpander {
         let mut depth = 0;
         let mut in_string = false;
         let mut escape = false;
-        
+
         for ch in args_str.chars() {
             match ch {
                 '(' if !in_string => depth += 1,
@@ -417,28 +418,28 @@ impl AdvancedMacroExpander {
                     }
                 }
             }
-            
+
             current.push(ch);
         }
-        
+
         if !current.trim().is_empty() {
             args.push(current.trim().to_string());
         }
-        
+
         args
     }
-    
+
     /// Apply hygiene to expanded AST nodes
     fn apply_hygiene(&mut self, nodes: &[AstNode], scope: u32) -> Vec<AstNode> {
         let mut result = Vec::new();
-        
+
         for node in nodes {
             result.push(self.apply_hygiene_to_node(node.clone(), scope));
         }
-        
+
         result
     }
-    
+
     /// Apply hygiene to a single AST node
     fn apply_hygiene_to_node(&mut self, node: AstNode, scope: u32) -> AstNode {
         match node {
@@ -448,10 +449,26 @@ impl AdvancedMacroExpander {
                 self.hygiene_counter += 1;
                 AstNode::Var(hygienic_name)
             }
-            AstNode::FuncDef { name, generics, lifetimes, params, ret, body, attrs, ret_expr, single_line, doc, pub_, async_, const_, comptime_, where_clauses } => {
+            AstNode::FuncDef {
+                name,
+                generics,
+                lifetimes,
+                params,
+                ret,
+                body,
+                attrs,
+                ret_expr,
+                single_line,
+                doc,
+                pub_,
+                async_,
+                const_,
+                comptime_,
+                where_clauses,
+            } => {
                 let hygienic_name = format!("{}__{}__{}", name, scope, self.hygiene_counter);
                 self.hygiene_counter += 1;
-                
+
                 AstNode::FuncDef {
                     name: hygienic_name,
                     generics,
@@ -460,7 +477,8 @@ impl AdvancedMacroExpander {
                     ret,
                     body: self.apply_hygiene(&body, scope + 1),
                     attrs,
-                    ret_expr: ret_expr.map(|expr| Box::new(self.apply_hygiene_to_node(*expr, scope + 1))),
+                    ret_expr: ret_expr
+                        .map(|expr| Box::new(self.apply_hygiene_to_node(*expr, scope + 1))),
                     single_line,
                     doc,
                     pub_,
@@ -474,7 +492,7 @@ impl AdvancedMacroExpander {
             _ => node,
         }
     }
-    
+
     /// Expand println! macro with hygiene
     fn expand_println(&self, args: &[AstNode]) -> Result<Vec<AstNode>, String> {
         // Same as basic implementation but with hygiene applied
@@ -484,7 +502,7 @@ impl AdvancedMacroExpander {
 
         if let Some(AstNode::StringLit(format_str)) = args.first() {
             let placeholder_count = format_str.matches("{}").count();
-            
+
             if args.len() - 1 != placeholder_count {
                 return Err(format!(
                     "println! format string expects {} arguments, got {}",
@@ -506,35 +524,35 @@ impl AdvancedMacroExpander {
             expr: Box::new(call),
         }])
     }
-    
+
     /// Expand vec! macro with hygiene
     fn expand_vec(&self, args: &[AstNode]) -> Result<Vec<AstNode>, String> {
         Ok(vec![AstNode::ArrayLit(args.to_vec())])
     }
-    
+
     /// Expand format! macro with hygiene
     fn expand_format(&self, args: &[AstNode]) -> Result<Vec<AstNode>, String> {
         if args.is_empty() {
             return Err("format! requires at least a format string".to_string());
         }
-        
+
         // TODO: Implement proper format string expansion
         let result = AstNode::StringLit("formatted string".to_string());
         Ok(vec![result])
     }
-    
+
     /// Expand assert_eq! macro with hygiene
     fn expand_assert_eq(&self, args: &[AstNode]) -> Result<Vec<AstNode>, String> {
         if args.len() != 2 {
             return Err("assert_eq! requires exactly 2 arguments".to_string());
         }
-        
+
         let condition = AstNode::BinaryOp {
             op: "!=".to_string(),
             left: Box::new(args[0].clone()),
             right: Box::new(args[1].clone()),
         };
-        
+
         let panic_call = AstNode::Call {
             receiver: None,
             method: "panic".to_string(),
@@ -542,7 +560,7 @@ impl AdvancedMacroExpander {
             type_args: Vec::new(),
             structural: false,
         };
-        
+
         let if_stmt = AstNode::If {
             cond: Box::new(condition),
             then: vec![AstNode::ExprStmt {
@@ -550,10 +568,10 @@ impl AdvancedMacroExpander {
             }],
             else_: Vec::new(),
         };
-        
+
         Ok(vec![if_stmt])
     }
-    
+
     /// Expand declarative macro with hygiene
     fn expand_declarative_macro(
         &self,
@@ -567,14 +585,14 @@ impl AdvancedMacroExpander {
                 return self.expand_with_bindings(&pattern.expansion, &bindings, hygiene_scope);
             }
         }
-        
+
         Err(format!(
             "No matching pattern found for macro: {} with {} arguments",
             macro_def.name,
             args.len()
         ))
     }
-    
+
     /// Match macro pattern against arguments
     fn match_pattern(
         &self,
@@ -585,7 +603,7 @@ impl AdvancedMacroExpander {
         // TODO: Implement proper pattern matching with hygiene
         None
     }
-    
+
     /// Expand macro expansion with bindings
     fn expand_with_bindings(
         &self,
@@ -596,6 +614,4 @@ impl AdvancedMacroExpander {
         // TODO: Implement proper expansion with hygiene
         Err("Not implemented".to_string())
     }
-    
-
 }

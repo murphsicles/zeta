@@ -1,7 +1,7 @@
 //! Configuration for blockchain operations
 
-use serde::{Serialize, Deserialize};
 use crate::blockchain::common::types::Network;
+use serde::{Deserialize, Serialize};
 
 /// Main blockchain configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]

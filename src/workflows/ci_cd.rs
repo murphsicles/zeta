@@ -1,7 +1,7 @@
 //! CI/CD integration templates
 
-use std::path::Path;
 use crate::workflows::WorkflowError;
+use std::path::Path;
 
 /// CI/CD provider
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -90,10 +90,11 @@ jobs:
       uses: peaceiris/actions-gh-pages@v3
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./target/doc"#.to_string(),
+        publish_dir: ./target/doc"#
+                .to_string(),
         }
     }
-    
+
     /// Create GitLab CI template
     pub fn gitlab_ci() -> Self {
         Self {
@@ -151,10 +152,11 @@ pages:
     paths:
       - public
   only:
-    - main"#.to_string(),
+    - main"#
+                .to_string(),
         }
     }
-    
+
     /// Create Jenkins template
     pub fn jenkins() -> Self {
         Self {
@@ -223,22 +225,30 @@ pages:
             cleanWs()
         }
     }
-}"#.to_string(),
+}"#
+            .to_string(),
         }
     }
 }
 
 /// Generate CI/CD configuration
-pub fn generate_ci_config(project_root: &Path, template: &CICDTemplate) -> Result<(), WorkflowError> {
+pub fn generate_ci_config(
+    project_root: &Path,
+    template: &CICDTemplate,
+) -> Result<(), WorkflowError> {
     let output_path = project_root.join(&template.filename);
-    
+
     // Create parent directories if needed
     if let Some(parent) = output_path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    
+
     std::fs::write(&output_path, &template.content)?;
-    
-    println!("Generated {} configuration at: {}", template.name, output_path.display());
+
+    println!(
+        "Generated {} configuration at: {}",
+        template.name,
+        output_path.display()
+    );
     Ok(())
 }

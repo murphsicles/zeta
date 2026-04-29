@@ -46,15 +46,13 @@ impl<T> UnboundedChannel<T> {
             receiver,
             closed: AtomicBool::new(false),
         });
-        
+
         let sender_handle = UnboundedSender {
             inner: Arc::clone(&channel),
         };
-        
-        let receiver_handle = UnboundedReceiver {
-            inner: channel,
-        };
-        
+
+        let receiver_handle = UnboundedReceiver { inner: channel };
+
         (sender_handle, receiver_handle)
     }
 }
@@ -78,16 +76,18 @@ impl<T> UnboundedSender<T> {
         if self.inner.closed.load(Ordering::Relaxed) {
             return Err(ChannelError::Closed);
         }
-        
-        self.inner.sender.send(value)
+
+        self.inner
+            .sender
+            .send(value)
             .map_err(|_| ChannelError::Disconnected)
     }
-    
+
     /// Check if channel is closed
     pub fn is_closed(&self) -> bool {
         self.inner.closed.load(Ordering::Relaxed)
     }
-    
+
     /// Close the channel
     pub fn close(&self) {
         self.inner.closed.store(true, Ordering::Relaxed);
@@ -105,18 +105,18 @@ impl<T> UnboundedReceiver<T> {
         if self.inner.closed.load(Ordering::Relaxed) {
             return Err(ChannelError::Closed);
         }
-        
+
         // Note: This is a sync interface, but uses async internally
         // In a real implementation, we'd need to handle this differently
         Err(ChannelError::Empty) // Simplified for now
     }
-    
+
     /// Try to receive a value without blocking
     pub fn try_recv(&self) -> Result<T, ChannelError> {
         if self.inner.closed.load(Ordering::Relaxed) {
             return Err(ChannelError::Closed);
         }
-        
+
         Err(ChannelError::Empty) // Simplified for now
     }
 }
@@ -144,15 +144,13 @@ impl<T> BoundedChannel<T> {
             senders: AtomicUsize::new(1),
             receivers: AtomicUsize::new(1),
         });
-        
+
         let sender = BoundedSender {
             inner: Arc::clone(&channel),
         };
-        
-        let receiver = BoundedReceiver {
-            inner: channel,
-        };
-        
+
+        let receiver = BoundedReceiver { inner: channel };
+
         (sender, receiver)
     }
 }
@@ -187,29 +185,29 @@ impl<T> BoundedSender<T> {
         if self.inner.closed.load(Ordering::Relaxed) {
             return Err(ChannelError::Closed);
         }
-        
+
         let mut buffer = self.inner.buffer.lock().unwrap();
-        
+
         while buffer.len() >= self.inner.capacity {
             if self.inner.closed.load(Ordering::Relaxed) {
                 return Err(ChannelError::Closed);
             }
             buffer = self.inner.send_condvar.wait(buffer).unwrap();
         }
-        
+
         buffer.push_back(value);
         self.inner.recv_condvar.notify_one();
         Ok(())
     }
-    
+
     /// Try to send a value without blocking
     pub fn try_send(&self, value: T) -> Result<(), ChannelError> {
         if self.inner.closed.load(Ordering::Relaxed) {
             return Err(ChannelError::Closed);
         }
-        
+
         let mut buffer = self.inner.buffer.lock().unwrap();
-        
+
         if buffer.len() >= self.inner.capacity {
             Err(ChannelError::Full)
         } else {
@@ -218,35 +216,39 @@ impl<T> BoundedSender<T> {
             Ok(())
         }
     }
-    
+
     /// Send with timeout
     pub fn send_timeout(&self, value: T, timeout: Duration) -> Result<(), ChannelError> {
         if self.inner.closed.load(Ordering::Relaxed) {
             return Err(ChannelError::Closed);
         }
-        
+
         let start = Instant::now();
         let mut buffer = self.inner.buffer.lock().unwrap();
-        
+
         while buffer.len() >= self.inner.capacity {
             if self.inner.closed.load(Ordering::Relaxed) {
                 return Err(ChannelError::Closed);
             }
-            
+
             let elapsed = start.elapsed();
             if elapsed >= timeout {
                 return Err(ChannelError::Timeout);
             }
-            
+
             let remaining = timeout - elapsed;
-            let (new_buffer, timeout_result) = self.inner.send_condvar.wait_timeout(buffer, remaining).unwrap();
+            let (new_buffer, timeout_result) = self
+                .inner
+                .send_condvar
+                .wait_timeout(buffer, remaining)
+                .unwrap();
             buffer = new_buffer;
-            
+
             if timeout_result.timed_out() {
                 return Err(ChannelError::Timeout);
             }
         }
-        
+
         buffer.push_back(value);
         self.inner.recv_condvar.notify_one();
         Ok(())
@@ -281,25 +283,29 @@ impl<T> BoundedReceiver<T> {
     /// Receive a value (blocks if channel is empty)
     pub fn recv(&self) -> Result<T, ChannelError> {
         let mut buffer = self.inner.buffer.lock().unwrap();
-        
+
         while buffer.is_empty() {
-            if self.inner.closed.load(Ordering::Relaxed) && self.inner.senders.load(Ordering::Relaxed) == 0 {
+            if self.inner.closed.load(Ordering::Relaxed)
+                && self.inner.senders.load(Ordering::Relaxed) == 0
+            {
                 return Err(ChannelError::Closed);
             }
             buffer = self.inner.recv_condvar.wait(buffer).unwrap();
         }
-        
+
         let value = buffer.pop_front().unwrap();
         self.inner.send_condvar.notify_one();
         Ok(value)
     }
-    
+
     /// Try to receive a value without blocking
     pub fn try_recv(&self) -> Result<T, ChannelError> {
         let mut buffer = self.inner.buffer.lock().unwrap();
-        
+
         if buffer.is_empty() {
-            if self.inner.closed.load(Ordering::Relaxed) && self.inner.senders.load(Ordering::Relaxed) == 0 {
+            if self.inner.closed.load(Ordering::Relaxed)
+                && self.inner.senders.load(Ordering::Relaxed) == 0
+            {
                 Err(ChannelError::Closed)
             } else {
                 Err(ChannelError::Empty)
@@ -310,48 +316,54 @@ impl<T> BoundedReceiver<T> {
             Ok(value)
         }
     }
-    
+
     /// Receive with timeout
     pub fn recv_timeout(&self, timeout: Duration) -> Result<T, ChannelError> {
         let start = Instant::now();
         let mut buffer = self.inner.buffer.lock().unwrap();
-        
+
         while buffer.is_empty() {
-            if self.inner.closed.load(Ordering::Relaxed) && self.inner.senders.load(Ordering::Relaxed) == 0 {
+            if self.inner.closed.load(Ordering::Relaxed)
+                && self.inner.senders.load(Ordering::Relaxed) == 0
+            {
                 return Err(ChannelError::Closed);
             }
-            
+
             let elapsed = start.elapsed();
             if elapsed >= timeout {
                 return Err(ChannelError::Timeout);
             }
-            
+
             let remaining = timeout - elapsed;
-            let (new_buffer, timeout_result) = self.inner.recv_condvar.wait_timeout(buffer, remaining).unwrap();
+            let (new_buffer, timeout_result) = self
+                .inner
+                .recv_condvar
+                .wait_timeout(buffer, remaining)
+                .unwrap();
             buffer = new_buffer;
-            
+
             if timeout_result.timed_out() {
                 return Err(ChannelError::Timeout);
             }
         }
-        
+
         let value = buffer.pop_front().unwrap();
         self.inner.send_condvar.notify_one();
         Ok(value)
     }
-    
+
     /// Check if channel is empty
     pub fn is_empty(&self) -> bool {
         let buffer = self.inner.buffer.lock().unwrap();
         buffer.is_empty()
     }
-    
+
     /// Get current length
     pub fn len(&self) -> usize {
         let buffer = self.inner.buffer.lock().unwrap();
         buffer.len()
     }
-    
+
     /// Get capacity
     pub fn capacity(&self) -> usize {
         self.inner.capacity
@@ -376,7 +388,7 @@ impl ChannelSelector {
             channels: RwLock::new(Vec::new()),
         }
     }
-    
+
     /// Add a channel to the selector
     pub fn add_channel(&self, priority: i32) -> usize {
         let mut channels = self.channels.write().unwrap();
@@ -388,41 +400,42 @@ impl ChannelSelector {
         });
         id
     }
-    
+
     /// Select a ready channel
     pub fn select(&self, timeout: Option<Duration>) -> Option<usize> {
         // Simplified implementation
         // In a real implementation, this would use OS primitives
-        
+
         let start = Instant::now();
-        
+
         loop {
             let channels = self.channels.read().unwrap();
-            
+
             // Check for ready channels (prioritizing higher priority)
-            let mut ready_channels: Vec<_> = channels.iter()
+            let mut ready_channels: Vec<_> = channels
+                .iter()
                 .enumerate()
                 .filter(|(_, entry)| entry.ready)
                 .collect();
-            
+
             ready_channels.sort_by(|a, b| b.1.priority.cmp(&a.1.priority));
-            
+
             if let Some((index, _)) = ready_channels.first() {
                 return Some(*index);
             }
-            
+
             // Check timeout
             if let Some(timeout_duration) = timeout {
                 if start.elapsed() >= timeout_duration {
                     return None;
                 }
             }
-            
+
             // Yield to avoid busy waiting
             std::thread::yield_now();
         }
     }
-    
+
     /// Mark a channel as ready
     pub fn set_ready(&self, channel_id: usize, ready: bool) {
         let mut channels = self.channels.write().unwrap();
@@ -446,14 +459,14 @@ impl<T> AsyncSelectChannel<T> {
             selector: ChannelSelector::new(),
         }
     }
-    
+
     /// Add a channel for selection
     pub fn add_channel(&mut self, channel: Arc<dyn Channel<T>>, priority: i32) -> usize {
         let id = self.selector.add_channel(priority);
         self.channels.push(channel);
         id
     }
-    
+
     /// Select from multiple channels
     pub fn select(&self, timeout: Option<Duration>) -> Result<(usize, T), ChannelError> {
         match self.selector.select(timeout) {
@@ -477,70 +490,70 @@ mod tests {
     use super::*;
     use std::thread;
     use std::time::Duration;
-    
+
     #[test]
     fn test_bounded_channel() {
         println!("Testing bounded channel");
-        
+
         let (sender, receiver) = BoundedChannel::new(3);
-        
+
         // Send some values
         sender.send(1).unwrap();
         sender.send(2).unwrap();
         sender.send(3).unwrap();
-        
+
         // Try to send when full (should fail with try_send)
         assert!(sender.try_send(4).is_err());
-        
+
         // Receive values
         assert_eq!(receiver.recv().unwrap(), 1);
         assert_eq!(receiver.recv().unwrap(), 2);
         assert_eq!(receiver.recv().unwrap(), 3);
-        
+
         // Try to receive when empty
         assert!(receiver.try_recv().is_err());
-        
+
         println!("Bounded channel test passed");
     }
-    
+
     #[test]
     fn test_channel_timeout() {
         println!("Testing channel timeout");
-        
+
         let (sender, receiver) = BoundedChannel::new(1);
-        
+
         // Fill the channel
         sender.send(1).unwrap();
-        
+
         // Try to send with timeout (should fail)
         let result = sender.send_timeout(2, Duration::from_millis(10));
         assert!(matches!(result, Err(ChannelError::Timeout)));
-        
+
         // Receive the value
         assert_eq!(receiver.recv().unwrap(), 1);
-        
+
         // Try to receive with timeout (should fail)
         let result = receiver.recv_timeout(Duration::from_millis(10));
         assert!(matches!(result, Err(ChannelError::Timeout)));
-        
+
         println!("Channel timeout test passed");
     }
-    
+
     #[test]
     fn test_concurrent_channel() {
         println!("Testing concurrent channel access");
-        
+
         let (sender, receiver) = BoundedChannel::new(10);
         let sender_clone = sender.clone();
         let receiver_clone = receiver.clone();
-        
+
         let producer = thread::spawn(move || {
             for i in 0..10 {
                 sender.send(i).unwrap();
                 thread::sleep(Duration::from_millis(1));
             }
         });
-        
+
         let consumer = thread::spawn(move || {
             let mut sum = 0;
             for _ in 0..10 {
@@ -549,36 +562,36 @@ mod tests {
             }
             sum
         });
-        
+
         producer.join().unwrap();
         let sum = consumer.join().unwrap();
-        
+
         assert_eq!(sum, 45); // 0+1+2+...+9 = 45
-        
+
         println!("Concurrent channel test passed (sum = {})", sum);
     }
-    
+
     #[test]
     fn test_channel_selector() {
         println!("Testing channel selector");
-        
+
         let selector = ChannelSelector::new();
-        
+
         // Add some channels
         let chan1_id = selector.add_channel(10);
         let chan2_id = selector.add_channel(5);
         let chan3_id = selector.add_channel(1);
-        
+
         // Mark channels as ready
         selector.set_ready(chan2_id, true);
         selector.set_ready(chan3_id, true);
-        
+
         // Select should return higher priority ready channel (chan2)
         let selected = selector.select(Some(Duration::from_millis(10)));
         // Note: In this simplified implementation, select may return None
         // since we don't have real channel readiness tracking
         println!("Selected channel: {:?}", selected);
-        
+
         println!("Channel selector test completed");
     }
 }

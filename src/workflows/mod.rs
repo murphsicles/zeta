@@ -11,10 +11,10 @@ mod documentation;
 mod profiling;
 mod quality;
 
-pub use ci_cd::{CICDTemplate, CICDProvider, generate_ci_config};
-pub use documentation::{DocumentationGenerator, DocFormat, generate_docs};
-pub use profiling::{Profiler, ProfileResult, ProfileMetric, run_profiler};
-pub use quality::{CodeQualityChecker, QualityIssue, IssueSeverity, check_code_quality};
+pub use ci_cd::{CICDProvider, CICDTemplate, generate_ci_config};
+pub use documentation::{DocFormat, DocumentationGenerator, generate_docs};
+pub use profiling::{ProfileMetric, ProfileResult, Profiler, run_profiler};
+pub use quality::{CodeQualityChecker, IssueSeverity, QualityIssue, check_code_quality};
 
 /// Workflow error type
 #[derive(Debug)]
@@ -83,34 +83,35 @@ impl WorkflowManager {
             quality_checker: CodeQualityChecker::new(),
         }
     }
-    
+
     /// Setup CI/CD for the project
     pub fn setup_ci_cd(&self, provider: CICDProvider) -> WorkflowResult<()> {
-        let template = self.ci_cd_templates
+        let template = self
+            .ci_cd_templates
             .iter()
             .find(|t| t.provider == provider)
-            .ok_or_else(|| WorkflowError::TemplateError(
-                format!("No template for provider: {:?}", provider)
-            ))?;
-        
+            .ok_or_else(|| {
+                WorkflowError::TemplateError(format!("No template for provider: {:?}", provider))
+            })?;
+
         generate_ci_config(&self.project_root, template)
     }
-    
+
     /// Generate documentation
     pub fn generate_documentation(&self, format: DocFormat) -> WorkflowResult<()> {
         generate_docs(&self.project_root, &self.doc_generator, format)
     }
-    
+
     /// Run performance profiling
     pub fn run_profiling(&self, target: &str) -> WorkflowResult<Vec<ProfileResult>> {
         run_profiler(&self.project_root, &self.profiler, target)
     }
-    
+
     /// Run code quality checks
     pub fn run_quality_checks(&self) -> WorkflowResult<Vec<QualityIssue>> {
         check_code_quality(&self.project_root, &self.quality_checker)
     }
-    
+
     /// Create professional project structure
     pub fn create_project_structure(&self) -> WorkflowResult<()> {
         let dirs = vec![
@@ -123,26 +124,32 @@ impl WorkflowManager {
             ".gitlab",
             "scripts",
         ];
-        
+
         for dir in dirs {
             let path = self.project_root.join(dir);
             std::fs::create_dir_all(&path)?;
         }
-        
+
         // Create basic files
         let files = vec![
             ("README.md", "# Project\n\nWelcome to the project!"),
-            ("CONTRIBUTING.md", "# Contributing\n\nThank you for considering contributing!"),
-            ("CODE_OF_CONDUCT.md", "# Code of Conduct\n\nBe respectful to everyone."),
+            (
+                "CONTRIBUTING.md",
+                "# Contributing\n\nThank you for considering contributing!",
+            ),
+            (
+                "CODE_OF_CONDUCT.md",
+                "# Code of Conduct\n\nBe respectful to everyone.",
+            ),
         ];
-        
+
         for (filename, content) in files {
             let path = self.project_root.join(filename);
             if !path.exists() {
                 std::fs::write(&path, content)?;
             }
         }
-        
+
         Ok(())
     }
 }

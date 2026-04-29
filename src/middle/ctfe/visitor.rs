@@ -76,7 +76,11 @@ pub trait AstVisitor {
                 }
             }
             // For loop
-            AstNode::For { pattern, expr, body } => {
+            AstNode::For {
+                pattern,
+                expr,
+                body,
+            } => {
                 self.visit(pattern)?;
                 self.visit(expr)?;
                 for stmt in body {
@@ -96,11 +100,7 @@ pub trait AstVisitor {
                 }
             }
             // Function/method call
-            AstNode::Call {
-                receiver,
-                args,
-                ..
-            } => {
+            AstNode::Call { receiver, args, .. } => {
                 if let Some(receiver) = receiver {
                     self.visit(receiver)?;
                 }

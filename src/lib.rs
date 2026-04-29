@@ -15,7 +15,7 @@
 
 pub mod backend;
 #[cfg(feature = "blockchain")]
-pub mod blockchain;  // Enabled for Teranode integration
+pub mod blockchain; // Enabled for Teranode integration
 pub mod compiler_config;
 pub mod debugger;
 pub mod diagnostics;
@@ -27,11 +27,11 @@ pub mod middle;
 pub mod ml;
 pub mod package;
 // pub mod memory;  // Temporarily disabled due to compilation errors
+pub mod distributed;
 pub mod runtime;
 pub mod std;
 pub mod workflows;
 pub mod zeta;
-pub mod distributed;
 
 // Paradigm-shifting features (simplified implementation)
 pub mod paradigm_simple;
@@ -48,8 +48,8 @@ pub use runtime::actor::result;
 pub use runtime::actor::scheduler::{init_runtime, spawn};
 pub use runtime::option;
 
-use inkwell::context::Context;
 use crate::middle::ctfe::error::CtfeError;
+use inkwell::context::Context;
 
 /// Compiles a Zeta source string to executable code and runs `main()`.
 ///

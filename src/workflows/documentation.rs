@@ -1,7 +1,7 @@
 //! Documentation generation tools
 
-use std::path::Path;
 use crate::workflows::WorkflowError;
+use std::path::Path;
 
 /// Documentation format
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,16 +45,16 @@ impl DocumentationGenerator {
             license: None,
         }
     }
-    
+
     /// Load from Cargo.toml
     pub fn load_from_cargo_toml(&mut self, path: &Path) -> Result<(), WorkflowError> {
         let content = std::fs::read_to_string(path)?;
-        
+
         // Simple TOML parsing for demonstration
         // In real implementation, use toml crate
         for line in content.lines() {
             let line = line.trim();
-            
+
             if line.starts_with("name = ") {
                 if let Some(name) = line.strip_prefix("name = ") {
                     self.project_name = name.trim_matches('"').to_string();
@@ -67,7 +67,8 @@ impl DocumentationGenerator {
                 if let Some(authors_str) = line.strip_prefix("authors = ") {
                     // Parse array of authors
                     let authors_clean = authors_str.trim_matches(&['[', ']', '"'][..]);
-                    self.authors = authors_clean.split(',')
+                    self.authors = authors_clean
+                        .split(',')
                         .map(|s| s.trim().trim_matches('"').to_string())
                         .collect();
                 }
@@ -85,17 +86,21 @@ impl DocumentationGenerator {
                 }
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Generate README.md
     pub fn generate_readme(&self) -> String {
         let project_lower = self.project_name.to_lowercase();
-        let description = if self.description.is_empty() { "" } else { &self.description };
+        let description = if self.description.is_empty() {
+            ""
+        } else {
+            &self.description
+        };
         let license = self.license.as_deref().unwrap_or("MIT");
         let authors = self.authors.join("\n");
-        
+
         format!(
             r#"# {}
 
@@ -159,7 +164,7 @@ This project is licensed under the {} License - see the [LICENSE](LICENSE) file 
             authors
         )
     }
-    
+
     /// Generate API documentation
     pub fn generate_api_docs(&self) -> String {
         format!(
@@ -236,18 +241,18 @@ pub fn generate_docs(
         DocFormat::Html => {
             let docs_dir = project_root.join("docs");
             std::fs::create_dir_all(&docs_dir)?;
-            
+
             let html = generator.generate_api_docs();
             let html_path = docs_dir.join("index.html");
             std::fs::write(html_path, html)?;
-            
+
             println!("Generated HTML documentation in docs/");
         }
         DocFormat::Markdown => {
             let readme = generator.generate_readme();
             let readme_path = project_root.join("README.md");
             std::fs::write(readme_path, readme)?;
-            
+
             println!("Generated README.md");
         }
         DocFormat::Pdf => {
@@ -257,6 +262,6 @@ pub fn generate_docs(
             println!("Man page generation not yet implemented");
         }
     }
-    
+
     Ok(())
 }

@@ -1,5 +1,5 @@
 //! Formatting module for Zeta standard library.
-//! 
+//!
 //! Provides string formatting operations similar to Rust's std::fmt:
 //! - Format strings
 //! - Display and Debug traits
@@ -18,7 +18,7 @@ pub fn register_functions(map: &mut std::collections::HashMap<&'static str, usiz
     map.insert("fmt_format", fmt_format as *const () as usize);
     map.insert("fmt_debug", fmt_debug as *const () as usize);
     map.insert("fmt_display", fmt_display as *const () as usize);
-    
+
     // String formatting
     map.insert("fmt_to_string", fmt_to_string as *const () as usize);
     map.insert("fmt_write", fmt_write as *const () as usize);
@@ -55,7 +55,7 @@ impl Default for FormatSpec {
 }
 
 /// Formats a value according to a format string.
-/// 
+///
 /// # Safety
 /// format_ptr must point to valid UTF-8 string of format_len bytes.
 /// Returns a pointer to a formatted string.
@@ -64,31 +64,33 @@ pub unsafe extern "C" fn fmt_format(
     format_ptr: *const u8,
     format_len: usize,
     value: i64,
-) -> *mut u8 { unsafe {
-    let format_bytes = std::slice::from_raw_parts(format_ptr, format_len);
-    let format_str = String::from_utf8_lossy(format_bytes);
-    
-    let formatted = match format_str.as_ref() {
-        "{}" => value.to_string(),
-        "{:?}" => format!("{:?}", value),
-        "{:#x}" => format!("{:#x}", value),
-        "{:#o}" => format!("{:#o}", value),
-        "{:#b}" => format!("{:#b}", value),
-        _ => {
-            // Simple formatting - just convert to string
-            value.to_string()
-        }
-    };
-    
-    // Allocate and return formatted string
-    let boxed = formatted.into_bytes().into_boxed_slice();
-    let ptr = boxed.as_ptr();
-    std::mem::forget(boxed);
-    ptr as *mut u8
-}}
+) -> *mut u8 {
+    unsafe {
+        let format_bytes = std::slice::from_raw_parts(format_ptr, format_len);
+        let format_str = String::from_utf8_lossy(format_bytes);
+
+        let formatted = match format_str.as_ref() {
+            "{}" => value.to_string(),
+            "{:?}" => format!("{:?}", value),
+            "{:#x}" => format!("{:#x}", value),
+            "{:#o}" => format!("{:#o}", value),
+            "{:#b}" => format!("{:#b}", value),
+            _ => {
+                // Simple formatting - just convert to string
+                value.to_string()
+            }
+        };
+
+        // Allocate and return formatted string
+        let boxed = formatted.into_bytes().into_boxed_slice();
+        let ptr = boxed.as_ptr();
+        std::mem::forget(boxed);
+        ptr as *mut u8
+    }
+}
 
 /// Formats a value for debugging.
-/// 
+///
 /// # Safety
 /// Returns a pointer to a debug-formatted string.
 #[unsafe(no_mangle)]
@@ -101,7 +103,7 @@ pub unsafe extern "C" fn fmt_debug(value: i64) -> *mut u8 {
 }
 
 /// Formats a value for display.
-/// 
+///
 /// # Safety
 /// Returns a pointer to a display-formatted string.
 #[unsafe(no_mangle)]
@@ -114,7 +116,7 @@ pub unsafe extern "C" fn fmt_display(value: i64) -> *mut u8 {
 }
 
 /// Converts a value to a string.
-/// 
+///
 /// # Safety
 /// Returns a pointer to a string.
 #[unsafe(no_mangle)]
@@ -127,7 +129,7 @@ pub unsafe extern "C" fn fmt_to_string(value: i64) -> *mut u8 {
 }
 
 /// Writes formatted output to a buffer.
-/// 
+///
 /// # Safety
 /// buffer must point to valid memory of at least buffer_len bytes.
 #[unsafe(no_mangle)]
@@ -137,25 +139,27 @@ pub unsafe extern "C" fn fmt_write(
     format_ptr: *const u8,
     format_len: usize,
     value: i64,
-) -> isize { unsafe {
-    let format_bytes = std::slice::from_raw_parts(format_ptr, format_len);
-    let format_str = String::from_utf8_lossy(format_bytes);
-    
-    let formatted = match format_str.as_ref() {
-        "{}" => value.to_string(),
-        "{:?}" => format!("{:?}", value),
-        _ => value.to_string(),
-    };
-    
-    let bytes = formatted.as_bytes();
-    let len = bytes.len().min(buffer_len);
-    
-    if len > 0 {
-        std::ptr::copy_nonoverlapping(bytes.as_ptr(), buffer, len);
+) -> isize {
+    unsafe {
+        let format_bytes = std::slice::from_raw_parts(format_ptr, format_len);
+        let format_str = String::from_utf8_lossy(format_bytes);
+
+        let formatted = match format_str.as_ref() {
+            "{}" => value.to_string(),
+            "{:?}" => format!("{:?}", value),
+            _ => value.to_string(),
+        };
+
+        let bytes = formatted.as_bytes();
+        let len = bytes.len().min(buffer_len);
+
+        if len > 0 {
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), buffer, len);
+        }
+
+        len as isize
     }
-    
-    len as isize
-}}
+}
 
 // ============================================================================
 // Formatter Implementation
@@ -173,19 +177,19 @@ impl Formatter {
             buffer: String::new(),
         }
     }
-    
+
     /// Writes a string to the formatter
     pub fn write_str(&mut self, s: &str) -> fmt::Result {
         self.buffer.push_str(s);
         Ok(())
     }
-    
+
     /// Writes a character to the formatter
     pub fn write_char(&mut self, c: char) -> fmt::Result {
         self.buffer.push(c);
         Ok(())
     }
-    
+
     /// Gets the formatted result
     pub fn into_string(self) -> String {
         self.buffer

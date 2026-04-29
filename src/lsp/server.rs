@@ -4,10 +4,10 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::sync::{Arc, Mutex};
 
-use crate::lsp::protocol::{LspMessage, Request, Response, Notification};
-use crate::lsp::handlers;
-use crate::lsp::capabilities::ServerCapabilities;
 use crate::lsp::LspResult;
+use crate::lsp::capabilities::ServerCapabilities;
+use crate::lsp::handlers;
+use crate::lsp::protocol::{LspMessage, Notification, Request, Response};
 
 /// LSP server state
 #[derive(Debug)]
@@ -48,49 +48,48 @@ impl LspServer {
     /// Run the LSP server on stdin/stdout
     pub fn run(&self) -> LspResult<()> {
         log::info!("Starting Zeta LSP server");
-        
+
         let stdin = std::io::stdin();
         let stdout = std::io::stdout();
-        
+
         let reader = BufReader::new(stdin);
-        
+
         for line in reader.lines() {
             let line = line.map_err(|e| {
                 crate::lsp::LspError::Protocol(format!("Failed to read line: {}", e))
             })?;
-            
+
             if line.is_empty() {
                 continue;
             }
-            
+
             // Parse the LSP message
             let message: LspMessage = serde_json::from_str(&line).map_err(|e| {
                 crate::lsp::LspError::Protocol(format!("Failed to parse JSON: {}", e))
             })?;
-            
+
             // Handle the message
             let response = self.handle_message(message)?;
-            
+
             // Send response if any
             if let Some(response) = response {
                 let json = serde_json::to_string(&response).map_err(|e| {
                     crate::lsp::LspError::Protocol(format!("Failed to serialize response: {}", e))
                 })?;
-                
+
                 let mut writer = stdout.lock();
-                writeln!(writer, "Content-Length: {}\r\n\r\n{}", json.len(), json)
-                    .map_err(|e| {
-                        crate::lsp::LspError::Protocol(format!("Failed to write response: {}", e))
-                    })?;
+                writeln!(writer, "Content-Length: {}\r\n\r\n{}", json.len(), json).map_err(
+                    |e| crate::lsp::LspError::Protocol(format!("Failed to write response: {}", e)),
+                )?;
                 writer.flush().map_err(|e| {
                     crate::lsp::LspError::Protocol(format!("Failed to flush output: {}", e))
                 })?;
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Handle an LSP message
     fn handle_message(&self, message: LspMessage) -> LspResult<Option<Response>> {
         match message {
@@ -106,13 +105,14 @@ impl LspServer {
             }
         }
     }
-    
+
     /// Handle an LSP request
     fn handle_request(&self, request: Request) -> LspResult<Option<Response>> {
-        let state = self.state.lock().map_err(|e| {
-            crate::lsp::LspError::Internal(format!("Failed to lock state: {}", e))
-        })?;
-        
+        let state = self
+            .state
+            .lock()
+            .map_err(|e| crate::lsp::LspError::Internal(format!("Failed to lock state: {}", e)))?;
+
         match request.method.as_str() {
             "initialize" => handlers::handle_initialize(request, &state),
             "textDocument/completion" => handlers::handle_completion(request, &state),
@@ -132,13 +132,14 @@ impl LspServer {
             }
         }
     }
-    
+
     /// Handle an LSP notification
     fn handle_notification(&self, notification: Notification) -> LspResult<()> {
-        let mut state = self.state.lock().map_err(|e| {
-            crate::lsp::LspError::Internal(format!("Failed to lock state: {}", e))
-        })?;
-        
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|e| crate::lsp::LspError::Internal(format!("Failed to lock state: {}", e)))?;
+
         match notification.method.as_str() {
             "initialized" => handlers::handle_initialized(&mut state),
             "textDocument/didOpen" => handlers::handle_did_open(notification, &mut state),

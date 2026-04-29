@@ -31,7 +31,7 @@ impl ConstValue {
             ConstValue::Unit => "unit",
         }
     }
-    
+
     /// Try to convert to bool
     pub fn as_bool(&self) -> Option<bool> {
         match self {
@@ -39,7 +39,7 @@ impl ConstValue {
             _ => None,
         }
     }
-    
+
     /// Try to convert to signed integer
     pub fn as_int(&self) -> Option<i64> {
         match self {
@@ -47,7 +47,7 @@ impl ConstValue {
             _ => None,
         }
     }
-    
+
     /// Try to convert to unsigned integer
     pub fn as_uint(&self) -> Option<u64> {
         match self {
@@ -55,7 +55,7 @@ impl ConstValue {
             _ => None,
         }
     }
-    
+
     /// Try to convert to array
     pub fn as_array(&self) -> Option<&Vec<ConstValue>> {
         match self {
@@ -63,7 +63,7 @@ impl ConstValue {
             _ => None,
         }
     }
-    
+
     /// Get element at index in an array. Returns error if not array or index OOB.
     pub fn array_index(&self, index: usize) -> CtfeResult<&ConstValue> {
         match self {
@@ -71,7 +71,10 @@ impl ConstValue {
                 if index < elements.len() {
                     Ok(&elements[index])
                 } else {
-                    Err(CtfeError::IndexOutOfBounds { index, length: elements.len() })
+                    Err(CtfeError::IndexOutOfBounds {
+                        index,
+                        length: elements.len(),
+                    })
                 }
             }
             ConstValue::IntArray(elements) => {
@@ -81,7 +84,10 @@ impl ConstValue {
                     let leaked = Box::leak(Box::new(ConstValue::Int(elements[index])));
                     Ok(leaked)
                 } else {
-                    Err(CtfeError::IndexOutOfBounds { index, length: elements.len() })
+                    Err(CtfeError::IndexOutOfBounds {
+                        index,
+                        length: elements.len(),
+                    })
                 }
             }
             _ => Err(CtfeError::TypeMismatch {
@@ -99,7 +105,10 @@ impl ConstValue {
                 if index < elements.len() {
                     Ok(ConstValue::Int(elements[index]))
                 } else {
-                    Err(CtfeError::IndexOutOfBounds { index, length: elements.len() })
+                    Err(CtfeError::IndexOutOfBounds {
+                        index,
+                        length: elements.len(),
+                    })
                 }
             }
             _ => Err(CtfeError::TypeMismatch {
@@ -108,7 +117,7 @@ impl ConstValue {
             }),
         }
     }
-    
+
     /// Set element at index in an array. Mutates in-place. Returns error if not array or index OOB.
     pub fn array_set(&mut self, index: usize, value: ConstValue) -> CtfeResult<()> {
         match self {
@@ -117,7 +126,10 @@ impl ConstValue {
                     elements[index] = value;
                     Ok(())
                 } else {
-                    Err(CtfeError::IndexOutOfBounds { index, length: elements.len() })
+                    Err(CtfeError::IndexOutOfBounds {
+                        index,
+                        length: elements.len(),
+                    })
                 }
             }
             ConstValue::IntArray(elements) => {
@@ -134,7 +146,10 @@ impl ConstValue {
                         }),
                     }
                 } else {
-                    Err(CtfeError::IndexOutOfBounds { index, length: elements.len() })
+                    Err(CtfeError::IndexOutOfBounds {
+                        index,
+                        length: elements.len(),
+                    })
                 }
             }
             _ => Err(CtfeError::TypeMismatch {
@@ -152,21 +167,18 @@ impl ConstValue {
             _ => None,
         }
     }
-    
+
     /// Perform a binary operation
     pub fn binary_op(&self, op: &str, right: &Self) -> CtfeResult<Self> {
         match (self, right) {
             (ConstValue::Int(left_val), ConstValue::Int(right_val)) => {
-                Self::binary_op_int(*left_val, op, *right_val)
-                    .map(ConstValue::Int)
+                Self::binary_op_int(*left_val, op, *right_val).map(ConstValue::Int)
             }
             (ConstValue::UInt(left_val), ConstValue::UInt(right_val)) => {
-                Self::binary_op_uint(*left_val, op, *right_val)
-                    .map(ConstValue::UInt)
+                Self::binary_op_uint(*left_val, op, *right_val).map(ConstValue::UInt)
             }
             (ConstValue::Bool(left_val), ConstValue::Bool(right_val)) => {
-                Self::binary_op_bool(*left_val, op, *right_val)
-                    .map(ConstValue::Bool)
+                Self::binary_op_bool(*left_val, op, *right_val).map(ConstValue::Bool)
             }
             (ConstValue::IntArray(_), _) | (_, ConstValue::IntArray(_)) => {
                 Err(CtfeError::InvalidOperation {
@@ -182,7 +194,7 @@ impl ConstValue {
             }),
         }
     }
-    
+
     /// Perform a unary operation
     pub fn unary_op(&self, op: &str) -> CtfeResult<Self> {
         match self {
@@ -217,7 +229,7 @@ impl ConstValue {
             _ => None,
         }
     }
-    
+
     /// Binary operation for signed integers
     fn binary_op_int(left: i64, op: &str, right: i64) -> CtfeResult<i64> {
         match op {
@@ -267,7 +279,7 @@ impl ConstValue {
             ))),
         }
     }
-    
+
     /// Binary operation for unsigned integers
     fn binary_op_uint(left: u64, op: &str, right: u64) -> CtfeResult<u64> {
         match op {
@@ -305,7 +317,7 @@ impl ConstValue {
             ))),
         }
     }
-    
+
     /// Binary operation for booleans
     fn binary_op_bool(left: bool, op: &str, right: bool) -> CtfeResult<bool> {
         match op {
@@ -319,7 +331,7 @@ impl ConstValue {
             ))),
         }
     }
-    
+
     /// Unary operation for signed integers
     fn unary_op_int(val: i64, op: &str) -> CtfeResult<i64> {
         match op {
@@ -331,7 +343,7 @@ impl ConstValue {
             ))),
         }
     }
-    
+
     /// Unary operation for unsigned integers
     fn unary_op_uint(val: u64, op: &str) -> CtfeResult<u64> {
         match op {
@@ -342,7 +354,7 @@ impl ConstValue {
             ))),
         }
     }
-    
+
     /// Unary operation for booleans
     fn unary_op_bool(val: bool, op: &str) -> CtfeResult<bool> {
         match op {

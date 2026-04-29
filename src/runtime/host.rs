@@ -592,19 +592,19 @@ pub unsafe extern "C" fn array_push(arr_ptr: i64, value: i64) {
         return;
     }
     let arr = &mut *(arr_ptr as *mut DynamicArray);
-    
+
     // Resize if needed
     if arr.length >= arr.capacity {
         let new_capacity = if arr.capacity == 0 { 4 } else { arr.capacity * 2 };
         let new_size = (new_capacity as usize) * std::mem::size_of::<i64>();
         let new_data = std_malloc(new_size) as *mut i64;
-        
+
         // Check if allocation succeeded
         if new_data.is_null() {
             // Allocation failed - cannot resize
             return;
         }
-        
+
         if !arr.data.is_null() {
             // Copy existing data
             ptr::copy_nonoverlapping(arr.data, new_data, arr.length as usize);
@@ -612,11 +612,11 @@ pub unsafe extern "C" fn array_push(arr_ptr: i64, value: i64) {
             // TODO: Need to track allocation size to free properly
             // std_free(arr.data as usize);
         }
-        
+
         arr.data = new_data;
         arr.capacity = new_capacity;
     }
-    
+
     // Add new element
     unsafe {
         *arr.data.offset(arr.length as isize) = value;

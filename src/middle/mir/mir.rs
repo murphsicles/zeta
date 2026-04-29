@@ -97,7 +97,7 @@ pub enum MirStmt {
     },
     // While loop
     While {
-        cond: u32,       // Condition expression
+        cond: u32, // Condition expression
         body: Vec<MirStmt>,
     },
     // Break out of the current while loop (no-op in MIR gen, handled in codegen)

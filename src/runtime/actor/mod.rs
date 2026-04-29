@@ -4,7 +4,9 @@ pub mod channel;
 pub mod map;
 pub mod result;
 pub mod scheduler;
-pub use advanced::{Actor, ActorContext, ActorId, ActorMessage, ActorState, ActorSystem, EchoActor, WorkerActor};
+pub use advanced::{
+    Actor, ActorContext, ActorId, ActorMessage, ActorState, ActorSystem, EchoActor, WorkerActor,
+};
 pub use channel::{Channel, host_channel_recv, host_channel_send};
 pub use map::{host_map_free, host_map_get, host_map_insert, host_map_new};
 pub use result::{

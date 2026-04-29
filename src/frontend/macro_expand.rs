@@ -93,7 +93,7 @@ impl MacroExpander {
             // Simple format string handling
             // Count placeholders
             let placeholder_count = format_str.matches("{}").count();
-            
+
             if args.len() - 1 != placeholder_count {
                 return Err(format!(
                     "println! format string expects {} arguments, got {}",
@@ -112,7 +112,11 @@ impl MacroExpander {
             args.to_vec()
         };
 
-        let call = if value_args.len() == 1 && matches!(&value_args[0], AstNode::Var(_) | AstNode::Lit(_) | AstNode::Call { .. }) {
+        let call = if value_args.len() == 1
+            && matches!(
+                &value_args[0],
+                AstNode::Var(_) | AstNode::Lit(_) | AstNode::Call { .. }
+            ) {
             // Simple single-value println: generate void call directly to println_i64
             AstNode::Call {
                 receiver: None,
@@ -144,32 +148,32 @@ impl MacroExpander {
         // In a full implementation, this would create a Vec<T>
         Ok(vec![AstNode::ArrayLit(args.to_vec())])
     }
-    
+
     /// Expand format! macro
     fn expand_format(&self, args: &[AstNode]) -> Result<Vec<AstNode>, String> {
         if args.is_empty() {
             return Err("format! requires at least a format string".to_string());
         }
-        
+
         // Simple expansion: format!("Hello {}", name) -> String concatenation
         // For now, just create a string literal with placeholder
         let result = AstNode::StringLit("formatted string".to_string());
         Ok(vec![result])
     }
-    
+
     /// Expand assert_eq! macro
     fn expand_assert_eq(&self, args: &[AstNode]) -> Result<Vec<AstNode>, String> {
         if args.len() != 2 {
             return Err("assert_eq! requires exactly 2 arguments".to_string());
         }
-        
+
         // Create an if statement that panics if the values are not equal
         let condition = AstNode::BinaryOp {
             op: "!=".to_string(),
             left: Box::new(args[0].clone()),
             right: Box::new(args[1].clone()),
         };
-        
+
         let panic_call = AstNode::Call {
             receiver: None,
             method: "panic".to_string(),
@@ -177,7 +181,7 @@ impl MacroExpander {
             type_args: Vec::new(),
             structural: false,
         };
-        
+
         let if_stmt = AstNode::If {
             cond: Box::new(condition),
             then: vec![AstNode::ExprStmt {
@@ -185,7 +189,7 @@ impl MacroExpander {
             }],
             else_: Vec::new(),
         };
-        
+
         Ok(vec![if_stmt])
     }
 
@@ -201,14 +205,14 @@ impl MacroExpander {
                 return self.expand_with_bindings(&pattern.expansion, &bindings);
             }
         }
-        
+
         Err(format!(
             "No matching pattern found for macro: {} with {} arguments",
             macro_def.name,
             args.len()
         ))
     }
-    
+
     /// Match macro pattern against arguments
     fn match_pattern(
         &self,
@@ -218,14 +222,14 @@ impl MacroExpander {
         let mut bindings = HashMap::new();
         let mut pattern_idx = 0;
         let mut args_idx = 0;
-        
+
         while pattern_idx < pattern.len() && args_idx < args.len() {
             match &pattern[pattern_idx] {
                 MacroToken::Ident(name) => {
                     // Check if it's a pattern variable like $x:expr
                     if name.starts_with('$') {
                         let var_name = &name[1..]; // Remove $
-                        
+
                         // Check for fragment specifier
                         let specifier = if let Some(colon_idx) = var_name.find(':') {
                             let spec = &var_name[colon_idx + 1..];
@@ -233,7 +237,7 @@ impl MacroExpander {
                         } else {
                             var_name
                         };
-                        
+
                         // For now, bind the next argument
                         if args_idx < args.len() {
                             bindings.insert(specifier.to_string(), vec![args[args_idx].clone()]);
@@ -255,20 +259,20 @@ impl MacroExpander {
                 MacroToken::Repetition(rep_pattern, separator, min, max) => {
                     // Handle repetition
                     let mut matched_args = Vec::new();
-                    
+
                     while args_idx < args.len() {
                         // Try to match one instance of the repetition pattern
                         // For now, just take one argument
                         matched_args.push(args[args_idx].clone());
                         args_idx += 1;
-                        
+
                         // Check for separator
                         if args_idx < args.len() {
                             // Skip separator in args
                             args_idx += 1;
                         }
                     }
-                    
+
                     // Check repetition bounds
                     let count = matched_args.len();
                     if let Some(min_count) = min {
@@ -281,7 +285,7 @@ impl MacroExpander {
                             return None;
                         }
                     }
-                    
+
                     // Store the matched arguments
                     // For now, use a placeholder name
                     bindings.insert("repetition".to_string(), matched_args);
@@ -293,7 +297,7 @@ impl MacroExpander {
                 }
             }
         }
-        
+
         // Check if we consumed all pattern tokens and arguments
         if pattern_idx == pattern.len() && args_idx == args.len() {
             Some(bindings)
@@ -301,7 +305,7 @@ impl MacroExpander {
             None
         }
     }
-    
+
     /// Expand macro expansion with bindings
     fn expand_with_bindings(
         &self,
@@ -309,7 +313,7 @@ impl MacroExpander {
         bindings: &HashMap<String, Vec<AstNode>>,
     ) -> Result<Vec<AstNode>, String> {
         let mut result = Vec::new();
-        
+
         for token in expansion {
             match token {
                 MacroToken::Ident(name) => {
@@ -318,7 +322,10 @@ impl MacroExpander {
                         if let Some(bound_args) = bindings.get(var_name) {
                             result.extend(bound_args.clone());
                         } else {
-                            return Err(format!("Unbound variable in macro expansion: ${}", var_name));
+                            return Err(format!(
+                                "Unbound variable in macro expansion: ${}",
+                                var_name
+                            ));
                         }
                     } else {
                         // TODO: Handle literal identifiers in expansion
@@ -347,7 +354,7 @@ impl MacroExpander {
                 }
             }
         }
-        
+
         Ok(result)
     }
 }

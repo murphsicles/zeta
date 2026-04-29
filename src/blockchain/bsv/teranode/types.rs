@@ -1,6 +1,6 @@
 //! Data types for Teranode RPC communication
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// RPC request structure

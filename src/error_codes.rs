@@ -412,7 +412,9 @@ impl ErrorCodeRegistry {
                 code: "W4001".to_string(),
                 category: ErrorCategory::Codegen,
                 description: "Inefficient code pattern".to_string(),
-                example: Some("`String::new() + \"text\"` instead of `\"text\".to_string()`".to_string()),
+                example: Some(
+                    "`String::new() + \"text\"` instead of `\"text\".to_string()`".to_string(),
+                ),
                 suggestion: Some("Use more efficient alternative".to_string()),
             },
         );

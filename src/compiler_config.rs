@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use crate::diagnostics::{WarningLevel, DiagnosticReporter};
+use crate::diagnostics::{DiagnosticReporter, WarningLevel};
 use crate::middle::optimization::OptLevel;
 
 /// Compiler configuration
@@ -14,52 +14,52 @@ use crate::middle::optimization::OptLevel;
 pub struct CompilerConfig {
     /// Input file path
     pub input_file: Option<PathBuf>,
-    
+
     /// Output file path
     pub output_file: Option<PathBuf>,
-    
+
     /// Optimization level
     pub opt_level: OptLevel,
-    
+
     /// Emit LLVM IR instead of binary
     pub emit_llvm: bool,
-    
+
     /// Emit assembly instead of binary
     pub emit_asm: bool,
-    
+
     /// Target triple (e.g., "x86_64-unknown-linux-gnu")
     pub target_triple: Option<String>,
-    
+
     /// Warning level configuration
     pub warning_level: WarningLevel,
-    
+
     /// Specific warning configurations
     pub warning_config: HashMap<String, WarningLevel>,
-    
+
     /// Enable debug information
     pub debug_info: bool,
-    
+
     /// Enable incremental compilation
     pub incremental: bool,
-    
+
     /// Enable color in diagnostics
     pub color_diagnostics: bool,
-    
+
     /// Enable verbose output
     pub verbose: bool,
-    
+
     /// Additional include paths
     pub include_paths: Vec<PathBuf>,
-    
+
     /// Define macros
     pub defines: HashMap<String, Option<String>>,
-    
+
     /// Enable sanitizers
     pub sanitizers: Vec<Sanitizer>,
-    
+
     /// Enable link-time optimization
     pub lto: bool,
-    
+
     /// Enable profile-guided optimization
     pub pgo: bool,
 }
@@ -102,12 +102,12 @@ impl CompilerConfig {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     /// Parse command-line arguments
     pub fn from_args(args: &[String]) -> Result<Self, String> {
         let mut config = Self::new();
         let mut i = 0;
-        
+
         while i < args.len() {
             match args[i].as_str() {
                 "-o" => {
@@ -149,7 +149,9 @@ impl CompilerConfig {
                 "-Wno-" => {
                     i += 1;
                     if i < args.len() {
-                        config.warning_config.insert(args[i].clone(), WarningLevel::Allow);
+                        config
+                            .warning_config
+                            .insert(args[i].clone(), WarningLevel::Allow);
                     } else {
                         return Err("Missing argument for -Wno-".to_string());
                     }
@@ -157,7 +159,9 @@ impl CompilerConfig {
                 "-Werror-" => {
                     i += 1;
                     if i < args.len() {
-                        config.warning_config.insert(args[i].clone(), WarningLevel::Deny);
+                        config
+                            .warning_config
+                            .insert(args[i].clone(), WarningLevel::Deny);
                     } else {
                         return Err("Missing argument for -Werror-".to_string());
                     }
@@ -179,7 +183,9 @@ impl CompilerConfig {
                     if i < args.len() {
                         let def = args[i].clone();
                         if let Some((name, value)) = def.split_once('=') {
-                            config.defines.insert(name.to_string(), Some(value.to_string()));
+                            config
+                                .defines
+                                .insert(name.to_string(), Some(value.to_string()));
                         } else {
                             config.defines.insert(def, None);
                         }
@@ -220,10 +226,10 @@ impl CompilerConfig {
             }
             i += 1;
         }
-        
+
         Ok(config)
     }
-    
+
     /// Get help text
     pub fn help_text() -> String {
         r#"Zeta Compiler v0.3.38 - Compiler Improvements Release
@@ -260,14 +266,14 @@ Examples:
   zeta -O2 -o program program.z
   zeta --emit-llvm --target wasm32-unknown-unknown program.z
   zeta -W error -g program.z
-"#.to_string()
+"#
+        .to_string()
     }
-    
+
     /// Create a diagnostic reporter configured with warning settings
     pub fn create_diagnostic_reporter(&self) -> DiagnosticReporter {
-        let mut reporter = DiagnosticReporter::new()
-            .with_warning_level(self.warning_level);
-        
+        let mut reporter = DiagnosticReporter::new().with_warning_level(self.warning_level);
+
         // Apply specific warning configurations
         for (code, level) in &self.warning_config {
             // Convert WarningLevel to the diagnostic WarningLevel
@@ -277,37 +283,37 @@ Examples:
                 WarningLevel::Deny => crate::diagnostics::WarningLevel::Deny,
                 WarningLevel::Forbid => crate::diagnostics::WarningLevel::Forbid,
             };
-            
+
             // Get description from error codes if available
             let description = crate::error_codes::ERROR_CODES
                 .get(code)
                 .map(|ec| ec.description.clone())
                 .unwrap_or_else(|| format!("Warning {}", code));
-            
+
             reporter.configure_warning(code, diag_level, &description);
         }
-        
+
         reporter
     }
-    
+
     /// Check if configuration is valid
     pub fn validate(&self) -> Result<(), String> {
         if self.input_file.is_none() {
             return Err("No input file specified".to_string());
         }
-        
+
         // Check for conflicting options
         if self.emit_llvm && self.emit_asm {
             return Err("Cannot emit both LLVM IR and assembly".to_string());
         }
-        
+
         // Check target triple format if specified
         if let Some(triple) = &self.target_triple {
             if triple.split('-').count() < 3 {
                 return Err(format!("Invalid target triple: {}", triple));
             }
         }
-        
+
         Ok(())
     }
 }
@@ -317,13 +323,13 @@ Examples:
 pub struct BuildConfig {
     /// Build directory for incremental compilation artifacts
     pub build_dir: PathBuf,
-    
+
     /// Cache directory for compiled modules
     pub cache_dir: PathBuf,
-    
+
     /// Whether to force rebuild
     pub force_rebuild: bool,
-    
+
     /// Maximum cache size in bytes
     pub max_cache_size: u64,
 }
@@ -344,13 +350,13 @@ impl Default for BuildConfig {
 pub struct PGOConfig {
     /// Directory for PGO profiles
     pub profile_dir: PathBuf,
-    
+
     /// Generate instrumentation for profiling
     pub gen_profile: bool,
-    
+
     /// Use existing profile data
     pub use_profile: bool,
-    
+
     /// Profile data files
     pub profile_files: Vec<PathBuf>,
 }

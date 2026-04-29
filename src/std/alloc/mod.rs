@@ -2,13 +2,13 @@
 //! Provides malloc, free, calloc, and realloc functions.
 
 use crate::runtime::std;
-use core::mem;
-use core::cmp;
-use core::ptr;
 use ::std::collections::HashMap;
+use core::cmp;
+use core::mem;
+use core::ptr;
 
 /// Allocates memory for `count` elements of type `T`.
-/// 
+///
 /// # Safety
 /// This function is unsafe because it returns a raw pointer.
 /// The caller must ensure:
@@ -21,7 +21,7 @@ pub unsafe extern "C" fn malloc<T>(count: usize) -> *mut T {
 }
 
 /// Allocates zero-initialized memory for `count` elements of type `T`.
-/// 
+///
 /// # Safety
 /// This function is unsafe because it returns a raw pointer.
 /// The caller must ensure:
@@ -38,7 +38,7 @@ pub unsafe extern "C" fn calloc<T>(count: usize) -> *mut T {
 }
 
 /// Reallocates memory previously allocated with `malloc` or `calloc`.
-/// 
+///
 /// # Safety
 /// This function is unsafe because:
 /// - `ptr` must be a pointer previously returned by `malloc` or `calloc`
@@ -59,16 +59,14 @@ pub unsafe extern "C" fn realloc<T>(ptr: *mut T, new_count: usize) -> *mut T {
 }
 
 /// Frees memory allocated by `malloc`, `calloc`, or `realloc`.
-/// 
+///
 /// # Safety
 /// This function is unsafe because:
 /// - `ptr` must be a pointer previously returned by allocation functions
 /// - The memory must not be used after this call
 /// - No double-free should occur
 pub unsafe extern "C" fn free<T>(ptr: *mut T) {
-    unsafe {
-        std::std_free(ptr as *mut u8 as usize)
-    }
+    unsafe { std::std_free(ptr as *mut u8 as usize) }
 }
 
 /// Initializes the alloc module.
@@ -82,6 +80,6 @@ pub fn register_functions(map: &mut HashMap<&'static str, usize>) {
     // For now, we'll register the non-generic versions
     map.insert("malloc", std::std_malloc as *const () as usize);
     map.insert("free", std::std_free as *const () as usize);
-    
+
     // We'll need to handle generic instantiation separately
 }

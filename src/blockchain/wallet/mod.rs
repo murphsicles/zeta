@@ -11,10 +11,10 @@ pub use bip39::*;
 pub use encryption::*;
 pub use storage::*;
 
-use crate::blockchain::common::error::BlockchainError;
-use crate::blockchain::common::config::BlockchainConfig;
-use crate::blockchain::common::types::{DerivationPath, Network, Address, KeyPair};
 use crate::blockchain::bsv::keys::BtcKeyPair;
+use crate::blockchain::common::config::BlockchainConfig;
+use crate::blockchain::common::error::BlockchainError;
+use crate::blockchain::common::types::{Address, DerivationPath, KeyPair, Network};
 use crate::blockchain::solana::address::SolanaAddress;
 
 /// Main wallet structure
@@ -54,15 +54,19 @@ pub struct DefaultPaths {
 
 impl Wallet {
     /// Create new wallet from mnemonic
-    pub fn new(mnemonic: &str, password: &str, config: WalletConfig) -> Result<Self, BlockchainError> {
+    pub fn new(
+        mnemonic: &str,
+        password: &str,
+        config: WalletConfig,
+    ) -> Result<Self, BlockchainError> {
         log::debug!("Creating new wallet from mnemonic");
-        
+
         // Generate seed from mnemonic
         let seed = bip39::mnemonic_to_seed(mnemonic, password)?;
-        
+
         // Encrypt the seed
         let (encrypted_seed, salt) = encryption::encrypt_seed(&seed, password)?;
-        
+
         Ok(Self {
             master_seed: encrypted_seed,
             salt,
@@ -70,46 +74,59 @@ impl Wallet {
             key_cache: std::collections::HashMap::new(),
         })
     }
-    
+
     /// Generate new wallet with random mnemonic
-    pub fn generate(word_count: usize, password: &str, config: WalletConfig) -> Result<(Self, String), BlockchainError> {
+    pub fn generate(
+        word_count: usize,
+        password: &str,
+        config: WalletConfig,
+    ) -> Result<(Self, String), BlockchainError> {
         log::debug!("Generating new wallet with {} words", word_count);
-        
+
         // Generate mnemonic
         let mnemonic = bip39::generate_mnemonic(word_count)?;
-        
+
         // Create wallet from mnemonic
         let wallet = Self::new(&mnemonic, password, config)?;
-        
+
         Ok((wallet, mnemonic))
     }
-    
+
     /// Derive key for specific path
-    pub fn derive_key(&mut self, path: &DerivationPath, password: &str) -> Result<KeyPair, BlockchainError> {
+    pub fn derive_key(
+        &mut self,
+        path: &DerivationPath,
+        password: &str,
+    ) -> Result<KeyPair, BlockchainError> {
         let cache_key = path.to_string();
-        
+
         // Check cache first
         if let Some(key) = self.key_cache.get(&cache_key) {
             return Ok(key.clone());
         }
-        
+
         // Decrypt master seed
         let seed = encryption::decrypt_seed(&self.master_seed, password, &self.salt)?;
-        
+
         // Derive key from seed
         let key = bip39::derive_key_from_seed(&seed, path)?;
-        
+
         // Cache the key
         self.key_cache.insert(cache_key, key.clone());
-        
+
         Ok(key)
     }
-    
+
     /// Get address for derivation path
-    pub fn get_address(&mut self, path: &DerivationPath, network: Network, password: &str) -> Result<Address, BlockchainError> {
+    pub fn get_address(
+        &mut self,
+        path: &DerivationPath,
+        network: Network,
+        password: &str,
+    ) -> Result<Address, BlockchainError> {
         // Derive the key
         let key = self.derive_key(path, password)?;
-        
+
         // Create address based on network
         match network {
             Network::BsvMainnet | Network::BsvTestnet | Network::BsvStn => {
@@ -126,72 +143,89 @@ impl Wallet {
             }
         }
     }
-    
+
     /// Sign message with key from derivation path
-    pub fn sign_message(&mut self, message: &[u8], path: &DerivationPath, password: &str) -> Result<Vec<u8>, BlockchainError> {
+    pub fn sign_message(
+        &mut self,
+        message: &[u8],
+        path: &DerivationPath,
+        password: &str,
+    ) -> Result<Vec<u8>, BlockchainError> {
         // Derive the key
         let key = self.derive_key(path, password)?;
-        
+
         // Sign based on network (determined from coin type in path)
-        if path.coin_type == 236 { // BSV
+        if path.coin_type == 236 {
+            // BSV
             use crate::blockchain::bsv::keys::Bitcoin_Key_sign;
-            
+
             // Hash the message first
-            use sha2::{Sha256, Digest};
+            use sha2::{Digest, Sha256};
             let hash = Sha256::digest(message);
-            
+
             Bitcoin_Key_sign(&hash, &key.private_key)
-        } else if path.coin_type == 501 { // Solana
+        } else if path.coin_type == 501 {
+            // Solana
             // Solana uses Ed25519
-            use ed25519_dalek::{SigningKey, Signature};
-            
-            let signing_key = SigningKey::from_bytes(&key.private_key[..32].try_into()
-                .map_err(|_| BlockchainError::crypto("Invalid private key length"))?);
-            
+            use ed25519_dalek::{Signature, SigningKey};
+
+            let signing_key = SigningKey::from_bytes(
+                &key.private_key[..32]
+                    .try_into()
+                    .map_err(|_| BlockchainError::crypto("Invalid private key length"))?,
+            );
+
             let signature = signing_key.sign(message);
             Ok(signature.to_bytes().to_vec())
         } else {
-            Err(BlockchainError::key(format!("Unsupported coin type: {}", path.coin_type)))
+            Err(BlockchainError::key(format!(
+                "Unsupported coin type: {}",
+                path.coin_type
+            )))
         }
     }
-    
+
     /// Save wallet to file
     pub fn save(&self, path: &str, password: &str) -> Result<(), BlockchainError> {
         storage::save_wallet(self, path, password)
     }
-    
+
     /// Load wallet from file
     pub fn load(path: &str, password: &str) -> Result<Self, BlockchainError> {
         storage::load_wallet(path, password)
     }
-    
+
     /// Change wallet password
-    pub fn change_password(&mut self, old_password: &str, new_password: &str) -> Result<(), BlockchainError> {
+    pub fn change_password(
+        &mut self,
+        old_password: &str,
+        new_password: &str,
+    ) -> Result<(), BlockchainError> {
         log::debug!("Changing wallet password");
-        
+
         // Decrypt with old password
         let seed = encryption::decrypt_seed(&self.master_seed, old_password, &self.salt)?;
-        
+
         // Re-encrypt with new password
         let (new_encrypted_seed, new_salt) = encryption::encrypt_seed(&seed, new_password)?;
-        
+
         // Update wallet
         self.master_seed = new_encrypted_seed;
         self.salt = new_salt;
-        
+
         // Clear key cache
         self.key_cache.clear();
-        
+
         Ok(())
     }
-    
+
     /// Lock wallet (clear sensitive data from memory)
     pub fn lock(&mut self) {
         log::debug!("Locking wallet");
         self.key_cache.clear();
         // Note: master_seed remains encrypted
     }
-    
+
     /// Check if wallet is locked
     pub fn is_locked(&self) -> bool {
         self.key_cache.is_empty()
@@ -201,17 +235,17 @@ impl Wallet {
 /// Initialize wallet module
 pub fn init(config: &BlockchainConfig) -> Result<(), BlockchainError> {
     log::debug!("Initializing wallet module");
-    
+
     if !config.wallet.enabled {
         log::info!("Wallet module disabled in configuration");
         return Ok(());
     }
-    
+
     // Initialize submodules
     bip39::init()?;
     encryption::init()?;
     storage::init(config)?;
-    
+
     log::info!("Wallet module initialized successfully");
     Ok(())
 }
@@ -219,9 +253,9 @@ pub fn init(config: &BlockchainConfig) -> Result<(), BlockchainError> {
 /// Shutdown wallet module
 pub fn shutdown() -> Result<(), BlockchainError> {
     log::debug!("Shutting down wallet module");
-    
+
     storage::shutdown()?;
-    
+
     log::info!("Wallet module shutdown complete");
     Ok(())
 }

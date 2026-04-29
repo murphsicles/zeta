@@ -14,10 +14,10 @@ use std::fmt;
 pub struct VersionReq {
     /// The parsed requirement string
     pub req: String,
-    
+
     /// Optional comparator (e.g., "^", "~", ">=", etc.)
     pub comparator: Option<Comparator>,
-    
+
     /// Version components
     pub version: Version,
 }
@@ -46,16 +46,16 @@ pub enum Comparator {
 pub struct Version {
     /// Major version
     pub major: u64,
-    
+
     /// Minor version
     pub minor: u64,
-    
+
     /// Patch version
     pub patch: u64,
-    
+
     /// Pre-release identifier
     pub pre: Option<String>,
-    
+
     /// Build metadata
     pub build: Option<String>,
 }
@@ -65,16 +65,16 @@ pub struct Version {
 pub struct Dependency {
     /// Dependency name
     pub name: String,
-    
+
     /// Resolved version
     pub version: Version,
-    
+
     /// Source of the dependency (crates.io, git, path)
     pub source: DependencySource,
-    
+
     /// Features to enable
     pub features: Vec<String>,
-    
+
     /// Whether this is optional
     pub optional: bool,
 }
@@ -84,7 +84,7 @@ pub struct Dependency {
 pub enum DependencySource {
     /// From crates.io registry
     Registry,
-    
+
     /// From Git repository
     Git {
         /// Repository URL
@@ -96,7 +96,7 @@ pub enum DependencySource {
         /// Optional revision
         rev: Option<String>,
     },
-    
+
     /// Local path
     Path(String),
 }
@@ -106,7 +106,7 @@ pub enum DependencySource {
 pub struct DependencyNode {
     /// The dependency
     pub dependency: Dependency,
-    
+
     /// Direct dependencies of this node
     pub dependencies: Vec<String>,
 }
@@ -116,7 +116,7 @@ pub struct DependencyNode {
 pub struct DependencyGraph {
     /// Nodes in the graph, keyed by package name
     pub nodes: HashMap<String, DependencyNode>,
-    
+
     /// Root dependencies
     pub roots: Vec<String>,
 }
@@ -125,11 +125,11 @@ impl VersionReq {
     /// Parse a version requirement string
     pub fn parse(req: &str) -> Result<Self, String> {
         let req = req.trim();
-        
+
         if req.is_empty() {
             return Err("Empty version requirement".to_string());
         }
-        
+
         // Parse comparator if present
         let (comparator, version_str) = if req.starts_with('^') {
             (Some(Comparator::Compatible), &req[1..])
@@ -152,17 +152,17 @@ impl VersionReq {
         } else {
             (None, req)
         };
-        
+
         // Parse version
         let version = Version::parse(version_str)?;
-        
+
         Ok(Self {
             req: req.to_string(),
             comparator,
             version,
         })
     }
-    
+
     /// Check if a version satisfies this requirement
     pub fn matches(&self, version: &Version) -> bool {
         match self.comparator {
@@ -192,37 +192,37 @@ impl Version {
     /// Parse a semantic version string
     pub fn parse(version: &str) -> Result<Self, String> {
         let version = version.trim();
-        
+
         if version.is_empty() {
             return Err("Empty version string".to_string());
         }
-        
+
         // Split version and pre-release/build metadata
         let mut parts = version.splitn(2, '-');
         let version_part = parts.next().unwrap();
         let pre_part = parts.next();
-        
+
         let mut pre = None;
         let mut build = None;
-        
+
         if let Some(pre_str) = pre_part {
             // Split pre-release and build metadata
             let mut pre_parts = pre_str.splitn(2, '+');
             pre = Some(pre_parts.next().unwrap().to_string());
             build = pre_parts.next().map(|s| s.to_string());
         }
-        
+
         // Parse version components
         let components: Vec<&str> = version_part.split('.').collect();
-        
+
         if components.is_empty() || components.len() > 3 {
             return Err(format!("Invalid version format: {}", version));
         }
-        
+
         let major = components[0]
             .parse()
             .map_err(|_| format!("Invalid major version: {}", components[0]))?;
-        
+
         let minor = if components.len() > 1 {
             components[1]
                 .parse()
@@ -230,7 +230,7 @@ impl Version {
         } else {
             0
         };
-        
+
         let patch = if components.len() > 2 {
             components[2]
                 .parse()
@@ -238,7 +238,7 @@ impl Version {
         } else {
             0
         };
-        
+
         Ok(Self {
             major,
             minor,
@@ -247,7 +247,7 @@ impl Version {
             build,
         })
     }
-    
+
     /// Create a new version
     pub fn new(major: u64, minor: u64, patch: u64) -> Self {
         Self {
@@ -258,19 +258,19 @@ impl Version {
             build: None,
         }
     }
-    
+
     /// Convert to string
     pub fn to_string(&self) -> String {
         let mut result = format!("{}.{}.{}", self.major, self.minor, self.patch);
-        
+
         if let Some(pre) = &self.pre {
             result.push_str(&format!("-{}", pre));
         }
-        
+
         if let Some(build) = &self.build {
             result.push_str(&format!("+{}", build));
         }
-        
+
         result
     }
 }
@@ -324,37 +324,37 @@ impl DependencyGraph {
             roots: Vec::new(),
         }
     }
-    
+
     /// Add a dependency to the graph
     pub fn add_dependency(&mut self, dependency: Dependency, deps: Vec<String>) {
         let node = DependencyNode {
             dependency,
             dependencies: deps,
         };
-        
+
         self.nodes.insert(node.dependency.name.clone(), node);
     }
-    
+
     /// Add a root dependency
     pub fn add_root(&mut self, name: String) {
         if !self.roots.contains(&name) {
             self.roots.push(name);
         }
     }
-    
+
     /// Get topological order of dependencies
     pub fn topological_order(&self) -> Result<Vec<String>, String> {
         let mut visited = HashSet::new();
         let mut temp_visited = HashSet::new();
         let mut order = Vec::new();
-        
+
         for root in &self.roots {
             self.visit(root, &mut visited, &mut temp_visited, &mut order)?;
         }
-        
+
         Ok(order)
     }
-    
+
     /// Visit a node for topological sort
     fn visit(
         &self,
@@ -366,36 +366,36 @@ impl DependencyGraph {
         if visited.contains(name) {
             return Ok(());
         }
-        
+
         if temp_visited.contains(name) {
             return Err(format!("Cyclic dependency detected involving {}", name));
         }
-        
+
         temp_visited.insert(name.to_string());
-        
+
         if let Some(node) = self.nodes.get(name) {
             for dep in &node.dependencies {
                 self.visit(dep, visited, temp_visited, order)?;
             }
         }
-        
+
         temp_visited.remove(name);
         visited.insert(name.to_string());
         order.push(name.to_string());
-        
+
         Ok(())
     }
-    
+
     /// Check if the graph has any cycles
     pub fn has_cycles(&self) -> bool {
         self.topological_order().is_err()
     }
-    
+
     /// Get all transitive dependencies of a package
     pub fn transitive_dependencies(&self, package: &str) -> HashSet<String> {
         let mut deps = HashSet::new();
         let mut stack = vec![package.to_string()];
-        
+
         while let Some(current) = stack.pop() {
             if let Some(node) = self.nodes.get(&current) {
                 for dep in &node.dependencies {
@@ -405,7 +405,7 @@ impl DependencyGraph {
                 }
             }
         }
-        
+
         deps
     }
 }

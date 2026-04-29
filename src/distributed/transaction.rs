@@ -3,10 +3,10 @@
 //! Provides two-phase commit and saga pattern for distributed transactions
 //! with compensation and rollback support.
 
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use tokio::sync::Mutex;
-use serde::{Serialize, Deserialize};
 
 use crate::distributed::actor::ActorRef;
 
@@ -64,22 +64,25 @@ impl TwoPhaseCommitCoordinator {
             // transport,
         }
     }
-    
+
     /// Start new transaction
-    pub async fn begin_transaction(&self, participants: Vec<Participant>) -> Result<TransactionId, String> {
+    pub async fn begin_transaction(
+        &self,
+        participants: Vec<Participant>,
+    ) -> Result<TransactionId, String> {
         let tx_id = TransactionId::new();
-        
+
         {
             let mut transactions = self.transactions.write().unwrap();
             transactions.insert(tx_id, TransactionState::Started);
         }
-        
+
         // Store participants for this transaction
         // In a real implementation, we'd store them in a map
-        
+
         Ok(tx_id)
     }
-    
+
     /// Prepare phase - ask all participants to prepare
     pub async fn prepare(&self, tx_id: TransactionId) -> Result<bool, String> {
         // Update transaction state
@@ -91,17 +94,17 @@ impl TwoPhaseCommitCoordinator {
                 return Err("Transaction not found".to_string());
             }
         }
-        
+
         // In a real implementation, we would:
         // 1. Send prepare messages to all participants
         // 2. Wait for all responses
         // 3. If all participants vote YES, return true
         // 4. If any participant votes NO, return false
-        
+
         // For now, simulate successful preparation
         Ok(true)
     }
-    
+
     /// Commit phase - tell all participants to commit
     pub async fn commit(&self, tx_id: TransactionId) -> Result<(), String> {
         // Update transaction state
@@ -113,15 +116,15 @@ impl TwoPhaseCommitCoordinator {
                 return Err("Transaction not found".to_string());
             }
         }
-        
+
         // In a real implementation, we would:
         // 1. Send commit messages to all participants
         // 2. Wait for acknowledgments
         // 3. Clean up transaction state
-        
+
         Ok(())
     }
-    
+
     /// Rollback phase - tell all participants to rollback
     pub async fn rollback(&self, tx_id: TransactionId) -> Result<(), String> {
         // Update transaction state
@@ -133,15 +136,15 @@ impl TwoPhaseCommitCoordinator {
                 return Err("Transaction not found".to_string());
             }
         }
-        
+
         // In a real implementation, we would:
         // 1. Send rollback messages to all participants
         // 2. Wait for acknowledgments
         // 3. Clean up transaction state
-        
+
         Ok(())
     }
-    
+
     /// Get transaction state
     pub fn get_state(&self, tx_id: TransactionId) -> Option<TransactionState> {
         let transactions = self.transactions.read().unwrap();
@@ -192,14 +195,14 @@ impl SagaCoordinator {
             sagas: Arc::new(Mutex::new(HashMap::new())),
         }
     }
-    
+
     /// Execute saga
     pub async fn execute_saga(&self, steps: Vec<SagaStep>) -> Result<SagaResult, String> {
         let saga_id = {
             static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
             COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
         };
-        
+
         let execution = SagaExecution {
             saga_id,
             steps: steps.clone(),
@@ -208,12 +211,12 @@ impl SagaCoordinator {
             compensated_steps: Vec::new(),
             state: SagaState::Running,
         };
-        
+
         {
             let mut sagas = self.sagas.lock().await;
             sagas.insert(saga_id, execution);
         }
-        
+
         // Execute steps sequentially
         let mut result = SagaResult {
             saga_id,
@@ -222,7 +225,7 @@ impl SagaCoordinator {
             completed_steps: Vec::new(),
             compensated_steps: Vec::new(),
         };
-        
+
         for (i, step) in steps.iter().enumerate() {
             // Update execution state
             {
@@ -231,12 +234,12 @@ impl SagaCoordinator {
                     exec.current_step = i as u64;
                 }
             }
-            
+
             // Execute step
             match self.execute_step(step).await {
                 Ok(_) => {
                     result.completed_steps.push(step.id);
-                    
+
                     // Update execution state
                     {
                         let mut sagas = self.sagas.lock().await;
@@ -248,10 +251,10 @@ impl SagaCoordinator {
                 Err(err) => {
                     result.success = false;
                     result.error = Some(err.clone());
-                    
+
                     // Compensate completed steps
                     self.compensate_saga(saga_id).await?;
-                    
+
                     // Update result with compensation info
                     {
                         let sagas = self.sagas.lock().await;
@@ -259,33 +262,33 @@ impl SagaCoordinator {
                             result.compensated_steps = exec.compensated_steps.clone();
                         }
                     }
-                    
+
                     break;
                 }
             }
         }
-        
+
         // Clean up
         {
             let mut sagas = self.sagas.lock().await;
             sagas.remove(&saga_id);
         }
-        
+
         Ok(result)
     }
-    
+
     /// Execute single saga step
     async fn execute_step(&self, step: &SagaStep) -> Result<(), String> {
         // In a real implementation, we would:
         // 1. Send execute message to actor
         // 2. Wait for response
         // 3. Handle success/failure
-        
+
         // For now, simulate execution
         println!("Executing saga step {} on actor {:?}", step.id, step.actor);
         Ok(())
     }
-    
+
     /// Compensate saga (rollback completed steps in reverse order)
     async fn compensate_saga(&self, saga_id: u64) -> Result<(), String> {
         let steps_to_compensate = {
@@ -296,7 +299,7 @@ impl SagaCoordinator {
                 return Err("Saga not found".to_string());
             }
         };
-        
+
         // Compensate in reverse order
         for step_id in steps_to_compensate.iter().rev() {
             // Find step
@@ -308,11 +311,14 @@ impl SagaCoordinator {
                     None
                 }
             };
-            
+
             if let Some(step) = step {
                 // Execute compensation
-                println!("Compensating saga step {} on actor {:?}", step.id, step.actor);
-                
+                println!(
+                    "Compensating saga step {} on actor {:?}",
+                    step.id, step.actor
+                );
+
                 // Update execution state
                 {
                     let mut sagas = self.sagas.lock().await;
@@ -322,10 +328,10 @@ impl SagaCoordinator {
                 }
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Get saga execution state
     pub async fn get_saga_state(&self, saga_id: u64) -> Option<SagaState> {
         let sagas = self.sagas.lock().await;
@@ -368,27 +374,27 @@ impl DistributedTransactionManager {
             saga_coordinator: SagaCoordinator::new(),
         }
     }
-    
+
     /// Begin two-phase commit transaction
     pub async fn begin_tpc(&self, participants: Vec<Participant>) -> Result<TransactionId, String> {
         self.tpc_coordinator.begin_transaction(participants).await
     }
-    
+
     /// Prepare transaction
     pub async fn prepare(&self, tx_id: TransactionId) -> Result<bool, String> {
         self.tpc_coordinator.prepare(tx_id).await
     }
-    
+
     /// Commit transaction
     pub async fn commit(&self, tx_id: TransactionId) -> Result<(), String> {
         self.tpc_coordinator.commit(tx_id).await
     }
-    
+
     /// Rollback transaction
     pub async fn rollback(&self, tx_id: TransactionId) -> Result<(), String> {
         self.tpc_coordinator.rollback(tx_id).await
     }
-    
+
     /// Execute saga
     pub async fn execute_saga(&self, steps: Vec<SagaStep>) -> Result<SagaResult, String> {
         self.saga_coordinator.execute_saga(steps).await

@@ -4,14 +4,14 @@
 //! code completion, hover information, go-to-definition, and other
 //! IDE features.
 
-mod server;
-mod protocol;
 mod capabilities;
 mod handlers;
+mod protocol;
+mod server;
 
-pub use server::LspServer;
-pub use protocol::LspMessage;
 pub use capabilities::ServerCapabilities;
+pub use protocol::LspMessage;
+pub use server::LspServer;
 
 /// LSP error types
 #[derive(Debug)]

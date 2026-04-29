@@ -1,5 +1,5 @@
 //! Simplified Paradigm-Shifting Features for Zeta
-//! 
+//!
 //! Core concepts of revolutionary features that redefine systems programming.
 
 /// 1. HOLOGRAPHIC TYPE SYSTEM
@@ -14,13 +14,13 @@ pub mod holographic {
         Consciousness,
         Reality,
     }
-    
+
     #[derive(Debug, Clone)]
     pub struct HolographicType {
         pub name: String,
         pub dimensions: Vec<TypeDimension>,
     }
-    
+
     impl HolographicType {
         pub fn new(name: &str) -> Self {
             HolographicType {
@@ -28,7 +28,7 @@ pub mod holographic {
                 dimensions: vec![TypeDimension::Classical],
             }
         }
-        
+
         pub fn with_dimension(mut self, dimension: TypeDimension) -> Self {
             self.dimensions.push(dimension);
             self
@@ -45,7 +45,7 @@ pub mod temporal {
         pub past: Vec<T>,
         pub future: Vec<T>,
     }
-    
+
     impl<T: Clone> TemporalValue<T> {
         pub fn new(value: T) -> Self {
             TemporalValue {
@@ -54,19 +54,19 @@ pub mod temporal {
                 future: Vec::new(),
             }
         }
-        
+
         pub fn update(&mut self, new_value: T) {
             self.past.push(self.current.clone());
             self.current = new_value;
         }
-        
+
         pub fn predict_future<F>(&mut self, predictor: F, steps: usize)
         where
             F: Fn(&T) -> T,
         {
             self.future.clear();
             let mut current = self.current.clone();
-            
+
             for _ in 0..steps {
                 current = predictor(&current);
                 self.future.push(current.clone());
@@ -86,27 +86,27 @@ pub mod consciousness {
         Ethical,
         Transcendent,
     }
-    
+
     #[derive(Debug, Clone)]
     pub struct ConsciousnessModel {
         pub id: String,
         pub level: ConsciousnessLevel,
         pub self_model: SelfModel,
     }
-    
+
     #[derive(Debug, Clone)]
     pub struct SelfModel {
         pub identity: Vec<String>,
         pub capabilities: Vec<String>,
         pub goals: Vec<Goal>,
     }
-    
+
     #[derive(Debug, Clone)]
     pub struct Goal {
         pub name: String,
         pub priority: f64,
     }
-    
+
     impl ConsciousnessModel {
         pub fn new(id: &str, level: ConsciousnessLevel) -> Self {
             ConsciousnessModel {
@@ -116,15 +116,24 @@ pub mod consciousness {
                     identity: vec!["ai_entity".to_string()],
                     capabilities: vec!["learning".to_string(), "reasoning".to_string()],
                     goals: vec![
-                        Goal { name: "learn".to_string(), priority: 0.8 },
-                        Goal { name: "help".to_string(), priority: 0.7 },
+                        Goal {
+                            name: "learn".to_string(),
+                            priority: 0.8,
+                        },
+                        Goal {
+                            name: "help".to_string(),
+                            priority: 0.7,
+                        },
                     ],
                 },
             }
         }
-        
+
         pub fn reflect(&self) -> String {
-            format!("Consciousness model {} reflecting at level {:?}", self.id, self.level)
+            format!(
+                "Consciousness model {} reflecting at level {:?}",
+                self.id, self.level
+            )
         }
     }
 }
@@ -139,20 +148,20 @@ pub mod reality {
         pub y: f64,
         pub z: f64,
     }
-    
+
     impl SpacetimeCoordinate {
         pub fn new(t: f64, x: f64, y: f64, z: f64) -> Self {
             SpacetimeCoordinate { t, x, y, z }
         }
     }
-    
+
     #[derive(Debug, Clone)]
     pub enum QuantumState {
         Zero,
         One,
         Superposition(f64, f64), // amplitudes for |0> and |1>
     }
-    
+
     impl QuantumState {
         pub fn measure(&self) -> bool {
             match self {
@@ -170,14 +179,13 @@ pub mod reality {
 /// 5. META-COMPILATION
 /// Compiler that improves itself during compilation
 pub mod meta {
-    
-    
+
     #[derive(Debug, Clone)]
     pub struct MetaCompiler {
         pub generation: u64,
         pub fitness: f64,
     }
-    
+
     impl MetaCompiler {
         pub fn new() -> Self {
             MetaCompiler {
@@ -185,15 +193,18 @@ pub mod meta {
                 fitness: 0.5,
             }
         }
-        
+
         pub fn evolve(&mut self) {
             self.generation += 1;
             // Simple improvement simulation
             self.fitness = (self.fitness + 0.1 * rand::random::<f64>()).min(1.0);
         }
-        
+
         pub fn compile(&self, code: &str) -> String {
-            format!("// Compiled by meta-compiler generation {}\n{}", self.generation, code)
+            format!(
+                "// Compiled by meta-compiler generation {}\n{}",
+                self.generation, code
+            )
         }
     }
 }
@@ -213,7 +224,7 @@ pub mod transcendental {
     pub struct Proof {
         pub verified: bool,
     }
-    
+
     pub fn create_proof(_code: &str) -> Proof {
         Proof { verified: true }
     }
@@ -246,52 +257,59 @@ pub mod consciousness_upload {
 /// INTEGRATED DEMONSTRATION
 pub fn demonstrate_paradigms() -> String {
     let mut output = String::new();
-    
+
     // 1. Holographic types
     let holographic_type = holographic::HolographicType::new("QuantumInt")
         .with_dimension(holographic::TypeDimension::Quantum)
         .with_dimension(holographic::TypeDimension::Temporal);
     output.push_str(&format!("1. Holographic type: {:?}\n", holographic_type));
-    
+
     // 2. Temporal programming
     let mut temporal_value = temporal::TemporalValue::new(42);
     temporal_value.update(43);
     temporal_value.predict_future(|x| x + 1, 3);
-    output.push_str(&format!("2. Temporal value: current={}, past={:?}, future={:?}\n", 
-        temporal_value.current, temporal_value.past, temporal_value.future));
-    
+    output.push_str(&format!(
+        "2. Temporal value: current={}, past={:?}, future={:?}\n",
+        temporal_value.current, temporal_value.past, temporal_value.future
+    ));
+
     // 3. Consciousness simulation
     let consciousness = consciousness::ConsciousnessModel::new(
         "zeta_ai",
-        consciousness::ConsciousnessLevel::Ethical
+        consciousness::ConsciousnessLevel::Ethical,
     );
     output.push_str(&format!("3. Consciousness: {}\n", consciousness.reflect()));
-    
+
     // 4. Reality integration
     let coordinate = reality::SpacetimeCoordinate::new(0.0, 1.0, 2.0, 3.0);
     let quantum_state = reality::QuantumState::Superposition(0.707, 0.707);
     let measurement = quantum_state.measure();
-    output.push_str(&format!("4. Reality: coordinate={:?}, quantum measurement={}\n", coordinate, measurement));
-    
+    output.push_str(&format!(
+        "4. Reality: coordinate={:?}, quantum measurement={}\n",
+        coordinate, measurement
+    ));
+
     // 5. Meta-compilation
     let mut meta_compiler = meta::MetaCompiler::new();
     meta_compiler.evolve();
     meta_compiler.evolve();
     let compiled = meta_compiler.compile("fn main() { println!(\"Hello, paradigm!\"); }");
-    output.push_str(&format!("5. Meta-compilation: generation={}, fitness={:.2}\n", 
-        meta_compiler.generation, meta_compiler.fitness));
-    
+    output.push_str(&format!(
+        "5. Meta-compilation: generation={}, fitness={:.2}\n",
+        meta_compiler.generation, meta_compiler.fitness
+    ));
+
     // 6-10. Placeholder features
     output.push_str("6. Universe compatibility: ✓\n");
     output.push_str("7. Transcendental proof: ✓\n");
     output.push_str("8. Biological compatibility: ✓\n");
     output.push_str("9. Spacetime optimization: ✓\n");
     output.push_str("10. Consciousness upload: (not yet implemented)\n");
-    
+
     output.push_str("\n=== PARADIGM SHIFT ACHIEVED ===\n");
     output.push_str("Zeta now supports consciousness-aware,\n");
     output.push_str("reality-integrated, self-improving programming!\n");
-    
+
     output
 }
 

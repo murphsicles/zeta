@@ -32,6 +32,7 @@ pub use family::{
 pub mod identity;
 pub use identity::{
     CapabilityLevel, IdentityConstraint, IdentityContext, IdentityOp, IdentityType,
+    IdentityTypeParam,
 };
 
 /// Type variable for inference
@@ -281,16 +282,99 @@ impl Type {
             "i32x4" => Type::I32x4,
             "i64x2" => Type::I64x2,
             "f32x4" => Type::F32x4,
-            // Check for identity type: identity("value")[read, write]
+            // Check for identity type: identity("value"), identity<T>(), identity("value")[read, write]
             s if s.starts_with("identity(") => {
-                // For now, just create a basic identity type
-                // TODO: Implement proper parsing
+                // Parse identity("value") syntax
+                let inner = &s[9..]; // past "identity("
+                let mut value: Option<String> = None;
+                let mut capabilities: Vec<CapabilityLevel> = Vec::new();
+                let constraints: Vec<IdentityConstraint> = Vec::new();
+                let mut type_params: Vec<IdentityTypeParam> = Vec::new();
+
+                // Find the closing paren matching the opening paren
+                let mut depth = 0;
+                let mut paren_end = inner.len();
+                for (i, ch) in inner.char_indices() {
+                    match ch {
+                        '(' => depth += 1,
+                        ')' if depth == 0 => {
+                            paren_end = i;
+                            break;
+                        }
+                        ')' => depth -= 1,
+                        _ => {}
+                    }
+                }
+
+                let args_str = &inner[..paren_end].trim();
+                let after_paren = &inner[paren_end + 1..].trim();
+
+                // Parse args inside parens
+                if !args_str.is_empty() {
+                    // Could be a string literal: "my_identity"
+                    if args_str.starts_with('"') {
+                        if let Some(end) = args_str[1..].find('"') {
+                            value = Some(args_str[1..end + 1].to_string());
+                        }
+                    } else if args_str.contains('<') && args_str.ends_with('>') {
+                        // Generic args: identity<T, U>(cap1, cap2)
+                        // Extract type params from angle brackets
+                        let angle_start = args_str.find('<').unwrap();
+                        let angle_end = args_str.rfind('>').unwrap();
+                        let params_str = &args_str[angle_start + 1..angle_end];
+                        for p in params_str.split(',') {
+                            let p = p.trim();
+                            if !p.is_empty() {
+                                if p.starts_with("'") {
+                                    type_params.push(IdentityTypeParam {
+                                        name: p.to_string(),
+                                        constraint: None,
+                                    });
+                                } else {
+                                    let (name, constraint) = if let Some(pos) = p.find(':') {
+                                        (
+                                            p[..pos].trim().to_string(),
+                                            Some(p[pos + 1..].trim().to_string()),
+                                        )
+                                    } else {
+                                        (p.to_string(), None)
+                                    };
+                                    type_params.push(IdentityTypeParam {
+                                        name,
+                                        constraint: constraint
+                                            .and_then(|c| IdentityConstraint::from_str(&c).ok()),
+                                    });
+                                }
+                            }
+                        }
+                    } else {
+                        // Unquoted: identity(value) where value might be a type expression
+                        // Could be a capability name
+                    }
+                }
+
+                // Parse bracket suffix: [read, write]
+                if after_paren.starts_with('[') {
+                    let bracket_end = after_paren.find(']').unwrap_or(after_paren.len());
+                    let caps_str = &after_paren[1..bracket_end];
+                    for part in caps_str.split(',') {
+                        match part.trim() {
+                            "read" => capabilities.push(CapabilityLevel::Read),
+                            "write" => capabilities.push(CapabilityLevel::Write),
+                            "immutable" => capabilities.push(CapabilityLevel::Immutable),
+                            "execute" => capabilities.push(CapabilityLevel::Execute),
+                            "owned" => capabilities.push(CapabilityLevel::Owned),
+                            _ => {}
+                        }
+                    }
+                }
+
                 Type::Identity(Box::new(IdentityType {
-                    value: None,
-                    capabilities: Vec::new(),
+                    value,
+                    capabilities,
                     delegatable: false,
-                    constraints: Vec::new(),
-                    type_params: vec![],
+                    constraints,
+                    type_params,
                 }))
             }
             _ => {
@@ -1580,11 +1664,22 @@ impl Substitution {
                 // Create substitution mapping
                 let mut substitution = Substitution::new();
 
-                // Map type parameters to arguments
-                for (param, arg) in generic_params.iter().zip(type_args.iter()) {
+                // Map type parameters to arguments, checking bounds
+                for (i, (param, arg)) in generic_params.iter().zip(type_args.iter()).enumerate() {
                     if let Type::Variable(var) = param {
-                        // TODO: Check bounds when we have proper TypeVar -> TypeParam mapping
-                        // For now, just substitute
+                        // Check bounds against the generic context
+                        if let Some(type_param) = context.type_params.get(i) {
+                            for bound in &type_param.bounds {
+                                if !self.satisfies_bound(arg, bound) {
+                                    return Err(format!(
+                                        "Type argument {} does not satisfy bound {:?} for parameter '{}'",
+                                        arg.display_name(),
+                                        bound,
+                                        type_param.name
+                                    ));
+                                }
+                            }
+                        }
                         substitution.mapping.insert(var.clone(), arg.clone());
                     } else {
                         // Complex parameter - recursively instantiate

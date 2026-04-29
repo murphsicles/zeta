@@ -4,7 +4,7 @@
 use super::expr::{parse_condition, parse_full_expr};
 use super::parser::{parse_type, skip_ws_and_comments, ws};
 use super::pattern::parse_pattern;
-use super::top_level::{parse_type_alias, parse_const, parse_func};
+use super::top_level::{parse_const, parse_func, parse_type_alias};
 use crate::frontend::ast::AstNode;
 use nom::IResult;
 use nom::Parser;
@@ -35,7 +35,11 @@ pub fn parse_block_body(input: &str) -> IResult<&str, Vec<AstNode>> {
         }
 
         if let Ok((next_stmt, stmt)) = parse_stmt(next) {
-            let name = match &stmt { AstNode::FuncDef { name, .. } => Some(name.as_str()), AstNode::ConstDef { name, .. } => Some(name.as_str()), _ => None };
+            let name = match &stmt {
+                AstNode::FuncDef { name, .. } => Some(name.as_str()),
+                AstNode::ConstDef { name, .. } => Some(name.as_str()),
+                _ => None,
+            };
             body.push(stmt);
             current = next_stmt;
             continue;
@@ -173,10 +177,10 @@ fn parse_if(input: &str) -> IResult<&str, AstNode> {
 
 fn parse_assign(input: &str) -> IResult<&str, AstNode> {
     use super::expr::parse_unary;
-    
+
     // First try to parse the left-hand side (which includes unary prefix and postfix)
     let (input, lhs) = ws(parse_unary).parse(input)?;
-    
+
     // Try to parse compound assignment operators first, then simple assignment
     let (input, op) = alt((
         ws(tag("+=")),
@@ -190,21 +194,25 @@ fn parse_assign(input: &str) -> IResult<&str, AstNode> {
         ws(tag("<<=")),
         ws(tag(">>=")),
         ws(tag("=")),
-    )).parse(input)?;
-    
+    ))
+    .parse(input)?;
+
     let (input, rhs) = ws(parse_full_expr).parse(input)?;
     let (input, _) = opt(ws(tag(";"))).parse(input)?;
-    
+
     if op == "=" {
         Ok((input, AstNode::Assign(Box::new(lhs), Box::new(rhs))))
     } else {
         // Compound assignment: produce AssignOp with the base operator (without =)
         let bin_op = op.trim_end_matches('=').to_string();
-        Ok((input, AstNode::AssignOp {
-            op: bin_op,
-            target: Box::new(lhs),
-            value: Box::new(rhs),
-        }))
+        Ok((
+            input,
+            AstNode::AssignOp {
+                op: bin_op,
+                target: Box::new(lhs),
+                value: Box::new(rhs),
+            },
+        ))
     }
 }
 

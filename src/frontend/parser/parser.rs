@@ -64,9 +64,10 @@ pub fn parse_ident(input: &str) -> IResult<&str, String> {
         )),
         |s: &str| {
             ![
-                "let", "mut", "if", "else", "for", "in", "loop", "while", "unsafe", "return", "break",
-                "continue", "fn", "concept", "impl", "enum", "struct", "type", "use", "extern",
-                "dyn", "box", "as", "true", "false", "comptime", "const", "async", "pub",
+                "let", "mut", "if", "else", "for", "in", "loop", "while", "unsafe", "return",
+                "break", "continue", "fn", "concept", "impl", "enum", "struct", "type", "use",
+                "extern", "dyn", "box", "as", "true", "false", "comptime", "const", "async",
+                "pub",
                 // Built-in types - allow as identifiers so they can be used in paths like u64::MAX
                 // The resolver/typechecker will reject invalid uses later.
                 // TODO: re-add these when we implement logical operators
@@ -87,8 +88,7 @@ pub fn parse_path(input: &str) -> IResult<&str, Vec<String>> {
         separated_list1(ws(tag("::")), ws(parse_ident)),
     )
     .parse(input);
-    if let Ok((remaining, path)) = &result {
-    }
+    if let Ok((remaining, path)) = &result {}
     result
 }
 
@@ -148,7 +148,7 @@ pub fn parse_array_type(input: &str) -> IResult<&str, String> {
         let (input, elem_type) = ws(parse_non_array_type).parse(input)?;
         Ok((input, (size, elem_type)))
     }
-    
+
     // Helper function for dynamic array parsing: [dynamic]T
     fn parse_dynamic_array(input: &str) -> IResult<&str, String> {
         let (input, _) = ws(tag("[")).parse(input)?;
@@ -157,7 +157,7 @@ pub fn parse_array_type(input: &str) -> IResult<&str, String> {
         let (input, elem_type) = ws(parse_non_array_type).parse(input)?;
         Ok((input, format!("[dynamic]{}", elem_type))) // Return as dynamic array
     }
-    
+
     // Helper function for Zeta style parsing
     fn parse_zeta_array(input: &str) -> IResult<&str, String> {
         let (input, _) = ws(tag("[")).parse(input)?;
@@ -185,10 +185,10 @@ pub fn parse_array_type(input: &str) -> IResult<&str, String> {
 
         Ok((input, result))
     }
-    
+
     // Save the original input position
     let original_input = input;
-    
+
     // First, try dynamic array (special case: [dynamic]T)
     match parse_dynamic_array(original_input) {
         Ok(result) => return Ok(result),
@@ -262,18 +262,25 @@ pub fn parse_simd_type<'a>(input: &'a str) -> IResult<&'a str, String> {
     let shorthand_parser = move |input: &'a str| -> IResult<&'a str, String> {
         // Parse base type: i8, i16, i32, i64, u8, u16, u32, u64, f32, f64
         let mut base_type_parser = alt((
-            tag("i8"), tag("i16"), tag("i32"), tag("i64"),
-            tag("u8"), tag("u16"), tag("u32"), tag("u64"),
-            tag("f32"), tag("f64"),
+            tag("i8"),
+            tag("i16"),
+            tag("i32"),
+            tag("i64"),
+            tag("u8"),
+            tag("u16"),
+            tag("u32"),
+            tag("u64"),
+            tag("f32"),
+            tag("f64"),
         ));
         let (input, base_type) = base_type_parser.parse(input)?;
-        
+
         // Parse 'x' separator
         let (input, _) = tag("x")(input)?;
-        
+
         // Parse size (positive integer)
         let (input, size_str) = nom::character::complete::digit1(input)?;
-        
+
         // Convert size to usize
         let size = size_str.parse::<usize>().unwrap_or(0);
         if size == 0 {
@@ -282,20 +289,20 @@ pub fn parse_simd_type<'a>(input: &'a str) -> IResult<&'a str, String> {
                 nom::error::ErrorKind::Digit,
             )));
         }
-        
+
         Ok((input, format!("Vector<{}, {}>", base_type, size)))
     };
-    
+
     // Try Vector<T, N> syntax
     let generic_parser = move |input: &'a str| -> IResult<&'a str, String> {
         let (input, _) = ws(tag("Vector")).parse(input)?;
         let (input, _) = ws(tag("<")).parse(input)?;
-        
+
         // Parse element type
         let (input, elem_type) = ws(parse_type).parse(input)?;
-        
+
         let (input, _) = ws(tag(",")).parse(input)?;
-        
+
         // Parse size
         let (input, size_str) = ws(nom::character::complete::digit1).parse(input)?;
         let size = size_str.parse::<usize>().unwrap_or(0);
@@ -305,12 +312,12 @@ pub fn parse_simd_type<'a>(input: &'a str) -> IResult<&'a str, String> {
                 nom::error::ErrorKind::Digit,
             )));
         }
-        
+
         let (input, _) = ws(tag(">")).parse(input)?;
-        
+
         Ok((input, format!("Vector<{}, {}>", elem_type, size)))
     };
-    
+
     // Try shorthand first, then generic
     alt((shorthand_parser, generic_parser)).parse(input)
 }
@@ -359,7 +366,7 @@ pub fn parse_non_array_type(input: &str) -> IResult<&str, String> {
         parse_simd_type,
         parse_lt_type,
     ));
-    
+
     // Then try built-in types
     let builtin_types = alt((
         tag("i8").map(|_| "i8".to_string()),
@@ -373,7 +380,7 @@ pub fn parse_non_array_type(input: &str) -> IResult<&str, String> {
         tag("usize").map(|_| "usize".to_string()),
         tag("f32").map(|_| "f32".to_string()),
         tag("f64").map(|_| "f64".to_string()),
-        tag("v4i64").map(|_| "v4i64".to_string()),  // LLVM-native 256-bit AVX2 vector
+        tag("v4i64").map(|_| "v4i64".to_string()), // LLVM-native 256-bit AVX2 vector
         tag("bool").map(|_| "bool".to_string()),
         tag("char").map(|_| "char".to_string()),
         parse_string_with_identity,
@@ -381,13 +388,10 @@ pub fn parse_non_array_type(input: &str) -> IResult<&str, String> {
         tag("str").map(|_| "str".to_string()),
         tag("String").map(|_| "String".to_string()),
     ));
-    
+
     // Try special types first, then built-in types, then type paths
-    let (input, base) = alt((
-        special_types_no_array,
-        builtin_types,
-        parse_type_path,
-    )).parse(input)?;
+    let (input, base) =
+        alt((special_types_no_array, builtin_types, parse_type_path)).parse(input)?;
     s += &base;
     Ok((input, s))
 }
@@ -436,7 +440,7 @@ pub fn parse_type(input: &str) -> IResult<&str, String> {
         parse_simd_type,
         parse_lt_type,
     ));
-    
+
     // Then try built-in types
     let builtin_types = alt((
         tag("i8").map(|_| "i8".to_string()),
@@ -450,7 +454,7 @@ pub fn parse_type(input: &str) -> IResult<&str, String> {
         tag("usize").map(|_| "usize".to_string()),
         tag("f32").map(|_| "f32".to_string()),
         tag("f64").map(|_| "f64".to_string()),
-        tag("v4i64").map(|_| "v4i64".to_string()),  // LLVM-native 256-bit AVX2 vector
+        tag("v4i64").map(|_| "v4i64".to_string()), // LLVM-native 256-bit AVX2 vector
         tag("bool").map(|_| "bool".to_string()),
         tag("char").map(|_| "char".to_string()),
         parse_string_with_identity,
@@ -458,13 +462,9 @@ pub fn parse_type(input: &str) -> IResult<&str, String> {
         tag("str").map(|_| "str".to_string()),
         tag("String").map(|_| "String".to_string()),
     ));
-    
+
     // Try special types first, then built-in types, then type paths
-    let (input, base) = alt((
-        special_types,
-        builtin_types,
-        parse_type_path,
-    )).parse(input)?;
+    let (input, base) = alt((special_types, builtin_types, parse_type_path)).parse(input)?;
     s += &base;
     Ok((input, s))
 }
@@ -574,12 +574,12 @@ pub fn parse_generic_param_as_string(input: &str) -> IResult<&str, String> {
         ),
         |(_, name, _, ty)| format!("const {}: {}", name, ty),
     );
-    
+
     // Try const parameter first
     if let Ok(result) = const_parser.parse(input) {
         return Ok(result);
     }
-    
+
     // Fall back to type parameter
     let (input, param_name) = ws(parse_ident).parse(input)?;
 
@@ -605,21 +605,21 @@ pub fn parse_generic_param_as_enum(input: &str) -> IResult<&str, GenericParam> {
         ),
         |(_, name, _, ty)| GenericParam::Const { name, ty },
     );
-    
+
     // Try const parameter first
     if let Ok(result) = const_parser.parse(input) {
         return Ok(result);
     }
-    
+
     // Try to parse lifetime parameter
     if let Ok((input, lifetime)) = parse_lifetime_param(input) {
         return Ok((input, GenericParam::Lifetime { name: lifetime }));
     }
-    
+
     // Fall back to type parameter
     let (input, param_name) = ws(parse_ident).parse(input)?;
     let mut bounds = Vec::new();
-    
+
     // Check for trait bounds
     let input = if let Ok((input, parsed_bounds)) = parse_trait_bounds(input) {
         bounds = parsed_bounds;
@@ -628,7 +628,13 @@ pub fn parse_generic_param_as_enum(input: &str) -> IResult<&str, GenericParam> {
         input
     };
 
-    Ok((input, GenericParam::Type { name: param_name, bounds }))
+    Ok((
+        input,
+        GenericParam::Type {
+            name: param_name,
+            bounds,
+        },
+    ))
 }
 
 /// Parse generic parameters including lifetime, type, and const parameters
@@ -690,10 +696,10 @@ pub fn parse_generic_params_as_enum(input: &str) -> IResult<&str, Vec<GenericPar
 /// Parse a single attribute (e.g., #[test] or #[derive(Clone, Debug)])
 pub fn parse_attribute(input: &str) -> IResult<&str, String> {
     let (input, _) = tag("#[")(input)?;
-    
+
     // Use a custom parser to handle nested brackets and strings
     let (input, content) = parse_attribute_content(input)?;
-    
+
     let (input, _) = tag("]")(input)?;
 
     // Trim whitespace from the content
@@ -708,7 +714,7 @@ fn parse_attribute_content(input: &str) -> IResult<&str, String> {
     let mut escape_next = false;
     let mut result = String::new();
     let mut chars = input.char_indices();
-    
+
     while let Some((i, c)) = chars.next() {
         match c {
             '[' if !in_string => {
@@ -736,14 +742,17 @@ fn parse_attribute_content(input: &str) -> IResult<&str, String> {
             }
         }
     }
-    
-    Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::TakeUntil)))
+
+    Err(nom::Err::Error(nom::error::Error::new(
+        input,
+        nom::error::ErrorKind::TakeUntil,
+    )))
 }
 
 fn parse_angle_bracketed_content_inner_slice(input: &str) -> IResult<&str, &str> {
     let mut depth = 1;
     let mut chars = input.char_indices();
-    
+
     while let Some((i, c)) = chars.next() {
         match c {
             '<' => depth += 1,
@@ -757,8 +766,11 @@ fn parse_angle_bracketed_content_inner_slice(input: &str) -> IResult<&str, &str>
             _ => {}
         }
     }
-    
-    Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::TakeUntil)))
+
+    Err(nom::Err::Error(nom::error::Error::new(
+        input,
+        nom::error::ErrorKind::TakeUntil,
+    )))
 }
 
 /// Helper to parse angle-bracketed content, handling nested angle brackets
@@ -766,7 +778,7 @@ fn parse_angle_bracketed_content(input: &str) -> IResult<&str, String> {
     let mut depth = 0;
     let mut result = String::new();
     let mut chars = input.char_indices();
-    
+
     while let Some((i, c)) = chars.next() {
         match c {
             '<' => {
@@ -785,8 +797,11 @@ fn parse_angle_bracketed_content(input: &str) -> IResult<&str, String> {
             }
         }
     }
-    
-    Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::TakeUntil)))
+
+    Err(nom::Err::Error(nom::error::Error::new(
+        input,
+        nom::error::ErrorKind::TakeUntil,
+    )))
 }
 
 /// Helper to parse angle-bracketed content when the opening '<' has already been consumed.
@@ -795,7 +810,7 @@ fn parse_angle_bracketed_content_inner(input: &str) -> IResult<&str, String> {
     let mut depth = 1;
     let mut result = String::new();
     let mut chars = input.char_indices();
-    
+
     while let Some((i, c)) = chars.next() {
         match c {
             '<' => {
@@ -815,8 +830,11 @@ fn parse_angle_bracketed_content_inner(input: &str) -> IResult<&str, String> {
             }
         }
     }
-    
-    Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::TakeUntil)))
+
+    Err(nom::Err::Error(nom::error::Error::new(
+        input,
+        nom::error::ErrorKind::TakeUntil,
+    )))
 }
 
 fn split_top_level_commas(input: &str) -> Vec<&str> {

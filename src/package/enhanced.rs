@@ -6,11 +6,11 @@
 //! - Package signing and verification
 //! - Advanced dependency resolution
 
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
-use serde::{Deserialize, Serialize};
 
-use super::{Manifest, DependencyResolver};
+use super::{DependencyResolver, Manifest};
 use crate::package::manifest::WorkspaceConfig;
 
 /// Dependency graph node
@@ -91,23 +91,26 @@ impl DependencyGraph {
     pub fn from_manifest(manifest: &Manifest, resolver: &DependencyResolver) -> Self {
         let mut nodes = HashMap::new();
         let root = manifest.package.name.clone();
-        
+
         // Add root node
-        nodes.insert(root.clone(), DependencyNode {
-            name: manifest.package.name.clone(),
-            version: manifest.package.version.clone(),
-            dependencies: manifest.dependencies.keys().cloned().collect(),
-            reverse_dependencies: Vec::new(),
-            vulnerabilities: Vec::new(),
-            signature_status: SignatureStatus::Unknown,
-        });
-        
+        nodes.insert(
+            root.clone(),
+            DependencyNode {
+                name: manifest.package.name.clone(),
+                version: manifest.package.version.clone(),
+                dependencies: manifest.dependencies.keys().cloned().collect(),
+                reverse_dependencies: Vec::new(),
+                vulnerabilities: Vec::new(),
+                signature_status: SignatureStatus::Unknown,
+            },
+        );
+
         // Build graph recursively
         Self::build_graph(&root, manifest, resolver, &mut nodes);
-        
+
         Self { nodes, root }
     }
-    
+
     /// Build graph recursively
     fn build_graph(
         current: &str,
@@ -134,7 +137,7 @@ impl DependencyGraph {
                     features: std::collections::HashMap::new(),
                     workspace: WorkspaceConfig::default(),
                 };
-                
+
                 let node = DependencyNode {
                     name: dep_manifest.package.name.clone(),
                     version: dep_manifest.package.version.clone(),
@@ -143,9 +146,9 @@ impl DependencyGraph {
                     vulnerabilities: Vec::new(),
                     signature_status: SignatureStatus::Unknown,
                 };
-                
+
                 nodes.insert(dep_name.clone(), node);
-                
+
                 // Recursively build graph for this dependency
                 Self::build_graph(dep_name, &dep_manifest, resolver, nodes);
             } else {
@@ -158,29 +161,29 @@ impl DependencyGraph {
             }
         }
     }
-    
+
     /// Get node by name
     pub fn get_node(&self, name: &str) -> Option<&DependencyNode> {
         self.nodes.get(name)
     }
-    
+
     /// Get all nodes
     pub fn nodes(&self) -> &HashMap<String, DependencyNode> {
         &self.nodes
     }
-    
+
     /// Get root node
     pub fn root(&self) -> &DependencyNode {
         self.nodes.get(&self.root).unwrap()
     }
-    
+
     /// Generate Graphviz DOT format for visualization
     pub fn to_dot(&self) -> String {
         let mut dot = String::new();
         dot.push_str("digraph dependencies {\n");
         dot.push_str("  rankdir=LR;\n");
         dot.push_str("  node [shape=box, style=filled, fillcolor=lightblue];\n\n");
-        
+
         // Add nodes
         for (name, node) in &self.nodes {
             let fillcolor = match node.signature_status {
@@ -190,13 +193,15 @@ impl DependencyGraph {
                 SignatureStatus::VerificationFailed => "orange",
                 SignatureStatus::Unknown => "lightblue",
             };
-            
+
             let vuln_color = if !node.vulnerabilities.is_empty() {
-                let max_severity = node.vulnerabilities.iter()
+                let max_severity = node
+                    .vulnerabilities
+                    .iter()
                     .map(|v| v.severity)
                     .max()
                     .unwrap_or(SeverityLevel::Info);
-                
+
                 match max_severity {
                     SeverityLevel::Critical => "red",
                     SeverityLevel::High => "darkorange",
@@ -207,7 +212,7 @@ impl DependencyGraph {
             } else {
                 "white"
             };
-            
+
             dot.push_str(&format!(
                 "  \"{}\" [label=\"{}\\n{}\\n{}\", fillcolor=\"{}\", color=\"{}\"];\n",
                 name,
@@ -222,9 +227,9 @@ impl DependencyGraph {
                 vuln_color
             ));
         }
-        
+
         dot.push_str("\n");
-        
+
         // Add edges
         for (name, node) in &self.nodes {
             for dep in &node.dependencies {
@@ -233,32 +238,32 @@ impl DependencyGraph {
                 }
             }
         }
-        
+
         dot.push_str("}\n");
         dot
     }
-    
+
     /// Check for vulnerabilities
     pub fn check_vulnerabilities(&mut self, vulnerability_db: &VulnerabilityDatabase) {
         for (_, node) in self.nodes.iter_mut() {
             node.vulnerabilities = vulnerability_db.check_package(&node.name, &node.version);
         }
     }
-    
+
     /// Get all vulnerabilities in the graph
     pub fn get_all_vulnerabilities(&self) -> Vec<(&DependencyNode, &Vulnerability)> {
         let mut vulns = Vec::new();
-        
+
         for node in self.nodes.values() {
             for vuln in &node.vulnerabilities {
                 vulns.push((node, vuln));
             }
         }
-        
+
         vulns.sort_by(|(_, a), (_, b)| b.severity.cmp(&a.severity));
         vulns
     }
-    
+
     /// Check signature status for all packages
     pub fn check_signatures(&mut self, signature_verifier: &SignatureVerifier) {
         for (_, node) in self.nodes.iter_mut() {
@@ -280,7 +285,7 @@ impl VulnerabilityDatabase {
             vulnerabilities: HashMap::new(),
         }
     }
-    
+
     /// Add a vulnerability
     pub fn add_vulnerability(&mut self, package_name: String, vulnerability: Vulnerability) {
         self.vulnerabilities
@@ -288,11 +293,12 @@ impl VulnerabilityDatabase {
             .or_insert_with(Vec::new)
             .push(vulnerability);
     }
-    
+
     /// Check package for vulnerabilities
     pub fn check_package(&self, package_name: &str, version: &str) -> Vec<Vulnerability> {
         if let Some(vulns) = self.vulnerabilities.get(package_name) {
-            vulns.iter()
+            vulns
+                .iter()
                 .filter(|v| Self::version_matches(version, &v.affected_versions))
                 .cloned()
                 .collect()
@@ -300,22 +306,23 @@ impl VulnerabilityDatabase {
             Vec::new()
         }
     }
-    
+
     /// Check if version matches affected versions range
     fn version_matches(version: &str, affected_versions: &str) -> bool {
         // Simple version matching - in real implementation would use semver
         affected_versions.contains(version)
     }
-    
+
     /// Load from file
     pub fn load_from_file(path: &Path) -> Result<Self, std::io::Error> {
         let content = std::fs::read_to_string(path)?;
-        let vulnerabilities: HashMap<String, Vec<Vulnerability>> = serde_json::from_str(&content)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        
+        let vulnerabilities: HashMap<String, Vec<Vulnerability>> =
+            serde_json::from_str(&content)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+
         Ok(Self { vulnerabilities })
     }
-    
+
     /// Save to file
     pub fn save_to_file(&self, path: &Path) -> Result<(), std::io::Error> {
         let content = serde_json::to_string_pretty(&self.vulnerabilities)?;
@@ -339,20 +346,20 @@ impl SignatureVerifier {
             trusted_signers: HashSet::new(),
         }
     }
-    
+
     /// Add a public key
     pub fn add_public_key(&mut self, signer: String, public_key: Vec<u8>) {
         self.public_keys.insert(signer.clone(), public_key);
         self.trusted_signers.insert(signer);
     }
-    
+
     /// Verify package signature
     pub fn verify_package(&self, package_name: &str, version: &str) -> SignatureStatus {
         // In a real implementation, this would:
         // 1. Download package signature
         // 2. Verify signature with public key
         // 3. Check if signer is trusted
-        
+
         // For now, simulate verification
         if package_name == "zeta-std" {
             SignatureStatus::Valid
@@ -364,7 +371,7 @@ impl SignatureVerifier {
             SignatureStatus::Unknown
         }
     }
-    
+
     /// Check if signer is trusted
     pub fn is_trusted_signer(&self, signer: &str) -> bool {
         self.trusted_signers.contains(signer)
@@ -382,26 +389,29 @@ pub struct PackageSigner {
 impl PackageSigner {
     /// Create a new package signer
     pub fn new(signer: String, private_key: Vec<u8>) -> Self {
-        Self { private_key, signer }
+        Self {
+            private_key,
+            signer,
+        }
     }
-    
+
     /// Sign a package
     pub fn sign_package(&self, package_path: &Path) -> Result<Vec<u8>, String> {
         // In a real implementation, this would:
         // 1. Hash the package contents
         // 2. Sign the hash with private key
         // 3. Return the signature
-        
+
         // For now, return a dummy signature
         let mut signature = Vec::new();
         signature.extend_from_slice(b"SIGNATURE:");
         signature.extend_from_slice(&self.signer.as_bytes());
         signature.extend_from_slice(b":");
         signature.extend_from_slice(&self.private_key[..8]); // First 8 bytes
-        
+
         Ok(signature)
     }
-    
+
     /// Get signer identifier
     pub fn signer(&self) -> &str {
         &self.signer

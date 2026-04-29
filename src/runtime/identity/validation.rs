@@ -4,7 +4,7 @@
 //! allowing dynamic validation of identity operations that cannot be
 //! fully verified at compile time.
 
-use crate::middle::types::identity::{CapabilityLevel, IdentityType, IdentityConstraint};
+use crate::middle::types::identity::{CapabilityLevel, IdentityConstraint, IdentityType};
 
 /// Runtime capability validation error.
 #[derive(Debug, Clone, PartialEq)]
@@ -20,10 +20,7 @@ pub enum ValidationError {
         value: String,
     },
     /// Identity verification failed.
-    VerificationFailed {
-        identity: String,
-        reason: String,
-    },
+    VerificationFailed { identity: String, reason: String },
     /// Capability escalation not allowed.
     EscalationNotAllowed {
         from: CapabilityLevel,
@@ -35,16 +32,32 @@ impl std::fmt::Display for ValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ValidationError::MissingCapability { required, actual } => {
-                write!(f, "Missing capability: required {:?}, but identity has {:?}", required, actual)
+                write!(
+                    f,
+                    "Missing capability: required {:?}, but identity has {:?}",
+                    required, actual
+                )
             }
             ValidationError::ConstraintViolation { constraint, value } => {
-                write!(f, "Constraint violation: {:?} for value '{}'", constraint, value)
+                write!(
+                    f,
+                    "Constraint violation: {:?} for value '{}'",
+                    constraint, value
+                )
             }
             ValidationError::VerificationFailed { identity, reason } => {
-                write!(f, "Identity verification failed for '{}': {}", identity, reason)
+                write!(
+                    f,
+                    "Identity verification failed for '{}': {}",
+                    identity, reason
+                )
             }
             ValidationError::EscalationNotAllowed { from, to } => {
-                write!(f, "Capability escalation not allowed: from {:?} to {:?}", from, to)
+                write!(
+                    f,
+                    "Capability escalation not allowed: from {:?} to {:?}",
+                    from, to
+                )
             }
         }
     }
@@ -91,21 +104,24 @@ impl CapabilityValidator {
             Ok(())
         } else {
             // Find the highest capability level the identity has
-            let actual = self.identity.capabilities()
+            let actual = self
+                .identity
+                .capabilities()
                 .iter()
                 .max()
                 .copied()
                 .unwrap_or(CapabilityLevel::Immutable);
-            
-            Err(ValidationError::MissingCapability {
-                required,
-                actual,
-            })
+
+            Err(ValidationError::MissingCapability { required, actual })
         }
     }
 
     /// Check a constraint against a value.
-    pub fn check_constraint(&self, constraint: &IdentityConstraint, value: &str) -> Result<(), ValidationError> {
+    pub fn check_constraint(
+        &self,
+        constraint: &IdentityConstraint,
+        value: &str,
+    ) -> Result<(), ValidationError> {
         match constraint {
             IdentityConstraint::Pattern(pattern) => {
                 // Simple pattern matching - in a real implementation, this would use regex
@@ -140,12 +156,23 @@ impl CapabilityValidator {
             }
             IdentityConstraint::Capability(required_cap) => {
                 // Check if the identity has at least the required capability
-                if self.identity.capabilities().iter().any(|cap| cap >= required_cap) {
+                if self
+                    .identity
+                    .capabilities()
+                    .iter()
+                    .any(|cap| cap >= required_cap)
+                {
                     Ok(())
                 } else {
                     Err(ValidationError::MissingCapability {
                         required: *required_cap,
-                        actual: self.identity.capabilities().iter().max().cloned().unwrap_or(CapabilityLevel::Read),
+                        actual: self
+                            .identity
+                            .capabilities()
+                            .iter()
+                            .max()
+                            .cloned()
+                            .unwrap_or(CapabilityLevel::Read),
                     })
                 }
             }
@@ -153,29 +180,39 @@ impl CapabilityValidator {
     }
 
     /// Attempt to escalate capabilities.
-    pub fn escalate_capability(&mut self, new_level: CapabilityLevel) -> Result<(), ValidationError> {
+    pub fn escalate_capability(
+        &mut self,
+        new_level: CapabilityLevel,
+    ) -> Result<(), ValidationError> {
         // Get current highest capability
-        let current = self.identity.capabilities()
+        let current = self
+            .identity
+            .capabilities()
             .iter()
             .max()
             .copied()
             .unwrap_or(CapabilityLevel::Immutable);
-        
+
         if new_level <= current {
             // De-escalation is always allowed (more restrictive)
             // Remove all capabilities higher than new_level
-            let new_caps: Vec<CapabilityLevel> = self.identity.capabilities()
+            let new_caps: Vec<CapabilityLevel> = self
+                .identity
+                .capabilities()
                 .iter()
                 .filter(|&&cap| cap <= new_level)
                 .copied()
                 .collect();
-            
+
             // Get the identity value if it exists
             let value = self.identity.value().cloned().unwrap_or_default();
             self.identity = IdentityType::with_value(value, new_caps);
-            
+
             if self.audit_logging {
-                println!("[AUDIT] Capability de-escalated: {:?} -> {:?}", current, new_level);
+                println!(
+                    "[AUDIT] Capability de-escalated: {:?} -> {:?}",
+                    current, new_level
+                );
             }
             Ok(())
         } else if self.allow_escalation {
@@ -184,13 +221,16 @@ impl CapabilityValidator {
             if !new_caps.contains(&new_level) {
                 new_caps.push(new_level);
             }
-            
+
             // Get the identity value if it exists
             let value = self.identity.value().cloned().unwrap_or_default();
             self.identity = IdentityType::with_value(value, new_caps);
-            
+
             if self.audit_logging {
-                println!("[AUDIT] Capability escalated: {:?} -> {:?}", current, new_level);
+                println!(
+                    "[AUDIT] Capability escalated: {:?} -> {:?}",
+                    current, new_level
+                );
             }
             Ok(())
         } else {
@@ -208,7 +248,8 @@ impl CapabilityValidator {
 
     /// Get the current highest capability level.
     pub fn capability_level(&self) -> CapabilityLevel {
-        self.identity.capabilities()
+        self.identity
+            .capabilities()
             .iter()
             .max()
             .copied()
@@ -268,8 +309,13 @@ impl IdentityContext {
 /// Identity validation hook for custom validation logic.
 pub trait IdentityValidationHook: Send + Sync {
     /// Validate an identity operation.
-    fn validate(&self, identity: &IdentityType, operation: &str, args: &[&str]) -> Result<(), ValidationError>;
-    
+    fn validate(
+        &self,
+        identity: &IdentityType,
+        operation: &str,
+        args: &[&str],
+    ) -> Result<(), ValidationError>;
+
     /// Verify an identity.
     fn verify_identity(&self, identity: &str) -> Result<IdentityType, ValidationError>;
 }
@@ -279,11 +325,16 @@ pub trait IdentityValidationHook: Send + Sync {
 pub struct DefaultValidationHook;
 
 impl IdentityValidationHook for DefaultValidationHook {
-    fn validate(&self, _identity: &IdentityType, _operation: &str, _args: &[&str]) -> Result<(), ValidationError> {
+    fn validate(
+        &self,
+        _identity: &IdentityType,
+        _operation: &str,
+        _args: &[&str],
+    ) -> Result<(), ValidationError> {
         // Default hook accepts all operations
         Ok(())
     }
-    
+
     fn verify_identity(&self, identity: &str) -> Result<IdentityType, ValidationError> {
         // Default hook creates a basic identity with read capability
         Ok(IdentityType::with_value(
@@ -304,88 +355,118 @@ mod tests {
             "test".to_string(),
             vec![CapabilityLevel::Read, CapabilityLevel::Write],
         );
-        
+
         let validator = CapabilityValidator::new(identity);
-        
+
         // Should allow read operation
         assert!(validator.check_capability(CapabilityLevel::Read).is_ok());
-        
+
         // Should allow write operation
         assert!(validator.check_capability(CapabilityLevel::Write).is_ok());
-        
+
         // Should fail for owned operation
         assert!(validator.check_capability(CapabilityLevel::Owned).is_err());
     }
-    
+
     #[test]
     fn test_constraint_validation() {
-        let identity = IdentityType::with_value(
-            "test".to_string(),
-            vec![CapabilityLevel::Read],
-        );
-        
+        let identity = IdentityType::with_value("test".to_string(), vec![CapabilityLevel::Read]);
+
         let validator = CapabilityValidator::new(identity);
-        
+
         // Valid length
-        assert!(validator.check_constraint(&IdentityConstraint::MinLength(3), "hello").is_ok());
-        
+        assert!(
+            validator
+                .check_constraint(&IdentityConstraint::MinLength(3), "hello")
+                .is_ok()
+        );
+
         // Too short
-        assert!(validator.check_constraint(&IdentityConstraint::MinLength(3), "hi").is_err());
-        
+        assert!(
+            validator
+                .check_constraint(&IdentityConstraint::MinLength(3), "hi")
+                .is_err()
+        );
+
         // Valid max length
-        assert!(validator.check_constraint(&IdentityConstraint::MaxLength(10), "hello").is_ok());
-        
+        assert!(
+            validator
+                .check_constraint(&IdentityConstraint::MaxLength(10), "hello")
+                .is_ok()
+        );
+
         // Too long
-        assert!(validator.check_constraint(&IdentityConstraint::MaxLength(5), "hello world").is_err());
-        
+        assert!(
+            validator
+                .check_constraint(&IdentityConstraint::MaxLength(5), "hello world")
+                .is_err()
+        );
+
         // Pattern match
-        assert!(validator.check_constraint(&IdentityConstraint::Pattern("test".to_string()), "test123").is_ok());
-        
+        assert!(
+            validator
+                .check_constraint(&IdentityConstraint::Pattern("test".to_string()), "test123")
+                .is_ok()
+        );
+
         // Pattern mismatch
-        assert!(validator.check_constraint(&IdentityConstraint::Pattern("test".to_string()), "hello").is_err());
+        assert!(
+            validator
+                .check_constraint(&IdentityConstraint::Pattern("test".to_string()), "hello")
+                .is_err()
+        );
     }
-    
+
     #[test]
     fn test_capability_escalation() {
-        let identity = IdentityType::with_value(
-            "test".to_string(),
-            vec![CapabilityLevel::Read],
-        );
-        
+        let identity = IdentityType::with_value("test".to_string(), vec![CapabilityLevel::Read]);
+
         let mut validator = CapabilityValidator::new(identity.clone());
-        
+
         // De-escalation should work without permission
         assert!(validator.escalate_capability(CapabilityLevel::Read).is_ok());
-        
+
         // Escalation should fail without permission
-        assert!(validator.escalate_capability(CapabilityLevel::Write).is_err());
-        
+        assert!(
+            validator
+                .escalate_capability(CapabilityLevel::Write)
+                .is_err()
+        );
+
         // With escalation enabled, it should work
-        let mut validator_with_escalation = CapabilityValidator::new(identity)
-            .with_escalation(true);
-        assert!(validator_with_escalation.escalate_capability(CapabilityLevel::Write).is_ok());
+        let mut validator_with_escalation =
+            CapabilityValidator::new(identity).with_escalation(true);
+        assert!(
+            validator_with_escalation
+                .escalate_capability(CapabilityLevel::Write)
+                .is_ok()
+        );
     }
-    
+
     #[test]
     fn test_identity_context() {
         let root_identity = IdentityType::with_value(
             "root".to_string(),
             vec![CapabilityLevel::Read, CapabilityLevel::Write],
         );
-        
+
         let mut context = IdentityContext::new(root_identity);
-        
+
         // Enter new context with more restrictive identity
-        let child_identity = IdentityType::with_value(
-            "child".to_string(),
-            vec![CapabilityLevel::Read],
-        );
-        
+        let child_identity =
+            IdentityType::with_value("child".to_string(), vec![CapabilityLevel::Read]);
+
         context.enter_context(child_identity);
-        assert_eq!(context.validator().capability_level(), CapabilityLevel::Read);
-        
+        assert_eq!(
+            context.validator().capability_level(),
+            CapabilityLevel::Read
+        );
+
         // Exit back to root context
         assert!(context.exit_context().is_ok());
-        assert_eq!(context.validator().capability_level(), CapabilityLevel::Write); // Write is higher than Read
+        assert_eq!(
+            context.validator().capability_level(),
+            CapabilityLevel::Write
+        ); // Write is higher than Read
     }
 }
