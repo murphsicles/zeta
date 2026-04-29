@@ -302,6 +302,19 @@ impl<'ctx> LLVMCodegen<'ctx> {
             void_type.fn_type(&[i64_type.into(), i64_type.into()], false),
             Some(Linkage::External),
         );
+        // LLVM ctpop intrinsic (POPCNT instruction) — declared with intrinsic name
+        // so LLVM recognizes and lowers it to the hardware popcnt instruction
+        module.add_function(
+            "llvm.ctpop.i64",
+            i64_type.fn_type(&[i64_type.into()], false),
+            None,
+        );
+        // Zeta name that maps to llvm.ctpop.i64 in the call handler
+        module.add_function(
+            "__builtin_ctpop",
+            i64_type.fn_type(&[i64_type.into()], false),
+            Some(Linkage::External),
+        );
         // Memory allocation functions
         module.add_function(
             "runtime_malloc",
@@ -2052,7 +2065,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         self.builder.build_store(alloca, result).unwrap();
                         return;
                     }
-                    let callee = self.get_function_with_types(func, type_args);
+                    // Intercept __builtin_ctpop → redirect to llvm.ctpop.i64 (POPCNT instruction)
+                    let actual_func = if func == "__builtin_ctpop" {
+                        "llvm.ctpop.i64"
+                    } else {
+                        func
+                    };
+                    let callee = self.get_function_with_types(actual_func, type_args);
 
                     // Check if this is a runtime function that takes pointer arguments
                     let needs_ptr_arg = func == "option_is_some"
