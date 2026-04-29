@@ -1101,7 +1101,7 @@ pub fn to_string<T>(_value: &T) -> Result<String, ()> {
 }
 
 pub fn from_str<T>(_s: &str) -> Result<T, ()> {
-    unimplemented!()
+    Err(())
 }"#
             .to_string(),
             _ => {

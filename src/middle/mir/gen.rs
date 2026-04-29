@@ -814,6 +814,49 @@ impl MirGen {
                 // As standalone stmts, evaluate them as expressions.
                 self.lower_expr(ast);
             }
+            // ── Priority C: Module System ──
+            AstNode::Use { .. } => {
+                // Use/import declaration — all semantic processing handled by resolver.
+            }
+            AstNode::ModDef { items, .. } => {
+                // Module definition — lower all items.
+                for item in items {
+                    self.lower_ast(item);
+                }
+            }
+            // ── Priority D & E: Remaining Nodes ──
+            AstNode::Defer(body) => {
+                // Defer: execute the body immediately (simplified lowering).
+                self.lower_ast(body);
+            }
+            AstNode::Await(body) => {
+                // Await: evaluate the inner expression.
+                self.lower_expr(body);
+            }
+            AstNode::Closure { body, .. } => {
+                // Closure in statement position: evaluate body as expression.
+                self.lower_expr(body);
+            }
+            AstNode::Spawn { func, args } => {
+                // Actor spawn: treat as a function call for now.
+                let mut arg_ids = vec![];
+                for a in args {
+                    arg_ids.push(self.lower_expr(a));
+                }
+                let spawn_dest = self.next_id();
+                self.stmts.push(MirStmt::Call {
+                    func: format!("spawn_{}", func),
+                    args: arg_ids,
+                    dest: spawn_dest,
+                    type_args: vec![],
+                });
+                self.exprs.insert(spawn_dest, MirExpr::Var(spawn_dest));
+                self.type_map.insert(spawn_dest, Type::I64);
+            }
+            AstNode::TimingOwned { inner, .. } => {
+                // Constant-time wrapper: evaluate inner expression with TimingOwned node.
+                self.lower_expr(inner);
+            }
             AstNode::If { .. } | AstNode::Call { .. } | AstNode::PathCall { .. } => {
                 self.lower_expr(ast);
             }
@@ -2142,6 +2185,31 @@ impl MirGen {
                 );
                 self.type_map
                     .insert(id, Type::Named(variant.clone(), vec![]));
+            }
+            // ── Priority D & E: Remaining Expression Nodes ──
+            AstNode::Closure { body, .. } => {
+                // Closure expression: evaluate the body as an expression.
+                // Full closure lowering would capture the environment; for now,
+                // just lower the body.
+                return self.lower_expr(body);
+            }
+            AstNode::Defer(body) => {
+                // Defer expression: evaluate and return the inner expression.
+                return self.lower_expr(body);
+            }
+            AstNode::Await(body) => {
+                // Await expression: evaluate the inner expression.
+                return self.lower_expr(body);
+            }
+            AstNode::TimingOwned { inner, .. } => {
+                // Timing-owned: wrap the inner expression.
+                let inner_id = self.lower_expr(inner);
+                self.exprs.insert(id, MirExpr::TimingOwned(inner_id));
+                if let Some(ty) = self.type_map.get(&inner_id) {
+                    self.type_map.insert(id, ty.clone());
+                } else {
+                    self.type_map.insert(id, Type::I64);
+                }
             }
             _ => {
                 self.exprs.insert(id, MirExpr::Lit(0));
