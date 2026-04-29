@@ -1901,6 +1901,71 @@ impl Substitution {
         }
     }
 
+    /// Check if a type satisfies a concept (Stepanov Elements of Programming)
+    /// Concept hierarchy: Regular -> TotallyOrdered -> Semigroup -> Monoid -> Group -> Ring
+    pub fn satisfies_concept(&self, ty: &Type, concept: &Type) -> bool {
+        let ty = self.apply(ty);
+        match concept {
+            Type::Regular => ty.is_regular(),
+            Type::TotallyOrdered => {
+                // TotallyOrdered requires Regular + total ordering comparisons
+                ty.is_regular() && self.satisfies_bound(&ty, &TraitBound::PartialOrd)
+            }
+            Type::Semigroup => {
+                // Semigroup requires TotallyOrdered + associative + operation
+                // For now, any integer type satisfies Semigroup
+                ty.is_integer()
+            }
+            Type::Monoid => {
+                // Monoid = Semigroup + identity element
+                // Integers with + form a monoid (identity = 0)
+                ty.is_integer()
+            }
+            Type::Group => {
+                // Group = Monoid + inverse
+                // Integers with + form a group (inverse = negation)
+                ty.is_integer() || ty.is_floating_point()
+            }
+            Type::Ring => {
+                // Ring = Group + multiplication
+                // Integers with + and * form a ring
+                ty.is_integer() || ty.is_floating_point()
+            }
+            // Iterator concepts
+            Type::InputIterator => {
+                // Has source() operation (dereference)
+                ty.is_regular()
+            }
+            Type::ForwardIterator => {
+                // InputIterator + successor + multipass
+                self.satisfies_concept(&ty, &Type::InputIterator)
+            }
+            Type::BidirectionalIterator => {
+                // ForwardIterator + predecessor
+                self.satisfies_concept(&ty, &Type::ForwardIterator)
+            }
+            Type::RandomAccessIterator => {
+                // BidirectionalIterator + O(1) advance
+                self.satisfies_concept(&ty, &Type::BidirectionalIterator)
+            }
+            _ => false,
+        }
+    }
+
+    /// Get the concept refinement parent (None if top-level concept)
+    pub fn concept_parent(concept: &Type) -> Option<Type> {
+        match concept {
+            Type::TotallyOrdered | Type::Semigroup => Some(Type::Regular),
+            Type::Monoid => Some(Type::Semigroup),
+            Type::Group => Some(Type::Monoid),
+            Type::Ring => Some(Type::Group),
+            Type::ForwardIterator => Some(Type::InputIterator),
+            Type::BidirectionalIterator => Some(Type::ForwardIterator),
+            Type::RandomAccessIterator => Some(Type::BidirectionalIterator),
+            _ => None,
+        }
+    }
+
     /// Check if a type satisfies a trait bound
     pub fn satisfies_bound(&self, ty: &Type, bound: &TraitBound) -> bool {
         let ty = self.apply(ty);
