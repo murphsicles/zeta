@@ -24,13 +24,15 @@ pub use associated::{
 // Re-export type family types
 pub mod family;
 pub use family::{
-    TypeFamily, TypeFamilyBuilder, TypeFamilyContext, TypeFamilyEquation,
-    TypeFamilyEquationBuilder, TypeFamilyPattern, TypeFamilyConstraint,
+    TypeFamily, TypeFamilyBuilder, TypeFamilyConstraint, TypeFamilyContext, TypeFamilyEquation,
+    TypeFamilyEquationBuilder, TypeFamilyPattern,
 };
 
 // Re-export identity types
 pub mod identity;
-pub use identity::{CapabilityLevel, IdentityConstraint, IdentityContext, IdentityOp, IdentityType};
+pub use identity::{
+    CapabilityLevel, IdentityConstraint, IdentityContext, IdentityOp, IdentityType,
+};
 
 /// Type variable for inference
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -98,17 +100,17 @@ pub enum Type {
     U16,
     U32,
     U64,
-    Usize,  // Platform-dependent unsigned integer (size of pointer)
+    Usize, // Platform-dependent unsigned integer (size of pointer)
     F32,
     F64,
 
     // SIMD vector types (specific variants for common sizes)
-    I32x4,  // SIMD vector of 4 i32 elements
-    I64x2,  // SIMD vector of 2 i64 elements
-    F32x4,  // SIMD vector of 4 f32 elements
+    I32x4, // SIMD vector of 4 i32 elements
+    I64x2, // SIMD vector of 2 i64 elements
+    F32x4, // SIMD vector of 4 f32 elements
 
     // LLVM-native 256-bit AVX2 vector types
-    V4I64,  // <4 x i64> — 256-bit, 4 × i64, LLVM SSA register value, Size: 32 bytes
+    V4I64, // <4 x i64> — 256-bit, 4 × i64, LLVM SSA register value, Size: 32 bytes
 
     // Other primitives
     Bool,
@@ -118,7 +120,7 @@ pub enum Type {
     Range,
 
     // Compound types
-    Array(Box<Type>, ArraySize),              // [T; N]
+    Array(Box<Type>, ArraySize),          // [T; N]
     Slice(Box<Type>),                     // [T]
     DynamicArray(Box<Type>),              // [dynamic]T
     Tuple(Vec<Type>),                     // (T1, T2, ...)
@@ -189,7 +191,7 @@ impl TypeParam {
             kind: Kind::Star,
         }
     }
-    
+
     /// Create a type parameter with specific kind
     pub fn with_kind(name: String, kind: Kind) -> Self {
         TypeParam {
@@ -198,7 +200,7 @@ impl TypeParam {
             kind,
         }
     }
-    
+
     /// Add a trait bound
     pub fn with_bound(mut self, bound: TraitBound) -> Self {
         self.bounds.push(bound);
@@ -318,7 +320,8 @@ impl Type {
                         // inner should be "identity:read" or "identity:read+write"
                         if let Some(caps_str) = inner.strip_prefix("identity:") {
                             // Parse capabilities: "read", "write", "read+write"
-                            let capabilities = caps_str.split('+')
+                            let capabilities = caps_str
+                                .split('+')
                                 .filter_map(|s| match s.trim() {
                                     "read" => Some(CapabilityLevel::Read),
                                     "write" => Some(CapabilityLevel::Write),
@@ -342,17 +345,17 @@ impl Type {
                 // Check for array type: [T; N] or [dynamic]T
                 if s.starts_with('[') && s.ends_with(']') {
                     let inner = &s[1..s.len() - 1]; // Remove brackets
-                    
+
                     // Check for dynamic array: [dynamic]T
                     if let Some(type_part) = inner.strip_prefix("dynamic]") {
                         let inner_type = Type::from_string(type_part.trim());
                         return Type::DynamicArray(Box::new(inner_type));
                     }
-                    
+
                     // Find the semicolon that separates type from size, handling nested brackets
                     let mut bracket_count = 0;
                     let mut split_pos = None;
-                    
+
                     for (i, ch) in inner.chars().enumerate() {
                         match ch {
                             '[' => bracket_count += 1,
@@ -364,7 +367,7 @@ impl Type {
                             _ => {}
                         }
                     }
-                    
+
                     if let Some(pos) = split_pos {
                         // Array with size: [T; N]
                         let type_part = &inner[..pos];
@@ -454,7 +457,7 @@ impl Type {
                     // Find the comma separating type and size
                     let mut comma_pos = None;
                     let mut depth = 0;
-                    
+
                     for (i, ch) in inner.chars().enumerate() {
                         match ch {
                             '<' => depth += 1,
@@ -466,11 +469,11 @@ impl Type {
                             _ => {}
                         }
                     }
-                    
+
                     if let Some(comma) = comma_pos {
                         let type_part = &inner[..comma].trim();
                         let size_part = &inner[comma + 1..].trim();
-                        
+
                         let inner_type = Type::from_string(type_part);
                         if let Ok(size) = size_part.parse::<usize>() {
                             return Type::Vector(Box::new(inner_type), ArraySize::Literal(size));
@@ -950,9 +953,9 @@ impl Type {
                             }
                         })
                         .collect();
-                    
+
                     let identity_type_args = identity_type_args?;
-                    
+
                     // Instantiate the identity type
                     let instantiated = identity.instantiate(identity_type_args)?;
                     Ok(Type::Identity(Box::new(instantiated)))
@@ -960,7 +963,7 @@ impl Type {
                     // Non-parametric identity type remains unchanged
                     Ok(Type::Identity(identity.clone()))
                 }
-            },
+            }
 
             // Primitive types and error type remain unchanged
             _ => Ok(self.clone()),
@@ -975,10 +978,13 @@ impl Type {
     /// Get the element type and size of a vector if this is a vector type
     pub fn as_vector(&self) -> Option<(&Type, usize)> {
         match self {
-            Type::Vector(inner, size) => Some((inner, match size {
-                ArraySize::Literal(n) => *n,
-                _ => 0, // Default for non-literal sizes
-            })),
+            Type::Vector(inner, size) => Some((
+                inner,
+                match size {
+                    ArraySize::Literal(n) => *n,
+                    _ => 0, // Default for non-literal sizes
+                },
+            )),
             _ => None,
         }
     }
@@ -1110,7 +1116,7 @@ impl Substitution {
             _ => false,
         }
     }
-    
+
     /// Unify two array sizes
     fn unify_array_size(&mut self, size1: &ArraySize, size2: &ArraySize) -> Result<(), UnifyError> {
         match (size1, size2) {
@@ -1125,7 +1131,7 @@ impl Substitution {
                     Err(UnifyError::Mismatch(t1, t2))
                 }
             }
-            
+
             // Const parameter can unify with literal or another const parameter
             (ArraySize::ConstParam(name1), ArraySize::ConstParam(name2)) => {
                 if name1 == name2 {
@@ -1137,7 +1143,7 @@ impl Substitution {
                     Err(UnifyError::Mismatch(t1, t2))
                 }
             }
-            
+
             // Const parameter can unify with literal (const parameter gets bound to literal)
             // This is a simplification - in full const generics, we'd need to track const parameter values
             (ArraySize::ConstParam(_), ArraySize::Literal(_)) => {
@@ -1148,7 +1154,7 @@ impl Substitution {
                 // Symmetric case
                 Ok(())
             }
-            
+
             // Expressions are more complex - for now, require exact match
             (ArraySize::Expr(e1), ArraySize::Expr(e2)) => {
                 if e1 == e2 {
@@ -1159,7 +1165,7 @@ impl Substitution {
                     Err(UnifyError::Mismatch(t1, t2))
                 }
             }
-            
+
             // Mixed expression with literal/const - for now, don't unify
             // In a full implementation, we'd need to evaluate/simplify expressions
             _ => {
@@ -1264,7 +1270,7 @@ impl Substitution {
             // Note: No implicit numeric coercions in unification
             // i32 and i64 are distinct types
             // Coercions would be handled separately in type checking
-            
+
             // Special case for PrimeZeta compatibility: allow i64 to unify with unsigned integers
             // This is unsafe but needed for v0.3.26 compatibility and Murphy's Sieve algorithm
             (Type::I64, Type::U8) | (Type::U8, Type::I64) => {
@@ -1318,18 +1324,17 @@ impl Substitution {
             (Type::Array(inner1, size1), Type::Array(inner2, size2)) => {
                 // Allow size 0 as a wildcard (for type inference)
                 // This is a hack to support array subscripting
-                if size1 != size2 && 
-                   !matches!(size1, ArraySize::Literal(0)) && 
-                   !matches!(size2, ArraySize::Literal(0)) {
+                if size1 != size2
+                    && !matches!(size1, ArraySize::Literal(0))
+                    && !matches!(size2, ArraySize::Literal(0))
+                {
                     return Err(UnifyError::Mismatch(t1, t2));
                 }
                 self.unify(inner1, inner2)
             }
 
             // Dynamic array types
-            (Type::DynamicArray(inner1), Type::DynamicArray(inner2)) => {
-                self.unify(inner1, inner2)
-            }
+            (Type::DynamicArray(inner1), Type::DynamicArray(inner2)) => self.unify(inner1, inner2),
 
             // Slice-array unification: allow Slice(T) to unify with Array(T, size=0)
             // This enables `let arr: [u8] = []` where [] is Array(U8, size=0)
@@ -1349,9 +1354,7 @@ impl Substitution {
             }
 
             // Slice types
-            (Type::Slice(inner1), Type::Slice(inner2)) => {
-                self.unify(inner1, inner2)
-            }
+            (Type::Slice(inner1), Type::Slice(inner2)) => self.unify(inner1, inner2),
 
             // Vector types
             (Type::Vector(inner1, size1), Type::Vector(inner2, size2)) => {
@@ -1713,19 +1716,22 @@ impl Substitution {
             TraitBound::PartialOrd => self.is_partial_ord(&ty),
             TraitBound::Ord => self.is_ord(&ty),
             TraitBound::Hash => self.is_hash(&ty),
-            TraitBound::Future => false, // TODO: Implement Future trait check
+            TraitBound::Future => self.is_future(&ty),
             TraitBound::Identity(capabilities) => {
                 // Check if type has identity with required capabilities
                 match ty {
                     Type::Identity(identity_type) => {
                         // Check if identity has all required capabilities
                         capabilities.iter().all(|required_cap| {
-                            identity_type.capabilities.iter().any(|cap| cap >= required_cap)
+                            identity_type
+                                .capabilities
+                                .iter()
+                                .any(|cap| cap >= required_cap)
                         })
                     }
                     _ => false,
                 }
-            },
+            }
         }
     }
 
@@ -1839,6 +1845,14 @@ impl Substitution {
     fn is_hash(&self, ty: &Type) -> bool {
         // Assume all types are Hash for now
         true
+    }
+
+    fn is_future(&self, ty: &Type) -> bool {
+        match ty {
+            Type::AsyncFunction(_, _) => true,
+            Type::Named(name, _) => name == "Future" || name == "std::future::Future",
+            _ => false,
+        }
     }
 }
 

@@ -6,8 +6,8 @@
 use std::collections::HashMap;
 use std::fmt;
 
-pub mod string_ops;
 pub mod inference;
+pub mod string_ops;
 
 #[cfg(test)]
 mod inference_test;
@@ -111,7 +111,10 @@ impl IdentityType {
     }
 
     /// Create a new parametric identity type
-    pub fn parametric(capabilities: Vec<CapabilityLevel>, type_params: Vec<IdentityTypeParam>) -> Self {
+    pub fn parametric(
+        capabilities: Vec<CapabilityLevel>,
+        type_params: Vec<IdentityTypeParam>,
+    ) -> Self {
         Self {
             value: None,
             capabilities,
@@ -196,14 +199,14 @@ impl IdentityType {
                 return false;
             }
         }
-        
+
         // Check constraints
         for constraint in &other.constraints {
             if !self.satisfies_constraint(constraint) {
                 return false;
             }
         }
-        
+
         true
     }
 
@@ -250,7 +253,7 @@ impl fmt::Display for IdentityType {
         } else {
             write!(f, "identity")?;
         }
-        
+
         // Display type parameters if any
         if !self.type_params.is_empty() {
             write!(f, "<")?;
@@ -262,7 +265,7 @@ impl fmt::Display for IdentityType {
             }
             write!(f, ">")?;
         }
-        
+
         if !self.capabilities.is_empty() {
             write!(f, "[")?;
             for (i, cap) in self.capabilities.iter().enumerate() {
@@ -273,11 +276,11 @@ impl fmt::Display for IdentityType {
             }
             write!(f, "]")?;
         }
-        
+
         if self.delegatable {
             write!(f, "+delegatable")?;
         }
-        
+
         Ok(())
     }
 }
@@ -297,16 +300,21 @@ impl IdentityConstraint {
     /// Create an IdentityConstraint from a string representation
     pub fn from_str(s: &str) -> Result<Self, String> {
         if s.starts_with("matches '") && s.ends_with("'") {
-            let pattern = s.trim_start_matches("matches '").trim_end_matches("'").to_string();
+            let pattern = s
+                .trim_start_matches("matches '")
+                .trim_end_matches("'")
+                .to_string();
             Ok(IdentityConstraint::Pattern(pattern))
         } else if s.starts_with("length <=") {
             let max_str = s.trim_start_matches("length <=").trim();
-            let max = max_str.parse::<usize>()
+            let max = max_str
+                .parse::<usize>()
                 .map_err(|e| format!("Invalid max length '{}': {}", max_str, e))?;
             Ok(IdentityConstraint::MaxLength(max))
         } else if s.starts_with("length >=") {
             let min_str = s.trim_start_matches("length >=").trim();
-            let min = min_str.parse::<usize>()
+            let min = min_str
+                .parse::<usize>()
                 .map_err(|e| format!("Invalid min length '{}': {}", min_str, e))?;
             Ok(IdentityConstraint::MinLength(min))
         } else {
@@ -372,17 +380,20 @@ impl IdentityContext {
     /// Check if one identity is a subtype of another
     pub fn is_subtype(&self, subtype: &str, supertype: &str) -> bool {
         // Direct relationship
-        if self.subtyping.contains(&(subtype.to_string(), supertype.to_string())) {
+        if self
+            .subtyping
+            .contains(&(subtype.to_string(), supertype.to_string()))
+        {
             return true;
         }
-        
+
         // Transitive closure (simplified)
         for (sub, sup) in &self.subtyping {
             if sub == subtype && self.is_subtype(sup, supertype) {
                 return true;
             }
         }
-        
+
         false
     }
 
@@ -394,7 +405,7 @@ impl IdentityContext {
                 return None;
             }
         }
-        
+
         // Take the union of capabilities
         let mut capabilities = t1.capabilities.clone();
         for cap in &t2.capabilities {
@@ -402,22 +413,22 @@ impl IdentityContext {
                 capabilities.push(*cap);
             }
         }
-        
+
         // Take the intersection of delegatable
         let delegatable = t1.delegatable && t2.delegatable;
-        
+
         // Combine constraints
         let mut constraints = t1.constraints.clone();
         constraints.extend(t2.constraints.clone());
-        
+
         // For type parameters, they must match exactly
         if t1.type_params != t2.type_params {
             return None;
         }
-        
+
         // Use the known value if either has one
         let value = t1.value.clone().or_else(|| t2.value.clone());
-        
+
         Some(IdentityType {
             value,
             capabilities,
