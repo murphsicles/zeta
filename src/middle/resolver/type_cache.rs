@@ -166,15 +166,9 @@ impl CachingTypeChecker {
             }
         }
 
-        // Print cache statistics
-        let (hits, misses, hit_rate) = self.cache.stats();
-        eprintln!(
-            "[TYPE CACHE] Hits: {}, Misses: {}, Hit rate: {:.2}%, Size: {}",
-            hits,
-            misses,
-            hit_rate * 100.0,
-            self.cache.size()
-        );
+        // Cache statistics tracking
+        // Note: to enable cache stats output, use cfg feature "cache_stats"
+        let _ = self.cache.stats(); // suppress unused warning
 
         ok
     }

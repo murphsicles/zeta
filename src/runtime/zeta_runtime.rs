@@ -1,10 +1,11 @@
 //! Zeta runtime support module
 //!
-//! Placeholder for runtime functionality.
+//! Runtime functions that are called from compiled Zeta code.
+//! These delegate to the proper runtime implementations.
 
 /// Runtime context
 pub struct RuntimeContext {
-    // Placeholder
+    // Placeholder for future state
 }
 
 impl RuntimeContext {
@@ -14,50 +15,53 @@ impl RuntimeContext {
     }
 }
 
-// Stub implementations for runtime functions
-// These are called from generated code and need to be linked.
-
-/// Get boolean from array
+/// Get bool from array — delegates to array runtime
 #[allow(unused_variables)]
 pub unsafe extern "C" fn zeta_array_get_bool(array_ptr: i64, index: i64) -> i64 {
-    // TODO: Implement
-    0
+    // SAFETY: caller must ensure valid pointer and index
+    unsafe { crate::runtime::array::array_get(array_ptr, index) }
 }
 
-/// Get i64 from array
+/// Get i64 from array — delegates to array runtime
 #[allow(unused_variables)]
 pub unsafe extern "C" fn zeta_array_get_i64(array_ptr: i64, index: i64) -> i64 {
-    // TODO: Implement
-    0
+    // SAFETY: caller must ensure valid pointer and index
+    unsafe { crate::runtime::array::array_get(array_ptr, index) }
 }
 
-/// Set boolean in array
+/// Set boolean in array — delegates to array runtime
 #[allow(unused_variables)]
 pub unsafe extern "C" fn zeta_array_set_bool(array_ptr: i64, index: i64, value: i64) {
-    // TODO: Implement
+    // SAFETY: caller must ensure valid pointer and index
+    unsafe {
+        crate::runtime::array::array_set(array_ptr, index, value);
+    }
 }
 
-/// Set i64 in array
+/// Set i64 in array — delegates to array runtime
 #[allow(unused_variables)]
 pub unsafe extern "C" fn zeta_array_set_i64(array_ptr: i64, index: i64, value: i64) {
-    // TODO: Implement
+    // SAFETY: caller must ensure valid pointer and index
+    unsafe {
+        crate::runtime::array::array_set(array_ptr, index, value);
+    }
 }
 
 /// Print i64
 #[allow(unused_variables)]
 pub unsafe extern "C" fn zeta_print_i64(value: i64) {
-    // TODO: Implement
+    print!("{}", value);
 }
 
 /// Print i64 with newline
 #[allow(unused_variables)]
 pub unsafe extern "C" fn zeta_println_i64(value: i64) {
-    // TODO: Implement
+    println!("{}", value);
 }
 
-/// Create new sieve
+/// Create a new array (sieve-compatible)
 #[allow(unused_variables)]
 pub unsafe extern "C" fn zeta_sieve_new(size: i64) -> i64 {
-    // TODO: Implement
-    0
+    // SAFETY: caller must ensure valid size
+    unsafe { crate::runtime::array::array_new(size as usize) }
 }
