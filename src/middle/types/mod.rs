@@ -107,6 +107,9 @@ pub enum Type {
     I64x2,  // SIMD vector of 2 i64 elements
     F32x4,  // SIMD vector of 4 f32 elements
 
+    // LLVM-native 256-bit AVX2 vector types
+    V4I64,  // <4 x i64> — 256-bit, 4 × i64, LLVM SSA register value, Size: 32 bytes
+
     // Other primitives
     Bool,
     Char,
@@ -270,6 +273,8 @@ impl Type {
             "bool" => Type::Bool,
             "char" => Type::Char,
             "str" => Type::Str,
+            // V4I64 native vector type
+            "v4i64" => Type::V4I64,
             // SIMD vector types
             "i32x4" => Type::I32x4,
             "i64x2" => Type::I64x2,
@@ -611,6 +616,8 @@ impl Type {
             Type::Char => "char".to_string(),
             Type::Str => "str".to_string(),
             Type::Range => "Range".to_string(),
+            // V4I64 native vector type
+            Type::V4I64 => "v4i64".to_string(),
             // SIMD vector types
             Type::I32x4 => "i32x4".to_string(),
             Type::I64x2 => "i64x2".to_string(),
@@ -709,6 +716,7 @@ impl Type {
             Type::Char => "char".to_string(),
             Type::Str => "str".to_string(),
             Type::Range => "Range".to_string(),
+            Type::V4I64 => "V4I64".to_string(),
             Type::I32x4 => "I32x4".to_string(),
             Type::I64x2 => "I64x2".to_string(),
             Type::F32x4 => "F32x4".to_string(),
@@ -961,7 +969,7 @@ impl Type {
 
     /// Check if this type is a SIMD vector
     pub fn is_vector(&self) -> bool {
-        matches!(self, Type::Vector(_, _))
+        matches!(self, Type::Vector(_, _) | Type::V4I64)
     }
 
     /// Get the element type and size of a vector if this is a vector type

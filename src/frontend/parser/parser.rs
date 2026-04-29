@@ -373,6 +373,7 @@ pub fn parse_non_array_type(input: &str) -> IResult<&str, String> {
         tag("usize").map(|_| "usize".to_string()),
         tag("f32").map(|_| "f32".to_string()),
         tag("f64").map(|_| "f64".to_string()),
+        tag("v4i64").map(|_| "v4i64".to_string()),  // LLVM-native 256-bit AVX2 vector
         tag("bool").map(|_| "bool".to_string()),
         tag("char").map(|_| "char".to_string()),
         parse_string_with_identity,
@@ -449,6 +450,7 @@ pub fn parse_type(input: &str) -> IResult<&str, String> {
         tag("usize").map(|_| "usize".to_string()),
         tag("f32").map(|_| "f32".to_string()),
         tag("f64").map(|_| "f64".to_string()),
+        tag("v4i64").map(|_| "v4i64".to_string()),  // LLVM-native 256-bit AVX2 vector
         tag("bool").map(|_| "bool".to_string()),
         tag("char").map(|_| "char".to_string()),
         parse_string_with_identity,

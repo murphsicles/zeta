@@ -315,6 +315,17 @@ impl<'ctx> LLVMCodegen<'ctx> {
             i64_type.fn_type(&[i64_type.into()], false),
             Some(Linkage::External),
         );
+        // V4I64 vector intrinsics (AVX2) — handled inline in codegen
+        module.add_function(
+            "__builtin_v4i64_store",
+            void_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into(), i64_type.into(), i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "__builtin_v4i64_andnot",
+            void_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into(), i64_type.into(), i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
         // Memory allocation functions
         module.add_function(
             "runtime_malloc",
@@ -2065,12 +2076,88 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         self.builder.build_store(alloca, result).unwrap();
                         return;
                     }
+                    // Intercept V4I64 vector intrinsics → inline LLVM vector IR
+                    // These are void operations but MIR gen generates Call (with dest) for all externs.
+                    // V4I64 intrinsics — evaluate all args first to avoid borrow conflicts
+                    if func == "__builtin_v4i64_andnot" && args.len() == 6 {
+                        let ptr_i64 = self.gen_expr_safe(&args[0], exprs).into_int_value();
+                        let word_idx = self.gen_expr_safe(&args[1], exprs).into_int_value();
+                        let m0 = self.gen_expr_safe(&args[2], exprs).into_int_value();
+                        let m1 = self.gen_expr_safe(&args[3], exprs).into_int_value();
+                        let m2 = self.gen_expr_safe(&args[4], exprs).into_int_value();
+                        let m3 = self.gen_expr_safe(&args[5], exprs).into_int_value();
+
+                        let thirty_two = self.i64_type.const_int(32, false);
+                        let byte_offset = self.builder.build_int_mul(word_idx, thirty_two, "off").unwrap();
+                        let base_ptr = self.builder.build_int_to_ptr(ptr_i64, self.ptr_type, "base").unwrap();
+                        let vec_ptr = unsafe {
+                            self.builder.build_gep(self.context.i8_type(), base_ptr, &[byte_offset], "vptr").unwrap()
+                        };
+                        let loaded = self.builder.build_load(self.vec4_i64_type, vec_ptr, "load").unwrap().into_vector_value();
+
+                        let poison = self.vec4_i64_type.get_undef();
+                        let z = self.i64_type.const_int(0, false);
+                        let o = self.i64_type.const_int(1, false);
+                        let t = self.i64_type.const_int(2, false);
+                        let h = self.i64_type.const_int(3, false);
+                        let mut mask = self.builder.build_insert_element(poison, m0, z, "m0").unwrap();
+                        mask = self.builder.build_insert_element(mask, m1, o, "m1").unwrap();
+                        mask = self.builder.build_insert_element(mask, m2, t, "m2").unwrap();
+                        mask = self.builder.build_insert_element(mask, m3, h, "m3").unwrap();
+
+                        let one_val = self.i64_type.const_int(u64::MAX, false);
+                        let mut all_ones = self.builder.build_insert_element(poison, one_val, z, "o0").unwrap();
+                        all_ones = self.builder.build_insert_element(all_ones, one_val, o, "o1").unwrap();
+                        all_ones = self.builder.build_insert_element(all_ones, one_val, t, "o2").unwrap();
+                        all_ones = self.builder.build_insert_element(all_ones, one_val, h, "o3").unwrap();
+
+                        let not_mask = self.builder.build_xor(mask, all_ones, "not").unwrap();
+                        let result = self.builder.build_and(loaded, not_mask, "res").unwrap();
+                        self.builder.build_store(vec_ptr, result).unwrap();
+
+                        let alloca = *self.locals.get(dest).unwrap();
+                        self.builder.build_store(alloca, self.i64_type.const_zero()).unwrap();
+                        return;
+                    }
+
+                    if func == "__builtin_v4i64_store" && args.len() == 6 {
+                        let ptr_i64 = self.gen_expr_safe(&args[0], exprs).into_int_value();
+                        let word_idx = self.gen_expr_safe(&args[1], exprs).into_int_value();
+                        let v0 = self.gen_expr_safe(&args[2], exprs).into_int_value();
+                        let v1 = self.gen_expr_safe(&args[3], exprs).into_int_value();
+                        let v2 = self.gen_expr_safe(&args[4], exprs).into_int_value();
+                        let v3 = self.gen_expr_safe(&args[5], exprs).into_int_value();
+
+                        let thirty_two = self.i64_type.const_int(32, false);
+                        let byte_offset = self.builder.build_int_mul(word_idx, thirty_two, "off").unwrap();
+                        let base_ptr = self.builder.build_int_to_ptr(ptr_i64, self.ptr_type, "base").unwrap();
+                        let vec_ptr = unsafe {
+                            self.builder.build_gep(self.context.i8_type(), base_ptr, &[byte_offset], "vptr").unwrap()
+                        };
+
+                        let poison = self.vec4_i64_type.get_undef();
+                        let z = self.i64_type.const_int(0, false);
+                        let o = self.i64_type.const_int(1, false);
+                        let t = self.i64_type.const_int(2, false);
+                        let h = self.i64_type.const_int(3, false);
+                        let mut vec = self.builder.build_insert_element(poison, v0, z, "v0").unwrap();
+                        vec = self.builder.build_insert_element(vec, v1, o, "v1").unwrap();
+                        vec = self.builder.build_insert_element(vec, v2, t, "v2").unwrap();
+                        vec = self.builder.build_insert_element(vec, v3, h, "v3").unwrap();
+
+                        self.builder.build_store(vec_ptr, vec).unwrap();
+
+                        let alloca = *self.locals.get(dest).unwrap();
+                        self.builder.build_store(alloca, self.i64_type.const_zero()).unwrap();
+                        return;
+                    }
+
                     // Intercept __builtin_ctpop → redirect to llvm.ctpop.i64 (POPCNT instruction)
                     let actual_func = if func == "__builtin_ctpop" {
                         "llvm.ctpop.i64"
                     } else {
                         func
-                    };
+    };
                     let callee = self.get_function_with_types(actual_func, type_args);
 
                     // Check if this is a runtime function that takes pointer arguments
@@ -2926,6 +3013,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             Type::Char => self.context.i32_type().into(), // Unicode scalar value
             Type::Str => self.context.ptr_type(AddressSpace::default()).into(),
             Type::Range => self.context.struct_type(&[self.context.i64_type().into(), self.context.i64_type().into()], false).into(),
+            Type::V4I64 => self.vec4_i64_type.into(),
             Type::I32x4 => self.context.i32_type().array_type(4).into(),
             Type::I64x2 => self.context.i64_type().array_type(2).into(),
             Type::F32x4 => self.context.f32_type().array_type(4).into(),
