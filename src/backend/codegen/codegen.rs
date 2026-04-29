@@ -41,10 +41,11 @@ pub struct LLVMCodegen<'ctx> {
 
     // NEW: Map from generic function names to their MIR definitions
     pub generic_defs: HashMap<String, crate::middle::mir::mir::Mir>,
-    pub loop_stack: Vec<(inkwell::basic_block::BasicBlock<'ctx>, inkwell::basic_block::BasicBlock<'ctx>)>,
+    pub loop_stack: Vec<(
+        inkwell::basic_block::BasicBlock<'ctx>,
+        inkwell::basic_block::BasicBlock<'ctx>,
+    )>,
 
-    
-    
     // Current type map for the function being compiled
     pub current_type_map: Option<std::collections::HashMap<u32, crate::middle::types::Type>>,
 }
@@ -148,10 +149,19 @@ impl<'ctx> LLVMCodegen<'ctx> {
         // Vector<u64, 8>
         module.add_function(
             "vector_make_u64x8",
-            i64_type.fn_type(&[
-                i64_type.into(), i64_type.into(), i64_type.into(), i64_type.into(),
-                i64_type.into(), i64_type.into(), i64_type.into(), i64_type.into()
-            ], false),
+            i64_type.fn_type(
+                &[
+                    i64_type.into(),
+                    i64_type.into(),
+                    i64_type.into(),
+                    i64_type.into(),
+                    i64_type.into(),
+                    i64_type.into(),
+                    i64_type.into(),
+                    i64_type.into(),
+                ],
+                false,
+            ),
             Some(Linkage::External),
         );
         module.add_function(
@@ -162,9 +172,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
         // Vector<i32, 4>
         module.add_function(
             "vector_make_i32x4",
-            i64_type.fn_type(&[
-                i64_type.into(), i64_type.into(), i64_type.into(), i64_type.into()
-            ], false),
+            i64_type.fn_type(
+                &[
+                    i64_type.into(),
+                    i64_type.into(),
+                    i64_type.into(),
+                    i64_type.into(),
+                ],
+                false,
+            ),
             Some(Linkage::External),
         );
         module.add_function(
@@ -321,12 +337,32 @@ impl<'ctx> LLVMCodegen<'ctx> {
         // V4I64 vector intrinsics (AVX2) — handled inline in codegen
         module.add_function(
             "__builtin_v4i64_store",
-            void_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into(), i64_type.into(), i64_type.into(), i64_type.into()], false),
+            void_type.fn_type(
+                &[
+                    i64_type.into(),
+                    i64_type.into(),
+                    i64_type.into(),
+                    i64_type.into(),
+                    i64_type.into(),
+                    i64_type.into(),
+                ],
+                false,
+            ),
             Some(Linkage::External),
         );
         module.add_function(
             "__builtin_v4i64_andnot",
-            void_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into(), i64_type.into(), i64_type.into(), i64_type.into()], false),
+            void_type.fn_type(
+                &[
+                    i64_type.into(),
+                    i64_type.into(),
+                    i64_type.into(),
+                    i64_type.into(),
+                    i64_type.into(),
+                    i64_type.into(),
+                ],
+                false,
+            ),
             Some(Linkage::External),
         );
         // Memory allocation functions
@@ -419,7 +455,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
         );
         module.add_function(
             "sieve_step",
-            void_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into(), i64_type.into()], false),
+            void_type.fn_type(
+                &[
+                    i64_type.into(),
+                    i64_type.into(),
+                    i64_type.into(),
+                    i64_type.into(),
+                ],
+                false,
+            ),
             Some(Linkage::External),
         );
         module.add_function(
@@ -502,7 +546,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             i64_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into()], false),
             Some(Linkage::External),
         );
-        
+
         // Identity-aware runtime functions (only declared when identity feature is enabled)
         #[cfg(feature = "identity")]
         {
@@ -557,7 +601,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 Some(Linkage::External),
             );
         }
-        
+
         // Array runtime functions
         // Note: array_new already declared above (line 312)
         // module.add_function(
@@ -664,7 +708,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             i64_type.fn_type(&[i64_type.into()], false), // takes i64, returns void
             Some(Linkage::External),
         );
-        
+
         // Zeta runtime functions (temporary bridge)
         module.add_function(
             "zeta_array_get_i64",
@@ -949,7 +993,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             specialized_types: HashMap::new(),
             generic_defs: HashMap::new(),
             loop_stack: Vec::new(),
-            
+
             current_type_map: None,
         }
     }
@@ -1025,10 +1069,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.current_type_map = Some(mir.type_map.clone());
         let all_ids = self.collect_all_local_ids(mir);
         for &id in &all_ids {
-            let alloca = self
-                .builder
-                .build_alloca(self.i64_type, &"")
-                .unwrap();
+            let alloca = self.builder.build_alloca(self.i64_type, &"").unwrap();
             self.locals.insert(id, alloca);
         }
         for (i, _) in mir.param_indices.iter().enumerate() {
@@ -1185,13 +1226,32 @@ impl<'ctx> LLVMCodegen<'ctx> {
             MirStmt::ParamInit { param_id, .. } => {
                 ids.insert(*param_id);
             }
-            MirStmt::Store { addr_id, val_id, .. } => {
+            MirStmt::Store {
+                addr_id, val_id, ..
+            } => {
                 ids.insert(*addr_id);
                 if let Some(e) = exprs.get(val_id) {
                     self.collect_ids_from_expr_safe(e, ids, exprs);
                 }
             }
-            _ => {}
+            MirStmt::Consume { id } => {
+                ids.insert(*id);
+            }
+            MirStmt::Break | MirStmt::Continue => {
+                // No IDs to collect
+            }
+            MirStmt::StructNew {
+                variant: _,
+                fields,
+                dest,
+            } => {
+                ids.insert(*dest);
+                for (_, field_id) in fields {
+                    if let Some(e) = exprs.get(field_id) {
+                        self.collect_ids_from_expr_safe(e, ids, exprs);
+                    }
+                }
+            }
         }
     }
 
@@ -1235,7 +1295,44 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     }
                 }
             }
-            _ => {}
+            MirExpr::Struct { variant: _, fields } => {
+                for (_, field_id) in fields {
+                    if let Some(e) = exprs.get(field_id) {
+                        self.collect_ids_from_expr_safe(e, ids, exprs);
+                    }
+                }
+            }
+            MirExpr::FieldAccess { base, field: _ } => {
+                if let Some(e) = exprs.get(base) {
+                    self.collect_ids_from_expr_safe(e, ids, exprs);
+                }
+            }
+            MirExpr::As {
+                expr,
+                target_type: _,
+            } => {
+                if let Some(e) = exprs.get(expr) {
+                    self.collect_ids_from_expr_safe(e, ids, exprs);
+                }
+            }
+            MirExpr::StackArray { elements, size: _ } => {
+                for elem_id in elements {
+                    if let Some(e) = exprs.get(elem_id) {
+                        self.collect_ids_from_expr_safe(e, ids, exprs);
+                    }
+                }
+            }
+            MirExpr::Range { start, end } => {
+                if let Some(e) = exprs.get(start) {
+                    self.collect_ids_from_expr_safe(e, ids, exprs);
+                }
+                if let Some(e) = exprs.get(end) {
+                    self.collect_ids_from_expr_safe(e, ids, exprs);
+                }
+            }
+            MirExpr::ConstEval(_) | MirExpr::StringLit(_) | MirExpr::Lit(_) => {
+                // No IDs to collect
+            }
         }
     }
 
@@ -1472,7 +1569,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     return f;
                 }
             }
-            
+
             // Fall back to regular host function
             let host_name = format!("host_{}", name);
             if let Some(f) = self.module.get_function(&host_name) {
@@ -1484,7 +1581,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         if let Some(f) = self.module.get_function(name) {
             return f;
         }
-        
+
         // Handle Vector::extract (method call, not static method)
         // Note: This is handled differently - as a method call on a vector value
         panic!("CRITICAL: Missing function '{}'", name);
@@ -1751,7 +1848,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 if args.len() == 1 && (func == "-" || func == "unary_minus") {
                     let operand = self.gen_expr_safe(&args[0], exprs);
                     let zero = self.i64_type.const_zero();
-                    let result = self.builder.build_int_sub(zero, operand.into_int_value(), "neg").unwrap();
+                    let result = self
+                        .builder
+                        .build_int_sub(zero, operand.into_int_value(), "neg")
+                        .unwrap();
                     let alloca = *self.locals.get(dest).unwrap();
                     self.builder.build_store(alloca, result).unwrap();
                     return;
@@ -1762,24 +1862,27 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 if (func == "array_get" || func == "stack_array_get") && args.len() == 2 {
                     let array_ptr_val = self.gen_expr_safe(&args[0], exprs).into_int_value();
                     let index_val = self.gen_expr_safe(&args[1], exprs).into_int_value();
-                    
-                    let array_ptr = self.builder.build_int_to_ptr(
-                        array_ptr_val,
-                        self.context.ptr_type(AddressSpace::default()),
-                        "array_ptr"
-                    ).unwrap();
-                    
+
+                    let array_ptr = self
+                        .builder
+                        .build_int_to_ptr(
+                            array_ptr_val,
+                            self.context.ptr_type(AddressSpace::default()),
+                            "array_ptr",
+                        )
+                        .unwrap();
+
                     let elem_ptr = unsafe {
-                        self.builder.build_gep(
-                            self.i64_type,
-                            array_ptr,
-                            &[index_val],
-                            "elem_ptr"
-                        ).unwrap()
+                        self.builder
+                            .build_gep(self.i64_type, array_ptr, &[index_val], "elem_ptr")
+                            .unwrap()
                     };
-                    
-                    let value = self.builder.build_load(self.i64_type, elem_ptr, "array_elem").unwrap();
-                    
+
+                    let value = self
+                        .builder
+                        .build_load(self.i64_type, elem_ptr, "array_elem")
+                        .unwrap();
+
                     let dest_alloca = *self.locals.get(dest).unwrap();
                     self.builder.build_store(dest_alloca, value).unwrap();
                     return;
@@ -1803,7 +1906,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         self.builder.build_store(alloca, result).unwrap();
                         return;
                     }
-                    
+
                     // Handle unary minus
                     if args.len() == 1 && func == "-" {
                         let operand = self.gen_expr_safe(&args[0], exprs);
@@ -1858,11 +1961,20 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             // Bitwise operators
                             "<<" | "shl" | "shl_i64" => self
                                 .builder
-                                .build_left_shift(left.into_int_value(), right.into_int_value(), "shl")
+                                .build_left_shift(
+                                    left.into_int_value(),
+                                    right.into_int_value(),
+                                    "shl",
+                                )
                                 .unwrap(),
                             ">>" | "shr" | "shr_i64" => self
                                 .builder
-                                .build_right_shift(left.into_int_value(), right.into_int_value(), false, "shr")
+                                .build_right_shift(
+                                    left.into_int_value(),
+                                    right.into_int_value(),
+                                    false,
+                                    "shr",
+                                )
                                 .unwrap(),
                             "&" | "bitand" | "and_i64" => self
                                 .builder
@@ -2027,10 +2139,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                     .iter()
                                     .map(|&id| self.gen_expr_safe(&id, exprs).into())
                                     .collect();
-                                let call = self
-                                    .builder
-                                    .build_call(callee, &arg_vals, "")
-                                    .unwrap();
+                                let call = self.builder.build_call(callee, &arg_vals, "").unwrap();
                                 // Convert BasicValueEnum to IntValue
                                 let basic_val = Self::call_site_to_basic_value(call).unwrap();
                                 basic_val.into_int_value()
@@ -2046,10 +2155,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             .iter()
                             .map(|&id| self.gen_expr_safe(&id, exprs).into())
                             .collect();
-                        let call = self
-                            .builder
-                            .build_call(callee, &arg_vals, "")
-                            .unwrap();
+                        let call = self.builder.build_call(callee, &arg_vals, "").unwrap();
                         if let Some(val) = Self::call_site_to_basic_value(call) {
                             let alloca = *self.locals.get(dest).unwrap();
                             self.builder.build_store(alloca, val).unwrap();
@@ -2062,10 +2168,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         .iter()
                         .map(|&id| self.gen_expr_safe(&id, exprs).into())
                         .collect();
-                    let call = self
-                        .builder
-                        .build_call(callee, &arg_vals, "")
-                        .unwrap();
+                    let call = self.builder.build_call(callee, &arg_vals, "").unwrap();
                     if let Some(val) = Self::call_site_to_basic_value(call) {
                         let alloca = *self.locals.get(dest).unwrap();
                         self.builder.build_store(alloca, val).unwrap();
@@ -2076,7 +2179,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     if args.len() == 1 && (func == "-" || func == "unary_minus") {
                         let operand = self.gen_expr_safe(&args[0], exprs);
                         let zero = self.i64_type.const_zero();
-                        let result = self.builder.build_int_sub(zero, operand.into_int_value(), "neg").unwrap();
+                        let result = self
+                            .builder
+                            .build_int_sub(zero, operand.into_int_value(), "neg")
+                            .unwrap();
                         let alloca = *self.locals.get(dest).unwrap();
                         self.builder.build_store(alloca, result).unwrap();
                         return;
@@ -2093,35 +2199,73 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         let m3 = self.gen_expr_safe(&args[5], exprs).into_int_value();
 
                         let thirty_two = self.i64_type.const_int(32, false);
-                        let byte_offset = self.builder.build_int_mul(word_idx, thirty_two, "off").unwrap();
-                        let base_ptr = self.builder.build_int_to_ptr(ptr_i64, self.ptr_type, "base").unwrap();
+                        let byte_offset = self
+                            .builder
+                            .build_int_mul(word_idx, thirty_two, "off")
+                            .unwrap();
+                        let base_ptr = self
+                            .builder
+                            .build_int_to_ptr(ptr_i64, self.ptr_type, "base")
+                            .unwrap();
                         let vec_ptr = unsafe {
-                            self.builder.build_gep(self.context.i8_type(), base_ptr, &[byte_offset], "vptr").unwrap()
+                            self.builder
+                                .build_gep(self.context.i8_type(), base_ptr, &[byte_offset], "vptr")
+                                .unwrap()
                         };
-                        let loaded = self.builder.build_load(self.vec4_i64_type, vec_ptr, "load").unwrap().into_vector_value();
+                        let loaded = self
+                            .builder
+                            .build_load(self.vec4_i64_type, vec_ptr, "load")
+                            .unwrap()
+                            .into_vector_value();
 
                         let poison = self.vec4_i64_type.get_undef();
                         let z = self.i64_type.const_int(0, false);
                         let o = self.i64_type.const_int(1, false);
                         let t = self.i64_type.const_int(2, false);
                         let h = self.i64_type.const_int(3, false);
-                        let mut mask = self.builder.build_insert_element(poison, m0, z, "m0").unwrap();
-                        mask = self.builder.build_insert_element(mask, m1, o, "m1").unwrap();
-                        mask = self.builder.build_insert_element(mask, m2, t, "m2").unwrap();
-                        mask = self.builder.build_insert_element(mask, m3, h, "m3").unwrap();
+                        let mut mask = self
+                            .builder
+                            .build_insert_element(poison, m0, z, "m0")
+                            .unwrap();
+                        mask = self
+                            .builder
+                            .build_insert_element(mask, m1, o, "m1")
+                            .unwrap();
+                        mask = self
+                            .builder
+                            .build_insert_element(mask, m2, t, "m2")
+                            .unwrap();
+                        mask = self
+                            .builder
+                            .build_insert_element(mask, m3, h, "m3")
+                            .unwrap();
 
                         let one_val = self.i64_type.const_int(u64::MAX, false);
-                        let mut all_ones = self.builder.build_insert_element(poison, one_val, z, "o0").unwrap();
-                        all_ones = self.builder.build_insert_element(all_ones, one_val, o, "o1").unwrap();
-                        all_ones = self.builder.build_insert_element(all_ones, one_val, t, "o2").unwrap();
-                        all_ones = self.builder.build_insert_element(all_ones, one_val, h, "o3").unwrap();
+                        let mut all_ones = self
+                            .builder
+                            .build_insert_element(poison, one_val, z, "o0")
+                            .unwrap();
+                        all_ones = self
+                            .builder
+                            .build_insert_element(all_ones, one_val, o, "o1")
+                            .unwrap();
+                        all_ones = self
+                            .builder
+                            .build_insert_element(all_ones, one_val, t, "o2")
+                            .unwrap();
+                        all_ones = self
+                            .builder
+                            .build_insert_element(all_ones, one_val, h, "o3")
+                            .unwrap();
 
                         let not_mask = self.builder.build_xor(mask, all_ones, "not").unwrap();
                         let result = self.builder.build_and(loaded, not_mask, "res").unwrap();
                         self.builder.build_store(vec_ptr, result).unwrap();
 
                         let alloca = *self.locals.get(dest).unwrap();
-                        self.builder.build_store(alloca, self.i64_type.const_zero()).unwrap();
+                        self.builder
+                            .build_store(alloca, self.i64_type.const_zero())
+                            .unwrap();
                         return;
                     }
 
@@ -2134,10 +2278,18 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         let v3 = self.gen_expr_safe(&args[5], exprs).into_int_value();
 
                         let thirty_two = self.i64_type.const_int(32, false);
-                        let byte_offset = self.builder.build_int_mul(word_idx, thirty_two, "off").unwrap();
-                        let base_ptr = self.builder.build_int_to_ptr(ptr_i64, self.ptr_type, "base").unwrap();
+                        let byte_offset = self
+                            .builder
+                            .build_int_mul(word_idx, thirty_two, "off")
+                            .unwrap();
+                        let base_ptr = self
+                            .builder
+                            .build_int_to_ptr(ptr_i64, self.ptr_type, "base")
+                            .unwrap();
                         let vec_ptr = unsafe {
-                            self.builder.build_gep(self.context.i8_type(), base_ptr, &[byte_offset], "vptr").unwrap()
+                            self.builder
+                                .build_gep(self.context.i8_type(), base_ptr, &[byte_offset], "vptr")
+                                .unwrap()
                         };
 
                         let poison = self.vec4_i64_type.get_undef();
@@ -2145,7 +2297,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         let o = self.i64_type.const_int(1, false);
                         let t = self.i64_type.const_int(2, false);
                         let h = self.i64_type.const_int(3, false);
-                        let mut vec = self.builder.build_insert_element(poison, v0, z, "v0").unwrap();
+                        let mut vec = self
+                            .builder
+                            .build_insert_element(poison, v0, z, "v0")
+                            .unwrap();
                         vec = self.builder.build_insert_element(vec, v1, o, "v1").unwrap();
                         vec = self.builder.build_insert_element(vec, v2, t, "v2").unwrap();
                         vec = self.builder.build_insert_element(vec, v3, h, "v3").unwrap();
@@ -2153,7 +2308,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         self.builder.build_store(vec_ptr, vec).unwrap();
 
                         let alloca = *self.locals.get(dest).unwrap();
-                        self.builder.build_store(alloca, self.i64_type.const_zero()).unwrap();
+                        self.builder
+                            .build_store(alloca, self.i64_type.const_zero())
+                            .unwrap();
                         return;
                     }
 
@@ -2162,7 +2319,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         "llvm.ctpop.i64"
                     } else {
                         func
-    };
+                    };
                     let callee = self.get_function_with_types(actual_func, type_args);
 
                     // Check if this is a runtime function that takes pointer arguments
@@ -2199,10 +2356,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             }
                         })
                         .collect();
-                    let call = self
-                        .builder
-                        .build_call(callee, &arg_vals, "")
-                        .unwrap();
+                    let call = self.builder.build_call(callee, &arg_vals, "").unwrap();
                     if let Some(val) = Self::call_site_to_basic_value(call) {
                         // If function returns a pointer, convert it to i64
                         let final_val = if returns_ptr {
@@ -2222,7 +2376,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
             MirStmt::VoidCall { func, args } => {
                 // DEBUG
-                
+
                 // === NEW: println(i64) support via println_i64 (bypasses get_function) ===
                 if func == "println" && !args.is_empty() {
                     let val = self.gen_expr_safe(&args[0], exprs);
@@ -2243,22 +2397,22 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let array_ptr_val = self.gen_expr_safe(&args[0], exprs).into_int_value();
                     let index_val = self.gen_expr_safe(&args[1], exprs).into_int_value();
                     let value_val = self.gen_expr_safe(&args[2], exprs).into_int_value();
-                    
-                    let array_ptr = self.builder.build_int_to_ptr(
-                        array_ptr_val,
-                        self.context.ptr_type(AddressSpace::default()),
-                        "array_ptr"
-                    ).unwrap();
-                    
+
+                    let array_ptr = self
+                        .builder
+                        .build_int_to_ptr(
+                            array_ptr_val,
+                            self.context.ptr_type(AddressSpace::default()),
+                            "array_ptr",
+                        )
+                        .unwrap();
+
                     let elem_ptr = unsafe {
-                        self.builder.build_gep(
-                            self.i64_type,
-                            array_ptr,
-                            &[index_val],
-                            "elem_ptr"
-                        ).unwrap()
+                        self.builder
+                            .build_gep(self.i64_type, array_ptr, &[index_val], "elem_ptr")
+                            .unwrap()
                     };
-                    
+
                     self.builder.build_store(elem_ptr, value_val).unwrap();
                     return;
                 }
@@ -2422,10 +2576,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 else_,
                 dest,
             } => {
-                for (i, s) in then.iter().enumerate() {
-                }
-                for (i, s) in else_.iter().enumerate() {
-                }
+                for (i, s) in then.iter().enumerate() {}
+                for (i, s) in else_.iter().enumerate() {}
                 let cond_i64 = self.gen_expr_safe(cond, exprs).into_int_value();
                 let cond_i1 = self
                     .builder
@@ -2451,17 +2603,20 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
                 // Generate then block
                 self.builder.position_at_end(then_bb);
-                let then_ends_with_break = then.last().map_or(false, |s| matches!(s, MirStmt::Break));
-                let then_ends_with_continue = then.last().map_or(false, |s| matches!(s, MirStmt::Continue));
+                let then_ends_with_break =
+                    then.last().map_or(false, |s| matches!(s, MirStmt::Break));
+                let then_ends_with_continue = then
+                    .last()
+                    .map_or(false, |s| matches!(s, MirStmt::Continue));
                 if then_ends_with_break {
-                    for s in &then[..then.len()-1] {
+                    for s in &then[..then.len() - 1] {
                         self.gen_stmt(s, exprs);
                     }
                     if let Some((_, exit_bb)) = self.loop_stack.last() {
                         self.builder.build_unconditional_branch(*exit_bb).unwrap();
                     }
                 } else if then_ends_with_continue {
-                    for s in &then[..then.len()-1] {
+                    for s in &then[..then.len() - 1] {
                         self.gen_stmt(s, exprs);
                     }
                     if let Some((cond_bb, _)) = self.loop_stack.last() {
@@ -2472,24 +2627,29 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         self.gen_stmt(s, exprs);
                     }
                 }
-                let then_has_terminal = then_ends_with_break || then_ends_with_continue || then.iter().any(|s| matches!(s, MirStmt::Return { .. }));
+                let then_has_terminal = then_ends_with_break
+                    || then_ends_with_continue
+                    || then.iter().any(|s| matches!(s, MirStmt::Return { .. }));
                 if !then_has_terminal {
                     self.builder.build_unconditional_branch(merge_bb).unwrap();
                 }
 
                 // Generate else block
                 self.builder.position_at_end(else_bb);
-                let else_ends_with_break = else_.last().map_or(false, |s| matches!(s, MirStmt::Break));
-                let else_ends_with_continue = else_.last().map_or(false, |s| matches!(s, MirStmt::Continue));
+                let else_ends_with_break =
+                    else_.last().map_or(false, |s| matches!(s, MirStmt::Break));
+                let else_ends_with_continue = else_
+                    .last()
+                    .map_or(false, |s| matches!(s, MirStmt::Continue));
                 if else_ends_with_break {
-                    for s in &else_[..else_.len()-1] {
+                    for s in &else_[..else_.len() - 1] {
                         self.gen_stmt(s, exprs);
                     }
                     if let Some((_, exit_bb)) = self.loop_stack.last() {
                         self.builder.build_unconditional_branch(*exit_bb).unwrap();
                     }
                 } else if else_ends_with_continue {
-                    for s in &else_[..else_.len()-1] {
+                    for s in &else_[..else_.len() - 1] {
                         self.gen_stmt(s, exprs);
                     }
                     if let Some((cond_bb, _)) = self.loop_stack.last() {
@@ -2500,7 +2660,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         self.gen_stmt(s, exprs);
                     }
                 }
-                let else_has_terminal = else_ends_with_break || else_ends_with_continue || else_.iter().any(|s| matches!(s, MirStmt::Return { .. }));
+                let else_has_terminal = else_ends_with_break
+                    || else_ends_with_continue
+                    || else_.iter().any(|s| matches!(s, MirStmt::Return { .. }));
                 if !else_has_terminal {
                     self.builder.build_unconditional_branch(merge_bb).unwrap();
                 }
@@ -2516,15 +2678,17 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .unwrap()
                     .get_parent()
                     .unwrap();
-                
+
                 // Create basic blocks for loop
                 let loop_cond_bb = self.context.append_basic_block(parent_fn, "while.cond");
                 let loop_body_bb = self.context.append_basic_block(parent_fn, "while.body");
                 let loop_exit_bb = self.context.append_basic_block(parent_fn, "while.exit");
-                
+
                 // Branch to condition block
-                self.builder.build_unconditional_branch(loop_cond_bb).unwrap();
-                
+                self.builder
+                    .build_unconditional_branch(loop_cond_bb)
+                    .unwrap();
+
                 // Generate condition block
                 self.builder.position_at_end(loop_cond_bb);
                 let cond_i64 = self.gen_expr_safe(cond, exprs).into_int_value();
@@ -2540,7 +2704,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.builder
                     .build_conditional_branch(cond_i1, loop_body_bb, loop_exit_bb)
                     .unwrap();
-                
+
                 // Generate loop body
                 self.loop_stack.push((loop_cond_bb, loop_exit_bb));
                 self.builder.position_at_end(loop_body_bb);
@@ -2550,18 +2714,23 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.loop_stack.pop();
                 // Branch back to condition (unless body ends with return)
                 if !body.iter().any(|s| matches!(s, MirStmt::Return { .. })) {
-                    self.builder.build_unconditional_branch(loop_cond_bb).unwrap();
+                    self.builder
+                        .build_unconditional_branch(loop_cond_bb)
+                        .unwrap();
                 }
-                
+
                 // Continue at exit block
                 self.builder.position_at_end(loop_exit_bb);
             }
-            
-            
-            
+
             MirStmt::Break | MirStmt::Continue => {}
-            
-            MirStmt::For { iterator, pattern, var_id, body } => {
+
+            MirStmt::For {
+                iterator,
+                pattern,
+                var_id,
+                body,
+            } => {
                 // For now, implement simple range-based for loop: for i in start..end
                 // We need to get the range expression
                 if let Some(MirExpr::Range { start, end }) = exprs.get(iterator) {
@@ -2571,99 +2740,152 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         .unwrap()
                         .get_parent()
                         .unwrap();
-                    
+
                     // Create basic blocks for loop
                     let loop_cond_bb = self.context.append_basic_block(parent_fn, "for.cond");
                     let loop_body_bb = self.context.append_basic_block(parent_fn, "for.body");
                     let loop_exit_bb = self.context.append_basic_block(parent_fn, "for.exit");
-                    
+
                     // Get start and end values
                     let start_val = self.gen_expr_safe(start, exprs).into_int_value();
                     let end_val = self.gen_expr_safe(end, exprs).into_int_value();
-                    
+
                     // Get loop variable pointer from locals map
                     let loop_var_ptr = *self.locals.get(var_id).unwrap();
-                    
+
                     // Initialize loop variable to start
                     self.builder.build_store(loop_var_ptr, start_val).unwrap();
-                    
+
                     // Branch to condition block
-                    self.builder.build_unconditional_branch(loop_cond_bb).unwrap();
-                    
+                    self.builder
+                        .build_unconditional_branch(loop_cond_bb)
+                        .unwrap();
+
                     // Generate condition block
                     self.builder.position_at_end(loop_cond_bb);
-                    
+
                     // Load current loop variable value
-                    let current_val = self.builder.build_load(
-                        self.i64_type,
-                        loop_var_ptr,
-                        ""
-                    ).unwrap().into_int_value();
-                    
+                    let current_val = self
+                        .builder
+                        .build_load(self.i64_type, loop_var_ptr, "")
+                        .unwrap()
+                        .into_int_value();
+
                     // Check if current_val < end_val
-                    let cond = self.builder.build_int_compare(
-                        IntPredicate::SLT, // Signed less than
-                        current_val,
-                        end_val,
-                        "for.cond"
-                    ).unwrap();
-                    
+                    let cond = self
+                        .builder
+                        .build_int_compare(
+                            IntPredicate::SLT, // Signed less than
+                            current_val,
+                            end_val,
+                            "for.cond",
+                        )
+                        .unwrap();
+
                     self.builder
                         .build_conditional_branch(cond, loop_body_bb, loop_exit_bb)
                         .unwrap();
-                    
+
                     // Generate loop body
                     self.builder.position_at_end(loop_body_bb);
-                    
+
                     // Store loop variable in local variables map for use in body
                     // We need to find the variable ID for this pattern
                     // For now, we'll just use the pointer directly
-                    
+
                     for s in body {
                         self.gen_stmt(s, exprs);
                     }
-                    
+
                     // Increment loop variable: i = i + 1
-                    let current_val_after = self.builder.build_load(
-                        self.i64_type,
-                        loop_var_ptr,
-                        ""
-                    ).unwrap().into_int_value();
-                    
-                    let next_val = self.builder.build_int_add(
-                        current_val_after,
-                        self.i64_type.const_int(1, false),
-                        ""
-                    ).unwrap();
-                    
+                    let current_val_after = self
+                        .builder
+                        .build_load(self.i64_type, loop_var_ptr, "")
+                        .unwrap()
+                        .into_int_value();
+
+                    let next_val = self
+                        .builder
+                        .build_int_add(current_val_after, self.i64_type.const_int(1, false), "")
+                        .unwrap();
+
                     self.builder.build_store(loop_var_ptr, next_val).unwrap();
-                    
+
                     // Branch back to condition
-                    self.builder.build_unconditional_branch(loop_cond_bb).unwrap();
-                    
+                    self.builder
+                        .build_unconditional_branch(loop_cond_bb)
+                        .unwrap();
+
                     // Continue at exit block
                     self.builder.position_at_end(loop_exit_bb);
                 } else {
                     // Not a range iterator - for now, just skip
                 }
             }
-                        MirStmt::Store { addr_id, val_id, pointee_width } => {
+            MirStmt::Store {
+                addr_id,
+                val_id,
+                pointee_width,
+            } => {
                 // *addr = val — store val through the pointer
                 let addr_i64 = self.gen_expr_safe(addr_id, exprs).into_int_value();
                 let val = self.gen_expr_safe(val_id, exprs);
-                let pointee_llvm_type = self.context.custom_width_int_type((*pointee_width as u32) * 8);
+                let pointee_llvm_type = self
+                    .context
+                    .custom_width_int_type((*pointee_width as u32) * 8);
                 let pointed_ptr_type = pointee_llvm_type.ptr_type(inkwell::AddressSpace::default());
-                let ptr = self.builder.build_int_to_ptr(
-                    addr_i64, pointed_ptr_type, "store_ptr",
-                ).unwrap();
+                let ptr = self
+                    .builder
+                    .build_int_to_ptr(addr_i64, pointed_ptr_type, "store_ptr")
+                    .unwrap();
                 // Truncate the i64 value to the pointee width before storing
-                let narrowed = self.builder.build_int_truncate(
-                    val.into_int_value(),
-                    pointee_llvm_type,
-                    "store_trunc",
-                ).unwrap();
+                let narrowed = self
+                    .builder
+                    .build_int_truncate(val.into_int_value(), pointee_llvm_type, "store_trunc")
+                    .unwrap();
                 self.builder.build_store(ptr, narrowed).unwrap();
-            }            MirStmt::ParamInit { .. } => {} // handled at entry
+            }
+            MirStmt::ParamInit { .. } => {} // handled at entry
+            MirStmt::Consume { id } => {
+                // Ownership consume — no runtime effect for now
+                // Simply load and discard the value
+                let _ = self.load_local(*id);
+            }
+            MirStmt::StructNew {
+                variant,
+                fields,
+                dest,
+            } => {
+                // Allocate struct on stack and store field values
+                let type_key = format!("{}_fields_{}", variant, fields.len());
+                let struct_type = if let Some(ty) = self.specialized_types.get(&type_key) {
+                    *ty
+                } else {
+                    let field_types: Vec<_> =
+                        (0..fields.len()).map(|_| self.i64_type.into()).collect();
+                    let ty = self.context.struct_type(&field_types, false);
+                    self.specialized_types.insert(type_key.clone(), ty);
+                    ty
+                };
+                let alloca = self
+                    .builder
+                    .build_alloca(struct_type, "struct_alloca")
+                    .unwrap();
+                for (i, (field_name, field_id)) in fields.iter().enumerate() {
+                    let field_ptr = self
+                        .builder
+                        .build_struct_gep(struct_type, alloca, i as u32, "")
+                        .unwrap();
+                    let field_val = self.gen_expr_safe(field_id, exprs).into_int_value();
+                    self.builder.build_store(field_ptr, field_val).unwrap();
+                }
+                let ptr_as_int = self
+                    .builder
+                    .build_ptr_to_int(alloca, self.i64_type, "struct_ptr")
+                    .unwrap();
+                let dest_alloca = *self.locals.get(dest).unwrap();
+                self.builder.build_store(dest_alloca, ptr_as_int).unwrap();
+            }
             _ => {}
         }
     }
@@ -2676,7 +2898,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
     }
 
-    fn gen_expr(&mut self, expr: &MirExpr, exprs: &HashMap<u32, MirExpr>, expr_id: Option<u32>) -> BasicValueEnum<'ctx> {
+    fn gen_expr(
+        &mut self,
+        expr: &MirExpr,
+        exprs: &HashMap<u32, MirExpr>,
+        expr_id: Option<u32>,
+    ) -> BasicValueEnum<'ctx> {
         match expr {
             MirExpr::Var(id) => self.load_local(*id),
             MirExpr::Lit(n) => self.i64_type.const_int(*n as u64, true).into(),
@@ -2726,20 +2953,29 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 // having already stored to an alloca. This is essential for
                 // while-loop conditions where the SemiringFold statement is
                 // in the loop body but the condition check happens before it.
-                let left = self.gen_expr(&exprs[&values[0]], exprs, None).into_int_value();
+                let left = self
+                    .gen_expr(&exprs[&values[0]], exprs, None)
+                    .into_int_value();
                 if values.len() == 1 {
                     // Unary (e.g. unary minus)
                     match op {
-                        crate::middle::mir::mir::SemiringOp::Mul | crate::middle::mir::mir::SemiringOp::Add => {
+                        crate::middle::mir::mir::SemiringOp::Mul
+                        | crate::middle::mir::mir::SemiringOp::Add => {
                             // Identity: return value unchanged
                             left.into()
                         }
                     }
                 } else {
-                    let right = self.gen_expr(&exprs[&values[1]], exprs, None).into_int_value();
+                    let right = self
+                        .gen_expr(&exprs[&values[1]], exprs, None)
+                        .into_int_value();
                     let result = match op {
-                        crate::middle::mir::mir::SemiringOp::Add => self.builder.build_int_add(left, right, "sef_add"),
-                        crate::middle::mir::mir::SemiringOp::Mul => self.builder.build_int_mul(left, right, "sef_mul"),
+                        crate::middle::mir::mir::SemiringOp::Add => {
+                            self.builder.build_int_add(left, right, "sef_add")
+                        }
+                        crate::middle::mir::mir::SemiringOp::Mul => {
+                            self.builder.build_int_mul(left, right, "sef_mul")
+                        }
                     };
                     result.unwrap().into()
                 }
@@ -2753,54 +2989,118 @@ impl<'ctx> LLVMCodegen<'ctx> {
             MirExpr::BinaryOp { op, left, right } => {
                 let left_val = self.gen_expr(&exprs[left], exprs, None).into_int_value();
                 let right_val = self.gen_expr(&exprs[right], exprs, None).into_int_value();
-                
+
                 match op.as_str() {
                     "<" => {
-                        let cmp = self.builder.build_int_compare(
-                            IntPredicate::SLT, left_val, right_val, "cmp_lt",
-                        ).unwrap();
-                        self.builder.build_int_z_extend(cmp, self.i64_type, "cmp_ext").unwrap().into()
+                        let cmp = self
+                            .builder
+                            .build_int_compare(IntPredicate::SLT, left_val, right_val, "cmp_lt")
+                            .unwrap();
+                        self.builder
+                            .build_int_z_extend(cmp, self.i64_type, "cmp_ext")
+                            .unwrap()
+                            .into()
                     }
                     ">" => {
-                        let cmp = self.builder.build_int_compare(
-                            IntPredicate::SGT, left_val, right_val, "cmp_gt",
-                        ).unwrap();
-                        self.builder.build_int_z_extend(cmp, self.i64_type, "cmp_ext").unwrap().into()
+                        let cmp = self
+                            .builder
+                            .build_int_compare(IntPredicate::SGT, left_val, right_val, "cmp_gt")
+                            .unwrap();
+                        self.builder
+                            .build_int_z_extend(cmp, self.i64_type, "cmp_ext")
+                            .unwrap()
+                            .into()
                     }
                     "<=" => {
-                        let cmp = self.builder.build_int_compare(
-                            IntPredicate::SLE, left_val, right_val, "cmp_le",
-                        ).unwrap();
-                        self.builder.build_int_z_extend(cmp, self.i64_type, "cmp_ext").unwrap().into()
+                        let cmp = self
+                            .builder
+                            .build_int_compare(IntPredicate::SLE, left_val, right_val, "cmp_le")
+                            .unwrap();
+                        self.builder
+                            .build_int_z_extend(cmp, self.i64_type, "cmp_ext")
+                            .unwrap()
+                            .into()
                     }
                     ">=" => {
-                        let cmp = self.builder.build_int_compare(
-                            IntPredicate::SGE, left_val, right_val, "cmp_ge",
-                        ).unwrap();
-                        self.builder.build_int_z_extend(cmp, self.i64_type, "cmp_ext").unwrap().into()
+                        let cmp = self
+                            .builder
+                            .build_int_compare(IntPredicate::SGE, left_val, right_val, "cmp_ge")
+                            .unwrap();
+                        self.builder
+                            .build_int_z_extend(cmp, self.i64_type, "cmp_ext")
+                            .unwrap()
+                            .into()
                     }
                     "==" => {
-                        let cmp = self.builder.build_int_compare(
-                            IntPredicate::EQ, left_val, right_val, "cmp_eq",
-                        ).unwrap();
-                        self.builder.build_int_z_extend(cmp, self.i64_type, "cmp_ext").unwrap().into()
+                        let cmp = self
+                            .builder
+                            .build_int_compare(IntPredicate::EQ, left_val, right_val, "cmp_eq")
+                            .unwrap();
+                        self.builder
+                            .build_int_z_extend(cmp, self.i64_type, "cmp_ext")
+                            .unwrap()
+                            .into()
                     }
                     "!=" => {
-                        let cmp = self.builder.build_int_compare(
-                            IntPredicate::NE, left_val, right_val, "cmp_ne",
-                        ).unwrap();
-                        self.builder.build_int_z_extend(cmp, self.i64_type, "cmp_ext").unwrap().into()
+                        let cmp = self
+                            .builder
+                            .build_int_compare(IntPredicate::NE, left_val, right_val, "cmp_ne")
+                            .unwrap();
+                        self.builder
+                            .build_int_z_extend(cmp, self.i64_type, "cmp_ext")
+                            .unwrap()
+                            .into()
                     }
-                    "+" => self.builder.build_int_add(left_val, right_val, "add").unwrap().into(),
-                    "-" => self.builder.build_int_sub(left_val, right_val, "sub").unwrap().into(),
-                    "*" => self.builder.build_int_mul(left_val, right_val, "mul").unwrap().into(),
-                    "/" => self.builder.build_int_signed_div(left_val, right_val, "div").unwrap().into(),
-                    "%" => self.builder.build_int_signed_rem(left_val, right_val, "mod").unwrap().into(),
-                    "&" => self.builder.build_and(left_val, right_val, "bitand").unwrap().into(),
-                    "|" => self.builder.build_or(left_val, right_val, "bitor").unwrap().into(),
-                    "^" => self.builder.build_xor(left_val, right_val, "bitxor").unwrap().into(),
-                    "<<" => self.builder.build_left_shift(left_val, right_val, "shl").unwrap().into(),
-                    ">>" => self.builder.build_right_shift(left_val, right_val, true, "shr").unwrap().into(),
+                    "+" => self
+                        .builder
+                        .build_int_add(left_val, right_val, "add")
+                        .unwrap()
+                        .into(),
+                    "-" => self
+                        .builder
+                        .build_int_sub(left_val, right_val, "sub")
+                        .unwrap()
+                        .into(),
+                    "*" => self
+                        .builder
+                        .build_int_mul(left_val, right_val, "mul")
+                        .unwrap()
+                        .into(),
+                    "/" => self
+                        .builder
+                        .build_int_signed_div(left_val, right_val, "div")
+                        .unwrap()
+                        .into(),
+                    "%" => self
+                        .builder
+                        .build_int_signed_rem(left_val, right_val, "mod")
+                        .unwrap()
+                        .into(),
+                    "&" => self
+                        .builder
+                        .build_and(left_val, right_val, "bitand")
+                        .unwrap()
+                        .into(),
+                    "|" => self
+                        .builder
+                        .build_or(left_val, right_val, "bitor")
+                        .unwrap()
+                        .into(),
+                    "^" => self
+                        .builder
+                        .build_xor(left_val, right_val, "bitxor")
+                        .unwrap()
+                        .into(),
+                    "<<" => self
+                        .builder
+                        .build_left_shift(left_val, right_val, "shl")
+                        .unwrap()
+                        .into(),
+                    ">>" => self
+                        .builder
+                        .build_right_shift(left_val, right_val, true, "shr")
+                        .unwrap()
+                        .into(),
                     _ => {
                         panic!("Unsupported binary operator in BinaryOp: {}", op);
                     }
@@ -2835,15 +3135,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 for (i, (field_name, field_id)) in fields.iter().enumerate() {
                     let field_ptr = self
                         .builder
-                        .build_struct_gep(
-                            struct_type,
-                            alloca,
-                            i as u32,
-                            "",
-                        )
+                        .build_struct_gep(struct_type, alloca, i as u32, "")
                         .unwrap();
 
-                    let field_val = self.gen_expr(&exprs[field_id], exprs, None).into_int_value();
+                    let field_val = self
+                        .gen_expr(&exprs[field_id], exprs, None)
+                        .into_int_value();
                     self.builder.build_store(field_ptr, field_val).unwrap();
                 }
 
@@ -2919,37 +3216,92 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
                 // Extract value from struct
                 self.builder
-                    .build_extract_value(
-                        loaded_struct.into_struct_value(),
-                        field_index,
-                        "",
-                    )
+                    .build_extract_value(loaded_struct.into_struct_value(), field_index, "")
                     .unwrap()
             }
             MirExpr::As { expr, target_type } => {
                 // Generate the expression value
                 let expr_val = self.gen_expr(&exprs[expr], exprs, None);
-                
+
                 // For now, handle basic numeric conversions
                 // TODO: Implement proper type conversion logic
                 match target_type {
-                    Type::I8 | Type::I16 | Type::I32 | Type::I64 | Type::U8 | Type::U16 | Type::U32 | Type::U64 | Type::Usize => {
+                    Type::I8
+                    | Type::I16
+                    | Type::I32
+                    | Type::I64
+                    | Type::U8
+                    | Type::U16
+                    | Type::U32
+                    | Type::U64
+                    | Type::Usize => {
                         // For integer types, just truncate or extend as needed
                         // For now, just return the value as-is (i64)
                         if let BasicValueEnum::IntValue(int_val) = expr_val {
                             // Convert to target integer type
                             match target_type {
-                                Type::I8 => self.builder.build_int_truncate(int_val, self.context.i8_type(), "trunc_i8").unwrap().into(),
-                                Type::I16 => self.builder.build_int_truncate(int_val, self.context.i16_type(), "trunc_i16").unwrap().into(),
-                                Type::I32 => self.builder.build_int_truncate(int_val, self.context.i32_type(), "trunc_i32").unwrap().into(),
+                                Type::I8 => self
+                                    .builder
+                                    .build_int_truncate(int_val, self.context.i8_type(), "trunc_i8")
+                                    .unwrap()
+                                    .into(),
+                                Type::I16 => self
+                                    .builder
+                                    .build_int_truncate(
+                                        int_val,
+                                        self.context.i16_type(),
+                                        "trunc_i16",
+                                    )
+                                    .unwrap()
+                                    .into(),
+                                Type::I32 => self
+                                    .builder
+                                    .build_int_truncate(
+                                        int_val,
+                                        self.context.i32_type(),
+                                        "trunc_i32",
+                                    )
+                                    .unwrap()
+                                    .into(),
                                 Type::I64 => int_val.into(), // Already i64
-                                Type::U8 => self.builder.build_int_truncate(int_val, self.context.i8_type(), "trunc_u8").unwrap().into(),
-                                Type::U16 => self.builder.build_int_truncate(int_val, self.context.i16_type(), "trunc_u16").unwrap().into(),
-                                Type::U32 => self.builder.build_int_truncate(int_val, self.context.i32_type(), "trunc_u32").unwrap().into(),
-                                Type::U64 => self.builder.build_int_cast(int_val, self.context.i64_type(), "cast_u64").unwrap().into(),
+                                Type::U8 => self
+                                    .builder
+                                    .build_int_truncate(int_val, self.context.i8_type(), "trunc_u8")
+                                    .unwrap()
+                                    .into(),
+                                Type::U16 => self
+                                    .builder
+                                    .build_int_truncate(
+                                        int_val,
+                                        self.context.i16_type(),
+                                        "trunc_u16",
+                                    )
+                                    .unwrap()
+                                    .into(),
+                                Type::U32 => self
+                                    .builder
+                                    .build_int_truncate(
+                                        int_val,
+                                        self.context.i32_type(),
+                                        "trunc_u32",
+                                    )
+                                    .unwrap()
+                                    .into(),
+                                Type::U64 => self
+                                    .builder
+                                    .build_int_cast(int_val, self.context.i64_type(), "cast_u64")
+                                    .unwrap()
+                                    .into(),
                                 Type::Usize => {
                                     // usize is platform-dependent, use i64 for now
-                                    self.builder.build_int_cast(int_val, self.context.i64_type(), "cast_usize").unwrap().into()
+                                    self.builder
+                                        .build_int_cast(
+                                            int_val,
+                                            self.context.i64_type(),
+                                            "cast_usize",
+                                        )
+                                        .unwrap()
+                                        .into()
                                 }
                                 _ => int_val.into(),
                             }
@@ -2971,36 +3323,46 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
             MirExpr::StackArray { elements, size } => {
                 // Allocate stack array and initialize with elements
-                
+
                 // Always use i64 for array elements to match runtime expectations
                 // This wastes memory for bool arrays but ensures compatibility
                 let elem_type = self.i64_type;
-                
+
                 // Create array type
                 let array_type = elem_type.array_type(*size as u32);
-                
+
                 // Allocate on stack
-                let alloca = self.builder.build_alloca(array_type, "stack_array").unwrap();
-                
+                let alloca = self
+                    .builder
+                    .build_alloca(array_type, "stack_array")
+                    .unwrap();
+
                 // Initialize each element
                 for (i, element_id) in elements.iter().enumerate() {
-                    let element_val = self.gen_expr(&exprs[element_id], exprs, None).into_int_value();
+                    let element_val = self
+                        .gen_expr(&exprs[element_id], exprs, None)
+                        .into_int_value();
                     let element_ptr = unsafe {
-                        self.builder.build_gep(
-                            array_type,
-                            alloca,
-                            &[
-                                self.i64_type.const_int(0, false),
-                                self.i64_type.const_int(i as u64, false)
-                            ],
-                            ""
-                        ).unwrap()
+                        self.builder
+                            .build_gep(
+                                array_type,
+                                alloca,
+                                &[
+                                    self.i64_type.const_int(0, false),
+                                    self.i64_type.const_int(i as u64, false),
+                                ],
+                                "",
+                            )
+                            .unwrap()
                     };
                     self.builder.build_store(element_ptr, element_val).unwrap();
                 }
-                
+
                 // Return pointer to array (as i64)
-                let ptr_as_int = self.builder.build_ptr_to_int(alloca, self.i64_type, "array_ptr_to_int").unwrap();
+                let ptr_as_int = self
+                    .builder
+                    .build_ptr_to_int(alloca, self.i64_type, "array_ptr_to_int")
+                    .unwrap();
                 ptr_as_int.into()
             }
             MirExpr::Range { start, end } => {
@@ -3008,31 +3370,36 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 // TODO: Implement proper range type
                 self.gen_expr(&exprs[start], exprs, None)
             }
-            MirExpr::Deref { addr_id, pointee_width } => {
+            MirExpr::Deref {
+                addr_id,
+                pointee_width,
+            } => {
                 // *ptr — load through pointer with given element width
                 let ptr_as_i64 = self.gen_expr_safe(addr_id, exprs).into_int_value();
-                let pointee_llvm_type = self.context.custom_width_int_type((*pointee_width as u32) * 8);
+                let pointee_llvm_type = self
+                    .context
+                    .custom_width_int_type((*pointee_width as u32) * 8);
                 let pointed_ptr_type = pointee_llvm_type.ptr_type(inkwell::AddressSpace::default());
-                let ptr = self.builder.build_int_to_ptr(
-                    ptr_as_i64, pointed_ptr_type, "deref_ptr",
-                ).unwrap();
-                let val = self.builder.build_load(pointee_llvm_type, ptr, "deref_val").unwrap();
+                let ptr = self
+                    .builder
+                    .build_int_to_ptr(ptr_as_i64, pointed_ptr_type, "deref_ptr")
+                    .unwrap();
+                let val = self
+                    .builder
+                    .build_load(pointee_llvm_type, ptr, "deref_val")
+                    .unwrap();
                 // Zero-extend back to i64
-                self.builder.build_int_z_extend(
-                    val.into_int_value(),
-                    self.i64_type,
-                    "deref_ext",
-                ).unwrap().into()
+                self.builder
+                    .build_int_z_extend(val.into_int_value(), self.i64_type, "deref_ext")
+                    .unwrap()
+                    .into()
             }
         }
     }
 
-
     fn load_local(&self, id: u32) -> BasicValueEnum<'ctx> {
         let ptr = *self.locals.get(&id).unwrap();
-        self.builder
-            .build_load(self.i64_type, ptr, "")
-            .unwrap()
+        self.builder.build_load(self.i64_type, ptr, "").unwrap()
     }
 
     fn call_site_to_basic_value(call: CallSiteValue<'ctx>) -> Option<BasicValueEnum<'ctx>> {
@@ -3059,7 +3426,16 @@ impl<'ctx> LLVMCodegen<'ctx> {
             Type::Bool => self.context.bool_type().into(),
             Type::Char => self.context.i32_type().into(), // Unicode scalar value
             Type::Str => self.context.ptr_type(AddressSpace::default()).into(),
-            Type::Range => self.context.struct_type(&[self.context.i64_type().into(), self.context.i64_type().into()], false).into(),
+            Type::Range => self
+                .context
+                .struct_type(
+                    &[
+                        self.context.i64_type().into(),
+                        self.context.i64_type().into(),
+                    ],
+                    false,
+                )
+                .into(),
             Type::V4I64 => self.vec4_i64_type.into(),
             Type::I32x4 => self.context.i32_type().array_type(4).into(),
             Type::I64x2 => self.context.i64_type().array_type(2).into(),
@@ -3099,23 +3475,35 @@ impl<'ctx> LLVMCodegen<'ctx> {
             Type::Slice(element_type) => {
                 let element_llvm_type = self.type_to_llvm_type(element_type);
                 // Slice is (pointer, length)
-                self.context.struct_type(&[
-                    self.context.ptr_type(AddressSpace::default()).into(),
-                    self.context.i64_type().into()
-                ], false).into()
+                self.context
+                    .struct_type(
+                        &[
+                            self.context.ptr_type(AddressSpace::default()).into(),
+                            self.context.i64_type().into(),
+                        ],
+                        false,
+                    )
+                    .into()
             }
             Type::DynamicArray(element_type) => {
                 let element_llvm_type = self.type_to_llvm_type(element_type);
                 // Dynamic array is similar to slice
-                self.context.struct_type(&[
-                    self.context.ptr_type(AddressSpace::default()).into(),
-                    self.context.i64_type().into(),
-                    self.context.i64_type().into() // capacity
-                ], false).into()
+                self.context
+                    .struct_type(
+                        &[
+                            self.context.ptr_type(AddressSpace::default()).into(),
+                            self.context.i64_type().into(),
+                            self.context.i64_type().into(), // capacity
+                        ],
+                        false,
+                    )
+                    .into()
             }
             Type::Tuple(element_types) => {
-                let llvm_element_types: Vec<inkwell::types::BasicTypeEnum> = 
-                    element_types.iter().map(|t| self.type_to_llvm_type(t)).collect();
+                let llvm_element_types: Vec<inkwell::types::BasicTypeEnum> = element_types
+                    .iter()
+                    .map(|t| self.type_to_llvm_type(t))
+                    .collect();
                 self.context.struct_type(&llvm_element_types, false).into()
             }
             Type::Ptr(element_type, _) => {
@@ -3157,16 +3545,21 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 if let Some(&cached_type) = self.specialized_types.get(&type_key) {
                     return cached_type.into();
                 }
-                
+
                 // Default to i64 for unknown named types
                 self.context.i64_type().into()
             }
             Type::TraitObject(_) => {
                 // Trait object is (data pointer, vtable pointer)
-                self.context.struct_type(&[
-                    self.context.ptr_type(AddressSpace::default()).into(),
-                    self.context.ptr_type(AddressSpace::default()).into()
-                ], false).into()
+                self.context
+                    .struct_type(
+                        &[
+                            self.context.ptr_type(AddressSpace::default()).into(),
+                            self.context.ptr_type(AddressSpace::default()).into(),
+                        ],
+                        false,
+                    )
+                    .into()
             }
             Type::Function(param_types, return_type) => {
                 // Function types are represented as function pointers
