@@ -104,6 +104,27 @@ pub enum MirStmt {
     Break,
     // Continue to next while loop iteration (no-op in MIR gen, handled in codegen)
     Continue,
+    // Swap two values through their addresses: swap(a_ptr, b_ptr, size)
+    Swap {
+        a_ptr: u32, // Expression ID for pointer to first value
+        b_ptr: u32, // Expression ID for pointer to second value
+        size: u32,  // Expression ID for byte size
+    },
+    // Precondition assertion (Stepanov elements of programming)
+    Pre {
+        cond: u32,       // Condition expression ID
+        message: String, // Assertion message
+    },
+    // Postcondition assertion
+    Post {
+        cond: u32,
+        message: String,
+    },
+    // Loop invariant assertion
+    Invariant {
+        cond: u32,
+        message: String,
+    },
     // Store through pointer: *addr = value
     // pointee_width: 1 for *mut u8, 8 for *mut u64/i64, etc.
     Store {

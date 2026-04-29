@@ -246,6 +246,17 @@ impl UnifiedTypeCheck for UnifiedTypeChecker {
                 let arg_strs: Vec<String> = args.iter().map(|t| self.type_to_string(t)).collect();
                 format!("({})<{}>", self.type_to_string(ctor), arg_strs.join(", "))
             }
+            Type::Regular => "Regular".to_string(),
+            Type::TotallyOrdered => "TotallyOrdered".to_string(),
+            Type::Semigroup => "Semigroup".to_string(),
+            Type::Monoid => "Monoid".to_string(),
+            Type::Group => "Group".to_string(),
+            Type::Ring => "Ring".to_string(),
+            Type::TraitResult(val) => format!("trait::{val}"),
+            Type::InputIterator => "InputIterator".to_string(),
+            Type::ForwardIterator => "ForwardIterator".to_string(),
+            Type::BidirectionalIterator => "BidirectionalIterator".to_string(),
+            Type::RandomAccessIterator => "RandomAccessIterator".to_string(),
         }
     }
 }

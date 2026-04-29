@@ -154,6 +154,25 @@ pub enum Type {
     // Error type (when inference fails)
     Error,
 
+    // === Stepanov Elements of Programming types ===
+
+    // Built-in concept types (Stepanov concepts)
+    Regular,
+    TotallyOrdered,
+    Semigroup,
+    Monoid,
+    Group,
+    Ring,
+
+    // Type trait query results
+    TraitResult(String), // Result of a compile-time trait query
+
+    // Iterator category tags
+    InputIterator,
+    ForwardIterator,
+    BidirectionalIterator,
+    RandomAccessIterator,
+
     // Identity types (string-based capabilities)
     Identity(Box<IdentityType>),
 }
@@ -780,6 +799,17 @@ impl Type {
                     .join(", ");
                 format!("{}<{}>", constructor_str, args_str)
             }
+            Type::Regular => "Regular".to_string(),
+            Type::TotallyOrdered => "TotallyOrdered".to_string(),
+            Type::Semigroup => "Semigroup".to_string(),
+            Type::Monoid => "Monoid".to_string(),
+            Type::Group => "Group".to_string(),
+            Type::Ring => "Ring".to_string(),
+            Type::TraitResult(val) => format!("trait::{}", val),
+            Type::InputIterator => "InputIterator".to_string(),
+            Type::ForwardIterator => "ForwardIterator".to_string(),
+            Type::BidirectionalIterator => "BidirectionalIterator".to_string(),
+            Type::RandomAccessIterator => "RandomAccessIterator".to_string(),
             Type::Error => "<?>".to_string(),
             Type::Identity(identity) => identity.to_string(),
         }
@@ -867,6 +897,17 @@ impl Type {
                 name
             }
             Type::Variable(var) => format!("Var_{}", var.0),
+            Type::Regular => "Regular".to_string(),
+            Type::TotallyOrdered => "TotallyOrdered".to_string(),
+            Type::Semigroup => "Semigroup".to_string(),
+            Type::Monoid => "Monoid".to_string(),
+            Type::Group => "Group".to_string(),
+            Type::Ring => "Ring".to_string(),
+            Type::TraitResult(val) => format!("TraitResult_{}", val),
+            Type::InputIterator => "InputIterator".to_string(),
+            Type::ForwardIterator => "ForwardIterator".to_string(),
+            Type::BidirectionalIterator => "BidirectionalIterator".to_string(),
+            Type::RandomAccessIterator => "RandomAccessIterator".to_string(),
             Type::Error => "Error".to_string(),
             Type::AsyncFunction(params, ret) => {
                 let param_str = params
@@ -1052,6 +1093,69 @@ impl Type {
             // Primitive types and error type remain unchanged
             _ => Ok(self.clone()),
         }
+    }
+
+    /// Check if a type satisfies the Regular concept (Stepanov Elements of Programming)
+    /// A Regular type is:
+    /// - Default-constructible (has a zero-like default)
+    /// - Copy-constructible (copy semantics)
+    /// - Equality-comparable (== / !=)
+    pub fn is_regular(&self) -> bool {
+        match self {
+            // All primitive numeric types are Regular
+            Type::I8
+            | Type::I16
+            | Type::I32
+            | Type::I64
+            | Type::U8
+            | Type::U16
+            | Type::U32
+            | Type::U64
+            | Type::Usize
+            | Type::F32
+            | Type::F64
+            | Type::Bool
+            | Type::Char => true,
+            // Vectors of Regular types are Regular if element type is Regular
+            Type::Vector(inner, _) => inner.is_regular(),
+            Type::V4I64 | Type::I32x4 | Type::I64x2 | Type::F32x4 => true,
+            // Tuples of Regular types are Regular
+            Type::Tuple(types) => types.iter().all(|t| t.is_regular()),
+            // Pointers are Regular (pointer semantics are copyable)
+            Type::Ptr(_, _) => true,
+            // Immutable references are Regular (shared references are copyable)
+            Type::Ref(_, _, Mutability::Immutable) => true,
+            // Named types: assume Regular for numeric/integral known types
+            Type::Named(name, args) => match name.as_str() {
+                "Option" | "Result" | "Vec" | "String" | "Array" => {
+                    args.iter().all(|a| a.is_regular())
+                }
+                _ => false,
+            },
+            // Error type is not Regular
+            _ => false,
+        }
+    }
+
+    /// Check if a type is an integer type
+    pub fn is_integer(&self) -> bool {
+        matches!(
+            self,
+            Type::I8
+                | Type::I16
+                | Type::I32
+                | Type::I64
+                | Type::U8
+                | Type::U16
+                | Type::U32
+                | Type::U64
+                | Type::Usize
+        )
+    }
+
+    /// Check if a type is a floating point type
+    pub fn is_floating_point(&self) -> bool {
+        matches!(self, Type::F32 | Type::F64)
     }
 
     /// Check if this type is a SIMD vector

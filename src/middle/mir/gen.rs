@@ -1307,6 +1307,242 @@ impl MirGen {
                 type_args,
                 ..
             } => {
+                // SPECIAL HANDLING: __builtin_swap generates Swap MIR statement
+                if method == "__builtin_swap" && receiver.is_none() && args.len() >= 3 {
+                    // __builtin_swap(a_ptr, b_ptr, size) -> swap *a_ptr with *b_ptr (size bytes)
+                    let a_ptr_id = self.lower_expr(&args[0]);
+                    let b_ptr_id = self.lower_expr(&args[1]);
+                    let size_id = self.lower_expr(&args[2]);
+
+                    self.stmts.push(MirStmt::Swap {
+                        a_ptr: a_ptr_id,
+                        b_ptr: b_ptr_id,
+                        size: size_id,
+                    });
+
+                    // Unit return
+                    let unit_id = self.next_id();
+                    self.exprs.insert(unit_id, MirExpr::Lit(0));
+                    self.type_map.insert(unit_id, Type::Tuple(vec![]));
+                    return unit_id;
+                }
+
+                // SPECIAL HANDLING: copy() builtin — creates a copy of a value
+                if method == "copy" && receiver.is_none() && args.len() == 1 {
+                    // For now, copy is just identity (values are copy-by-default in Zeta)
+                    let val_id = self.lower_expr(&args[0]);
+                    self.exprs.insert(id, MirExpr::Var(val_id));
+                    if let Some(ty) = self.type_map.get(&val_id) {
+                        self.type_map.insert(id, ty.clone());
+                    } else {
+                        self.type_map.insert(id, Type::I64);
+                    }
+                    return id;
+                }
+
+                // SPECIAL HANDLING: move() builtin — transfers ownership (no-op in current arch)
+                if method == "move" && receiver.is_none() && args.len() == 1 {
+                    let val_id = self.lower_expr(&args[0]);
+                    self.exprs.insert(id, MirExpr::Var(val_id));
+                    if let Some(ty) = self.type_map.get(&val_id) {
+                        self.type_map.insert(id, ty.clone());
+                    } else {
+                        self.type_map.insert(id, Type::I64);
+                    }
+                    return id;
+                }
+
+                // SPECIAL HANDLING: trait queries — trait::value_type<T>, trait::is_same<T, U>, etc.
+                if method.starts_with("trait::") && receiver.is_none() {
+                    let query = &method[7..]; // Strip "trait::"
+                    match query {
+                        "value_type" if args.len() == 1 => {
+                            // trait::value_type<Container> — for now returns i64
+                            self.exprs.insert(id, MirExpr::Lit(0));
+                            self.type_map
+                                .insert(id, Type::TraitResult("i64".to_string()));
+                        }
+                        "difference_type" if args.len() == 1 => {
+                            self.exprs.insert(id, MirExpr::Lit(0));
+                            self.type_map
+                                .insert(id, Type::TraitResult("i64".to_string()));
+                        }
+                        "iterator_category" if args.len() == 1 => {
+                            self.exprs.insert(id, MirExpr::Lit(0));
+                            self.type_map
+                                .insert(id, Type::TraitResult("RandomAccessIterator".to_string()));
+                        }
+                        "is_regular" if args.len() == 1 => {
+                            self.exprs.insert(id, MirExpr::Lit(1));
+                            self.type_map.insert(id, Type::Bool);
+                        }
+                        "is_integer" if args.len() == 1 => {
+                            self.exprs.insert(id, MirExpr::Lit(1));
+                            self.type_map.insert(id, Type::Bool);
+                        }
+                        "is_floating_point" if args.len() == 1 => {
+                            self.exprs.insert(id, MirExpr::Lit(0));
+                            self.type_map.insert(id, Type::Bool);
+                        }
+                        "is_same" if args.len() == 2 => {
+                            // trait::is_same<T, U> — for now returns 1 (true)
+                            self.exprs.insert(id, MirExpr::Lit(1));
+                            self.type_map.insert(id, Type::Bool);
+                        }
+                        s if s.starts_with("enable_if<") => {
+                            // trait::enable_if<condition, T> — for now returns 0
+                            self.exprs.insert(id, MirExpr::Lit(0));
+                            self.type_map.insert(id, Type::I64);
+                        }
+                        _ => {
+                            self.exprs.insert(id, MirExpr::Lit(0));
+                            self.type_map.insert(id, Type::I64);
+                        }
+                    }
+                    return id;
+                }
+
+                // SPECIAL HANDLING: pre()/post()/invariant() assertions
+                if (method == "pre" || method == "post" || method == "invariant")
+                    && receiver.is_none()
+                    && args.len() >= 1
+                {
+                    let cond_id = self.lower_expr(&args[0]);
+                    let message = if args.len() >= 2 {
+                        if let AstNode::StringLit(msg) = &args[1] {
+                            msg.clone()
+                        } else {
+                            format!("{} assertion", method)
+                        }
+                    } else {
+                        format!("{} assertion", method)
+                    };
+
+                    let stmt = match method.as_str() {
+                        "pre" => MirStmt::Pre {
+                            cond: cond_id,
+                            message,
+                        },
+                        "post" => MirStmt::Post {
+                            cond: cond_id,
+                            message,
+                        },
+                        "invariant" => MirStmt::Invariant {
+                            cond: cond_id,
+                            message,
+                        },
+                        _ => unreachable!(),
+                    };
+                    self.stmts.push(stmt);
+
+                    let unit_id = self.next_id();
+                    self.exprs.insert(unit_id, MirExpr::Lit(0));
+                    self.type_map.insert(unit_id, Type::Tuple(vec![]));
+                    return unit_id;
+                }
+
+                // SPECIAL HANDLING: source(it) — dereference an iterator (read value)
+                if method == "source" && receiver.is_none() && args.len() == 1 {
+                    let it_id = self.lower_expr(&args[0]);
+                    // Dereference: read value through the iterator
+                    self.exprs.insert(
+                        id,
+                        MirExpr::Deref {
+                            addr_id: it_id,
+                            pointee_width: 8,
+                        },
+                    );
+                    self.type_map.insert(id, Type::I64);
+                    return id;
+                }
+
+                // SPECIAL HANDLING: sink(it, val) — write to an iterator position
+                if method == "sink" && receiver.is_none() && args.len() == 2 {
+                    let it_id = self.lower_expr(&args[0]);
+                    let val_id = self.lower_expr(&args[1]);
+                    self.stmts.push(MirStmt::Store {
+                        addr_id: it_id,
+                        val_id,
+                        pointee_width: 8,
+                    });
+                    let unit_id = self.next_id();
+                    self.exprs.insert(unit_id, MirExpr::Lit(0));
+                    self.type_map.insert(unit_id, Type::Tuple(vec![]));
+                    return unit_id;
+                }
+
+                // SPECIAL HANDLING: successor(it) — advance iterator by 1
+                if method == "successor" && receiver.is_none() && args.len() == 1 {
+                    let it_id = self.lower_expr(&args[0]);
+                    let one_id = self.next_id();
+                    self.exprs.insert(one_id, MirExpr::Lit(1));
+                    self.type_map.insert(one_id, Type::I64);
+                    self.exprs.insert(
+                        id,
+                        MirExpr::BinaryOp {
+                            op: "+".to_string(),
+                            left: it_id,
+                            right: one_id,
+                        },
+                    );
+                    self.type_map.insert(id, Type::I64);
+                    return id;
+                }
+
+                // SPECIAL HANDLING: predecessor(it) — advance iterator by -1
+                if method == "predecessor" && receiver.is_none() && args.len() == 1 {
+                    let it_id = self.lower_expr(&args[0]);
+                    let one_id = self.next_id();
+                    self.exprs.insert(one_id, MirExpr::Lit(1));
+                    self.type_map.insert(one_id, Type::I64);
+                    self.exprs.insert(
+                        id,
+                        MirExpr::BinaryOp {
+                            op: "-".to_string(),
+                            left: it_id,
+                            right: one_id,
+                        },
+                    );
+                    self.type_map.insert(id, Type::I64);
+                    return id;
+                }
+
+                // SPECIAL HANDLING: begin(r) / end(r) — get iterators from a range/container
+                if (method == "begin" || method == "end") && receiver.is_none() && args.len() == 1 {
+                    // For now, begin returns the pointer to start, end returns pointer past end
+                    // Simplified: just pass through the container pointer
+                    let val_id = self.lower_expr(&args[0]);
+                    let zero_id = self.next_id();
+                    self.exprs.insert(zero_id, MirExpr::Lit(0));
+                    self.type_map.insert(zero_id, Type::I64);
+                    self.exprs.insert(
+                        id,
+                        MirExpr::BinaryOp {
+                            op: "+".to_string(),
+                            left: val_id,
+                            right: zero_id,
+                        },
+                    );
+                    self.type_map.insert(id, Type::I64);
+                    return id;
+                }
+
+                // SPECIAL HANDLING: advance(it, n) — advance iterator by n (with concept dispatch)
+                if method == "advance" && receiver.is_none() && args.len() == 2 {
+                    let it_id = self.lower_expr(&args[0]);
+                    let n_id = self.lower_expr(&args[1]);
+                    self.exprs.insert(
+                        id,
+                        MirExpr::BinaryOp {
+                            op: "+".to_string(),
+                            left: it_id,
+                            right: n_id,
+                        },
+                    );
+                    self.type_map.insert(id, Type::I64);
+                    return id;
+                }
+
                 // SPECIAL HANDLING: println generates VoidCall not Call
                 if method.as_str() == "println" && receiver.is_none() {
                     let mut arg_ids = vec![];

@@ -1266,6 +1266,18 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     }
                 }
             }
+            MirStmt::Swap { a_ptr, b_ptr, size } => {
+                ids.insert(*a_ptr);
+                ids.insert(*b_ptr);
+                ids.insert(*size);
+            }
+            MirStmt::Pre { cond, .. }
+            | MirStmt::Post { cond, .. }
+            | MirStmt::Invariant { cond, .. } => {
+                if let Some(e) = exprs.get(cond) {
+                    self.collect_ids_from_expr_safe(e, ids, exprs);
+                }
+            }
         }
     }
 
@@ -1827,11 +1839,56 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 val_id: *val_id,
                 pointee_width: *pointee_width,
             },
-            // TODO: Handle other MIR statement variants
-            _ => todo!(
-                "MIR statement variant not yet implemented in substitute_stmt: {:?}",
-                stmt
-            ),
+            MirStmt::Swap { a_ptr, b_ptr, size } => MirStmt::Swap {
+                a_ptr: *a_ptr,
+                b_ptr: *b_ptr,
+                size: *size,
+            },
+            MirStmt::Pre { cond, message } => MirStmt::Pre {
+                cond: *cond,
+                message: message.clone(),
+            },
+            MirStmt::Post { cond, message } => MirStmt::Post {
+                cond: *cond,
+                message: message.clone(),
+            },
+            MirStmt::Invariant { cond, message } => MirStmt::Invariant {
+                cond: *cond,
+                message: message.clone(),
+            },
+            MirStmt::MapNew { dest } => MirStmt::MapNew { dest: *dest },
+            MirStmt::For {
+                iterator,
+                pattern,
+                var_id,
+                body,
+            } => MirStmt::For {
+                iterator: *iterator,
+                pattern: pattern.clone(),
+                var_id: *var_id,
+                body: body
+                    .iter()
+                    .map(|s| self.substitute_stmt(s, substitution))
+                    .collect(),
+            },
+            MirStmt::StructNew {
+                variant,
+                fields,
+                dest,
+            } => MirStmt::StructNew {
+                variant: variant.clone(),
+                fields: fields.clone(),
+                dest: *dest,
+            },
+            MirStmt::While { cond, body } => MirStmt::While {
+                cond: *cond,
+                body: body
+                    .iter()
+                    .map(|s| self.substitute_stmt(s, substitution))
+                    .collect(),
+            },
+            MirStmt::Break => MirStmt::Break,
+            MirStmt::Continue => MirStmt::Continue,
         }
     }
 
@@ -2774,6 +2831,269 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
             MirStmt::Break | MirStmt::Continue => {}
 
+            // Swap: exchange two memory regions via memcpy
+            MirStmt::Swap { a_ptr, b_ptr, size } => {
+                let a_val = self.gen_expr_safe(a_ptr, exprs).into_int_value();
+                let b_val = self.gen_expr_safe(b_ptr, exprs).into_int_value();
+                let size_val = self.gen_expr_safe(size, exprs).into_int_value();
+
+                let a_ptr = self
+                    .builder
+                    .build_int_to_ptr(a_val, self.ptr_type, "swap_a")
+                    .unwrap();
+                let b_ptr = self
+                    .builder
+                    .build_int_to_ptr(b_val, self.ptr_type, "swap_b")
+                    .unwrap();
+
+                // Allocate a temporary buffer on the stack
+                let temp = self
+                    .builder
+                    .build_alloca(self.context.i8_type(), "swap_tmp")
+                    .unwrap();
+                // We need an array of i8 of size bytes for the temp buffer
+                // Use alloca with i8 array type for variable size
+                let temp_array = unsafe {
+                    self.builder
+                        .build_alloca(self.context.i8_type().array_type(256), "swap_tmp_buf")
+                        .unwrap()
+                };
+                let temp_ptr = self
+                    .builder
+                    .build_pointer_cast(temp_array, self.ptr_type, "tmp_ptr")
+                    .unwrap();
+
+                // Get llvm.memcpy intrinsic
+                let memcpy_fn = self
+                    .module
+                    .get_function("llvm.memcpy.p0i8.p0i8.i64")
+                    .or_else(|| {
+                        // Declare memcpy if not present
+                        let void_type = self.context.void_type();
+                        Some(self.module.add_function(
+                            "llvm.memcpy.p0i8.p0i8.i64",
+                            void_type.fn_type(
+                                &[
+                                    self.ptr_type.into(),
+                                    self.ptr_type.into(),
+                                    self.i64_type.into(),
+                                    self.context.bool_type().into(),
+                                ],
+                                false,
+                            ),
+                            None,
+                        ))
+                    })
+                    .expect("memcpy intrinsic");
+
+                let is_volatile = self.context.bool_type().const_zero();
+
+                // 1. temp = *a
+                let _ = self
+                    .builder
+                    .build_call(
+                        memcpy_fn,
+                        &[
+                            temp_ptr.into(),
+                            a_ptr.into(),
+                            size_val.into(),
+                            is_volatile.into(),
+                        ],
+                        "memcpy_tmp",
+                    )
+                    .unwrap();
+                // 2. *a = *b
+                let _ = self
+                    .builder
+                    .build_call(
+                        memcpy_fn,
+                        &[
+                            a_ptr.into(),
+                            b_ptr.into(),
+                            size_val.into(),
+                            is_volatile.into(),
+                        ],
+                        "memcpy_a",
+                    )
+                    .unwrap();
+                // 3. *b = temp
+                let _ = self
+                    .builder
+                    .build_call(
+                        memcpy_fn,
+                        &[
+                            b_ptr.into(),
+                            temp_ptr.into(),
+                            size_val.into(),
+                            is_volatile.into(),
+                        ],
+                        "memcpy_b",
+                    )
+                    .unwrap();
+            }
+
+            // Pre-condition assertion: assert(condition, "message")
+            MirStmt::Pre { cond, message } => {
+                let cond_val = self.gen_expr_safe(cond, exprs).into_int_value();
+                let is_true = self
+                    .builder
+                    .build_int_compare(
+                        inkwell::IntPredicate::NE,
+                        cond_val,
+                        self.i64_type.const_zero(),
+                        "pre_ok",
+                    )
+                    .unwrap();
+
+                let parent_fn = self
+                    .builder
+                    .get_insert_block()
+                    .unwrap()
+                    .get_parent()
+                    .unwrap();
+                let pass_bb = self.context.append_basic_block(parent_fn, "pre.pass");
+                let fail_bb = self.context.append_basic_block(parent_fn, "pre.fail");
+
+                self.builder
+                    .build_conditional_branch(is_true, pass_bb, fail_bb)
+                    .unwrap();
+
+                // Fail block: call assertion failed handler
+                self.builder.position_at_end(fail_bb);
+                let msg_ptr = self
+                    .builder
+                    .build_global_string_ptr(message, "pre_msg")
+                    .unwrap();
+                let void_type = self.context.void_type();
+                let assert_fn = if let Some(f) = self.module.get_function("__assert_fail") {
+                    f
+                } else {
+                    self.module.add_function(
+                        "__assert_fail",
+                        void_type.fn_type(&[self.ptr_type.into()], false),
+                        Some(Linkage::External),
+                    )
+                };
+                let _ = self
+                    .builder
+                    .build_call(
+                        assert_fn,
+                        &[msg_ptr.as_pointer_value().into()],
+                        "assert_fail",
+                    )
+                    .unwrap();
+                self.builder.build_unreachable().unwrap();
+                self.builder.position_at_end(pass_bb);
+            }
+
+            // Post-condition assertion
+            MirStmt::Post { cond, message } => {
+                // Same implementation as pre for now
+                let cond_val = self.gen_expr_safe(cond, exprs).into_int_value();
+                let is_true = self
+                    .builder
+                    .build_int_compare(
+                        inkwell::IntPredicate::NE,
+                        cond_val,
+                        self.i64_type.const_zero(),
+                        "post_ok",
+                    )
+                    .unwrap();
+
+                let parent_fn = self
+                    .builder
+                    .get_insert_block()
+                    .unwrap()
+                    .get_parent()
+                    .unwrap();
+                let pass_bb = self.context.append_basic_block(parent_fn, "post.pass");
+                let fail_bb = self.context.append_basic_block(parent_fn, "post.fail");
+
+                self.builder
+                    .build_conditional_branch(is_true, pass_bb, fail_bb)
+                    .unwrap();
+
+                self.builder.position_at_end(fail_bb);
+                let msg_ptr = self
+                    .builder
+                    .build_global_string_ptr(message, "post_msg")
+                    .unwrap();
+                let void_type = self.context.void_type();
+                let assert_fn = if let Some(f) = self.module.get_function("__assert_fail") {
+                    f
+                } else {
+                    self.module.add_function(
+                        "__assert_fail",
+                        void_type.fn_type(&[self.ptr_type.into()], false),
+                        Some(Linkage::External),
+                    )
+                };
+                let _ = self
+                    .builder
+                    .build_call(
+                        assert_fn,
+                        &[msg_ptr.as_pointer_value().into()],
+                        "assert_fail",
+                    )
+                    .unwrap();
+                self.builder.build_unreachable().unwrap();
+                self.builder.position_at_end(pass_bb);
+            }
+
+            // Loop invariant assertion
+            MirStmt::Invariant { cond, message } => {
+                // Same as pre-condition, generated at loop start
+                let cond_val = self.gen_expr_safe(cond, exprs).into_int_value();
+                let is_true = self
+                    .builder
+                    .build_int_compare(
+                        inkwell::IntPredicate::NE,
+                        cond_val,
+                        self.i64_type.const_zero(),
+                        "inv_ok",
+                    )
+                    .unwrap();
+
+                let parent_fn = self
+                    .builder
+                    .get_insert_block()
+                    .unwrap()
+                    .get_parent()
+                    .unwrap();
+                let pass_bb = self.context.append_basic_block(parent_fn, "inv.pass");
+                let fail_bb = self.context.append_basic_block(parent_fn, "inv.fail");
+
+                self.builder
+                    .build_conditional_branch(is_true, pass_bb, fail_bb)
+                    .unwrap();
+
+                self.builder.position_at_end(fail_bb);
+                let msg_ptr = self
+                    .builder
+                    .build_global_string_ptr(message, "inv_msg")
+                    .unwrap();
+                let void_type = self.context.void_type();
+                let assert_fn = if let Some(f) = self.module.get_function("__assert_fail") {
+                    f
+                } else {
+                    self.module.add_function(
+                        "__assert_fail",
+                        void_type.fn_type(&[self.ptr_type.into()], false),
+                        Some(Linkage::External),
+                    )
+                };
+                let _ = self
+                    .builder
+                    .build_call(
+                        assert_fn,
+                        &[msg_ptr.as_pointer_value().into()],
+                        "assert_fail",
+                    )
+                    .unwrap();
+                self.builder.build_unreachable().unwrap();
+                self.builder.position_at_end(pass_bb);
+            }
+
             MirStmt::For {
                 iterator,
                 pattern,
@@ -3638,6 +3958,19 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 // Identity type - treat as string for now
                 self.context.ptr_type(AddressSpace::default()).into()
             }
+            // Stepanov concept types — represented as i64 at runtime
+            Type::Regular
+            | Type::TotallyOrdered
+            | Type::Semigroup
+            | Type::Monoid
+            | Type::Group
+            | Type::Ring => self.context.i64_type().into(),
+            Type::TraitResult(_) => self.context.i64_type().into(),
+            // Iterator category tags — represented as i64 at runtime
+            Type::InputIterator
+            | Type::ForwardIterator
+            | Type::BidirectionalIterator
+            | Type::RandomAccessIterator => self.context.i64_type().into(),
         }
     }
 

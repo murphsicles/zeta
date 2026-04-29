@@ -137,6 +137,16 @@ pub fn dead_code_elimination(mir: &mut Mir) {
                 mark_expr_used(*addr_id, &mut used, &mir.exprs);
                 mark_expr_used(*val_id, &mut used, &mir.exprs);
             }
+            MirStmt::Swap { a_ptr, b_ptr, size } => {
+                mark_expr_used(*a_ptr, &mut used, &mir.exprs);
+                mark_expr_used(*b_ptr, &mut used, &mir.exprs);
+                mark_expr_used(*size, &mut used, &mir.exprs);
+            }
+            MirStmt::Pre { cond, .. }
+            | MirStmt::Post { cond, .. }
+            | MirStmt::Invariant { cond, .. } => {
+                mark_expr_used(*cond, &mut used, &mir.exprs);
+            }
             MirStmt::Break | MirStmt::Continue => {}
         }
     }
