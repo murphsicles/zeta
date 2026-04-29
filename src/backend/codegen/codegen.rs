@@ -334,6 +334,20 @@ impl<'ctx> LLVMCodegen<'ctx> {
             i64_type.fn_type(&[i64_type.into()], false),
             Some(Linkage::External),
         );
+        // Declare llvm.memset.i64 intrinsic: void(ptr, i8, i64, i1)
+        module.add_function(
+            "llvm.memset.i64",
+            void_type.fn_type(
+                &[
+                    context.ptr_type(AddressSpace::default()).into(),
+                    context.i8_type().into(),
+                    i64_type.into(),
+                    context.bool_type().into(),
+                ],
+                false,
+            ),
+            None,
+        );
         // V4I64 vector intrinsics (AVX2) — handled inline in codegen
         module.add_function(
             "__builtin_v4i64_store",
@@ -2375,7 +2389,42 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
             }
             MirStmt::VoidCall { func, args } => {
-                // DEBUG
+                // Handle __builtin_memset → LLVM llvm.memset.i64 intrinsic
+                if func == "__builtin_memset" && args.len() >= 3 {
+                    let ptr_val = self.gen_expr_safe(&args[0], exprs).into_int_value();
+                    let val_val = self.gen_expr_safe(&args[1], exprs).into_int_value();
+                    let len_val = self.gen_expr_safe(&args[2], exprs).into_int_value();
+
+                    // Convert i64 ptr to LLVM pointer
+                    let dest_ptr = self
+                        .builder
+                        .build_int_to_ptr(ptr_val, self.ptr_type, "memset_dest")
+                        .unwrap();
+                    // Truncate i64 fill value to i8
+                    let fill_byte = self
+                        .builder
+                        .build_int_truncate(val_val, self.context.i8_type(), "memset_fill")
+                        .unwrap();
+                    // Create volatile flag (false)
+                    let is_volatile = self.context.bool_type().const_zero();
+
+                    if let Some(memset_fn) = self.module.get_function("llvm.memset.i64") {
+                        let _ = self
+                            .builder
+                            .build_call(
+                                memset_fn,
+                                &[
+                                    dest_ptr.into(),
+                                    fill_byte.into(),
+                                    len_val.into(),
+                                    is_volatile.into(),
+                                ],
+                                "memset",
+                            )
+                            .unwrap();
+                    }
+                    return;
+                }
 
                 // === NEW: println(i64) support via println_i64 (bypasses get_function) ===
                 if func == "println" && !args.is_empty() {

@@ -2170,12 +2170,9 @@ impl MirGen {
                                     byte_size_id,
                                     MirExpr::Lit((size_val * elem_byte_size) as i64),
                                 );
-                                let memset_dest = self.next_id();
-                                self.stmts.push(MirStmt::Call {
+                                self.stmts.push(MirStmt::VoidCall {
                                     func: "__builtin_memset".to_string(),
                                     args: vec![array_ptr, value_id, byte_size_id],
-                                    dest: memset_dest,
-                                    type_args: vec![],
                                 });
                             } else {
                                 // Non-zero or small array: use per-element assignment

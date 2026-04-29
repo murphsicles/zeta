@@ -467,13 +467,22 @@ pub fn optimize(mir: &mut Mir, level: OptLevel) {
         }
         OptLevel::O3 => {
             // Maximum optimizations (O2 plus even more)
-            // Run multiple iterations for maximum effect
-            for _ in 0..3 {
+            // Run until convergence for maximum effect
+            let max_iterations = 10;
+            let mut stmt_count_before = mir.stmts.len();
+            for iteration in 0..max_iterations {
                 dead_code_elimination(mir);
                 constant_folding(mir);
                 algebraic_simplification(mir);
                 common_subexpression_elimination(mir);
                 strength_reduction(mir);
+
+                // Check convergence: if statement count stabilizes, we're done
+                let stmt_count_after = mir.stmts.len();
+                if stmt_count_after >= stmt_count_before && iteration > 0 {
+                    break; // Converged
+                }
+                stmt_count_before = stmt_count_after;
             }
             dead_code_elimination(mir); // Final cleanup
         }
