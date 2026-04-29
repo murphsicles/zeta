@@ -48,6 +48,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     output = Some(args[i].clone());
                 }
             }
+            "--dump-mir" => {}
             _ => input = Some(args[i].clone()),
         }
         i += 1;

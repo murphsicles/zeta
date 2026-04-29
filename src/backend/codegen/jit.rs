@@ -21,8 +21,36 @@ use inkwell::execution_engine::ExecutionEngine;
 use inkwell::passes::PassManager;
 use inkwell::targets::{FileType, InitializationConfig, Target, TargetMachine};
 use std::error::Error;
+use std::ffi::CString;
 use std::fs;
 use std::path::Path;
+
+/// Run LLVM's -O3 IR optimization pipeline using the new pass manager.
+/// This promotes allocas to SSA (mem2reg), runs instcombine, GVN, 
+/// loop optimizations, and the full -O3 pipeline.
+/// Uses LLVMRunPasses C API directly (LLVM 17+ new PM).
+fn optimize_module<'ctx>(module: &inkwell::module::Module<'ctx>, target_machine: &TargetMachine) {
+    // Run the full -O3 pipeline on the module via LLVM's new PM pass builder
+    unsafe {
+        let pipeline = CString::new("default<O3>").unwrap();
+        let options = llvm_sys::transforms::pass_builder::LLVMCreatePassBuilderOptions();
+        
+        let err = llvm_sys::transforms::pass_builder::LLVMRunPasses(
+            module.as_mut_ptr(),
+            pipeline.as_ptr(),
+            target_machine.as_mut_ptr(),
+            options,
+        );
+        
+        if !err.is_null() {
+            // Get error message from LLVMErrorRef
+            let msg_ptr = llvm_sys::error::LLVMGetErrorMessage(err);
+            let msg = std::ffi::CStr::from_ptr(msg_ptr).to_string_lossy().into_owned();
+            llvm_sys::error::LLVMConsumeError(err);
+            eprintln!("[LLVM opt warning: {}]", msg);
+        }
+    }
+}
 
 impl<'ctx> crate::backend::codegen::LLVMCodegen<'ctx> {
     pub fn finalize_and_jit(&mut self) -> Result<ExecutionEngine<'ctx>, Box<dyn Error>> {
@@ -46,13 +74,8 @@ impl<'ctx> crate::backend::codegen::LLVMCodegen<'ctx> {
         self.module
             .set_data_layout(&target_machine.get_target_data().get_data_layout());
 
-        let fpm = PassManager::create(&self.module);
-        fpm.initialize();
-        for func in self.module.get_functions() {
-            fpm.run_on(&func);
-        }
-        let mpm = PassManager::create(());
-        mpm.run_on(&self.module);
+        // Run the full LLVM optimization pipeline before JIT
+        optimize_module(&self.module, &target_machine);
 
         let ee = self
             .module
@@ -167,8 +190,6 @@ impl<'ctx> crate::backend::codegen::LLVMCodegen<'ctx> {
         if let Some(f) = self.module.get_function("zeta_println_i64") {
             ee.add_global_mapping(&f, zeta_println_i64 as *const () as usize);
         }
-        // Map user-visible println_i64 to the runtime implementation
-        // (compiler emits calls to println_i64, which is separate from zeta_println_i64)
         if let Some(f) = self.module.get_function("println_i64") {
             ee.add_global_mapping(&f, zeta_println_i64 as *const () as usize);
         }
@@ -201,6 +222,9 @@ pub fn finalize_and_aot<'ctx>(
     codegen
         .module
         .set_data_layout(&target_machine.get_target_data().get_data_layout());
+
+    // Run the full LLVM optimization pipeline before codegen
+    optimize_module(&codegen.module, &target_machine);
 
     let buffer = target_machine.write_to_memory_buffer(&codegen.module, FileType::Object)?;
     fs::write(path, buffer.as_slice())?;
