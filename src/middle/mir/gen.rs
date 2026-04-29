@@ -564,15 +564,111 @@ impl MirGen {
                 // }
 
                 // Check if expr is a range expression (BinaryOp with ".." or AstNode::Range)
-                let (start_expr, end_expr) = match &**expr {
-                    AstNode::BinaryOp { op, left, right } if op == ".." => (left, right),
+                let (start_expr, end_expr): (Box<AstNode>, Box<AstNode>) = match &**expr {
+                    AstNode::BinaryOp { op, left, right } if op == ".." => {
+                        ((*left).clone(), (*right).clone())
+                    }
                     AstNode::Range {
                         start,
                         end,
                         inclusive: _,
-                    } => (start, end),
+                    } => ((*start).clone(), (*end).clone()),
                     _ => {
-                        // TODO: Handle other iterator types
+                        // Collection iteration: for item in collection { ... }
+                        // Clone needed data to avoid borrow conflicts
+                        let body_clone = body.clone();
+                        let pattern_clone = pattern.clone();
+                        let expr_clone = expr.clone();
+
+                        if let AstNode::Var(_) = &*expr_clone {
+                            let collection_id = self.lower_expr(&expr_clone);
+                            let len_id = self.next_id();
+                            self.exprs.insert(len_id, MirExpr::Lit(0));
+                            self.stmts.push(MirStmt::Call {
+                                func: "array_len".to_string(),
+                                args: vec![collection_id],
+                                dest: len_id,
+                                type_args: vec![],
+                            });
+                            self.type_map.insert(len_id, Type::I64);
+
+                            let start_id = self.next_id_with_lit(0);
+
+                            // Create index variable name
+                            let (var_name, is_simple_var) = if let AstNode::Var(n) = &*pattern_clone
+                            {
+                                (n.clone(), true)
+                            } else {
+                                ("_i_".to_string(), false)
+                            };
+                            let index_var_id = self.next_id();
+                            self.name_to_id.insert(var_name, index_var_id);
+                            self.exprs.insert(index_var_id, MirExpr::Var(index_var_id));
+                            self.type_map.insert(index_var_id, Type::I64);
+
+                            // Initialize index = 0
+                            self.stmts.push(MirStmt::Assign {
+                                lhs: index_var_id,
+                                rhs: start_id,
+                            });
+
+                            // while index < len
+                            let cond_id = self.next_id();
+                            self.exprs.insert(
+                                cond_id,
+                                MirExpr::BinaryOp {
+                                    op: "<".to_string(),
+                                    left: index_var_id,
+                                    right: len_id,
+                                },
+                            );
+                            self.type_map.insert(cond_id, Type::Bool);
+
+                            let stmts_before = self.stmts.len();
+
+                            // Map pattern variable to collection[index] in body
+                            if is_simple_var {
+                                if let AstNode::Var(item_name) = &*pattern_clone {
+                                    let get_id = self.next_id();
+                                    self.stmts.push(MirStmt::Call {
+                                        func: "array_get".to_string(),
+                                        args: vec![collection_id, index_var_id],
+                                        dest: get_id,
+                                        type_args: vec![],
+                                    });
+                                    self.name_to_id.insert(item_name.clone(), get_id);
+                                    self.exprs.insert(get_id, MirExpr::Var(get_id));
+                                    self.type_map.insert(get_id, Type::I64);
+                                }
+                            }
+
+                            for stmt in &body_clone {
+                                self.lower_ast(stmt);
+                            }
+
+                            // i = i + 1
+                            let inc_id = self.next_id();
+                            let one_id = self.next_id_with_lit(1);
+                            self.exprs.insert(
+                                inc_id,
+                                MirExpr::BinaryOp {
+                                    op: "+".to_string(),
+                                    left: index_var_id,
+                                    right: one_id,
+                                },
+                            );
+                            self.type_map.insert(inc_id, Type::I64);
+                            self.stmts.push(MirStmt::Assign {
+                                lhs: index_var_id,
+                                rhs: inc_id,
+                            });
+
+                            let body_stmts = self.stmts.split_off(stmts_before);
+                            self.stmts.push(MirStmt::While {
+                                cond: cond_id,
+                                body: body_stmts,
+                            });
+                        }
                         return;
                     }
                 };
@@ -580,8 +676,8 @@ impl MirGen {
                 // Get variable name from pattern
                 if let AstNode::Var(var_name) = &**pattern {
                     // Lower start and end expressions
-                    let start_id = self.lower_expr(start_expr);
-                    let end_id = self.lower_expr(end_expr);
+                    let start_id = self.lower_expr(&start_expr);
+                    let end_id = self.lower_expr(&end_expr);
 
                     // Create loop variable
                     let var_id = self.next_id();
@@ -2053,16 +2149,44 @@ impl MirGen {
                                 args: vec![array_ptr, len_id],
                             });
 
-                            // Fill array with value using array_set for each position
-                            // Note: This is inefficient for large arrays but works for now
-                            // TODO: Optimize with memset for zero initialization
-                            for idx in 0..size_val {
-                                let idx_id = self.next_id();
-                                self.exprs.insert(idx_id, MirExpr::Lit(idx as i64));
-                                self.stmts.push(MirStmt::VoidCall {
-                                    func: "array_set".to_string(),
-                                    args: vec![array_ptr, idx_id, value_id],
+                            // Fill array with value
+                            // Use memset intrinsic for zero initialization (performance optimization)
+                            let val_expr = value_id;
+                            let is_lit_zero = match self.exprs.get(&val_expr) {
+                                Some(MirExpr::Lit(0)) => true,
+                                _ => false,
+                            };
+                            if is_lit_zero && size_val > 4 {
+                                // Zero initialization: use memset for efficiency
+                                let byte_size_id = self.next_id();
+                                let elem_byte_size = match &elem_type {
+                                    Type::I8 | Type::U8 | Type::Bool => 1,
+                                    Type::I16 | Type::U16 => 2,
+                                    Type::I32 | Type::U32 | Type::F32 => 4,
+                                    Type::I64 | Type::U64 | Type::F64 | Type::Usize => 8,
+                                    _ => 8, // Default to 8 bytes for complex types
+                                };
+                                self.exprs.insert(
+                                    byte_size_id,
+                                    MirExpr::Lit((size_val * elem_byte_size) as i64),
+                                );
+                                let memset_dest = self.next_id();
+                                self.stmts.push(MirStmt::Call {
+                                    func: "__builtin_memset".to_string(),
+                                    args: vec![array_ptr, value_id, byte_size_id],
+                                    dest: memset_dest,
+                                    type_args: vec![],
                                 });
+                            } else {
+                                // Non-zero or small array: use per-element assignment
+                                for idx in 0..size_val {
+                                    let idx_id = self.next_id();
+                                    self.exprs.insert(idx_id, MirExpr::Lit(idx as i64));
+                                    self.stmts.push(MirStmt::VoidCall {
+                                        func: "array_set".to_string(),
+                                        args: vec![array_ptr, idx_id, value_id],
+                                    });
+                                }
                             }
 
                             // Return the array pointer
