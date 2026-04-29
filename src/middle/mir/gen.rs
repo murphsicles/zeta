@@ -753,6 +753,67 @@ impl MirGen {
             AstNode::ExternFunc { .. } => {
                 // Extern/FFI function declaration — no body to lower.
             }
+            // ── Priority B: Pattern Matching Nodes ──
+            AstNode::IfLet {
+                pattern,
+                expr,
+                then,
+                else_,
+            } => {
+                // Desugar: if let <pat> = <expr> { then } [else { else_ }]
+                match &**pattern {
+                    AstNode::Var(name) => {
+                        // Simple binding — always matches.
+                        let expr_id = self.lower_expr(expr);
+                        let lhs_id = self.next_id();
+                        self.stmts.push(MirStmt::Assign {
+                            lhs: lhs_id,
+                            rhs: expr_id,
+                        });
+                        self.name_to_id.insert(name.clone(), lhs_id);
+                        self.exprs.insert(lhs_id, MirExpr::Var(lhs_id));
+                        if let Some(ty) = self.type_map.get(&expr_id) {
+                            self.type_map.insert(lhs_id, ty.clone());
+                        } else {
+                            self.type_map.insert(lhs_id, Type::I64);
+                        }
+                        for stmt in then {
+                            self.lower_ast(stmt);
+                        }
+                    }
+                    AstNode::Ignore => {
+                        // Wildcard — always matches, discard value.
+                        self.lower_expr(expr);
+                        for stmt in then {
+                            self.lower_ast(stmt);
+                        }
+                    }
+                    _ => {
+                        // Complex pattern: lower expr (side effects), always run then.
+                        self.lower_expr(expr);
+                        for stmt in then {
+                            self.lower_ast(stmt);
+                        }
+                    }
+                }
+            }
+            AstNode::Tuple(elements) => {
+                // Tuple in statement position — evaluate all elements.
+                for elem in elements {
+                    self.lower_ast(elem);
+                }
+            }
+            AstNode::Ignore => {
+                // Wildcard / ignore — no-op in statement position.
+            }
+            AstNode::StructPattern { .. } => {
+                // Struct destructuring pattern in statement position — no-op for now.
+            }
+            AstNode::OrPattern(_) | AstNode::BindPattern { .. } | AstNode::RangePattern { .. } => {
+                // These are primarily used inside Match / IfLet arms.
+                // As standalone stmts, evaluate them as expressions.
+                self.lower_expr(ast);
+            }
             AstNode::If { .. } | AstNode::Call { .. } | AstNode::PathCall { .. } => {
                 self.lower_expr(ast);
             }
@@ -1407,6 +1468,181 @@ impl MirGen {
                                 }
                             }
                         }
+                        AstNode::OrPattern(patterns) => {
+                            // Or pattern: any sub-pattern matches.
+                            // Lower each sub-pattern and OR their conditions.
+                            let mut or_cond = None;
+                            for sub_pat in patterns {
+                                let sub_pat_id = self.next_id();
+                                // Lower the sub-pattern as a match condition on scrutinee.
+                                // Re-use the scrutinee_id — sub-pattern checks reference it.
+                                let sub_lit_id = self.next_id();
+                                match sub_pat {
+                                    AstNode::Lit(val) => {
+                                        self.exprs
+                                            .insert(sub_lit_id, MirExpr::Lit(*val));
+                                        self.type_map.insert(sub_lit_id, Type::I64);
+                                        self.stmts.push(MirStmt::Call {
+                                            func: "==".to_string(),
+                                            args: vec![scrutinee_id, sub_lit_id],
+                                            dest: sub_pat_id,
+                                            type_args: vec![],
+                                        });
+                                    }
+                                    AstNode::Var(name) if name == "_" => {
+                                        // Wildcard always matches
+                                        self.exprs.insert(sub_pat_id, MirExpr::Lit(1));
+                                        self.type_map.insert(sub_pat_id, Type::Bool);
+                                    }
+                                    _ => {
+                                        // Fallback for other sub-patterns
+                                        self.exprs.insert(sub_pat_id, MirExpr::Lit(0));
+                                        self.type_map.insert(sub_pat_id, Type::Bool);
+                                    }
+                                }
+                                self.exprs
+                                    .insert(sub_pat_id, MirExpr::Var(sub_pat_id));
+                                self.type_map.insert(sub_pat_id, Type::Bool);
+
+                                if let Some(prev) = or_cond {
+                                    // OR the conditions: prev || sub_pat
+                                    let or_result_id = self.next_id();
+                                    self.stmts.push(MirStmt::Call {
+                                        func: "||".to_string(),
+                                        args: vec![prev, sub_pat_id],
+                                        dest: or_result_id,
+                                        type_args: vec![],
+                                    });
+                                    self.exprs.insert(
+                                        or_result_id,
+                                        MirExpr::Var(or_result_id),
+                                    );
+                                    self.type_map
+                                        .insert(or_result_id, Type::Bool);
+                                    or_cond = Some(or_result_id);
+                                } else {
+                                    or_cond = Some(sub_pat_id);
+                                }
+                            }
+                            let cond_val = or_cond.unwrap_or_else(|| {
+                                let default = self.next_id();
+                                self.exprs.insert(default, MirExpr::Lit(1));
+                                self.type_map.insert(default, Type::Bool);
+                                default
+                            });
+                            self.exprs.insert(cond_id, MirExpr::Var(cond_val));
+                            self.type_map.insert(cond_id, Type::Bool);
+                        }
+                        AstNode::BindPattern { name, pattern: inner } => {
+                            // x @ pattern: bind name to scrutinee, then match inner pattern.
+                            self.name_to_id.insert(name.clone(), scrutinee_id);
+                            // Check the inner pattern
+                            let inner_cond_id = self.next_id();
+                            match &**inner {
+                                AstNode::RangePattern {
+                                    start,
+                                    end,
+                                    inclusive: _,
+                                } => {
+                                    // x @ start..=end: check x >= start && x <= end
+                                    let ge_id = self.next_id();
+                                    let le_id = self.next_id();
+                                    let start_id = self.lower_expr(start);
+                                    let end_id = self.lower_expr(end);
+                                    self.stmts.push(MirStmt::Call {
+                                        func: ">=".to_string(),
+                                        args: vec![scrutinee_id, start_id],
+                                        dest: ge_id,
+                                        type_args: vec![],
+                                    });
+                                    self.stmts.push(MirStmt::Call {
+                                        func: "<=".to_string(),
+                                        args: vec![scrutinee_id, end_id],
+                                        dest: le_id,
+                                        type_args: vec![],
+                                    });
+                                    // AND them
+                                    let and_id = self.next_id();
+                                    self.stmts.push(MirStmt::Call {
+                                        func: "&&".to_string(),
+                                        args: vec![ge_id, le_id],
+                                        dest: and_id,
+                                        type_args: vec![],
+                                    });
+                                    self.exprs.insert(
+                                        inner_cond_id,
+                                        MirExpr::Var(and_id),
+                                    );
+                                    self.type_map
+                                        .insert(inner_cond_id, Type::Bool);
+                                }
+                                _ => {
+                                    // Other inner patterns: match by lowering.
+                                    let inner_id = self.lower_expr(inner);
+                                    self.stmts.push(MirStmt::Call {
+                                        func: "==".to_string(),
+                                        args: vec![scrutinee_id, inner_id],
+                                        dest: inner_cond_id,
+                                        type_args: vec![],
+                                    });
+                                    self.exprs.insert(
+                                        inner_cond_id,
+                                        MirExpr::Var(inner_cond_id),
+                                    );
+                                    self.type_map
+                                        .insert(inner_cond_id, Type::Bool);
+                                }
+                            }
+                            self.exprs.insert(cond_id, MirExpr::Var(inner_cond_id));
+                            self.type_map.insert(cond_id, Type::Bool);
+                        }
+                        AstNode::RangePattern {
+                            start,
+                            end,
+                            inclusive: _,
+                        } => {
+                            // Range pattern: scrutinee >= start && scrutinee <= end
+                            let ge_id = self.next_id();
+                            let le_id = self.next_id();
+                            let start_id = self.lower_expr(start);
+                            let end_id = self.lower_expr(end);
+                            self.stmts.push(MirStmt::Call {
+                                func: ">=".to_string(),
+                                args: vec![scrutinee_id, start_id],
+                                dest: ge_id,
+                                type_args: vec![],
+                            });
+                            self.stmts.push(MirStmt::Call {
+                                func: "<=".to_string(),
+                                args: vec![scrutinee_id, end_id],
+                                dest: le_id,
+                                type_args: vec![],
+                            });
+                            let and_id = self.next_id();
+                            self.stmts.push(MirStmt::Call {
+                                func: "&&".to_string(),
+                                args: vec![ge_id, le_id],
+                                dest: and_id,
+                                type_args: vec![],
+                            });
+                            self.exprs.insert(cond_id, MirExpr::Var(and_id));
+                            self.type_map.insert(cond_id, Type::Bool);
+                        }
+                        AstNode::Tuple(elements) => {
+                            // Tuple pattern: match each element (simplified: always true for now)
+                            // In a full implementation, we'd destructure and match each element.
+                            // For now, bind elements by index position.
+                            for (i, elem) in elements.iter().enumerate() {
+                                if let AstNode::Var(name) = elem {
+                                    let field_id = self.next_id();
+                                    self.name_to_id.insert(name.clone(), field_id);
+                                    self.exprs.insert(field_id, MirExpr::Lit(0));
+                                    self.type_map.insert(field_id, Type::I64);
+                                }
+                            }
+                            self.exprs.insert(cond_id, MirExpr::Lit(1));
+                            self.type_map.insert(cond_id, Type::Bool);
+                        }
                         _ => {
                             // For now, treat other patterns as always false
                             self.exprs.insert(cond_id, MirExpr::Lit(0));
@@ -1831,6 +2067,81 @@ impl MirGen {
                 }
                 self.exprs.insert(id, MirExpr::Lit(0));
                 self.type_map.insert(id, Type::I64);
+            }
+            // ── Priority B: Pattern Expression Nodes ──
+            AstNode::Tuple(elements) => {
+                // Tuple expression: lower each element, create stack array.
+                let mut element_ids = Vec::new();
+                for elem in elements {
+                    let elem_id = self.lower_expr(elem);
+                    element_ids.push(elem_id);
+                }
+                let size = element_ids.len();
+                self.exprs.insert(
+                    id,
+                    MirExpr::StackArray {
+                        elements: element_ids.clone(),
+                        size,
+                    },
+                );
+                self.type_map.insert(
+                    id,
+                    Type::Tuple(vec![Type::I64; size]),
+                );
+            }
+            AstNode::Ignore => {
+                // Wildcard / ignore expression.
+                self.exprs.insert(id, MirExpr::Lit(0));
+                self.type_map.insert(id, Type::I64);
+            }
+            AstNode::BindPattern { name, pattern } => {
+                // Binding pattern: x @ pattern — bind name to inner value.
+                let inner_id = self.lower_expr(pattern);
+                self.name_to_id.insert(name.clone(), inner_id);
+                self.exprs.insert(id, MirExpr::Var(inner_id));
+                if let Some(ty) = self.type_map.get(&inner_id) {
+                    self.type_map.insert(id, ty.clone());
+                } else {
+                    self.type_map.insert(id, Type::I64);
+                }
+            }
+            AstNode::RangePattern { start, end, inclusive: _ } => {
+                // Range pattern: lower start/end for comparison.
+                let start_id = self.lower_expr(start);
+                let end_id = self.lower_expr(end);
+                self.exprs.insert(
+                    id,
+                    MirExpr::Range {
+                        start: start_id,
+                        end: end_id,
+                    },
+                );
+                self.type_map.insert(id, Type::Range);
+            }
+            AstNode::OrPattern(patterns) => {
+                // Or pattern: evaluate the first alternative.
+                if let Some(first) = patterns.first() {
+                    return self.lower_expr(first);
+                }
+                self.exprs.insert(id, MirExpr::Lit(0));
+                self.type_map.insert(id, Type::I64);
+            }
+            AstNode::StructPattern { variant, fields, .. } => {
+                // Struct pattern in expression position — create struct value.
+                let mut field_ids = Vec::new();
+                for (field_name, field_expr) in fields {
+                    let field_id = self.lower_expr(field_expr);
+                    field_ids.push((field_name.clone(), field_id));
+                }
+                self.exprs.insert(
+                    id,
+                    MirExpr::Struct {
+                        variant: variant.clone(),
+                        fields: field_ids,
+                    },
+                );
+                self.type_map
+                    .insert(id, Type::Named(variant.clone(), vec![]));
             }
             _ => {
                 self.exprs.insert(id, MirExpr::Lit(0));
