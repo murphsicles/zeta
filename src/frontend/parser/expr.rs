@@ -675,22 +675,57 @@ fn parse_simple_ident(input: &str) -> IResult<&str, AstNode> {
     Ok((input, AstNode::Var(ident)))
 }
 
+/// Parse `trait::` queries: trait::value_type<T>, trait::is_same<T, U>, etc.
+fn parse_trait_query(input: &str) -> IResult<&str, AstNode> {
+    let (input, _) = ws(tag("trait::")).parse(input)?;
+    let (input, query_name) = parse_ident(input)?;
+
+    // Parse type arguments: <T> or <T, U>
+    // Parse type arguments (required for trait queries)
+    let (input, type_args) = ws(delimited(
+        tag("<"),
+        separated_list1(ws(tag(",")), ws(parse_type)),
+        tag(">"),
+    ))
+    .parse(input)?;
+
+    // Build the method name as "trait::query_name"
+    let method = format!("trait::{}", query_name);
+
+    // Create a Call expression with the type args as arguments
+    // We pass the type arguments as AstNode::StringLit nodes that represent type names
+    let args: Vec<AstNode> = type_args
+        .into_iter()
+        .map(|t| AstNode::StringLit(t))
+        .collect();
+
+    Ok((
+        input,
+        AstNode::Call {
+            receiver: None,
+            method,
+            args,
+            type_args: vec![], // Type args go as string args
+            structural: false,
+        },
+    ))
+}
+
 pub fn parse_primary(input: &str) -> IResult<&str, AstNode> {
     alt((
+        parse_trait_query,
         parse_tuple_or_paren,
         parse_lit,
         parse_string_lit,
-        parse_match_expr,   // Try match expression before identifier
-        parse_path_expr, // Full path parser (handles paths with ::, generic args, struct literals)
-        parse_simple_ident, // Simple ident (no ::, no generic args) - AFTER path_expr
+        parse_match_expr,
+        parse_path_expr,
+        parse_simple_ident,
         parse_array_lit,
         parse_bool,
         parse_closure,
         parse_block,
         parse_unsafe_expr,
         parse_comptime_block,
-        // parse_if_let and parse_if removed - they're not primary expressions
-        // They should be parsed at a higher level
     ))
     .parse(input)
 }
