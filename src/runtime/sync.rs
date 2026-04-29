@@ -136,82 +136,88 @@ impl<T> ZetaRwLock<T> {
     }
 }
 
-// Host functions for atomic operations - commented out for now
+// Host functions for atomic operations
 
-// #[no_mangle]
-// pub unsafe extern "C" fn host_atomic_bool_new(value: i64) -> *mut ZetaAtomicBool {
-//     let atomic = Box::new(ZetaAtomicBool::new(value != 0));
-//     Box::into_raw(atomic)
-// }
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn host_atomic_bool_new(value: i64) -> *mut ZetaAtomicBool {
+    let atomic = Box::new(ZetaAtomicBool::new(value != 0));
+    Box::into_raw(atomic)
+}
 
-// #[no_mangle]
-// pub unsafe extern "C" fn host_atomic_bool_load(ptr: *const ZetaAtomicBool) -> i64 {
-//     if ptr.is_null() {
-//         return 0;
-//     }
-//     unsafe {
-//         let atomic = &*ptr;
-//         atomic.load(Ordering::SeqCst) as i64
-//     }
-// }
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn host_atomic_bool_load(ptr: *const ZetaAtomicBool) -> i64 {
+    if ptr.is_null() {
+        return 0;
+    }
+    // SAFETY: caller must guarantee valid pointer
+    unsafe {
+        let atomic = &*ptr;
+        atomic.load(Ordering::SeqCst) as i64
+    }
+}
 
-// #[no_mangle]
-// pub unsafe extern "C" fn host_atomic_bool_store(ptr: *mut ZetaAtomicBool, value: i64) {
-//     if ptr.is_null() {
-//         return;
-//     }
-//     unsafe {
-//         let atomic = &*ptr;
-//         atomic.store(value != 0, Ordering::SeqCst);
-//     }
-// }
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn host_atomic_bool_store(ptr: *mut ZetaAtomicBool, value: i64) {
+    if ptr.is_null() {
+        return;
+    }
+    // SAFETY: caller must guarantee valid pointer
+    unsafe {
+        let atomic = &*ptr;
+        atomic.store(value != 0, Ordering::SeqCst);
+    }
+}
 
-// #[no_mangle]
-// pub unsafe extern "C" fn host_atomic_usize_new(value: i64) -> *mut ZetaAtomicUsize {
-//     let atomic = Box::new(ZetaAtomicUsize::new(value as usize));
-//     Box::into_raw(atomic)
-// }
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn host_atomic_usize_new(value: i64) -> *mut ZetaAtomicUsize {
+    let atomic = Box::new(ZetaAtomicUsize::new(value as usize));
+    Box::into_raw(atomic)
+}
 
-// #[no_mangle]
-// pub unsafe extern "C" fn host_atomic_usize_load(ptr: *const ZetaAtomicUsize) -> i64 {
-//     if ptr.is_null() {
-//         return 0;
-//     }
-//     unsafe {
-//         let atomic = &*ptr;
-//         atomic.load(Ordering::SeqCst) as i64
-//     }
-// }
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn host_atomic_usize_load(ptr: *const ZetaAtomicUsize) -> i64 {
+    if ptr.is_null() {
+        return 0;
+    }
+    // SAFETY: caller must guarantee valid pointer
+    unsafe {
+        let atomic = &*ptr;
+        atomic.load(Ordering::SeqCst) as i64
+    }
+}
 
-// #[no_mangle]
-// pub unsafe extern "C" fn host_atomic_usize_store(ptr: *mut ZetaAtomicUsize, value: i64) {
-//     if ptr.is_null() {
-//         return;
-//     }
-//     unsafe {
-//         let atomic = &*ptr;
-//         atomic.store(value as usize, Ordering::SeqCst);
-//     }
-// }
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn host_atomic_usize_store(ptr: *mut ZetaAtomicUsize, value: i64) {
+    if ptr.is_null() {
+        return;
+    }
+    // SAFETY: caller must guarantee valid pointer
+    unsafe {
+        let atomic = &*ptr;
+        atomic.store(value as usize, Ordering::SeqCst);
+    }
+}
 
-// #[no_mangle]
-// pub unsafe extern "C" fn host_atomic_usize_fetch_add(ptr: *mut ZetaAtomicUsize, value: i64) -> i64 {
-//     if ptr.is_null() {
-//         return 0;
-//     }
-//     unsafe {
-//         let atomic = &*ptr;
-//         atomic.fetch_add(value as usize, Ordering::SeqCst) as i64
-//     }
-// }
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn host_atomic_usize_fetch_add(ptr: *mut ZetaAtomicUsize, value: i64) -> i64 {
+    if ptr.is_null() {
+        return 0;
+    }
+    // SAFETY: caller must guarantee valid pointer
+    unsafe {
+        let atomic = &*ptr;
+        atomic.fetch_add(value as usize, Ordering::SeqCst) as i64
+    }
+}
 
-// #[no_mangle]
-// pub unsafe extern "C" fn host_atomic_usize_fetch_sub(ptr: *mut ZetaAtomicUsize, value: i64) -> i64 {
-//     if ptr.is_null() {
-//         return 0;
-//     }
-//     unsafe {
-//         let atomic = &*ptr;
-//         atomic.fetch_sub(value as usize, Ordering::SeqCst) as i64
-//     }
-// }
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn host_atomic_usize_fetch_sub(ptr: *mut ZetaAtomicUsize, value: i64) -> i64 {
+    if ptr.is_null() {
+        return 0;
+    }
+    // SAFETY: caller must guarantee valid pointer
+    unsafe {
+        let atomic = &*ptr;
+        atomic.fetch_sub(value as usize, Ordering::SeqCst) as i64
+    }
+}

@@ -1,6 +1,14 @@
 // src/runtime/std.rs
 use std::arch::x86_64::*;
+use std::collections::HashMap;
 use std::env;
+use std::sync::Mutex;
+
+lazy_static::lazy_static! {
+    /// Global allocation tracker: maps pointer -> allocation size
+    /// Enables proper deallocation via std_free
+    static ref ALLOC_TRACKER: Mutex<HashMap<usize, usize>> = Mutex::new(HashMap::new());
+}
 
 // SIMD vector types for runtime
 #[repr(C, align(64))]
@@ -12,13 +20,12 @@ struct I64x2([i64; 2]);
 #[repr(C, align(16))]
 struct F32x4([f32; 4]);
 
-/// Allocates memory.
+/// Allocates memory with allocation tracking.
 ///
 /// # Safety
 /// Caller must ensure valid size, free returned pointer with std_free, and avoid use after free.
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn std_malloc(size: usize) -> i64 {
-    // SIMPLE FIX: Use Vec for allocation (always works)
     if size == 0 {
         return 0;
     }
@@ -29,6 +36,11 @@ pub unsafe extern "C" fn std_malloc(size: usize) -> i64 {
     let ptr = vec.as_mut_ptr();
     std::mem::forget(vec); // Leak memory - caller must free with std_free
 
+    // Track allocation size for proper deallocation
+    if let Ok(mut tracker) = ALLOC_TRACKER.lock() {
+        tracker.insert(ptr as usize, size);
+    }
+
     ptr as i64
 }
 
@@ -38,11 +50,20 @@ pub unsafe extern "C" fn std_malloc(size: usize) -> i64 {
 /// Caller must ensure pointer from std_malloc or null, no use after free, and no double free.
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn std_free(ptr: usize) {
-    // Free memory allocated by std_malloc
     if ptr != 0 {
-        // We need to know the size to free it, but we don't have it
-        // For now, leak the memory (in a real implementation we'd track sizes)
-        // std::alloc::dealloc(ptr as *mut u8, layout);
+        // Look up allocation size from tracker
+        let size = ALLOC_TRACKER
+            .lock()
+            .ok()
+            .and_then(|mut tracker| tracker.remove(&ptr));
+
+        if let Some(alloc_size) = size {
+            // Reconstruct the layout and deallocate properly
+            let layout = std::alloc::Layout::from_size_align(alloc_size, 1)
+                .expect("Failed to create layout for deallocation");
+            std::alloc::dealloc(ptr as *mut u8, layout);
+        }
+        // If size not tracked, memory was leaked (should not happen in correct usage)
     }
 }
 

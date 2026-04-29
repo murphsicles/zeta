@@ -608,9 +608,8 @@ pub unsafe extern "C" fn array_push(arr_ptr: i64, value: i64) {
         if !arr.data.is_null() {
             // Copy existing data
             ptr::copy_nonoverlapping(arr.data, new_data, arr.length as usize);
-            // Free old data
-            // TODO: Need to track allocation size to free properly
-            // std_free(arr.data as usize);
+            // Free old data (allocation tracker handles size lookup)
+            crate::runtime::std::std_free(arr.data as usize);
         }
 
         arr.data = new_data;
