@@ -1158,6 +1158,33 @@ impl Type {
         matches!(self, Type::F32 | Type::F64)
     }
 
+    /// Get the mathematical properties of a type's operations
+    /// Returns a list of property strings: "commutative", "associative", "identity"
+    pub fn mathematical_properties(ty: &Type) -> Vec<String> {
+        let mut props = Vec::new();
+        match ty {
+            // Integer addition and multiplication are commutative and associative
+            Type::I8
+            | Type::I16
+            | Type::I32
+            | Type::I64
+            | Type::U8
+            | Type::U16
+            | Type::U32
+            | Type::U64
+            | Type::Usize => {
+                props.push("commutative".to_string());
+                props.push("associative".to_string());
+            }
+            // Floating point addition and multiplication are commutative (but not strictly associative)
+            Type::F32 | Type::F64 => {
+                props.push("commutative".to_string());
+            }
+            _ => {}
+        }
+        props
+    }
+
     /// Check if this type is a SIMD vector
     pub fn is_vector(&self) -> bool {
         matches!(self, Type::Vector(_, _) | Type::V4I64)

@@ -1,0 +1,104 @@
+// src/correctness.z — Provable Correctness (Stepanov Elements of Programming)
+// Pre/post conditions, loop invariants, and mathematical property annotations
+
+// === Assertions ===
+
+// Precondition: assert condition holds at function entry
+// In debug mode, checked at runtime. In release mode, elided.
+extern fn pre(condition: bool, message: string);
+
+// Postcondition: assert condition holds at function exit
+extern fn post(condition: bool, message: string);
+
+// Loop invariant: assert condition at loop boundaries
+extern fn invariant(condition: bool, message: string);
+
+// === Factorial with pre/post conditions ===
+
+fn factorial(n: i64) -> i64 {
+    pre(n >= 0, "factorial: n must be non-negative");
+    let mut result: i64 = 1;
+    let mut i: i64 = n;
+    while i > 0 {
+        invariant(i >= 0, "factorial loop: i >= 0");
+        result = result * i;
+        i = i - 1;
+    }
+    post(n == 0 || result > 0, "factorial: result is positive");
+    return result;
+}
+
+// === Binary search with invariants ===
+
+fn binary_search[T: TotallyOrdered](arr: [dynamic]T, val: T) -> i64 {
+    pre(arr_len(arr) >= 0, "binary_search: array exists");
+    let mut lo: i64 = 0;
+    let mut hi: i64 = arr_len(arr) - 1;
+    while lo <= hi {
+        invariant(lo >= 0, "binary_search: lo >= 0");
+        invariant(hi < arr_len(arr), "binary_search: hi < len");
+        let mid = lo + (hi - lo) / 2;
+        if arr[mid] < val {
+            lo = mid + 1;
+        } else if arr[mid] > val {
+            hi = mid - 1;
+        } else {
+            return mid;
+        }
+    }
+    return -1;
+}
+
+// Helper for array length
+extern fn arr_len[T](arr: [dynamic]T) -> i64;
+
+// === Mathematical Property Annotations ===
+
+// Property: operation is commutative (a op b == b op a)
+#[commutative]
+fn int_add(a: i64, b: i64) -> i64 {
+    return a + b;
+}
+
+// Property: operation is associative ((a op b) op c == a op (b op c))
+#[associative]
+fn int_mul(a: i64, b: i64) -> i64 {
+    return a * b;
+}
+
+// Property: value is the identity element for an operation
+#[identity(0)]
+fn int_add_identity() -> i64 {
+    return 0;
+}
+
+#[identity(1)]
+fn int_mul_identity() -> i64 {
+    return 1;
+}
+
+// === Property-checking macros ===
+
+// Assert commutativity: a op b == b op a
+// This is checked at compile time for constant expressions
+fn check_commutative[T](op: fn(T, T) -> T, a: T, b: T) -> bool {
+    let r1 = op(a, b);
+    let r2 = op(b, a);
+    post(r1 == r2, "commutative property holds");
+    return r1 == r2;
+}
+
+// Assert associativity: (a op b) op c == a op (b op c)
+fn check_associative[T](op: fn(T, T) -> T, a: T, b: T, c: T) -> bool {
+    let r1 = op(op(a, b), c);
+    let r2 = op(a, op(b, c));
+    post(r1 == r2, "associative property holds");
+    return r1 == r2;
+}
+
+// Assert identity: op(a, identity) == a
+fn check_identity[T](op: fn(T, T) -> T, identity: T, a: T) -> bool {
+    let r = op(a, identity);
+    post(r == a, "identity property holds");
+    return r == a;
+}

@@ -144,6 +144,25 @@ impl MirGen {
             } else {
                 vec![]
             },
+            properties: if let AstNode::FuncDef { attrs, .. } = ast {
+                attrs
+                    .iter()
+                    .filter_map(|a| {
+                        let a = a.trim();
+                        if a == "commutative" || a == "#[commutative]" {
+                            Some("commutative".to_string())
+                        } else if a == "associative" || a == "#[associative]" {
+                            Some("associative".to_string())
+                        } else if a.starts_with("identity") || a.starts_with("#[identity") {
+                            Some(a.trim_start_matches('#').to_string())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect()
+            } else {
+                vec![]
+            },
             stmts: std::mem::take(&mut self.stmts),
             exprs: std::mem::take(&mut self.exprs),
             ctfe_consts: std::mem::take(&mut self.ctfe_consts),

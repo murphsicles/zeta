@@ -11,6 +11,9 @@ pub struct Mir {
     pub ctfe_consts: HashMap<u32, i64>,
     pub type_map: HashMap<u32, Type>,
     pub global_consts: HashMap<String, crate::middle::ctfe::value::ConstValue>,
+    /// Mathematical properties for this function
+    /// "commutative", "associative", "identity(value)"
+    pub properties: Vec<String>,
 }
 
 impl Default for Mir {
@@ -23,6 +26,7 @@ impl Default for Mir {
             ctfe_consts: HashMap::new(),
             type_map: HashMap::new(),
             global_consts: HashMap::new(),
+            properties: Vec::new(),
         }
     }
 }

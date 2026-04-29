@@ -269,6 +269,7 @@ mod tests {
             ctfe_consts: HashMap::new(),
             type_map: HashMap::new(),
             global_consts: HashMap::new(),
+            properties: vec![],
         };
 
         // Add some types with variables
@@ -309,6 +310,7 @@ mod tests {
             ctfe_consts: HashMap::new(),
             type_map: HashMap::new(),
             global_consts: HashMap::new(),
+            properties: vec![],
         };
 
         mir.type_map.insert(1, Type::I32);

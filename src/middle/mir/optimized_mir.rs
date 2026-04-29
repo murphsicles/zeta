@@ -110,6 +110,7 @@ impl OptimizedMir {
             ctfe_consts,
             type_map,
             global_consts: HashMap::new(),
+            properties: vec![],
         }
     }
 
