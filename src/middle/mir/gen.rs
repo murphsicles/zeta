@@ -323,16 +323,16 @@ impl MirGen {
                 let mut then_has_return = false;
                 let mut else_has_return = false;
 
-                // Scan branches for returns
+                // Scan branches for returns/breaks/continues (statement-only)
                 for s in then.iter() {
-                    if let AstNode::Return(_) = s {
+                    if let AstNode::Return(_) | AstNode::Break(_) | AstNode::Continue(_) = s {
                         then_has_return = true;
                         is_statement_if = true;
                         break;
                     }
                 }
                 for s in else_.iter() {
-                    if let AstNode::Return(_) = s {
+                    if let AstNode::Return(_) | AstNode::Break(_) | AstNode::Continue(_) = s {
                         else_has_return = true;
                         is_statement_if = true;
                         break;
@@ -638,11 +638,10 @@ impl MirGen {
                 }
             }
             AstNode::Break(_val) => {
-                // Break in lower_ast: emit nothing, loop control is handled at the while level
-                // (for now, break is a no-op in MIR gen since we don't have loop exit support)
+                self.stmts.push(MirStmt::Break);
             }
             AstNode::Continue(_) => {
-                // Continue in lower_ast: no-op for now
+                self.stmts.push(MirStmt::Continue);
             }
             // Expression-as-statement nodes: lower the expression, discard the result value
             // (side effects through self.stmts are what matter)
@@ -664,7 +663,7 @@ impl MirGen {
                     }
                 }
             }
-            AstNode::Call { .. } | AstNode::PathCall { .. } => {
+            AstNode::If { .. } | AstNode::Call { .. } | AstNode::PathCall { .. } => {
                 self.lower_expr(ast);
             }
             _ => {}

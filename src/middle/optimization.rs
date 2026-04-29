@@ -138,6 +138,7 @@ pub fn dead_code_elimination(mir: &mut Mir) {
                 mark_expr_used(*addr_id, &mut used, &mir.exprs);
                 mark_expr_used(*val_id, &mut used, &mir.exprs);
             }
+            MirStmt::Break | MirStmt::Continue => {}
         }
     }
 

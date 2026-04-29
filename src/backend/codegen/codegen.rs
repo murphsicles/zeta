@@ -41,6 +41,9 @@ pub struct LLVMCodegen<'ctx> {
 
     // NEW: Map from generic function names to their MIR definitions
     pub generic_defs: HashMap<String, crate::middle::mir::mir::Mir>,
+    pub loop_stack: Vec<(inkwell::basic_block::BasicBlock<'ctx>, inkwell::basic_block::BasicBlock<'ctx>)>,
+
+    
     
     // Current type map for the function being compiled
     pub current_type_map: Option<std::collections::HashMap<u32, crate::middle::types::Type>>,
@@ -945,6 +948,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
             specialized_fns: HashMap::new(),
             specialized_types: HashMap::new(),
             generic_defs: HashMap::new(),
+            loop_stack: Vec::new(),
+            
             current_type_map: None,
         }
     }
@@ -2446,21 +2451,57 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
                 // Generate then block
                 self.builder.position_at_end(then_bb);
-                for s in then {
-                    self.gen_stmt(s, exprs);
+                let then_ends_with_break = then.last().map_or(false, |s| matches!(s, MirStmt::Break));
+                let then_ends_with_continue = then.last().map_or(false, |s| matches!(s, MirStmt::Continue));
+                if then_ends_with_break {
+                    for s in &then[..then.len()-1] {
+                        self.gen_stmt(s, exprs);
+                    }
+                    if let Some((_, exit_bb)) = self.loop_stack.last() {
+                        self.builder.build_unconditional_branch(*exit_bb).unwrap();
+                    }
+                } else if then_ends_with_continue {
+                    for s in &then[..then.len()-1] {
+                        self.gen_stmt(s, exprs);
+                    }
+                    if let Some((cond_bb, _)) = self.loop_stack.last() {
+                        self.builder.build_unconditional_branch(*cond_bb).unwrap();
+                    }
+                } else {
+                    for s in then {
+                        self.gen_stmt(s, exprs);
+                    }
                 }
-                // Only branch to merge if block doesn't end with return
-                if !then.iter().any(|s| matches!(s, MirStmt::Return { .. })) {
+                let then_has_terminal = then_ends_with_break || then_ends_with_continue || then.iter().any(|s| matches!(s, MirStmt::Return { .. }));
+                if !then_has_terminal {
                     self.builder.build_unconditional_branch(merge_bb).unwrap();
                 }
 
                 // Generate else block
                 self.builder.position_at_end(else_bb);
-                for s in else_ {
-                    self.gen_stmt(s, exprs);
+                let else_ends_with_break = else_.last().map_or(false, |s| matches!(s, MirStmt::Break));
+                let else_ends_with_continue = else_.last().map_or(false, |s| matches!(s, MirStmt::Continue));
+                if else_ends_with_break {
+                    for s in &else_[..else_.len()-1] {
+                        self.gen_stmt(s, exprs);
+                    }
+                    if let Some((_, exit_bb)) = self.loop_stack.last() {
+                        self.builder.build_unconditional_branch(*exit_bb).unwrap();
+                    }
+                } else if else_ends_with_continue {
+                    for s in &else_[..else_.len()-1] {
+                        self.gen_stmt(s, exprs);
+                    }
+                    if let Some((cond_bb, _)) = self.loop_stack.last() {
+                        self.builder.build_unconditional_branch(*cond_bb).unwrap();
+                    }
+                } else {
+                    for s in else_ {
+                        self.gen_stmt(s, exprs);
+                    }
                 }
-                // Only branch to merge if block doesn't end with return
-                if !else_.iter().any(|s| matches!(s, MirStmt::Return { .. })) {
+                let else_has_terminal = else_ends_with_break || else_ends_with_continue || else_.iter().any(|s| matches!(s, MirStmt::Return { .. }));
+                if !else_has_terminal {
                     self.builder.build_unconditional_branch(merge_bb).unwrap();
                 }
 
@@ -2501,10 +2542,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .unwrap();
                 
                 // Generate loop body
+                self.loop_stack.push((loop_cond_bb, loop_exit_bb));
                 self.builder.position_at_end(loop_body_bb);
                 for s in body {
                     self.gen_stmt(s, exprs);
                 }
+                self.loop_stack.pop();
                 // Branch back to condition (unless body ends with return)
                 if !body.iter().any(|s| matches!(s, MirStmt::Return { .. })) {
                     self.builder.build_unconditional_branch(loop_cond_bb).unwrap();
@@ -2513,6 +2556,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 // Continue at exit block
                 self.builder.position_at_end(loop_exit_bb);
             }
+            
+            
+            
+            MirStmt::Break | MirStmt::Continue => {}
             
             MirStmt::For { iterator, pattern, var_id, body } => {
                 // For now, implement simple range-based for loop: for i in start..end

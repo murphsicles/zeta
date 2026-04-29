@@ -100,6 +100,10 @@ pub enum MirStmt {
         cond: u32,       // Condition expression
         body: Vec<MirStmt>,
     },
+    // Break out of the current while loop (no-op in MIR gen, handled in codegen)
+    Break,
+    // Continue to next while loop iteration (no-op in MIR gen, handled in codegen)
+    Continue,
     // Store through pointer: *addr = value
     // pointee_width: 1 for *mut u8, 8 for *mut u64/i64, etc.
     Store {

@@ -90,6 +90,8 @@ pub fn substitute_stmt(stmt: &MirStmt, substitution: &Substitution) -> MirStmt {
             args: args.clone(),
         },
         MirStmt::Return { val } => MirStmt::Return { val: *val },
+        MirStmt::Break => MirStmt::Break,
+        MirStmt::Continue => MirStmt::Continue,
         // TODO: Handle other MIR statement variants
         _ => todo!("MIR statement variant not yet implemented in substitute_stmt"),
     }
