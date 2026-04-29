@@ -12,15 +12,26 @@ fn main() -> i32 {
     get_value().await
 }
 "#;
-    
+
     let result = zetac::parse_zeta(code);
-    assert!(result.is_ok(), "Failed to parse async function: {:?}", result);
-    
+    assert!(
+        result.is_ok(),
+        "Failed to parse async function: {:?}",
+        result
+    );
+
     let (remaining, asts) = result.unwrap();
-    assert!(remaining.trim().is_empty(), "Incomplete parse: '{}'", remaining);
+    assert!(
+        remaining.trim().is_empty(),
+        "Incomplete parse: '{}'",
+        remaining
+    );
     assert!(!asts.is_empty(), "No AST nodes generated");
-    
-    println!("Successfully parsed async function with {} AST nodes", asts.len());
+
+    println!(
+        "Successfully parsed async function with {} AST nodes",
+        asts.len()
+    );
 }
 
 #[test]
@@ -36,12 +47,20 @@ async fn compute() -> i32 {
     a + b
 }
 "#;
-    
+
     let result = zetac::parse_zeta(code);
-    assert!(result.is_ok(), "Failed to parse async with await: {:?}", result);
-    
+    assert!(
+        result.is_ok(),
+        "Failed to parse async with await: {:?}",
+        result
+    );
+
     let (remaining, asts) = result.unwrap();
-    assert!(remaining.trim().is_empty(), "Incomplete parse: '{}'", remaining);
-    
+    assert!(
+        remaining.trim().is_empty(),
+        "Incomplete parse: '{}'",
+        remaining
+    );
+
     println!("Successfully parsed async with await expressions");
 }

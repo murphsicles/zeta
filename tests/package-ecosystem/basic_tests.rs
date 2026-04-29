@@ -5,9 +5,9 @@
 //! - Dependency resolution
 //! - Version requirement matching
 
-use zetac::package::manifest::Manifest;
 use zetac::package::dependency::{Version, VersionReq};
-use zetac::package::resolver::{PackageRegistry, PackageMetadata};
+use zetac::package::manifest::Manifest;
+use zetac::package::resolver::{PackageMetadata, PackageRegistry};
 
 #[test]
 fn test_manifest_parsing() {
@@ -31,21 +31,27 @@ proptest = "1.0"
 default = ["serde"]
 extra = ["tokio/fs"]
 "#;
-    
+
     let manifest = Manifest::parse(toml_content).expect("Failed to parse manifest");
-    
+
     assert_eq!(manifest.package.name, "test-crate");
     assert_eq!(manifest.package.version, "0.1.0");
     assert_eq!(manifest.package.authors.len(), 1);
-    assert_eq!(manifest.package.authors[0], "Test Author <test@example.com>");
-    assert_eq!(manifest.package.description, Some("A test crate".to_string()));
+    assert_eq!(
+        manifest.package.authors[0],
+        "Test Author <test@example.com>"
+    );
+    assert_eq!(
+        manifest.package.description,
+        Some("A test crate".to_string())
+    );
     assert_eq!(manifest.package.license, Some("MIT".to_string()));
     assert_eq!(manifest.package.edition, "2024");
-    
+
     assert!(manifest.dependencies.contains_key("serde"));
     assert!(manifest.dependencies.contains_key("tokio"));
     assert!(manifest.dev_dependencies.contains_key("proptest"));
-    
+
     assert!(manifest.features.contains_key("default"));
     assert!(manifest.features.contains_key("extra"));
 }
@@ -59,7 +65,7 @@ fn test_version_parsing() {
     assert_eq!(v1.patch, 3);
     assert_eq!(v1.pre, None);
     assert_eq!(v1.build, None);
-    
+
     // Test with pre-release
     let v2 = Version::parse("2.0.0-beta.1").expect("Failed to parse version");
     assert_eq!(v2.major, 2);
@@ -67,7 +73,7 @@ fn test_version_parsing() {
     assert_eq!(v2.patch, 0);
     assert_eq!(v2.pre, Some("beta.1".to_string()));
     assert_eq!(v2.build, None);
-    
+
     // Test with build metadata
     let v3 = Version::parse("3.1.4+20130313144700").expect("Failed to parse version");
     assert_eq!(v3.major, 3);
@@ -75,7 +81,7 @@ fn test_version_parsing() {
     assert_eq!(v3.patch, 4);
     assert_eq!(v3.pre, None);
     assert_eq!(v3.build, Some("20130313144700".to_string()));
-    
+
     // Test with both pre-release and build metadata
     let v4 = Version::parse("4.0.0-alpha.2+exp.sha.5114f85").expect("Failed to parse version");
     assert_eq!(v4.major, 4);
@@ -93,7 +99,7 @@ fn test_version_requirement_matching() {
     let v2 = Version::parse("1.2.4").expect("Failed to parse version");
     assert!(req1.matches(&v1));
     assert!(!req1.matches(&v2));
-    
+
     // Test compatible version matching (^)
     let req2 = VersionReq::parse("^1.2.3").expect("Failed to parse requirement");
     let v3 = Version::parse("1.2.3").expect("Failed to parse version");
@@ -102,7 +108,7 @@ fn test_version_requirement_matching() {
     assert!(req2.matches(&v3));
     assert!(req2.matches(&v4));
     assert!(!req2.matches(&v5));
-    
+
     // Test approximate version matching (~)
     let req3 = VersionReq::parse("~1.2.3").expect("Failed to parse requirement");
     let v6 = Version::parse("1.2.3").expect("Failed to parse version");
@@ -111,7 +117,7 @@ fn test_version_requirement_matching() {
     assert!(req3.matches(&v6));
     assert!(req3.matches(&v7));
     assert!(!req3.matches(&v8));
-    
+
     // Test greater than or equal
     let req4 = VersionReq::parse(">=1.2.3").expect("Failed to parse requirement");
     let v9 = Version::parse("1.2.3").expect("Failed to parse version");
@@ -126,26 +132,34 @@ fn test_version_requirement_matching() {
 fn test_dependency_resolution() {
     // Create a simple registry
     let mut registry = PackageRegistry::new();
-    
+
     // Add a package with multiple versions
     let metadata = PackageMetadata {
         dependencies: std::collections::HashMap::new(),
         features: std::collections::HashMap::new(),
     };
-    
-    registry.add_package("test-package", Version::parse("1.0.0").unwrap(), metadata.clone());
-    registry.add_package("test-package", Version::parse("1.1.0").unwrap(), metadata.clone());
+
+    registry.add_package(
+        "test-package",
+        Version::parse("1.0.0").unwrap(),
+        metadata.clone(),
+    );
+    registry.add_package(
+        "test-package",
+        Version::parse("1.1.0").unwrap(),
+        metadata.clone(),
+    );
     registry.add_package("test-package", Version::parse("2.0.0").unwrap(), metadata);
-    
+
     // Test finding best match
     let req1 = VersionReq::parse("^1.0.0").unwrap();
     let best1 = registry.find_best_match("test-package", &req1).unwrap();
     assert_eq!(best1.to_string(), "1.1.0");
-    
+
     let req2 = VersionReq::parse(">=1.0.0 <2.0.0").unwrap();
     let best2 = registry.find_best_match("test-package", &req2).unwrap();
     assert_eq!(best2.to_string(), "1.1.0");
-    
+
     let req3 = VersionReq::parse("2.0.0").unwrap();
     let best3 = registry.find_best_match("test-package", &req3).unwrap();
     assert_eq!(best3.to_string(), "2.0.0");
@@ -158,14 +172,17 @@ fn test_manifest_serialization() {
     manifest.package.authors = vec!["Author One".to_string(), "Author Two".to_string()];
     manifest.add_dependency("serde", "1.0");
     manifest.add_dependency("tokio", "^1.0");
-    
+
     let toml = manifest.to_toml().expect("Failed to serialize manifest");
-    
+
     // Parse it back and verify
     let parsed = Manifest::parse(&toml).expect("Failed to parse serialized manifest");
-    
+
     assert_eq!(parsed.package.name, "serialization-test");
-    assert_eq!(parsed.package.description, Some("Test serialization".to_string()));
+    assert_eq!(
+        parsed.package.description,
+        Some("Test serialization".to_string())
+    );
     assert_eq!(parsed.package.authors.len(), 2);
     assert!(parsed.dependencies.contains_key("serde"));
     assert!(parsed.dependencies.contains_key("tokio"));
@@ -179,7 +196,7 @@ fn test_version_ordering() {
     let v4 = Version::parse("2.0.0").unwrap();
     let v5 = Version::parse("1.0.0-alpha").unwrap();
     let v6 = Version::parse("1.0.0-beta").unwrap();
-    
+
     assert!(v1 < v2);
     assert!(v2 < v3);
     assert!(v3 < v4);
@@ -204,9 +221,9 @@ default-members = ["crate-a"]
 [workspace.dependencies]
 common-dep = "1.0"
 "#;
-    
+
     let manifest = Manifest::parse(toml_content).expect("Failed to parse workspace manifest");
-    
+
     assert_eq!(manifest.package.name, "workspace-root");
     assert_eq!(manifest.workspace.members, vec!["crate-a", "crate-b"]);
     assert_eq!(manifest.workspace.exclude, vec!["old-crate"]);

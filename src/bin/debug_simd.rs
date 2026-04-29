@@ -2,7 +2,7 @@ use zetac::frontend::parser::parser::parse_simd_type;
 
 fn main() {
     println!("Testing SIMD type parsing...");
-    
+
     // Test u64x8
     let test1 = "u64x8";
     match parse_simd_type(test1) {
@@ -15,7 +15,7 @@ fn main() {
             println!("Test 1 (u64x8): Failed: {:?}", e);
         }
     }
-    
+
     // Test Vector<u64, 8>
     let test2 = "Vector<u64, 8>";
     match parse_simd_type(test2) {
@@ -28,7 +28,7 @@ fn main() {
             println!("Test 2 (Vector<u64, 8>): Failed: {:?}", e);
         }
     }
-    
+
     // Test with whitespace
     let test3 = "Vector < u64 , 8 >";
     match parse_simd_type(test3) {

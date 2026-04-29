@@ -13,14 +13,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .format_level(false)
         .format_target(false)
         .init();
-    
+
     // Check for version flag
     let args: Vec<String> = env::args().collect();
     if args.len() > 1 && (args[1] == "--version" || args[1] == "-v") {
         println!("zeta-lsp v0.3.44");
         return Ok(());
     }
-    
+
     if args.len() > 1 && (args[1] == "--help" || args[1] == "-h") {
         println!("Zeta Language Server Protocol server");
         println!();
@@ -33,10 +33,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("The server communicates via stdin/stdout using JSON-RPC.");
         return Ok(());
     }
-    
+
     // Create and run the LSP server
     let server = LspServer::new();
-    
+
     match server.run() {
         Ok(()) => {
             log::info!("LSP server exited successfully");

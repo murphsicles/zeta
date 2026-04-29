@@ -11,6 +11,25 @@ use crate::middle::specialization::MonoKey;
 use crate::middle::types::{Type, ArraySize};
 use std::collections::HashMap;
 
+/// Type declaration metadata registered during MIR lowering.
+#[derive(Debug, Clone)]
+pub enum TypeDecl {
+    /// A struct type with named fields: (name, type_string).
+    Struct {
+        fields: Vec<(String, String)>,
+        generics: Vec<crate::frontend::ast::GenericParam>,
+    },
+    /// An enum type with variants: (variant_name, field_types).
+    Enum {
+        variants: Vec<(String, Vec<String>)>,
+        generics: Vec<crate::frontend::ast::GenericParam>,
+    },
+    /// A type alias.
+    Alias {
+        target: String,
+    },
+}
+
 pub struct MirGen {
     next_id: u32,
     stmts: Vec<MirStmt>,
@@ -24,6 +43,8 @@ pub struct MirGen {
     /// Tracks pointee element width (in bytes) for pointer-typed expression IDs.
     /// Populated by the offset/add handler, used when generating Store/Deref.
     pointee_widths: HashMap<u32, u8>,
+    /// Type declarations seen during lowering (structs, enums, aliases).
+    type_decls: HashMap<String, TypeDecl>,
 }
 
 impl MirGen {
@@ -38,6 +59,7 @@ impl MirGen {
             global_consts: HashMap::new(),
             source_types: HashMap::new(),
             pointee_widths: HashMap::new(),
+            type_decls: HashMap::new(),
         }
     }
     
@@ -52,6 +74,7 @@ impl MirGen {
         self.exprs.clear();
         self.source_types.clear();
         self.pointee_widths.clear();
+        self.type_decls.clear();
         self.next_id = 1;
 
         // Check if this is an extern/FFI function (empty body, no ret expr).
@@ -662,6 +685,73 @@ impl MirGen {
                         }
                     }
                 }
+            }
+            // ── Priority A: Type Definition Nodes ──
+            AstNode::StructDef {
+                name,
+                fields,
+                generics,
+                ..
+            } => {
+                // Register struct type definition for later reference by StructLit / FieldAccess.
+                self.type_decls.insert(
+                    name.clone(),
+                    TypeDecl::Struct {
+                        fields: fields.clone(),
+                        generics: generics.clone(),
+                    },
+                );
+            }
+            AstNode::EnumDef {
+                name,
+                variants,
+                generics,
+                ..
+            } => {
+                // Register enum type definition for pattern-match lowering.
+                self.type_decls.insert(
+                    name.clone(),
+                    TypeDecl::Enum {
+                        variants: variants.clone(),
+                        generics: generics.clone(),
+                    },
+                );
+            }
+            AstNode::ImplBlock { body, .. } => {
+                // Lower any items inside the impl block (functions, etc.).
+                for item in body {
+                    self.lower_ast(item);
+                }
+            }
+            AstNode::ConceptDef { methods, .. } => {
+                // Lower any default-method bodies inside the concept.
+                for method in methods {
+                    self.lower_ast(method);
+                }
+            }
+            AstNode::TypeAlias { name, ty, .. } => {
+                // Register the type alias so type resolution works at MIR level.
+                self.type_decls.insert(
+                    name.clone(),
+                    TypeDecl::Alias {
+                        target: ty.clone(),
+                    },
+                );
+            }
+            AstNode::Method { body: Some(method_body), .. } => {
+                // Lower default method bodies (inside concepts/traits).
+                for stmt in method_body {
+                    self.lower_ast(stmt);
+                }
+            }
+            AstNode::Method { body: None, .. } => {
+                // Method signature without body — no code to generate.
+            }
+            AstNode::AssociatedType { .. } => {
+                // Associated type declaration — no runtime code.
+            }
+            AstNode::ExternFunc { .. } => {
+                // Extern/FFI function declaration — no body to lower.
             }
             AstNode::If { .. } | AstNode::Call { .. } | AstNode::PathCall { .. } => {
                 self.lower_expr(ast);

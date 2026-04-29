@@ -4,16 +4,13 @@
 //! for Bitcoin SV mining operations.
 
 use zetac::blockchain::bsv::teranode::{
-    TeranodeClient,
-    TeranodeClientConfig,
-    MiningCandidate,
-    MiningSolution,
+    MiningCandidate, MiningSolution, TeranodeClient, TeranodeClientConfig,
 };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Teranode Mining Integration Example ===\n");
-    
+
     // 1. Create Teranode client configuration
     println!("1. Creating Teranode client configuration...");
     let config = TeranodeClientConfig {
@@ -22,12 +19,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         rpc_password: "your_password".to_string(),
         ..Default::default()
     };
-    
+
     // 2. Create Teranode client
     println!("2. Creating Teranode client...");
     let client = TeranodeClient::new(config)?;
     println!("   Client created successfully!");
-    
+
     // 3. Test connection
     println!("3. Testing connection to Teranode node...");
     let connected = client.test_connection().await?;
@@ -37,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("   Connection failed!");
         return Ok(());
     }
-    
+
     // 4. Get blockchain information
     println!("4. Getting blockchain information...");
     let blockchain_info = client.get_blockchain_info().await?;
@@ -45,7 +42,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   Block count: {}", blockchain_info.block_count);
     println!("   Difficulty: {:.2}", blockchain_info.difficulty);
     println!("   Hash rate: {:.2} EH/s", blockchain_info.hash_rate / 1e18);
-    
+
     // 5. Get mining candidate (block template)
     println!("5. Getting mining candidate...");
     match client.get_mining_candidate().await {
@@ -55,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("   Height: {}", candidate.height);
             println!("   Previous hash: {}", candidate.prevhash);
             println!("   Bits: {}", candidate.bits);
-            
+
             // 6. Create and submit a mining solution (example)
             println!("6. Creating example mining solution...");
             let solution = MiningSolution {
@@ -69,10 +66,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ntime: None,
                 merkle_branch: None,
             };
-            
+
             println!("   Solution created (example - not actually mining)");
             println!("   Note: Actual mining would involve finding a valid nonce");
-            
+
             // 7. Get mining status
             println!("7. Getting mining status...");
             let status = client.get_mining_status().await?;
@@ -87,7 +84,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("   This is expected if Teranode doesn't support getminingcandidate");
         }
     }
-    
+
     // 8. Get peer information
     println!("8. Getting peer information...");
     match client.get_peer_info().await {
@@ -104,7 +101,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("   Failed to get peer info: {}", e);
         }
     }
-    
+
     // 9. Demonstrate batch calls
     println!("9. Demonstrating batch calls...");
     let calls = vec![
@@ -112,7 +109,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ("getdifficulty", vec![]),
         ("getnetworkhashps", vec![]),
     ];
-    
+
     match client.batch_call::<serde_json::Value>(calls).await {
         Ok(results) => {
             println!("   Batch call completed with {} results", results.len());
@@ -127,7 +124,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("   Batch call failed: {}", e);
         }
     }
-    
+
     println!("\n=== Example Complete ===");
     println!("\nSummary:");
     println!("- Teranode RPC client successfully implemented");
@@ -137,6 +134,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  • submitminingsolution - Submit mined block");
     println!("- Includes error handling, retry logic, and connection pooling");
     println!("- Ready for integration with Zeta v0.3.50+ mining workflow");
-    
+
     Ok(())
 }

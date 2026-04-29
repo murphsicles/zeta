@@ -4,18 +4,18 @@
 #[test]
 fn test_comptime_parsing() {
     use zetac::frontend::parser::top_level::parse_zeta;
-    
+
     let code = r#"
 comptime fn simple() -> i64 {
     42
 }
     "#;
-    
+
     match parse_zeta(code) {
         Ok((remaining, ast)) => {
             assert!(remaining.trim().is_empty(), "Should parse completely");
             assert_eq!(ast.len(), 1, "Should have one AST node");
-            
+
             // Check that it's a comptime function
             if let zetac::frontend::ast::AstNode::FuncDef { comptime_, .. } = &ast[0] {
                 assert!(*comptime_, "Function should be marked as comptime");
@@ -31,17 +31,17 @@ comptime fn simple() -> i64 {
 fn test_comptime_evaluation() {
     use zetac::frontend::parser::top_level::parse_zeta;
     use zetac::middle::const_eval::{ConstEvaluator, ConstValue};
-    
+
     let code = r#"
 comptime fn answer() -> i64 {
     42
 }
     "#;
-    
+
     match parse_zeta(code) {
         Ok((remaining, ast)) => {
             assert!(remaining.trim().is_empty(), "Should parse completely");
-            
+
             let mut evaluator = ConstEvaluator::new();
             if let Some(func) = ast.first() {
                 match evaluator.try_eval_const_call(func, &[]) {
@@ -67,17 +67,17 @@ comptime fn answer() -> i64 {
 fn test_comptime_array() {
     use zetac::frontend::parser::top_level::parse_zeta;
     use zetac::middle::const_eval::{ConstEvaluator, ConstValue};
-    
+
     let code = r#"
 comptime fn array_test() -> [i64; 3] {
     [1, 2, 3]
 }
     "#;
-    
+
     match parse_zeta(code) {
         Ok((remaining, ast)) => {
             assert!(remaining.trim().is_empty(), "Should parse completely");
-            
+
             let mut evaluator = ConstEvaluator::new();
             if let Some(func) = ast.first() {
                 match evaluator.try_eval_const_call(func, &[]) {

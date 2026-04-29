@@ -10,7 +10,7 @@ fn main() {
         "(u64, u64)",
         "fn(u64) -> u64",
     ];
-    
+
     for test in test_cases {
         println!("Testing: '{}'", test);
         match parse_type(test) {

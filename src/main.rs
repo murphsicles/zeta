@@ -67,9 +67,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         // (they've been evaluated and are no longer needed for codegen)
                         // const fns are kept — they may still be needed at runtime if
                         // CTFE couldn't fully inline all call sites.
-                        let runtime_asts: Vec<_> = ctfe_asts.into_iter().filter(|ast| {
-                            !matches!(ast, AstNode::FuncDef { comptime_: true, .. })
-                        }).collect();
+                        let runtime_asts: Vec<_> = ctfe_asts
+                            .into_iter()
+                            .filter(|ast| {
+                                !matches!(
+                                    ast,
+                                    AstNode::FuncDef {
+                                        comptime_: true,
+                                        ..
+                                    }
+                                )
+                            })
+                            .collect();
                         runtime_asts
                     }
                     Err(e) => {
@@ -82,9 +91,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 // Expand macros before registration
                 let expanded_asts = match resolver.expand_macros(&asts) {
-                    Ok(ea) => {
-                        ea
-                    }
+                    Ok(ea) => ea,
                     Err(e) => {
                         eprintln!("Macro expansion warning (non-fatal): {}", e);
                         asts.clone()
@@ -179,24 +186,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     // Platform-specific linking
                     let mut cmd = std::process::Command::new("gcc");
-                    cmd.arg(&obj_path)
-                        .arg("-o")
-                        .arg(&out);
-                    
+                    cmd.arg(&obj_path).arg("-o").arg(&out);
+
                     // Add platform-specific libraries
                     if cfg!(target_os = "windows") {
                         cmd.arg("-lmsvcrt") // Microsoft C runtime
-                           .arg("-lkernel32"); // Core Windows API
+                            .arg("-lkernel32"); // Core Windows API
                     } else {
                         // Unix/Linux/MacOS
                         cmd.arg("-lc"); // C standard library
                     }
-                    
+
                     // Add Zeta runtime library
                     // First try C runtime object file (simpler, no Rust stdlib dependencies)
                     let runtime_c_obj = std::path::Path::new("zeta_runtime_c.o");
                     let runtime_rust_obj = std::path::Path::new("zeta_runtime.o");
-                    
+
                     if runtime_c_obj.exists() {
                         // Use C runtime (preferred - no Rust stdlib dependencies)
                         cmd.arg(runtime_c_obj);
@@ -205,9 +210,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         cmd.arg(runtime_rust_obj);
                     } else {
                         // Check for compiled libraries
-                        let runtime_lib_windows = std::path::Path::new("runtime_lib/target/release/zeta_runtime.lib");
+                        let runtime_lib_windows =
+                            std::path::Path::new("runtime_lib/target/release/zeta_runtime.lib");
                         let runtime_lib_unix = std::path::Path::new("libzeta.a");
-                        
+
                         if runtime_lib_windows.exists() {
                             // Windows: link against .lib file
                             cmd.arg(runtime_lib_windows);
@@ -216,7 +222,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             cmd.arg(runtime_lib_unix);
                         }
                     }
-                    
+
                     let status = cmd.status()?;
 
                     if !status.success() {
@@ -248,7 +254,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let asts = parse_zeta(&code)
             .map_err(|e| format!("Parse error: {:?}", e))?
             .1; // take only owned ASTs, discard remaining slice
-
 
         let mut resolver = Resolver::new();
         for ast in &asts {

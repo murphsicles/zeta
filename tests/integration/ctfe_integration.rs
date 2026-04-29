@@ -21,8 +21,12 @@ fn main() -> i64 {
 
     let result = compile_and_run_zeta(code);
     assert!(result.is_ok(), "Comptime function should compile and run");
-    assert_eq!(result.unwrap(), 42, "Should evaluate comptime function at compile time");
-    
+    assert_eq!(
+        result.unwrap(),
+        42,
+        "Should evaluate comptime function at compile time"
+    );
+
     println!("✓ Basic comptime evaluation works");
 }
 
@@ -43,8 +47,12 @@ fn main() -> i64 {
 
     let result = compile_and_run_zeta(code);
     assert!(result.is_ok(), "Comptime function with args should compile");
-    assert_eq!(result.unwrap(), 42, "Should evaluate comptime function with constant args");
-    
+    assert_eq!(
+        result.unwrap(),
+        42,
+        "Should evaluate comptime function with constant args"
+    );
+
     println!("✓ Comptime function with arguments works");
 }
 
@@ -66,7 +74,7 @@ fn main() -> i64 {
     let result = compile_and_run_zeta(code);
     // Should compile successfully (const evaluation happens at compile time)
     assert!(result.is_ok(), "Const variables should compile");
-    
+
     println!("✓ Const variable evaluation works");
 }
 
@@ -88,9 +96,16 @@ fn main() -> i64 {
     "#;
 
     let result = compile_and_run_zeta(code);
-    assert!(result.is_ok(), "Comptime in const expression should compile");
-    assert_eq!(result.unwrap(), 100, "Should evaluate comptime function in const expression");
-    
+    assert!(
+        result.is_ok(),
+        "Comptime in const expression should compile"
+    );
+    assert_eq!(
+        result.unwrap(),
+        100,
+        "Should evaluate comptime function in const expression"
+    );
+
     println!("✓ Comptime in const expression works");
 }
 
@@ -118,10 +133,17 @@ fn main() -> i64 {
     "#;
 
     let result = compile_and_run_zeta(code);
-    assert!(result.is_ok(), "Comptime calls in regular code should compile");
+    assert!(
+        result.is_ok(),
+        "Comptime calls in regular code should compile"
+    );
     // Sum of 0..9 = 45
-    assert_eq!(result.unwrap(), 45, "Should evaluate comptime function in regular code");
-    
+    assert_eq!(
+        result.unwrap(),
+        45,
+        "Should evaluate comptime function in regular code"
+    );
+
     println!("✓ Comptime calls in regular code work");
 }
 
@@ -143,7 +165,7 @@ fn main() -> i64 {
     let result = compile_and_run_zeta(code);
     assert!(result.is_ok(), "Loop with false condition should compile");
     assert_eq!(result.unwrap(), 0, "Loop body should be eliminated");
-    
+
     println!("✓ Loop with constant false condition eliminated");
 }
 
@@ -161,7 +183,11 @@ fn main() -> i64 {
 
     let result = compile_and_run_zeta(code);
     assert!(result.is_ok(), "If with constant condition should compile");
-    assert_eq!(result.unwrap(), 42, "If should be simplified to then branch");
-    
+    assert_eq!(
+        result.unwrap(),
+        42,
+        "If should be simplified to then branch"
+    );
+
     println!("✓ If with constant condition simplified");
 }
