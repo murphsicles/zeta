@@ -1542,12 +1542,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
         {
             return f;
         }
-        if name == "Result::Ok"
+        if (name == "Result::Ok" || name == "Ok")
             && let Some(f) = self.module.get_function("host_result_make_ok")
         {
             return f;
         }
-        if name == "Result::Err"
+        if (name == "Result::Err" || name == "Err")
             && let Some(f) = self.module.get_function("host_result_make_err")
         {
             return f;

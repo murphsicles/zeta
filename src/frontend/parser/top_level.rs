@@ -695,15 +695,20 @@ fn parse_mod(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("mod")).parse(input)?;
     let (input, name) = ws(parse_ident).parse(input)?;
 
-    // Parse module body
-    let (input, items) = delimited(
-        ws(tag("{")),
-        many0(ws(alt((
-            parse_use_statement,
-            map(parse_top_level_item, |node| vec![node]),
-        )))),
-        ws(tag("}")),
-    )
+    // Parse module body — either { ... } or ; (forward declaration)
+    let (input, items) = alt((
+        // Inline module: mod Name { ... }
+        delimited(
+            ws(tag("{")),
+            many0(ws(alt((
+                parse_use_statement,
+                map(parse_top_level_item, |node| vec![node]),
+            )))),
+            ws(tag("}")),
+        ),
+        // Forward declaration: mod Name;
+        map(ws(tag(";")), |_| vec![]),
+    ))
     .parse(input)?;
 
     // Flatten the items
@@ -761,8 +766,10 @@ fn parse_macro_def(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_top_level_item(input: &str) -> IResult<&str, AstNode> {
+    // Order matters: type/struct/enum/concept checked before func because
+    // they share attribute syntax (#[derive], etc.) and alt cannot backtrack
+    // once an alternative consumes input on failure.
     alt((
-        parse_func,
         parse_type_alias,
         parse_concept,
         parse_impl,
@@ -771,6 +778,7 @@ fn parse_top_level_item(input: &str) -> IResult<&str, AstNode> {
         parse_const,
         parse_macro_def,
         parse_mod,
+        parse_func,
         // Also allow statements at top level
         crate::frontend::parser::stmt::parse_stmt,
     ))
