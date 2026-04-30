@@ -90,10 +90,126 @@ pub fn substitute_stmt(stmt: &MirStmt, substitution: &Substitution) -> MirStmt {
             args: args.clone(),
         },
         MirStmt::Return { val } => MirStmt::Return { val: *val },
+        MirStmt::SemiringFold { op, values, result } => MirStmt::SemiringFold {
+            op: *op,
+            values: values.clone(),
+            result: *result,
+        },
+        MirStmt::ParamInit {
+            param_id,
+            arg_index,
+        } => MirStmt::ParamInit {
+            param_id: *param_id,
+            arg_index: *arg_index,
+        },
+        MirStmt::Consume { id } => MirStmt::Consume { id: *id },
+        MirStmt::If {
+            cond,
+            then,
+            else_,
+            dest,
+        } => MirStmt::If {
+            cond: *cond,
+            then: then
+                .iter()
+                .map(|s| substitute_stmt(s, substitution))
+                .collect(),
+            else_: else_
+                .iter()
+                .map(|s| substitute_stmt(s, substitution))
+                .collect(),
+            dest: *dest,
+        },
+        MirStmt::TryProp {
+            expr_id,
+            ok_dest,
+            err_dest,
+        } => MirStmt::TryProp {
+            expr_id: *expr_id,
+            ok_dest: *ok_dest,
+            err_dest: *err_dest,
+        },
+        MirStmt::DictInsert {
+            map_id,
+            key_id,
+            val_id,
+        } => MirStmt::DictInsert {
+            map_id: *map_id,
+            key_id: *key_id,
+            val_id: *val_id,
+        },
+        MirStmt::DictGet {
+            map_id,
+            key_id,
+            dest,
+        } => MirStmt::DictGet {
+            map_id: *map_id,
+            key_id: *key_id,
+            dest: *dest,
+        },
+        MirStmt::MapNew { dest } => MirStmt::MapNew { dest: *dest },
+        MirStmt::StructNew {
+            variant,
+            fields,
+            dest,
+        } => MirStmt::StructNew {
+            variant: variant.clone(),
+            fields: fields.clone(),
+            dest: *dest,
+        },
+        MirStmt::For {
+            iterator,
+            pattern,
+            var_id,
+            body,
+        } => MirStmt::For {
+            iterator: *iterator,
+            pattern: pattern.clone(),
+            var_id: *var_id,
+            body: body
+                .iter()
+                .map(|s| substitute_stmt(s, substitution))
+                .collect(),
+        },
+        MirStmt::While { cond, body } => MirStmt::While {
+            cond: *cond,
+            body: body
+                .iter()
+                .map(|s| substitute_stmt(s, substitution))
+                .collect(),
+        },
         MirStmt::Break => MirStmt::Break,
         MirStmt::Continue => MirStmt::Continue,
-        // TODO: Handle other MIR statement variants
-        _ => todo!("MIR statement variant not yet implemented in substitute_stmt"),
+        MirStmt::Swap {
+            a_ptr,
+            b_ptr,
+            size,
+        } => MirStmt::Swap {
+            a_ptr: *a_ptr,
+            b_ptr: *b_ptr,
+            size: *size,
+        },
+        MirStmt::Pre { cond, message } => MirStmt::Pre {
+            cond: *cond,
+            message: message.clone(),
+        },
+        MirStmt::Post { cond, message } => MirStmt::Post {
+            cond: *cond,
+            message: message.clone(),
+        },
+        MirStmt::Invariant { cond, message } => MirStmt::Invariant {
+            cond: *cond,
+            message: message.clone(),
+        },
+        MirStmt::Store {
+            addr_id,
+            val_id,
+            pointee_width,
+        } => MirStmt::Store {
+            addr_id: *addr_id,
+            val_id: *val_id,
+            pointee_width: *pointee_width,
+        },
     }
 }
 
