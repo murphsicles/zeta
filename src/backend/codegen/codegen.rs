@@ -1611,8 +1611,22 @@ impl<'ctx> LLVMCodegen<'ctx> {
             return f;
         }
 
-        // Handle Vector::extract (method call, not static method)
-        // Note: This is handled differently - as a method call on a vector value
+        // Handle generic unresolved functions — declare as external rather than panicking
+        // This allows path-qualified calls (Resolver::new, HashMap::new, etc.) and
+        // other user-defined functions to be resolved by the linker at AOT time, or
+        // to be provided via the JIT's global mapping table.
+        // If we're still in the module definition phase, emit a declaration.
+        if name.contains("::") || !self.module.get_function(name).is_some() {
+            // Create a declaration for the function (will be resolved at link time)
+            let void_type = self.context.void_type();
+            let fn_type = void_type.fn_type(&[self.i64_type.into()], false);
+            let f = self.module.add_function(
+                name,
+                fn_type,
+                Some(Linkage::External),
+            );
+            return f;
+        }
         panic!("CRITICAL: Missing function '{}'", name);
     }
 
