@@ -414,10 +414,10 @@ fn parse_path_expr(input: &str) -> IResult<&str, AstNode> {
                     false
                 }
             };
-            let fields_opt = if is_else_after_brace {
-                None
+            let (struct_remaining, fields_opt) = if is_else_after_brace {
+                (input, None)
             } else {
-                opt(delimited(
+                let (remaining, parsed) = opt(delimited(
                     ws(tag("{")),
                     terminated(
                         separated_list1(ws(tag(",")), ws(parse_field_expr)),
@@ -425,13 +425,13 @@ fn parse_path_expr(input: &str) -> IResult<&str, AstNode> {
                     ),
                     ws(tag("}")),
                 ))
-                .parse(input)?
-                .1
+                .parse(input)?;
+                (remaining, parsed)
             };
 
             if let Some(fields) = fields_opt {
                 Ok((
-                    input,
+                    struct_remaining,
                     AstNode::StructLit {
                         variant: method,
                         fields,
