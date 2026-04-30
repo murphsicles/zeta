@@ -30,6 +30,9 @@ pub fn parse_pattern(input: &str) -> IResult<&str, AstNode> {
         parse_or_pattern,
         // Literal pattern
         parse_lit,
+        // Boolean pattern (for match arms like `true => ...`)
+        tag("true").map(|_| AstNode::Bool(true)),
+        tag("false").map(|_| AstNode::Bool(false)),
         // Variable pattern
         parse_ident.map(AstNode::Var),
     ))

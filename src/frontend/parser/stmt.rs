@@ -264,12 +264,12 @@ pub fn parse_stmt(input: &str) -> IResult<&str, AstNode> {
         parse_loop,
         parse_while,
         parse_unsafe,
+        parse_match_expr,
         parse_let,
         parse_assign,
         parse_type_alias,
         parse_const,
         parse_func,
-        parse_match_expr,
         parse_expr_stmt,
     ))
     .parse(input)

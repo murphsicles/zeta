@@ -121,6 +121,7 @@ impl MirGen {
                         // If expression produces a value
                         *dest_id
                     }
+                    MirStmt::Return { val } => *val,
                     _ => self.next_id_with_lit(0),
                 }
             } else {
@@ -1006,6 +1007,11 @@ impl MirGen {
     fn lower_expr(&mut self, expr: &AstNode) -> u32 {
         let id = self.next_id();
         match expr {
+            AstNode::Match { .. } => {
+                // Match as expression: return 0 placeholder.
+                self.exprs.insert(id, MirExpr::Lit(0));
+                self.type_map.insert(id, Type::I64);
+            },
             AstNode::Var(name) => {
                 if let Some(&existing) = self.name_to_id.get(name) {
                     return existing;
