@@ -1374,7 +1374,7 @@ fn parse_expr_no_if(input: &str) -> IResult<&str, AstNode> {
 }
 
 /// Parse a match expression: `match expr { pattern => expr, ... }`
-fn parse_match_expr(input: &str) -> IResult<&str, AstNode> {
+pub fn parse_match_expr(input: &str) -> IResult<&str, AstNode> {
     // Parse "match" with optional whitespace
     let (input, _) = ws(tag::<_, _, nom::error::Error<&str>>("match")).parse(input)?;
 

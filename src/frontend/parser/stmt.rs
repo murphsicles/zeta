@@ -1,7 +1,7 @@
 // src/frontend/parser/stmt.rs
 //! Module for parsing statements in the Zeta language.
 
-use super::expr::{parse_condition, parse_full_expr};
+use super::expr::{parse_condition, parse_full_expr, parse_match_expr};
 use super::parser::{parse_type, skip_ws_and_comments, ws};
 use super::pattern::parse_pattern;
 use super::top_level::{parse_const, parse_func, parse_type_alias};
@@ -269,6 +269,7 @@ pub fn parse_stmt(input: &str) -> IResult<&str, AstNode> {
         parse_type_alias,
         parse_const,
         parse_func,
+        parse_match_expr,
         parse_expr_stmt,
     ))
     .parse(input)

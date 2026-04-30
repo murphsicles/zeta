@@ -196,6 +196,18 @@ pub(crate) fn parse_func(input: &str) -> IResult<&str, AstNode> {
                         } else {
                             None
                         }
+                    } else if let Some(last) = b.last() {
+                        // Bare expressions (If, Call, Match, Block) parsed via parse_stmt
+                        // can end up directly in body without ExprStmt wrapping.
+                        // Promote them to ret_expr for proper return value handling.
+                        match last {
+                            AstNode::If { .. }
+                            | AstNode::Call { .. }
+                            | AstNode::PathCall { .. }
+                            | AstNode::Match { .. }
+                            | AstNode::Block { .. } => b.pop().map(Box::new),
+                            _ => None,
+                        }
                     } else {
                         None
                     };
