@@ -340,9 +340,13 @@ impl Resolver {
             }
             AstNode::Subscript { base, .. } => {
                 // For array subscript a[i], return the element type
-                // For now, we assume arrays of i64
-                // TODO: Actually infer the element type from the base
-                Type::I64
+                // Infer from the base type if it's an array or slice
+                let base_ty = self.infer_type(base);
+                match &base_ty {
+                    Type::Array(elem_ty, _) | Type::Slice(elem_ty) => elem_ty.as_ref().clone(),
+                    Type::Named(name, args) if name == "Vec" && args.len() == 1 => args[0].clone(),
+                    _ => Type::I64,
+                }
             }
             _ => Type::I64,
         }

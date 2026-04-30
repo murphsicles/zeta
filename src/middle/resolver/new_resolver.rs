@@ -720,9 +720,16 @@ impl InferContext {
                 // In a complete implementation, we would check if expr_ty implements Future trait
 
                 // The await expression returns the inner type of the Future
-                // For simplicity, we'll return the expression type itself for now
-                // TODO: Implement proper Future trait checking
-                Ok(expr_ty)
+                // Check if the expression type is a Future<T> and extract T
+                match &expr_ty {
+                    Type::Named(name, args) if name == "Future" && args.len() == 1 => {
+                        Ok(args[0].clone())
+                    }
+                    _ => {
+                        // Unknown future type, return fresh type variable
+                        Ok(Type::Variable(TypeVar::fresh()))
+                    }
+                }
             }
 
             AstNode::Cast { expr, ty } => {
