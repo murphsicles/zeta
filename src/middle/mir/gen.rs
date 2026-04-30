@@ -1153,7 +1153,10 @@ impl MirGen {
             }
             AstNode::Lit(n) => {
                 self.exprs.insert(id, MirExpr::Lit(*n));
-                self.type_map.insert(id, Type::I32);
+                // Use I64 for integer literals to match codegen (everything is i64)
+                // and resolver inference. I32 caused monomorphized function name
+                // mismatches (typecheck_i32 vs actual i64 arguments).
+                self.type_map.insert(id, Type::I64);
             }
             AstNode::Bool(b) => {
                 // Convert bool to i64: true = 1, false = 0

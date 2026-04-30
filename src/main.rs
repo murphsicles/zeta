@@ -195,6 +195,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     } else {
                         // Unix/Linux/MacOS
                         cmd.arg("-lc"); // C standard library
+                        cmd.arg("-no-pie"); // Needed for PIE relocation errors with generated code
                     }
 
                     // Add Zeta runtime library

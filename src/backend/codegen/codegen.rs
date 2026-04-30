@@ -1680,8 +1680,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
             return f;
         }
         // Create extern declaration with mangled name — resolution happens at link time
-        // Use variadic to accept any number of arguments (matching any call site).
-        let fn_type = self.i64_type.fn_type(&[self.i64_type.into()], true);
+        // Use 0-param variadic so it accepts any call site's argument count.
+        let fn_type = self.i64_type.fn_type(&[], false);
         let f = self.module.add_function(
             &mangled_name,
             fn_type,
@@ -1689,6 +1689,36 @@ impl<'ctx> LLVMCodegen<'ctx> {
         );
         self.specialized_fns.insert(mangled_name.clone(), f);
         f
+    }
+
+    /// Get or create a function for a call site, ensuring the declaration matches
+    /// the actual number of arguments. Creates extern declarations for functions
+    /// that don't exist yet (self-hosting bootstrap path).
+    fn get_or_declare_function(
+        &mut self,
+        name: &str,
+        type_args: &[crate::middle::types::Type],
+        args_count: usize,
+    ) -> FunctionValue<'ctx> {
+        // Try existing lookup first
+        let existing = if type_args.is_empty() {
+            self.module.get_function(name)
+        } else {
+            let mangled = self.mangle_function_name(name, type_args);
+            self.module.get_function(&mangled)
+        };
+        if let Some(f) = existing {
+            return f;
+        }
+        // Not found — create extern declaration matching the call site's arg count
+        let actual_name = if type_args.is_empty() {
+            name.to_string()
+        } else {
+            self.mangle_function_name(name, type_args)
+        };
+        let param_types: Vec<_> = (0..args_count).map(|_| self.i64_type.into()).collect();
+        let fn_type = self.i64_type.fn_type(&param_types, false);
+        self.module.add_function(&actual_name, fn_type, Some(Linkage::External))
     }
 
     /// Check if a function is generic
@@ -2247,7 +2277,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
                             // Not an operator we handle inline
                             _ => {
-                                let callee = self.get_function_with_types(func, type_args);
+                                let callee = self.get_or_declare_function(func, type_args, args.len());
                                 let arg_vals: Vec<BasicMetadataValueEnum> = args
                                     .iter()
                                     .map(|&id| self.gen_expr_safe(&id, exprs).into())
@@ -2263,7 +2293,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         self.builder.build_store(alloca, result).unwrap();
                     } else {
                         // Operator with wrong number of arguments, fall through to regular function call
-                        let callee = self.get_function_with_types(func, type_args);
+                        let callee = self.get_or_declare_function(func, type_args, args.len());
                         let arg_vals: Vec<BasicMetadataValueEnum> = args
                             .iter()
                             .map(|&id| self.gen_expr_safe(&id, exprs).into())
@@ -2276,7 +2306,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     }
                 } else if self.is_simd_operation(func) {
                     // Handle SIMD operations
-                    let callee = self.get_function_with_types(func, type_args);
+                    let callee = self.get_or_declare_function(func, type_args, args.len());
                     let arg_vals: Vec<BasicMetadataValueEnum> = args
                         .iter()
                         .map(|&id| self.gen_expr_safe(&id, exprs).into())
@@ -2433,7 +2463,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     } else {
                         func
                     };
-                    let callee = self.get_function_with_types(actual_func, type_args);
+                    let callee = self.get_or_declare_function(actual_func, type_args, args.len());
 
                     // Check if this is a runtime function that takes pointer arguments
                     let needs_ptr_arg = func == "option_is_some"
