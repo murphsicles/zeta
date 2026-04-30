@@ -121,17 +121,24 @@ fn parse_tuple_struct_pattern(input: &str, variant: String) -> IResult<&str, Ast
 
 /// Parse a named struct pattern: `Struct { field: pattern, ... }`
 fn parse_named_struct_pattern(input: &str, variant: String) -> IResult<&str, AstNode> {
-    let (input, fields) = delimited(
-        ws(tag("{")),
-        terminated(
-            separated_list0(ws(tag(",")), ws(parse_field_pattern)),
-            opt(ws(tag(","))),
-        ),
-        ws(tag("}")),
+    let (input, _) = ws(tag("{")).parse(input)?;
+    
+    // Parse fields: separated by commas, with optional trailing comma
+    let (input, fields) = terminated(
+        separated_list0(ws(tag(",")), ws(parse_field_pattern)),
+        opt(ws(tag(","))),
     )
     .parse(input)?;
-
-    let (input, has_rest) = opt(preceded(ws(tag(",")), ws(tag("..")))).parse(input)?;
+    
+    // Parse optional rest pattern: `..` (with or without trailing comma before `}`)
+    let (input, has_rest) = opt(alt((
+        preceded(ws(tag(",")), ws(tag(".."))),
+        ws(tag("..")),
+    )))
+    .parse(input)?;
+    
+    // Parse closing brace
+    let (input, _) = ws(tag("}")).parse(input)?;
 
     Ok((
         input,

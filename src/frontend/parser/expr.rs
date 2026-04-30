@@ -474,7 +474,12 @@ fn parse_closure(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("|")).parse(input)?;
     let (input, params) = separated_list0(ws(tag(",")), ws(parse_ident)).parse(input)?;
     let (input, _) = ws(tag("|")).parse(input)?;
-    let (input, body) = ws(parse_expr).parse(input)?;
+    // Try statement first (handles if, if-let, while, etc.), then expression
+    let (input, body) = alt((
+        crate::frontend::parser::stmt::parse_stmt,
+        parse_expr,
+    ))
+    .parse(input)?;
     Ok((
         input,
         AstNode::Closure {

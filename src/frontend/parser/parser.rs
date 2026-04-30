@@ -214,18 +214,19 @@ pub fn parse_array_type(input: &str) -> IResult<&str, String> {
 }
 
 pub fn parse_fn_type(input: &str) -> IResult<&str, String> {
-    let (input, extern_opt) = opt(delimited(
-        ws(tag("extern")),
-        ws(tag("\"C\"")),
-        ws(tag("fn")),
-    ))
-    .parse(input)?;
-    let extern_str = if extern_opt.is_some() {
-        "extern \"C\" "
+    // Parse optional extern calling convention: extern "C" fn
+    // The 'fn' keyword may be consumed by the extern group or standalone.
+    // First check if this starts with "extern" — if so, parse extern "C" fn
+    // as a unit so we don't double-consume 'fn'.
+    let (input, extern_str) = if input.trim_start().starts_with("extern") {
+        let (input, _) = ws(tag("extern")).parse(input)?;
+        let (input, _) = ws(tag("\"C\"")).parse(input)?;
+        let (input, _) = ws(tag("fn")).parse(input)?;
+        (input, "extern \"C\" ".to_string())
     } else {
-        ""
+        let (input, _) = ws(tag("fn")).parse(input)?;
+        (input, String::new())
     };
-    let (input, _) = ws(tag("fn")).parse(input)?;
     let (input, params) = delimited(
         ws(tag("(")),
         terminated(

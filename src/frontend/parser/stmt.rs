@@ -145,7 +145,19 @@ fn parse_if_let(input: &str) -> IResult<&str, AstNode> {
 }
 
 fn parse_if(input: &str) -> IResult<&str, AstNode> {
-    let (input, _) = ws(tag("if")).parse(input)?;
+    // Peek: if the next non-whitespace token after 'if' is 'let', this is
+    // if-let, not if. Fail fast without consuming 'if'.
+    let saved = input;
+    let (input, _) = match ws(tag("if")).parse(input) {
+        Ok(r) => r,
+        Err(e) => return Err(e),
+    };
+    if input.trim_start().starts_with("let") {
+        return Err(nom::Err::Error(NomError::new(
+            saved,
+            nom::error::ErrorKind::Tag,
+        )));
+    }
     let (input, cond) = ws(parse_full_expr).parse(input)?;
     let (input, then) = delimited(ws(tag("{")), parse_block_body, ws(tag("}"))).parse(input)?;
 
