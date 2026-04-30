@@ -99,6 +99,7 @@ impl Connection {
             async move {
                 while let Some(message) = receiver.recv().await {
                     if let Err(e) = Self::send_message(&mut stream, &message).await {
+                        #[cfg(debug_assertions)]
                         eprintln!("Failed to send message: {}", e);
                         break;
                     }
@@ -321,11 +322,13 @@ impl NetworkTransport {
                 Ok(n) => {
                     // Echo back
                     if let Err(e) = stream.write_all(&buffer[..n]).await {
+                        #[cfg(debug_assertions)]
                         eprintln!("Failed to write to stream: {}", e);
                         break;
                     }
                 }
                 Err(e) => {
+                    #[cfg(debug_assertions)]
                     eprintln!("Failed to read from stream: {}", e);
                     break;
                 }

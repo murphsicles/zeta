@@ -280,6 +280,7 @@ fn is_double_free(allocation_id: u64) -> bool {
 }
 
 fn report_corruption(message: &str, ptr: *mut AllocationHeader) {
+    #[cfg(debug_assertions)]
     eprintln!(
         "[BULLETPROOF MEMORY] CORRUPTION DETECTED: {} at {:?}",
         message, ptr
@@ -288,6 +289,7 @@ fn report_corruption(message: &str, ptr: *mut AllocationHeader) {
 }
 
 fn report_bounds_violation(message: &str, ptr: i64, index: i64) {
+    #[cfg(debug_assertions)]
     eprintln!(
         "[BULLETPROOF MEMORY] BOUNDS VIOLATION: {} - ptr: {}, index: {}",
         message, ptr, index

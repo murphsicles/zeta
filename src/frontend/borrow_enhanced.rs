@@ -7,6 +7,7 @@
 //! - Lifetime-aware reference checking
 //! - Memory safety patterns
 
+
 use crate::frontend::ast::AstNode;
 use crate::middle::resolver::resolver::{Resolver, Type};
 use crate::middle::types::lifetime::{Lifetime, LifetimeContext};
@@ -247,7 +248,7 @@ impl EnhancedBorrowChecker {
         match node {
             AstNode::Var(name) => {
                 if !self.can_use(name) {
-                    eprintln!("Borrow error: Cannot use variable '{}'", name);
+                    crate::diag_error!("E4001", "Borrow error: Cannot use variable '{}'", name);
                     return false;
                 }
                 true
@@ -270,7 +271,7 @@ impl EnhancedBorrowChecker {
                                 // In Rust, this would move if not Copy
                                 true
                             } else {
-                                eprintln!("Borrow error: {}", e);
+                                crate::diag_error!("E4001", "Borrow error: {}", e);
                                 false
                             }
                         } else {
@@ -289,7 +290,7 @@ impl EnhancedBorrowChecker {
                         if let AstNode::Var(ref name) = **base {
                             // Need mutable access to the base
                             if !self.can_use(name) {
-                                eprintln!("Borrow error: Cannot mutably access '{}'", name);
+                                crate::diag_error!("E4002", "Borrow error: Cannot mutably access '{}'", name);
                                 return false;
                             }
                             // In real implementation, would check if it's a mutable reference
@@ -297,7 +298,7 @@ impl EnhancedBorrowChecker {
                         true
                     }
                     _ => {
-                        eprintln!("Borrow error: Invalid assignment target");
+                        crate::diag_error!("E4003", "Borrow error: Invalid assignment target");
                         false
                     }
                 }
@@ -313,7 +314,7 @@ impl EnhancedBorrowChecker {
                         // Create immutable reference
                         if let AstNode::Var(ref name) = **expr {
                             if let Err(e) = self.borrow_immutably(name, None) {
-                                eprintln!("Borrow error: {}", e);
+                                crate::diag_error!("E4001", "Borrow error: {}", e);
                                 return false;
                             }
                         }
@@ -323,7 +324,7 @@ impl EnhancedBorrowChecker {
                         // Create mutable reference
                         if let AstNode::Var(ref name) = **expr {
                             if let Err(e) = self.borrow_mutably(name, None) {
-                                eprintln!("Borrow error: {}", e);
+                                crate::diag_error!("E4001", "Borrow error: {}", e);
                                 return false;
                             }
                         }
@@ -343,7 +344,7 @@ impl EnhancedBorrowChecker {
                     // If receiver is a variable, it's borrowed
                     if let AstNode::Var(ref name) = **r {
                         if let Err(e) = self.borrow_immutably(name, None) {
-                            eprintln!("Borrow error: {}", e);
+                            crate::diag_error!("E4001", "Borrow error: {}", e);
                             return false;
                         }
                     }
@@ -366,7 +367,7 @@ impl EnhancedBorrowChecker {
                         // Non-Copy types should be moved when passed by value
                         if !resolver.is_copy(&ty) {
                             if let Err(e) = self.move_variable(name) {
-                                eprintln!("Borrow error: {}", e);
+                                crate::diag_error!("E4001", "Borrow error: {}", e);
                                 return false;
                             }
                         }
@@ -399,7 +400,7 @@ impl EnhancedBorrowChecker {
                 if let AstNode::Var(name) = &**pattern {
                     let ty = resolver.infer_type(expr);
                     if let Err(e) = self.declare(name.clone(), ty) {
-                        eprintln!("Borrow error: {}", e);
+                        crate::diag_error!("E4001", "Borrow error: {}", e);
                         return false;
                     }
                 }
@@ -462,7 +463,7 @@ impl EnhancedBorrowChecker {
                             if let AstNode::Var(name) = &**pattern {
                                 let ty = resolver.infer_type(expr);
                                 if let Err(e) = self.declare(name.clone(), ty) {
-                                    eprintln!("Borrow error: {}", e);
+                                    crate::diag_error!("E4001", "Borrow error: {}", e);
                                     ok = false;
                                 }
                             }

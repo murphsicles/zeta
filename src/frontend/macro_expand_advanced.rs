@@ -8,6 +8,7 @@
 //! 4. Compile-time reflection
 //! 5. Advanced code generation
 
+
 use crate::frontend::ast::AstNode;
 use crate::frontend::proc_macro::{ProcMacro, ProcMacroRegistry, ProcMacroType};
 use std::collections::HashMap;
@@ -361,7 +362,7 @@ impl AdvancedMacroExpander {
                     }
                     _ => {
                         // Unknown attribute - could be a custom attribute macro
-                        eprintln!("Warning: Unknown attribute: {}", attr_name);
+                        crate::diag_warning!("W5002", "Unknown attribute: {}", attr_name);
                     }
                 }
             }

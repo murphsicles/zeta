@@ -90,6 +90,7 @@ pub unsafe extern "C" fn identity_host_str_concat(a: i64, b: i64) -> i64 {
     // Check capability for concat operation (requires Read)
     if let Err(e) = context.validator().check_capability(CapabilityLevel::Read) {
         // Log error and return null (0) to indicate failure
+        #[cfg(debug_assertions)]
         eprintln!("[IDENTITY ERROR] host_str_concat: {}", e);
         return 0;
     }
@@ -116,6 +117,7 @@ pub unsafe extern "C" fn identity_host_str_len(s: i64) -> i64 {
     // Validate operation (requires Read)
     if let Err(e) = context.validator().check_capability(CapabilityLevel::Read) {
         // Log error and return 0 (could also return -1 for error)
+        #[cfg(debug_assertions)]
         eprintln!("[IDENTITY ERROR] host_str_len: {}", e);
         return 0;
     }
@@ -142,6 +144,7 @@ pub unsafe extern "C" fn identity_host_str_to_lowercase(s: i64) -> i64 {
     // Validate operation (requires Write)
     if let Err(e) = context.validator().check_capability(CapabilityLevel::Write) {
         // Log error and return null (0) to indicate failure
+        #[cfg(debug_assertions)]
         eprintln!("[IDENTITY ERROR] host_str_to_lowercase: {}", e);
         return 0;
     }
@@ -168,6 +171,7 @@ pub unsafe extern "C" fn identity_host_str_to_uppercase(s: i64) -> i64 {
     // Validate operation (requires Write)
     if let Err(e) = context.validator().check_capability(CapabilityLevel::Write) {
         // Log error and return null (0) to indicate failure
+        #[cfg(debug_assertions)]
         eprintln!("[IDENTITY ERROR] host_str_to_uppercase: {}", e);
         return 0;
     }
@@ -194,6 +198,7 @@ pub unsafe extern "C" fn identity_host_str_trim(s: i64) -> i64 {
     // Validate operation (requires Write)
     if let Err(e) = context.validator().check_capability(CapabilityLevel::Write) {
         // Log error and return null (0) to indicate failure
+        #[cfg(debug_assertions)]
         eprintln!("[IDENTITY ERROR] host_str_trim: {}", e);
         return 0;
     }
@@ -220,6 +225,7 @@ pub unsafe extern "C" fn identity_host_str_starts_with(haystack: i64, needle: i6
     // Validate operation (requires Read)
     if let Err(e) = context.validator().check_capability(CapabilityLevel::Read) {
         // Log error and return 0 (false) to indicate failure
+        #[cfg(debug_assertions)]
         eprintln!("[IDENTITY ERROR] host_str_starts_with: {}", e);
         return 0;
     }
@@ -246,6 +252,7 @@ pub unsafe extern "C" fn identity_host_str_ends_with(haystack: i64, needle: i64)
     // Validate operation (requires Read)
     if let Err(e) = context.validator().check_capability(CapabilityLevel::Read) {
         // Log error and return 0 (false) to indicate failure
+        #[cfg(debug_assertions)]
         eprintln!("[IDENTITY ERROR] host_str_ends_with: {}", e);
         return 0;
     }
@@ -272,6 +279,7 @@ pub unsafe extern "C" fn identity_host_str_contains(haystack: i64, needle: i64) 
     // Validate operation (requires Read)
     if let Err(e) = context.validator().check_capability(CapabilityLevel::Read) {
         // Log error and return 0 (false) to indicate failure
+        #[cfg(debug_assertions)]
         eprintln!("[IDENTITY ERROR] host_str_contains: {}", e);
         return 0;
     }
@@ -298,6 +306,7 @@ pub unsafe extern "C" fn identity_host_str_replace(s: i64, old: i64, new: i64) -
     // Validate operation (requires Write)
     if let Err(e) = context.validator().check_capability(CapabilityLevel::Write) {
         // Log error and return null (0) to indicate failure
+        #[cfg(debug_assertions)]
         eprintln!("[IDENTITY ERROR] host_str_replace: {}", e);
         return 0;
     }

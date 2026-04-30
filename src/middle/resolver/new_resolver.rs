@@ -854,10 +854,7 @@ impl InferContext {
                     // can be evaluated at compile time
                     // TODO: Implement proper compile-time evaluation checking
                     // For now, we just mark it as comptime and continue
-                    eprintln!(
-                        "Note: Comptime function '{}' - compile-time evaluation not fully implemented yet",
-                        name
-                    );
+                    crate::diag_warning!("W3001", "Comptime function '{}' - compile-time evaluation not fully implemented yet", name);
                 }
 
                 // Register function signature as a proper function type

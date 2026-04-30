@@ -373,7 +373,7 @@ impl TypeCheckMigrator {
                 Ok(_) => true,
                 Err(errors) => {
                     for error in errors {
-                        eprintln!("Type error: {}", error);
+                        crate::diag_error!("E2002", "Type error: {}", error);
                     }
                     false
                 }

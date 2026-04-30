@@ -6,6 +6,7 @@
 //! 2. Procedural macros (derive, attribute, function)
 //! 3. Macro expansion during compilation
 
+
 use crate::frontend::ast::AstNode;
 use std::collections::HashMap;
 
@@ -659,7 +660,7 @@ pub fn process_attributes(attrs: &[String], node: &AstNode) -> Result<Vec<AstNod
         } else {
             // Unknown attribute - could be a custom attribute macro
             // For now, just warn and continue
-            eprintln!("Warning: Unknown attribute: {}", attr);
+            crate::diag_warning!("W5001", "Unknown attribute: {}", attr);
         }
     }
 

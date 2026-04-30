@@ -52,6 +52,7 @@ fn optimize_module<'ctx>(module: &inkwell::module::Module<'ctx>, target_machine:
                 .to_string_lossy()
                 .into_owned();
             llvm_sys::error::LLVMConsumeError(err);
+            #[cfg(debug_assertions)]
             eprintln!("[LLVM opt warning: {}]", msg);
         }
     }

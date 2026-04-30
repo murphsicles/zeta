@@ -82,7 +82,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         runtime_asts
                     }
                     Err(e) => {
-                        eprintln!("CTFE warning (non-fatal): {}", e);
+                        zetac::diag_warning!("W0001", "CTFE warning (non-fatal): {}", e);
                         asts
                     }
                 };
@@ -93,7 +93,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let expanded_asts = match resolver.expand_macros(&asts) {
                     Ok(ea) => ea,
                     Err(e) => {
-                        eprintln!("Macro expansion warning (non-fatal): {}", e);
+                        zetac::diag_warning!("W0002", "Macro expansion warning (non-fatal): {}", e);
                         asts.clone()
                     }
                 };

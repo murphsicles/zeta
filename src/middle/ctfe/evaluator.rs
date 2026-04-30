@@ -3,6 +3,7 @@
 //! This module defines `ConstEvaluator`, which evaluates constant
 //! expressions and functions at compile time.
 
+
 use crate::frontend::ast::AstNode;
 
 use super::context::ConstContext;
@@ -114,7 +115,7 @@ impl ConstEvaluator {
                     }
                     Err(e) => {
                         // Keep as-is if evaluation fails
-                        eprintln!("Warning: Could not evaluate constant {}: {}", name, e);
+                        crate::diag_warning!("W6001", "Could not evaluate constant {}: {}", name, e);
                         Ok(node.clone())
                     }
                 }

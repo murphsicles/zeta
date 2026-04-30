@@ -1638,6 +1638,18 @@ impl<'ctx> LLVMCodegen<'ctx> {
     ) -> FunctionValue<'ctx> {
         // If no type arguments, use regular lookup
         if type_args.is_empty() {
+            // Check if the function already exists
+            if let Some(f) = self.module.get_function(name) {
+                return f;
+            }
+            // Self-hosting bootstrap: path-qualified calls (e.g., Resolver::new)
+            // may not have LLVM declarations yet — create extern stubs.
+            // Use variadic to avoid argument count mismatches with call sites.
+            if name.contains("::") {
+                let fn_type = self.i64_type.fn_type(&[self.i64_type.into()], true);
+                let f = self.module.add_function(name, fn_type, Some(Linkage::External));
+                return f;
+            }
             return self.get_function(name);
         }
 
@@ -1663,7 +1675,20 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
 
         // Fallback: try regular lookup (for non-generic functions called with empty type_args)
-        self.get_function(name)
+        // Use mangled name (includes type args) for extern declaration
+        if let Some(f) = self.module.get_function(&mangled_name) {
+            return f;
+        }
+        // Create extern declaration with mangled name — resolution happens at link time
+        // Use variadic to accept any number of arguments (matching any call site).
+        let fn_type = self.i64_type.fn_type(&[self.i64_type.into()], true);
+        let f = self.module.add_function(
+            &mangled_name,
+            fn_type,
+            Some(Linkage::External),
+        );
+        self.specialized_fns.insert(mangled_name.clone(), f);
+        f
     }
 
     /// Check if a function is generic

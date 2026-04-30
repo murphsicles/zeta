@@ -371,6 +371,30 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
 /// Returns either the execution result or formatted diagnostics
 pub fn compile_with_diagnostics(code: &str, filename: &'static str) -> Result<i64, String> {
     use crate::diagnostics::{DiagnosticReporter, SourceLocation, SourceSpan};
+// Diagnostic macros for workspace-level error/warning reporting
+#[macro_export]
+macro_rules! diag_error {
+    ($code:expr, $msg:expr) => {
+        eprintln!("Error [{}]: {}", $code, $msg)
+    };
+    ($code:expr, $msg:expr, $($arg:expr),+) => {
+        eprintln!("Error [{}]: ", $code);
+        $(eprintln!("  {}", $arg);)+
+    };
+}
+
+#[macro_export]
+macro_rules! diag_warning {
+    ($code:expr, $msg:expr) => {
+        eprintln!("Warning [{}]: {}", $code, $msg)
+    };
+    ($code:expr, $msg:expr, $($arg:expr),+) => {
+        eprintln!("Warning [{}]: ", $code);
+        $(eprintln!("  {}", $arg);)+
+    };
+}
+
+
     use crate::error_codes::diagnostic_from_code;
 
     let mut reporter = DiagnosticReporter::new();
