@@ -1486,10 +1486,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
             return f;
         }
         // === NEW: handle println explicitly to prevent CRITICAL panic ===
-        if name == "println"
-            && let Some(f) = self.module.get_function("println")
-        {
-            return f;
+        // println (no-args or with args) maps to println_i64 in the module.
+        // The println! macro and user-declared extern fn println(msg: i64)
+        // both resolve through this path.
+        if name == "println" {
+            if let Some(f) = self.module.get_function("println_i64") {
+                return f;
+            }
         }
         // === NEW: handle call_i64 - function call dispatcher ===
         if name == "call_i64"
