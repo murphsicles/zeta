@@ -997,6 +997,16 @@ impl MirGen {
                 // Constant-time wrapper: evaluate inner expression with TimingOwned node.
                 self.lower_expr(inner);
             }
+            AstNode::Block { body } => {
+                // Block as statement: lower all body statements.
+                for stmt in body {
+                    self.lower_ast(stmt);
+                }
+            }
+            AstNode::MacroCall { .. } | AstNode::MacroDef { .. } => {
+                // Macros should have been expanded before MIR lowering.
+                // Silently skip if they reach here.
+            }
             AstNode::If { .. } | AstNode::Call { .. } | AstNode::PathCall { .. } => {
                 self.lower_expr(ast);
             }
@@ -1007,6 +1017,54 @@ impl MirGen {
     fn lower_expr(&mut self, expr: &AstNode) -> u32 {
         let id = self.next_id();
         match expr {
+            AstNode::Block { body } => {
+                // Block expression: lower body statements, capture last value.
+                if body.is_empty() {
+                    self.exprs.insert(id, MirExpr::Lit(0));
+                    self.type_map.insert(id, Type::I64);
+                    return id;
+                }
+                // Save and isolate block stmts
+                let saved_stmts = std::mem::take(&mut self.stmts);
+                // Lower all but the last as statements
+                for stmt in &body[..body.len() - 1] {
+                    self.lower_ast(stmt);
+                }
+                // Lower the last as an expression (block value)
+                let last = &body[body.len() - 1];
+                // If last is an ExprStmt, unwrap it
+                let val_id = match last {
+                    AstNode::ExprStmt { expr } => self.lower_expr(expr),
+                    other => self.lower_expr(other),
+                };
+                let block_stmts = std::mem::take(&mut self.stmts);
+                self.stmts = saved_stmts;
+                // Forward all block stmts
+                for s in block_stmts {
+                    self.stmts.push(s);
+                }
+                // Store the block result
+                self.exprs.insert(id, MirExpr::Var(val_id));
+                if let Some(ty) = self.type_map.get(&val_id) {
+                    self.type_map.insert(id, ty.clone());
+                } else {
+                    self.type_map.insert(id, Type::I64);
+                }
+                return id;
+            },
+            AstNode::FloatLit(s) => {
+                // Float literal: try to parse, fall back to 0.
+                // Codegen currently uses i64; store as i64 0 placeholder.
+                let val: i64 = s.parse::<f64>().ok().map(|f| f as i64).unwrap_or(0);
+                self.exprs.insert(id, MirExpr::Lit(val));
+                self.type_map.insert(id, Type::F64);
+            },
+            AstNode::MacroCall { .. } | AstNode::MacroDef { .. } => {
+                // Macros should be expanded before MIR lowering.
+                // If they reach here, silently return 0.
+                self.exprs.insert(id, MirExpr::Lit(0));
+                self.type_map.insert(id, Type::I64);
+            },
             AstNode::Match { .. } => {
                 // Match as expression: return 0 placeholder.
                 self.exprs.insert(id, MirExpr::Lit(0));
