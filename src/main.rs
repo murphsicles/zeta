@@ -232,7 +232,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     // Platform-specific linking
                     if target == "wasm32" || target == "wasm32-wasi" {
                         let wasm_path = format!("{}.wasm", out);
-                        let mut cmd = std::process::Command::new("wasm-ld");
+                        // Try wasm-ld; fall back to versioned variant (wasm-ld-21, etc.)
+                        let wasm_ld = if std::process::Command::new("wasm-ld").arg("--version").output().is_ok() {
+                            "wasm-ld"
+                        } else if std::process::Command::new("wasm-ld-21").arg("--version").output().is_ok() {
+                            "wasm-ld-21"
+                        } else {
+                            return Err("WASM linker not found. Install wasm-ld (part of LLVM) or WASI SDK.".into());
+                        };
+                        let mut cmd = std::process::Command::new(wasm_ld);
                         cmd.arg(&obj_path)
                             .arg("--no-entry")
                             .arg("--export-all")
