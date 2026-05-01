@@ -67,7 +67,7 @@ pub fn parse_ident(input: &str) -> IResult<&str, String> {
                 "let", "mut", "if", "else", "for", "in", "loop", "while", "unsafe", "return",
                 "break", "continue", "fn", "concept", "impl", "enum", "struct", "type", "use",
                 "extern", "dyn", "box", "as", "true", "false", "comptime", "const", "async",
-                "pub",
+                "pub", "match", "where", "mod", "defer", "super",
                 // Built-in types - allow as identifiers so they can be used in paths like u64::MAX
                 // The resolver/typechecker will reject invalid uses later.
                 // TODO: re-add these when we implement logical operators
