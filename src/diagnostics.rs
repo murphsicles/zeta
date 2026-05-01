@@ -175,7 +175,7 @@ impl Diagnostic {
         self
     }
 
-    /// Extract context snippet from source code
+    /// Extract context snippet from source code (Rust-style with line numbers and underlines)
     pub fn extract_context(source: &str, span: SourceSpan) -> String {
         let lines: Vec<&str> = source.lines().collect();
 
@@ -185,66 +185,117 @@ impl Diagnostic {
 
         let line_idx = span.start.line - 1;
         let line = lines[line_idx];
+        let line_num = span.start.line;
+        const LN_WIDTH: usize = 4;
 
-        // Show the line with a caret pointing to the error
         let mut result = String::new();
-        result.push_str(line);
-        result.push('\n');
 
-        // Add caret indicator
-        if span.start.column > 0 && span.start.column <= line.len() + 1 {
-            let spaces = " ".repeat(span.start.column - 1);
-            let carets = "^".repeat(std::cmp::max(
-                1,
-                span.end.column.saturating_sub(span.start.column),
-            ));
-            result.push_str(&format!("{}{}", spaces, carets));
-        }
+        // Source line with right-aligned line number prefix
+        // e.g., "  12 |     let x: int = 42;\n"
+        result.push_str(&format!("{:>width$} | {}\n", line_num, line, width = LN_WIDTH));
+
+        // Underline row: spaces + carets pointing at the error span
+        let start_col = span.start.column.saturating_sub(1); // 0-based column
+        let end_col = std::cmp::min(
+            span.end.column.saturating_sub(1),
+            line.len().saturating_sub(1),
+        );
+
+        let padding = " ".repeat(start_col);
+        let count = std::cmp::max(1, end_col.saturating_sub(start_col) + 1);
+        let carets = "^".repeat(count);
+
+        result.push_str(&format!(
+            "{:>width$} | {}{}\n",
+            "",
+            padding,
+            carets,
+            width = LN_WIDTH
+        ));
 
         result
     }
 
     pub fn format(&self, source: Option<&str>) -> String {
+        let no_color = std::env::var("NO_COLOR").is_ok();
+
         let mut output = String::new();
 
-        // Severity and code
+        // Helper: wrap text in ANSI escape code unless NO_COLOR is set
+        let ansi = |code: &str, text: &str| -> String {
+            if no_color {
+                text.to_string()
+            } else {
+                format!("\x1b{}{}\x1b[0m", code, text)
+            }
+        };
+
+        // ── Severity + code ────────────────────────────────────────────
+        let (sev_ansi, code_ansi) = match self.severity {
+            Severity::Error | Severity::Fatal => ("[1;31m", "[1;31m"), // bold red
+            Severity::Warning => ("[1;33m", "[1;33m"), // bold yellow
+            Severity::Note => ("[34m", "[34m"),         // blue
+            Severity::Help => ("[34m", "[34m"),         // blue
+        };
+
+        let severity_colored = ansi(sev_ansi, &self.severity.to_string());
         if let Some(code) = &self.code {
-            output.push_str(&format!("{}[{}]: {}\n", self.severity, code, self.message));
+            let code_colored = ansi(code_ansi, &format!("[{}]", code));
+            output.push_str(&format!(
+                "{}{}: {}\n",
+                severity_colored, code_colored, self.message
+            ));
         } else {
-            output.push_str(&format!("{}: {}\n", self.severity, self.message));
+            output.push_str(&format!("{}: {}\n", severity_colored, self.message));
         }
 
-        // Location
+        // ── Location (cyan arrow) ──────────────────────────────────────
         if let Some(span) = &self.span {
-            output.push_str(&format!("  --> {}\n", span.format()));
+            let loc = format!(
+                "{}:{}:{}",
+                span.start.file, span.start.line, span.start.column
+            );
+            output.push_str(&format!(
+                "  {}\n",
+                ansi("[36m", &format!("--> {}", loc))
+            ));
 
-            // Context snippet
+            // ── Source context ─────────────────────────────────────────
             if let Some(src) = source {
-                let context = Self::extract_context(src, *span);
-                if !context.is_empty() {
+                let ctx = Self::extract_context(src, *span);
+                if !ctx.is_empty() {
                     output.push_str("   |\n");
-                    for line in context.lines() {
-                        output.push_str(&format!("   | {}\n", line));
-                    }
+                    output.push_str(&ctx);
                 }
             }
         }
 
-        // Help message
-        if let Some(help) = &self.help {
-            output.push_str(&format!("  help: {}\n", help));
-        }
-
-        // Note
+        // ── Note ────────────────────────────────────────────────────────
         if let Some(note) = &self.note {
-            output.push_str(&format!("  note: {}\n", note));
+            output.push_str(&format!(
+                "   = {}: {}\n",
+                ansi("[34m", "note"),
+                note
+            ));
         }
 
-        // Suggestions
+        // ── Help ────────────────────────────────────────────────────────
+        if let Some(help) = &self.help {
+            output.push_str(&format!(
+                "   = {}: {}\n",
+                ansi("[34m", "help"),
+                help
+            ));
+        }
+
+        // ── Suggestions ─────────────────────────────────────────────────
         if !self.suggestions.is_empty() {
-            output.push_str("  suggestions:\n");
-            for (i, suggestion) in self.suggestions.iter().enumerate() {
-                output.push_str(&format!("    {}. {}\n", i + 1, suggestion));
+            for suggestion in &self.suggestions {
+                output.push_str(&format!(
+                    "     = {}: {}\n",
+                    ansi("[34m", "suggestion"),
+                    suggestion
+                ));
             }
         }
 

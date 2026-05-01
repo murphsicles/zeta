@@ -18,7 +18,7 @@ use std::path::Path;
 
 use zetac::backend::codegen::LLVMCodegen;
 use zetac::backend::codegen::finalize_and_aot;
-use zetac::diagnostics::{Diagnostic, DiagnosticReporter, SourceLocation, SourceSpan, Severity};
+use zetac::error_codes::diagnostic_from_code;
 use zetac::frontend::ast::AstNode;
 use zetac::frontend::parser::top_level::parse_zeta;
 use zetac::middle::mir::mir::Mir;
@@ -33,6 +33,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let args: Vec<String> = std::env::args().collect();
     let dump_mir = args.iter().any(|a| a == "--dump-mir");
+
+    // Handle --explain flag: print error code explanation
+    if let Some(pos) = args.iter().position(|a| a == "--explain") {
+        if let Some(code) = args.get(pos + 1) {
+            let registry = zetac::error_codes::ErrorCodeRegistry::new();
+            if let Some(info) = registry.get(code) {
+                println!("Error code: {}", info.code);
+                println!("Category:   {:?}", info.category);
+                println!("Title:      {}", info.description);
+                println!();
+                if let Some(s) = &info.suggestion {
+                    println!("Suggestion: {}", s);
+                }
+                if let Some(ex) = &info.example {
+                    println!("Example:    {}", ex);
+                }
+            } else {
+                eprintln!("Unknown error code: {}", code);
+                eprintln!("Use --explain without an argument to list all codes.");
+            }
+        } else {
+            // List all codes
+            let registry = zetac::error_codes::ErrorCodeRegistry::new();
+            let codes = registry.all_codes();
+            println!("Zeta error codes ({} total):", codes.len());
+            for info in codes {
+                println!("  {:6} {:?}: {}", info.code, info.category, info.description);
+            }
+        }
+        return Ok(());
+    }
 
     if args.len() > 1 && args[1] == "--repl" {
         return repl(dump_mir);
@@ -113,16 +144,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let type_ok = resolver.typecheck(&expanded_asts);
                 if !type_ok {
-                    let diag = Diagnostic {
-                        severity: Severity::Warning,
-                        code: Some("W0003".to_string()),
-                        message: "Typecheck failed (non-fatal) — proceeding with unresolved types.".to_string(),
-                        span: None,
-                        context: None,
-                        help: None,
-                        note: Some("The program may have type errors that will manifest at runtime.".to_string()),
-                        suggestions: vec![],
-                    };
+                    let diag = diagnostic_from_code("W0003", "Typecheck failed (non-fatal) — proceeding with unresolved types.".to_string(), None);
                     eprintln!("{}", diag.format(None));
                 }
 
@@ -256,16 +278,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         } else {
                             // Find what functions exist
                             let func_names: Vec<String> = mir_map.keys().cloned().collect();
-                            let diag = Diagnostic {
-                                severity: Severity::Error,
-                                code: Some("E0001".to_string()),
-                                message: format!("No main function found. Available: [{}]", func_names.join(", ")),
-                                span: None,
-                                context: None,
-                                help: Some("Define a function named 'main' that returns i64.".to_string()),
-                                note: None,
-                                suggestions: vec![],
-                            };
+                            let diag = diagnostic_from_code("E4001", format!("No main function found. Available: [{}]", func_names.join(", ")), None);
                             eprintln!("{}", diag.format(None));
                         }
                     }
@@ -273,16 +286,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(())
             }
             Err(e) => {
-                let diag = Diagnostic {
-                    severity: Severity::Error,
-                    code: Some("E0100".to_string()),
-                    message: format!("Parse error: {:?}", e),
-                    span: None,
-                    context: None,
-                    help: Some("Check for syntax errors near the reported location.".to_string()),
-                    note: None,
-                    suggestions: vec![],
-                };
+                let diag = diagnostic_from_code("E1001", format!("Parse error: {:?}", e), None);
                 eprintln!("{}", diag.format(None));
                 Err("Parse failed".into())
             }
@@ -413,7 +417,7 @@ fn bootstrap_zeta(output: &Option<String>) -> Result<(), Box<dyn std::error::Err
         unsafe {
             if let Ok(m) = ee.get_function::<unsafe extern "C" fn() -> i64>("main") {
                 println!("Result: {}", m.call());
-            } else { eprintln!("Error: no main function in bootstrap binary"); }
+            } else { let diag = diagnostic_from_code("E4001", "No main function in bootstrap binary".to_string(), None); eprintln!("{}", diag.format(None)); }
         }
     }
     Ok(())
@@ -446,7 +450,8 @@ fn repl(_dump_mir: bool) -> Result<(), Box<dyn std::error::Error>> {
             resolver.register(ast.clone());
         }
         if !resolver.typecheck(&asts) {
-            println!("Typecheck failed");
+            let diag = diagnostic_from_code("E2001", "Typecheck failed".to_string(), None);
+            eprintln!("{}", diag.format(None));
             continue;
         }
 
@@ -472,7 +477,8 @@ fn repl(_dump_mir: bool) -> Result<(), Box<dyn std::error::Error>> {
             if let Ok(f) = ee.get_function::<ReplFn>("main") {
                 println!("{}", f.call());
             } else {
-                eprintln!("REPL: no main function");
+                let diag = diagnostic_from_code("E4001", "No main function in REPL".to_string(), None);
+                eprintln!("{}", diag.format(None));
             }
         }
     }

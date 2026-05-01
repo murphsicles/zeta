@@ -55,12 +55,23 @@ impl BorrowChecker {
 
     pub fn check(&mut self, node: &AstNode, resolver: &Resolver) -> bool {
         match node {
-            AstNode::Var(v) => self.borrows.get(v).is_some_and(|s| {
-                matches!(
-                    s,
-                    BorrowState::Owned | BorrowState::Borrowed | BorrowState::MutBorrowed
-                )
-            }),
+            AstNode::Var(v) => {
+                let found = self.borrows.get(v).is_some_and(|s| {
+                    matches!(
+                        s,
+                        BorrowState::Owned | BorrowState::Borrowed | BorrowState::MutBorrowed
+                    )
+                });
+                if !found {
+                    let diag = crate::error_codes::diagnostic_from_code(
+                        "E3003",
+                        format!("Cannot find `{}` in this scope", v),
+                        None,
+                    );
+                    crate::diagnostics::emit(diag);
+                }
+                found
+            }
             AstNode::Assign(lhs, rhs) => {
                 if !self.check(rhs, resolver) {
                     return false;
@@ -114,6 +125,14 @@ impl BorrowChecker {
             AstNode::Call { receiver, args, .. } => {
                 if let Some(r) = receiver {
                     if !self.check(r, resolver) {
+                        if let AstNode::Var(ref name) = **r {
+                            let diag = crate::error_codes::diagnostic_from_code(
+                                "E7002",
+                                format!("Use of moved value: `{}` has been consumed", name),
+                                None,
+                            );
+                            crate::diagnostics::emit(diag);
+                        }
                         return false;
                     }
                     if let AstNode::Var(ref name) = **r {
