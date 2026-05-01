@@ -117,6 +117,33 @@ impl<'ctx> crate::backend::codegen::LLVMCodegen<'ctx> {
         if let Some(f) = self.module.get_function("host_str_replace") {
             ee.add_global_mapping(&f, host_str_replace as *const () as usize);
         }
+        if let Some(f) = self.module.get_function("host_str_split") {
+            ee.add_global_mapping(&f, crate::runtime::host::host_str_split as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("host_str_join") {
+            ee.add_global_mapping(&f, crate::runtime::host::host_str_join as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("host_str_find") {
+            ee.add_global_mapping(&f, crate::runtime::host::host_str_find as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("host_str_count") {
+            ee.add_global_mapping(&f, crate::runtime::host::host_str_count as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("host_str_strip") {
+            ee.add_global_mapping(&f, crate::runtime::host::host_str_strip as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("host_str_lstrip") {
+            ee.add_global_mapping(&f, crate::runtime::host::host_str_lstrip as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("host_str_rstrip") {
+            ee.add_global_mapping(&f, crate::runtime::host::host_str_rstrip as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("host_str_isalpha") {
+            ee.add_global_mapping(&f, crate::runtime::host::host_str_isalpha as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("host_str_isnumeric") {
+            ee.add_global_mapping(&f, crate::runtime::host::host_str_isnumeric as *const () as usize);
+        }
         if let Some(f) = self.module.get_function("channel_send") {
             ee.add_global_mapping(&f, host_channel_send as *const () as usize);
         }

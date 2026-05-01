@@ -145,112 +145,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
             void_type.fn_type(&[ptr_type.into()], false),
             Some(Linkage::External),
         );
-        // Vector constructors for common SIMD types
-        // Vector<u64, 8>
-        module.add_function(
-            "vector_make_u64x8",
-            i64_type.fn_type(
-                &[
-                    i64_type.into(),
-                    i64_type.into(),
-                    i64_type.into(),
-                    i64_type.into(),
-                    i64_type.into(),
-                    i64_type.into(),
-                    i64_type.into(),
-                    i64_type.into(),
-                ],
-                false,
-            ),
-            Some(Linkage::External),
-        );
-        module.add_function(
-            "vector_splat_u64x8",
-            i64_type.fn_type(&[i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        // Vector<i32, 4>
-        module.add_function(
-            "vector_make_i32x4",
-            i64_type.fn_type(
-                &[
-                    i64_type.into(),
-                    i64_type.into(),
-                    i64_type.into(),
-                    i64_type.into(),
-                ],
-                false,
-            ),
-            Some(Linkage::External),
-        );
-        module.add_function(
-            "vector_splat_i32x4",
-            i64_type.fn_type(&[i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        // Vector operation functions
-        // Vector<u64, 8> operations
-        module.add_function(
-            "vector_add_u64x8",
-            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        module.add_function(
-            "vector_sub_u64x8",
-            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        module.add_function(
-            "vector_mul_u64x8",
-            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        module.add_function(
-            "vector_get_u64x8",
-            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        module.add_function(
-            "vector_set_u64x8",
-            void_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        module.add_function(
-            "vector_free_u64x8",
-            void_type.fn_type(&[i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        // Vector<i32, 4> operations
-        module.add_function(
-            "vector_add_i32x4",
-            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        module.add_function(
-            "vector_sub_i32x4",
-            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        module.add_function(
-            "vector_mul_i32x4",
-            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        module.add_function(
-            "vector_get_i32x4",
-            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        module.add_function(
-            "vector_set_i32x4",
-            void_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        module.add_function(
-            "vector_free_i32x4",
-            void_type.fn_type(&[i64_type.into()], false),
-            Some(Linkage::External),
-        );
+        // SIMD vector operations are handled inline in codegen via LLVM vector IR.
+        // No extern declarations needed — vectors are LLVM native types, not heap-allocated.
         module.add_function(
             "map_new",
             ptr_type.fn_type(&[], false),
@@ -558,6 +454,51 @@ impl<'ctx> LLVMCodegen<'ctx> {
         module.add_function(
             "host_str_replace",
             i64_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "host_str_split",
+            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "host_str_join",
+            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "host_str_find",
+            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "host_str_count",
+            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "host_str_strip",
+            i64_type.fn_type(&[i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "host_str_lstrip",
+            i64_type.fn_type(&[i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "host_str_rstrip",
+            i64_type.fn_type(&[i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "host_str_isalpha",
+            i64_type.fn_type(&[i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "host_str_isnumeric",
+            i64_type.fn_type(&[i64_type.into()], false),
             Some(Linkage::External),
         );
 
@@ -917,81 +858,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
         // Note: These functions are declared as external but will be handled inline
         // by the code generator (see is_operator and MirStmt::Call handling)
 
-        // === SIMD INTRINSIC DECLARATIONS ===
-        // Vector splat operations (return i64 pointers to heap-allocated vectors)
-        module.add_function(
-            "simd_splat_i32x4",
-            i64_type.fn_type(&[i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        module.add_function(
-            "simd_splat_i64x2",
-            i64_type.fn_type(&[i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        module.add_function(
-            "simd_splat_f32x4",
-            i64_type.fn_type(&[i64_type.into()], false),
-            Some(Linkage::External),
-        );
-
-        // Vector arithmetic operations (take i64 pointers, return i64 pointer)
-        module.add_function(
-            "simd_add_i32x4",
-            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        module.add_function(
-            "simd_mul_i32x4",
-            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        module.add_function(
-            "simd_sub_i32x4",
-            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
-            Some(Linkage::External),
-        );
-
-        // Vector load/store operations
-        module.add_function(
-            "simd_load_i32x4",
-            i64_type.fn_type(&[i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        module.add_function(
-            "simd_store_i32x4",
-            void_type.fn_type(&[i64_type.into(), i64_type.into()], false),
-            Some(Linkage::External),
-        );
-
-        // Vector extract/insert operations
-        module.add_function(
-            "simd_extract_i32x4",
-            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        module.add_function(
-            "simd_insert_i32x4",
-            i64_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into()], false),
-            Some(Linkage::External),
-        );
-
-        // SIMD free functions
-        module.add_function(
-            "simd_free_i32x4",
-            void_type.fn_type(&[i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        module.add_function(
-            "simd_free_i64x2",
-            void_type.fn_type(&[i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        module.add_function(
-            "simd_free_f32x4",
-            void_type.fn_type(&[i64_type.into()], false),
-            Some(Linkage::External),
-        );
+        // SIMD intrinsics handled inline in codegen via LLVM vector IR.
+        // No extern declarations needed.
 
         Self {
             context,
@@ -1425,7 +1293,52 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     /// Check if a function name is a SIMD operation
     fn is_simd_operation(&self, name: &str) -> bool {
-        name.starts_with("simd_") // e.g., i32x4, f32x4
+        name.starts_with("simd_") || name.starts_with("vector_") || name.starts_with("simd::") || name.starts_with("Vector::") || name.starts_with("Vector__")
+    }
+
+    /// Parse type info from a SIMD operation name.
+    fn parse_simd_type_info(name: &str) -> Option<(u32, u32, bool)> {
+        if name.contains("i32x4") { Some((32, 4, false)) }
+        else if name.contains("i64x2") { Some((64, 2, false)) }
+        else if name.contains("f32x4") { Some((32, 4, true)) }
+        else if name.contains("u64x8") { Some((64, 8, false)) }
+        else if name.contains("i64x4") { Some((64, 4, false)) }
+        else if name.contains("i32x8") { Some((32, 8, false)) }
+        else { None }
+    }
+
+    fn simd_vector_type(&self, bit_width: u32, lanes: u32, is_float: bool) -> inkwell::types::VectorType<'ctx> {
+        if is_float && bit_width == 32 && lanes == 4 { self.context.f32_type().vec_type(lanes) }
+        else if bit_width == 64 && lanes == 4 { self.vec4_i64_type }
+        else if bit_width == 64 { self.context.i64_type().vec_type(lanes) }
+        else if bit_width == 32 { self.context.i32_type().vec_type(lanes) }
+        else { self.vec4_i64_type }
+    }
+
+    fn simd_alloca_vec(&mut self, vt: inkwell::types::VectorType<'ctx>) -> (PointerValue<'ctx>, inkwell::values::IntValue<'ctx>) {
+        let alloca = self.builder.build_alloca(vt, "simd_tmp").unwrap();
+        let ptr = self.builder.build_ptr_to_int(alloca, self.i64_type, "simd_ptr").unwrap();
+        (alloca, ptr)
+    }
+
+    fn simd_load_vec(&mut self, ptr: inkwell::values::IntValue<'ctx>, vt: inkwell::types::VectorType<'ctx>) -> inkwell::values::VectorValue<'ctx> {
+        let cast = self.builder.build_int_to_ptr(ptr, self.ptr_type, "vec_p").unwrap();
+        self.builder.build_load(vt, cast, "vec").unwrap().into_vector_value()
+    }
+
+    fn simd_store_vec(&mut self, ptr: inkwell::values::IntValue<'ctx>, val: inkwell::values::VectorValue<'ctx>) {
+        let cast = self.builder.build_int_to_ptr(ptr, self.ptr_type, "vec_p").unwrap();
+        self.builder.build_store(cast, val).unwrap();
+    }
+
+    fn simd_trunc_val(&mut self, val: inkwell::values::BasicValueEnum<'ctx>, bit_width: u32, is_float: bool) -> inkwell::values::BasicValueEnum<'ctx> {
+        if bit_width == 32 && !is_float { self.builder.build_int_truncate(val.into_int_value(), self.context.i32_type(), "trunc").unwrap().into() }
+        else if is_float { val.into_float_value().into() }
+        else { val.into_int_value().into() }
+    }
+
+    fn simd_zext_i64(&mut self, val: inkwell::values::BasicValueEnum<'ctx>) -> inkwell::values::BasicValueEnum<'ctx> {
+        self.builder.build_int_z_extend(val.into_int_value(), self.i64_type, "zext").unwrap().into()
     }
 
     fn get_function(&self, name: &str) -> FunctionValue<'ctx> {
@@ -1706,6 +1619,40 @@ impl<'ctx> LLVMCodegen<'ctx> {
         f
     }
 
+    /// Map method call mangled names (e.g. `len_str`) back to runtime function names (`str_len`).
+    /// Method calls on strings produce "{method}_{type_suffix}" via MonoKey::mangle.
+    fn resolve_string_method(name: &str) -> Option<String> {
+        if !name.ends_with("_str") && !name.ends_with("_String") && !name.starts_with("str_") {
+            return None;
+        }
+        Some(if name.starts_with("str_") {
+            // Direct str_* call: str_len → host_str_len
+            name.to_string()
+        } else {
+            // Method call: len_str → strip _str → str_len
+            let method = name.trim_end_matches("_str").trim_end_matches("_String");
+            match method {
+                "len" | "length" => "str_len".to_string(),
+                "concat" => "str_concat".to_string(),
+                "lowercase" | "to_lowercase" => "str_to_lowercase".to_string(),
+                "uppercase" | "to_uppercase" => "str_to_uppercase".to_string(),
+                "trim" => "str_trim".to_string(),
+                "strip" => "str_trim".to_string(),
+                "starts_with" | "startswith" => "str_starts_with".to_string(),
+                "ends_with" | "endswith" => "str_ends_with".to_string(),
+                "contains" | "includes" => "str_contains".to_string(),
+                "replace" => "str_replace".to_string(),
+                "split" => "str_split".to_string(),
+                "join" => "str_join".to_string(),
+                "find" | "index" => "str_find".to_string(),
+                "count" => "str_count".to_string(),
+                "isalpha" | "is_alpha" => "str_isalpha".to_string(),
+                "isdigit" | "is_digit" | "isnumeric" | "is_numeric" => "str_isnumeric".to_string(),
+                _ => return None,
+            }
+        })
+    }
+
     /// Get or create a function for a call site, ensuring the declaration matches
     /// the actual number of arguments. Creates extern declarations for functions
     /// that don't exist yet (self-hosting bootstrap path).
@@ -1717,6 +1664,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
     ) -> FunctionValue<'ctx> {
         // Try existing lookup first — check mangled name (:: → __) BEFORE raw name.
         // gen_mirs stores functions with __, call sites reference with ::.
+        // Also handle str_* → host_str_* mapping (string runtime functions).
+        let host_mapped_name = if name.starts_with("str_") {
+            format!("host_{}", name)
+        } else if let Some(resolved) = Self::resolve_string_method(name) {
+            format!("host_{}", resolved)
+        } else {
+            String::new()
+        };
+
         if type_args.is_empty() {
             // Check mangled name first (AstNode::Lit → AstNode__Lit)
             if name.contains("::") {
@@ -1725,6 +1681,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     return f;
                 }
                 if let Some(&f) = self.fns.get(&mangled) {
+                    return f;
+                }
+            }
+            // Check host-mapped name for str_* functions
+            if !host_mapped_name.is_empty() {
+                if let Some(f) = self.module.get_function(&host_mapped_name) {
+                    return f;
+                }
+                if let Some(&f) = self.fns.get(&host_mapped_name) {
                     return f;
                 }
             }
@@ -1739,6 +1704,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
             let mangled = self.mangle_function_name(name, type_args);
             if let Some(f) = self.module.get_function(&mangled) {
                 return f;
+            }
+            // Check host-mapped name
+            if !host_mapped_name.is_empty() {
+                if let Some(f) = self.module.get_function(&host_mapped_name) {
+                    return f;
+                }
             }
             // Check bare name in case it's a non-generic runtime function
             if let Some(f) = self.module.get_function(name) {
@@ -2341,20 +2312,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         }
                     }
                 } else if self.is_simd_operation(func) {
-                    // Handle SIMD operations
-                    let callee = self.get_or_declare_function(func, type_args, args.len());
-                    let arg_vals: Vec<BasicMetadataValueEnum> = args
-                        .iter()
-                        .map(|&id| self.gen_expr_safe(&id, exprs).into())
-                        .collect();
-                    let call = self.builder.build_call(callee, &arg_vals, "").unwrap();
-                    if let Some(val) = Self::call_site_to_basic_value(call) {
-                        let alloca = *self.locals.get(dest).unwrap();
-                        self.builder.build_store(alloca, val).unwrap();
-                    }
+                    // Handle SIMD operations — generate inline LLVM vector IR
+                    self.handle_simd_operation(func, type_args, args, exprs, dest);
                 } else {
                     // Regular function call
-                    // Handle unary minus before looking up function
                     if args.len() == 1 && (func == "-" || func == "unary_minus") {
                         let operand = self.gen_expr_safe(&args[0], exprs);
                         let zero = self.i64_type.const_zero();
@@ -3887,6 +3848,249 @@ impl<'ctx> LLVMCodegen<'ctx> {
     }
 
     /// Convert a Zeta type to an LLVM type
+    /// Handle a SIMD operation by name — generate inline LLVM vector IR.
+    fn handle_simd_operation(
+        &mut self,
+        func: &str,
+        type_args: &[crate::middle::types::Type],
+        args: &[u32],
+        exprs: &HashMap<u32, MirExpr>,
+        dest: &u32,
+    ) {
+        // Handle simd::method names inline — resolve and dispatch directly
+        if func.starts_with("simd::") {
+            let method = &func[6..];
+            let elem_type = if type_args.len() >= 1 {
+                match &type_args[0] {
+                    Type::I32 => "i32",
+                    Type::I64 | Type::U64 => "i64",
+                    Type::U32 => "u32",
+                    Type::F32 => "f32",
+                    Type::F64 => "f64",
+                    _ => "i32",
+                }
+            } else { "i32" };
+            let lanes_str = if type_args.len() >= 2 {
+                match &type_args[1] {
+                    Type::Named(n, _) => n.clone(),
+                    _ => "4".to_string(),
+                }
+            } else { "4".to_string() };
+            let lanes: u32 = lanes_str.parse().unwrap_or(4);
+            let is_float = elem_type == "f32" || elem_type == "f64";
+            let bit_width: u32 = if is_float { 32 } else if elem_type == "i64" || elem_type == "u64" { 64 } else { 32 };
+
+            let vt = self.simd_vector_type(bit_width, lanes, is_float);
+            let (vec_alloca, _ptr) = self.simd_alloca_vec(vt);
+
+            match method {
+                "splat" => {
+                    let val = self.gen_expr_safe(&args[0], exprs);
+                    let scalar = self.simd_trunc_val(val, bit_width, is_float);
+                    let poison = vt.get_undef();
+                    let mut result = self.builder.build_insert_element(poison, scalar, self.context.i32_type().const_zero(), "sp0").unwrap();
+                    for i in 1..lanes {
+                        let idx = self.context.i32_type().const_int(i as u64, false);
+                        let elem = self.simd_trunc_val(val, bit_width, is_float);
+                        result = self.builder.build_insert_element(result, elem, idx, &format!("sp{}", i)).unwrap();
+                    }
+                    self.builder.build_store(vec_alloca, result).unwrap();
+                }
+                "add" | "sub" | "mul" => {
+                    if args.len() >= 2 {
+                        let a_ptr = self.gen_expr_safe(&args[0], exprs).into_int_value();
+                        let b_ptr = self.gen_expr_safe(&args[1], exprs).into_int_value();
+                        let vec_a = self.simd_load_vec(a_ptr, vt);
+                        let vec_b = self.simd_load_vec(b_ptr, vt);
+                        let result = match method {
+                            "add" if is_float => self.builder.build_float_add(vec_a, vec_b, "vadd").unwrap(),
+                            "add" => self.builder.build_int_add(vec_a, vec_b, "vadd").unwrap(),
+                            "sub" if is_float => self.builder.build_float_sub(vec_a, vec_b, "vsub").unwrap(),
+                            "sub" => self.builder.build_int_sub(vec_a, vec_b, "vsub").unwrap(),
+                            "mul" if is_float => self.builder.build_float_mul(vec_a, vec_b, "vmul").unwrap(),
+                            "mul" => self.builder.build_int_mul(vec_a, vec_b, "vmul").unwrap(),
+                            _ => vec_a,
+                        };
+                        self.builder.build_store(vec_alloca, result).unwrap();
+                    }
+                }
+                "extract" | "get" => {
+                    if args.len() >= 2 {
+                        let vec_ptr = self.gen_expr_safe(&args[0], exprs).into_int_value();
+                        let idx = self.gen_expr_safe(&args[1], exprs).into_int_value();
+                        let loaded = self.simd_load_vec(vec_ptr, vt);
+                        let extracted = self.builder.build_extract_element(loaded, idx, "extract").unwrap();
+                        let result = if bit_width == 32 && !is_float { self.simd_zext_i64(extracted) } else { extracted };
+                        let alloca = *self.locals.get(dest).unwrap();
+                        self.builder.build_store(alloca, result).unwrap();
+                        return;
+                    }
+                }
+                "free" | "drop" => {
+                    let alloca = *self.locals.get(dest).unwrap();
+                    self.builder.build_store(alloca, self.i64_type.const_zero()).unwrap();
+                    return;
+                }
+                "is_supported" | "optimal_size" => {
+                    return self.handle_simd_const(method, dest);
+                }
+                _ => {
+                    let alloca = *self.locals.get(dest).unwrap();
+                    self.builder.build_store(alloca, self.i64_type.const_zero()).unwrap();
+                    return;
+                }
+            }
+
+            // Store the pointer to the stack-allocated vector as i64 result
+            let ptr_as_i64 = self.builder.build_ptr_to_int(vec_alloca, self.i64_type, "simd_res").unwrap();
+            let alloca = *self.locals.get(dest).unwrap();
+            self.builder.build_store(alloca, ptr_as_i64).unwrap();
+            return;
+        }
+
+        // Handle Vector::method / Vector__method names
+        let (base_func, simd_prefix) = if func.starts_with("Vector::") || func.starts_with("Vector__") {
+            // Extract method name: Vector::splat → splat, Vector__splat → splat
+            let method = if func.starts_with("Vector::") { &func[8..] } else { &func[8..] };
+            // Default to i64x4 when no explicit type info (the resolver registers Vector::splat with u64x8)
+            match method {
+                "splat" => ("vector_splat_i64x4", "vector_splat"),
+                "new" | "make" => ("vector_make_i64x4", "vector_make"),
+                "add" => ("vector_add_i64x4", "vector_add"),
+                "sub" | "subtract" => ("vector_sub_i64x4", "vector_sub"),
+                "mul" | "multiply" => ("vector_mul_i64x4", "vector_mul"),
+                "get" | "extract" => ("vector_get_i64x4", "vector_get"),
+                "set" | "insert" => ("vector_set_i64x4", "vector_set"),
+                "free" | "drop" => ("vector_free_i64x4", "vector_free"),
+                _ => ("", ""),
+            }
+        } else {
+            (func, func)
+        };
+
+        // Use the vector_* name for type info parsing
+        let name_for_type = if !base_func.is_empty() && base_func != func { base_func } else { func };
+
+        let Some((bit_width, lanes, is_float)) = Self::parse_simd_type_info(name_for_type) else {
+            let alloca = *self.locals.get(dest).unwrap();
+            self.builder.build_store(alloca, self.i64_type.const_zero()).unwrap();
+            return;
+        };
+        let vt = self.simd_vector_type(bit_width, lanes, is_float);
+        let (vec_alloca, _ptr) = self.simd_alloca_vec(vt);
+
+        // For Vector::* calls, use simd_prefix (e.g. "simd_splat_i64x4") for dispatch
+        let dispatch_name = if !simd_prefix.is_empty() { simd_prefix } else { func };
+
+        if dispatch_name.starts_with("simd_splat") || dispatch_name.starts_with("vector_splat") {
+            let val = self.gen_expr_safe(&args[0], exprs);
+            let scalar = self.simd_trunc_val(val, bit_width, is_float);
+            let poison = vt.get_undef();
+            let mut result = self.builder.build_insert_element(poison, scalar, self.context.i32_type().const_zero(), "sp0").unwrap();
+            for i in 1..lanes {
+                let idx = self.context.i32_type().const_int(i as u64, false);
+                let elem = self.simd_trunc_val(val, bit_width, is_float);
+                result = self.builder.build_insert_element(result, elem, idx, &format!("sp{}", i)).unwrap();
+            }
+            self.builder.build_store(vec_alloca, result).unwrap();
+        } else if dispatch_name.starts_with("simd_add") || dispatch_name.starts_with("vector_add") {
+            self.simd_binop(vt, args, exprs, vec_alloca, "add", is_float);
+        } else if dispatch_name.starts_with("simd_sub") || dispatch_name.starts_with("vector_sub") {
+            self.simd_binop(vt, args, exprs, vec_alloca, "sub", is_float);
+        } else if dispatch_name.starts_with("simd_mul") || dispatch_name.starts_with("vector_mul") {
+            self.simd_binop(vt, args, exprs, vec_alloca, "mul", is_float);
+        } else if dispatch_name.starts_with("simd_extract") || dispatch_name.starts_with("vector_get") {
+            let vec_ptr = self.gen_expr_safe(&args[0], exprs).into_int_value();
+            let idx = self.gen_expr_safe(&args[1], exprs).into_int_value();
+            let loaded = self.simd_load_vec(vec_ptr, vt);
+            let extracted = self.builder.build_extract_element(loaded, idx, "extract").unwrap();
+            let result = if bit_width == 32 && !is_float { self.simd_zext_i64(extracted) } else { extracted };
+            let alloca = *self.locals.get(dest).unwrap();
+            self.builder.build_store(alloca, result).unwrap();
+            return;
+        } else if dispatch_name.starts_with("simd_insert") || dispatch_name.starts_with("vector_set") {
+            let vec_ptr = self.gen_expr_safe(&args[0], exprs).into_int_value();
+            let val = self.gen_expr_safe(&args[1], exprs);
+            let idx = self.gen_expr_safe(&args[2], exprs).into_int_value();
+            let loaded = self.simd_load_vec(vec_ptr, vt);
+            let scalar = self.simd_trunc_val(val, bit_width, is_float);
+            let result = self.builder.build_insert_element(loaded, scalar, idx, "ins").unwrap();
+            self.simd_store_vec(vec_ptr, result);
+            let alloca = *self.locals.get(dest).unwrap();
+            self.builder.build_store(alloca, vec_ptr).unwrap();
+            return;
+        } else if dispatch_name.starts_with("simd_load") {
+            let ptr = self.gen_expr_safe(&args[0], exprs).into_int_value();
+            let loaded = self.simd_load_vec(ptr, vt);
+            self.builder.build_store(vec_alloca, loaded).unwrap();
+        } else if dispatch_name.starts_with("simd_store") {
+            let dst = self.gen_expr_safe(&args[0], exprs).into_int_value();
+            let src = self.gen_expr_safe(&args[1], exprs).into_int_value();
+            let loaded = self.simd_load_vec(src, vt);
+            self.simd_store_vec(dst, loaded);
+            let alloca = *self.locals.get(dest).unwrap();
+            self.builder.build_store(alloca, self.i64_type.const_zero()).unwrap();
+            return;
+        } else if dispatch_name.starts_with("simd_free") || dispatch_name.starts_with("vector_free") {
+            let alloca = *self.locals.get(dest).unwrap();
+            self.builder.build_store(alloca, self.i64_type.const_zero()).unwrap();
+            return;
+        } else if dispatch_name.starts_with("vector_make") {
+            let poison = vt.get_undef();
+            let mut result = poison;
+            let n = args.len().min(lanes as usize);
+            for i in 0..n {
+                let val = self.gen_expr_safe(&args[i], exprs);
+                let idx = self.context.i32_type().const_int(i as u64, false);
+                let scalar = self.simd_trunc_val(val, bit_width, is_float);
+                result = self.builder.build_insert_element(result, scalar, idx, &format!("mk{}", i)).unwrap();
+            }
+            self.builder.build_store(vec_alloca, result).unwrap();
+        } else {
+            let alloca = *self.locals.get(dest).unwrap();
+            self.builder.build_store(alloca, self.i64_type.const_zero()).unwrap();
+            return;
+        }
+
+        let ptr_as_i64 = self.builder.build_ptr_to_int(vec_alloca, self.i64_type, "simd_res").unwrap();
+        let alloca = *self.locals.get(dest).unwrap();
+        self.builder.build_store(alloca, ptr_as_i64).unwrap();
+    }
+
+    /// Handle binary SIMD operation (add/sub/mul).
+    fn simd_binop(
+        &mut self,
+        vt: inkwell::types::VectorType<'ctx>,
+        args: &[u32],
+        exprs: &HashMap<u32, MirExpr>,
+        result_alloca: PointerValue<'ctx>,
+        op: &str,
+        is_float: bool,
+    ) {
+        if args.len() < 2 { return; }
+        let a_ptr = self.gen_expr_safe(&args[0], exprs).into_int_value();
+        let b_ptr = self.gen_expr_safe(&args[1], exprs).into_int_value();
+        let vec_a = self.simd_load_vec(a_ptr, vt);
+        let vec_b = self.simd_load_vec(b_ptr, vt);
+        let result = match op {
+            "add" if is_float => self.builder.build_float_add(vec_a, vec_b, "vadd").unwrap(),
+            "add" => self.builder.build_int_add(vec_a, vec_b, "vadd").unwrap(),
+            "sub" if is_float => self.builder.build_float_sub(vec_a, vec_b, "vsub").unwrap(),
+            "sub" => self.builder.build_int_sub(vec_a, vec_b, "vsub").unwrap(),
+            "mul" if is_float => self.builder.build_float_mul(vec_a, vec_b, "vmul").unwrap(),
+            "mul" => self.builder.build_int_mul(vec_a, vec_b, "vmul").unwrap(),
+            _ => vec_a.into(),
+        };
+        self.builder.build_store(result_alloca, result).unwrap();
+    }
+
+    /// Handle trivial SIMD constants (is_supported, optimal_size).
+    fn handle_simd_const(&mut self, method: &str, dest: &u32) {
+        let alloca = *self.locals.get(dest).unwrap();
+        let val = if method == "is_supported" { 1 } else { 4 };
+        self.builder.build_store(alloca, self.i64_type.const_int(val, false)).unwrap();
+    }
+
     pub fn type_to_llvm_type(&self, ty: &Type) -> inkwell::types::BasicTypeEnum<'ctx> {
         match ty {
             Type::I8 => self.context.i8_type().into(),
@@ -3914,9 +4118,25 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 )
                 .into(),
             Type::V4I64 => self.vec4_i64_type.into(),
-            Type::I32x4 => self.context.i32_type().array_type(4).into(),
-            Type::I64x2 => self.context.i64_type().array_type(2).into(),
-            Type::F32x4 => self.context.f32_type().array_type(4).into(),
+            Type::I32x4 => self.context.i32_type().vec_type(4).into(),
+            Type::I64x2 => self.context.i64_type().vec_type(2).into(),
+            Type::F32x4 => self.context.f32_type().vec_type(4).into(),
+            Type::Vector(element_type, size) => {
+                let element_llvm = self.type_to_llvm_type(element_type);
+                let lane_count = match size {
+                    crate::middle::types::ArraySize::Literal(n) => *n as u32,
+                    _ => 4, // default
+                };
+                match element_llvm {
+                    inkwell::types::BasicTypeEnum::IntType(int_type) => {
+                        int_type.vec_type(lane_count).into()
+                    }
+                    inkwell::types::BasicTypeEnum::FloatType(float_type) => {
+                        float_type.vec_type(lane_count).into()
+                    }
+                    _ => self.context.i64_type().vec_type(lane_count).into(),
+                }
+            },
             Type::Array(element_type, size) => {
                 let element_llvm_type = self.type_to_llvm_type(element_type);
                 let array_size = match size {

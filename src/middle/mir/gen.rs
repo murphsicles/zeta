@@ -1043,8 +1043,13 @@ impl MirGen {
                 for s in block_stmts {
                     self.stmts.push(s);
                 }
-                // Store the block result
-                self.exprs.insert(id, MirExpr::Var(val_id));
+                // Assign the block result to the block's local slot
+                self.stmts.push(MirStmt::Assign {
+                    lhs: id,
+                    rhs: val_id,
+                });
+                // Store the block result (reference own alloca so gen_expr_safe loads from it)
+                self.exprs.insert(id, MirExpr::Var(id));
                 if let Some(ty) = self.type_map.get(&val_id) {
                     self.type_map.insert(id, ty.clone());
                 } else {
@@ -1065,11 +1070,7 @@ impl MirGen {
                 self.exprs.insert(id, MirExpr::Lit(0));
                 self.type_map.insert(id, Type::I64);
             },
-            AstNode::Match { .. } => {
-                // Match as expression: return 0 placeholder.
-                self.exprs.insert(id, MirExpr::Lit(0));
-                self.type_map.insert(id, Type::I64);
-            },
+            // Match is handled below with full if-else chain lowering.
             AstNode::Var(name) => {
                 if let Some(&existing) = self.name_to_id.get(name) {
                     return existing;

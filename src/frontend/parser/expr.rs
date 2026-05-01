@@ -13,7 +13,7 @@ use nom::bytes::complete::tag;
 use nom::combinator::{map, opt};
 use nom::error::Error as NomError;
 use nom::multi::{separated_list0, separated_list1};
-use nom::sequence::{delimited, preceded, terminated};
+use nom::sequence::{delimited, pair, preceded, terminated};
 
 fn parse_float_lit(input: &str) -> IResult<&str, AstNode> {
     // OPTIMIZED: Use byte slices instead of character iteration
@@ -168,8 +168,68 @@ pub fn parse_lit(input: &str) -> IResult<&str, AstNode> {
     Ok((remaining, AstNode::Lit(value)))
 }
 
+fn parse_triple_quoted_string(input: &str) -> IResult<&str, AstNode> {
+    // Check for triple quotes: """ or '''
+    let (input, quote_char) = if let Ok((i, _)) = tag::<_, _, nom::error::Error<_>>("\"\"\"").parse(input) {
+        (i, '"')
+    } else if let Ok((i, _)) = tag::<_, _, nom::error::Error<_>>("'''").parse(input) {
+        (i, '\'')
+    } else {
+        return Err(nom::Err::Error(NomError::new(
+            input,
+            nom::error::ErrorKind::Tag,
+        )));
+    };
+
+    let mut content = String::new();
+    let mut chars = input.chars();
+    let mut pos = 0;
+    let mut quote_run = 0;
+
+    while let Some(c) = chars.next() {
+        pos += c.len_utf8();
+        if c == quote_char {
+            quote_run += 1;
+            if quote_run >= 3 {
+                // Found closing triple quote — trim trailing quote_chars
+                let remaining = &input[pos..];
+                return Ok((remaining, AstNode::StringLit(content)));
+            }
+        } else {
+            // Flush any accumulated quote chars
+            for _ in 0..quote_run {
+                content.push(quote_char);
+            }
+            quote_run = 0;
+            content.push(c);
+        }
+    }
+    // Handle trailing quotes (e.g., end-of-file with partial triple quote)
+    if quote_run == 3 {
+        // Exact match at EOF
+        let remaining = &input[pos..];
+        return Ok((remaining, AstNode::StringLit(content)));
+    }
+
+    Err(nom::Err::Error(NomError::new(
+        input,
+        nom::error::ErrorKind::Tag,
+    )))
+}
+
 fn parse_string_lit(input: &str) -> IResult<&str, AstNode> {
-    let (input, _) = tag("\"")(input)?;
+    // Support both single-quoted and double-quoted strings
+    let quote = if let Ok((i, _)) = tag::<_, _, nom::error::Error<_>>("\"").parse(input) {
+        (i, '"')
+    } else if let Ok((i, _)) = tag::<_, _, nom::error::Error<_>>("'").parse(input) {
+        (i, '\'')
+    } else {
+        return Err(nom::Err::Error(NomError::new(
+            input,
+            nom::error::ErrorKind::Tag,
+        )));
+    };
+    let (input, quote_char) = (quote.0, quote.1);
 
     // Simple parser that handles escaped quotes
     let mut content = String::new();
@@ -183,8 +243,8 @@ fn parse_string_lit(input: &str) -> IResult<&str, AstNode> {
             // Handle escape
             if let Some(next_c) = chars.next() {
                 pos += next_c.len_utf8();
-                if next_c == '"' {
-                    content.push('"');
+                if next_c == '"' || next_c == '\'' {
+                    content.push(next_c);
                 } else if next_c == '\\' {
                     content.push('\\');
                 } else if next_c == 'n' {
@@ -201,7 +261,7 @@ fn parse_string_lit(input: &str) -> IResult<&str, AstNode> {
             } else {
                 content.push('\\');
             }
-        } else if c == '"' {
+        } else if c == quote_char {
             // End of string
             let remaining = &input[pos..];
             return Ok((remaining, AstNode::StringLit(content)));
@@ -211,6 +271,28 @@ fn parse_string_lit(input: &str) -> IResult<&str, AstNode> {
     }
 
     // No closing quote found
+    Err(nom::Err::Error(NomError::new(
+        input,
+        nom::error::ErrorKind::Tag,
+    )))
+}
+
+/// Parse a raw string literal: r"..." (no escape processing)
+fn parse_raw_string_lit(input: &str) -> IResult<&str, AstNode> {
+    let (input, _) = tag("r\"")(input)?;
+    let mut content = String::new();
+    let mut chars = input.chars();
+    let mut pos = 0;
+
+    while let Some(c) = chars.next() {
+        pos += c.len_utf8();
+        if c == '"' {
+            let remaining = &input[pos..];
+            return Ok((remaining, AstNode::StringLit(content)));
+        } else {
+            content.push(c);
+        }
+    }
     Err(nom::Err::Error(NomError::new(
         input,
         nom::error::ErrorKind::Tag,
@@ -572,6 +654,24 @@ fn parse_tuple_or_paren(input: &str) -> IResult<&str, AstNode> {
     }
 }
 
+/// Parse a dict literal: {"key": value, ...}
+fn parse_dict_lit(input: &str) -> IResult<&str, AstNode> {
+    let (input, _) = ws(tag("{")).parse(input)?;
+    // Check it's not an empty block — if next char is '}' it's empty dict
+    let trimmed = input.trim_start();
+    if trimmed.starts_with("}") {
+        let (input, _) = ws(tag("}")).parse(input)?;
+        return Ok((input, AstNode::DictLit { entries: vec![] }));
+    }
+    let (input, entries) = separated_list0(
+        ws(tag(",")),
+        pair(ws(parse_expr), ws(preceded(tag(":"), ws(parse_expr)))),
+    )
+    .parse(input)?;
+    let (input, _) = ws(tag("}")).parse(input)?;
+    Ok((input, AstNode::DictLit { entries }))
+}
+
 fn parse_array_lit(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = ws(tag("[")).parse(input)?;
 
@@ -721,6 +821,8 @@ pub fn parse_primary(input: &str) -> IResult<&str, AstNode> {
         parse_trait_query,
         parse_tuple_or_paren,
         parse_lit,
+        parse_raw_string_lit,
+        parse_triple_quoted_string,
         parse_string_lit,
         parse_match_expr,
         parse_path_expr,
@@ -728,6 +830,7 @@ pub fn parse_primary(input: &str) -> IResult<&str, AstNode> {
         parse_array_lit,
         parse_bool,
         parse_closure,
+        parse_dict_lit,
         parse_block,
         parse_unsafe_expr,
         parse_comptime_block,

@@ -465,6 +465,11 @@ pub fn parse_type(input: &str) -> IResult<&str, String> {
     ));
 
     // Try special types first, then built-in types, then type paths
+    // Before trying type paths, check if this is a numeric literal (e.g., lane count "4")
+    if let Ok((i, digits)) = nom::character::complete::digit1::<&str, nom::error::Error<&str>>(input) {
+        s += digits;
+        return Ok((i, s));
+    }
     let (input, base) = alt((special_types, builtin_types, parse_type_path)).parse(input)?;
     s += &base;
     Ok((input, s))

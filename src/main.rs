@@ -18,6 +18,7 @@ use std::path::Path;
 
 use zetac::backend::codegen::LLVMCodegen;
 use zetac::backend::codegen::finalize_and_aot;
+use zetac::diagnostics::{Diagnostic, DiagnosticReporter, SourceLocation, SourceSpan, Severity};
 use zetac::frontend::ast::AstNode;
 use zetac::frontend::parser::top_level::parse_zeta;
 use zetac::middle::mir::mir::Mir;
@@ -112,7 +113,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let type_ok = resolver.typecheck(&expanded_asts);
                 if !type_ok {
-                    eprintln!("Warning: typecheck non-fatal");
+                    let diag = Diagnostic {
+                        severity: Severity::Warning,
+                        code: Some("W0003".to_string()),
+                        message: "Typecheck failed (non-fatal) — proceeding with unresolved types.".to_string(),
+                        span: None,
+                        context: None,
+                        help: None,
+                        note: Some("The program may have type errors that will manifest at runtime.".to_string()),
+                        suggestions: vec![],
+                    };
+                    eprintln!("{}", diag.format(None));
                 }
 
                 let func_asts = resolver.get_registered_funcs();
@@ -243,14 +254,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let result = main.call();
                             println!("Result: {}", result);
                         } else {
-                            println!("No main function");
+                            // Find what functions exist
+                            let func_names: Vec<String> = mir_map.keys().cloned().collect();
+                            let diag = Diagnostic {
+                                severity: Severity::Error,
+                                code: Some("E0001".to_string()),
+                                message: format!("No main function found. Available: [{}]", func_names.join(", ")),
+                                span: None,
+                                context: None,
+                                help: Some("Define a function named 'main' that returns i64.".to_string()),
+                                note: None,
+                                suggestions: vec![],
+                            };
+                            eprintln!("{}", diag.format(None));
                         }
                     }
                 }
                 Ok(())
             }
             Err(e) => {
-                println!("Parse error: {:?}", e);
+                let diag = Diagnostic {
+                    severity: Severity::Error,
+                    code: Some("E0100".to_string()),
+                    message: format!("Parse error: {:?}", e),
+                    span: None,
+                    context: None,
+                    help: Some("Check for syntax errors near the reported location.".to_string()),
+                    note: None,
+                    suggestions: vec![],
+                };
+                eprintln!("{}", diag.format(None));
                 Err("Parse failed".into())
             }
         }
@@ -380,7 +413,7 @@ fn bootstrap_zeta(output: &Option<String>) -> Result<(), Box<dyn std::error::Err
         unsafe {
             if let Ok(m) = ee.get_function::<unsafe extern "C" fn() -> i64>("main") {
                 println!("Result: {}", m.call());
-            } else { println!("No main function"); }
+            } else { eprintln!("Error: no main function in bootstrap binary"); }
         }
     }
     Ok(())
@@ -439,7 +472,7 @@ fn repl(_dump_mir: bool) -> Result<(), Box<dyn std::error::Error>> {
             if let Ok(f) = ee.get_function::<ReplFn>("main") {
                 println!("{}", f.call());
             } else {
-                println!("No main function");
+                eprintln!("REPL: no main function");
             }
         }
     }

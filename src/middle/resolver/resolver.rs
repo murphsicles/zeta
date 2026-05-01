@@ -992,6 +992,100 @@ impl Resolver {
             ),
         );
 
+        // str_split(s: str, delim: str) -> str
+        self.funcs.insert(
+            "str_split".to_string(),
+            (
+                vec![
+                    ("s".to_string(), Type::Str),
+                    ("delim".to_string(), Type::Str),
+                ],
+                Type::Str,
+                false,
+            ),
+        );
+        // str_join(parts: str, sep: str) -> str
+        self.funcs.insert(
+            "str_join".to_string(),
+            (
+                vec![
+                    ("parts".to_string(), Type::Str),
+                    ("sep".to_string(), Type::Str),
+                ],
+                Type::Str,
+                false,
+            ),
+        );
+        // str_find(haystack: str, needle: str) -> i64
+        self.funcs.insert(
+            "str_find".to_string(),
+            (
+                vec![
+                    ("haystack".to_string(), Type::Str),
+                    ("needle".to_string(), Type::Str),
+                ],
+                Type::I64,
+                false,
+            ),
+        );
+        // str_count(haystack: str, needle: str) -> i64
+        self.funcs.insert(
+            "str_count".to_string(),
+            (
+                vec![
+                    ("haystack".to_string(), Type::Str),
+                    ("needle".to_string(), Type::Str),
+                ],
+                Type::I64,
+                false,
+            ),
+        );
+        // str_strip(s: str) -> str
+        self.funcs.insert(
+            "str_strip".to_string(),
+            (
+                vec![("s".to_string(), Type::Str)],
+                Type::Str,
+                false,
+            ),
+        );
+        // str_lstrip(s: str) -> str
+        self.funcs.insert(
+            "str_lstrip".to_string(),
+            (
+                vec![("s".to_string(), Type::Str)],
+                Type::Str,
+                false,
+            ),
+        );
+        // str_rstrip(s: str) -> str
+        self.funcs.insert(
+            "str_rstrip".to_string(),
+            (
+                vec![("s".to_string(), Type::Str)],
+                Type::Str,
+                false,
+            ),
+        );
+        // str_isalpha(s: str) -> i64
+        self.funcs.insert(
+            "str_isalpha".to_string(),
+            (
+                vec![("s".to_string(), Type::Str)],
+                Type::I64,
+                false,
+            ),
+        );
+        // str_isnumeric(s: str) -> i64
+        self.funcs.insert(
+            "str_isnumeric".to_string(),
+            (
+                vec![("s".to_string(), Type::Str)],
+                Type::I64,
+                false,
+            ),
+        );
+
         // Comparison operators for i64
         // eq_i64(a: i64, b: i64) -> bool
         self.funcs.insert(
