@@ -22,7 +22,7 @@ use crate::runtime::zeta_runtime::{
 use inkwell::OptimizationLevel;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::passes::PassManager;
-use inkwell::targets::{FileType, InitializationConfig, Target, TargetMachine};
+use inkwell::targets::{FileType, InitializationConfig, Target, TargetMachine, TargetTriple};
 use std::error::Error;
 use std::ffi::CString;
 use std::fs;
@@ -59,7 +59,10 @@ fn optimize_module<'ctx>(module: &inkwell::module::Module<'ctx>, target_machine:
 }
 
 impl<'ctx> crate::backend::codegen::LLVMCodegen<'ctx> {
-    pub fn finalize_and_jit(&mut self) -> Result<ExecutionEngine<'ctx>, Box<dyn Error>> {
+    pub fn finalize_and_jit(&mut self, target_str: &str) -> Result<ExecutionEngine<'ctx>, Box<dyn Error>> {
+        if target_str == "wasm32" {
+            return Err("JIT not supported for WASM target. Use AOT compilation instead.".into());
+        }
         self.module.verify()?;
 
         Target::initialize_native(&InitializationConfig::default())?;
@@ -234,17 +237,32 @@ impl<'ctx> crate::backend::codegen::LLVMCodegen<'ctx> {
 pub fn finalize_and_aot<'ctx>(
     codegen: &crate::backend::codegen::LLVMCodegen<'ctx>,
     path: &Path,
+    target_str: &str,
 ) -> Result<(), Box<dyn Error>> {
     codegen.module.verify()?;
 
-    Target::initialize_native(&InitializationConfig::default())?;
-    let target_triple = TargetMachine::get_default_triple();
+    let (triple, cpu, features) = if target_str == "wasm32" || target_str == "wasm32-wasi" {
+        // WASM targets — initialize all targets to register WebAssembly
+        Target::initialize_all(&InitializationConfig::default());
+        let triple = if target_str == "wasm32-wasi" { "wasm32-wasi" } else { "wasm32-unknown-unknown" };
+        (triple.to_string(), "generic".to_string(), "+bulk-memory,+simd128".to_string())
+    } else {
+        // Native target
+        Target::initialize_native(&InitializationConfig::default())?;
+        // Use default triple directly (as TargetTriple, not String)
+        let triple_str = TargetMachine::get_default_triple();
+        (triple_str.as_str().to_str().unwrap_or("x86_64").to_string(),
+         TargetMachine::get_host_cpu_name().to_string(),
+         TargetMachine::get_host_cpu_features().to_string())
+    };
+
+    let target_triple = TargetTriple::create(&triple);
     let target = Target::from_triple(&target_triple)?;
     let target_machine = target
         .create_target_machine(
             &target_triple,
-            &TargetMachine::get_host_cpu_name().to_string(),
-            &TargetMachine::get_host_cpu_features().to_string(),
+            &cpu,
+            &features,
             OptimizationLevel::Aggressive,
             inkwell::targets::RelocMode::Default,
             inkwell::targets::CodeModel::Default,

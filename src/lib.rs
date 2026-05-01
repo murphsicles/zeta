@@ -114,7 +114,7 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
 
     codegen.gen_mirs(&mirs);
 
-    let ee = codegen.finalize_and_jit().map_err(|e| e.to_string())?;
+    let ee = codegen.finalize_and_jit("native").map_err(|e| e.to_string())?;
 
     // Map required runtime functions
     if let Some(f) = codegen.module.get_function("malloc") {
@@ -514,7 +514,7 @@ macro_rules! diag_warning {
 
     codegen.gen_mirs(&mirs);
 
-    let ee = codegen.finalize_and_jit().map_err(|e| {
+    let ee = codegen.finalize_and_jit("native").map_err(|e| {
         let span = SourceSpan::single(SourceLocation::new(filename, 1, 1, 0));
         let diag = diagnostic_from_code(
             "E4002",

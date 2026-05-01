@@ -71,10 +71,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut input = None;
     let mut output = args.iter().position(|a| a == "-o").and_then(|i| args.get(i+1)).cloned();
+    let mut target = "native".to_string();
     let mut i = 1;
 
     if args.iter().any(|a| a == "--bootstrap") {
-        return bootstrap_zeta(&output);
+        return bootstrap_zeta(&output, &target);
     }
 
     while i < args.len() {
@@ -86,6 +87,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             "--dump-mir" => {}
+            "--target" => {
+                i += 1;
+                if i < args.len() {
+                    target = args[i].clone();
+                }
+            }
             _ => input = Some(args[i].clone()),
         }
         i += 1;
@@ -220,11 +227,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 if let Some(out) = output {
                     let obj_path = format!("{}.o", out);
-                    finalize_and_aot(&codegen, Path::new(&obj_path))?;
+                    finalize_and_aot(&codegen, Path::new(&obj_path), &target)?;
 
                     // Platform-specific linking
-                    let mut cmd = std::process::Command::new("gcc");
-                    cmd.arg(&obj_path).arg("-o").arg(&out);
+                    if target == "wasm32" || target == "wasm32-wasi" {
+                        let wasm_path = format!("{}.wasm", out);
+                        let mut cmd = std::process::Command::new("wasm-ld");
+                        cmd.arg(&obj_path)
+                            .arg("--no-entry")
+                            .arg("--export-all")
+                            .arg("--allow-undefined")
+                            .arg("-o")
+                            .arg(&wasm_path);
+                        let runtime_wasm = std::path::Path::new("zeta_runtime_c_wasm.o");
+                        if runtime_wasm.exists() {
+                            cmd.arg(runtime_wasm);
+                        }
+                        let status = cmd.status()?;
+                        if !status.success() {
+                            return Err("WASM linking failed. Install wasm-ld (part of LLVM) or WASI SDK.".into());
+                        }
+                        println!("Compiled to {}", wasm_path);
+                    } else {
+                        let mut cmd = std::process::Command::new("gcc");
+                        cmd.arg(&obj_path).arg("-o").arg(&out);
 
                     // Add platform-specific libraries
                     if cfg!(target_os = "windows") {
@@ -268,8 +294,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         return Err("Linking failed".into());
                     }
                     println!("Compiled to {}", out);
+                    }
                 } else {
-                    let ee = codegen.finalize_and_jit()?;
+                    let ee = codegen.finalize_and_jit(&target)?;
                     type MainFn = unsafe extern "C" fn() -> i64;
                     unsafe {
                         if let Ok(main) = ee.get_function::<MainFn>("main") {
@@ -343,7 +370,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut codegen = LLVMCodegen::new(&context, "selfhost");
         codegen.gen_mirs(&mono_mirs);
 
-        let ee = codegen.finalize_and_jit()?;
+        let ee = codegen.finalize_and_jit(&target)?;
         type MainFn = unsafe extern "C" fn() -> i64;
         unsafe {
             let main = ee.get_function::<MainFn>("main")?;
@@ -354,7 +381,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-fn bootstrap_zeta(output: &Option<String>) -> Result<(), Box<dyn std::error::Error>> {
+fn bootstrap_zeta(output: &Option<String>, target: &str) -> Result<(), Box<dyn std::error::Error>> {
     use std::path::Path;
     fn collect(dir: &Path, files: &mut Vec<std::path::PathBuf>) -> std::io::Result<()> {
         if dir.is_dir() {
@@ -405,7 +432,7 @@ fn bootstrap_zeta(output: &Option<String>) -> Result<(), Box<dyn std::error::Err
     cg.gen_mirs(&mirs);
     if let Some(out) = output {
         let obj = format!("{}.o", out);
-        finalize_and_aot(&cg, Path::new(&obj))?;
+        finalize_and_aot(&cg, Path::new(&obj), target)?;
         let mut cmd = std::process::Command::new("gcc");
         cmd.arg(&obj).arg("-o").arg(&out).arg("-lc").arg("-no-pie");
         let rc = Path::new("zeta_runtime_c.o");
@@ -413,7 +440,7 @@ fn bootstrap_zeta(output: &Option<String>) -> Result<(), Box<dyn std::error::Err
         if !cmd.status()?.success() { return Err("Linking failed".into()); }
         println!("Compiled to {}", out);
     } else {
-        let ee = cg.finalize_and_jit()?;
+        let ee = cg.finalize_and_jit(target)?;
         unsafe {
             if let Ok(m) = ee.get_function::<unsafe extern "C" fn() -> i64>("main") {
                 println!("Result: {}", m.call());
@@ -471,7 +498,7 @@ fn repl(_dump_mir: bool) -> Result<(), Box<dyn std::error::Error>> {
         let mut codegen = LLVMCodegen::new(&context, "repl");
         codegen.gen_mirs(&mir_map.values().cloned().collect::<Vec<_>>());
 
-        let ee = codegen.finalize_and_jit()?;
+        let ee = codegen.finalize_and_jit("native")?;
         type ReplFn = unsafe extern "C" fn() -> i64;
         unsafe {
             if let Ok(f) = ee.get_function::<ReplFn>("main") {
