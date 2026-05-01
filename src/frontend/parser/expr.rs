@@ -971,7 +971,6 @@ fn parse_comparison(input: &str) -> IResult<&str, AstNode> {
         if found_op.is_none() {
             match skip_ws_and_comments0(remaining_input) {
                 Ok((i, _)) => {
-                    // DEBUG: Print what we're looking at
                     for &op in &comparison_ops {
                         if i.starts_with(op) {
                             found_op = Some(op);

@@ -371,27 +371,41 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
 /// Returns either the execution result or formatted diagnostics
 pub fn compile_with_diagnostics(code: &str, filename: &'static str) -> Result<i64, String> {
     use crate::diagnostics::{DiagnosticReporter, SourceLocation, SourceSpan};
-// Diagnostic macros for workspace-level error/warning reporting
+// Diagnostic macros — emit to thread-local DiagnosticReporter
 #[macro_export]
 macro_rules! diag_error {
-    ($code:expr, $msg:expr) => {
-        eprintln!("Error [{}]: {}", $code, $msg)
-    };
-    ($code:expr, $msg:expr, $($arg:expr),+) => {
-        eprintln!("Error [{}]: ", $code);
-        $(eprintln!("  {}", $arg);)+
-    };
+    ($code:expr, $($arg:tt)*) => {{
+        use $crate::diagnostics::{Diagnostic, Severity};
+        let diag = Diagnostic {
+            severity: Severity::Error,
+            code: Some(format!("E{}", $code)),
+            message: format!($($arg)*),
+            span: None,
+            context: None,
+            help: None,
+            note: None,
+            suggestions: vec![],
+        };
+        $crate::diagnostics::emit(diag);
+    }};
 }
 
 #[macro_export]
 macro_rules! diag_warning {
-    ($code:expr, $msg:expr) => {
-        eprintln!("Warning [{}]: {}", $code, $msg)
-    };
-    ($code:expr, $msg:expr, $($arg:expr),+) => {
-        eprintln!("Warning [{}]: ", $code);
-        $(eprintln!("  {}", $arg);)+
-    };
+    ($code:expr, $($arg:tt)*) => {{
+        use $crate::diagnostics::{Diagnostic, Severity};
+        let diag = Diagnostic {
+            severity: Severity::Warning,
+            code: Some(format!("W{}", $code)),
+            message: format!($($arg)*),
+            span: None,
+            context: None,
+            help: None,
+            note: None,
+            suggestions: vec![],
+        };
+        $crate::diagnostics::emit(diag);
+    }};
 }
 
 

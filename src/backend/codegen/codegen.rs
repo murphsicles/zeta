@@ -1435,8 +1435,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
         // Handle Type::method names (static methods)
         if name.contains("::") {
-            let mangled = name.replace("::", "_");
-            // Try the mangled name first
+            let mangled = name.replace("::", "__");
+            // Try the mangled name first (consistent with gen_mirs and resolver mangling)
             if let Some(&f) = self.fns.get(&mangled) {
                 return f;
             }
@@ -1638,16 +1638,31 @@ impl<'ctx> LLVMCodegen<'ctx> {
     ) -> FunctionValue<'ctx> {
         // If no type arguments, use regular lookup
         if type_args.is_empty() {
-            // Check if the function already exists
+            // Check if the function already exists (both raw and mangled)
             if let Some(f) = self.module.get_function(name) {
                 return f;
             }
+            if name.contains("::") {
+                let mangled = name.replace("::", "__");
+                if let Some(f) = self.module.get_function(&mangled) {
+                    return f;
+                }
+                // Also check fns cache
+                if let Some(&f) = self.fns.get(name) {
+                    return f;
+                }
+                if let Some(&f) = self.fns.get(&mangled) {
+                    return f;
+                }
+            }
             // Self-hosting bootstrap: path-qualified calls (e.g., Resolver::new)
             // may not have LLVM declarations yet — create extern stubs.
-            // Use variadic to avoid argument count mismatches with call sites.
+            // Use mangled name (:: → __) to match gen_mirs declarations.
             if name.contains("::") {
+                let mangled = name.replace("::", "__");
                 let fn_type = self.i64_type.fn_type(&[self.i64_type.into()], true);
-                let f = self.module.add_function(name, fn_type, Some(Linkage::External));
+                let f = self.module.add_function(&mangled, fn_type, Some(Linkage::External));
+                self.fns.insert(mangled, f);
                 return f;
             }
             return self.get_function(name);
@@ -1700,19 +1715,40 @@ impl<'ctx> LLVMCodegen<'ctx> {
         type_args: &[crate::middle::types::Type],
         args_count: usize,
     ) -> FunctionValue<'ctx> {
-        // Try existing lookup first
-        let existing = if type_args.is_empty() {
-            self.module.get_function(name)
+        // Try existing lookup first — check mangled name (:: → __) BEFORE raw name.
+        // gen_mirs stores functions with __, call sites reference with ::.
+        if type_args.is_empty() {
+            // Check mangled name first (AstNode::Lit → AstNode__Lit)
+            if name.contains("::") {
+                let mangled = name.replace("::", "__");
+                if let Some(f) = self.module.get_function(&mangled) {
+                    return f;
+                }
+                if let Some(&f) = self.fns.get(&mangled) {
+                    return f;
+                }
+            }
+            // Fall through to raw name check
+            if let Some(f) = self.module.get_function(name) {
+                return f;
+            }
+            if let Some(&f) = self.fns.get(name) {
+                return f;
+            }
         } else {
             let mangled = self.mangle_function_name(name, type_args);
-            self.module.get_function(&mangled)
-        };
-        if let Some(f) = existing {
-            return f;
+            if let Some(f) = self.module.get_function(&mangled) {
+                return f;
+            }
+            // Check bare name in case it's a non-generic runtime function
+            if let Some(f) = self.module.get_function(name) {
+                return f;
+            }
         }
         // Not found — create extern declaration matching the call site's arg count
+        // Use mangled name (:: → __) for consistency with gen_mirs/gen_fn
         let actual_name = if type_args.is_empty() {
-            name.to_string()
+            name.replace("::", "__")
         } else {
             self.mangle_function_name(name, type_args)
         };

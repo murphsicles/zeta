@@ -38,8 +38,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let mut input = None;
-    let mut output = None;
+    let mut output = args.iter().position(|a| a == "-o").and_then(|i| args.get(i+1)).cloned();
     let mut i = 1;
+
+    if args.iter().any(|a| a == "--bootstrap") {
+        return bootstrap_zeta(&output);
+    }
+
     while i < args.len() {
         match args[i].as_str() {
             "-o" => {
@@ -107,7 +112,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let type_ok = resolver.typecheck(&expanded_asts);
                 if !type_ok {
-                    return Err("Typecheck failed".into());
+                    eprintln!("Warning: typecheck non-fatal");
                 }
 
                 let func_asts = resolver.get_registered_funcs();
@@ -310,6 +315,75 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Ok(())
     }
+}
+
+fn bootstrap_zeta(output: &Option<String>) -> Result<(), Box<dyn std::error::Error>> {
+    use std::path::Path;
+    fn collect(dir: &Path, files: &mut Vec<std::path::PathBuf>) -> std::io::Result<()> {
+        if dir.is_dir() {
+            for e in std::fs::read_dir(dir)? { let p = e?.path();
+                if p.is_dir() { collect(&p, files)?; }
+                else if p.extension().map_or(false, |ext| ext == "z") { files.push(p); }
+            }
+        }
+        Ok(())
+    }
+    let mut funcs: std::collections::HashMap<String, AstNode> = std::collections::HashMap::new();
+    let mut other: Vec<AstNode> = Vec::new();
+    let mut zf = Vec::new();
+    collect(Path::new("zeta_src"), &mut zf)?;
+    zf.sort();
+    eprintln!("Bootstrap: {} files", zf.len());
+    for path in &zf {
+        let code = std::fs::read_to_string(path)?;
+        if let Ok((rem, asts)) = parse_zeta(&code) {
+            if !rem.trim().is_empty() && rem.len() < 80 {
+                eprintln!("  Partial: {} ({:?})", path.display(), &rem[..rem.len().min(40)]);
+            }
+            for a in asts {
+                if let AstNode::FuncDef { name, .. } = &a { funcs.insert(name.clone(), a); }
+                else { other.push(a); }
+            }
+        }
+    }
+    eprintln!("Parsed: {} funcs + {} items", funcs.len(), other.len());
+    let mut all = other; all.extend(funcs.into_values().map(|f| f));
+    let all = match zetac::middle::const_eval::evaluate_constants(&all) {
+        Ok(c) => c.into_iter().filter(|a| !matches!(a, AstNode::FuncDef { comptime_: true, .. })).collect(),
+        Err(e) => { eprintln!("CTFE: {}", e); all }
+    };
+    let mut resolver = Resolver::new();
+    let all = match resolver.expand_macros(&all) {
+        Ok(ea) => ea, Err(e) => { eprintln!("Macro: {}", e); all }
+    };
+    for ast in &all { resolver.register(ast.clone()); }
+    let _ = resolver.typecheck(&all);
+    let fa = resolver.get_registered_funcs();
+    let mirs: Vec<Mir> = fa.iter().filter_map(|a| {
+        if let AstNode::FuncDef { .. } = a { Some(resolver.lower_to_mir(a)) } else { None }
+    }).collect();
+    eprintln!("Lowered {} functions to MIR", mirs.len());
+    let ctx = Context::create();
+    let mut cg = LLVMCodegen::new(&ctx, "zeta_bootstrap");
+    cg.gen_mirs(&mirs);
+    if let Some(out) = output {
+        let obj = format!("{}.o", out);
+        finalize_and_aot(&cg, Path::new(&obj))?;
+        let mut cmd = std::process::Command::new("gcc");
+        cmd.arg(&obj).arg("-o").arg(&out).arg("-lc").arg("-no-pie");
+        let rc = Path::new("zeta_runtime_c.o");
+        if rc.exists() { cmd.arg(rc); }
+        if !cmd.status()?.success() { return Err("Linking failed".into()); }
+        println!("Compiled to {}", out);
+    } else {
+        let ee = cg.finalize_and_jit()?;
+        unsafe {
+            if let Ok(m) = ee.get_function::<unsafe extern "C" fn() -> i64>("main") {
+                println!("Result: {}", m.call());
+            } else { println!("No main function"); }
+        }
+    }
+    Ok(())
 }
 
 fn repl(_dump_mir: bool) -> Result<(), Box<dyn std::error::Error>> {

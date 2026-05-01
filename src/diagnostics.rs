@@ -448,3 +448,17 @@ pub mod errors {
             .with_suggestion("Add closing brace `}`".to_string())
     }
 }
+
+// ---------------------------------------------------------------------------
+// Thread-local reporter for ad-hoc diagnostics (no &mut passing required)
+// ---------------------------------------------------------------------------
+
+thread_local! {
+    static TL_REPORTER: std::cell::RefCell<DiagnosticReporter> =
+        std::cell::RefCell::new(DiagnosticReporter::new());
+}
+
+/// Emit a diagnostic to the thread-local reporter.
+pub fn emit(diagnostic: Diagnostic) {
+    TL_REPORTER.with(|r| r.borrow_mut().report(diagnostic));
+}
