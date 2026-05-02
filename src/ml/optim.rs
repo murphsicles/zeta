@@ -79,7 +79,9 @@ impl Optimizer for SGD {
                 // Momentum update
                 let grad = Tensor::rand(param.shape().to_vec(), false); // Placeholder for gradient
 
-                self.velocity.entry(i).or_insert_with(|| Tensor::zeros(param.shape().to_vec(), false));
+                self.velocity
+                    .entry(i)
+                    .or_insert_with(|| Tensor::zeros(param.shape().to_vec(), false));
 
                 let velocity = self.velocity.get_mut(&i).unwrap();
                 // velocity = momentum * velocity - lr * grad
@@ -343,7 +345,9 @@ impl Optimizer for Adagrad {
             // sum = sum + grad^2
             // param = param - lr * grad / (sqrt(sum) + eps)
 
-            self.sum.entry(i).or_insert_with(|| Tensor::zeros(param.shape().to_vec(), false));
+            self.sum
+                .entry(i)
+                .or_insert_with(|| Tensor::zeros(param.shape().to_vec(), false));
 
             // Placeholder for actual update
         }

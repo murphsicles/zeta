@@ -10,7 +10,7 @@
 //! array_new returns pointer to data (after header), not to header.
 #![allow(unsafe_code)]
 
-use std::alloc::{alloc, dealloc, Layout};
+use std::alloc::{Layout, alloc, dealloc};
 use std::ptr;
 
 /// ArrayHeader structure for bulletproof memory system
@@ -117,7 +117,7 @@ pub unsafe extern "C" fn array_new(capacity: usize) -> i64 {
     }
 
     // Return data pointer (not header pointer)
-    
+
     data_ptr as i64
 }
 
@@ -216,7 +216,6 @@ pub unsafe extern "C" fn array_get(ptr: i64, index: i64) -> i64 {
             return -4; // Error code for capacity exceeded
         }
 
-        
         unsafe { *data_ptr.offset(index as isize) }
     } else {
         // This is a stack array (no header)
@@ -399,7 +398,7 @@ pub unsafe extern "C" fn array_set_len(ptr: i64, len: i64) {
                 len, capacity
             );
         }
-    } 
+    }
     // For stack arrays, we don't have a length field
 }
 

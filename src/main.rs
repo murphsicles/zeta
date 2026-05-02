@@ -92,7 +92,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let codes = registry.all_codes();
             println!("Zeta error codes ({} total):", codes.len());
             for info in codes {
-                println!("  {:6} {:?}: {}", info.code, info.category, info.description);
+                println!(
+                    "  {:6} {:?}: {}",
+                    info.code, info.category, info.description
+                );
             }
         }
         return Ok(());
@@ -103,7 +106,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let mut input = None;
-    let mut output = args.iter().position(|a| a == "-o").and_then(|i| args.get(i+1)).cloned();
+    let mut output = args
+        .iter()
+        .position(|a| a == "-o")
+        .and_then(|i| args.get(i + 1))
+        .cloned();
     let mut target = "native".to_string();
     let mut i = 1;
 
@@ -184,7 +191,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let type_ok = resolver.typecheck(&expanded_asts);
                 if !type_ok {
-                    let diag = diagnostic_from_code("W0003", "Typecheck failed (non-fatal) — proceeding with unresolved types.".to_string(), None);
+                    let diag = diagnostic_from_code(
+                        "W0003",
+                        "Typecheck failed (non-fatal) — proceeding with unresolved types."
+                            .to_string(),
+                        None,
+                    );
                     eprintln!("{}", diag.format(None));
                 }
 
@@ -266,9 +278,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     if target == "wasm32" || target == "wasm32-wasi" {
                         let wasm_path = format!("{}.wasm", out);
                         // Try wasm-ld; fall back to versioned variant (wasm-ld-21, etc.)
-                        let wasm_ld = if std::process::Command::new("wasm-ld").arg("--version").output().is_ok() {
+                        let wasm_ld = if std::process::Command::new("wasm-ld")
+                            .arg("--version")
+                            .output()
+                            .is_ok()
+                        {
                             "wasm-ld"
-                        } else if std::process::Command::new("wasm-ld-21").arg("--version").output().is_ok() {
+                        } else if std::process::Command::new("wasm-ld-21")
+                            .arg("--version")
+                            .output()
+                            .is_ok()
+                        {
                             "wasm-ld-21"
                         } else {
                             return Err("WASM linker not found. Install wasm-ld (part of LLVM) or WASI SDK.".into());
@@ -286,55 +306,58 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         let status = cmd.status()?;
                         if !status.success() {
-                            return Err("WASM linking failed. Install wasm-ld (part of LLVM) or WASI SDK.".into());
+                            return Err(
+                                "WASM linking failed. Install wasm-ld (part of LLVM) or WASI SDK."
+                                    .into(),
+                            );
                         }
                         println!("Compiled to {}", wasm_path);
                     } else {
                         let mut cmd = std::process::Command::new("gcc");
                         cmd.arg(&obj_path).arg("-o").arg(&out);
 
-                    // Add platform-specific libraries
-                    if cfg!(target_os = "windows") {
-                        cmd.arg("-lmsvcrt") // Microsoft C runtime
-                            .arg("-lkernel32"); // Core Windows API
-                    } else {
-                        // Unix/Linux/MacOS
-                        cmd.arg("-lc"); // C standard library
-                        cmd.arg("-no-pie"); // Needed for PIE relocation errors with generated code
-                    }
-
-                    // Add Zeta runtime library
-                    // First try C runtime object file (simpler, no Rust stdlib dependencies)
-                    let runtime_c_obj = std::path::Path::new("zeta_runtime_c.o");
-                    let runtime_rust_obj = std::path::Path::new("zeta_runtime.o");
-
-                    if runtime_c_obj.exists() {
-                        // Use C runtime (preferred - no Rust stdlib dependencies)
-                        cmd.arg(runtime_c_obj);
-                    } else if runtime_rust_obj.exists() {
-                        // Fallback to old Rust runtime object
-                        cmd.arg(runtime_rust_obj);
-                    } else {
-                        // Check for compiled libraries
-                        let runtime_lib_windows =
-                            std::path::Path::new("runtime_lib/target/release/zeta_runtime.lib");
-                        let runtime_lib_unix = std::path::Path::new("libzeta.a");
-
-                        if runtime_lib_windows.exists() {
-                            // Windows: link against .lib file
-                            cmd.arg(runtime_lib_windows);
-                        } else if runtime_lib_unix.exists() {
-                            // Unix: link against .a file
-                            cmd.arg(runtime_lib_unix);
+                        // Add platform-specific libraries
+                        if cfg!(target_os = "windows") {
+                            cmd.arg("-lmsvcrt") // Microsoft C runtime
+                                .arg("-lkernel32"); // Core Windows API
+                        } else {
+                            // Unix/Linux/MacOS
+                            cmd.arg("-lc"); // C standard library
+                            cmd.arg("-no-pie"); // Needed for PIE relocation errors with generated code
                         }
-                    }
 
-                    let status = cmd.status()?;
+                        // Add Zeta runtime library
+                        // First try C runtime object file (simpler, no Rust stdlib dependencies)
+                        let runtime_c_obj = std::path::Path::new("zeta_runtime_c.o");
+                        let runtime_rust_obj = std::path::Path::new("zeta_runtime.o");
 
-                    if !status.success() {
-                        return Err("Linking failed".into());
-                    }
-                    println!("Compiled to {}", out);
+                        if runtime_c_obj.exists() {
+                            // Use C runtime (preferred - no Rust stdlib dependencies)
+                            cmd.arg(runtime_c_obj);
+                        } else if runtime_rust_obj.exists() {
+                            // Fallback to old Rust runtime object
+                            cmd.arg(runtime_rust_obj);
+                        } else {
+                            // Check for compiled libraries
+                            let runtime_lib_windows =
+                                std::path::Path::new("runtime_lib/target/release/zeta_runtime.lib");
+                            let runtime_lib_unix = std::path::Path::new("libzeta.a");
+
+                            if runtime_lib_windows.exists() {
+                                // Windows: link against .lib file
+                                cmd.arg(runtime_lib_windows);
+                            } else if runtime_lib_unix.exists() {
+                                // Unix: link against .a file
+                                cmd.arg(runtime_lib_unix);
+                            }
+                        }
+
+                        let status = cmd.status()?;
+
+                        if !status.success() {
+                            return Err("Linking failed".into());
+                        }
+                        println!("Compiled to {}", out);
                     }
                 } else {
                     let ee = codegen.finalize_and_jit(&target)?;
@@ -346,7 +369,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         } else {
                             // Find what functions exist
                             let func_names: Vec<String> = mir_map.keys().cloned().collect();
-                            let diag = diagnostic_from_code("E4001", format!("No main function found. Available: [{}]", func_names.join(", ")), None);
+                            let diag = diagnostic_from_code(
+                                "E4001",
+                                format!(
+                                    "No main function found. Available: [{}]",
+                                    func_names.join(", ")
+                                ),
+                                None,
+                            );
                             eprintln!("{}", diag.format(None));
                         }
                     }
@@ -426,9 +456,13 @@ fn bootstrap_zeta(output: &Option<String>, target: &str) -> Result<(), Box<dyn s
     use std::path::Path;
     fn collect(dir: &Path, files: &mut Vec<std::path::PathBuf>) -> std::io::Result<()> {
         if dir.is_dir() {
-            for e in std::fs::read_dir(dir)? { let p = e?.path();
-                if p.is_dir() { collect(&p, files)?; }
-                else if p.extension().is_some_and(|ext| ext == "z") { files.push(p); }
+            for e in std::fs::read_dir(dir)? {
+                let p = e?.path();
+                if p.is_dir() {
+                    collect(&p, files)?;
+                } else if p.extension().is_some_and(|ext| ext == "z") {
+                    files.push(p);
+                }
             }
         }
         Ok(())
@@ -443,30 +477,65 @@ fn bootstrap_zeta(output: &Option<String>, target: &str) -> Result<(), Box<dyn s
         let code = std::fs::read_to_string(path)?;
         if let Ok((rem, asts)) = parse_zeta(&code) {
             if !rem.trim().is_empty() && rem.len() < 80 {
-                eprintln!("  Partial: {} ({:?})", path.display(), &rem[..rem.len().min(40)]);
+                eprintln!(
+                    "  Partial: {} ({:?})",
+                    path.display(),
+                    &rem[..rem.len().min(40)]
+                );
             }
             for a in asts {
-                if let AstNode::FuncDef { name, .. } = &a { funcs.insert(name.clone(), a); }
-                else { other.push(a); }
+                if let AstNode::FuncDef { name, .. } = &a {
+                    funcs.insert(name.clone(), a);
+                } else {
+                    other.push(a);
+                }
             }
         }
     }
     eprintln!("Parsed: {} funcs + {} items", funcs.len(), other.len());
-    let mut all = other; all.extend(funcs.into_values());
+    let mut all = other;
+    all.extend(funcs.into_values());
     let all = match zetac::middle::const_eval::evaluate_constants(&all) {
-        Ok(c) => c.into_iter().filter(|a| !matches!(a, AstNode::FuncDef { comptime_: true, .. })).collect(),
-        Err(e) => { eprintln!("CTFE: {}", e); all }
+        Ok(c) => c
+            .into_iter()
+            .filter(|a| {
+                !matches!(
+                    a,
+                    AstNode::FuncDef {
+                        comptime_: true,
+                        ..
+                    }
+                )
+            })
+            .collect(),
+        Err(e) => {
+            eprintln!("CTFE: {}", e);
+            all
+        }
     };
     let mut resolver = Resolver::new();
     let all = match resolver.expand_macros(&all) {
-        Ok(ea) => ea, Err(e) => { eprintln!("Macro: {}", e); all }
+        Ok(ea) => ea,
+        Err(e) => {
+            eprintln!("Macro: {}", e);
+            all
+        }
     };
-    for ast in &all { resolver.register(ast.clone()); }
+    for ast in &all {
+        resolver.register(ast.clone());
+    }
     let _ = resolver.typecheck(&all);
     let fa = resolver.get_registered_funcs();
-    let mirs: Vec<Mir> = fa.iter().filter_map(|a| {
-        if let AstNode::FuncDef { .. } = a { Some(resolver.lower_to_mir(a)) } else { None }
-    }).collect();
+    let mirs: Vec<Mir> = fa
+        .iter()
+        .filter_map(|a| {
+            if let AstNode::FuncDef { .. } = a {
+                Some(resolver.lower_to_mir(a))
+            } else {
+                None
+            }
+        })
+        .collect();
     eprintln!("Lowered {} functions to MIR", mirs.len());
     let ctx = Context::create();
     let mut cg = LLVMCodegen::new(&ctx, "zeta_bootstrap");
@@ -477,15 +546,26 @@ fn bootstrap_zeta(output: &Option<String>, target: &str) -> Result<(), Box<dyn s
         let mut cmd = std::process::Command::new("gcc");
         cmd.arg(&obj).arg("-o").arg(out).arg("-lc").arg("-no-pie");
         let rc = Path::new("zeta_runtime_c.o");
-        if rc.exists() { cmd.arg(rc); }
-        if !cmd.status()?.success() { return Err("Linking failed".into()); }
+        if rc.exists() {
+            cmd.arg(rc);
+        }
+        if !cmd.status()?.success() {
+            return Err("Linking failed".into());
+        }
         println!("Compiled to {}", out);
     } else {
         let ee = cg.finalize_and_jit(target)?;
         unsafe {
             if let Ok(m) = ee.get_function::<unsafe extern "C" fn() -> i64>("main") {
                 println!("Result: {}", m.call());
-            } else { let diag = diagnostic_from_code("E4001", "No main function in bootstrap binary".to_string(), None); eprintln!("{}", diag.format(None)); }
+            } else {
+                let diag = diagnostic_from_code(
+                    "E4001",
+                    "No main function in bootstrap binary".to_string(),
+                    None,
+                );
+                eprintln!("{}", diag.format(None));
+            }
         }
     }
     Ok(())
@@ -545,7 +625,8 @@ fn repl(_dump_mir: bool) -> Result<(), Box<dyn std::error::Error>> {
             if let Ok(f) = ee.get_function::<ReplFn>("main") {
                 println!("{}", f.call());
             } else {
-                let diag = diagnostic_from_code("E4001", "No main function in REPL".to_string(), None);
+                let diag =
+                    diagnostic_from_code("E4001", "No main function in REPL".to_string(), None);
                 eprintln!("{}", diag.format(None));
             }
         }

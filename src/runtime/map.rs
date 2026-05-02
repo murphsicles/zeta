@@ -3,9 +3,9 @@
 #![allow(unused_attributes)]
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::LazyLock;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicI64, Ordering};
 
 // Simple global map store
 static MAP_STORE: LazyLock<Mutex<HashMap<i64, HashMap<i64, i64>>>> =

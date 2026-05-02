@@ -100,7 +100,6 @@ fn parse_visibility(input: &str) -> IResult<&str, bool> {
 }
 
 pub(crate) fn parse_func(input: &str) -> IResult<&str, AstNode> {
-
     let (input, attrs) = match parse_attributes(input) {
         Ok(r) => r,
         Err(e) => {

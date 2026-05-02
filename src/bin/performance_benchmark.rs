@@ -102,10 +102,12 @@ fn main() {
     // Since we don't have v0.3.23 to compare against, we'll establish
     // performance targets based on reasonable expectations
 
-    let performance_targets = [("Tiny program", Duration::from_millis(1)),
+    let performance_targets = [
+        ("Tiny program", Duration::from_millis(1)),
         ("Small program", Duration::from_millis(5)),
         ("Medium program", Duration::from_millis(20)),
-        ("Large program", Duration::from_millis(100))];
+        ("Large program", Duration::from_millis(100)),
+    ];
 
     println!("  Performance targets:");
     for (i, (size, target)) in performance_targets.iter().enumerate() {

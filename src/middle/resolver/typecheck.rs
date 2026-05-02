@@ -35,17 +35,28 @@ impl Resolver {
             }
             TypeCheckResult::Failure(errors) => {
                 // Type checking failed with errors
-                let diag = crate::error_codes::diagnostic_from_code("E2001", "Type checking failed".to_string(), None);
+                let diag = crate::error_codes::diagnostic_from_code(
+                    "E2001",
+                    "Type checking failed".to_string(),
+                    None,
+                );
                 crate::diagnostics::emit(diag);
                 for error in &errors {
-                    let diag = crate::error_codes::diagnostic_from_code("E2001", format!("  Type error: {}", error), None);
+                    let diag = crate::error_codes::diagnostic_from_code(
+                        "E2001",
+                        format!("  Type error: {}", error),
+                        None,
+                    );
                     crate::diagnostics::emit(diag);
                 }
                 false
             }
             TypeCheckResult::Fallback => {
                 // Fallback to simple type checking
-                let diag = crate::diagnostics::Diagnostic::warning("W0003", "Using fallback type checking".to_string());
+                let diag = crate::diagnostics::Diagnostic::warning(
+                    "W0003",
+                    "Using fallback type checking".to_string(),
+                );
                 crate::diagnostics::emit(diag);
                 let mut ok = true;
                 for ast in asts {
@@ -73,7 +84,16 @@ impl Resolver {
                 if let Some(sig) = self.get_func_signature(method) {
                     // Check number of arguments matches
                     if args.len() != sig.0.len() {
-                        let diag = crate::error_codes::diagnostic_from_code("E2007", format!("{} expects {} arguments, got {}", method, sig.0.len(), args.len()), None);
+                        let diag = crate::error_codes::diagnostic_from_code(
+                            "E2007",
+                            format!(
+                                "{} expects {} arguments, got {}",
+                                method,
+                                sig.0.len(),
+                                args.len()
+                            ),
+                            None,
+                        );
                         crate::diagnostics::emit(diag);
                         ok = false;
                     } else {
@@ -83,7 +103,17 @@ impl Resolver {
                         {
                             let arg_type = self.infer_type(arg);
                             if &arg_type != param_type {
-                                let diag = crate::error_codes::diagnostic_from_code("E2008", format!("Argument {} to {} has type {}, expected {}", i + 1, method, arg_type.display_name(), param_type.display_name()), None);
+                                let diag = crate::error_codes::diagnostic_from_code(
+                                    "E2008",
+                                    format!(
+                                        "Argument {} to {} has type {}, expected {}",
+                                        i + 1,
+                                        method,
+                                        arg_type.display_name(),
+                                        param_type.display_name()
+                                    ),
+                                    None,
+                                );
                                 crate::diagnostics::emit(diag);
                                 ok = false;
                             }
@@ -93,7 +123,11 @@ impl Resolver {
                     // Function not found - might be a builtin or generic function
                     // For now, don't fail for generic functions
                     if !method.contains("::") && !method.contains('<') {
-                        let diag = crate::error_codes::diagnostic_from_code("E2006", format!("Unknown function {}", method), None);
+                        let diag = crate::error_codes::diagnostic_from_code(
+                            "E2006",
+                            format!("Unknown function {}", method),
+                            None,
+                        );
                         crate::diagnostics::emit(diag);
                     }
                 }
@@ -114,12 +148,28 @@ impl Resolver {
                 // For logical operators (&&, ||), both operands must be bool
                 if op == "&&" || op == "||" {
                     if lty != Type::Bool {
-                        let diag = crate::error_codes::diagnostic_from_code("E2019", format!("Left operand of '{}' must be bool, got {}", op, lty.display_name()), None);
+                        let diag = crate::error_codes::diagnostic_from_code(
+                            "E2019",
+                            format!(
+                                "Left operand of '{}' must be bool, got {}",
+                                op,
+                                lty.display_name()
+                            ),
+                            None,
+                        );
                         crate::diagnostics::emit(diag);
                         ok = false;
                     }
                     if rty != Type::Bool {
-                        let diag = crate::error_codes::diagnostic_from_code("E2019", format!("Right operand of '{}' must be bool, got {}", op, rty.display_name()), None);
+                        let diag = crate::error_codes::diagnostic_from_code(
+                            "E2019",
+                            format!(
+                                "Right operand of '{}' must be bool, got {}",
+                                op,
+                                rty.display_name()
+                            ),
+                            None,
+                        );
                         crate::diagnostics::emit(diag);
                         ok = false;
                     }
@@ -132,11 +182,27 @@ impl Resolver {
                             (lty.as_vector(), rty.as_vector())
                         {
                             if l_inner != r_inner {
-                                let diag = crate::error_codes::diagnostic_from_code("E2024", format!("SIMD vector element type mismatch in '{}': {} vs {}", op, l_inner.display_name(), r_inner.display_name()), None);
+                                let diag = crate::error_codes::diagnostic_from_code(
+                                    "E2024",
+                                    format!(
+                                        "SIMD vector element type mismatch in '{}': {} vs {}",
+                                        op,
+                                        l_inner.display_name(),
+                                        r_inner.display_name()
+                                    ),
+                                    None,
+                                );
                                 crate::diagnostics::emit(diag);
                                 ok = false;
                             } else if l_size != r_size {
-                                let diag = crate::error_codes::diagnostic_from_code("E2024", format!("SIMD vector size mismatch in '{}': {} vs {}", op, l_size, r_size), None);
+                                let diag = crate::error_codes::diagnostic_from_code(
+                                    "E2024",
+                                    format!(
+                                        "SIMD vector size mismatch in '{}': {} vs {}",
+                                        op, l_size, r_size
+                                    ),
+                                    None,
+                                );
                                 crate::diagnostics::emit(diag);
                                 ok = false;
                             }
@@ -144,7 +210,16 @@ impl Resolver {
                         }
                     } else {
                         // Not both vectors, types must match exactly
-                        let diag = crate::error_codes::diagnostic_from_code("E2038", format!("Type mismatch in binary operation '{}': {} vs {}", op, lty.display_name(), rty.display_name()), None);
+                        let diag = crate::error_codes::diagnostic_from_code(
+                            "E2038",
+                            format!(
+                                "Type mismatch in binary operation '{}': {} vs {}",
+                                op,
+                                lty.display_name(),
+                                rty.display_name()
+                            ),
+                            None,
+                        );
                         crate::diagnostics::emit(diag);
                         ok = false;
                     }
@@ -191,7 +266,14 @@ impl Resolver {
                 // Check condition - should be bool
                 let cond_type = self.infer_type(cond);
                 if cond_type != Type::Bool {
-                    let diag = crate::error_codes::diagnostic_from_code("E2019", format!("While condition must be bool, got {}", cond_type.display_name()), None);
+                    let diag = crate::error_codes::diagnostic_from_code(
+                        "E2019",
+                        format!(
+                            "While condition must be bool, got {}",
+                            cond_type.display_name()
+                        ),
+                        None,
+                    );
                     crate::diagnostics::emit(diag);
                     ok = false;
                 }
@@ -246,7 +328,11 @@ impl Resolver {
         match self.parse_type_string(s) {
             Ok(ty) => ty,
             Err(err) => {
-                let diag = crate::error_codes::diagnostic_from_code("E2005", format!("Failed to parse type '{}': {}", s, err), None);
+                let diag = crate::error_codes::diagnostic_from_code(
+                    "E2005",
+                    format!("Failed to parse type '{}': {}", s, err),
+                    None,
+                );
                 crate::diagnostics::emit(diag);
                 // Fallback to Named type
                 Type::Named(s.to_string(), vec![])
@@ -333,9 +419,10 @@ impl Resolver {
     pub fn ctfe_eval(&self, node: &AstNode) -> Option<i64> {
         // Try to get constant value by name if it's a variable reference
         if let AstNode::Var(name) = node
-            && let Some(const_val) = self.ctfe_consts.get(name) {
-                return const_val.as_int();
-            }
+            && let Some(const_val) = self.ctfe_consts.get(name)
+        {
+            return const_val.as_int();
+        }
 
         match node {
             AstNode::Lit(n) => Some(*n),
@@ -427,16 +514,27 @@ impl Resolver {
                 Ok(warnings) => {
                     // Print warnings but don't fail compilation
                     for warning in warnings {
-                        let diag = crate::diagnostics::Diagnostic::warning("W0003", format!("Identity warning: {}", warning));
+                        let diag = crate::diagnostics::Diagnostic::warning(
+                            "W0003",
+                            format!("Identity warning: {}", warning),
+                        );
                         crate::diagnostics::emit(diag);
                     }
                 }
                 Err(errors) => {
                     // Identity verification failed
-                    let diag = crate::error_codes::diagnostic_from_code("E2033", "Identity verification failed".to_string(), None);
+                    let diag = crate::error_codes::diagnostic_from_code(
+                        "E2033",
+                        "Identity verification failed".to_string(),
+                        None,
+                    );
                     crate::diagnostics::emit(diag);
                     for error in errors {
-                        let diag = crate::error_codes::diagnostic_from_code("E2033", format!("  Identity error: {}", error), None);
+                        let diag = crate::error_codes::diagnostic_from_code(
+                            "E2033",
+                            format!("  Identity error: {}", error),
+                            None,
+                        );
                         crate::diagnostics::emit(diag);
                     }
                     all_ok = false;

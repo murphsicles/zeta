@@ -74,40 +74,43 @@ impl IdentityInferenceContext {
                     // Apply pattern constraint to all type variables with known values
                     for (_, identity_type) in self.type_vars.iter_mut() {
                         if let Some(value) = &identity_type.value
-                            && !value.contains(pattern) {
-                                self.errors.push(format!(
-                                    "Identity value '{}' does not match pattern '{}'",
-                                    value, pattern
-                                ));
-                            }
+                            && !value.contains(pattern)
+                        {
+                            self.errors.push(format!(
+                                "Identity value '{}' does not match pattern '{}'",
+                                value, pattern
+                            ));
+                        }
                     }
                 }
                 IdentityConstraint::MaxLength(max) => {
                     // Apply max length constraint
                     for (name, identity_type) in self.type_vars.iter_mut() {
                         if let Some(value) = &identity_type.value
-                            && value.len() > *max {
-                                self.errors.push(format!(
-                                    "Identity '{}' length {} exceeds maximum {}",
-                                    name,
-                                    value.len(),
-                                    max
-                                ));
-                            }
+                            && value.len() > *max
+                        {
+                            self.errors.push(format!(
+                                "Identity '{}' length {} exceeds maximum {}",
+                                name,
+                                value.len(),
+                                max
+                            ));
+                        }
                     }
                 }
                 IdentityConstraint::MinLength(min) => {
                     // Apply min length constraint
                     for (name, identity_type) in self.type_vars.iter_mut() {
                         if let Some(value) = &identity_type.value
-                            && value.len() < *min {
-                                self.errors.push(format!(
-                                    "Identity '{}' length {} is less than minimum {}",
-                                    name,
-                                    value.len(),
-                                    min
-                                ));
-                            }
+                            && value.len() < *min
+                        {
+                            self.errors.push(format!(
+                                "Identity '{}' length {} is less than minimum {}",
+                                name,
+                                value.len(),
+                                min
+                            ));
+                        }
                     }
                 }
                 IdentityConstraint::Capability(required_cap) => {

@@ -154,9 +154,10 @@ impl DependencyGraph {
             } else {
                 // Update reverse dependencies
                 if let Some(node) = nodes.get_mut(dep_name)
-                    && !node.reverse_dependencies.contains(&current.to_string()) {
-                        node.reverse_dependencies.push(current.to_string());
-                    }
+                    && !node.reverse_dependencies.contains(&current.to_string())
+                {
+                    node.reverse_dependencies.push(current.to_string());
+                }
             }
         }
     }

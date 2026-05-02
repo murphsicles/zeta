@@ -475,31 +475,26 @@ impl ModuleResolver {
         let mut exports = HashMap::new();
         for ast in &asts {
             match ast {
-                AstNode::EnumDef { name, pub_, .. }
-                    if *pub_ => {
-                        exports.insert(name.clone(), ast.clone());
-                    }
-                AstNode::StructDef { name, pub_, .. }
-                    if *pub_ => {
-                        exports.insert(name.clone(), ast.clone());
-                    }
-                AstNode::FuncDef { name, pub_, .. }
-                    if *pub_ => {
-                        exports.insert(name.clone(), ast.clone());
-                    }
-                AstNode::TypeAlias { name, pub_, .. }
-                    if *pub_ => {
-                        exports.insert(name.clone(), ast.clone());
-                    }
+                AstNode::EnumDef { name, pub_, .. } if *pub_ => {
+                    exports.insert(name.clone(), ast.clone());
+                }
+                AstNode::StructDef { name, pub_, .. } if *pub_ => {
+                    exports.insert(name.clone(), ast.clone());
+                }
+                AstNode::FuncDef { name, pub_, .. } if *pub_ => {
+                    exports.insert(name.clone(), ast.clone());
+                }
+                AstNode::TypeAlias { name, pub_, .. } if *pub_ => {
+                    exports.insert(name.clone(), ast.clone());
+                }
                 AstNode::ConstDef {
                     name,
                     pub_,
                     comptime_,
                     ..
+                } if *pub_ => {
+                    exports.insert(name.clone(), ast.clone());
                 }
-                    if *pub_ => {
-                        exports.insert(name.clone(), ast.clone());
-                    }
                 _ => {}
             }
         }

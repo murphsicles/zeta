@@ -2,8 +2,7 @@
 use crate::middle::types::Type;
 use std::collections::HashMap;
 
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Mir {
     pub name: Option<String>,
     pub param_indices: Vec<(String, u32)>,
@@ -16,7 +15,6 @@ pub struct Mir {
     /// "commutative", "associative", "identity(value)"
     pub properties: Vec<String>,
 }
-
 
 #[derive(Debug, Clone)]
 pub enum MirStmt {

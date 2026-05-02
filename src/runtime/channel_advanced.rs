@@ -426,9 +426,10 @@ impl ChannelSelector {
 
             // Check timeout
             if let Some(timeout_duration) = timeout
-                && start.elapsed() >= timeout_duration {
-                    return None;
-                }
+                && start.elapsed() >= timeout_duration
+            {
+                return None;
+            }
 
             // Yield to avoid busy waiting
             std::thread::yield_now();

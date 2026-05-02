@@ -255,12 +255,13 @@ impl IdentityVerificationPass {
     fn check_assignment_for_identity(&mut self, target: &AstNode, value: &AstNode) {
         // Check if we're assigning to something that looks like an identity
         if let AstNode::Var(name) = target
-            && (name.starts_with("identity_") || name.ends_with("_id") || name.ends_with("_token")) {
-                self.warnings.push(format!(
-                    "Assignment to identity-like variable '{}' - capability transfer may be needed",
-                    name
-                ));
-            }
+            && (name.starts_with("identity_") || name.ends_with("_id") || name.ends_with("_token"))
+        {
+            self.warnings.push(format!(
+                "Assignment to identity-like variable '{}' - capability transfer may be needed",
+                name
+            ));
+        }
 
         // Check if we're assigning an identity-like string
         if let AstNode::StringLit(value_str) = value {
@@ -290,12 +291,12 @@ impl IdentityVerificationPass {
                     && (name.starts_with("identity_")
                         || name.ends_with("_id")
                         || name.ends_with("_token"))
-                    {
-                        self.warnings.push(format!(
+                {
+                    self.warnings.push(format!(
                             "Argument '{}' to function '{}' appears to be an identity - ensure it has required capabilities",
                             name, func_name
                         ));
-                    }
+                }
             }
         }
     }
@@ -306,17 +307,18 @@ impl IdentityVerificationPass {
         if type_str.contains("[identity:") {
             // Extract capability list
             if let Some(start) = type_str.find("[identity:")
-                && let Some(end) = type_str[start..].find(']') {
-                    let constraint_str = &type_str[start + 9..start + end];
-                    let capabilities: Vec<&str> = constraint_str.split('+').collect();
+                && let Some(end) = type_str[start..].find(']')
+            {
+                let constraint_str = &type_str[start + 9..start + end];
+                let capabilities: Vec<&str> = constraint_str.split('+').collect();
 
-                    if !capabilities.is_empty() {
-                        self.warnings.push(format!(
-                            "Type annotation for {} has capability constraints: {}",
-                            context, constraint_str
-                        ));
-                    }
+                if !capabilities.is_empty() {
+                    self.warnings.push(format!(
+                        "Type annotation for {} has capability constraints: {}",
+                        context, constraint_str
+                    ));
                 }
+            }
         }
     }
 

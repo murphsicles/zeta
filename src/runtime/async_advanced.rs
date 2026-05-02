@@ -188,10 +188,11 @@ impl Worker {
                 for other_worker in workers.iter() {
                     if other_worker.id != self.id
                         && let Some(task) = other_worker.deque.steal()
-                            && task.state() != TaskState::Completed {
-                                let _ = task.poll();
-                                break;
-                            }
+                        && task.state() != TaskState::Completed
+                    {
+                        let _ = task.poll();
+                        break;
+                    }
                 }
 
                 // No work available, yield

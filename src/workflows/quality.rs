@@ -295,9 +295,10 @@ impl CodeQualityChecker {
             } else if path.is_file() {
                 // Check Rust and Zeta files
                 if let Some(ext) = path.extension()
-                    && (ext == "rs" || ext == "z") {
-                        issues.extend(self.check_file(&path));
-                    }
+                    && (ext == "rs" || ext == "z")
+                {
+                    issues.extend(self.check_file(&path));
+                }
             }
         }
 

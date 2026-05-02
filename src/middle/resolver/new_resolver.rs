@@ -853,7 +853,11 @@ impl InferContext {
                     // can be evaluated at compile time
                     // TODO: Implement proper compile-time evaluation checking
                     // For now, we just mark it as comptime and continue
-                    crate::diag_warning!("W3001", "Comptime function '{}' - compile-time evaluation not fully implemented yet", name);
+                    crate::diag_warning!(
+                        "W3001",
+                        "Comptime function '{}' - compile-time evaluation not fully implemented yet",
+                        name
+                    );
                 }
 
                 // Register function signature as a proper function type
@@ -919,12 +923,12 @@ impl InferContext {
                         AstNode::ExprStmt { expr } => {
                             // Re-infer the expression type (we already have it from earlier inference)
                             // But we need to get the type of the expression, not the statement
-                            
+
                             self.infer(expr)?
                         }
                         AstNode::Return(expr) => {
                             // Return statement: use the inner expression's type
-                            
+
                             self.infer(expr)?
                         }
                         _ => last_stmt_type,
@@ -1641,12 +1645,12 @@ impl InferContext {
                     match last_node {
                         AstNode::ExprStmt { expr } => {
                             // Expression statement: the block's value is the expression's type
-                            
+
                             self.infer(expr)
                         }
                         _ => {
                             // Any other statement: block's type is the statement's type
-                            
+
                             self.infer(last_node)
                         }
                     }

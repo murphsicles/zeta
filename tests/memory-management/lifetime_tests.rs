@@ -14,9 +14,7 @@ fn test_lifetime_basics() {
     assert_eq!(Lifetime::Static.display_name(), "'static");
     assert_eq!(Lifetime::Named("a".to_string()).display_name(), "'a");
     let lv = LifetimeVar::fresh();
-    assert!(
-        Lifetime::Variable(lv).display_name().starts_with("'L")
-    );
+    assert!(Lifetime::Variable(lv).display_name().starts_with("'L"));
     println!("✓ Lifetime display names work");
 
     // Test 2: Lifetime outlives relationships

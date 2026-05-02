@@ -4,8 +4,8 @@
 use std::collections::VecDeque;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::RwLock;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::task::{Context, Poll, RawWaker, RawWakerVTable};
 
 /// Next future ID counter

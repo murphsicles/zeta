@@ -6,7 +6,6 @@
 //! 2. Procedural macros (derive, attribute, function)
 //! 3. Macro expansion during compilation
 
-
 use crate::frontend::ast::AstNode;
 use std::collections::HashMap;
 
@@ -277,13 +276,15 @@ impl MacroExpander {
                     // Check repetition bounds
                     let count = matched_args.len();
                     if let Some(min_count) = min
-                        && count < *min_count {
-                            return None;
-                        }
+                        && count < *min_count
+                    {
+                        return None;
+                    }
                     if let Some(max_count) = max
-                        && count > *max_count {
-                            return None;
-                        }
+                        && count > *max_count
+                    {
+                        return None;
+                    }
 
                     // Store the matched arguments
                     // For now, use a placeholder name

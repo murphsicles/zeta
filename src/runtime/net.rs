@@ -51,32 +51,36 @@ pub unsafe extern "C" fn tcp_connect(host: i64, port: i64) -> i64 {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn tcp_write(stream: i64, data: i64, len: i64) -> i64 { unsafe {
-    let mut s = STREAMS.lock().unwrap();
-    if let Some(stream) = s.get_mut(&stream) {
-        let buf = std::slice::from_raw_parts(data as *const u8, len as usize);
-        match stream.write_all(buf) {
-            Ok(_) => len,
-            Err(_) => -1,
+pub unsafe extern "C" fn tcp_write(stream: i64, data: i64, len: i64) -> i64 {
+    unsafe {
+        let mut s = STREAMS.lock().unwrap();
+        if let Some(stream) = s.get_mut(&stream) {
+            let buf = std::slice::from_raw_parts(data as *const u8, len as usize);
+            match stream.write_all(buf) {
+                Ok(_) => len,
+                Err(_) => -1,
+            }
+        } else {
+            -1
         }
-    } else {
-        -1
     }
-}}
+}
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn tcp_read(stream: i64, buf: i64, len: i64) -> i64 { unsafe {
-    let mut s = STREAMS.lock().unwrap();
-    if let Some(stream) = s.get_mut(&stream) {
-        let buf = std::slice::from_raw_parts_mut(buf as *mut u8, len as usize);
-        match stream.read(buf) {
-            Ok(n) => n as i64,
-            Err(_) => -1,
+pub unsafe extern "C" fn tcp_read(stream: i64, buf: i64, len: i64) -> i64 {
+    unsafe {
+        let mut s = STREAMS.lock().unwrap();
+        if let Some(stream) = s.get_mut(&stream) {
+            let buf = std::slice::from_raw_parts_mut(buf as *mut u8, len as usize);
+            match stream.read(buf) {
+                Ok(n) => n as i64,
+                Err(_) => -1,
+            }
+        } else {
+            -1
         }
-    } else {
-        -1
     }
-}}
+}
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn tcp_close(stream: i64) {

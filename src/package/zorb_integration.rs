@@ -130,9 +130,10 @@ impl ZorbClient {
         // Simple substring search in package names
         for (name, packages) in &self.registry_index {
             if name.contains(query)
-                && let Some(latest) = packages.first() {
-                    results.push(latest.clone());
-                }
+                && let Some(latest) = packages.first()
+            {
+                results.push(latest.clone());
+            }
         }
 
         // If index is empty, try to search using zorb command

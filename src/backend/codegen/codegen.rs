@@ -1293,52 +1293,116 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     /// Check if a function name is a SIMD operation
     fn is_simd_operation(&self, name: &str) -> bool {
-        name.starts_with("simd_") || name.starts_with("vector_") || name.starts_with("simd::") || name.starts_with("Vector::") || name.starts_with("Vector__")
+        name.starts_with("simd_")
+            || name.starts_with("vector_")
+            || name.starts_with("simd::")
+            || name.starts_with("Vector::")
+            || name.starts_with("Vector__")
     }
 
     /// Parse type info from a SIMD operation name.
     fn parse_simd_type_info(name: &str) -> Option<(u32, u32, bool)> {
-        if name.contains("i32x4") { Some((32, 4, false)) }
-        else if name.contains("i64x2") { Some((64, 2, false)) }
-        else if name.contains("f32x4") { Some((32, 4, true)) }
-        else if name.contains("u64x8") { Some((64, 8, false)) }
-        else if name.contains("i64x4") { Some((64, 4, false)) }
-        else if name.contains("i32x8") { Some((32, 8, false)) }
-        else { None }
+        if name.contains("i32x4") {
+            Some((32, 4, false))
+        } else if name.contains("i64x2") {
+            Some((64, 2, false))
+        } else if name.contains("f32x4") {
+            Some((32, 4, true))
+        } else if name.contains("u64x8") {
+            Some((64, 8, false))
+        } else if name.contains("i64x4") {
+            Some((64, 4, false))
+        } else if name.contains("i32x8") {
+            Some((32, 8, false))
+        } else {
+            None
+        }
     }
 
-    fn simd_vector_type(&self, bit_width: u32, lanes: u32, is_float: bool) -> inkwell::types::VectorType<'ctx> {
-        if is_float && bit_width == 32 && lanes == 4 { self.context.f32_type().vec_type(lanes) }
-        else if bit_width == 64 && lanes == 4 { self.vec4_i64_type }
-        else if bit_width == 64 { self.context.i64_type().vec_type(lanes) }
-        else if bit_width == 32 { self.context.i32_type().vec_type(lanes) }
-        else { self.vec4_i64_type }
+    fn simd_vector_type(
+        &self,
+        bit_width: u32,
+        lanes: u32,
+        is_float: bool,
+    ) -> inkwell::types::VectorType<'ctx> {
+        if is_float && bit_width == 32 && lanes == 4 {
+            self.context.f32_type().vec_type(lanes)
+        } else if bit_width == 64 && lanes == 4 {
+            self.vec4_i64_type
+        } else if bit_width == 64 {
+            self.context.i64_type().vec_type(lanes)
+        } else if bit_width == 32 {
+            self.context.i32_type().vec_type(lanes)
+        } else {
+            self.vec4_i64_type
+        }
     }
 
-    fn simd_alloca_vec(&mut self, vt: inkwell::types::VectorType<'ctx>) -> (PointerValue<'ctx>, inkwell::values::IntValue<'ctx>) {
+    fn simd_alloca_vec(
+        &mut self,
+        vt: inkwell::types::VectorType<'ctx>,
+    ) -> (PointerValue<'ctx>, inkwell::values::IntValue<'ctx>) {
         let alloca = self.builder.build_alloca(vt, "simd_tmp").unwrap();
-        let ptr = self.builder.build_ptr_to_int(alloca, self.i64_type, "simd_ptr").unwrap();
+        let ptr = self
+            .builder
+            .build_ptr_to_int(alloca, self.i64_type, "simd_ptr")
+            .unwrap();
         (alloca, ptr)
     }
 
-    fn simd_load_vec(&mut self, ptr: inkwell::values::IntValue<'ctx>, vt: inkwell::types::VectorType<'ctx>) -> inkwell::values::VectorValue<'ctx> {
-        let cast = self.builder.build_int_to_ptr(ptr, self.ptr_type, "vec_p").unwrap();
-        self.builder.build_load(vt, cast, "vec").unwrap().into_vector_value()
+    fn simd_load_vec(
+        &mut self,
+        ptr: inkwell::values::IntValue<'ctx>,
+        vt: inkwell::types::VectorType<'ctx>,
+    ) -> inkwell::values::VectorValue<'ctx> {
+        let cast = self
+            .builder
+            .build_int_to_ptr(ptr, self.ptr_type, "vec_p")
+            .unwrap();
+        self.builder
+            .build_load(vt, cast, "vec")
+            .unwrap()
+            .into_vector_value()
     }
 
-    fn simd_store_vec(&mut self, ptr: inkwell::values::IntValue<'ctx>, val: inkwell::values::VectorValue<'ctx>) {
-        let cast = self.builder.build_int_to_ptr(ptr, self.ptr_type, "vec_p").unwrap();
+    fn simd_store_vec(
+        &mut self,
+        ptr: inkwell::values::IntValue<'ctx>,
+        val: inkwell::values::VectorValue<'ctx>,
+    ) {
+        let cast = self
+            .builder
+            .build_int_to_ptr(ptr, self.ptr_type, "vec_p")
+            .unwrap();
         self.builder.build_store(cast, val).unwrap();
     }
 
-    fn simd_trunc_val(&mut self, val: inkwell::values::BasicValueEnum<'ctx>, bit_width: u32, is_float: bool) -> inkwell::values::BasicValueEnum<'ctx> {
-        if bit_width == 32 && !is_float { self.builder.build_int_truncate(val.into_int_value(), self.context.i32_type(), "trunc").unwrap().into() }
-        else if is_float { val.into_float_value().into() }
-        else { val.into_int_value().into() }
+    fn simd_trunc_val(
+        &mut self,
+        val: inkwell::values::BasicValueEnum<'ctx>,
+        bit_width: u32,
+        is_float: bool,
+    ) -> inkwell::values::BasicValueEnum<'ctx> {
+        if bit_width == 32 && !is_float {
+            self.builder
+                .build_int_truncate(val.into_int_value(), self.context.i32_type(), "trunc")
+                .unwrap()
+                .into()
+        } else if is_float {
+            val.into_float_value().into()
+        } else {
+            val.into_int_value().into()
+        }
     }
 
-    fn simd_zext_i64(&mut self, val: inkwell::values::BasicValueEnum<'ctx>) -> inkwell::values::BasicValueEnum<'ctx> {
-        self.builder.build_int_z_extend(val.into_int_value(), self.i64_type, "zext").unwrap().into()
+    fn simd_zext_i64(
+        &mut self,
+        val: inkwell::values::BasicValueEnum<'ctx>,
+    ) -> inkwell::values::BasicValueEnum<'ctx> {
+        self.builder
+            .build_int_z_extend(val.into_int_value(), self.i64_type, "zext")
+            .unwrap()
+            .into()
     }
 
     fn get_function(&self, name: &str) -> FunctionValue<'ctx> {
@@ -1403,9 +1467,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
         // The println! macro and user-declared extern fn println(msg: i64)
         // both resolve through this path.
         if name == "println"
-            && let Some(f) = self.module.get_function("println_i64") {
-                return f;
-            }
+            && let Some(f) = self.module.get_function("println_i64")
+        {
+            return f;
+        }
         // === NEW: handle call_i64 - function call dispatcher ===
         if name == "call_i64"
             && let Some(f) = self.module.get_function("call_i64")
@@ -1532,11 +1597,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
             // Create a declaration for the function (will be resolved at link time)
             let void_type = self.context.void_type();
             let fn_type = void_type.fn_type(&[self.i64_type.into()], false);
-            let f = self.module.add_function(
-                name,
-                fn_type,
-                Some(Linkage::External),
-            );
+            let f = self
+                .module
+                .add_function(name, fn_type, Some(Linkage::External));
             return f;
         }
         panic!("CRITICAL: Missing function '{}'", name);
@@ -1573,7 +1636,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
             if name.contains("::") {
                 let mangled = name.replace("::", "__");
                 let fn_type = self.i64_type.fn_type(&[self.i64_type.into()], true);
-                let f = self.module.add_function(&mangled, fn_type, Some(Linkage::External));
+                let f = self
+                    .module
+                    .add_function(&mangled, fn_type, Some(Linkage::External));
                 self.fns.insert(mangled, f);
                 return f;
             }
@@ -1609,11 +1674,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
         // Create extern declaration with mangled name — resolution happens at link time
         // Use 0-param variadic so it accepts any call site's argument count.
         let fn_type = self.i64_type.fn_type(&[], false);
-        let f = self.module.add_function(
-            &mangled_name,
-            fn_type,
-            Some(Linkage::External),
-        );
+        let f = self
+            .module
+            .add_function(&mangled_name, fn_type, Some(Linkage::External));
         self.specialized_fns.insert(mangled_name.clone(), f);
         f
     }
@@ -1706,9 +1769,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
             // Check host-mapped name
             if !host_mapped_name.is_empty()
-                && let Some(f) = self.module.get_function(&host_mapped_name) {
-                    return f;
-                }
+                && let Some(f) = self.module.get_function(&host_mapped_name)
+            {
+                return f;
+            }
             // Check bare name in case it's a non-generic runtime function
             if let Some(f) = self.module.get_function(name) {
                 return f;
@@ -1723,7 +1787,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
         };
         let param_types: Vec<_> = (0..args_count).map(|_| self.i64_type.into()).collect();
         let fn_type = self.i64_type.fn_type(&param_types, false);
-        self.module.add_function(&actual_name, fn_type, Some(Linkage::External))
+        self.module
+            .add_function(&actual_name, fn_type, Some(Linkage::External))
     }
 
     /// Return the byte size of a type from its monomorphized name suffix.
@@ -1736,7 +1801,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
             "V4I64" | "I32x4" => 32,
             "I64x2" => 16,
             "F32x4" => 16,
-            s if s.starts_with("Array_") || s.starts_with("Slice_") || s.starts_with("DynamicArray_") || s.starts_with("Vector_") => 8,
+            s if s.starts_with("Array_")
+                || s.starts_with("Slice_")
+                || s.starts_with("DynamicArray_")
+                || s.starts_with("Vector_") =>
+            {
+                8
+            }
             s if s.starts_with("Ptr_") || s.starts_with("Ref_") => 8,
             s if s.starts_with("Tuple_") || s.starts_with("Named_") => 8,
             // Default: 8 bytes for named structs/unions
@@ -1753,7 +1824,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
             "i64" | "u64" | "f64" | "bool" | "usize" | "isize" | "str" | "Range" => 8,
             "V4I64" => 32,
             "I32x4" | "I64x2" | "F32x4" => 16,
-            s if s.starts_with("Array_") || s.starts_with("Slice_") || s.starts_with("DynamicArray_") || s.starts_with("Vector_") => 8,
+            s if s.starts_with("Array_")
+                || s.starts_with("Slice_")
+                || s.starts_with("DynamicArray_")
+                || s.starts_with("Vector_") =>
+            {
+                8
+            }
             s if s.starts_with("Ptr_") || s.starts_with("Ref_") => 8,
             _ => 8,
         }
@@ -2315,7 +2392,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
                             // Not an operator we handle inline
                             _ => {
-                                let callee = self.get_or_declare_function(func, type_args, args.len());
+                                let callee =
+                                    self.get_or_declare_function(func, type_args, args.len());
                                 let arg_vals: Vec<BasicMetadataValueEnum> = args
                                     .iter()
                                     .map(|&id| self.gen_expr_safe(&id, exprs).into())
@@ -2364,27 +2442,45 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             match ty {
                                 crate::middle::types::Type::I8 | crate::middle::types::Type::U8 => {
                                     let val = if func == "size_of" { 1u64 } else { 1u64 };
-                                    let r: inkwell::values::IntValue = self.i64_type.const_int(val, false);
-                                    let a = *self.locals.get(dest).unwrap(); self.builder.build_store(a, r).unwrap(); return;
+                                    let r: inkwell::values::IntValue =
+                                        self.i64_type.const_int(val, false);
+                                    let a = *self.locals.get(dest).unwrap();
+                                    self.builder.build_store(a, r).unwrap();
+                                    return;
                                 }
-                                crate::middle::types::Type::I16 | crate::middle::types::Type::U16 => {
+                                crate::middle::types::Type::I16
+                                | crate::middle::types::Type::U16 => {
                                     let val = if func == "size_of" { 2u64 } else { 2u64 };
-                                    let r: inkwell::values::IntValue = self.i64_type.const_int(val, false);
-                                    let a = *self.locals.get(dest).unwrap(); self.builder.build_store(a, r).unwrap(); return;
+                                    let r: inkwell::values::IntValue =
+                                        self.i64_type.const_int(val, false);
+                                    let a = *self.locals.get(dest).unwrap();
+                                    self.builder.build_store(a, r).unwrap();
+                                    return;
                                 }
-                                crate::middle::types::Type::I32 | crate::middle::types::Type::U32 | crate::middle::types::Type::F32 | crate::middle::types::Type::Char => {
+                                crate::middle::types::Type::I32
+                                | crate::middle::types::Type::U32
+                                | crate::middle::types::Type::F32
+                                | crate::middle::types::Type::Char => {
                                     let val = if func == "size_of" { 4u64 } else { 4u64 };
-                                    let r: inkwell::values::IntValue = self.i64_type.const_int(val, false);
-                                    let a = *self.locals.get(dest).unwrap(); self.builder.build_store(a, r).unwrap(); return;
+                                    let r: inkwell::values::IntValue =
+                                        self.i64_type.const_int(val, false);
+                                    let a = *self.locals.get(dest).unwrap();
+                                    self.builder.build_store(a, r).unwrap();
+                                    return;
                                 }
                                 _ => {
-                                    let r: inkwell::values::IntValue = self.i64_type.const_int(8u64, false);
-                                    let a = *self.locals.get(dest).unwrap(); self.builder.build_store(a, r).unwrap(); return;
+                                    let r: inkwell::values::IntValue =
+                                        self.i64_type.const_int(8u64, false);
+                                    let a = *self.locals.get(dest).unwrap();
+                                    self.builder.build_store(a, r).unwrap();
+                                    return;
                                 }
                             }
                         } else {
                             let r: inkwell::values::IntValue = self.i64_type.const_int(8u64, false);
-                            let a = *self.locals.get(dest).unwrap(); self.builder.build_store(a, r).unwrap(); return;
+                            let a = *self.locals.get(dest).unwrap();
+                            self.builder.build_store(a, r).unwrap();
+                            return;
                         }
                     }
                     // Intercept std::mem::swap<T>(a: &mut T, b: &mut T)
@@ -2396,12 +2492,20 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         let b_ptr = self.builder.build_int_to_ptr(ptr_b, pt, "b_ptr").unwrap();
                         let a_i64 = self.builder.build_pointer_cast(a_ptr, pt, "a_i64").unwrap();
                         let b_i64 = self.builder.build_pointer_cast(b_ptr, pt, "b_i64").unwrap();
-                        let temp = self.builder.build_load(self.i64_type, a_i64, "temp").unwrap();
-                        let b_val = self.builder.build_load(self.i64_type, b_i64, "b_val").unwrap();
+                        let temp = self
+                            .builder
+                            .build_load(self.i64_type, a_i64, "temp")
+                            .unwrap();
+                        let b_val = self
+                            .builder
+                            .build_load(self.i64_type, b_i64, "b_val")
+                            .unwrap();
                         self.builder.build_store(a_i64, b_val).unwrap();
                         self.builder.build_store(b_i64, temp).unwrap();
                         if let Some(&alloca) = self.locals.get(dest) {
-                            self.builder.build_store(alloca, self.i64_type.const_int(0, false)).unwrap();
+                            self.builder
+                                .build_store(alloca, self.i64_type.const_int(0, false))
+                                .unwrap();
                         }
                         return;
                     }
@@ -2410,8 +2514,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         let ptr = self.gen_expr_safe(&args[0], exprs).into_int_value();
                         let pt = self.context.ptr_type(inkwell::AddressSpace::default());
                         let elem_ptr = self.builder.build_int_to_ptr(ptr, pt, "rd_ptr").unwrap();
-                        let elem_i64 = self.builder.build_pointer_cast(elem_ptr, pt, "rd_i64").unwrap();
-                        let val = self.builder.build_load(self.i64_type, elem_i64, "rd_val").unwrap();
+                        let elem_i64 = self
+                            .builder
+                            .build_pointer_cast(elem_ptr, pt, "rd_i64")
+                            .unwrap();
+                        let val = self
+                            .builder
+                            .build_load(self.i64_type, elem_i64, "rd_val")
+                            .unwrap();
                         let alloca = *self.locals.get(dest).unwrap();
                         self.builder.build_store(alloca, val).unwrap();
                         return;
@@ -2422,26 +2532,42 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         let val = self.gen_expr_safe(&args[1], exprs).into_int_value();
                         let pt = self.context.ptr_type(inkwell::AddressSpace::default());
                         let elem_ptr = self.builder.build_int_to_ptr(ptr, pt, "wr_ptr").unwrap();
-                        let elem_i64 = self.builder.build_pointer_cast(elem_ptr, pt, "wr_i64").unwrap();
+                        let elem_i64 = self
+                            .builder
+                            .build_pointer_cast(elem_ptr, pt, "wr_i64")
+                            .unwrap();
                         self.builder.build_store(elem_i64, val).unwrap();
                         if let Some(&alloca) = self.locals.get(dest) {
-                            self.builder.build_store(alloca, self.i64_type.const_int(0, false)).unwrap();
+                            self.builder
+                                .build_store(alloca, self.i64_type.const_int(0, false))
+                                .unwrap();
                         }
                         return;
                     }
                     // Intercept ptr::null<T>() and ptr::null_mut<T>()
                     if (func == "null" || func == "null_mut") && args.is_empty() {
                         let alloca = *self.locals.get(dest).unwrap();
-                        self.builder.build_store(alloca, self.i64_type.const_int(0, false)).unwrap();
+                        self.builder
+                            .build_store(alloca, self.i64_type.const_int(0, false))
+                            .unwrap();
                         return;
                     }
                     // Intercept ptr::is_null<T>(ptr: *const T)
                     if func == "is_null" && args.len() == 1 {
                         let ptr = self.gen_expr_safe(&args[0], exprs).into_int_value();
-                        let is_null = self.builder.build_int_compare(
-                            inkwell::IntPredicate::EQ, ptr, self.i64_type.const_int(0, false), "is_null"
-                        ).unwrap();
-                        let result = self.builder.build_int_z_extend(is_null, self.i64_type, "is_null_ext").unwrap();
+                        let is_null = self
+                            .builder
+                            .build_int_compare(
+                                inkwell::IntPredicate::EQ,
+                                ptr,
+                                self.i64_type.const_int(0, false),
+                                "is_null",
+                            )
+                            .unwrap();
+                        let result = self
+                            .builder
+                            .build_int_z_extend(is_null, self.i64_type, "is_null_ext")
+                            .unwrap();
                         let alloca = *self.locals.get(dest).unwrap();
                         self.builder.build_store(alloca, result).unwrap();
                         return;
@@ -2451,27 +2577,47 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         let dst = self.gen_expr_safe(&args[0], exprs).into_int_value();
                         let src = self.gen_expr_safe(&args[1], exprs).into_int_value();
                         let count = self.gen_expr_safe(&args[2], exprs).into_int_value();
-                        let dst_ptr = self.builder.build_int_to_ptr(dst, self.ptr_type, "cp_dst").unwrap();
-                        let src_ptr = self.builder.build_int_to_ptr(src, self.ptr_type, "cp_src").unwrap();
+                        let dst_ptr = self
+                            .builder
+                            .build_int_to_ptr(dst, self.ptr_type, "cp_dst")
+                            .unwrap();
+                        let src_ptr = self
+                            .builder
+                            .build_int_to_ptr(src, self.ptr_type, "cp_src")
+                            .unwrap();
                         // Get element size from type_args
                         let elem_size: u64 = if let Some(ty) = type_args.first() {
                             match ty {
-                                crate::middle::types::Type::I8 | crate::middle::types::Type::U8 => 1,
-                                crate::middle::types::Type::I16 | crate::middle::types::Type::U16 => 2,
-                                crate::middle::types::Type::I32 | crate::middle::types::Type::U32 | crate::middle::types::Type::F32 => 4,
+                                crate::middle::types::Type::I8 | crate::middle::types::Type::U8 => {
+                                    1
+                                }
+                                crate::middle::types::Type::I16
+                                | crate::middle::types::Type::U16 => 2,
+                                crate::middle::types::Type::I32
+                                | crate::middle::types::Type::U32
+                                | crate::middle::types::Type::F32 => 4,
                                 _ => 8,
                             }
-                        } else { 8 };
-                        let total_bytes = self.builder.build_int_mul(
-                            count, self.i64_type.const_int(elem_size, false), "copysz"
-                        ).unwrap();
+                        } else {
+                            8
+                        };
+                        let total_bytes = self
+                            .builder
+                            .build_int_mul(
+                                count,
+                                self.i64_type.const_int(elem_size, false),
+                                "copysz",
+                            )
+                            .unwrap();
                         unsafe {
-                            self.builder.build_memcpy(
-                                dst_ptr, 8, src_ptr, 8, total_bytes,
-                            ).unwrap();
+                            self.builder
+                                .build_memcpy(dst_ptr, 8, src_ptr, 8, total_bytes)
+                                .unwrap();
                         }
                         if let Some(&alloca) = self.locals.get(dest) {
-                            self.builder.build_store(alloca, self.i64_type.const_int(0, false)).unwrap();
+                            self.builder
+                                .build_store(alloca, self.i64_type.const_int(0, false))
+                                .unwrap();
                         }
                         return;
                     }
@@ -2481,16 +2627,31 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         let count = self.gen_expr_safe(&args[1], exprs).into_int_value();
                         let elem_size: u64 = if let Some(ty) = type_args.first() {
                             match ty {
-                                crate::middle::types::Type::I8 | crate::middle::types::Type::U8 => 1,
-                                crate::middle::types::Type::I16 | crate::middle::types::Type::U16 => 2,
-                                crate::middle::types::Type::I32 | crate::middle::types::Type::U32 | crate::middle::types::Type::F32 => 4,
+                                crate::middle::types::Type::I8 | crate::middle::types::Type::U8 => {
+                                    1
+                                }
+                                crate::middle::types::Type::I16
+                                | crate::middle::types::Type::U16 => 2,
+                                crate::middle::types::Type::I32
+                                | crate::middle::types::Type::U32
+                                | crate::middle::types::Type::F32 => 4,
                                 _ => 8,
                             }
-                        } else { 8 };
-                        let byte_offset = self.builder.build_int_mul(
-                            count, self.i64_type.const_int(elem_size, false), "byte_off"
-                        ).unwrap();
-                        let ptr = self.builder.build_int_add(ptr, byte_offset, "off_ptr").unwrap();
+                        } else {
+                            8
+                        };
+                        let byte_offset = self
+                            .builder
+                            .build_int_mul(
+                                count,
+                                self.i64_type.const_int(elem_size, false),
+                                "byte_off",
+                            )
+                            .unwrap();
+                        let ptr = self
+                            .builder
+                            .build_int_add(ptr, byte_offset, "off_ptr")
+                            .unwrap();
                         let alloca = *self.locals.get(dest).unwrap();
                         self.builder.build_store(alloca, ptr).unwrap();
                         return;
@@ -2500,10 +2661,21 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         let ptr = self.gen_expr_safe(&args[0], exprs).into_int_value();
                         let new_val = self.gen_expr_safe(&args[1], exprs);
                         let ptr_type = self.context.ptr_type(inkwell::AddressSpace::default());
-                        let elem_ptr = self.builder.build_int_to_ptr(ptr, ptr_type, "rpl_ptr").unwrap();
-                        let elem_i64 = self.builder.build_pointer_cast(elem_ptr, ptr_type, "rpl_i64").unwrap();
-                        let old_val = self.builder.build_load(self.i64_type, elem_i64, "old").unwrap();
-                        self.builder.build_store(elem_i64, new_val.into_int_value()).unwrap();
+                        let elem_ptr = self
+                            .builder
+                            .build_int_to_ptr(ptr, ptr_type, "rpl_ptr")
+                            .unwrap();
+                        let elem_i64 = self
+                            .builder
+                            .build_pointer_cast(elem_ptr, ptr_type, "rpl_i64")
+                            .unwrap();
+                        let old_val = self
+                            .builder
+                            .build_load(self.i64_type, elem_i64, "old")
+                            .unwrap();
+                        self.builder
+                            .build_store(elem_i64, new_val.into_int_value())
+                            .unwrap();
                         let alloca = *self.locals.get(dest).unwrap();
                         self.builder.build_store(alloca, old_val).unwrap();
                         return;
@@ -2959,11 +3131,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
                 // Generate then block
                 self.builder.position_at_end(then_bb);
-                let then_ends_with_break =
-                    then.last().is_some_and(|s| matches!(s, MirStmt::Break));
-                let then_ends_with_continue = then
-                    .last()
-                    .is_some_and(|s| matches!(s, MirStmt::Continue));
+                let then_ends_with_break = then.last().is_some_and(|s| matches!(s, MirStmt::Break));
+                let then_ends_with_continue =
+                    then.last().is_some_and(|s| matches!(s, MirStmt::Continue));
                 if then_ends_with_break {
                     for s in &then[..then.len() - 1] {
                         self.gen_stmt(s, exprs);
@@ -2994,9 +3164,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.builder.position_at_end(else_bb);
                 let else_ends_with_break =
                     else_.last().is_some_and(|s| matches!(s, MirStmt::Break));
-                let else_ends_with_continue = else_
-                    .last()
-                    .is_some_and(|s| matches!(s, MirStmt::Continue));
+                let else_ends_with_continue =
+                    else_.last().is_some_and(|s| matches!(s, MirStmt::Continue));
                 if else_ends_with_break {
                     for s in &else_[..else_.len() - 1] {
                         self.gen_stmt(s, exprs);
@@ -3452,7 +3621,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let pointee_llvm_type = self
                     .context
                     .custom_width_int_type((*pointee_width as u32) * 8);
-                let pointed_ptr_type: inkwell::types::PointerType = self.context.ptr_type(inkwell::AddressSpace::default());
+                let pointed_ptr_type: inkwell::types::PointerType =
+                    self.context.ptr_type(inkwell::AddressSpace::default());
                 let ptr = self
                     .builder
                     .build_int_to_ptr(addr_i64, pointed_ptr_type, "store_ptr")
@@ -4049,16 +4219,26 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     Type::F64 => "f64",
                     _ => "i32",
                 }
-            } else { "i32" };
+            } else {
+                "i32"
+            };
             let lanes_str = if type_args.len() >= 2 {
                 match &type_args[1] {
                     Type::Named(n, _) => n.clone(),
                     _ => "4".to_string(),
                 }
-            } else { "4".to_string() };
+            } else {
+                "4".to_string()
+            };
             let lanes: u32 = lanes_str.parse().unwrap_or(4);
             let is_float = elem_type == "f32" || elem_type == "f64";
-            let bit_width: u32 = if is_float { 32 } else if elem_type == "i64" || elem_type == "u64" { 64 } else { 32 };
+            let bit_width: u32 = if is_float {
+                32
+            } else if elem_type == "i64" || elem_type == "u64" {
+                64
+            } else {
+                32
+            };
 
             let vt = self.simd_vector_type(bit_width, lanes, is_float);
             let (vec_alloca, _ptr) = self.simd_alloca_vec(vt);
@@ -4068,11 +4248,22 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     let val = self.gen_expr_safe(&args[0], exprs);
                     let scalar = self.simd_trunc_val(val, bit_width, is_float);
                     let poison = vt.get_undef();
-                    let mut result = self.builder.build_insert_element(poison, scalar, self.context.i32_type().const_zero(), "sp0").unwrap();
+                    let mut result = self
+                        .builder
+                        .build_insert_element(
+                            poison,
+                            scalar,
+                            self.context.i32_type().const_zero(),
+                            "sp0",
+                        )
+                        .unwrap();
                     for i in 1..lanes {
                         let idx = self.context.i32_type().const_int(i as u64, false);
                         let elem = self.simd_trunc_val(val, bit_width, is_float);
-                        result = self.builder.build_insert_element(result, elem, idx, &format!("sp{}", i)).unwrap();
+                        result = self
+                            .builder
+                            .build_insert_element(result, elem, idx, &format!("sp{}", i))
+                            .unwrap();
                     }
                     self.builder.build_store(vec_alloca, result).unwrap();
                 }
@@ -4083,11 +4274,17 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         let vec_a = self.simd_load_vec(a_ptr, vt);
                         let vec_b = self.simd_load_vec(b_ptr, vt);
                         let result = match method {
-                            "add" if is_float => self.builder.build_float_add(vec_a, vec_b, "vadd").unwrap(),
+                            "add" if is_float => {
+                                self.builder.build_float_add(vec_a, vec_b, "vadd").unwrap()
+                            }
                             "add" => self.builder.build_int_add(vec_a, vec_b, "vadd").unwrap(),
-                            "sub" if is_float => self.builder.build_float_sub(vec_a, vec_b, "vsub").unwrap(),
+                            "sub" if is_float => {
+                                self.builder.build_float_sub(vec_a, vec_b, "vsub").unwrap()
+                            }
                             "sub" => self.builder.build_int_sub(vec_a, vec_b, "vsub").unwrap(),
-                            "mul" if is_float => self.builder.build_float_mul(vec_a, vec_b, "vmul").unwrap(),
+                            "mul" if is_float => {
+                                self.builder.build_float_mul(vec_a, vec_b, "vmul").unwrap()
+                            }
                             "mul" => self.builder.build_int_mul(vec_a, vec_b, "vmul").unwrap(),
                             _ => vec_a,
                         };
@@ -4099,8 +4296,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         let vec_ptr = self.gen_expr_safe(&args[0], exprs).into_int_value();
                         let idx = self.gen_expr_safe(&args[1], exprs).into_int_value();
                         let loaded = self.simd_load_vec(vec_ptr, vt);
-                        let extracted = self.builder.build_extract_element(loaded, idx, "extract").unwrap();
-                        let result = if bit_width == 32 && !is_float { self.simd_zext_i64(extracted) } else { extracted };
+                        let extracted = self
+                            .builder
+                            .build_extract_element(loaded, idx, "extract")
+                            .unwrap();
+                        let result = if bit_width == 32 && !is_float {
+                            self.simd_zext_i64(extracted)
+                        } else {
+                            extracted
+                        };
                         let alloca = *self.locals.get(dest).unwrap();
                         self.builder.build_store(alloca, result).unwrap();
                         return;
@@ -4108,7 +4312,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
                 "free" | "drop" => {
                     let alloca = *self.locals.get(dest).unwrap();
-                    self.builder.build_store(alloca, self.i64_type.const_zero()).unwrap();
+                    self.builder
+                        .build_store(alloca, self.i64_type.const_zero())
+                        .unwrap();
                     return;
                 }
                 "is_supported" | "optimal_size" => {
@@ -4116,61 +4322,87 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
                 _ => {
                     let alloca = *self.locals.get(dest).unwrap();
-                    self.builder.build_store(alloca, self.i64_type.const_zero()).unwrap();
+                    self.builder
+                        .build_store(alloca, self.i64_type.const_zero())
+                        .unwrap();
                     return;
                 }
             }
 
             // Store the pointer to the stack-allocated vector as i64 result
-            let ptr_as_i64 = self.builder.build_ptr_to_int(vec_alloca, self.i64_type, "simd_res").unwrap();
+            let ptr_as_i64 = self
+                .builder
+                .build_ptr_to_int(vec_alloca, self.i64_type, "simd_res")
+                .unwrap();
             let alloca = *self.locals.get(dest).unwrap();
             self.builder.build_store(alloca, ptr_as_i64).unwrap();
             return;
         }
 
         // Handle Vector::method / Vector__method names
-        let (base_func, simd_prefix) = if func.starts_with("Vector::") || func.starts_with("Vector__") {
-            // Extract method name: Vector::splat → splat, Vector__splat → splat
-            let method = if func.starts_with("Vector::") { &func[8..] } else { &func[8..] };
-            // Default to i64x4 when no explicit type info (the resolver registers Vector::splat with u64x8)
-            match method {
-                "splat" => ("vector_splat_i64x4", "vector_splat"),
-                "new" | "make" => ("vector_make_i64x4", "vector_make"),
-                "add" => ("vector_add_i64x4", "vector_add"),
-                "sub" | "subtract" => ("vector_sub_i64x4", "vector_sub"),
-                "mul" | "multiply" => ("vector_mul_i64x4", "vector_mul"),
-                "get" | "extract" => ("vector_get_i64x4", "vector_get"),
-                "set" | "insert" => ("vector_set_i64x4", "vector_set"),
-                "free" | "drop" => ("vector_free_i64x4", "vector_free"),
-                _ => ("", ""),
-            }
-        } else {
-            (func, func)
-        };
+        let (base_func, simd_prefix) =
+            if func.starts_with("Vector::") || func.starts_with("Vector__") {
+                // Extract method name: Vector::splat → splat, Vector__splat → splat
+                let method = if func.starts_with("Vector::") {
+                    &func[8..]
+                } else {
+                    &func[8..]
+                };
+                // Default to i64x4 when no explicit type info (the resolver registers Vector::splat with u64x8)
+                match method {
+                    "splat" => ("vector_splat_i64x4", "vector_splat"),
+                    "new" | "make" => ("vector_make_i64x4", "vector_make"),
+                    "add" => ("vector_add_i64x4", "vector_add"),
+                    "sub" | "subtract" => ("vector_sub_i64x4", "vector_sub"),
+                    "mul" | "multiply" => ("vector_mul_i64x4", "vector_mul"),
+                    "get" | "extract" => ("vector_get_i64x4", "vector_get"),
+                    "set" | "insert" => ("vector_set_i64x4", "vector_set"),
+                    "free" | "drop" => ("vector_free_i64x4", "vector_free"),
+                    _ => ("", ""),
+                }
+            } else {
+                (func, func)
+            };
 
         // Use the vector_* name for type info parsing
-        let name_for_type = if !base_func.is_empty() && base_func != func { base_func } else { func };
+        let name_for_type = if !base_func.is_empty() && base_func != func {
+            base_func
+        } else {
+            func
+        };
 
         let Some((bit_width, lanes, is_float)) = Self::parse_simd_type_info(name_for_type) else {
             let alloca = *self.locals.get(dest).unwrap();
-            self.builder.build_store(alloca, self.i64_type.const_zero()).unwrap();
+            self.builder
+                .build_store(alloca, self.i64_type.const_zero())
+                .unwrap();
             return;
         };
         let vt = self.simd_vector_type(bit_width, lanes, is_float);
         let (vec_alloca, _ptr) = self.simd_alloca_vec(vt);
 
         // For Vector::* calls, use simd_prefix (e.g. "simd_splat_i64x4") for dispatch
-        let dispatch_name = if !simd_prefix.is_empty() { simd_prefix } else { func };
+        let dispatch_name = if !simd_prefix.is_empty() {
+            simd_prefix
+        } else {
+            func
+        };
 
         if dispatch_name.starts_with("simd_splat") || dispatch_name.starts_with("vector_splat") {
             let val = self.gen_expr_safe(&args[0], exprs);
             let scalar = self.simd_trunc_val(val, bit_width, is_float);
             let poison = vt.get_undef();
-            let mut result = self.builder.build_insert_element(poison, scalar, self.context.i32_type().const_zero(), "sp0").unwrap();
+            let mut result = self
+                .builder
+                .build_insert_element(poison, scalar, self.context.i32_type().const_zero(), "sp0")
+                .unwrap();
             for i in 1..lanes {
                 let idx = self.context.i32_type().const_int(i as u64, false);
                 let elem = self.simd_trunc_val(val, bit_width, is_float);
-                result = self.builder.build_insert_element(result, elem, idx, &format!("sp{}", i)).unwrap();
+                result = self
+                    .builder
+                    .build_insert_element(result, elem, idx, &format!("sp{}", i))
+                    .unwrap();
             }
             self.builder.build_store(vec_alloca, result).unwrap();
         } else if dispatch_name.starts_with("simd_add") || dispatch_name.starts_with("vector_add") {
@@ -4179,22 +4411,36 @@ impl<'ctx> LLVMCodegen<'ctx> {
             self.simd_binop(vt, args, exprs, vec_alloca, "sub", is_float);
         } else if dispatch_name.starts_with("simd_mul") || dispatch_name.starts_with("vector_mul") {
             self.simd_binop(vt, args, exprs, vec_alloca, "mul", is_float);
-        } else if dispatch_name.starts_with("simd_extract") || dispatch_name.starts_with("vector_get") {
+        } else if dispatch_name.starts_with("simd_extract")
+            || dispatch_name.starts_with("vector_get")
+        {
             let vec_ptr = self.gen_expr_safe(&args[0], exprs).into_int_value();
             let idx = self.gen_expr_safe(&args[1], exprs).into_int_value();
             let loaded = self.simd_load_vec(vec_ptr, vt);
-            let extracted = self.builder.build_extract_element(loaded, idx, "extract").unwrap();
-            let result = if bit_width == 32 && !is_float { self.simd_zext_i64(extracted) } else { extracted };
+            let extracted = self
+                .builder
+                .build_extract_element(loaded, idx, "extract")
+                .unwrap();
+            let result = if bit_width == 32 && !is_float {
+                self.simd_zext_i64(extracted)
+            } else {
+                extracted
+            };
             let alloca = *self.locals.get(dest).unwrap();
             self.builder.build_store(alloca, result).unwrap();
             return;
-        } else if dispatch_name.starts_with("simd_insert") || dispatch_name.starts_with("vector_set") {
+        } else if dispatch_name.starts_with("simd_insert")
+            || dispatch_name.starts_with("vector_set")
+        {
             let vec_ptr = self.gen_expr_safe(&args[0], exprs).into_int_value();
             let val = self.gen_expr_safe(&args[1], exprs);
             let idx = self.gen_expr_safe(&args[2], exprs).into_int_value();
             let loaded = self.simd_load_vec(vec_ptr, vt);
             let scalar = self.simd_trunc_val(val, bit_width, is_float);
-            let result = self.builder.build_insert_element(loaded, scalar, idx, "ins").unwrap();
+            let result = self
+                .builder
+                .build_insert_element(loaded, scalar, idx, "ins")
+                .unwrap();
             self.simd_store_vec(vec_ptr, result);
             let alloca = *self.locals.get(dest).unwrap();
             self.builder.build_store(alloca, vec_ptr).unwrap();
@@ -4209,11 +4455,16 @@ impl<'ctx> LLVMCodegen<'ctx> {
             let loaded = self.simd_load_vec(src, vt);
             self.simd_store_vec(dst, loaded);
             let alloca = *self.locals.get(dest).unwrap();
-            self.builder.build_store(alloca, self.i64_type.const_zero()).unwrap();
+            self.builder
+                .build_store(alloca, self.i64_type.const_zero())
+                .unwrap();
             return;
-        } else if dispatch_name.starts_with("simd_free") || dispatch_name.starts_with("vector_free") {
+        } else if dispatch_name.starts_with("simd_free") || dispatch_name.starts_with("vector_free")
+        {
             let alloca = *self.locals.get(dest).unwrap();
-            self.builder.build_store(alloca, self.i64_type.const_zero()).unwrap();
+            self.builder
+                .build_store(alloca, self.i64_type.const_zero())
+                .unwrap();
             return;
         } else if dispatch_name.starts_with("vector_make") {
             let poison = vt.get_undef();
@@ -4223,16 +4474,24 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let val = self.gen_expr_safe(&args[i], exprs);
                 let idx = self.context.i32_type().const_int(i as u64, false);
                 let scalar = self.simd_trunc_val(val, bit_width, is_float);
-                result = self.builder.build_insert_element(result, scalar, idx, &format!("mk{}", i)).unwrap();
+                result = self
+                    .builder
+                    .build_insert_element(result, scalar, idx, &format!("mk{}", i))
+                    .unwrap();
             }
             self.builder.build_store(vec_alloca, result).unwrap();
         } else {
             let alloca = *self.locals.get(dest).unwrap();
-            self.builder.build_store(alloca, self.i64_type.const_zero()).unwrap();
+            self.builder
+                .build_store(alloca, self.i64_type.const_zero())
+                .unwrap();
             return;
         }
 
-        let ptr_as_i64 = self.builder.build_ptr_to_int(vec_alloca, self.i64_type, "simd_res").unwrap();
+        let ptr_as_i64 = self
+            .builder
+            .build_ptr_to_int(vec_alloca, self.i64_type, "simd_res")
+            .unwrap();
         let alloca = *self.locals.get(dest).unwrap();
         self.builder.build_store(alloca, ptr_as_i64).unwrap();
     }
@@ -4247,7 +4506,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
         op: &str,
         is_float: bool,
     ) {
-        if args.len() < 2 { return; }
+        if args.len() < 2 {
+            return;
+        }
         let a_ptr = self.gen_expr_safe(&args[0], exprs).into_int_value();
         let b_ptr = self.gen_expr_safe(&args[1], exprs).into_int_value();
         let vec_a = self.simd_load_vec(a_ptr, vt);
@@ -4268,7 +4529,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
     fn handle_simd_const(&mut self, method: &str, dest: &u32) {
         let alloca = *self.locals.get(dest).unwrap();
         let val = if method == "is_supported" { 1 } else { 4 };
-        self.builder.build_store(alloca, self.i64_type.const_int(val, false)).unwrap();
+        self.builder
+            .build_store(alloca, self.i64_type.const_int(val, false))
+            .unwrap();
     }
 
     pub fn type_to_llvm_type(&self, ty: &Type) -> inkwell::types::BasicTypeEnum<'ctx> {
@@ -4316,7 +4579,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     }
                     _ => self.context.i64_type().vec_type(lane_count).into(),
                 }
-            },
+            }
             Type::Array(element_type, size) => {
                 let element_llvm_type = self.type_to_llvm_type(element_type);
                 let array_size = match size {

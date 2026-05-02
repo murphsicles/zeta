@@ -197,7 +197,12 @@ impl Resolver {
                         }
                     }
                     Err(e) => {
-                        crate::diag_warning!("W2002", "Failed to process use statement {}: {}", path.join("::"), e);
+                        crate::diag_warning!(
+                            "W2002",
+                            "Failed to process use statement {}: {}",
+                            path.join("::"),
+                            e
+                        );
                     }
                 }
             }
@@ -1053,47 +1058,27 @@ impl Resolver {
         // str_strip(s: str) -> str
         self.funcs.insert(
             "str_strip".to_string(),
-            (
-                vec![("s".to_string(), Type::Str)],
-                Type::Str,
-                false,
-            ),
+            (vec![("s".to_string(), Type::Str)], Type::Str, false),
         );
         // str_lstrip(s: str) -> str
         self.funcs.insert(
             "str_lstrip".to_string(),
-            (
-                vec![("s".to_string(), Type::Str)],
-                Type::Str,
-                false,
-            ),
+            (vec![("s".to_string(), Type::Str)], Type::Str, false),
         );
         // str_rstrip(s: str) -> str
         self.funcs.insert(
             "str_rstrip".to_string(),
-            (
-                vec![("s".to_string(), Type::Str)],
-                Type::Str,
-                false,
-            ),
+            (vec![("s".to_string(), Type::Str)], Type::Str, false),
         );
         // str_isalpha(s: str) -> i64
         self.funcs.insert(
             "str_isalpha".to_string(),
-            (
-                vec![("s".to_string(), Type::Str)],
-                Type::I64,
-                false,
-            ),
+            (vec![("s".to_string(), Type::Str)], Type::I64, false),
         );
         // str_isnumeric(s: str) -> i64
         self.funcs.insert(
             "str_isnumeric".to_string(),
-            (
-                vec![("s".to_string(), Type::Str)],
-                Type::I64,
-                false,
-            ),
+            (vec![("s".to_string(), Type::Str)], Type::I64, false),
         );
 
         // Comparison operators for i64

@@ -96,7 +96,9 @@ impl ErrorCodeRegistry {
                 category: ErrorCategory::Parse,
                 description: "Unexpected token".to_string(),
                 example: None,
-                suggestion: Some("Check for missing delimiters or incorrect operators.".to_string()),
+                suggestion: Some(
+                    "Check for missing delimiters or incorrect operators.".to_string(),
+                ),
             },
         );
 
@@ -272,7 +274,9 @@ impl ErrorCodeRegistry {
                 category: ErrorCategory::Parse,
                 description: "Unknown operator".to_string(),
                 example: None,
-                suggestion: Some("Use a valid operator: `+`, `-`, `*`, `/`, `==`, etc.".to_string()),
+                suggestion: Some(
+                    "Use a valid operator: `+`, `-`, `*`, `/`, `==`, etc.".to_string(),
+                ),
             },
         );
 
@@ -305,7 +309,10 @@ impl ErrorCodeRegistry {
                 category: ErrorCategory::Parse,
                 description: "Invalid pattern".to_string(),
                 example: None,
-                suggestion: Some("Use valid pattern syntax: literal, variable, wildcard `_`, or struct pattern.".to_string()),
+                suggestion: Some(
+                    "Use valid pattern syntax: literal, variable, wildcard `_`, or struct pattern."
+                        .to_string(),
+                ),
             },
         );
 
@@ -360,7 +367,9 @@ impl ErrorCodeRegistry {
                 category: ErrorCategory::Type,
                 description: "Typecheck failed".to_string(),
                 example: None,
-                suggestion: Some("Check the types of all expressions in the reported area.".to_string()),
+                suggestion: Some(
+                    "Check the types of all expressions in the reported area.".to_string(),
+                ),
             },
         );
 
@@ -382,7 +391,9 @@ impl ErrorCodeRegistry {
                 category: ErrorCategory::Type,
                 description: "Const evaluation error".to_string(),
                 example: None,
-                suggestion: Some("Simplify the expression or use only const-compatible operations.".to_string()),
+                suggestion: Some(
+                    "Simplify the expression or use only const-compatible operations.".to_string(),
+                ),
             },
         );
 
@@ -668,7 +679,9 @@ impl ErrorCodeRegistry {
                 category: ErrorCategory::Type,
                 description: "Invalid struct constructor".to_string(),
                 example: None,
-                suggestion: Some("Use the struct literal syntax `Name { field: val }`.".to_string()),
+                suggestion: Some(
+                    "Use the struct literal syntax `Name { field: val }`.".to_string(),
+                ),
             },
         );
 
@@ -811,7 +824,9 @@ impl ErrorCodeRegistry {
                 category: ErrorCategory::Semantic,
                 description: "Unsupported derive".to_string(),
                 example: None,
-                suggestion: Some("Remove the derive attribute or implement the trait manually.".to_string()),
+                suggestion: Some(
+                    "Remove the derive attribute or implement the trait manually.".to_string(),
+                ),
             },
         );
 
@@ -954,7 +969,9 @@ impl ErrorCodeRegistry {
                 category: ErrorCategory::Semantic,
                 description: "Private field access".to_string(),
                 example: None,
-                suggestion: Some("Make the field public or access it from within the module.".to_string()),
+                suggestion: Some(
+                    "Make the field public or access it from within the module.".to_string(),
+                ),
             },
         );
 
@@ -965,7 +982,9 @@ impl ErrorCodeRegistry {
                 category: ErrorCategory::Semantic,
                 description: "Private function call".to_string(),
                 example: None,
-                suggestion: Some("Make the function public or call from within the module.".to_string()),
+                suggestion: Some(
+                    "Make the function public or call from within the module.".to_string(),
+                ),
             },
         );
 
@@ -1020,7 +1039,9 @@ impl ErrorCodeRegistry {
                 category: ErrorCategory::Codegen,
                 description: "No main function".to_string(),
                 example: None,
-                suggestion: Some("Define `fn main() -> i64 { ... }` as the entry point.".to_string()),
+                suggestion: Some(
+                    "Define `fn main() -> i64 { ... }` as the entry point.".to_string(),
+                ),
             },
         );
 
@@ -1064,7 +1085,9 @@ impl ErrorCodeRegistry {
                 category: ErrorCategory::Codegen,
                 description: "Unsupported type in codegen".to_string(),
                 example: None,
-                suggestion: Some("This type cannot be used in the current compilation target.".to_string()),
+                suggestion: Some(
+                    "This type cannot be used in the current compilation target.".to_string(),
+                ),
             },
         );
 
@@ -1108,7 +1131,9 @@ impl ErrorCodeRegistry {
                 category: ErrorCategory::Codegen,
                 description: "Target feature not available".to_string(),
                 example: None,
-                suggestion: Some("Compile for a target that supports the required feature.".to_string()),
+                suggestion: Some(
+                    "Compile for a target that supports the required feature.".to_string(),
+                ),
             },
         );
 
@@ -1262,7 +1287,9 @@ impl ErrorCodeRegistry {
                 category: ErrorCategory::Runtime,
                 description: "Runtime panic".to_string(),
                 example: None,
-                suggestion: Some("Check for unwrap on None/Err or out-of-bounds access.".to_string()),
+                suggestion: Some(
+                    "Check for unwrap on None/Err or out-of-bounds access.".to_string(),
+                ),
             },
         );
 
@@ -1559,7 +1586,9 @@ impl ErrorCodeRegistry {
                 category: ErrorCategory::Borrow,
                 description: "Mutable and immutable borrow conflict".to_string(),
                 example: None,
-                suggestion: Some("Restructure to separate mutable and immutable access.".to_string()),
+                suggestion: Some(
+                    "Restructure to separate mutable and immutable access.".to_string(),
+                ),
             },
         );
 
@@ -1570,7 +1599,9 @@ impl ErrorCodeRegistry {
                 category: ErrorCategory::Borrow,
                 description: "Returning reference to local".to_string(),
                 example: None,
-                suggestion: Some("Return the value directly or use a static/owned reference.".to_string()),
+                suggestion: Some(
+                    "Return the value directly or use a static/owned reference.".to_string(),
+                ),
             },
         );
 
@@ -1713,7 +1744,9 @@ impl ErrorCodeRegistry {
                 category: ErrorCategory::Borrow,
                 description: "Mutability mismatch".to_string(),
                 example: None,
-                suggestion: Some("Pass a mutable reference or change the function signature.".to_string()),
+                suggestion: Some(
+                    "Pass a mutable reference or change the function signature.".to_string(),
+                ),
             },
         );
 
@@ -1724,7 +1757,9 @@ impl ErrorCodeRegistry {
                 category: ErrorCategory::Borrow,
                 description: "Move in loop iteration".to_string(),
                 example: None,
-                suggestion: Some("Clone or restructure to avoid the move across iterations.".to_string()),
+                suggestion: Some(
+                    "Clone or restructure to avoid the move across iterations.".to_string(),
+                ),
             },
         );
 
@@ -1779,7 +1814,9 @@ impl ErrorCodeRegistry {
                 category: ErrorCategory::Optimization,
                 description: "Const fn call outside const".to_string(),
                 example: None,
-                suggestion: Some("Declare the function as non-const or call from const context.".to_string()),
+                suggestion: Some(
+                    "Declare the function as non-const or call from const context.".to_string(),
+                ),
             },
         );
 
@@ -1812,7 +1849,9 @@ impl ErrorCodeRegistry {
                 category: ErrorCategory::Optimization,
                 description: "Tail call optimization failed".to_string(),
                 example: None,
-                suggestion: Some("Restructure the recursive call to be the last expression.".to_string()),
+                suggestion: Some(
+                    "Restructure the recursive call to be the last expression.".to_string(),
+                ),
             },
         );
 
@@ -2003,8 +2042,6 @@ impl ErrorCodeRegistry {
             },
         );
 
-
-
         Self { codes }
     }
 
@@ -2064,9 +2101,10 @@ pub fn diagnostic_from_code(code: &str, message: String, span: Option<SourceSpan
 
     // Add suggestions from error code registry if available
     if let Some(error_code) = ERROR_CODES.get(code)
-        && let Some(suggestion) = &error_code.suggestion {
-            diag = diag.with_suggestion(suggestion.clone());
-        }
+        && let Some(suggestion) = &error_code.suggestion
+    {
+        diag = diag.with_suggestion(suggestion.clone());
+    }
 
     diag
 }

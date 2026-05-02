@@ -88,11 +88,12 @@ pub unsafe extern "C" fn vec_push(vec: *mut Vec<i32>, value: i32) {
 pub unsafe extern "C" fn vec_pop(vec: *mut Vec<i32>) -> i32 {
     unsafe {
         if let Some(vec) = vec.as_mut()
-            && vec.len > 0 {
-                vec.len -= 1;
-                // Return dummy value for now
-                return 0;
-            }
+            && vec.len > 0
+        {
+            vec.len -= 1;
+            // Return dummy value for now
+            return 0;
+        }
         -1 // Error value
     }
 }
@@ -120,10 +121,11 @@ pub unsafe extern "C" fn vec_len(vec: *const Vec<i32>) -> usize {
 pub unsafe extern "C" fn vec_get(vec: *const Vec<i32>, index: usize) -> i32 {
     unsafe {
         if let Some(vec) = vec.as_ref()
-            && index < vec.len {
-                // Return dummy value for now
-                return 0;
-            }
+            && index < vec.len
+        {
+            // Return dummy value for now
+            return 0;
+        }
         -1 // Error value
     }
 }

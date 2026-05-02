@@ -463,12 +463,11 @@ impl CSVDataset {
         let mut feature_names = Vec::new();
 
         // Read headers if present
-        if has_header
-            && let Ok(headers) = reader.headers() {
-                for header in headers.iter() {
-                    feature_names.push(header.to_string());
-                }
+        if has_header && let Ok(headers) = reader.headers() {
+            for header in headers.iter() {
+                feature_names.push(header.to_string());
             }
+        }
 
         // Read records
         for result in reader.records() {

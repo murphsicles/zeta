@@ -111,9 +111,10 @@ impl Workspace {
             if path.is_dir() {
                 let manifest_path = path.join("Cargo.toml");
                 if manifest_path.exists()
-                    && let Some(dir_name) = path.file_name() {
-                        members.push(dir_name.to_string_lossy().to_string());
-                    }
+                    && let Some(dir_name) = path.file_name()
+                {
+                    members.push(dir_name.to_string_lossy().to_string());
+                }
             }
         }
 

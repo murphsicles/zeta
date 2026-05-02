@@ -14,11 +14,11 @@
 //! - Bounds checking: Runtime verification of array accesses
 #![allow(unsafe_code)]
 
-use std::alloc::{alloc, dealloc, Layout};
+use std::alloc::{Layout, alloc, dealloc};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 // Constants
 const GUARD_PAGE_SIZE: usize = 4096; // Typical page size

@@ -132,37 +132,39 @@ pub unsafe extern "C" fn std_calloc(count: i64, size: i64) -> i64 {
 /// # Safety
 /// ptr must be from std_malloc/std_calloc or null.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn std_realloc(ptr: i64, new_size: i64) -> i64 { unsafe {
-    if ptr == 0 || new_size <= 0 {
-        if new_size > 0 {
-            return std_malloc(new_size as usize);
-        }
-        return 0;
-    }
+pub unsafe extern "C" fn std_realloc(ptr: i64, new_size: i64) -> i64 {
     unsafe {
-        // Look up old size from tracker
-        let old_size = ALLOC_TRACKER
-            .lock()
-            .ok()
-            .and_then(|mut tracker| tracker.remove(&(ptr as usize)))
-            .unwrap_or(new_size as usize);
-
-        // Allocate new block
-        let new_ptr = std_malloc(new_size as usize);
-        if new_ptr == 0 {
+        if ptr == 0 || new_size <= 0 {
+            if new_size > 0 {
+                return std_malloc(new_size as usize);
+            }
             return 0;
         }
+        unsafe {
+            // Look up old size from tracker
+            let old_size = ALLOC_TRACKER
+                .lock()
+                .ok()
+                .and_then(|mut tracker| tracker.remove(&(ptr as usize)))
+                .unwrap_or(new_size as usize);
 
-        // Copy old data
-        let copy_size = std::cmp::min(old_size, new_size as usize);
-        std::ptr::copy_nonoverlapping(ptr as *const u8, new_ptr as *mut u8, copy_size);
+            // Allocate new block
+            let new_ptr = std_malloc(new_size as usize);
+            if new_ptr == 0 {
+                return 0;
+            }
 
-        // Free old block
-        std_free(ptr as usize);
+            // Copy old data
+            let copy_size = std::cmp::min(old_size, new_size as usize);
+            std::ptr::copy_nonoverlapping(ptr as *const u8, new_ptr as *mut u8, copy_size);
 
-        new_ptr
+            // Free old block
+            std_free(ptr as usize);
+
+            new_ptr
+        }
     }
-}}
+}
 
 /// Creates a new dynamic array.
 /// Returns a pointer to the array structure.

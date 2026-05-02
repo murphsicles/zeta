@@ -81,9 +81,10 @@ impl DocumentationGenerator {
                     self.repository = Some(repo.trim_matches('"').to_string());
                 }
             } else if line.starts_with("license = ")
-                && let Some(license) = line.strip_prefix("license = ") {
-                    self.license = Some(license.trim_matches('"').to_string());
-                }
+                && let Some(license) = line.strip_prefix("license = ")
+            {
+                self.license = Some(license.trim_matches('"').to_string());
+            }
         }
 
         Ok(())

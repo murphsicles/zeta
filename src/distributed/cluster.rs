@@ -548,9 +548,10 @@ impl LoadBalancer {
     pub fn decrement_connections(&self, node_id: NodeId) {
         let mut counts = self.connection_counts.write().unwrap();
         if let Some(count) = counts.get_mut(&node_id)
-            && *count > 0 {
-                *count -= 1;
-            }
+            && *count > 0
+        {
+            *count -= 1;
+        }
     }
 }
 
@@ -591,9 +592,7 @@ impl ServiceDiscovery {
     /// Discover service instances
     pub fn discover_service(&self, service_name: &str) -> Vec<NodeInfo> {
         let services = self.services.read().unwrap();
-        services
-            .get(service_name).cloned()
-            .unwrap_or_default()
+        services.get(service_name).cloned().unwrap_or_default()
     }
 
     /// Get all registered services

@@ -3,7 +3,6 @@
 //! This module defines `ConstEvaluator`, which evaluates constant
 //! expressions and functions at compile time.
 
-
 use crate::frontend::ast::AstNode;
 
 use super::context::ConstContext;
@@ -59,9 +58,10 @@ impl ConstEvaluator {
                 comptime_,
                 ..
             } = ast
-                && (*const_ || *comptime_) {
-                    self.context.register_function(name.clone(), ast.clone());
-                } 
+                && (*const_ || *comptime_)
+            {
+                self.context.register_function(name.clone(), ast.clone());
+            }
         }
 
         // Second pass: evaluate constants and transform AST
@@ -112,7 +112,12 @@ impl ConstEvaluator {
                     }
                     Err(e) => {
                         // Keep as-is if evaluation fails
-                        crate::diag_warning!("W6001", "Could not evaluate constant {}: {}", name, e);
+                        crate::diag_warning!(
+                            "W6001",
+                            "Could not evaluate constant {}: {}",
+                            name,
+                            e
+                        );
                         Ok(node.clone())
                     }
                 }
@@ -320,25 +325,25 @@ impl ConstEvaluator {
                         && let AstNode::FuncDef {
                             const_, comptime_, ..
                         } = func
-                            && (*const_ || *comptime_) {
-                                // Check if all args are simple (no variable references).
-                                // If any arg references a variable, skip eager eval —
-                                // we're inside a function body and vars aren't bound yet.
-                                let has_vars =
-                                    transformed_args.iter().any(Self::contains_variable);
-                                if !has_vars {
-                                    match self.eval_function_call(None, method, &transformed_args) {
-                                        Ok(ConstValue::Int(n)) => {
-                                            return Ok(AstNode::Lit(n));
-                                        }
-                                        Ok(ConstValue::Bool(b)) => {
-                                            return Ok(AstNode::Bool(b));
-                                        }
-                                        Ok(val) => {}
-                                        Err(e) => {}
-                                    }
+                        && (*const_ || *comptime_)
+                    {
+                        // Check if all args are simple (no variable references).
+                        // If any arg references a variable, skip eager eval —
+                        // we're inside a function body and vars aren't bound yet.
+                        let has_vars = transformed_args.iter().any(Self::contains_variable);
+                        if !has_vars {
+                            match self.eval_function_call(None, method, &transformed_args) {
+                                Ok(ConstValue::Int(n)) => {
+                                    return Ok(AstNode::Lit(n));
                                 }
+                                Ok(ConstValue::Bool(b)) => {
+                                    return Ok(AstNode::Bool(b));
+                                }
+                                Ok(val) => {}
+                                Err(e) => {}
                             }
+                        }
+                    }
                 }
 
                 // Return transformed call
@@ -706,7 +711,6 @@ impl ConstEvaluator {
     fn eval_unary_op(&mut self, op: &str, expr: &AstNode) -> CtfeResult<ConstValue> {
         let val = self.eval_const_expr(expr)?;
 
-        
         val.unary_op(op).map_err(|e| CtfeError::InvalidOperation {
             op: op.to_string(),
             left_type: val.type_name().to_string(),
@@ -980,7 +984,7 @@ impl ConstEvaluator {
         } else if let Some(else_expr) = else_branch {
             // else branch is a single expression, not a block — it can't have let declarations
             // so we always skip scope management for it
-            
+
             self.eval_const_expr(else_expr)
         } else {
             Ok(ConstValue::Unit)

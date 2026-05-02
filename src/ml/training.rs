@@ -112,9 +112,10 @@ impl LossFunction for CrossEntropyLoss {
 
         for (i, &target) in target_data.iter().enumerate() {
             if let Some(ignore_idx) = self.ignore_index
-                && target as usize == ignore_idx {
-                    continue;
-                }
+                && target as usize == ignore_idx
+            {
+                continue;
+            }
 
             // Simplified: loss = -log(softmax(prediction)[target])
             // For now, use a placeholder

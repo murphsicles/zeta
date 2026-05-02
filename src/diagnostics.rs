@@ -192,7 +192,12 @@ impl Diagnostic {
 
         // Source line with right-aligned line number prefix
         // e.g., "  12 |     let x: int = 42;\n"
-        result.push_str(&format!("{:>width$} | {}\n", line_num, line, width = LN_WIDTH));
+        result.push_str(&format!(
+            "{:>width$} | {}\n",
+            line_num,
+            line,
+            width = LN_WIDTH
+        ));
 
         // Underline row: spaces + carets pointing at the error span
         let start_col = span.start.column.saturating_sub(1); // 0-based column
@@ -233,9 +238,9 @@ impl Diagnostic {
         // ── Severity + code ────────────────────────────────────────────
         let (sev_ansi, code_ansi) = match self.severity {
             Severity::Error | Severity::Fatal => ("[1;31m", "[1;31m"), // bold red
-            Severity::Warning => ("[1;33m", "[1;33m"), // bold yellow
-            Severity::Note => ("[34m", "[34m"),         // blue
-            Severity::Help => ("[34m", "[34m"),         // blue
+            Severity::Warning => ("[1;33m", "[1;33m"),                 // bold yellow
+            Severity::Note => ("[34m", "[34m"),                        // blue
+            Severity::Help => ("[34m", "[34m"),                        // blue
         };
 
         let severity_colored = ansi(sev_ansi, &self.severity.to_string());
@@ -255,10 +260,7 @@ impl Diagnostic {
                 "{}:{}:{}",
                 span.start.file, span.start.line, span.start.column
             );
-            output.push_str(&format!(
-                "  {}\n",
-                ansi("[36m", &format!("--> {}", loc))
-            ));
+            output.push_str(&format!("  {}\n", ansi("[36m", &format!("--> {}", loc))));
 
             // ── Source context ─────────────────────────────────────────
             if let Some(src) = source {
@@ -272,20 +274,12 @@ impl Diagnostic {
 
         // ── Note ────────────────────────────────────────────────────────
         if let Some(note) = &self.note {
-            output.push_str(&format!(
-                "   = {}: {}\n",
-                ansi("[34m", "note"),
-                note
-            ));
+            output.push_str(&format!("   = {}: {}\n", ansi("[34m", "note"), note));
         }
 
         // ── Help ────────────────────────────────────────────────────────
         if let Some(help) = &self.help {
-            output.push_str(&format!(
-                "   = {}: {}\n",
-                ansi("[34m", "help"),
-                help
-            ));
+            output.push_str(&format!("   = {}: {}\n", ansi("[34m", "help"), help));
         }
 
         // ── Suggestions ─────────────────────────────────────────────────

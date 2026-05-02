@@ -274,15 +274,16 @@ impl ResolutionResult {
 
             // Add dependencies if any
             if let Some(node) = self.graph.nodes.get(name)
-                && !node.dependencies.is_empty() {
-                    lockfile.push_str("dependencies = [\n");
-                    for dep in &node.dependencies {
-                        if let Some(dep_version) = self.versions.get(dep) {
-                            lockfile.push_str(&format!("  \"{} {}\",\n", dep, dep_version));
-                        }
+                && !node.dependencies.is_empty()
+            {
+                lockfile.push_str("dependencies = [\n");
+                for dep in &node.dependencies {
+                    if let Some(dep_version) = self.versions.get(dep) {
+                        lockfile.push_str(&format!("  \"{} {}\",\n", dep, dep_version));
                     }
-                    lockfile.push_str("]\n");
                 }
+                lockfile.push_str("]\n");
+            }
 
             lockfile.push('\n');
         }

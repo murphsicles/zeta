@@ -170,16 +170,17 @@ pub fn parse_lit(input: &str) -> IResult<&str, AstNode> {
 
 fn parse_triple_quoted_string(input: &str) -> IResult<&str, AstNode> {
     // Check for triple quotes: """ or '''
-    let (input, quote_char) = if let Ok((i, _)) = tag::<_, _, nom::error::Error<_>>("\"\"\"").parse(input) {
-        (i, '"')
-    } else if let Ok((i, _)) = tag::<_, _, nom::error::Error<_>>("'''").parse(input) {
-        (i, '\'')
-    } else {
-        return Err(nom::Err::Error(NomError::new(
-            input,
-            nom::error::ErrorKind::Tag,
-        )));
-    };
+    let (input, quote_char) =
+        if let Ok((i, _)) = tag::<_, _, nom::error::Error<_>>("\"\"\"").parse(input) {
+            (i, '"')
+        } else if let Ok((i, _)) = tag::<_, _, nom::error::Error<_>>("'''").parse(input) {
+            (i, '\'')
+        } else {
+            return Err(nom::Err::Error(NomError::new(
+                input,
+                nom::error::ErrorKind::Tag,
+            )));
+        };
 
     let mut content = String::new();
     let chars = input.chars();
@@ -557,11 +558,8 @@ fn parse_closure(input: &str) -> IResult<&str, AstNode> {
     let (input, params) = separated_list0(ws(tag(",")), ws(parse_ident)).parse(input)?;
     let (input, _) = ws(tag("|")).parse(input)?;
     // Try statement first (handles if, if-let, while, etc.), then expression
-    let (input, body) = alt((
-        crate::frontend::parser::stmt::parse_stmt,
-        parse_expr,
-    ))
-    .parse(input)?;
+    let (input, body) =
+        alt((crate::frontend::parser::stmt::parse_stmt, parse_expr)).parse(input)?;
     Ok((
         input,
         AstNode::Closure {
@@ -799,10 +797,7 @@ fn parse_trait_query(input: &str) -> IResult<&str, AstNode> {
 
     // Create a Call expression with the type args as arguments
     // We pass the type arguments as AstNode::StringLit nodes that represent type names
-    let args: Vec<AstNode> = type_args
-        .into_iter()
-        .map(AstNode::StringLit)
-        .collect();
+    let args: Vec<AstNode> = type_args.into_iter().map(AstNode::StringLit).collect();
 
     Ok((
         input,
@@ -855,11 +850,10 @@ pub(crate) fn parse_postfix(input: &str) -> IResult<&str, AstNode> {
         // Check if we have a dot
         if pos < bytes.len() && bytes[pos] == b'.' {
             // Check if next character is also dot or equals
-            if pos + 1 < bytes.len()
-                && bytes[pos + 1] == b'.' {
-                    // This is ".." or "..="
-                    is_range_operator = true;
-                }
+            if pos + 1 < bytes.len() && bytes[pos + 1] == b'.' {
+                // This is ".." or "..="
+                is_range_operator = true;
+            }
         }
 
         // Check if this is a range operator

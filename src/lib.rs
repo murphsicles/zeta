@@ -148,7 +148,9 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
 
     codegen.gen_mirs(&mirs);
 
-    let ee = codegen.finalize_and_jit("native").map_err(|e| e.to_string())?;
+    let ee = codegen
+        .finalize_and_jit("native")
+        .map_err(|e| e.to_string())?;
 
     // Map required runtime functions
     if let Some(f) = codegen.module.get_function("malloc") {
@@ -393,15 +395,42 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
 
     // Map Vec runtime functions (zeta_vec_* → vec_*)
     let vec_fns: Vec<(&str, usize)> = vec![
-        ("vec_new",      crate::runtime::vec::zeta_vec_new as *const () as usize),
-        ("vec_push",     crate::runtime::vec::zeta_vec_push as *const () as usize),
-        ("vec_pop",      crate::runtime::vec::zeta_vec_pop as *const () as usize),
-        ("vec_get",      crate::runtime::vec::zeta_vec_get as *const () as usize),
-        ("vec_set",      crate::runtime::vec::zeta_vec_set as *const () as usize),
-        ("vec_len",      crate::runtime::vec::zeta_vec_len as *const () as usize),
-        ("vec_capacity", crate::runtime::vec::zeta_vec_capacity as *const () as usize),
-        ("vec_clear",    crate::runtime::vec::zeta_vec_clear as *const () as usize),
-        ("vec_free",     crate::runtime::vec::zeta_vec_free as *const () as usize),
+        (
+            "vec_new",
+            crate::runtime::vec::zeta_vec_new as *const () as usize,
+        ),
+        (
+            "vec_push",
+            crate::runtime::vec::zeta_vec_push as *const () as usize,
+        ),
+        (
+            "vec_pop",
+            crate::runtime::vec::zeta_vec_pop as *const () as usize,
+        ),
+        (
+            "vec_get",
+            crate::runtime::vec::zeta_vec_get as *const () as usize,
+        ),
+        (
+            "vec_set",
+            crate::runtime::vec::zeta_vec_set as *const () as usize,
+        ),
+        (
+            "vec_len",
+            crate::runtime::vec::zeta_vec_len as *const () as usize,
+        ),
+        (
+            "vec_capacity",
+            crate::runtime::vec::zeta_vec_capacity as *const () as usize,
+        ),
+        (
+            "vec_clear",
+            crate::runtime::vec::zeta_vec_clear as *const () as usize,
+        ),
+        (
+            "vec_free",
+            crate::runtime::vec::zeta_vec_free as *const () as usize,
+        ),
     ];
     for (name, fn_ptr) in &vec_fns {
         if let Some(f) = codegen.module.get_function(name) {
@@ -411,99 +440,330 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
     // Map monomorphized vec_* functions
     for func_name in codegen.module.get_functions() {
         let name = func_name.get_name().to_str().unwrap();
-        if name.starts_with("vec_push_") { ee.add_global_mapping(&func_name, crate::runtime::vec::zeta_vec_push as *const () as usize); }
-        if name.starts_with("vec_get_")  { ee.add_global_mapping(&func_name, crate::runtime::vec::zeta_vec_get as *const () as usize); }
-        if name.starts_with("vec_len_")  { ee.add_global_mapping(&func_name, crate::runtime::vec::zeta_vec_len as *const () as usize); }
+        if name.starts_with("vec_push_") {
+            ee.add_global_mapping(
+                &func_name,
+                crate::runtime::vec::zeta_vec_push as *const () as usize,
+            );
+        }
+        if name.starts_with("vec_get_") {
+            ee.add_global_mapping(
+                &func_name,
+                crate::runtime::vec::zeta_vec_get as *const () as usize,
+            );
+        }
+        if name.starts_with("vec_len_") {
+            ee.add_global_mapping(
+                &func_name,
+                crate::runtime::vec::zeta_vec_len as *const () as usize,
+            );
+        }
     }
-    
+
     // Map Tier 2 runtime functions (fs, path, net, atomic)
     let tier2_fns: Vec<(&str, usize)> = vec![
         // Filesystem
-        ("fs_read_to_string",  crate::runtime::fs::fs_read_to_string as *const () as usize),
-        ("fs_write",           crate::runtime::fs::fs_write as *const () as usize),
-        ("fs_create_dir",      crate::runtime::fs::fs_create_dir as *const () as usize),
-        ("fs_create_dir_all",  crate::runtime::fs::fs_create_dir_all as *const () as usize),
-        ("fs_remove_file",     crate::runtime::fs::fs_remove_file as *const () as usize),
-        ("fs_remove_dir",      crate::runtime::fs::fs_remove_dir as *const () as usize),
-        ("fs_rename",          crate::runtime::fs::fs_rename as *const () as usize),
-        ("fs_copy",            crate::runtime::fs::fs_copy as *const () as usize),
-        ("fs_exists",          crate::runtime::fs::fs_exists as *const () as usize),
-        ("fs_is_file",         crate::runtime::fs::fs_is_file as *const () as usize),
-        ("fs_is_dir",          crate::runtime::fs::fs_is_dir as *const () as usize),
-        ("fs_metadata_len",    crate::runtime::fs::fs_metadata_len as *const () as usize),
-        ("fs_read_dir",        crate::runtime::fs::fs_read_dir as *const () as usize),
-        ("fs_canonicalize",    crate::runtime::fs::fs_canonicalize as *const () as usize),
+        (
+            "fs_read_to_string",
+            crate::runtime::fs::fs_read_to_string as *const () as usize,
+        ),
+        (
+            "fs_write",
+            crate::runtime::fs::fs_write as *const () as usize,
+        ),
+        (
+            "fs_create_dir",
+            crate::runtime::fs::fs_create_dir as *const () as usize,
+        ),
+        (
+            "fs_create_dir_all",
+            crate::runtime::fs::fs_create_dir_all as *const () as usize,
+        ),
+        (
+            "fs_remove_file",
+            crate::runtime::fs::fs_remove_file as *const () as usize,
+        ),
+        (
+            "fs_remove_dir",
+            crate::runtime::fs::fs_remove_dir as *const () as usize,
+        ),
+        (
+            "fs_rename",
+            crate::runtime::fs::fs_rename as *const () as usize,
+        ),
+        ("fs_copy", crate::runtime::fs::fs_copy as *const () as usize),
+        (
+            "fs_exists",
+            crate::runtime::fs::fs_exists as *const () as usize,
+        ),
+        (
+            "fs_is_file",
+            crate::runtime::fs::fs_is_file as *const () as usize,
+        ),
+        (
+            "fs_is_dir",
+            crate::runtime::fs::fs_is_dir as *const () as usize,
+        ),
+        (
+            "fs_metadata_len",
+            crate::runtime::fs::fs_metadata_len as *const () as usize,
+        ),
+        (
+            "fs_read_dir",
+            crate::runtime::fs::fs_read_dir as *const () as usize,
+        ),
+        (
+            "fs_canonicalize",
+            crate::runtime::fs::fs_canonicalize as *const () as usize,
+        ),
         // Path
-        ("path_parent",        crate::runtime::path::path_parent as *const () as usize),
-        ("path_file_name",     crate::runtime::path::path_file_name as *const () as usize),
-        ("path_extension",     crate::runtime::path::path_extension as *const () as usize),
-        ("path_has_extension", crate::runtime::path::path_has_extension as *const () as usize),
-        ("path_is_absolute",   crate::runtime::path::path_is_absolute as *const () as usize),
-        ("path_join",          crate::runtime::path::path_join as *const () as usize),
-        ("path_absolute",      crate::runtime::path::path_absolute as *const () as usize),
-        ("path_as_str",        crate::runtime::path::path_as_str as *const () as usize),
-        ("path_set_extension", crate::runtime::path::path_set_extension as *const () as usize),
+        (
+            "path_parent",
+            crate::runtime::path::path_parent as *const () as usize,
+        ),
+        (
+            "path_file_name",
+            crate::runtime::path::path_file_name as *const () as usize,
+        ),
+        (
+            "path_extension",
+            crate::runtime::path::path_extension as *const () as usize,
+        ),
+        (
+            "path_has_extension",
+            crate::runtime::path::path_has_extension as *const () as usize,
+        ),
+        (
+            "path_is_absolute",
+            crate::runtime::path::path_is_absolute as *const () as usize,
+        ),
+        (
+            "path_join",
+            crate::runtime::path::path_join as *const () as usize,
+        ),
+        (
+            "path_absolute",
+            crate::runtime::path::path_absolute as *const () as usize,
+        ),
+        (
+            "path_as_str",
+            crate::runtime::path::path_as_str as *const () as usize,
+        ),
+        (
+            "path_set_extension",
+            crate::runtime::path::path_set_extension as *const () as usize,
+        ),
         // Networking
-        ("tcp_connect",        crate::runtime::net::tcp_connect as *const () as usize),
-        ("tcp_write",          crate::runtime::net::tcp_write as *const () as usize),
-        ("tcp_read",           crate::runtime::net::tcp_read as *const () as usize),
-        ("tcp_close",          crate::runtime::net::tcp_close as *const () as usize),
-        ("tcp_bind",           crate::runtime::net::tcp_bind as *const () as usize),
-        ("tcp_accept",         crate::runtime::net::tcp_accept as *const () as usize),
-        ("tcp_peer_addr",      crate::runtime::net::tcp_peer_addr as *const () as usize),
-        ("tcp_local_addr",     crate::runtime::net::tcp_local_addr as *const () as usize),
+        (
+            "tcp_connect",
+            crate::runtime::net::tcp_connect as *const () as usize,
+        ),
+        (
+            "tcp_write",
+            crate::runtime::net::tcp_write as *const () as usize,
+        ),
+        (
+            "tcp_read",
+            crate::runtime::net::tcp_read as *const () as usize,
+        ),
+        (
+            "tcp_close",
+            crate::runtime::net::tcp_close as *const () as usize,
+        ),
+        (
+            "tcp_bind",
+            crate::runtime::net::tcp_bind as *const () as usize,
+        ),
+        (
+            "tcp_accept",
+            crate::runtime::net::tcp_accept as *const () as usize,
+        ),
+        (
+            "tcp_peer_addr",
+            crate::runtime::net::tcp_peer_addr as *const () as usize,
+        ),
+        (
+            "tcp_local_addr",
+            crate::runtime::net::tcp_local_addr as *const () as usize,
+        ),
         // Atomics
-        ("atomic_bool_new",    crate::runtime::atomic::atomic_bool_new as *const () as usize),
-        ("atomic_bool_load",   crate::runtime::atomic::atomic_bool_load as *const () as usize),
-        ("atomic_bool_store",  crate::runtime::atomic::atomic_bool_store as *const () as usize),
-        ("atomic_bool_swap",   crate::runtime::atomic::atomic_bool_swap as *const () as usize),
-        ("atomic_bool_cas",    crate::runtime::atomic::atomic_bool_cas as *const () as usize),
-        ("atomic_i64_new",     crate::runtime::atomic::atomic_i64_new as *const () as usize),
-        ("atomic_i64_load",    crate::runtime::atomic::atomic_i64_load as *const () as usize),
-        ("atomic_i64_store",   crate::runtime::atomic::atomic_i64_store as *const () as usize),
-        ("atomic_i64_swap",    crate::runtime::atomic::atomic_i64_swap as *const () as usize),
-        ("atomic_i64_cas",     crate::runtime::atomic::atomic_i64_cas as *const () as usize),
-        ("atomic_i64_add",     crate::runtime::atomic::atomic_i64_fetch_add as *const () as usize),
-        ("atomic_i64_sub",     crate::runtime::atomic::atomic_i64_fetch_sub as *const () as usize),
-        ("atomic_i64_and",     crate::runtime::atomic::atomic_i64_fetch_and as *const () as usize),
-        ("atomic_i64_or",      crate::runtime::atomic::atomic_i64_fetch_or as *const () as usize),
+        (
+            "atomic_bool_new",
+            crate::runtime::atomic::atomic_bool_new as *const () as usize,
+        ),
+        (
+            "atomic_bool_load",
+            crate::runtime::atomic::atomic_bool_load as *const () as usize,
+        ),
+        (
+            "atomic_bool_store",
+            crate::runtime::atomic::atomic_bool_store as *const () as usize,
+        ),
+        (
+            "atomic_bool_swap",
+            crate::runtime::atomic::atomic_bool_swap as *const () as usize,
+        ),
+        (
+            "atomic_bool_cas",
+            crate::runtime::atomic::atomic_bool_cas as *const () as usize,
+        ),
+        (
+            "atomic_i64_new",
+            crate::runtime::atomic::atomic_i64_new as *const () as usize,
+        ),
+        (
+            "atomic_i64_load",
+            crate::runtime::atomic::atomic_i64_load as *const () as usize,
+        ),
+        (
+            "atomic_i64_store",
+            crate::runtime::atomic::atomic_i64_store as *const () as usize,
+        ),
+        (
+            "atomic_i64_swap",
+            crate::runtime::atomic::atomic_i64_swap as *const () as usize,
+        ),
+        (
+            "atomic_i64_cas",
+            crate::runtime::atomic::atomic_i64_cas as *const () as usize,
+        ),
+        (
+            "atomic_i64_add",
+            crate::runtime::atomic::atomic_i64_fetch_add as *const () as usize,
+        ),
+        (
+            "atomic_i64_sub",
+            crate::runtime::atomic::atomic_i64_fetch_sub as *const () as usize,
+        ),
+        (
+            "atomic_i64_and",
+            crate::runtime::atomic::atomic_i64_fetch_and as *const () as usize,
+        ),
+        (
+            "atomic_i64_or",
+            crate::runtime::atomic::atomic_i64_fetch_or as *const () as usize,
+        ),
     ];
     for (name, fn_ptr) in &tier2_fns {
         if let Some(f) = codegen.module.get_function(name) {
             ee.add_global_mapping(&f, *fn_ptr);
         }
     }
-    
+
     // Map Tier 3 runtime functions (char, duration, process, thread)
     let tier3_fns: Vec<(&str, usize)> = vec![
-        ("char_is_digit",        crate::runtime::char_::char_is_digit as *const () as usize),
-        ("char_is_alphabetic",   crate::runtime::char_::char_is_alphabetic as *const () as usize),
-        ("char_is_alphanumeric", crate::runtime::char_::char_is_alphanumeric as *const () as usize),
-        ("char_is_lowercase",    crate::runtime::char_::char_is_lowercase as *const () as usize),
-        ("char_is_uppercase",    crate::runtime::char_::char_is_uppercase as *const () as usize),
-        ("char_is_whitespace",   crate::runtime::char_::char_is_whitespace as *const () as usize),
-        ("char_to_lowercase",    crate::runtime::char_::char_to_lowercase as *const () as usize),
-        ("char_to_uppercase",    crate::runtime::char_::char_to_uppercase as *const () as usize),
-        ("char_from_u32",        crate::runtime::char_::char_from_u32 as *const () as usize),
-        ("char_to_digit",        crate::runtime::char_::char_to_digit as *const () as usize),
-        ("char_is_control",      crate::runtime::char_::char_is_control as *const () as usize),
-        ("char_is_numeric",      crate::runtime::char_::char_is_numeric as *const () as usize),
-        ("duration_add",         crate::runtime::duration::duration_add as *const () as usize),
-        ("duration_sub",         crate::runtime::duration::duration_sub as *const () as usize),
-        ("duration_mul",         crate::runtime::duration::duration_mul as *const () as usize),
-        ("duration_div",         crate::runtime::duration::duration_div as *const () as usize),
-        ("duration_lt",          crate::runtime::duration::duration_lt as *const () as usize),
-        ("duration_eq",          crate::runtime::duration::duration_eq as *const () as usize),
-        ("process_command_new",   crate::runtime::process::process_command_new as *const () as usize),
-        ("process_command_arg",   crate::runtime::process::process_command_arg as *const () as usize),
-        ("process_command_output",crate::runtime::process::process_command_output as *const () as usize),
-        ("process_command_status",crate::runtime::process::process_command_status as *const () as usize),
-        ("process_output_stdout", crate::runtime::process::process_output_stdout as *const () as usize),
-        ("process_output_stderr", crate::runtime::process::process_output_stderr as *const () as usize),
-        ("process_output_status", crate::runtime::process::process_output_status as *const () as usize),
-        ("thread_spawn",          crate::runtime::thread_::thread_spawn as *const () as usize),
-        ("thread_join",           crate::runtime::thread_::thread_join as *const () as usize),
-        ("thread_sleep_ms",       crate::runtime::thread_::thread_sleep_ms as *const () as usize),
+        (
+            "char_is_digit",
+            crate::runtime::char_::char_is_digit as *const () as usize,
+        ),
+        (
+            "char_is_alphabetic",
+            crate::runtime::char_::char_is_alphabetic as *const () as usize,
+        ),
+        (
+            "char_is_alphanumeric",
+            crate::runtime::char_::char_is_alphanumeric as *const () as usize,
+        ),
+        (
+            "char_is_lowercase",
+            crate::runtime::char_::char_is_lowercase as *const () as usize,
+        ),
+        (
+            "char_is_uppercase",
+            crate::runtime::char_::char_is_uppercase as *const () as usize,
+        ),
+        (
+            "char_is_whitespace",
+            crate::runtime::char_::char_is_whitespace as *const () as usize,
+        ),
+        (
+            "char_to_lowercase",
+            crate::runtime::char_::char_to_lowercase as *const () as usize,
+        ),
+        (
+            "char_to_uppercase",
+            crate::runtime::char_::char_to_uppercase as *const () as usize,
+        ),
+        (
+            "char_from_u32",
+            crate::runtime::char_::char_from_u32 as *const () as usize,
+        ),
+        (
+            "char_to_digit",
+            crate::runtime::char_::char_to_digit as *const () as usize,
+        ),
+        (
+            "char_is_control",
+            crate::runtime::char_::char_is_control as *const () as usize,
+        ),
+        (
+            "char_is_numeric",
+            crate::runtime::char_::char_is_numeric as *const () as usize,
+        ),
+        (
+            "duration_add",
+            crate::runtime::duration::duration_add as *const () as usize,
+        ),
+        (
+            "duration_sub",
+            crate::runtime::duration::duration_sub as *const () as usize,
+        ),
+        (
+            "duration_mul",
+            crate::runtime::duration::duration_mul as *const () as usize,
+        ),
+        (
+            "duration_div",
+            crate::runtime::duration::duration_div as *const () as usize,
+        ),
+        (
+            "duration_lt",
+            crate::runtime::duration::duration_lt as *const () as usize,
+        ),
+        (
+            "duration_eq",
+            crate::runtime::duration::duration_eq as *const () as usize,
+        ),
+        (
+            "process_command_new",
+            crate::runtime::process::process_command_new as *const () as usize,
+        ),
+        (
+            "process_command_arg",
+            crate::runtime::process::process_command_arg as *const () as usize,
+        ),
+        (
+            "process_command_output",
+            crate::runtime::process::process_command_output as *const () as usize,
+        ),
+        (
+            "process_command_status",
+            crate::runtime::process::process_command_status as *const () as usize,
+        ),
+        (
+            "process_output_stdout",
+            crate::runtime::process::process_output_stdout as *const () as usize,
+        ),
+        (
+            "process_output_stderr",
+            crate::runtime::process::process_output_stderr as *const () as usize,
+        ),
+        (
+            "process_output_status",
+            crate::runtime::process::process_output_status as *const () as usize,
+        ),
+        (
+            "thread_spawn",
+            crate::runtime::thread_::thread_spawn as *const () as usize,
+        ),
+        (
+            "thread_join",
+            crate::runtime::thread_::thread_join as *const () as usize,
+        ),
+        (
+            "thread_sleep_ms",
+            crate::runtime::thread_::thread_sleep_ms as *const () as usize,
+        ),
     ];
     for (name, fn_ptr) in &tier3_fns {
         if let Some(f) = codegen.module.get_function(name) {

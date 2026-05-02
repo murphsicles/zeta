@@ -46,10 +46,12 @@ comptime fn generate_residues() -> [NUM_RESIDUES]u64 {
                         arr.len()
                     );
                     // Check array contents
-                    let expected = [ConstValue::Int(1),
+                    let expected = [
+                        ConstValue::Int(1),
                         ConstValue::Int(3),
                         ConstValue::Int(7),
-                        ConstValue::Int(9)];
+                        ConstValue::Int(9),
+                    ];
                     assert_eq!(arr.len(), expected.len(), "Array should have 4 elements");
 
                     // Note: The array might be [0, 0, 0, 0] because we don't yet

@@ -239,18 +239,20 @@ impl BreakpointManager {
     fn parse_location(&self, location: &str) -> Result<BreakpointType, DebuggerError> {
         // Try to parse as file:line
         if let Some((file, line_str)) = location.split_once(':')
-            && let Ok(line) = line_str.parse::<u32>() {
-                return Ok(BreakpointType::Source {
-                    file: file.to_string(),
-                    line,
-                });
-            }
+            && let Ok(line) = line_str.parse::<u32>()
+        {
+            return Ok(BreakpointType::Source {
+                file: file.to_string(),
+                line,
+            });
+        }
 
         // Try to parse as hex address
         if location.starts_with("0x")
-            && let Ok(address) = u64::from_str_radix(&location[2..], 16) {
-                return Ok(BreakpointType::Address { address });
-            }
+            && let Ok(address) = u64::from_str_radix(&location[2..], 16)
+        {
+            return Ok(BreakpointType::Address { address });
+        }
 
         // Try to parse as decimal address
         if let Ok(address) = location.parse::<u64>() {

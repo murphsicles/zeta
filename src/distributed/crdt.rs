@@ -309,10 +309,7 @@ impl<T: Clone + Eq + std::hash::Hash> ORSet<T> {
     /// Merge with another OR-Set
     pub fn merge(&mut self, other: &ORSet<T>) {
         for (element, other_clocks) in &other.elements {
-            let entry = self
-                .elements
-                .entry(element.clone())
-                .or_default();
+            let entry = self.elements.entry(element.clone()).or_default();
             entry.extend(other_clocks.iter().cloned());
         }
     }

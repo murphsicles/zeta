@@ -647,19 +647,18 @@ impl MirGen {
                             let stmts_before = self.stmts.len();
 
                             // Map pattern variable to collection[index] in body
-                            if is_simple_var
-                                && let AstNode::Var(item_name) = &*pattern_clone {
-                                    let get_id = self.next_id();
-                                    self.stmts.push(MirStmt::Call {
-                                        func: "array_get".to_string(),
-                                        args: vec![collection_id, index_var_id],
-                                        dest: get_id,
-                                        type_args: vec![],
-                                    });
-                                    self.name_to_id.insert(item_name.clone(), get_id);
-                                    self.exprs.insert(get_id, MirExpr::Var(get_id));
-                                    self.type_map.insert(get_id, Type::I64);
-                                }
+                            if is_simple_var && let AstNode::Var(item_name) = &*pattern_clone {
+                                let get_id = self.next_id();
+                                self.stmts.push(MirStmt::Call {
+                                    func: "array_get".to_string(),
+                                    args: vec![collection_id, index_var_id],
+                                    dest: get_id,
+                                    type_args: vec![],
+                                });
+                                self.name_to_id.insert(item_name.clone(), get_id);
+                                self.exprs.insert(get_id, MirExpr::Var(get_id));
+                                self.type_map.insert(get_id, Type::I64);
+                            }
 
                             for stmt in &body_clone {
                                 self.lower_ast(stmt);
@@ -1055,20 +1054,20 @@ impl MirGen {
                     self.type_map.insert(id, Type::I64);
                 }
                 return id;
-            },
+            }
             AstNode::FloatLit(s) => {
                 // Float literal: try to parse, fall back to 0.
                 // Codegen currently uses i64; store as i64 0 placeholder.
                 let val: i64 = s.parse::<f64>().ok().map(|f| f as i64).unwrap_or(0);
                 self.exprs.insert(id, MirExpr::Lit(val));
                 self.type_map.insert(id, Type::F64);
-            },
+            }
             AstNode::MacroCall { .. } | AstNode::MacroDef { .. } => {
                 // Macros should be expanded before MIR lowering.
                 // If they reach here, silently return 0.
                 self.exprs.insert(id, MirExpr::Lit(0));
                 self.type_map.insert(id, Type::I64);
-            },
+            }
             // Match is handled below with full if-else chain lowering.
             AstNode::Var(name) => {
                 if let Some(&existing) = self.name_to_id.get(name) {
@@ -1729,9 +1728,9 @@ impl MirGen {
                         && arg_ids
                             .first()
                             .map(|&id| {
-                                self.source_types.get(&id).is_some_and(|st| {
-                                    st.contains("*mut") || st.contains("*const")
-                                })
+                                self.source_types
+                                    .get(&id)
+                                    .is_some_and(|st| st.contains("*mut") || st.contains("*const"))
                             })
                             .unwrap_or(false));
                 if is_ptr_add {
@@ -2660,9 +2659,10 @@ impl MirGen {
             AstNode::Unsafe { body } => {
                 // Evaluate the last expression in an unsafe block as the result
                 if let Some(last) = body.last()
-                    && let AstNode::ExprStmt { expr } = last {
-                        return self.lower_expr(expr);
-                    }
+                    && let AstNode::ExprStmt { expr } = last
+                {
+                    return self.lower_expr(expr);
+                }
                 // Fallback: evaluate the whole body as statements
                 for stmt in body {
                     self.lower_ast(stmt);

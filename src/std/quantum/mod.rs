@@ -831,7 +831,6 @@ pub mod algorithms {
             }
 
             let angle = (m / n).sqrt().asin();
-            
 
             (angle * (2.0 * iterations as f64 + 1.0)).sin().powi(2)
         }
@@ -943,7 +942,6 @@ impl QuantumOperator {
         Self::pauli_operator(qubit, total_qubits, "Y", |i, j| {
             let bit_diff = i ^ j;
             if bit_diff == (1 << qubit) {
-                
                 if (i >> qubit) & 1 == 0 {
                     Complex::new(0.0, -1.0)
                 } else {

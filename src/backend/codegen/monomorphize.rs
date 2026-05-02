@@ -180,11 +180,7 @@ pub fn substitute_stmt(stmt: &MirStmt, substitution: &Substitution) -> MirStmt {
         },
         MirStmt::Break => MirStmt::Break,
         MirStmt::Continue => MirStmt::Continue,
-        MirStmt::Swap {
-            a_ptr,
-            b_ptr,
-            size,
-        } => MirStmt::Swap {
+        MirStmt::Swap { a_ptr, b_ptr, size } => MirStmt::Swap {
             a_ptr: *a_ptr,
             b_ptr: *b_ptr,
             size: *size,

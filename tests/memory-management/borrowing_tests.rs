@@ -167,11 +167,13 @@ fn test_borrow_checker_integration() {
     );
 
     // Test all can be used
-    let nodes = [AstNode::Var("owned1".to_string()),
+    let nodes = [
+        AstNode::Var("owned1".to_string()),
         AstNode::Var("owned2".to_string()),
         AstNode::Var("ref1".to_string()),
         AstNode::Var("ref2".to_string()),
-        AstNode::Var("mut_ref".to_string())];
+        AstNode::Var("mut_ref".to_string()),
+    ];
 
     for (i, node) in nodes.iter().enumerate() {
         assert!(checker.check(node, &resolver), "Node {} failed", i);

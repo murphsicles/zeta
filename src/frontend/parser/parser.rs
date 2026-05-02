@@ -66,8 +66,9 @@ pub fn parse_ident(input: &str) -> IResult<&str, String> {
             ![
                 "let", "mut", "if", "else", "for", "in", "loop", "while", "unsafe", "return",
                 "break", "continue", "fn", "concept", "impl", "enum", "struct", "type", "use",
-                "extern", "dyn", "box", "as", "true", "false", "comptime", "const", "async",
-                "pub", "match", "where", "mod", "defer", "super",
+                "extern", "dyn", "box", "as", "true", "false", "comptime", "const", "async", "pub",
+                "match", "where", "mod", "defer",
+                "super",
                 // Built-in types - allow as identifiers so they can be used in paths like u64::MAX
                 // The resolver/typechecker will reject invalid uses later.
                 // TODO: re-add these when we implement logical operators
@@ -466,7 +467,9 @@ pub fn parse_type(input: &str) -> IResult<&str, String> {
 
     // Try special types first, then built-in types, then type paths
     // Before trying type paths, check if this is a numeric literal (e.g., lane count "4")
-    if let Ok((i, digits)) = nom::character::complete::digit1::<&str, nom::error::Error<&str>>(input) {
+    if let Ok((i, digits)) =
+        nom::character::complete::digit1::<&str, nom::error::Error<&str>>(input)
+    {
         s += digits;
         return Ok((i, s));
     }

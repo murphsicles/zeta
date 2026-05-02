@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicI64, Ordering};
-use std::sync::mpsc::{channel as std_channel, Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender, channel as std_channel};
 use std::sync::{Arc, Mutex};
 
 /// Global counter for channel IDs
