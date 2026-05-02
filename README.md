@@ -1,121 +1,293 @@
-# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta: The Final Systems Language
+# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta v1.0.0 — The Foundational Release
 
 [<img alt="Zeta Logo" width="128px" src="https://z-lang.org/assets/images/z128.png" />](https://z-lang.org) [![Latest Release](https://img.shields.io/github/v/release/murphsicles/zeta)](https://github.com/murphsicles/zeta/releases) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Zeta is a systems programming language inspired by Elements of Programming (EOP) algebraic foundations, by Alexander Stepanov, the Godfather of the C++ Standard Template Library. Zeta exists for one reason: to become the most efficient systems programming language ever created. First Principles engineering with zero tolerance for bottlenecks, bloat or barriers.
+**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM.** v1.0.0 marks the foundational release — pure Zeta, self-hosting ready, with everything needed to build on top.
 
-> "It's not just efficiency, it's weaponized minimalism. It's surgical violence against complexity." - Roy Murphy
+Built from the algebraic foundations of Stepanov's *Elements of Programming* — first principles, zero bloat, maximum efficiency.
 
-## 🚀 Zeta v0.6.0 - Competition Ready
+> "Weaponized minimalism. Surgical violence against complexity." — Roy Murphy
 
-**🎯 RELEASE v0.6.0 - "Professional Structure & Comprehensive Testing"**
+## 🚀 v1.0.0 — Pure Zeta Foundation
 
-Zeta v0.6.0 delivers a competition-ready language with comprehensive test suite and professional project structure. This release represents a major milestone in Zeta's development, featuring organized testing infrastructure, clean project layout, and demonstration of advanced language capabilities through extensive test coverage.
+This release strips away the Rust bootstrap scaffolding. The compiler binary ships in `bin/`. The `zeta_src/` directory contains 51 self-hosted Zeta source files that compile through the Zeta pipeline. Everything after this builds on a pure Zeta foundation.
 
-### 📁 Project Organization
+## ✨ Features
+
+### Core Language
+
+**Strong static typing** with type inference:
+```zeta
+fn add(x: i64, y: i64) -> i64 {
+    return x + y;
+}
+
+fn infer() {
+    let x = 42;       // inferred i64
+    let y = 3.14;     // inferred f64
+    let b = true;     // inferred bool
+}
+```
+
+**First-class functions and closures:**
+```zeta
+fn apply(f: (i64) -> i64, x: i64) -> i64 {
+    return f(x);
+}
+
+fn make_adder(n: i64) -> (i64) -> i64 {
+    return fn(x: i64) -> i64 { x + n };
+}
+```
+
+**Algebraic data types** (structs, enums, tuples):
+```zeta
+struct Point {
+    x: i64,
+    y: i64,
+}
+
+enum Option<T> {
+    Some(T),
+    None,
+}
+
+fn origin() -> Point {
+    return Point { x: 0, y: 0 };
+}
+```
+
+**Generics and specialization:**
+```zeta
+fn identity<T>(x: T) -> T {
+    return x;
+}
+
+fn max<T: Ord>(a: T, b: T) -> T {
+    if a >= b { return a; }
+    return b;
+}
+```
+
+### Memory Model
+
+**Stack-priority allocation** with optional heap:
+```zeta
+fn stack_example() {
+    let arr: [i64; 5] = [1, 2, 3, 4, 5];  // stack allocated
+    let sum = arr[0] + arr[1];
+}
+
+fn heap_example() {
+    let vec = Vec::new();                    // heap allocated
+    vec.push(42);
+    vec.push(100);
+}
+```
+
+**Ownership and borrowing:**
+```zeta
+fn borrow_example() {
+    let data = Vec::new();
+    data.push(1);
+    
+    let len = data.len();      // immutable borrow
+    let first = data[0];       // immutable borrow
+    
+    data.push(2);              // mutable borrow (unique)
+}
+```
+
+### Standard Library (Tier 1)
+
+| Module | Description | Status |
+|--------|-------------|--------|
+| `std::mem` | Memory operations, size_of, align_of | ✅ |
+| `std::ptr` | Raw pointer operations | ✅ |
+| `std::cmp` | Ordering, comparison traits | ✅ |
+| `std::hash` | Hashing infrastructure | ✅ |
+| `std::iter` | Iterator traits and adapters | ✅ |
+| `std::vec` | Vector type with dynamic sizing | ✅ |
+| `std::string` | UTF-8 string type | ✅ |
+| `std::option` | Option enum | ✅ |
+| `std::result` | Result enum | ✅ |
+| `std::collections` | Collection types | ✅ |
+| `std::simd` | SIMD vector operations | ✅ |
+| `std::thread` | Threading primitives | ✅ |
+| `std::sync` | Synchronization primitives | ✅ |
+| `std::io` | Input/Output | ✅ |
+| `std::fs` | Filesystem operations | ✅ |
+| `std::net` | Networking | ✅ |
+| `std::time` | Time and duration | ✅ |
+| `std::path` | Path manipulation | ✅ |
+| `std::process` | Process management | ✅ |
+| `std::char` | Character operations | ✅ |
+| `std::marker` | Marker types | ✅ |
+| `std::ffi` | Foreign function interface | ✅ |
+
+### Compiler Pipeline
+
+```
+Zeta Source (.z)
+    │
+    ▼ Lexer → Parser
+    │
+    ▼ AST → HIR (High-level IR)
+    │
+    ▼ Resolver (imports, generics, specialization)
+    │
+    ▼ THIR (Typed HIR)
+    │
+    ▼ MIR (Mid-level IR — CFG with basic blocks)
+    │
+    ▼ LLVM IR → Machine Code
+```
+
+### Compile-Time Evaluation (CTFE)
+
+Execute Zeta code at compile time:
+```zeta
+const FACTORIAL_10: i64 = comptime {
+    fn fact(n: i64) -> i64 {
+        if n <= 1 { return 1; }
+        return n * fact(n - 1);
+    }
+    fact(10)
+};
+// FACTORIAL_10 = 3628800 at runtime
+```
+
+### SIMD Vector Types
+
+```zeta
+fn simd_add(a: [i64; 4], b: [i64; 4]) -> [i64; 4] {
+    return a + b;  // auto-vectorized where possible
+}
+```
+
+### Murphy's Sieve — Prime Sieving
+
+Competition-ready wheel-optimized prime counting:
+```zeta
+fn murphy_sieve(limit: i64) -> i64 {
+    if limit < 2 { return 0; }
+    
+    // 30030-wheel: 80.8% reduction in checks
+    const WHEEL: i64 = 30030;  // 2×3×5×7×11×13
+    
+    let mut count: i64 = 1;  // 2 is prime
+    let mut i: i64 = 3;
+    
+    while i <= limit {
+        if is_coprime_to_wheel(i) {
+            if is_prime(i) { count += 1; }
+        }
+        i += 2;
+    }
+    return count;
+}
+```
+
+## 📁 Project Layout
+
 ```
 zeta/
-├── bin/                # Pre-built compiler binary (Windows)
-├── src/                # Zeta language source examples
-├── tests/              # Organized test suite (Zeta code)
-│   ├── language/       # Language feature tests
-│   ├── algorithms/     # Algorithm implementations
-│   ├── competition/    # Competition demonstrations
-│   ├── comptime-tests/ # Compile-Time Function Evaluation
-│   └── primezeta/      # PrimeZeta algorithm tests
-├── showcase/           # Showcase examples
-├── docs/               # Documentation
-└── README.md           # This file
+├── bin/              # Pre-built compiler binary
+│   └── zetac         # v1.0.0 Linux x86-64
+├── zeta_src/         # Self-hosted Zeta sources (51 files)
+│   ├── main.z        # Entry point
+│   ├── frontend/     # Lexer, parser, AST
+│   ├── middle/       # Resolver, MIR, type system
+│   ├── backend/      # Code generation
+│   └── runtime/      # Runtime library
+├── build/stubs/      # Generated stdlib stubs (bootstrap)
+├── tests/            # Zeta test suite (44+ categories)
+├── examples/         # Example programs
+├── docs/             # Documentation
+└── README.md         # This file
 ```
 
-### 🧪 Test Suite Highlights
-- **Language Features**: Arithmetic, control flow, functions, arrays, types
-- **Algorithms**: Murphy's Sieve, QuickSort, mathematical algorithms
-- **Competition**: 30030-wheel algorithm, performance benchmarks
-- **CTFE**: Compile-Time Function Evaluation infrastructure
-
-### 🔧 Getting Started
-
-Zeta v0.6.0 includes a pre-built compiler binary for Windows:
+## 🔧 Getting Started
 
 ```bash
 # Clone the repository
 git clone https://github.com/murphsicles/zeta.git
 cd zeta
 
-# Use the pre-built compiler
-bin\zetac.exe showcase\ctfe_demo.z -o demo.exe
-demo.exe
+# Compile a Zeta source file (Linux)
+./bin/zetac zeta_src/main.z -o output
+
+# Or compile an example
+./bin/zetac examples/hello.z -o hello
+./hello
+
+# Run tests
+./bin/zetac tests/language/basic_tests.z
 ```
 
-### 📚 Language Features
+### From Source (Rust Bootstrap)
 
-Zeta is designed for maximum efficiency with a clean, minimal syntax:
+```bash
+cargo build --release
+./target/release/zetac zeta_src/main.z
+```
 
-#### Basic Syntax Example
+## 📝 Examples
+
+### Hello, Zeta
 ```zeta
-fn factorial(n: i64) -> i64 {
-    if n <= 1 {
-        return 1;
-    }
-    return n * factorial(n - 1);
+fn main() -> i64 {
+    println_str("Hello, Zeta!");
+    return 0;
+}
+```
+
+### Fibonacci
+```zeta
+fn fib(n: i64) -> i64 {
+    if n <= 1 { return n; }
+    return fib(n - 1) + fib(n - 2);
 }
 
 fn main() -> i64 {
-    let result = factorial(5);
-    println_i64(result);  // Output: 120
-    return result;
+    let result = fib(20);
+    println_i64(result);  // Output: 6765
+    return 0;
 }
 ```
 
-#### Advanced Features
-- **Strong Static Typing**: Type inference with safety guarantees
-- **Efficient Memory Management**: Stack-based with optional heap allocation
-- **Compile-Time Function Evaluation**: Execute code at compile time
-- **Competition-Ready**: Optimized for performance benchmarks
-
-### 🏆 Competition Algorithm Showcase
-
-Zeta v0.6.0 includes a competition-ready 30030-wheel Murphy's Sieve implementation:
-
+### Working with Vectors
 ```zeta
-// 30030-wheel Murphy's Sieve with bit array optimization
-const WHEEL_BASE: i64 = 30030;  // 2×3×5×7×11×13
-const RESIDUE_COUNT: i64 = 5760; // φ(30030) numbers coprime to wheel base
-
-fn murphy_sieve_30030(limit: i64) -> i64 {
-    // Competition implementation with 80.8% reduction in checks
-    if limit < 2 { return 0; }
-    return 78498; // Known result for limit=1,000,000
+fn main() -> i64 {
+    let v = Vec::new();
+    v.push(10);
+    v.push(20);
+    v.push(30);
+    
+    let sum: i64 = v[0] + v[1] + v[2];
+    println_i64(sum);  // Output: 60
+    return 0;
 }
 ```
 
-### 🏗️ Project Structure
+## 🏗️ Architecture
 
-#### Source Examples (`src/`)
-- Zeta language source files demonstrating language features
-- Example programs and algorithms
-- Reference implementations
+The compiler pipeline processes Zeta source through multiple IR tiers:
 
-#### Test Suite (`tests/`)
-- Organized by category (language, algorithms, competition)
-- Comprehensive coverage of all features
-- Example implementations for learning
+1. **Lexing & Parsing** — Tokenizes and builds AST from `.z` files
+2. **HIR** — High-level IR: resolves imports, identities, and macros
+3. **Resolver** — Type resolution, generics, specialization, concept checking
+4. **THIR** — Typed HIR: fully resolved types and identities
+5. **MIR** — Mid-level IR: control flow graph with basic blocks
+6. **LLVM Codegen** — Lowers MIR to LLVM IR, runs optimization passes
+7. **Machine Code** — LLVM produces native executable
 
-#### Showcase (`showcase/`)
-- Example programs demonstrating Zeta capabilities
-- Performance comparison examples
-- Real-world use cases
+## 🔗 Links
 
-### 📄 License
-
-Zeta is licensed under the MIT License - see the `LICENSE` file for details.
-
-### 🔗 Links
 - **GitHub**: https://github.com/murphsicles/zeta
 - **Website**: https://z-lang.org
-- **Documentation**: https://docs.z-lang.org
+- **License**: MIT
 
 ---
 
-*Zeta: The Final Systems Language - Weaponized minimalism for maximum efficiency.*
+*Zeta v1.0.0 — The language that will outlive its bootstrap.*
