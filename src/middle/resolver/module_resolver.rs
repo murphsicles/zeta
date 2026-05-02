@@ -1104,6 +1104,44 @@ extern fn atomic_bool_load(ptr: i64) -> i64;
 pub struct AtomicI64 { pub ptr: i64; }
 ".to_string()
             }
+            "char" => {
+                r"//! Stub for std::char — Character operations
+extern fn char_is_digit(ch: i64) -> i64;
+extern fn char_is_alphabetic(ch: i64) -> i64;
+extern fn char_is_whitespace(ch: i64) -> i64;
+extern fn char_to_lowercase(ch: i64) -> i64;
+extern fn char_to_uppercase(ch: i64) -> i64;
+extern fn char_from_u32(code: i64) -> i64;
+".to_string()
+            }
+            "time" => {
+                r"//! Stub for std::time — Duration and Instant
+extern fn system_time_now() -> i64;
+extern fn duration_from_secs(secs: i64) -> i64;
+extern fn duration_from_millis(ms: i64) -> i64;
+extern fn duration_as_secs(d: i64) -> i64;
+extern fn duration_as_millis(d: i64) -> i64;
+extern fn sleep_ms(ms: i64);
+pub struct Duration { pub inner: i64; }
+".to_string()
+            }
+            "process" => {
+                r"//! Stub for std::process — Command execution
+extern fn process_command_new(cmd: i64) -> i64;
+extern fn process_command_arg(cmd: i64, arg: i64);
+extern fn process_command_output(cmd: i64) -> i64;
+extern fn process_output_stdout(output: i64) -> i64;
+pub struct Command { pub inner: i64; }
+".to_string()
+            }
+            "thread" => {
+                r"//! Stub for std::thread — Thread spawning
+extern fn thread_spawn(func: i64, arg: i64) -> i64;
+extern fn thread_join(handle: i64) -> i64;
+extern fn thread_sleep_ms(ms: i64);
+pub struct JoinHandle { pub inner: i64; }
+".to_string()
+            }
             _ => {
                 // Generic stub
                 format!(

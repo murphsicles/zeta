@@ -300,6 +300,43 @@ impl<'ctx> crate::backend::codegen::LLVMCodegen<'ctx> {
             }
         }
 
+        // Map Tier 3 runtime functions (char, duration, process, thread)
+        let tier3_fns: Vec<(&str, usize)> = vec![
+            ("char_is_digit",        crate::runtime::char_::char_is_digit as *const () as usize),
+            ("char_is_alphabetic",   crate::runtime::char_::char_is_alphabetic as *const () as usize),
+            ("char_is_alphanumeric", crate::runtime::char_::char_is_alphanumeric as *const () as usize),
+            ("char_is_lowercase",    crate::runtime::char_::char_is_lowercase as *const () as usize),
+            ("char_is_uppercase",    crate::runtime::char_::char_is_uppercase as *const () as usize),
+            ("char_is_whitespace",   crate::runtime::char_::char_is_whitespace as *const () as usize),
+            ("char_to_lowercase",    crate::runtime::char_::char_to_lowercase as *const () as usize),
+            ("char_to_uppercase",    crate::runtime::char_::char_to_uppercase as *const () as usize),
+            ("char_from_u32",        crate::runtime::char_::char_from_u32 as *const () as usize),
+            ("char_to_digit",        crate::runtime::char_::char_to_digit as *const () as usize),
+            ("char_is_control",      crate::runtime::char_::char_is_control as *const () as usize),
+            ("char_is_numeric",      crate::runtime::char_::char_is_numeric as *const () as usize),
+            ("duration_add",         crate::runtime::duration::duration_add as *const () as usize),
+            ("duration_sub",         crate::runtime::duration::duration_sub as *const () as usize),
+            ("duration_mul",         crate::runtime::duration::duration_mul as *const () as usize),
+            ("duration_div",         crate::runtime::duration::duration_div as *const () as usize),
+            ("duration_lt",          crate::runtime::duration::duration_lt as *const () as usize),
+            ("duration_eq",          crate::runtime::duration::duration_eq as *const () as usize),
+            ("process_command_new",   crate::runtime::process::process_command_new as *const () as usize),
+            ("process_command_arg",   crate::runtime::process::process_command_arg as *const () as usize),
+            ("process_command_output",crate::runtime::process::process_command_output as *const () as usize),
+            ("process_command_status",crate::runtime::process::process_command_status as *const () as usize),
+            ("process_output_stdout", crate::runtime::process::process_output_stdout as *const () as usize),
+            ("process_output_stderr", crate::runtime::process::process_output_stderr as *const () as usize),
+            ("process_output_status", crate::runtime::process::process_output_status as *const () as usize),
+            ("thread_spawn",          crate::runtime::thread_::thread_spawn as *const () as usize),
+            ("thread_join",           crate::runtime::thread_::thread_join as *const () as usize),
+            ("thread_sleep_ms",       crate::runtime::thread_::thread_sleep_ms as *const () as usize),
+        ];
+        for (name, fn_ptr) in &tier3_fns {
+            if let Some(f) = self.module.get_function(name) {
+                ee.add_global_mapping(&f, *fn_ptr);
+            }
+        }
+
         Ok(ee)
     }
 }

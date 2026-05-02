@@ -2,9 +2,13 @@
 pub mod actor;
 pub mod array;
 pub mod atomic;
+pub mod char_;
+pub mod duration;
 pub mod fs;
 pub mod net;
 pub mod path;
+pub mod process;
+pub mod thread_;
 pub mod r#async;
 pub mod async_advanced;
 pub mod channel_advanced;
