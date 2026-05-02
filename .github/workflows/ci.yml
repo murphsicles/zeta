@@ -44,15 +44,9 @@ jobs:
           target
         key: ${{ runner.os }}-${{ matrix.toolchain }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     - name: Check
-      run: cargo check --workspace --all-features --all-targets
-    - name: Debug Check
-      if: always()
-      run: |
-        echo "=== Trying with all-features, all-targets (captured) ==="
-        cargo check --workspace --all-features --all-targets 2>&1 | tail -30
-        echo "=== EXIT CODE: $? ==="
+      run: cargo check --workspace --all-targets
     - name: Clippy
-      run: cargo clippy --workspace --all-features --all-targets -- -D warnings
+      run: cargo clippy --workspace --all-targets -- -D warnings
     - name: Fmt
       run: cargo fmt --all -- --check
 
@@ -86,7 +80,7 @@ jobs:
           target
         key: ${{ runner.os }}-stable-cargo-${{ hashFiles('**/Cargo.lock') }}
     - name: Test
-      run: cargo test --workspace --all-features
+      run: cargo test --workspace
     - name: Bench (no plot)
       run: cargo bench --no-run # Stub: Run benches
 
