@@ -357,6 +357,31 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
     //     ee.add_global_mapping(&f, fn_ptr);
     // }
 
+    // Map Vec runtime functions (zeta_vec_* → vec_*)
+    let vec_fns: Vec<(&str, usize)> = vec![
+        ("vec_new",      crate::runtime::vec::zeta_vec_new as *const () as usize),
+        ("vec_push",     crate::runtime::vec::zeta_vec_push as *const () as usize),
+        ("vec_pop",      crate::runtime::vec::zeta_vec_pop as *const () as usize),
+        ("vec_get",      crate::runtime::vec::zeta_vec_get as *const () as usize),
+        ("vec_set",      crate::runtime::vec::zeta_vec_set as *const () as usize),
+        ("vec_len",      crate::runtime::vec::zeta_vec_len as *const () as usize),
+        ("vec_capacity", crate::runtime::vec::zeta_vec_capacity as *const () as usize),
+        ("vec_clear",    crate::runtime::vec::zeta_vec_clear as *const () as usize),
+        ("vec_free",     crate::runtime::vec::zeta_vec_free as *const () as usize),
+    ];
+    for (name, fn_ptr) in &vec_fns {
+        if let Some(f) = codegen.module.get_function(name) {
+            ee.add_global_mapping(&f, *fn_ptr);
+        }
+    }
+    // Map monomorphized vec_* functions
+    for func_name in codegen.module.get_functions() {
+        let name = func_name.get_name().to_str().unwrap();
+        if name.starts_with("vec_push_") { ee.add_global_mapping(&func_name, crate::runtime::vec::zeta_vec_push as *const () as usize); }
+        if name.starts_with("vec_get_")  { ee.add_global_mapping(&func_name, crate::runtime::vec::zeta_vec_get as *const () as usize); }
+        if name.starts_with("vec_len_")  { ee.add_global_mapping(&func_name, crate::runtime::vec::zeta_vec_len as *const () as usize); }
+    }
+
     type MainFn = unsafe extern "C" fn() -> i64;
     unsafe {
         let main = ee

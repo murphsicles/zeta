@@ -1,26 +1,24 @@
-//! Stub for std::collections::Vec
-pub struct Vec<T> {
-    // Stub implementation
-}
+//! Stub for std::vec — Dynamic array (Vec)
+//!
+//! Provides Vec<T>, the standard growable array type, via free functions.
+//! NOTE: impl methods don't work yet in the compiler — use free functions.
 
-impl<T> Vec<T> {
-    pub fn new() -> Self {
-        Vec {}
-    }
-    
-    pub fn len(&self) -> usize {
-        0
-    }
-    
-    pub fn is_empty(&self) -> bool {
-        true
-    }
-    
-    pub fn push(&mut self, value: T) {
-        // Stub
-    }
-    
-    pub fn pop(&mut self) -> Option<T> {
-        Option::None
-    }
+// Vec interface: free functions instead of methods due to compiler limitation.
+// Usage: let v = vec_new(4); v = vec_push(v, 42); let x = vec_get(v, 0);
+
+extern fn vec_new(capacity: i64) -> i64;       // Create new vec, returns data ptr
+extern fn vec_push(ptr: i64, val: i64) -> i64; // Push value, returns (potentially new) data ptr
+extern fn vec_pop(ptr: i64) -> i64;            // Pop value, returns value
+extern fn vec_get(ptr: i64, index: i64) -> i64; // Get value at index
+extern fn vec_set(ptr: i64, index: i64, val: i64) -> i64; // Set value at index
+extern fn vec_len(ptr: i64) -> i64;            // Get length
+extern fn vec_capacity(ptr: i64) -> i64;       // Get capacity
+extern fn vec_clear(ptr: i64);                 // Clear vec
+extern fn vec_free(ptr: i64);                  // Free vec memory
+
+/// A contiguous growable array type (struct only — use free functions for now).
+pub struct Vec<T> {
+    pub data: i64,
+    pub len: i64,
+    pub cap: i64,
 }

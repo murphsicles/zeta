@@ -14,6 +14,7 @@ pub mod mpsc;
 pub mod option;
 pub mod std;
 pub mod sync;
+pub mod vec;
 pub mod vector;
 pub mod xai;
 pub mod zeta_runtime;

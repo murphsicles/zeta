@@ -1703,21 +1703,17 @@ impl MirGen {
                             "push" => ("array_push".to_string(), false, true),
                             "len" => ("array_len".to_string(), true, false),
                             _ => {
-                                // For other methods, use standard mangling
-                                let key = MonoKey {
-                                    func_name: method.clone(),
-                                    type_args: vec![rty.display_name()],
-                                };
-                                (key.mangle(), false, false)
+                                // For other methods, use qualified name: Type::method
+                                let rty_name = rty.display_name();
+                                let qualified = format!("{}::{}", rty_name, method);
+                                (qualified, false, false)
                             }
                         }
                     } else {
-                        // Not a dynamic array, use standard mangling
-                        let key = MonoKey {
-                            func_name: method.clone(),
-                            type_args: vec![rty.display_name()],
-                        };
-                        (key.mangle(), false, false)
+                        // For inherent methods, use qualified name: Type::method
+                        let rty_name = rty.display_name();
+                        let qualified = format!("{}::{}", rty_name, method);
+                        (qualified, false, false)
                     }
                 } else {
                     (method.clone(), false, false)

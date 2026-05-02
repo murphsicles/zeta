@@ -447,8 +447,9 @@ impl ModuleResolver {
             return self.load_virtual_module(&path_str);
         }
 
-        // Check if this is a std module (handle specially for PrimeZeta)
-        if path_str.contains("stub_types\\std") || path_str.contains("stub_types/std") {
+        // Check if this is the root std module (handle specially for PrimeZeta)
+        // Submodules like stub_types/std/mem.z are parsed normally.
+        if path_str.ends_with("stub_types/std.z") || path_str.ends_with("stub_types\\std.z") {
             return self.load_std_module();
         }
 
@@ -1000,6 +1001,52 @@ pub enum c_void {
     __variant2,
 }"#
                 .to_string()
+            }
+            "mem" => {
+                r"//! Stub for std::mem — Memory operations (compiler intrinsics)
+extern fn size_of<T>() -> u64;
+extern fn align_of<T>() -> u64;
+extern fn offset_of<T>(field: &str) -> u64;
+extern fn swap<T>(a: &mut T, b: &mut T);
+extern fn replace<T>(dest: &mut T, src: T) -> T;
+extern fn drop<T>(val: T);
+extern fn needs_drop<T>() -> bool;
+".to_string()
+            }
+            "ptr" => {
+                r"//! Stub for std::ptr — Raw pointer operations (compiler intrinsics)
+extern fn null<T>() -> *const T;
+extern fn read<T>(ptr: *const T) -> T;
+extern fn write<T>(ptr: *mut T, val: T);
+extern fn copy<T>(dst: *mut T, src: *const T, count: u64);
+extern fn copy_nonoverlapping<T>(dst: *mut T, src: *const T, count: u64);
+extern fn offset<T>(ptr: *const T, count: i64) -> *const T;
+extern fn is_null<T>(ptr: *const T) -> bool;
+extern fn drop_in_place<T>(ptr: *mut T);
+".to_string()
+            }
+            "cmp" => {
+                r"//! Stub for std::cmp — Comparison traits
+pub enum Ordering { Less, Equal, Greater }
+pub trait PartialEq<Rhs = Self> { fn eq(&self, other: &Rhs) -> bool; }
+pub trait Eq: PartialEq<Self> {}
+pub trait PartialOrd<Rhs = Self>: PartialEq<Rhs> { fn partial_cmp(&self, other: &Rhs) -> Option<Ordering>; }
+pub trait Ord: Eq + PartialOrd<Self> { fn cmp(&self, other: &Self) -> Ordering; }
+".to_string()
+            }
+            "hash" => {
+                r"//! Stub for std::hash — Hashing traits
+pub trait Hash { fn hash<H: Hasher>(&self, state: &mut H); }
+pub trait Hasher { fn write(&mut self, bytes: &[u8]); fn finish(&self) -> u64; }
+pub fn hash<T: Hash>(val: &T) -> u64 { 0 }
+".to_string()
+            }
+            "iter" => {
+                r"//! Stub for std::iter — Iterator trait
+pub trait Iterator { type Item; fn next(&mut self) -> Option<Self::Item>; }
+pub trait IntoIterator { type Item; type IntoIter: Iterator<Item = Self::Item>; fn into_iter(self) -> Self::IntoIter; }
+pub trait FromIterator<A> { fn new() -> Self; fn push(&mut self, item: A); }
+".to_string()
             }
             _ => {
                 // Generic stub

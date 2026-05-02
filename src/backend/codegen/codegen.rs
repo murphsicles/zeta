@@ -1728,6 +1728,39 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.module.add_function(&actual_name, fn_type, Some(Linkage::External))
     }
 
+    /// Return the byte size of a type from its monomorphized name suffix.
+    fn type_size_from_name(&self, name: &str) -> usize {
+        match name {
+            "i8" | "u8" => 1,
+            "i16" | "u16" => 2,
+            "i32" | "u32" | "f32" | "char" => 4,
+            "i64" | "u64" | "f64" | "bool" | "usize" | "isize" | "str" | "Range" => 8,
+            "V4I64" | "I32x4" => 32,
+            "I64x2" => 16,
+            "F32x4" => 16,
+            s if s.starts_with("Array_") || s.starts_with("Slice_") || s.starts_with("DynamicArray_") || s.starts_with("Vector_") => 8,
+            s if s.starts_with("Ptr_") || s.starts_with("Ref_") => 8,
+            s if s.starts_with("Tuple_") || s.starts_with("Named_") => 8,
+            // Default: 8 bytes for named structs/unions
+            _ => 8,
+        }
+    }
+
+    /// Return the alignment of a type from its monomorphized name suffix.
+    fn type_align_from_name(&self, name: &str) -> usize {
+        match name {
+            "i8" | "u8" => 1,
+            "i16" | "u16" => 2,
+            "i32" | "u32" | "f32" | "char" => 4,
+            "i64" | "u64" | "f64" | "bool" | "usize" | "isize" | "str" | "Range" => 8,
+            "V4I64" => 32,
+            "I32x4" | "I64x2" | "F32x4" => 16,
+            s if s.starts_with("Array_") || s.starts_with("Slice_") || s.starts_with("DynamicArray_") || s.starts_with("Vector_") => 8,
+            s if s.starts_with("Ptr_") || s.starts_with("Ref_") => 8,
+            _ => 8,
+        }
+    }
+
     /// Check if a function is generic
     fn is_generic_function(&self, mir: &crate::middle::mir::mir::Mir) -> bool {
         // Check if function has type parameters
@@ -2325,6 +2358,156 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             .unwrap();
                         let alloca = *self.locals.get(dest).unwrap();
                         self.builder.build_store(alloca, result).unwrap();
+                        return;
+                    }
+                    // Intercept std::mem intrinsics: size_of<T>, align_of<T>, swap, replace, null
+                    if (func == "size_of" || func == "align_of") && args.is_empty() {
+                        if let Some(ty) = type_args.first() {
+                            match ty {
+                                crate::middle::types::Type::I8 | crate::middle::types::Type::U8 => {
+                                    let val = if func == "size_of" { 1u64 } else { 1u64 };
+                                    let r: inkwell::values::IntValue = self.i64_type.const_int(val, false);
+                                    let a = *self.locals.get(dest).unwrap(); self.builder.build_store(a, r).unwrap(); return;
+                                }
+                                crate::middle::types::Type::I16 | crate::middle::types::Type::U16 => {
+                                    let val = if func == "size_of" { 2u64 } else { 2u64 };
+                                    let r: inkwell::values::IntValue = self.i64_type.const_int(val, false);
+                                    let a = *self.locals.get(dest).unwrap(); self.builder.build_store(a, r).unwrap(); return;
+                                }
+                                crate::middle::types::Type::I32 | crate::middle::types::Type::U32 | crate::middle::types::Type::F32 | crate::middle::types::Type::Char => {
+                                    let val = if func == "size_of" { 4u64 } else { 4u64 };
+                                    let r: inkwell::values::IntValue = self.i64_type.const_int(val, false);
+                                    let a = *self.locals.get(dest).unwrap(); self.builder.build_store(a, r).unwrap(); return;
+                                }
+                                _ => {
+                                    let r: inkwell::values::IntValue = self.i64_type.const_int(8u64, false);
+                                    let a = *self.locals.get(dest).unwrap(); self.builder.build_store(a, r).unwrap(); return;
+                                }
+                            }
+                        } else {
+                            let r: inkwell::values::IntValue = self.i64_type.const_int(8u64, false);
+                            let a = *self.locals.get(dest).unwrap(); self.builder.build_store(a, r).unwrap(); return;
+                        }
+                    }
+                    // Intercept std::mem::swap<T>(a: &mut T, b: &mut T)
+                    if func == "swap" && args.len() == 2 {
+                        let ptr_a = self.gen_expr_safe(&args[0], exprs).into_int_value();
+                        let ptr_b = self.gen_expr_safe(&args[1], exprs).into_int_value();
+                        let pt = self.context.ptr_type(inkwell::AddressSpace::default());
+                        let a_ptr = self.builder.build_int_to_ptr(ptr_a, pt, "a_ptr").unwrap();
+                        let b_ptr = self.builder.build_int_to_ptr(ptr_b, pt, "b_ptr").unwrap();
+                        let a_i64 = self.builder.build_pointer_cast(a_ptr, pt, "a_i64").unwrap();
+                        let b_i64 = self.builder.build_pointer_cast(b_ptr, pt, "b_i64").unwrap();
+                        let temp = self.builder.build_load(self.i64_type, a_i64, "temp").unwrap();
+                        let b_val = self.builder.build_load(self.i64_type, b_i64, "b_val").unwrap();
+                        self.builder.build_store(a_i64, b_val).unwrap();
+                        self.builder.build_store(b_i64, temp).unwrap();
+                        if let Some(&alloca) = self.locals.get(dest) {
+                            self.builder.build_store(alloca, self.i64_type.const_int(0, false)).unwrap();
+                        }
+                        return;
+                    }
+                    // Intercept ptr::read<T>(ptr: *const T) -> T
+                    if func == "read" && args.len() == 1 {
+                        let ptr = self.gen_expr_safe(&args[0], exprs).into_int_value();
+                        let pt = self.context.ptr_type(inkwell::AddressSpace::default());
+                        let elem_ptr = self.builder.build_int_to_ptr(ptr, pt, "rd_ptr").unwrap();
+                        let elem_i64 = self.builder.build_pointer_cast(elem_ptr, pt, "rd_i64").unwrap();
+                        let val = self.builder.build_load(self.i64_type, elem_i64, "rd_val").unwrap();
+                        let alloca = *self.locals.get(dest).unwrap();
+                        self.builder.build_store(alloca, val).unwrap();
+                        return;
+                    }
+                    // Intercept ptr::write<T>(ptr: *mut T, val: T)
+                    if func == "write" && args.len() == 2 {
+                        let ptr = self.gen_expr_safe(&args[0], exprs).into_int_value();
+                        let val = self.gen_expr_safe(&args[1], exprs).into_int_value();
+                        let pt = self.context.ptr_type(inkwell::AddressSpace::default());
+                        let elem_ptr = self.builder.build_int_to_ptr(ptr, pt, "wr_ptr").unwrap();
+                        let elem_i64 = self.builder.build_pointer_cast(elem_ptr, pt, "wr_i64").unwrap();
+                        self.builder.build_store(elem_i64, val).unwrap();
+                        if let Some(&alloca) = self.locals.get(dest) {
+                            self.builder.build_store(alloca, self.i64_type.const_int(0, false)).unwrap();
+                        }
+                        return;
+                    }
+                    // Intercept ptr::null<T>() and ptr::null_mut<T>()
+                    if (func == "null" || func == "null_mut") && args.is_empty() {
+                        let alloca = *self.locals.get(dest).unwrap();
+                        self.builder.build_store(alloca, self.i64_type.const_int(0, false)).unwrap();
+                        return;
+                    }
+                    // Intercept ptr::is_null<T>(ptr: *const T)
+                    if func == "is_null" && args.len() == 1 {
+                        let ptr = self.gen_expr_safe(&args[0], exprs).into_int_value();
+                        let is_null = self.builder.build_int_compare(
+                            inkwell::IntPredicate::EQ, ptr, self.i64_type.const_int(0, false), "is_null"
+                        ).unwrap();
+                        let result = self.builder.build_int_z_extend(is_null, self.i64_type, "is_null_ext").unwrap();
+                        let alloca = *self.locals.get(dest).unwrap();
+                        self.builder.build_store(alloca, result).unwrap();
+                        return;
+                    }
+                    // Intercept ptr::copy<T>(dst, src, count) — memcpy
+                    if (func == "copy" || func == "copy_nonoverlapping") && args.len() == 3 {
+                        let dst = self.gen_expr_safe(&args[0], exprs).into_int_value();
+                        let src = self.gen_expr_safe(&args[1], exprs).into_int_value();
+                        let count = self.gen_expr_safe(&args[2], exprs).into_int_value();
+                        let dst_ptr = self.builder.build_int_to_ptr(dst, self.ptr_type, "cp_dst").unwrap();
+                        let src_ptr = self.builder.build_int_to_ptr(src, self.ptr_type, "cp_src").unwrap();
+                        // Get element size from type_args
+                        let elem_size: u64 = if let Some(ty) = type_args.first() {
+                            match ty {
+                                crate::middle::types::Type::I8 | crate::middle::types::Type::U8 => 1,
+                                crate::middle::types::Type::I16 | crate::middle::types::Type::U16 => 2,
+                                crate::middle::types::Type::I32 | crate::middle::types::Type::U32 | crate::middle::types::Type::F32 => 4,
+                                _ => 8,
+                            }
+                        } else { 8 };
+                        let total_bytes = self.builder.build_int_mul(
+                            count, self.i64_type.const_int(elem_size, false), "copysz"
+                        ).unwrap();
+                        unsafe {
+                            self.builder.build_memcpy(
+                                dst_ptr, 8, src_ptr, 8, total_bytes,
+                            ).unwrap();
+                        }
+                        if let Some(&alloca) = self.locals.get(dest) {
+                            self.builder.build_store(alloca, self.i64_type.const_int(0, false)).unwrap();
+                        }
+                        return;
+                    }
+                    // Intercept ptr::offset<T>(ptr, count) — pointer arithmetic
+                    if func == "offset" && args.len() == 2 {
+                        let ptr = self.gen_expr_safe(&args[0], exprs).into_int_value();
+                        let count = self.gen_expr_safe(&args[1], exprs).into_int_value();
+                        let elem_size: u64 = if let Some(ty) = type_args.first() {
+                            match ty {
+                                crate::middle::types::Type::I8 | crate::middle::types::Type::U8 => 1,
+                                crate::middle::types::Type::I16 | crate::middle::types::Type::U16 => 2,
+                                crate::middle::types::Type::I32 | crate::middle::types::Type::U32 | crate::middle::types::Type::F32 => 4,
+                                _ => 8,
+                            }
+                        } else { 8 };
+                        let byte_offset = self.builder.build_int_mul(
+                            count, self.i64_type.const_int(elem_size, false), "byte_off"
+                        ).unwrap();
+                        let ptr = self.builder.build_int_add(ptr, byte_offset, "off_ptr").unwrap();
+                        let alloca = *self.locals.get(dest).unwrap();
+                        self.builder.build_store(alloca, ptr).unwrap();
+                        return;
+                    }
+                    // Intercept std::mem::replace<T>(dest: &mut T, src: T) -> T
+                    if func == "replace" && args.len() == 2 {
+                        let ptr = self.gen_expr_safe(&args[0], exprs).into_int_value();
+                        let new_val = self.gen_expr_safe(&args[1], exprs);
+                        let ptr_type = self.context.ptr_type(inkwell::AddressSpace::default());
+                        let elem_ptr = self.builder.build_int_to_ptr(ptr, ptr_type, "rpl_ptr").unwrap();
+                        let elem_i64 = self.builder.build_pointer_cast(elem_ptr, ptr_type, "rpl_i64").unwrap();
+                        let old_val = self.builder.build_load(self.i64_type, elem_i64, "old").unwrap();
+                        self.builder.build_store(elem_i64, new_val.into_int_value()).unwrap();
+                        let alloca = *self.locals.get(dest).unwrap();
+                        self.builder.build_store(alloca, old_val).unwrap();
                         return;
                     }
                     // Intercept V4I64 vector intrinsics → inline LLVM vector IR
@@ -3271,7 +3454,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let pointee_llvm_type = self
                     .context
                     .custom_width_int_type((*pointee_width as u32) * 8);
-                let pointed_ptr_type = pointee_llvm_type.ptr_type(inkwell::AddressSpace::default());
+                let pointed_ptr_type: inkwell::types::PointerType = self.context.ptr_type(inkwell::AddressSpace::default());
                 let ptr = self
                     .builder
                     .build_int_to_ptr(addr_i64, pointed_ptr_type, "store_ptr")

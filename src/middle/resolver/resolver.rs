@@ -257,7 +257,17 @@ impl Resolver {
                         self.funcs
                             .insert(qualified_name, (typed_params, typed_ret, false));
                     }
-                    // Register normally (which will register with simple name)
+                    // Register with qualified name (for MIR resolution)
+                    // Clone the func and override its name so MIR matches the call site
+                    if let AstNode::FuncDef { name: fn_name, .. } = &b {
+                        let qualified = format!("{}::{}", ty, fn_name);
+                        let mut qualified_ast = b.clone();
+                        if let AstNode::FuncDef { ref mut name, .. } = qualified_ast {
+                            *name = qualified.clone();
+                        }
+                        self.registered_funcs.insert(qualified, qualified_ast);
+                    }
+                    // Also register with simple name for backwards compat
                     self.register(b);
                 }
             }
