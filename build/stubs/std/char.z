@@ -1,0 +1,15 @@
+//! Stub for std::char — Character operations
+//! Backed by runtime host functions.
+
+extern fn char_is_digit(ch: i64) -> i64;
+extern fn char_is_alphabetic(ch: i64) -> i64;
+extern fn char_is_alphanumeric(ch: i64) -> i64;
+extern fn char_is_lowercase(ch: i64) -> i64;
+extern fn char_is_uppercase(ch: i64) -> i64;
+extern fn char_is_whitespace(ch: i64) -> i64;
+extern fn char_to_lowercase(ch: i64) -> i64;
+extern fn char_to_uppercase(ch: i64) -> i64;
+extern fn char_from_u32(code: i64) -> i64;
+extern fn char_to_digit(ch: i64, radix: i64) -> i64;
+extern fn char_is_control(ch: i64) -> i64;
+extern fn char_is_numeric(ch: i64) -> i64;

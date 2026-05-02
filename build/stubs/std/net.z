@@ -1,0 +1,23 @@
+//! Stub for std::net — Networking primitives
+//!
+//! Provides TcpStream, TcpListener for TCP networking.
+//! Backed by runtime host functions.
+
+extern fn tcp_connect(host: i64, port: i64) -> i64;
+extern fn tcp_write(stream: i64, data: i64, len: i64) -> i64;
+extern fn tcp_read(stream: i64, buf: i64, len: i64) -> i64;
+extern fn tcp_close(stream: i64);
+extern fn tcp_bind(host: i64, port: i64) -> i64;
+extern fn tcp_accept(listener: i64) -> i64;
+extern fn tcp_peer_addr(stream: i64) -> i64;
+extern fn tcp_local_addr(stream: i64) -> i64;
+
+/// A TCP stream between a local and remote socket.
+pub struct TcpStream {
+    pub fd: i64,
+}
+
+/// A TCP socket server, listening for connections.
+pub struct TcpListener {
+    pub fd: i64,
+}

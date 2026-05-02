@@ -1,0 +1,43 @@
+//! Stub for std::time — Time and Duration types
+//! Backed by runtime host functions.
+
+extern fn system_time_now() -> i64;
+extern fn system_time_since_epoch() -> i64;
+extern fn instant_now() -> i64;
+extern fn instant_elapsed(instant: i64) -> i64;
+extern fn duration_from_secs(secs: i64) -> i64;
+extern fn duration_from_millis(ms: i64) -> i64;
+extern fn duration_from_micros(us: i64) -> i64;
+extern fn duration_from_nanos(ns: i64) -> i64;
+extern fn duration_as_secs(d: i64) -> i64;
+extern fn duration_as_millis(d: i64) -> i64;
+extern fn duration_as_micros(d: i64) -> i64;
+extern fn duration_as_nanos(d: i64) -> i64;
+extern fn duration_add(a: i64, b: i64) -> i64;
+extern fn duration_sub(a: i64, b: i64) -> i64;
+extern fn duration_mul(d: i64, scale: i64) -> i64;
+extern fn duration_div(d: i64, divisor: i64) -> i64;
+extern fn duration_lt(a: i64, b: i64) -> i64;
+extern fn duration_eq(a: i64, b: i64) -> i64;
+extern fn sleep_ms(ms: i64);
+
+/// A Duration type representing a span of time.
+pub struct Duration { pub inner: i64 }
+
+impl Duration {
+    pub fn new(secs: i64, nanos: i64) -> Self {
+        Duration { inner: duration_from_nanos(secs * 1000000000 + nanos) }
+    }
+    pub fn from_secs(secs: i64) -> Self { Duration { inner: duration_from_secs(secs) } }
+    pub fn from_millis(ms: i64) -> Self { Duration { inner: duration_from_millis(ms) } }
+    pub fn as_secs(&self) -> i64 { duration_as_secs(self.inner) }
+    pub fn as_millis(&self) -> i64 { duration_as_millis(self.inner) }
+}
+
+/// An Instant representing a point in time.
+pub struct Instant { pub inner: i64 }
+
+impl Instant {
+    pub fn now() -> Self { Instant { inner: instant_now() } }
+    pub fn elapsed(&self) -> Duration { Duration { inner: instant_elapsed(self.inner) } }
+}

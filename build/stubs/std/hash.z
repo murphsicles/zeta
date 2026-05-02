@@ -1,0 +1,318 @@
+//! Stub for std::hash — Hashing traits and hasher implementations
+//!
+//! Provides the Hash trait and a default FNV-1a hasher implementation.
+
+// === Hasher trait ===
+
+/// A trait for types that can compute a hash of a stream of data.
+pub trait Hasher {
+    /// Writes a single byte into the hasher.
+    fn write(&mut self, bytes: &[u8]);
+
+    /// Writes a u8 into the hasher.
+    fn write_u8(&mut self, val: u8) {
+        self.write(&[val])
+    }
+
+    /// Writes a u16 into the hasher (little-endian).
+    fn write_u16(&mut self, val: u16) {
+        self.write(&val.to_le_bytes())
+    }
+
+    /// Writes a u32 into the hasher (little-endian).
+    fn write_u32(&mut self, val: u32) {
+        self.write(&val.to_le_bytes())
+    }
+
+    /// Writes a u64 into the hasher (little-endian).
+    fn write_u64(&mut self, val: u64) {
+        self.write(&val.to_le_bytes())
+    }
+
+    /// Writes an i64 into the hasher (as u64 bits).
+    fn write_i64(&mut self, val: i64) {
+        self.write_u64(val as u64)
+    }
+
+    /// Writes a usize into the hasher.
+    fn write_usize(&mut self, val: usize) {
+        self.write_u64(val as u64)
+    }
+
+    /// Returns the computed hash value.
+    fn finish(&self) -> u64;
+}
+
+// === Hash trait ===
+
+/// A trait for types that can be hashed.
+pub trait Hash {
+    /// Feeds this value into the given Hasher.
+    fn hash<H: Hasher>(&self, state: &mut H);
+
+    /// Feeds a slice of values into the given Hasher.
+    fn hash_slice<H: Hasher>(data: &[Self], state: &mut H) where Self: Sized {
+        for item in data {
+            item.hash(state)
+        }
+    }
+}
+
+// === FNV-1a Hasher (default) ===
+
+/// A FNV-1a (Fowler–Noll–Vo) hash implementation.
+pub struct FnvHasher {
+    state: u64,
+}
+
+impl FnvHasher {
+    /// Creates a new FNV-1a hasher with the default offset basis.
+    pub fn new() -> Self {
+        FnvHasher {
+            state: 14695981039346656037, // FNV offset basis for 64-bit
+        }
+    }
+
+    /// Creates a new FNV-1a hasher with a custom key.
+    pub fn with_key(key: u64) -> Self {
+        FnvHasher { state: key }
+    }
+}
+
+impl Hasher for FnvHasher {
+    fn write(&mut self, bytes: &[u8]) {
+        // FNV-1a: hash = hash XOR byte; hash = hash * FNV prime
+        for &byte in bytes {
+            self.state ^= byte as u64;
+            self.state = self.state.wrapping_mul(1099511628211); // FNV prime for 64-bit
+        }
+    }
+
+    fn finish(&self) -> u64 {
+        self.state
+    }
+}
+
+// === BuildHasher trait ===
+
+/// A trait for types that can create Hasher instances.
+pub trait BuildHasher {
+    /// The type of hasher this builder creates.
+    type HasherType: Hasher;
+
+    /// Creates a new hasher.
+    fn build_hasher(&self) -> Self::HasherType;
+}
+
+/// A builder for the default FNV-1a hasher.
+pub struct FnvBuildHasher;
+
+impl BuildHasher for FnvBuildHasher {
+    type HasherType = FnvHasher;
+
+    fn build_hasher(&self) -> FnvHasher {
+        FnvHasher::new()
+    }
+}
+
+impl Default for FnvBuildHasher {
+    fn default() -> Self {
+        FnvBuildHasher
+    }
+}
+
+// === SipHash-1-3 (Rust's default, lightweight variant) ===
+
+/// A simplified SipHash-1-3 implementation (1 compression round, 3 finalization rounds).
+pub struct SipHasher13 {
+    v0: u64,
+    v1: u64,
+    v2: u64,
+    v3: u64,
+    length: u64,
+    tail: u64,
+    tail_len: u64,
+}
+
+// Helper functions for SipHash rotations
+fn rotl(x: u64, b: u64) -> u64 {
+    (x << b) | (x >> (64 - b))
+}
+
+fn sipround(v0: &mut u64, v1: &mut u64, v2: &mut u64, v3: &mut u64) {
+    *v0 = v0.wrapping_add(*v1);
+    *v2 = v2.wrapping_add(*v3);
+    *v1 = rotl(*v1, 13);
+    *v3 = rotl(*v3, 16);
+    *v1 ^= *v0;
+    *v3 ^= *v2;
+    *v0 = rotl(*v0, 32);
+    *v2 = v2.wrapping_add(*v1);
+    *v0 = v0.wrapping_add(*v3);
+    *v1 = rotl(*v1, 17);
+    *v3 = rotl(*v3, 21);
+    *v1 ^= *v2;
+    *v3 ^= *v0;
+    *v2 = rotl(*v2, 32);
+}
+
+impl SipHasher13 {
+    pub fn new(k0: u64, k1: u64) -> Self {
+        SipHasher13 {
+            v0: k0 ^ 0x736f6d6570736575,
+            v1: k1 ^ 0x646f72616e646f6d,
+            v2: k0 ^ 0x6c7967656e657261,
+            v3: k1 ^ 0x7465646279746573,
+            length: 0,
+            tail: 0,
+            tail_len: 0,
+        }
+    }
+}
+
+impl Hasher for SipHasher13 {
+    fn write(&mut self, bytes: &[u8]) {
+        let mut idx = 0;
+        while idx < bytes.len() {
+            // Fill the tail buffer
+            let remaining = 8 - self.tail_len as usize;
+            let to_copy = if remaining < bytes.len() - idx { remaining } else { bytes.len() - idx };
+            
+            let mut i = 0;
+            while i < to_copy {
+                self.tail |= (bytes[idx + i] as u64) << (self.tail_len * 8);
+                self.tail_len += 1;
+                i += 1;
+            }
+            idx += to_copy;
+
+            if self.tail_len == 8 {
+                // Process full 8-byte word
+                self.v3 ^= self.tail;
+                sipround(&mut self.v0, &mut self.v1, &mut self.v2, &mut self.v3);
+                sipround(&mut self.v0, &mut self.v1, &mut self.v2, &mut self.v3);
+                self.v0 ^= self.tail;
+                self.tail = 0;
+                self.tail_len = 0;
+                self.length += 8;
+            }
+        }
+    }
+
+    fn finish(&self) -> u64 {
+        let mut v0 = self.v0;
+        let mut v1 = self.v1;
+        let mut v2 = self.v2;
+        let mut v3 = self.v3;
+
+        let b = (self.length + self.tail_len) << 56 | self.tail;
+        
+        v3 ^= b;
+        sipround(&mut v0, &mut v1, &mut v2, &mut v3);
+        sipround(&mut v0, &mut v1, &mut v2, &mut v3);
+        v0 ^= b;
+
+        v2 ^= 0xff;
+        sipround(&mut v0, &mut v1, &mut v2, &mut v3);
+        sipround(&mut v0, &mut v1, &mut v2, &mut v3);
+        sipround(&mut v0, &mut v1, &mut v2, &mut v3);
+
+        v0 ^ v1 ^ v2 ^ v3
+    }
+}
+
+/// Hash a single value using the default hasher.
+pub fn hash<T: Hash>(val: &T) -> u64 {
+    let mut hasher = FnvHasher::new();
+    val.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// Hash a slice of values using the default hasher.
+pub fn hash_slice<T: Hash>(data: &[T]) -> u64 {
+    let mut hasher = FnvHasher::new();
+    for item in data {
+        item.hash(&mut hasher)
+    }
+    hasher.finish()
+}
+
+// === Default hash implementations for primitive types ===
+
+impl Hash for u8 {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u8(*self)
+    }
+}
+
+impl Hash for u16 {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u16(*self)
+    }
+}
+
+impl Hash for u32 {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u32(*self)
+    }
+}
+
+impl Hash for u64 {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u64(*self)
+    }
+}
+
+impl Hash for i8 {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u8(*self as u8)
+    }
+}
+
+impl Hash for i16 {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u16(*self as u16)
+    }
+}
+
+impl Hash for i32 {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u32(*self as u32)
+    }
+}
+
+impl Hash for i64 {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u64(*self as u64)
+    }
+}
+
+impl Hash for bool {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u8(if *self { 1 } else { 0 })
+    }
+}
+
+impl Hash for usize {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u64(*self as u64)
+    }
+}
+
+impl Hash for isize {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u64(*self as u64)
+    }
+}
+
+impl Hash for f32 {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u32(self.to_bits())
+    }
+}
+
+impl Hash for f64 {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u64(self.to_bits())
+    }
+}

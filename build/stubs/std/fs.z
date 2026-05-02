@@ -1,0 +1,45 @@
+//! Stub for std::fs — Filesystem operations
+//!
+//! Backed by runtime host functions.
+
+/// Reads a file to a string.
+extern fn fs_read_to_string(path: i64) -> i64;
+
+/// Writes bytes to a file.
+extern fn fs_write(path: i64, data: i64, len: i64) -> i64;
+
+/// Creates a directory.
+extern fn fs_create_dir(path: i64) -> i64;
+
+/// Creates a directory and all parents.
+extern fn fs_create_dir_all(path: i64) -> i64;
+
+/// Removes a file.
+extern fn fs_remove_file(path: i64) -> i64;
+
+/// Removes a directory.
+extern fn fs_remove_dir(path: i64) -> i64;
+
+/// Renames a file or directory.
+extern fn fs_rename(from: i64, to: i64) -> i64;
+
+/// Copies a file from src to dst.
+extern fn fs_copy(from: i64, to: i64) -> i64;
+
+/// Returns true if path exists.
+extern fn fs_exists(path: i64) -> i64;
+
+/// Returns true if path is a file.
+extern fn fs_is_file(path: i64) -> i64;
+
+/// Returns true if path is a directory.
+extern fn fs_is_dir(path: i64) -> i64;
+
+/// Returns the size of a file in bytes.
+extern fn fs_metadata_len(path: i64) -> i64;
+
+/// Reads a directory, returns a comma-separated string of entries.
+extern fn fs_read_dir(path: i64) -> i64;
+
+/// Returns the canonical (absolute) path.
+extern fn fs_canonicalize(path: i64) -> i64;

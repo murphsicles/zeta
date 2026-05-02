@@ -1,0 +1,16 @@
+//! Stub for std::process — Process spawning
+//! Backed by runtime host functions.
+
+extern fn process_command_new(cmd: i64) -> i64;
+extern fn process_command_arg(cmd: i64, arg: i64);
+extern fn process_command_output(cmd: i64) -> i64;
+extern fn process_command_status(cmd: i64) -> i64;
+extern fn process_output_stdout(output: i64) -> i64;
+extern fn process_output_stderr(output: i64) -> i64;
+extern fn process_output_status(output: i64) -> i64;
+
+/// A process builder for spawning external commands.
+pub struct Command { pub inner: i64 }
+
+/// The result of a command execution.
+pub struct Output { pub inner: i64 }

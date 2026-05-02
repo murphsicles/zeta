@@ -1,0 +1,2 @@
+//! Stub for std::std::sync
+pub struct Stub;

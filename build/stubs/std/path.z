@@ -1,0 +1,24 @@
+//! Stub for std::path — Path manipulation
+//!
+//! Provides Path and PathBuf types for filesystem paths.
+//! Backed by runtime host functions.
+
+extern fn path_parent(path: i64) -> i64;
+extern fn path_file_name(path: i64) -> i64;
+extern fn path_extension(path: i64) -> i64;
+extern fn path_has_extension(path: i64, ext: i64) -> i64;
+extern fn path_is_absolute(path: i64) -> i64;
+extern fn path_join(path: i64, other: i64) -> i64;
+extern fn path_absolute(path: i64) -> i64;
+extern fn path_as_str(path: i64) -> i64;
+extern fn path_set_extension(path: i64, ext: i64) -> i64;
+
+/// A slice of a path (borrowed).
+pub struct Path {
+    pub inner: i64,
+}
+
+/// An owned, mutable path.
+pub struct PathBuf {
+    pub inner: i64,
+}
