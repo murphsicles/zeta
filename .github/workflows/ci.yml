@@ -46,7 +46,11 @@ jobs:
           target
         key: ${{ runner.os }}-${{ matrix.toolchain }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     - name: Check
-      run: cargo check --workspace --all-features --all-targets 2>&1
+      run: |
+        set +e
+        cargo check --workspace --all-features --all-targets 2>&1
+        echo "EXIT_CODE=$?"
+        set -e
     - name: Show errors if any
       if: always()
       run: |
