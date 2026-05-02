@@ -1,5 +1,0 @@
-fn main() -> i32 {
-    // Test array repeat syntax
-    let arr: [i32; 5] = [0; 5];
-    return arr[0];
-}

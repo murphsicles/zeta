@@ -1,5 +1,0 @@
-fn main() -> u64 {
-    let x = 0
-    x = 42
-    return x
-}

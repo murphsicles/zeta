@@ -1,1 +1,0 @@
-﻿// tests/v0_5_0_compilation/test_basic_imports.z// Test basic v0.5.0 style importsuse zeta::frontend::ast::AstNode;use zeta::frontend::parser::top_level::parse_zeta;fn main() {    println!("Testing v0.5.0 imports");        // These should compile with stub types    let node: AstNode = AstNode::Unit;    println!("AstNode created: {:?}", node);}

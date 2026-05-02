@@ -1,6 +1,0 @@
-@echo off
-echo Benchmarking Murphy's Sieve...
-echo.
-
-echo Running 5-second benchmark...
-powershell -Command "$start = Get-Date; $count = 0; while (((Get-Date) - $start).TotalSeconds -lt 5) { .\murphy_simple.exe > nul; $count++ }; echo \"Passes: $count\"; echo \"Passes/sec: $([math]::Round($count / 5, 2))\""

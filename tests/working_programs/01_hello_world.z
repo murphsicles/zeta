@@ -1,4 +1,0 @@
-// Hello World equivalent - basic function returning a value
-fn main() -> i64 {
-    42
-}

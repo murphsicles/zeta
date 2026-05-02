@@ -1,8 +1,0 @@
-async fn test() -> i64 {
-    return 42;
-}
-
-fn main() -> i64 {
-    let result = test();
-    return 0;
-}

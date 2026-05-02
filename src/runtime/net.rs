@@ -9,14 +9,24 @@ fn to_cstring_ptr(s: &str) -> i64 {
     let c = CString::new(s).unwrap();
     let len = c.as_bytes_with_nul().len();
     let p = unsafe { crate::runtime::std::std_malloc(len as usize) };
-    if p == 0 { return 0; }
-    unsafe { std::ptr::copy_nonoverlapping(c.as_ptr(), p as *mut i8, len); }
+    if p == 0 {
+        return 0;
+    }
+    unsafe {
+        std::ptr::copy_nonoverlapping(c.as_ptr(), p as *mut i8, len);
+    }
     p
 }
 
 fn from_cstr(ptr: i64) -> String {
-    if ptr == 0 { return String::new(); }
-    unsafe { std::ffi::CStr::from_ptr(ptr as *const std::ffi::c_char).to_string_lossy().into_owned() }
+    if ptr == 0 {
+        return String::new();
+    }
+    unsafe {
+        std::ffi::CStr::from_ptr(ptr as *const std::ffi::c_char)
+            .to_string_lossy()
+            .into_owned()
+    }
 }
 
 lazy_static::lazy_static! {
@@ -49,7 +59,9 @@ pub unsafe extern "C" fn tcp_write(stream: i64, data: i64, len: i64) -> i64 {
             Ok(_) => len,
             Err(_) => -1,
         }
-    } else { -1 }
+    } else {
+        -1
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -61,7 +73,9 @@ pub unsafe extern "C" fn tcp_read(stream: i64, buf: i64, len: i64) -> i64 {
             Ok(n) => n as i64,
             Err(_) => -1,
         }
-    } else { -1 }
+    } else {
+        -1
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -95,7 +109,9 @@ pub unsafe extern "C" fn tcp_accept(listener: i64) -> i64 {
             }
             Err(_) => -1,
         }
-    } else { -1 }
+    } else {
+        -1
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -106,7 +122,9 @@ pub unsafe extern "C" fn tcp_peer_addr(stream: i64) -> i64 {
             Ok(addr) => to_cstring_ptr(&addr.to_string()),
             Err(_) => 0,
         }
-    } else { 0 }
+    } else {
+        0
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -117,5 +135,7 @@ pub unsafe extern "C" fn tcp_local_addr(stream: i64) -> i64 {
             Ok(addr) => to_cstring_ptr(&addr.to_string()),
             Err(_) => 0,
         }
-    } else { 0 }
+    } else {
+        0
+    }
 }

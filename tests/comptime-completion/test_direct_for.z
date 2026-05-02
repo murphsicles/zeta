@@ -1,8 +1,0 @@
-// Direct for loop test - main is comptime
-comptime fn main() -> i64 {
-    var sum = 0
-    for i in 0..5 {
-        sum = sum + i
-    }
-    sum
-}

@@ -1,7 +1,7 @@
 //! Runtime support for Option type
 #![allow(unsafe_code)]
 
-use std::alloc::{Layout, alloc, dealloc};
+use std::alloc::{alloc, dealloc, Layout};
 
 /// Option enum representation:
 /// - None: 0
@@ -60,7 +60,11 @@ pub unsafe extern "C" fn option_is_some(opt: *mut u8) -> i64 {
     }
 
     let tag = unsafe { *opt };
-    if tag == 1 { 1 } else { 0 }
+    if tag == 1 {
+        1
+    } else {
+        0
+    }
 }
 
 /// Get data from a Some value

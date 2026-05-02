@@ -1,9 +1,0 @@
-// test_simple.z
-// Simple test to verify compiler works
-
-fn main() -> i64 {
-    let x = 10;
-    let y = 20;
-    let z = x + y;
-    z
-}

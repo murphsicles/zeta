@@ -1,4 +1,0 @@
-fn main() -> i32 {
-    let arr: [bool; 3] = [true; 3];
-    return 0;
-}

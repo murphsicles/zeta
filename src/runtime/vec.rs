@@ -61,11 +61,15 @@ pub unsafe extern "C" fn zeta_vec_push(ptr: i64, val: i64) -> i64 {
 /// Pop a value from the end of the Vec.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn zeta_vec_pop(ptr: i64) -> i64 {
-    if ptr == 0 { return 0; }
+    if ptr == 0 {
+        return 0;
+    }
     unsafe {
         let base = (ptr as usize - 16) as *mut u8;
         let len = ptr::read_unaligned(base.add(8) as *const i64);
-        if len <= 0 { return 0; }
+        if len <= 0 {
+            return 0;
+        }
         let new_len = len - 1;
         let offset = (new_len as usize) * 8;
         let val = ptr::read_unaligned((ptr as usize + offset) as *const i64);
@@ -77,11 +81,15 @@ pub unsafe extern "C" fn zeta_vec_pop(ptr: i64) -> i64 {
 /// Get element at index (0-based). Returns 0 if out of bounds.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn zeta_vec_get(ptr: i64, index: i64) -> i64 {
-    if ptr == 0 || index < 0 { return 0; }
+    if ptr == 0 || index < 0 {
+        return 0;
+    }
     unsafe {
         let base = (ptr as usize - 16) as *const u8;
         let len = ptr::read_unaligned(base.add(8) as *const i64);
-        if index >= len { return 0; }
+        if index >= len {
+            return 0;
+        }
         let offset = (index as usize) * 8;
         ptr::read_unaligned((ptr as usize + offset) as *const i64)
     }
@@ -90,11 +98,15 @@ pub unsafe extern "C" fn zeta_vec_get(ptr: i64, index: i64) -> i64 {
 /// Set element at index. Returns ptr (for chaining).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn zeta_vec_set(ptr: i64, index: i64, val: i64) -> i64 {
-    if ptr == 0 || index < 0 { return ptr; }
+    if ptr == 0 || index < 0 {
+        return ptr;
+    }
     unsafe {
         let base = (ptr as usize - 16) as *const u8;
         let len = ptr::read_unaligned(base.add(8) as *const i64);
-        if index >= len { return ptr; }
+        if index >= len {
+            return ptr;
+        }
         let offset = (index as usize) * 8;
         ptr::write_unaligned((ptr as usize + offset) as *mut i64, val);
     }
@@ -104,7 +116,9 @@ pub unsafe extern "C" fn zeta_vec_set(ptr: i64, index: i64, val: i64) -> i64 {
 /// Returns the length of the Vec.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn zeta_vec_len(ptr: i64) -> i64 {
-    if ptr == 0 { return 0; }
+    if ptr == 0 {
+        return 0;
+    }
     unsafe {
         let base = (ptr as usize - 16) as *const u8;
         ptr::read_unaligned(base.add(8) as *const i64)
@@ -114,7 +128,9 @@ pub unsafe extern "C" fn zeta_vec_len(ptr: i64) -> i64 {
 /// Returns the capacity of the Vec.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn zeta_vec_capacity(ptr: i64) -> i64 {
-    if ptr == 0 { return 0; }
+    if ptr == 0 {
+        return 0;
+    }
     unsafe {
         let base = (ptr as usize - 16) as *const u8;
         ptr::read_unaligned(base as *const i64)
@@ -124,7 +140,9 @@ pub unsafe extern "C" fn zeta_vec_capacity(ptr: i64) -> i64 {
 /// Clears the Vec (sets len to 0, keeps memory).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn zeta_vec_clear(ptr: i64) {
-    if ptr == 0 { return; }
+    if ptr == 0 {
+        return;
+    }
     unsafe {
         let base = (ptr as usize - 16) as *mut u8;
         ptr::write_unaligned(base.add(8) as *mut i64, 0i64);
@@ -134,7 +152,11 @@ pub unsafe extern "C" fn zeta_vec_clear(ptr: i64) {
 /// Frees the Vec's memory.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn zeta_vec_free(ptr: i64) {
-    if ptr == 0 { return; }
+    if ptr == 0 {
+        return;
+    }
     let base = (ptr as usize - 16) as i64;
-    unsafe { std_free(base as usize); }
+    unsafe {
+        std_free(base as usize);
+    }
 }

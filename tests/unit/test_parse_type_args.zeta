@@ -1,6 +1,0 @@
-// Test parsing ::< syntax
-fn main() -> i64 {
-    // Test if ::< parses at all
-    let x = foo::<i32>()
-    return 0
-}

@@ -260,7 +260,7 @@ impl Version {
     }
 
     /// Convert to string
-    pub fn to_string(&self) -> String {
+    pub fn to_version_string(&self) -> String {
         let mut result = format!("{}.{}.{}", self.major, self.minor, self.patch);
 
         if let Some(pre) = &self.pre {
@@ -306,7 +306,7 @@ impl Ord for Version {
 
 impl fmt::Display for Version {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "{}", self.to_version_string())
     }
 }
 

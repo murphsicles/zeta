@@ -1,5 +1,0 @@
-fn main() -> u64 {
-    // Try empty dynamic array
-    let arr = [dynamic]u8{}
-    return arr.len()
-}

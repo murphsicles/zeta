@@ -1,4 +1,0 @@
-fn main() -> i32 {
-    const N: usize = 100;
-    return 0;
-}

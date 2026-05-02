@@ -1,14 +1,14 @@
-// Debug while loop
-fn test_while() -> u64 {
-    let mut i: u64 = 0
-    // Simple condition that should be true
-    while i == 0 {
-        i = 1
+fn main() -> i64 {
+    let mut x: u8 = 0;
+    
+    // Debug: check value before loop
+    // if x == 0 { return 100; } else { return 200; }
+    
+    // Simple loop that should execute once
+    while x == 0 {
+        x = 1;
+        return 1; // Exit immediately
     }
-    return i  // Should return 1
-}
-
-fn main() -> u64 {
-    let result = test_while()
-    return result  // Return the actual value to see what we get
+    
+    return 0; // Should never reach here
 }

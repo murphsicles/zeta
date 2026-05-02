@@ -7,14 +7,24 @@ fn to_cstring_ptr(s: &str) -> i64 {
     let c = CString::new(s).unwrap();
     let len = c.as_bytes_with_nul().len();
     let ptr = unsafe { crate::runtime::std::std_malloc(len as usize) };
-    if ptr == 0 { return 0; }
-    unsafe { std::ptr::copy_nonoverlapping(c.as_ptr(), ptr as *mut i8, len); }
+    if ptr == 0 {
+        return 0;
+    }
+    unsafe {
+        std::ptr::copy_nonoverlapping(c.as_ptr(), ptr as *mut i8, len);
+    }
     ptr
 }
 
 fn from_cstr(ptr: i64) -> String {
-    if ptr == 0 { return String::new(); }
-    unsafe { std::ffi::CStr::from_ptr(ptr as *const std::ffi::c_char).to_string_lossy().into_owned() }
+    if ptr == 0 {
+        return String::new();
+    }
+    unsafe {
+        std::ffi::CStr::from_ptr(ptr as *const std::ffi::c_char)
+            .to_string_lossy()
+            .into_owned()
+    }
 }
 
 fn path_from(ptr: i64) -> PathBuf {
@@ -24,19 +34,25 @@ fn path_from(ptr: i64) -> PathBuf {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn path_parent(path: i64) -> i64 {
     let p = path_from(path);
-    p.parent().map(|x| to_cstring_ptr(&x.to_string_lossy())).unwrap_or(0)
+    p.parent()
+        .map(|x| to_cstring_ptr(&x.to_string_lossy()))
+        .unwrap_or(0)
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn path_file_name(path: i64) -> i64 {
     let p = path_from(path);
-    p.file_name().map(|x| to_cstring_ptr(&x.to_string_lossy())).unwrap_or(0)
+    p.file_name()
+        .map(|x| to_cstring_ptr(&x.to_string_lossy()))
+        .unwrap_or(0)
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn path_extension(path: i64) -> i64 {
     let p = path_from(path);
-    p.extension().map(|x| to_cstring_ptr(&x.to_string_lossy())).unwrap_or(0)
+    p.extension()
+        .map(|x| to_cstring_ptr(&x.to_string_lossy()))
+        .unwrap_or(0)
 }
 
 #[unsafe(no_mangle)]

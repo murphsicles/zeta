@@ -3,11 +3,11 @@
 //! This is the hybrid approach (Option C) - enhancing existing std_malloc with novel safety layers
 #![allow(unsafe_code)]
 
-use std::alloc::{Layout, dealloc};
+use std::alloc::{dealloc, Layout};
 use std::collections::HashMap;
+use std::sync::atomic::AtomicU64;
 use std::sync::Mutex;
 use std::sync::OnceLock;
-use std::sync::atomic::AtomicU64;
 
 // Constants
 const HEADER_SIZE: usize = 32; // Space for metadata

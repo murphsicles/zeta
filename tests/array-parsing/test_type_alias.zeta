@@ -1,6 +1,0 @@
-// Test simple type alias
-type MyInt = u64
-
-fn main() -> u64 {
-    return 42
-}

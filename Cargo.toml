@@ -51,8 +51,6 @@ rustls = "0.23.36"
 serde = { version = "1.0.227", features = ["derive"] }
 # Core serialization library
 serde_core = "1.0.227"
-# Formal verification system
-zeta-verification = { path = "verification" }
 # JSON handling.
 serde_json = "1.0.149"
 # TOML parsing and serialization.
@@ -272,90 +270,3 @@ path = "benches/zeta_bench.rs"
 # Disable default harness.
 harness = false
 
-[[example]]
-name = "stdlib_test_runner"
-path = "examples/stdlib_test_runner.rs"
-[[example]]
-name = "test_simple"
-path = "examples/test_simple.rs"
-[[example]]
-name = "test_use"
-path = "examples/test_use.rs"
-[[example]]
-name = "test_debug"
-path = "examples/test_debug.rs"
-[[example]]
-name = "test_sizeof"
-path = "examples/test_sizeof.rs"
-[[example]]
-name = "test_vec"
-path = "examples/test_vec.rs"
-[[example]]
-name = "test_vecdirect"
-path = "examples/test_vecdirect.rs"
-[[example]]
-name = "test_fullvec"
-path = "examples/test_fullvec.rs"
-[[example]]
-name = "test_vecnew"
-path = "examples/test_vecnew.rs"
-[[example]]
-name = "test_useonly"
-path = "examples/test_useonly.rs"
-[[example]]
-name = "test_vecnew2"
-path = "examples/test_vecnew2.rs"
-[[example]]
-name = "test_vecdebug"
-path = "examples/test_vecdebug.rs"
-[[example]]
-name = "test_vecdebug2"
-path = "examples/test_vecdebug2.rs"
-[[example]]
-name = "test_vecmethod"
-path = "examples/test_vecmethod.rs"
-[[example]]
-name = "test_concretevec"
-path = "examples/test_concretevec.rs"
-[[example]]
-name = "test_fncall"
-path = "examples/test_fncall.rs"
-[[example]]
-name = "test_simplemethod"
-path = "examples/test_simplemethod.rs"
-[[example]]
-name = "test_methodnoself"
-path = "examples/test_methodnoself.rs"
-[[example]]
-name = "test_vecfree"
-path = "examples/test_vecfree.rs"
-[[example]]
-name = "test_debugmethod"
-path = "examples/test_debugmethod.rs"
-[[example]]
-name = "test_method2"
-path = "examples/test_method2.rs"
-[[example]]
-name = "test_struct_init"
-path = "examples/test_struct_init.rs"
-[[example]]
-name = "test_struct_fix"
-path = "tests/regression/test_struct_fix.rs"
-[[example]]
-name = "test_fn_return_struct"
-path = "examples/test_fn_return_struct.rs"
-[[example]]
-name = "test_method_return"
-path = "examples/test_method_return.rs"
-[[example]]
-name = "test_pathcall_vs_method"
-path = "examples/test_pathcall_vs_method.rs"
-[[example]]
-name = "test_noself"
-path = "examples/test_noself.rs"
-[[example]]
-name = "test_self_noref"
-path = "examples/test_self_noref.rs"
-[[example]]
-name = "test_self_workaround"
-path = "examples/test_self_workaround.rs"

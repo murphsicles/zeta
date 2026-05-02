@@ -78,7 +78,6 @@ impl NewTypeCheck for Resolver {
         let s = s.trim();
 
         // Debug: print what we're parsing (disabled for performance)
-        // eprintln!("[DEBUG] string_to_type parsing: '{}'", s);
 
         // Safety check: prevent infinite recursion
         if s.is_empty() {

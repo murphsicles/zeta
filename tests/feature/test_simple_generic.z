@@ -1,8 +1,0 @@
-﻿struct Point<T> {
-    x: T,
-    y: T,
-}
-
-fn main() -> i64 {
-    0
-}

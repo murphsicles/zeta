@@ -27,7 +27,9 @@ pub unsafe extern "C" fn thread_join(handle: i64) -> i64 {
     let mut handles = HANDLES.lock().unwrap();
     if let Some(h) = handles.remove(&handle) {
         h.join().unwrap_or(-1)
-    } else { -1 }
+    } else {
+        -1
+    }
 }
 
 #[unsafe(no_mangle)]

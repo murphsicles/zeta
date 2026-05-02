@@ -12,8 +12,14 @@ lazy_static::lazy_static! {
 static NEXT_ID: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(1);
 
 fn from_cstr(ptr: i64) -> String {
-    if ptr == 0 { return String::new(); }
-    unsafe { std::ffi::CStr::from_ptr(ptr as *const std::ffi::c_char).to_string_lossy().into_owned() }
+    if ptr == 0 {
+        return String::new();
+    }
+    unsafe {
+        std::ffi::CStr::from_ptr(ptr as *const std::ffi::c_char)
+            .to_string_lossy()
+            .into_owned()
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -56,7 +62,9 @@ pub unsafe extern "C" fn process_command_status(cmd: i64) -> i64 {
             Ok(status) => status.code().unwrap_or(-1) as i64,
             Err(_) => -1,
         }
-    } else { -1 }
+    } else {
+        -1
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -66,9 +74,15 @@ pub unsafe extern "C" fn process_output_stdout(output: i64) -> i64 {
         let c = CString::new(String::from_utf8_lossy(&o.stdout).as_ref()).unwrap();
         let len = c.as_bytes_with_nul().len();
         let ptr = unsafe { crate::runtime::std::std_malloc(len as usize) };
-        if ptr != 0 { unsafe { std::ptr::copy_nonoverlapping(c.as_ptr(), ptr as *mut i8, len); } }
+        if ptr != 0 {
+            unsafe {
+                std::ptr::copy_nonoverlapping(c.as_ptr(), ptr as *mut i8, len);
+            }
+        }
         ptr
-    } else { 0 }
+    } else {
+        0
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -78,9 +92,15 @@ pub unsafe extern "C" fn process_output_stderr(output: i64) -> i64 {
         let c = CString::new(String::from_utf8_lossy(&o.stderr).as_ref()).unwrap();
         let len = c.as_bytes_with_nul().len();
         let ptr = unsafe { crate::runtime::std::std_malloc(len as usize) };
-        if ptr != 0 { unsafe { std::ptr::copy_nonoverlapping(c.as_ptr(), ptr as *mut i8, len); } }
+        if ptr != 0 {
+            unsafe {
+                std::ptr::copy_nonoverlapping(c.as_ptr(), ptr as *mut i8, len);
+            }
+        }
         ptr
-    } else { 0 }
+    } else {
+        0
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -88,5 +108,7 @@ pub unsafe extern "C" fn process_output_status(output: i64) -> i64 {
     let outputs = OUTPUTS.lock().unwrap();
     if let Some(o) = outputs.get(&output) {
         o.status.code().unwrap_or(-1) as i64
-    } else { -1 }
+    } else {
+        -1
+    }
 }

@@ -1,4 +1,0 @@
-fn main() -> i64 {
-    let v = lt(Vec, i32)::new();
-    0
-}

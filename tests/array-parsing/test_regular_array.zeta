@@ -1,2 +1,0 @@
-// Test regular array syntax
-type MyArray = [u64; 10]

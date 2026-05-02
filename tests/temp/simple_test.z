@@ -1,5 +1,0 @@
-fn main() {
-    let x = 42;
-    print_i64(x);
-    println();
-}

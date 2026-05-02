@@ -1,4 +1,0 @@
-﻿// Very simple test
-fn main() -> u64 {
-    return true  // Should fail: returning bool from u64 function
-}

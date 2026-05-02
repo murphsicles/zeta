@@ -2,7 +2,7 @@
 use crate::runtime::std::{std_free, std_malloc};
 use libc::strlen;
 use reqwest::blocking::Client;
-use std::ffi::{CStr, CString, c_char};
+use std::ffi::{c_char, CStr, CString};
 use std::os::raw::c_void;
 use std::ptr;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -204,11 +204,15 @@ pub unsafe extern "C" fn host_str_replace(s: i64, old: i64, new: i64) -> i64 {
 
 /// Split a string by delimiter — returns first part pointer (for now)
 pub unsafe extern "C" fn host_str_split(s: i64, delim: i64) -> i64 {
-    if s == 0 || delim == 0 { return 0; }
+    if s == 0 || delim == 0 {
+        return 0;
+    }
     let str_val = unsafe { CStr::from_ptr(s as *const c_char) }
-        .to_str().unwrap_or("");
+        .to_str()
+        .unwrap_or("");
     let delim_val = unsafe { CStr::from_ptr(delim as *const c_char) }
-        .to_str().unwrap_or("");
+        .to_str()
+        .unwrap_or("");
     // Return the first split part
     let parts: Vec<&str> = str_val.splitn(2, delim_val).collect();
     let first = parts.first().copied().unwrap_or("");
@@ -223,9 +227,12 @@ pub unsafe extern "C" fn host_str_split(s: i64, delim: i64) -> i64 {
 
 /// Join strings with a separator
 pub unsafe extern "C" fn host_str_join(parts_ptr: i64, sep: i64) -> i64 {
-    if parts_ptr == 0 || sep == 0 { return 0; }
+    if parts_ptr == 0 || sep == 0 {
+        return 0;
+    }
     let sep_val = unsafe { CStr::from_ptr(sep as *const c_char) }
-        .to_str().unwrap_or("");
+        .to_str()
+        .unwrap_or("");
     // For now, just return sep repeated (placeholder for full join)
     let cstring = CString::new(sep_val.to_string()).unwrap();
     let len = cstring.as_bytes_with_nul().len();
@@ -238,21 +245,29 @@ pub unsafe extern "C" fn host_str_join(parts_ptr: i64, sep: i64) -> i64 {
 
 /// Find substring position (returns index or -1)
 pub unsafe extern "C" fn host_str_find(haystack: i64, needle: i64) -> i64 {
-    if haystack == 0 || needle == 0 { return -1; }
+    if haystack == 0 || needle == 0 {
+        return -1;
+    }
     let h = unsafe { CStr::from_ptr(haystack as *const c_char) }
-        .to_str().unwrap_or("");
+        .to_str()
+        .unwrap_or("");
     let n = unsafe { CStr::from_ptr(needle as *const c_char) }
-        .to_str().unwrap_or("");
+        .to_str()
+        .unwrap_or("");
     h.find(n).map(|i| i as i64).unwrap_or(-1)
 }
 
 /// Count occurrences of substring
 pub unsafe extern "C" fn host_str_count(haystack: i64, needle: i64) -> i64 {
-    if haystack == 0 || needle == 0 { return 0; }
+    if haystack == 0 || needle == 0 {
+        return 0;
+    }
     let h = unsafe { CStr::from_ptr(haystack as *const c_char) }
-        .to_str().unwrap_or("");
+        .to_str()
+        .unwrap_or("");
     let n = unsafe { CStr::from_ptr(needle as *const c_char) }
-        .to_str().unwrap_or("");
+        .to_str()
+        .unwrap_or("");
     h.matches(n).count() as i64
 }
 
@@ -273,18 +288,32 @@ pub unsafe extern "C" fn host_str_rstrip(s: i64) -> i64 {
 
 /// Check if string is alphabetic
 pub unsafe extern "C" fn host_str_isalpha(s: i64) -> i64 {
-    if s == 0 { return 0; }
+    if s == 0 {
+        return 0;
+    }
     let str_val = unsafe { CStr::from_ptr(s as *const c_char) }
-        .to_str().unwrap_or("");
-    if str_val.is_empty() { 0 } else { str_val.chars().all(|c| c.is_alphabetic()) as i64 }
+        .to_str()
+        .unwrap_or("");
+    if str_val.is_empty() {
+        0
+    } else {
+        str_val.chars().all(|c| c.is_alphabetic()) as i64
+    }
 }
 
 /// Check if string is numeric
 pub unsafe extern "C" fn host_str_isnumeric(s: i64) -> i64 {
-    if s == 0 { return 0; }
+    if s == 0 {
+        return 0;
+    }
     let str_val = unsafe { CStr::from_ptr(s as *const c_char) }
-        .to_str().unwrap_or("");
-    if str_val.is_empty() { 0 } else { str_val.chars().all(|c| c.is_numeric()) as i64 }
+        .to_str()
+        .unwrap_or("");
+    if str_val.is_empty() {
+        0
+    } else {
+        str_val.chars().all(|c| c.is_numeric()) as i64
+    }
 }
 
 #[allow(unsafe_op_in_unsafe_fn)]
@@ -322,7 +351,11 @@ where
     let ndl = unsafe { CStr::from_ptr(needle as *const c_char) }
         .to_str()
         .unwrap_or("");
-    if pred(hay, ndl) { 1 } else { 0 }
+    if pred(hay, ndl) {
+        1
+    } else {
+        0
+    }
 }
 
 /// Clone an i64 value (identity function for i64)
@@ -340,7 +373,11 @@ pub unsafe extern "C" fn clone_i64(value: i64) -> i64 {
 /// No safety concerns as it just compares the value to 0.
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn is_null_i64(value: i64) -> i64 {
-    if value == 0 { 1 } else { 0 }
+    if value == 0 {
+        1
+    } else {
+        0
+    }
 }
 
 /// Convert a string to a string (identity function for strings)
@@ -384,7 +421,11 @@ pub unsafe extern "C" fn clone_bool(value: i64) -> i64 {
 /// No safety concerns as it just checks if value is 0.
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn is_null_bool(value: i64) -> i64 {
-    if value == 0 { 1 } else { 0 }
+    if value == 0 {
+        1
+    } else {
+        0
+    }
 }
 
 /// Convert an i64 to a string
@@ -528,7 +569,11 @@ pub unsafe extern "C" fn xor_i64(a: i64, b: i64) -> i64 {
 #[unsafe(no_mangle)]
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn eq_i64(a: i64, b: i64) -> i64 {
-    if a == b { 1 } else { 0 }
+    if a == b {
+        1
+    } else {
+        0
+    }
 }
 
 /// Inequality comparison for i64 values
@@ -538,7 +583,11 @@ pub unsafe extern "C" fn eq_i64(a: i64, b: i64) -> i64 {
 #[unsafe(no_mangle)]
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn ne_i64(a: i64, b: i64) -> i64 {
-    if a != b { 1 } else { 0 }
+    if a != b {
+        1
+    } else {
+        0
+    }
 }
 
 /// Less than comparison for i64 values
@@ -548,7 +597,11 @@ pub unsafe extern "C" fn ne_i64(a: i64, b: i64) -> i64 {
 #[unsafe(no_mangle)]
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn lt_i64(a: i64, b: i64) -> i64 {
-    if a < b { 1 } else { 0 }
+    if a < b {
+        1
+    } else {
+        0
+    }
 }
 
 /// Greater than comparison for i64 values
@@ -558,7 +611,11 @@ pub unsafe extern "C" fn lt_i64(a: i64, b: i64) -> i64 {
 #[unsafe(no_mangle)]
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn gt_i64(a: i64, b: i64) -> i64 {
-    if a > b { 1 } else { 0 }
+    if a > b {
+        1
+    } else {
+        0
+    }
 }
 
 /// Less than or equal comparison for i64 values
@@ -568,7 +625,11 @@ pub unsafe extern "C" fn gt_i64(a: i64, b: i64) -> i64 {
 #[unsafe(no_mangle)]
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn le_i64(a: i64, b: i64) -> i64 {
-    if a <= b { 1 } else { 0 }
+    if a <= b {
+        1
+    } else {
+        0
+    }
 }
 
 /// Greater than or equal comparison for i64 values
@@ -578,7 +639,11 @@ pub unsafe extern "C" fn le_i64(a: i64, b: i64) -> i64 {
 #[unsafe(no_mangle)]
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn ge_i64(a: i64, b: i64) -> i64 {
-    if a >= b { 1 } else { 0 }
+    if a >= b {
+        1
+    } else {
+        0
+    }
 }
 
 /// Equality operator (==) - calls eq_i64

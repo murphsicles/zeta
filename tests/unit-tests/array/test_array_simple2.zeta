@@ -1,5 +1,0 @@
-fn main() -> i32 {
-    // Simple array with explicit type
-    let arr: [i32; 3] = [1, 2, 3];
-    return arr[0];
-}

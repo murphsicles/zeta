@@ -8,18 +8,30 @@ fn to_cstring_ptr(s: &str) -> i64 {
     let c = CString::new(s).unwrap();
     let len = c.as_bytes_with_nul().len();
     let ptr = unsafe { crate::runtime::std::std_malloc(len as usize) };
-    if ptr == 0 { return 0; }
-    unsafe { std::ptr::copy_nonoverlapping(c.as_ptr(), ptr as *mut i8, len); }
+    if ptr == 0 {
+        return 0;
+    }
+    unsafe {
+        std::ptr::copy_nonoverlapping(c.as_ptr(), ptr as *mut i8, len);
+    }
     ptr
 }
 
 fn from_cstr(ptr: i64) -> String {
-    if ptr == 0 { return String::new(); }
-    unsafe { std::ffi::CStr::from_ptr(ptr as *const std::ffi::c_char).to_string_lossy().into_owned() }
+    if ptr == 0 {
+        return String::new();
+    }
+    unsafe {
+        std::ffi::CStr::from_ptr(ptr as *const std::ffi::c_char)
+            .to_string_lossy()
+            .into_owned()
+    }
 }
 
 fn to_bytes(ptr: i64, len: i64) -> Vec<u8> {
-    if ptr == 0 || len <= 0 { return vec![]; }
+    if ptr == 0 || len <= 0 {
+        return vec![];
+    }
     unsafe { std::slice::from_raw_parts(ptr as *const u8, len as usize).to_vec() }
 }
 
@@ -45,42 +57,48 @@ pub unsafe extern "C" fn fs_write(path: i64, data: i64, len: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn fs_create_dir(path: i64) -> i64 {
     match fs::create_dir(Path::new(&from_cstr(path))) {
-        Ok(_) => 0, Err(_) => -1
+        Ok(_) => 0,
+        Err(_) => -1,
     }
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn fs_create_dir_all(path: i64) -> i64 {
     match fs::create_dir_all(Path::new(&from_cstr(path))) {
-        Ok(_) => 0, Err(_) => -1
+        Ok(_) => 0,
+        Err(_) => -1,
     }
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn fs_remove_file(path: i64) -> i64 {
     match fs::remove_file(Path::new(&from_cstr(path))) {
-        Ok(_) => 0, Err(_) => -1
+        Ok(_) => 0,
+        Err(_) => -1,
     }
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn fs_remove_dir(path: i64) -> i64 {
     match fs::remove_dir(Path::new(&from_cstr(path))) {
-        Ok(_) => 0, Err(_) => -1
+        Ok(_) => 0,
+        Err(_) => -1,
     }
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn fs_rename(from: i64, to: i64) -> i64 {
     match fs::rename(Path::new(&from_cstr(from)), Path::new(&from_cstr(to))) {
-        Ok(_) => 0, Err(_) => -1
+        Ok(_) => 0,
+        Err(_) => -1,
     }
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn fs_copy(from: i64, to: i64) -> i64 {
     match fs::copy(Path::new(&from_cstr(from)), Path::new(&from_cstr(to))) {
-        Ok(_) => 0, Err(_) => -1
+        Ok(_) => 0,
+        Err(_) => -1,
     }
 }
 
@@ -111,7 +129,8 @@ pub unsafe extern "C" fn fs_metadata_len(path: i64) -> i64 {
 pub unsafe extern "C" fn fs_read_dir(path: i64) -> i64 {
     match fs::read_dir(Path::new(&from_cstr(path))) {
         Ok(entries) => {
-            let names: Vec<String> = entries.filter_map(|e| e.ok())
+            let names: Vec<String> = entries
+                .filter_map(|e| e.ok())
                 .filter_map(|e| e.file_name().into_string().ok())
                 .collect();
             to_cstring_ptr(&names.join(","))

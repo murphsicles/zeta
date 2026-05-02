@@ -1,8 +1,0 @@
-// Test dynamic array variable declaration
-fn main() -> u64 {
-    // Declare a dynamic array variable
-    let arr: [dynamic]u64
-    
-    // For now, just return 0
-    return 0
-}

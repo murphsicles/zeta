@@ -1,7 +1,0 @@
-comptime fn answer() -> i64 {
-    42
-}
-
-fn main() -> i64 {
-    answer()
-}

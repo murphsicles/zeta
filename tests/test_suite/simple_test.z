@@ -1,4 +1,0 @@
-// Simple test to verify basic compilation
-fn main() -> u64 {
-    42
-}

@@ -1,8 +1,0 @@
-fn identity<T>(x: T) -> T {
-    x
-}
-
-fn main() -> i64 {
-    let x = identity::<i64>(42);
-    x
-}

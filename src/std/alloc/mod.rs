@@ -2,10 +2,10 @@
 //! Provides malloc, free, calloc, and realloc functions.
 
 use crate::runtime::std;
-use ::std::collections::HashMap;
 use core::cmp;
 use core::mem;
 use core::ptr;
+use ::std::collections::HashMap;
 
 /// Allocates memory for `count` elements of type `T`.
 ///

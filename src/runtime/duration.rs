@@ -4,7 +4,9 @@
 use std::time::Duration;
 
 fn to_dur(d: i64) -> Option<Box<Duration>> {
-    if d == 0 { None } else {
+    if d == 0 {
+        None
+    } else {
         unsafe { Some(Box::from_raw(d as *mut Duration)) }
     }
 }
@@ -14,7 +16,9 @@ fn into_ptr(d: Duration) -> i64 {
 }
 
 fn borrow(d: i64) -> Option<&'static Duration> {
-    if d == 0 { None } else {
+    if d == 0 {
+        None
+    } else {
         unsafe { Some(&*(d as *const Duration)) }
     }
 }
@@ -41,7 +45,9 @@ pub unsafe extern "C" fn duration_sub(a: i64, b: i64) -> i64 {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn duration_mul(d: i64, scale: i64) -> i64 {
-    borrow(d).map(|d| into_ptr(d.mul_f64(scale as f64))).unwrap_or(0)
+    borrow(d)
+        .map(|d| into_ptr(d.mul_f64(scale as f64)))
+        .unwrap_or(0)
 }
 
 #[unsafe(no_mangle)]

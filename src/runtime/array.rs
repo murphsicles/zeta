@@ -10,7 +10,7 @@
 //! array_new returns pointer to data (after header), not to header.
 #![allow(unsafe_code)]
 
-use std::alloc::{Layout, alloc, dealloc};
+use std::alloc::{alloc, dealloc, Layout};
 use std::ptr;
 
 /// ArrayHeader structure for bulletproof memory system
@@ -83,23 +83,15 @@ pub unsafe extern "C" fn array_new(capacity: usize) -> i64 {
         std::mem::align_of::<ArrayHeader>(),
         std::mem::align_of::<i64>(),
     );
-    println!("[ARRAY_NEW] align = {}", align);
     let layout = match Layout::from_size_align(total_size, align) {
-        Ok(layout) => {
-            println!("[ARRAY_NEW] Layout created successfully");
-            layout
-        }
+        Ok(layout) => layout,
         Err(e) => {
-            println!("[ARRAY_NEW] Layout error: {:?}", e);
             return 0;
         }
     };
 
-    println!("[ARRAY_NEW] Allocating memory...");
     let block_ptr = unsafe { alloc(layout) } as *mut u8;
-    println!("[ARRAY_NEW] block_ptr = {:?}", block_ptr);
     if block_ptr.is_null() {
-        println!("[ARRAY_NEW] Allocation failed, returning 0");
         return 0;
     }
 
@@ -126,7 +118,6 @@ pub unsafe extern "C" fn array_new(capacity: usize) -> i64 {
 
     // Return data pointer (not header pointer)
     let result = data_ptr as i64;
-    println!("[ARRAY_NEW] Returning data pointer: {}", result);
     result
 }
 
@@ -146,7 +137,6 @@ pub unsafe extern "C" fn array_len(ptr: i64) -> i64 {
     // Check header integrity
     if !unsafe { check_header(header) } {
         // Magic corrupted - memory corruption detected
-        println!("[ARRAY_LEN] ERROR: Memory corruption detected! Magic value corrupted.");
         println!(
             "[ARRAY_LEN] Expected magic: 0x{:X}, Found: 0x{:X}",
             MAGIC_VALUE,
@@ -158,7 +148,6 @@ pub unsafe extern "C" fn array_len(ptr: i64) -> i64 {
     // Check canary for overflow detection
     if !unsafe { check_canary(header) } {
         // Canary corrupted - buffer overflow detected
-        println!("[ARRAY_LEN] ERROR: Buffer overflow detected! Canary value corrupted.");
         println!(
             "[ARRAY_LEN] Expected canary: 0x{:X}, Found: 0x{:X}",
             CANARY_VALUE,
@@ -176,31 +165,25 @@ pub unsafe extern "C" fn array_len(ptr: i64) -> i64 {
 /// ptr must be a valid data pointer returned by array_new, index must be < length
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn array_get(ptr: i64, index: i64) -> i64 {
-    println!("[ARRAY_GET] Called with ptr = {}, index = {}", ptr, index);
     if ptr == 0 {
-        println!("[ARRAY_GET] ptr is 0, returning 0");
         return 0;
     }
 
     let data_ptr = ptr as *mut i64;
-    println!("[ARRAY_GET] data_ptr = {:?}", data_ptr);
 
     // Check if this is a stack array (no header)
     // For stack arrays, the pointer points directly to data
     // We can't reliably detect stack arrays, so we'll try to read the header
     // If the magic is wrong, we assume it's a stack array
     let header = unsafe { get_header(data_ptr) };
-    println!("[ARRAY_GET] header = {:?}", header);
 
     // Check header integrity
     if unsafe { check_header(header) } {
-        println!("[ARRAY_GET] Valid heap array header detected");
         // This is a heap array with a valid header
 
         // Check canary for overflow detection
         if !unsafe { check_canary(header) } {
             // Canary corrupted - buffer overflow detected
-            println!("[ARRAY_GET] ERROR: Buffer overflow detected! Canary value corrupted.");
             println!(
                 "[ARRAY_GET] Expected canary: 0x{:X}, Found: 0x{:X}",
                 CANARY_VALUE,
@@ -234,14 +217,12 @@ pub unsafe extern "C" fn array_get(ptr: i64, index: i64) -> i64 {
         }
 
         let value = unsafe { *data_ptr.offset(index as isize) };
-        println!("[ARRAY_GET] Reading value at offset {}: {}", index, value);
         value
     } else {
         // This is a stack array (no header)
         // Just read the value directly
         // WARNING: No bounds checking for stack arrays!
         // The compiler should generate bounds checking for stack arrays
-        println!("[ARRAY_GET] Stack array access at index {}", index);
         let value = unsafe { *data_ptr.offset(index as isize) };
         println!(
             "[ARRAY_GET] Stack array value at index {}: {}",
@@ -262,7 +243,6 @@ pub unsafe extern "C" fn array_set(ptr: i64, index: i64, value: i64) {
         ptr, index, value
     );
     if ptr == 0 {
-        println!("[ARRAY_SET] ptr is 0, returning");
         return;
     }
     println!(
@@ -270,26 +250,21 @@ pub unsafe extern "C" fn array_set(ptr: i64, index: i64, value: i64) {
         ptr, index, value
     );
     if ptr == 0 {
-        println!("[ARRAY_SET] ptr is 0, returning early");
         return;
     }
 
     let data_ptr = ptr as *mut i64;
-    println!("[ARRAY_SET] data_ptr = {:?}", data_ptr);
 
     // Check if this is a stack array (no header)
     let header = unsafe { get_header(data_ptr) };
-    println!("[ARRAY_SET] header = {:?}", header);
 
     // Check header integrity
     if unsafe { check_header(header) } {
-        println!("[ARRAY_SET] Valid heap array header detected");
         // This is a heap array with a valid header
 
         // Check canary for overflow detection
         if !unsafe { check_canary(header) } {
             // Canary corrupted - buffer overflow detected
-            println!("[ARRAY_SET] ERROR: Buffer overflow detected! Canary value corrupted.");
             println!(
                 "[ARRAY_SET] Expected canary: 0x{:X}, Found: 0x{:X}",
                 CANARY_VALUE,
@@ -322,7 +297,6 @@ pub unsafe extern "C" fn array_set(ptr: i64, index: i64, value: i64) {
             return;
         }
 
-        println!("[ARRAY_SET] Writing value {} at offset {}", value, index);
         unsafe {
             *data_ptr.offset(index as isize) = value;
         }
@@ -346,26 +320,20 @@ pub unsafe extern "C" fn array_set(ptr: i64, index: i64, value: i64) {
 /// ptr must be a valid data pointer returned by array_new
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn array_push(ptr: i64, value: i64) {
-    println!("[ARRAY_PUSH] Called with ptr = {}, value = {}", ptr, value);
     if ptr == 0 {
-        println!("[ARRAY_PUSH] ptr is 0, returning early");
         return;
     }
 
     let data_ptr = ptr as *mut i64;
-    println!("[ARRAY_PUSH] data_ptr = {:?}", data_ptr);
     let header = unsafe { get_header(data_ptr) };
-    println!("[ARRAY_PUSH] header = {:?}", header);
 
     // Check header integrity
     if unsafe { check_header(header) } {
-        println!("[ARRAY_PUSH] Valid heap array header detected");
         // This is a heap array with a valid header
 
         // Check canary for overflow detection
         if !unsafe { check_canary(header) } {
             // Canary corrupted - buffer overflow detected
-            println!("[ARRAY_PUSH] ERROR: Buffer overflow detected! Canary value corrupted.");
             println!(
                 "[ARRAY_PUSH] Expected canary: 0x{:X}, Found: 0x{:X}",
                 CANARY_VALUE,
@@ -376,7 +344,6 @@ pub unsafe extern "C" fn array_push(ptr: i64, value: i64) {
 
         let len = unsafe { (*header).len };
         let capacity = unsafe { (*header).capacity };
-        println!("[ARRAY_PUSH] len = {}, capacity = {}", len, capacity);
 
         if len >= capacity {
             // Array is full
@@ -388,18 +355,15 @@ pub unsafe extern "C" fn array_push(ptr: i64, value: i64) {
         }
 
         // Add element
-        println!("[ARRAY_PUSH] Writing value {} at offset {}", value, len);
         unsafe {
             *data_ptr.offset(len as isize) = value;
             (*header).len = len + 1;
         }
-        println!("[ARRAY_PUSH] New len = {}", len + 1);
     } else {
         // This is a stack array (no header)
         // For stack arrays, we need to track position separately
         // This is a hack - we'll use a static variable to track position
         // This only works for single-threaded, single-array initialization
-        println!("[ARRAY_PUSH] Stack array push (HACK - writing to position 0)");
         // HACK: Always write to position 0
         // This is wrong but works for simple test cases
         unsafe {
@@ -414,25 +378,18 @@ pub unsafe extern "C" fn array_push(ptr: i64, value: i64) {
 /// ptr must be a valid data pointer returned by array_new
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn array_set_len(ptr: i64, len: i64) {
-    println!("[ARRAY_SET_LEN] Called with ptr = {}, len = {}", ptr, len);
     if ptr == 0 {
-        println!("[ARRAY_SET_LEN] ptr is 0, returning");
         return;
     }
 
     let data_ptr = ptr as *mut i64;
-    println!("[ARRAY_SET_LEN] data_ptr = {:?}", data_ptr);
     let header = unsafe { get_header(data_ptr) };
-    println!("[ARRAY_SET_LEN] header = {:?}", header);
 
     // Check header integrity
     if unsafe { check_header(header) } {
-        println!("[ARRAY_SET_LEN] Valid heap array header detected");
         // This is a heap array with a valid header
         let capacity = unsafe { (*header).capacity };
-        println!("[ARRAY_SET_LEN] capacity = {}", capacity);
         if len >= 0 && (len as usize) <= capacity {
-            println!("[ARRAY_SET_LEN] Setting len = {}", len);
             unsafe {
                 (*header).len = len as usize;
             }
@@ -443,7 +400,6 @@ pub unsafe extern "C" fn array_set_len(ptr: i64, len: i64) {
             );
         }
     } else {
-        println!("[ARRAY_SET_LEN] Stack array or invalid header");
     }
     // For stack arrays, we don't have a length field
 }
