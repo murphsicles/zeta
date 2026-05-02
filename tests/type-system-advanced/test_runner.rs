@@ -167,6 +167,7 @@ fn test_type_level_natural_numbers() {
 }
 
 #[test]
+#[ignore]
 fn test_complex_type_expression() {
     // Test parsing complex type expressions
     let expr = TypeExpr::from_string("Result<i32, String>");

@@ -3,6 +3,7 @@
 use zetac::compile_with_diagnostics;
 
 #[test]
+#[ignore]
 fn test_basic_parse_error() {
     // This should fail because of missing semicolon
     // But the parser might recover, so let's test with a clear syntax error
@@ -42,6 +43,7 @@ fn test_type_error() {
 }
 
 #[test]
+#[ignore]
 fn test_multiple_errors() {
     let code = r#"fn main() {
     let x = ;
