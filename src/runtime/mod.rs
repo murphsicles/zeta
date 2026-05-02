@@ -1,6 +1,10 @@
 // src/runtime/mod.rs
 pub mod actor;
 pub mod array;
+pub mod atomic;
+pub mod fs;
+pub mod net;
+pub mod path;
 pub mod r#async;
 pub mod async_advanced;
 pub mod channel_advanced;

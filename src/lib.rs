@@ -381,6 +381,64 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
         if name.starts_with("vec_get_")  { ee.add_global_mapping(&func_name, crate::runtime::vec::zeta_vec_get as *const () as usize); }
         if name.starts_with("vec_len_")  { ee.add_global_mapping(&func_name, crate::runtime::vec::zeta_vec_len as *const () as usize); }
     }
+    
+    // Map Tier 2 runtime functions (fs, path, net, atomic)
+    let tier2_fns: Vec<(&str, usize)> = vec![
+        // Filesystem
+        ("fs_read_to_string",  crate::runtime::fs::fs_read_to_string as *const () as usize),
+        ("fs_write",           crate::runtime::fs::fs_write as *const () as usize),
+        ("fs_create_dir",      crate::runtime::fs::fs_create_dir as *const () as usize),
+        ("fs_create_dir_all",  crate::runtime::fs::fs_create_dir_all as *const () as usize),
+        ("fs_remove_file",     crate::runtime::fs::fs_remove_file as *const () as usize),
+        ("fs_remove_dir",      crate::runtime::fs::fs_remove_dir as *const () as usize),
+        ("fs_rename",          crate::runtime::fs::fs_rename as *const () as usize),
+        ("fs_copy",            crate::runtime::fs::fs_copy as *const () as usize),
+        ("fs_exists",          crate::runtime::fs::fs_exists as *const () as usize),
+        ("fs_is_file",         crate::runtime::fs::fs_is_file as *const () as usize),
+        ("fs_is_dir",          crate::runtime::fs::fs_is_dir as *const () as usize),
+        ("fs_metadata_len",    crate::runtime::fs::fs_metadata_len as *const () as usize),
+        ("fs_read_dir",        crate::runtime::fs::fs_read_dir as *const () as usize),
+        ("fs_canonicalize",    crate::runtime::fs::fs_canonicalize as *const () as usize),
+        // Path
+        ("path_parent",        crate::runtime::path::path_parent as *const () as usize),
+        ("path_file_name",     crate::runtime::path::path_file_name as *const () as usize),
+        ("path_extension",     crate::runtime::path::path_extension as *const () as usize),
+        ("path_has_extension", crate::runtime::path::path_has_extension as *const () as usize),
+        ("path_is_absolute",   crate::runtime::path::path_is_absolute as *const () as usize),
+        ("path_join",          crate::runtime::path::path_join as *const () as usize),
+        ("path_absolute",      crate::runtime::path::path_absolute as *const () as usize),
+        ("path_as_str",        crate::runtime::path::path_as_str as *const () as usize),
+        ("path_set_extension", crate::runtime::path::path_set_extension as *const () as usize),
+        // Networking
+        ("tcp_connect",        crate::runtime::net::tcp_connect as *const () as usize),
+        ("tcp_write",          crate::runtime::net::tcp_write as *const () as usize),
+        ("tcp_read",           crate::runtime::net::tcp_read as *const () as usize),
+        ("tcp_close",          crate::runtime::net::tcp_close as *const () as usize),
+        ("tcp_bind",           crate::runtime::net::tcp_bind as *const () as usize),
+        ("tcp_accept",         crate::runtime::net::tcp_accept as *const () as usize),
+        ("tcp_peer_addr",      crate::runtime::net::tcp_peer_addr as *const () as usize),
+        ("tcp_local_addr",     crate::runtime::net::tcp_local_addr as *const () as usize),
+        // Atomics
+        ("atomic_bool_new",    crate::runtime::atomic::atomic_bool_new as *const () as usize),
+        ("atomic_bool_load",   crate::runtime::atomic::atomic_bool_load as *const () as usize),
+        ("atomic_bool_store",  crate::runtime::atomic::atomic_bool_store as *const () as usize),
+        ("atomic_bool_swap",   crate::runtime::atomic::atomic_bool_swap as *const () as usize),
+        ("atomic_bool_cas",    crate::runtime::atomic::atomic_bool_cas as *const () as usize),
+        ("atomic_i64_new",     crate::runtime::atomic::atomic_i64_new as *const () as usize),
+        ("atomic_i64_load",    crate::runtime::atomic::atomic_i64_load as *const () as usize),
+        ("atomic_i64_store",   crate::runtime::atomic::atomic_i64_store as *const () as usize),
+        ("atomic_i64_swap",    crate::runtime::atomic::atomic_i64_swap as *const () as usize),
+        ("atomic_i64_cas",     crate::runtime::atomic::atomic_i64_cas as *const () as usize),
+        ("atomic_i64_add",     crate::runtime::atomic::atomic_i64_fetch_add as *const () as usize),
+        ("atomic_i64_sub",     crate::runtime::atomic::atomic_i64_fetch_sub as *const () as usize),
+        ("atomic_i64_and",     crate::runtime::atomic::atomic_i64_fetch_and as *const () as usize),
+        ("atomic_i64_or",      crate::runtime::atomic::atomic_i64_fetch_or as *const () as usize),
+    ];
+    for (name, fn_ptr) in &tier2_fns {
+        if let Some(f) = codegen.module.get_function(name) {
+            ee.add_global_mapping(&f, *fn_ptr);
+        }
+    }
 
     type MainFn = unsafe extern "C" fn() -> i64;
     unsafe {

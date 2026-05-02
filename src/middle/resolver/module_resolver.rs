@@ -1048,6 +1048,62 @@ pub trait IntoIterator { type Item; type IntoIter: Iterator<Item = Self::Item>; 
 pub trait FromIterator<A> { fn new() -> Self; fn push(&mut self, item: A); }
 ".to_string()
             }
+            "fs" => {
+                r"//! Stub for std::fs — Filesystem
+extern fn fs_read_to_string(path: i64) -> i64;
+extern fn fs_write(path: i64, data: i64, len: i64) -> i64;
+extern fn fs_create_dir(path: i64) -> i64;
+extern fn fs_create_dir_all(path: i64) -> i64;
+extern fn fs_remove_file(path: i64) -> i64;
+extern fn fs_remove_dir(path: i64) -> i64;
+extern fn fs_rename(from: i64, to: i64) -> i64;
+extern fn fs_copy(from: i64, to: i64) -> i64;
+extern fn fs_exists(path: i64) -> i64;
+extern fn fs_is_dir(path: i64) -> i64;
+extern fn fs_read_dir(path: i64) -> i64;
+extern fn fs_canonicalize(path: i64) -> i64;
+".to_string()
+            }
+            "path" => {
+                r"//! Stub for std::path — Path types
+extern fn path_join(path: i64, other: i64) -> i64;
+extern fn path_parent(path: i64) -> i64;
+extern fn path_file_name(path: i64) -> i64;
+extern fn path_extension(path: i64) -> i64;
+extern fn path_is_absolute(path: i64) -> i64;
+pub struct Path { pub inner: i64; }
+pub struct PathBuf { pub inner: i64; }
+".to_string()
+            }
+            "net" => {
+                r"//! Stub for std::net — TCP networking
+extern fn tcp_connect(host: i64, port: i64) -> i64;
+extern fn tcp_write(stream: i64, data: i64, len: i64) -> i64;
+extern fn tcp_read(stream: i64, buf: i64, len: i64) -> i64;
+extern fn tcp_close(stream: i64);
+extern fn tcp_bind(host: i64, port: i64) -> i64;
+extern fn tcp_accept(listener: i64) -> i64;
+pub struct TcpStream { pub fd: i64; }
+pub struct TcpListener { pub fd: i64; }
+".to_string()
+            }
+            "sync" => {
+                r"//! Stub for std::sync".to_string()
+            }
+            "atomic" => {
+                r"//! Stub for std::sync::atomic — Atomic types
+extern fn atomic_i64_new(val: i64) -> i64;
+extern fn atomic_i64_load(ptr: i64) -> i64;
+extern fn atomic_i64_store(ptr: i64, val: i64);
+extern fn atomic_i64_swap(ptr: i64, val: i64) -> i64;
+extern fn atomic_i64_cas(ptr: i64, current: i64, new: i64) -> i64;
+extern fn atomic_i64_fetch_add(ptr: i64, val: i64) -> i64;
+extern fn atomic_i64_fetch_sub(ptr: i64, val: i64) -> i64;
+extern fn atomic_bool_new(val: i64) -> i64;
+extern fn atomic_bool_load(ptr: i64) -> i64;
+pub struct AtomicI64 { pub ptr: i64; }
+".to_string()
+            }
             _ => {
                 // Generic stub
                 format!(
