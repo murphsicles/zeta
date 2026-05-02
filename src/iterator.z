@@ -1,0 +1,115 @@
+// src/iterator.z — Iterator hierarchy (Stepanov Elements of Programming)
+// Iterator categories and operations for concept-based generic programming
+
+// === Iterator Category Tags ===
+
+// InputIterator: can read, single-pass only
+concept InputIterator[T] {
+    fn source(it: T) -> value_type(T);
+    fn successor(it: T) -> T;
+}
+
+// ForwardIterator: multi-pass, can save and restore position
+concept ForwardIterator[T]: InputIterator[T] {
+    // Inherits all from InputIterator
+    // Multi-pass guarantee: it1 == it2 implies source(it1) == source(it2)
+}
+
+// BidirectionalIterator: can go both forward and backward
+concept BidirectionalIterator[T]: ForwardIterator[T] {
+    fn predecessor(it: T) -> T;
+}
+
+// RandomAccessIterator: O(1) advance by n
+concept RandomAccessIterator[T]: BidirectionalIterator[T] {
+    fn advance(it: T, n: difference_type(T)) -> T;
+    // Also supports: it + n, it - n, it[n]
+}
+
+// === Range Concept ===
+
+// A Range has begin() and end() that return iterators
+// This is a structural concept — any type with begin(R) and end(R) satisfies Range
+// Formal definition would be:
+// concept Range[R] {
+//     fn begin(r: R) -> iterator_type(R);
+//     fn end(r: R) -> iterator_type(R);
+// }
+
+// === Iterator Operations ===
+
+// Read value at iterator position
+extern fn source[T](it: T) -> value_type(T);
+
+// Write value at iterator position
+extern fn sink[T](it: T, val: value_type(T));
+
+// Advance iterator by one position
+extern fn successor[T](it: T) -> T;
+
+// Go back one position (BidirectionalIterator only)
+extern fn predecessor[T](it: T) -> T;
+
+// Advance iterator by n positions
+// For RandomAccessIterator: O(1) using pointer arithmetic
+// For ForwardIterator: loops successor n times
+extern fn advance[T](it: T, n: i64) -> T;
+
+// === Range Operations ===
+
+// Get start iterator
+extern fn begin[R](r: R) -> iterator_type(R);
+
+// Get end iterator
+extern fn end[R](r: R) -> iterator_type(R);
+
+// === Standard Iterator Algorithms ===
+
+// Find first occurrence of value in range [first, last)
+fn find[T: InputIterator](first: T, last: T, val: value_type(T)) -> T {
+    let mut it = first;
+    while it != last {
+        if source(it) == val {
+            return it;
+        }
+        it = successor(it);
+    }
+    return last;
+}
+
+// Find first element matching predicate
+fn find_if[T: InputIterator](first: T, last: T, pred) -> T {
+    let mut it = first;
+    while it != last {
+        if pred(source(it)) {
+            return it;
+        }
+        it = successor(it);
+    }
+    return last;
+}
+
+// Count occurrences of value in range
+fn count[T: InputIterator](first: T, last: T, val: value_type(T)) -> i64 {
+    let mut n: i64 = 0;
+    let mut it = first;
+    while it != last {
+        if source(it) == val {
+            n = n + 1;
+        }
+        it = successor(it);
+    }
+    return n;
+}
+
+// Copy elements from one range to another
+fn copy[T: InputIterator, U: ForwardIterator](first: T, last: T, out: U) -> U {
+    let mut src = first;
+    let mut dst = out;
+    while src != last {
+        sink(dst, source(src));
+        src = successor(src);
+        dst = successor(dst);
+    }
+    return dst;
+}

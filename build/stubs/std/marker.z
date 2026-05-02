@@ -1,0 +1,18 @@
+//! Stub for std::marker — Marker types
+//!
+//! Provides PhantomData, Copy, Send, Sized, Sync traits.
+
+/// A zero-sized type that acts as if it owns a value of type T.
+pub struct PhantomData<T>;
+
+/// Types that can be copied via a simple bitwise copy.
+pub trait Copy {}
+
+/// Types that are safe to transfer between threads.
+pub trait Send {}
+
+/// Types with a known fixed size at compile time.
+pub trait Sized {}
+
+/// Types that are safe to share between threads.
+pub trait Sync {}

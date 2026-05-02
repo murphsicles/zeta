@@ -1,0 +1,8 @@
+// Test absolute simplest comptime function
+comptime fn test() -> u64 {
+    return 1
+}
+
+fn main() -> u64 {
+    return test()
+}

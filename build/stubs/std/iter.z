@@ -1,0 +1,750 @@
+//! Stub for std::iter — Iterator trait and adapters
+//!
+//! Provides the Iterator trait with composable lazy adapters:
+//! map, filter, fold, collect, zip, chain, enumerate, skip, take, etc.
+
+// === Core Iterator trait ===
+
+/// A trait for types that produce a sequence of values.
+pub trait Iterator {
+    /// The type of elements yielded by this iterator.
+    type Item;
+
+    /// Advances the iterator and returns the next value.
+    /// Returns None when iteration is finished.
+    fn next(&mut self) -> Option<Self::Item>;
+
+    /// Returns the bounds on the remaining length of the iterator.
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (0, None)
+    }
+
+    /// Consumes the iterator and returns the number of elements.
+    fn count(self) -> usize where Self: Sized {
+        self.fold(0, |acc, _| acc + 1)
+    }
+
+    /// Returns the last element of the iterator.
+    fn last(self) -> Option<Self::Item> where Self: Sized {
+        let mut last_val = None;
+        let mut it = self;
+        while let Some(val) = it.next() {
+            last_val = Some(val);
+        }
+        last_val
+    }
+
+    /// Advances the iterator by n elements.
+    fn nth(&mut self, n: usize) -> Option<Self::Item> {
+        let mut i = 0;
+        while i < n {
+            if self.next().is_none() {
+                return None;
+            }
+            i += 1;
+        }
+        self.next()
+    }
+
+    /// Returns an iterator that steps by step elements.
+    fn step_by(self, step: usize) -> StepBy<Self> where Self: Sized {
+        StepBy { iter: self, step, first_take: true }
+    }
+
+    /// Chains two iterators end-to-end.
+    fn chain<U>(self, other: U) -> Chain<Self, U> where Self: Sized, U: Iterator<Item = Self::Item> {
+        Chain { a: self, b: other, state: ChainState::A }
+    }
+
+    /// Zips two iterators into a single iterator of pairs.
+    fn zip<U>(self, other: U) -> Zip<Self, U> where Self: Sized, U: Iterator {
+        Zip { a: self, b: other }
+    }
+
+    /// Maps each element using a closure.
+    fn map<B, F>(self, f: F) -> Map<Self, F> where Self: Sized, F: FnMut(Self::Item) -> B {
+        Map { iter: self, f }
+    }
+
+    /// Calls a closure on each element.
+    fn for_each<F>(self, f: F) where Self: Sized, F: FnMut(Self::Item) {
+        self.fold((), move |(), item| f(item))
+    }
+
+    /// Filters elements using a predicate.
+    fn filter<P>(self, predicate: P) -> Filter<Self, P> where Self: Sized, P: FnMut(&Self::Item) -> bool {
+        Filter { iter: self, predicate }
+    }
+
+    /// Filters and maps using a closure that returns Option.
+    fn filter_map<B, F>(self, f: F) -> FilterMap<Self, F> where Self: Sized, F: FnMut(Self::Item) -> Option<B> {
+        FilterMap { iter: self, f }
+    }
+
+    /// Enumerates iterator elements (pairs with index).
+    fn enumerate(self) -> Enumerate<Self> where Self: Sized {
+        Enumerate { iter: self, count: 0 }
+    }
+
+    /// Skips the first n elements.
+    fn skip(self, n: usize) -> Skip<Self> where Self: Sized {
+        Skip { iter: self, n }
+    }
+
+    /// Takes the first n elements.
+    fn take(self, n: usize) -> Take<Self> where Self: Sized {
+        Take { iter: self, n }
+    }
+
+    /// Skips elements while the predicate is true.
+    fn skip_while<P>(self, predicate: P) -> SkipWhile<Self, P> where Self: Sized, P: FnMut(&Self::Item) -> bool {
+        SkipWhile { iter: self, flag: false, predicate }
+    }
+
+    /// Takes elements while the predicate is true.
+    fn take_while<P>(self, predicate: P) -> TakeWhile<Self, P> where Self: Sized, P: FnMut(&Self::Item) -> bool {
+        TakeWhile { iter: self, flag: false, predicate }
+    }
+
+    /// Returns an iterator that yields nothing after the first None.
+    fn fuse(self) -> Fuse<Self> where Self: Sized {
+        Fuse { iter: self, done: false }
+    }
+
+    /// Calls a closure returning an iterator for each element.
+    fn flat_map<U, F>(self, f: F) -> FlatMap<Self, U, F> where Self: Sized, U: Iterator, F: FnMut(Self::Item) -> U {
+        FlatMap { iter: self, f, inner: None }
+    }
+
+    /// Flattens an iterator of iterators.
+    fn flatten(self) -> FlatMap<Self, <Self::Item as IntoIterator>::IntoIter, fn(Self::Item) -> <Self::Item as IntoIterator>::IntoIter>
+        where Self: Sized, Self::Item: IntoIterator
+    {
+        self.flat_map(|x| x.into_iter())
+    }
+
+    /// Collects all elements into a collection.
+    fn collect<B: FromIterator<Self::Item>>(self) -> B where Self: Sized {
+        let mut collection = B::new();
+        let mut it = self;
+        while let Some(val) = it.next() {
+            collection.push(val);
+        }
+        collection
+    }
+
+    /// Folds elements into an accumulator.
+    fn fold<B, F>(self, init: B, f: F) -> B where Self: Sized, F: FnMut(B, Self::Item) -> B {
+        let mut acc = init;
+        let mut it = self;
+        while let Some(val) = it.next() {
+            acc = f(acc, val);
+        }
+        acc
+    }
+
+    /// Reduces elements to a single value using a binary operation.
+    fn reduce<F>(self, f: F) -> Option<Self::Item> where Self: Sized, F: FnMut(Self::Item, Self::Item) -> Self::Item {
+        let mut it = self;
+        let first = it.next()?;
+        Some(it.fold(first, f))
+    }
+
+    /// Tests if every element matches a predicate.
+    fn all<F>(&mut self, f: F) -> bool where F: FnMut(Self::Item) -> bool {
+        let mut pred = f;
+        while let Some(val) = self.next() {
+            if !pred(val) {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Tests if any element matches a predicate.
+    fn any<F>(&mut self, f: F) -> bool where F: FnMut(Self::Item) -> bool {
+        let mut pred = f;
+        while let Some(val) = self.next() {
+            if pred(val) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Searches for an element matching a predicate.
+    fn find<F>(&mut self, f: F) -> Option<Self::Item> where F: FnMut(&Self::Item) -> bool {
+        let mut pred = f;
+        while let Some(val) = self.next() {
+            if pred(&val) {
+                return Some(val);
+            }
+        }
+        None
+    }
+
+    /// Returns the position of the first element matching a predicate.
+    fn position<F>(&mut self, f: F) -> Option<usize> where F: FnMut(Self::Item) -> bool {
+        let mut pred = f;
+        let mut pos = 0;
+        while let Some(val) = self.next() {
+            if pred(val) {
+                return Some(pos);
+            }
+            pos += 1;
+        }
+        None
+    }
+
+    /// Returns the maximum element by Ord.
+    fn max(self) -> Option<Self::Item> where Self::Item: Ord, Self: Sized {
+        self.reduce(|a, b| if a >= b { a } else { b })
+    }
+
+    /// Returns the minimum element by Ord.
+    fn min(self) -> Option<Self::Item> where Self::Item: Ord, Self: Sized {
+        self.reduce(|a, b| if a <= b { a } else { b })
+    }
+
+    /// Returns the element that gives the maximum value from the function.
+    fn max_by_key<B: Ord, F>(self, f: F) -> Option<Self::Item> where Self: Sized, F: FnMut(&Self::Item) -> B {
+        self.max_by(|a, b| f(a).cmp(&f(b)))
+    }
+
+    /// Returns the element that gives the minimum value from the function.
+    fn min_by_key<B: Ord, F>(self, f: F) -> Option<Self::Item> where Self: Sized, F: FnMut(&Self::Item) -> B {
+        self.min_by(|a, b| f(a).cmp(&f(b)))
+    }
+
+    /// Returns the maximum element by a comparison function.
+    fn max_by<F>(self, f: F) -> Option<Self::Item> where Self: Sized, F: FnMut(&Self::Item, &Self::Item) -> Ordering {
+        let mut compare = f;
+        self.reduce(|a, b| if compare(&a, &b) != Ordering::Less { a } else { b })
+    }
+
+    /// Returns the minimum element by a comparison function.
+    fn min_by<F>(self, f: F) -> Option<Self::Item> where Self: Sized, F: FnMut(&Self::Item, &Self::Item) -> Ordering {
+        let mut compare = f;
+        self.reduce(|a, b| if compare(&a, &b) == Ordering::Less { a } else { b })
+    }
+
+    /// Reverses the iterator order (requires DoubleEndedIterator).
+    fn rev(self) -> Rev<Self> where Self: Sized + DoubleEndedIterator {
+        Rev { iter: self }
+    }
+}
+
+// === IntoIterator trait ===
+
+/// Conversion into an Iterator.
+pub trait IntoIterator {
+    /// The type of the elements being iterated over.
+    type Item;
+
+    /// The type of the iterator being produced.
+    type IntoIter: Iterator<Item = Self::Item>;
+
+    /// Creates an iterator from a value.
+    fn into_iter(self) -> Self::IntoIter;
+}
+
+/// Conversion from an Iterator.
+pub trait FromIterator<A> {
+    /// Creates a value from an iterator.
+    fn new() -> Self;
+    /// Pushes an element into the collection.
+    fn push(&mut self, item: A);
+    /// Builds the collection from an iterator.
+    fn from_iter<T: Iterator<Item = A>>(iter: T) -> Self {
+        let mut collection = Self::new();
+        let mut it = iter;
+        while let Some(val) = it.next() {
+            collection.push(val);
+        }
+        collection
+    }
+}
+
+// === DoubleEndedIterator ===
+
+/// An iterator that can yield elements from both ends.
+pub trait DoubleEndedIterator: Iterator {
+    /// Returns the next element from the back.
+    fn next_back(&mut self) -> Option<Self::Item>;
+}
+
+// === ExactSizeIterator ===
+
+/// An iterator that knows its exact length.
+pub trait ExactSizeIterator: Iterator {
+    /// Returns the exact remaining length of the iterator.
+    fn len(&self) -> usize;
+    /// Returns true if the iterator is empty.
+    fn is_empty(&self) -> bool { self.len() == 0 }
+}
+
+// === Adapter types ===
+
+/// Iterator adapter: StepBy
+pub struct StepBy<I> {
+    iter: I,
+    step: usize,
+    first_take: bool,
+}
+
+impl<I: Iterator> Iterator for StepBy<I> {
+    type Item = I::Item;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.first_take {
+            self.first_take = false;
+            self.iter.next()
+        } else {
+            self.iter.nth(self.step - 1)
+        }
+    }
+}
+
+/// Iterator adapter: Chain
+enum ChainState {
+    A,
+    B,
+}
+
+pub struct Chain<A, B> {
+    a: A,
+    b: B,
+    state: ChainState,
+}
+
+impl<A: Iterator, B: Iterator<Item = A::Item>> Iterator for Chain<A, B> {
+    type Item = A::Item;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.state {
+            ChainState::A => {
+                match self.a.next() {
+                    Some(val) => Some(val),
+                    None => {
+                        self.state = ChainState::B;
+                        self.b.next()
+                    }
+                }
+            }
+            ChainState::B => self.b.next(),
+        }
+    }
+}
+
+/// Iterator adapter: Zip
+pub struct Zip<A, B> {
+    a: A,
+    b: B,
+}
+
+impl<A: Iterator, B: Iterator> Iterator for Zip<A, B> {
+    type Item = (A::Item, B::Item);
+    fn next(&mut self) -> Option<Self::Item> {
+        match (self.a.next(), self.b.next()) {
+            (Some(a_val), Some(b_val)) => Some((a_val, b_val)),
+            _ => None,
+        }
+    }
+}
+
+/// Iterator adapter: Map
+pub struct Map<I, F> {
+    iter: I,
+    f: F,
+}
+
+impl<B, I: Iterator, F: FnMut(I::Item) -> B> Iterator for Map<I, F> {
+    type Item = B;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(&mut self.f)
+    }
+}
+
+/// Iterator adapter: Filter
+pub struct Filter<I, P> {
+    iter: I,
+    predicate: P,
+}
+
+impl<I: Iterator, P: FnMut(&I::Item) -> bool> Iterator for Filter<I, P> {
+    type Item = I::Item;
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(val) = self.iter.next() {
+            if (self.predicate)(&val) {
+                return Some(val);
+            }
+        }
+        None
+    }
+}
+
+/// Iterator adapter: FilterMap
+pub struct FilterMap<I, F> {
+    iter: I,
+    f: F,
+}
+
+impl<B, I: Iterator, F: FnMut(I::Item) -> Option<B>> Iterator for FilterMap<I, F> {
+    type Item = B;
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(val) = self.iter.next() {
+            if let Some(mapped) = (self.f)(val) {
+                return Some(mapped);
+            }
+        }
+        None
+    }
+}
+
+/// Iterator adapter: Enumerate
+pub struct Enumerate<I> {
+    iter: I,
+    count: usize,
+}
+
+impl<I: Iterator> Iterator for Enumerate<I> {
+    type Item = (usize, I::Item);
+    fn next(&mut self) -> Option<Self::Item> {
+        let idx = self.count;
+        self.count += 1;
+        self.iter.next().map(|val| (idx, val))
+    }
+}
+
+/// Iterator adapter: Skip
+pub struct Skip<I> {
+    iter: I,
+    n: usize,
+}
+
+impl<I: Iterator> Iterator for Skip<I> {
+    type Item = I::Item;
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.n > 0 {
+            self.iter.next();
+            self.n -= 1;
+        }
+        self.iter.next()
+    }
+}
+
+/// Iterator adapter: Take
+pub struct Take<I> {
+    iter: I,
+    n: usize,
+}
+
+impl<I: Iterator> Iterator for Take<I> {
+    type Item = I::Item;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.n > 0 {
+            self.n -= 1;
+            self.iter.next()
+        } else {
+            None
+        }
+    }
+}
+
+/// Iterator adapter: SkipWhile
+pub struct SkipWhile<I, P> {
+    iter: I,
+    flag: bool,
+    predicate: P,
+}
+
+impl<I: Iterator, P: FnMut(&I::Item) -> bool> Iterator for SkipWhile<I, P> {
+    type Item = I::Item;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.flag {
+            self.iter.next()
+        } else {
+            loop {
+                match self.iter.next() {
+                    Some(val) => {
+                        if (self.predicate)(&val) {
+                            // continue skipping
+                        } else {
+                            self.flag = true;
+                            return Some(val);
+                        }
+                    }
+                    None => return None,
+                }
+            }
+        }
+    }
+}
+
+/// Iterator adapter: TakeWhile
+pub struct TakeWhile<I, P> {
+    iter: I,
+    flag: bool,
+    predicate: P,
+}
+
+impl<I: Iterator, P: FnMut(&I::Item) -> bool> Iterator for TakeWhile<I, P> {
+    type Item = I::Item;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.flag {
+            return None;
+        }
+        match self.iter.next() {
+            Some(val) => {
+                if (self.predicate)(&val) {
+                    Some(val)
+                } else {
+                    self.flag = true;
+                    None
+                }
+            }
+            None => None,
+        }
+    }
+}
+
+/// Iterator adapter: Fuse
+pub struct Fuse<I> {
+    iter: I,
+    done: bool,
+}
+
+impl<I: Iterator> Iterator for Fuse<I> {
+    type Item = I::Item;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.done {
+            return None;
+        }
+        match self.iter.next() {
+            Some(val) => Some(val),
+            None => {
+                self.done = true;
+                None
+            }
+        }
+    }
+}
+
+/// Iterator adapter: FlatMap
+pub struct FlatMap<I, U, F> {
+    iter: I,
+    f: F,
+    inner: Option<U>,
+}
+
+impl<I: Iterator, U: Iterator, F: FnMut(I::Item) -> U> Iterator for FlatMap<I, U, F> {
+    type Item = U::Item;
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(ref mut inner) = self.inner {
+                if let Some(val) = inner.next() {
+                    return Some(val);
+                }
+            }
+            match self.iter.next() {
+                Some(val) => {
+                    self.inner = Some((self.f)(val));
+                }
+                None => return None,
+            }
+        }
+    }
+}
+
+/// Iterator adapter: Rev (reverse)
+pub struct Rev<I> {
+    iter: I,
+}
+
+impl<I: DoubleEndedIterator> Iterator for Rev<I> {
+    type Item = I::Item;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next_back()
+    }
+}
+
+// === into_iter for common types ===
+
+impl<T> IntoIterator for Vec<T> {
+    type Item = T;
+    type IntoIter = IntoIter<T>;
+
+    fn into_iter(self) -> IntoIter<T> {
+        IntoIter { vec: self, index: 0 }
+    }
+}
+
+/// Iterator for Vec<T>.
+pub struct IntoIter<T> {
+    vec: Vec<T>,
+    index: usize,
+}
+
+impl<T> Iterator for IntoIter<T> {
+    type Item = T;
+    fn next(&mut self) -> Option<T> {
+        if self.index < self.vec.len() {
+            let val = self.vec.get(self.index);
+            self.index += 1;
+            val
+        } else {
+            None
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.vec.len() - self.index;
+        (remaining, Some(remaining))
+    }
+}
+
+impl<T> ExactSizeIterator for IntoIter<T> {
+    fn len(&self) -> usize {
+        self.vec.len() - self.index
+    }
+}
+
+impl<T> DoubleEndedIterator for IntoIter<T> {
+    fn next_back(&mut self) -> Option<T> {
+        if self.index < self.vec.len() {
+            self.vec.len() -= 1;
+            self.vec.get(self.vec.len())
+        } else {
+            None
+        }
+    }
+}
+
+// === Range iterator ===
+
+/// An iterator over a range of integers.
+pub struct Range<A> {
+    start: A,
+    end: A,
+}
+
+impl Iterator for Range<u64> {
+    type Item = u64;
+    fn next(&mut self) -> Option<u64> {
+        if self.start < self.end {
+            let val = self.start;
+            self.start += 1;
+            Some(val)
+        } else {
+            None
+        }
+    }
+}
+
+impl Iterator for Range<i64> {
+    type Item = i64;
+    fn next(&mut self) -> Option<i64> {
+        if self.start < self.end {
+            let val = self.start;
+            self.start += 1;
+            Some(val)
+        } else {
+            None
+        }
+    }
+}
+
+impl Iterator for Range<usize> {
+    type Item = usize;
+    fn next(&mut self) -> Option<usize> {
+        if self.start < self.end {
+            let val = self.start;
+            self.start += 1;
+            Some(val)
+        } else {
+            None
+        }
+    }
+}
+
+/// Creates a range iterator.
+pub fn range(start: i64, end: i64) -> Range<i64> {
+    Range { start, end }
+}
+
+// === Repeat ===
+
+/// An iterator that repeats a single element infinitely.
+pub struct Repeat<A> {
+    val: A,
+}
+
+impl<A: Clone> Iterator for Repeat<A> {
+    type Item = A;
+    fn next(&mut self) -> Option<A> {
+        Some(self.val.clone())
+    }
+}
+
+/// Creates a repeating iterator.
+pub fn repeat<T: Clone>(val: T) -> Repeat<T> {
+    Repeat { val }
+}
+
+// === Once ===
+
+/// An iterator that yields a single element once.
+pub struct Once<T> {
+    val: Option<T>,
+}
+
+impl<T> Iterator for Once<T> {
+    type Item = T;
+    fn next(&mut self) -> Option<T> {
+        self.val.take()
+    }
+}
+
+/// Creates an iterator that yields a single element.
+pub fn once<T>(val: T) -> Once<T> {
+    Once { val: Some(val) }
+}
+
+// === Empty ===
+
+/// An iterator that yields no elements.
+pub struct Empty<T>(std::marker::PhantomData<T>);
+
+impl<T> Iterator for Empty<T> {
+    type Item = T;
+    fn next(&mut self) -> Option<T> {
+        None
+    }
+}
+
+/// Creates an empty iterator.
+pub fn empty<T>() -> Empty<T> {
+    Empty(std::marker::PhantomData)
+}
+
+// === Successors ===
+
+/// An iterator where each successive element is computed from the previous.
+pub struct Successors<T, F> {
+    next: Option<T>,
+    f: F,
+}
+
+impl<T, F: FnMut(&T) -> Option<T>> Iterator for Successors<T, F> {
+    type Item = T;
+    fn next(&mut self) -> Option<T> {
+        let current = self.next.take()?;
+        self.next = (self.f)(&current);
+        Some(current)
+    }
+}
+
+/// Creates a successors iterator starting from seed.
+pub fn successors<T, F>(first: Option<T>, succ: F) -> Successors<T, F>
+    where F: FnMut(&T) -> Option<T>
+{
+    Successors { next: first, f: succ }
+}

@@ -1,0 +1,12 @@
+// Basic for loop test without step or nested functions
+comptime fn test_for() -> i64 {
+    var sum = 0
+    for i in 0..5 {
+        sum = sum + i
+    }
+    sum
+}
+
+comptime fn main() -> i64 {
+    test_for()
+}

@@ -1,0 +1,30 @@
+// Simple CTFE sieve test - compute primes up to 100 using trial division
+// Tests CTFE while loop support
+
+comptime fn count_primes(limit: i64) -> i64 {
+    let mut count = 0;
+    let mut n = 2;
+    while n < limit {
+        // trial division
+        let mut is_prime = true;
+        let mut d = 2;
+        while d * d <= n {
+            if n % d == 0 {
+                is_prime = false;
+                break;
+            }
+            d += 1;
+        }
+        if is_prime {
+            count += 1;
+        }
+        n += 1;
+    }
+    count
+}
+
+comptime PRIME_COUNT_100: i64 = count_primes(100); // should be 25
+
+fn main() -> i64 {
+    PRIME_COUNT_100  // returns 25
+}

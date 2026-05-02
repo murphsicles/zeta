@@ -1,0 +1,426 @@
+// zeta_src/runtime/ml.z
+// Machine Learning runtime for Zeta
+
+use crate::runtime::tensor::Tensor;
+
+/// Optimizer trait
+trait Optimizer {
+    fn step(&mut self, parameters: &[&mut Tensor]);
+    fn zero_grad(&mut self, parameters: &[&mut Tensor]);
+}
+
+/// Stochastic Gradient Descent optimizer
+struct SGD {
+    learning_rate: f32,
+    momentum: f32,
+    velocity: Vec<Vec<f32>>, // Velocity for each parameter
+}
+
+impl SGD {
+    fn new(learning_rate: f32, momentum: f32) -> Self {
+        SGD {
+            learning_rate,
+            momentum,
+            velocity: vec![],
+        }
+    }
+}
+
+impl Optimizer for SGD {
+    fn step(&mut self, parameters: &[&mut Tensor]) {
+        // Initialize velocity if needed
+        if self.velocity.is_empty() {
+            for param in parameters {
+                let shape = &param.shape;
+                let numel: i64 = shape.iter().product();
+                self.velocity.push(vec![0.0; numel as usize]);
+            }
+        }
+        
+        // Update parameters
+        for (i, param) in parameters.iter().enumerate() {
+            if let Some(grad) = &param.grad {
+                // Update with momentum
+                for j in 0..param.numel {
+                    unsafe {
+                        let grad_val = *grad.data.offset(j as isize);
+                        let velocity = &mut self.velocity[i][j as usize];
+                        *velocity = self.momentum * *velocity + self.learning_rate * grad_val;
+                        *param.data.offset(j as isize) -= *velocity;
+                    }
+                }
+            }
+        }
+    }
+    
+    fn zero_grad(&mut self, parameters: &[&mut Tensor]) {
+        for param in parameters {
+            param.zero_grad();
+        }
+    }
+}
+
+/// Adam optimizer
+struct Adam {
+    learning_rate: f32,
+    beta1: f32,
+    beta2: f32,
+    epsilon: f32,
+    m: Vec<Vec<f32>>, // First moment estimate
+    v: Vec<Vec<f32>>, // Second moment estimate
+    t: i64, // Timestep
+}
+
+impl Adam {
+    fn new(learning_rate: f32) -> Self {
+        Adam {
+            learning_rate,
+            beta1: 0.9,
+            beta2: 0.999,
+            epsilon: 1e-8,
+            m: vec![],
+            v: vec![],
+            t: 0,
+        }
+    }
+}
+
+impl Optimizer for Adam {
+    fn step(&mut self, parameters: &[&mut Tensor]) {
+        self.t += 1;
+        
+        // Initialize moments if needed
+        if self.m.is_empty() {
+            for param in parameters {
+                let shape = &param.shape;
+                let numel: i64 = shape.iter().product();
+                self.m.push(vec![0.0; numel as usize]);
+                self.v.push(vec![0.0; numel as usize]);
+            }
+        }
+        
+        // Update parameters
+        for (i, param) in parameters.iter().enumerate() {
+            if let Some(grad) = &param.grad {
+                for j in 0..param.numel {
+                    unsafe {
+                        let grad_val = *grad.data.offset(j as isize);
+                        
+                        // Update biased first moment estimate
+                        self.m[i][j as usize] = self.beta1 * self.m[i][j as usize] + 
+                                               (1.0 - self.beta1) * grad_val;
+                        
+                        // Update biased second raw moment estimate
+                        self.v[i][j as usize] = self.beta2 * self.v[i][j as usize] + 
+                                               (1.0 - self.beta2) * grad_val * grad_val;
+                        
+                        // Compute bias-corrected first moment estimate
+                        let m_hat = self.m[i][j as usize] / (1.0 - self.beta1.powi(self.t as i32));
+                        
+                        // Compute bias-corrected second raw moment estimate
+                        let v_hat = self.v[i][j as usize] / (1.0 - self.beta2.powi(self.t as i32));
+                        
+                        // Update parameter
+                        *param.data.offset(j as isize) -= self.learning_rate * m_hat / 
+                                                         (v_hat.sqrt() + self.epsilon);
+                    }
+                }
+            }
+        }
+    }
+    
+    fn zero_grad(&mut self, parameters: &[&mut Tensor]) {
+        for param in parameters {
+            param.zero_grad();
+        }
+    }
+}
+
+/// Loss functions
+trait Loss {
+    fn compute(&self, prediction: &Tensor, target: &Tensor) -> Tensor;
+    fn backward(&self, prediction: &Tensor, target: &Tensor) -> Tensor;
+}
+
+/// Mean Squared Error loss
+struct MSELoss;
+
+impl Loss for MSELoss {
+    fn compute(&self, prediction: &Tensor, target: &Tensor) -> Tensor {
+        // Check shapes match
+        assert_eq!(prediction.shape, target.shape);
+        
+        let diff = prediction.add(target).unwrap(); // prediction - target
+        let squared = diff.mul(&diff).unwrap();
+        
+        // Compute mean
+        let mut sum = 0.0;
+        for i in 0..squared.numel {
+            unsafe {
+                sum += *squared.data.offset(i as isize);
+            }
+        }
+        
+        let mean = sum / squared.numel as f32;
+        
+        // Create scalar tensor
+        Tensor::from_data(&[mean], &[1], prediction.requires_grad || target.requires_grad)
+    }
+    
+    fn backward(&self, prediction: &Tensor, target: &Tensor) -> Tensor {
+        // Gradient of MSE: 2 * (prediction - target) / n
+        let diff = prediction.add(target).unwrap(); // prediction - target
+        let n = prediction.numel as f32;
+        
+        let mut grad_data = Vec::with_capacity(prediction.numel as usize);
+        for i in 0..diff.numel {
+            unsafe {
+                grad_data.push(2.0 * (*diff.data.offset(i as isize)) / n);
+            }
+        }
+        
+        Tensor::from_data(&grad_data, &prediction.shape, true)
+    }
+}
+
+/// Cross Entropy loss (for classification)
+struct CrossEntropyLoss;
+
+impl Loss for CrossEntropyLoss {
+    fn compute(&self, prediction: &Tensor, target: &Tensor) -> Tensor {
+        // prediction: [batch_size, num_classes] (logits)
+        // target: [batch_size] (class indices) or [batch_size, num_classes] (one-hot)
+        
+        let batch_size = prediction.shape[0];
+        let num_classes = prediction.shape[1];
+        
+        // Apply softmax to get probabilities
+        let probs = prediction.softmax();
+        
+        let mut loss_sum = 0.0;
+        
+        if target.shape.len() == 1 {
+            // Target is class indices
+            for b in 0..batch_size {
+                let class_idx = target.get(&[b]) as usize;
+                if class_idx < num_classes as usize {
+                    loss_sum -= probs.get(&[b, class_idx as i64]).ln();
+                }
+            }
+        } else {
+            // Target is one-hot encoded
+            for b in 0..batch_size {
+                for c in 0..num_classes {
+                    let target_val = target.get(&[b, c]);
+                    if target_val > 0.5 {
+                        let prob = probs.get(&[b, c]);
+                        loss_sum -= target_val * prob.ln();
+                    }
+                }
+            }
+        }
+        
+        let loss = loss_sum / batch_size as f32;
+        Tensor::from_data(&[loss], &[1], prediction.requires_grad)
+    }
+    
+    fn backward(&self, prediction: &Tensor, target: &Tensor) -> Tensor {
+        // Gradient of cross-entropy with softmax: probs - target
+        let probs = prediction.softmax();
+        
+        let mut grad_data = Vec::with_capacity(prediction.numel as usize);
+        
+        if target.shape.len() == 1 {
+            // Target is class indices
+            let batch_size = prediction.shape[0];
+            let num_classes = prediction.shape[1];
+            
+            for b in 0..batch_size {
+                let class_idx = target.get(&[b]) as usize;
+                for c in 0..num_classes {
+                    let prob = probs.get(&[b, c]);
+                    let grad = if c as usize == class_idx {
+                        prob - 1.0
+                    } else {
+                        prob
+                    };
+                    grad_data.push(grad / batch_size as f32);
+                }
+            }
+        } else {
+            // Target is one-hot encoded
+            let diff = probs.add(&target).unwrap(); // probs - target
+            for i in 0..diff.numel {
+                unsafe {
+                    grad_data.push(*diff.data.offset(i as isize));
+                }
+            }
+        }
+        
+        Tensor::from_data(&grad_data, &prediction.shape, true)
+    }
+}
+
+/// Neural Network Layer
+trait Layer {
+    fn forward(&self, input: &Tensor) -> Tensor;
+    fn parameters(&self) -> Vec<&Tensor>;
+    fn trainable_parameters(&mut self) -> Vec<&mut Tensor>;
+}
+
+/// Linear (fully connected) layer
+struct Linear {
+    weight: Tensor,
+    bias: Tensor,
+}
+
+impl Linear {
+    fn new(input_size: i64, output_size: i64) -> Self {
+        // Initialize weights with Xavier initialization
+        let scale = (2.0 / (input_size + output_size) as f32).sqrt();
+        let mut weight_data = Vec::with_capacity((input_size * output_size) as usize);
+        for _ in 0..(input_size * output_size) {
+            weight_data.push((rand::random::<f32>() - 0.5) * scale * 2.0);
+        }
+        
+        let weight = Tensor::from_data(
+            &weight_data,
+            &[input_size, output_size],
+            true, // Requires gradient
+        );
+        
+        // Initialize bias to zero
+        let bias = Tensor::from_data(
+            &vec![0.0; output_size as usize],
+            &[output_size],
+            true,
+        );
+        
+        Linear { weight, bias }
+    }
+}
+
+impl Layer for Linear {
+    fn forward(&self, input: &Tensor) -> Tensor {
+        // input: [batch_size, input_size]
+        // weight: [input_size, output_size]
+        // bias: [output_size]
+        // output: [batch_size, output_size]
+        
+        let matmul_result = input.matmul(&self.weight).unwrap();
+        matmul_result.add(&self.bias).unwrap()
+    }
+    
+    fn parameters(&self) -> Vec<&Tensor> {
+        vec![&self.weight, &self.bias]
+    }
+    
+    fn trainable_parameters(&mut self) -> Vec<&mut Tensor> {
+        vec![&mut self.weight, &mut self.bias]
+    }
+}
+
+/// Multi-Layer Perceptron (MLP)
+struct MLP {
+    layers: Vec<Box<dyn Layer>>,
+}
+
+impl MLP {
+    fn new(layer_sizes: &[i64]) -> Self {
+        let mut layers: Vec<Box<dyn Layer>> = Vec::new();
+        
+        for i in 0..layer_sizes.len() - 1 {
+            layers.push(Box::new(Linear::new(layer_sizes[i], layer_sizes[i + 1])));
+        }
+        
+        MLP { layers }
+    }
+}
+
+impl Layer for MLP {
+    fn forward(&self, input: &Tensor) -> Tensor {
+        let mut x = input.clone();
+        
+        for (i, layer) in self.layers.iter().enumerate() {
+            x = layer.forward(&x);
+            
+            // Apply ReLU activation except for last layer
+            if i < self.layers.len() - 1 {
+                x = x.relu();
+            }
+        }
+        
+        x
+    }
+    
+    fn parameters(&self) -> Vec<&Tensor> {
+        let mut params = Vec::new();
+        for layer in &self.layers {
+            params.extend(layer.parameters());
+        }
+        params
+    }
+    
+    fn trainable_parameters(&mut self) -> Vec<&mut Tensor> {
+        let mut params = Vec::new();
+        for layer in &mut self.layers {
+            params.extend(layer.trainable_parameters());
+        }
+        params
+    }
+}
+
+// C-compatible interface functions
+
+/// Create SGD optimizer
+fn optimizer_sgd_new(lr: f32, momentum: f32) -> i64 {
+    let optimizer = Box::new(SGD::new(lr, momentum));
+    Box::into_raw(optimizer) as i64
+}
+
+/// Create Adam optimizer
+fn optimizer_adam_new(lr: f32) -> i64 {
+    let optimizer = Box::new(Adam::new(lr));
+    Box::into_raw(optimizer) as i64
+}
+
+/// Create Linear layer
+fn layer_linear_new(input_size: i64, output_size: i64) -> i64 {
+    let layer = Box::new(Linear::new(input_size, output_size));
+    Box::into_raw(layer) as i64
+}
+
+/// Create MLP
+fn mlp_new(layer_sizes_ptr: i64, num_layers: i64) -> i64 {
+    let layer_sizes = unsafe {
+        std::slice::from_raw_parts(layer_sizes_ptr as *const i64, num_layers as usize)
+    };
+    let mlp = Box::new(MLP::new(layer_sizes));
+    Box::into_raw(mlp) as i64
+}
+
+/// Compute MSE loss
+fn loss_mse_compute(pred_ptr: i64, target_ptr: i64) -> i64 {
+    if pred_ptr == 0 || target_ptr == 0 {
+        return 0;
+    }
+    
+    let pred = unsafe { &*(pred_ptr as *const Tensor) };
+    let target = unsafe { &*(target_ptr as *const Tensor) };
+    
+    let loss = MSELoss.compute(pred, target);
+    Box::into_raw(Box::new(loss)) as i64
+}
+
+/// Compute Cross Entropy loss
+fn loss_ce_compute(pred_ptr: i64, target_ptr: i64) -> i64 {
+    if pred_ptr == 0 || target_ptr == 0 {
+        return 0;
+    }
+    
+    let pred = unsafe { &*(pred_ptr as *const Tensor) };
+    let target = unsafe { &*(target_ptr as *const Tensor) };
+    
+    let loss = CrossEntropyLoss.compute(pred, target);
+    Box::into_raw(Box::new(loss)) as i64
+}

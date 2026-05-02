@@ -1,0 +1,14 @@
+// SIMPLE CONST GENERICS TEST THAT SHOULD WORK
+// Test that const generics actually work in the compiler
+
+// Simple const generic function
+comptime fn simple<const N: usize>() -> i64 {
+    return N as i64
+}
+
+// Main function
+fn main() -> i64 {
+    // Call with const generic argument
+    let result = simple::<42>()
+    return result
+}

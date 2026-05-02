@@ -1,0 +1,10 @@
+// Test numeric coercion
+fn test_coercion() -> i64 {
+    let x: i32 = 42;
+    let y: i64 = x;  // Should work with i32 -> i64 coercion
+    y
+}
+
+fn main() -> i64 {
+    test_coercion()
+}

@@ -1,0 +1,60 @@
+//! Stub for std::ptr — Raw pointer operations
+//!
+//! These are compiler intrinsics — implemented inline in codegen.
+
+/// Creates a null pointer of type T.
+extern fn null<T>() -> *const T;
+
+/// Creates a null mutable pointer of type T.
+extern fn null_mut<T>() -> *mut T;
+
+/// Returns true if pointer is null.
+extern fn is_null<T>(ptr: *const T) -> bool;
+
+/// Converts a reference to a raw pointer.
+extern fn addr_of<T>(val: &T) -> *const T;
+
+/// Converts a mutable reference to a raw pointer.
+extern fn addr_of_mut<T>(val: &mut T) -> *mut T;
+
+/// Reads a value from a raw pointer without moving it.
+extern fn read<T>(ptr: *const T) -> T;
+
+/// Reads a value from a raw pointer (unsafe, aligned).
+extern fn read_unaligned<T>(ptr: *const T) -> T;
+
+/// Writes a value to a raw pointer without dropping the old value.
+extern fn write<T>(ptr: *mut T, val: T);
+
+/// Writes a value to a raw pointer (unsafe, may be unaligned).
+extern fn write_unaligned<T>(ptr: *mut T, val: T);
+
+/// Copies count * size_of<T> bytes from src to dst (non-overlapping).
+extern fn copy<T>(dst: *mut T, src: *const T, count: u64);
+
+/// Copies count * size_of<T> bytes from src to dst (may overlap, uses memmove).
+extern fn copy_nonoverlapping<T>(dst: *mut T, src: *const T, count: u64);
+
+/// Advances a raw pointer by count elements.
+extern fn offset<T>(ptr: *const T, count: i64) -> *const T;
+
+/// Advances a mutable raw pointer by count elements.
+extern fn offset_mut<T>(ptr: *mut T, count: i64) -> *mut T;
+
+/// Drops the value at the given pointer in place.
+extern fn drop_in_place<T>(ptr: *mut T);
+
+/// Returns the metadata (length) of a fat pointer / slice.
+extern fn metadata<T>(ptr: *const T) -> u64;
+
+/// Swaps two values at raw pointer locations (byte-by-byte).
+extern fn swap_nonoverlapping<T>(x: *mut T, y: *mut T, count: u64);
+
+/// Writes bytes from src to dst, both as raw byte pointers.
+extern fn write_bytes<T>(dst: *mut T, byte: u8, count: u64);
+
+/// Reads a value from memory without moving (with strict provenance).
+extern fn from_raw_parts<T>(ptr: *const T, metadata: u64) -> *const T;
+
+/// Equality comparison on a pointer and a reference.
+extern fn eq<T>(ptr: *const T, other: *const T) -> bool;

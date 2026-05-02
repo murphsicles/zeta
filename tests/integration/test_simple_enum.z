@@ -1,0 +1,14 @@
+// Test simple enum without generic impl
+enum SimpleOption {
+    Some(i64),
+    None,
+}
+
+fn main() -> i64 {
+    let x = SimpleOption::Some(42);
+    
+    match x {
+        SimpleOption::Some(val) => val,
+        SimpleOption::None => 0,
+    }
+}

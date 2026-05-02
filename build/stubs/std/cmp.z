@@ -1,0 +1,176 @@
+//! Stub for std::cmp — Comparison traits and functions
+//!
+//! Provides ordering, equality, and comparison traits following
+//! Zeta's concept system.
+
+// === Ordering ===
+
+/// Result of a comparison between two values.
+pub enum Ordering {
+    /// Less than.
+    Less,
+    /// Equal to.
+    Equal,
+    /// Greater than.
+    Greater,
+}
+
+impl Ordering {
+    /// Reverses the ordering: Less → Greater, Greater → Less, Equal → Equal.
+    pub fn reverse(self) -> Ordering {
+        match self {
+            Ordering::Less => Ordering::Greater,
+            Ordering::Equal => Ordering::Equal,
+            Ordering::Greater => Ordering::Less,
+        }
+    }
+
+    /// Chains two orderings: returns the first non-Equal result.
+    pub fn then(self, other: Ordering) -> Ordering {
+        match self {
+            Ordering::Equal => other,
+            result => result,
+        }
+    }
+
+    /// Returns true if the ordering is Less.
+    pub fn is_lt(self) -> bool {
+        match self { Ordering::Less => true, _ => false }
+    }
+
+    /// Returns true if the ordering is Equal.
+    pub fn is_eq(self) -> bool {
+        match self { Ordering::Equal => true, _ => false }
+    }
+
+    /// Returns true if the ordering is Greater.
+    pub fn is_gt(self) -> bool {
+        match self { Ordering::Greater => true, _ => false }
+    }
+}
+
+// === Eq / Ord Traits ===
+
+/// Partial equality: types that may be compared for equality.
+pub trait PartialEq<Rhs = Self> {
+    /// Tests equality with another value.
+    fn eq(&self, other: &Rhs) -> bool;
+    /// Tests inequality with another value.
+    fn ne(&self, other: &Rhs) -> bool {
+        !self.eq(other)
+    }
+}
+
+/// Full equality: reflexive, symmetric, transitive.
+pub trait Eq: PartialEq<Self> {}
+
+/// Partial ordering: types that may be compared for order.
+pub trait PartialOrd<Rhs = Self>: PartialEq<Rhs> {
+    /// Returns the ordering between self and other if possible.
+    fn partial_cmp(&self, other: &Rhs) -> Option<Ordering>;
+    /// Returns true if self is less than other.
+    fn lt(&self, other: &Rhs) -> bool;
+    /// Returns true if self is less than or equal to other.
+    fn le(&self, other: &Rhs) -> bool;
+    /// Returns true if self is greater than other.
+    fn gt(&self, other: &Rhs) -> bool;
+    /// Returns true if self is greater than or equal to other.
+    fn ge(&self, other: &Rhs) -> bool;
+}
+
+/// Total ordering: every pair is comparable.
+pub trait Ord: Eq + PartialOrd<Self> {
+    /// Returns the ordering between self and other.
+    fn cmp(&self, other: &Self) -> Ordering;
+
+    /// Returns the maximum of two values.
+    fn max(self, other: Self) -> Self where Self: Sized {
+        match self.cmp(&other) {
+            Ordering::Less | Ordering::Equal => other,
+            Ordering::Greater => self,
+        }
+    }
+
+    /// Returns the minimum of two values.
+    fn min(self, other: Self) -> Self where Self: Sized {
+        match self.cmp(&other) {
+            Ordering::Less | Ordering::Equal => self,
+            Ordering::Greater => other,
+        }
+    }
+
+    /// Clamps a value within a range.
+    fn clamp(self, min: Self, max: Self) -> Self where Self: Sized {
+        assert!(min.cmp(&max) != Ordering::Greater);
+        if self.cmp(&min) == Ordering::Less { min }
+        else if self.cmp(&max) == Ordering::Greater { max }
+        else { self }
+    }
+}
+
+// === Key-based comparison functions ===
+
+/// Returns the maximum of two values by a comparison key.
+pub fn max_by<T, F>(a: T, b: T, compare: F) -> T
+    where F: Fn(&T, &T) -> Ordering
+{
+    match compare(&a, &b) {
+        Ordering::Less | Ordering::Equal => b,
+        Ordering::Greater => a,
+    }
+}
+
+/// Returns the minimum of two values by a comparison key.
+pub fn min_by<T, F>(a: T, b: T, compare: F) -> T
+    where F: Fn(&T, &T) -> Ordering
+{
+    match compare(&a, &b) {
+        Ordering::Less | Ordering::Equal => a,
+        Ordering::Greater => b,
+    }
+}
+
+/// Returns the maximum of two values by a key extraction function.
+pub fn max_by_key<T, B, F>(a: T, b: T, f: F) -> T
+    where B: Ord,
+          F: Fn(&T) -> B
+{
+    max_by(a, b, |x, y| f(x).cmp(&f(y)))
+}
+
+/// Returns the minimum of two values by a key extraction function.
+pub fn min_by_key<T, B, F>(a: T, b: T, f: F) -> T
+    where B: Ord,
+          F: Fn(&T) -> B
+{
+    min_by(a, b, |x, y| f(x).cmp(&f(y)))
+}
+
+// === Reverse wrapper ===
+
+/// A wrapper that reverses the ordering of the inner type.
+pub struct Reverse<T>(pub T);
+
+impl<T: Ord> PartialEq for Reverse<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<T: Ord> Eq for Reverse<T> {}
+
+impl<T: Ord> PartialOrd for Reverse<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+    fn lt(&self, other: &Self) -> bool { self.cmp(other) == Ordering::Less }
+    fn le(&self, other: &Self) -> bool { self.cmp(other) != Ordering::Greater }
+    fn gt(&self, other: &Self) -> bool { self.cmp(other) == Ordering::Greater }
+    fn ge(&self, other: &Self) -> bool { self.cmp(other) != Ordering::Less }
+}
+
+impl<T: Ord> Ord for Reverse<T> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other.0.cmp(&self.0) // Reversed
+    }
+}

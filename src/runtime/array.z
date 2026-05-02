@@ -1,0 +1,139 @@
+// zeta_src/runtime/array.z
+// Dynamic array runtime for Zeta
+// Ported from src/runtime/array.rs, implementations now in Zeta.
+
+use std::ffi::c_void;
+use std::ptr;
+use crate::runtime::std::{std_malloc, std_free};
+
+/// Dynamic array structure:
+/// - capacity: i64 (number of elements allocated)
+/// - length: i64 (number of elements used)
+/// - data: pointer to elements
+struct DynamicArray<T> {
+    capacity: i64,
+    length: i64,
+    data: *mut T,
+}
+
+impl<T> DynamicArray<T> {
+    /// Creates a new empty dynamic array
+    fn new() -> Self {
+        DynamicArray {
+            capacity: 0,
+            length: 0,
+            data: ptr::null_mut(),
+        }
+    }
+    
+    /// Pushes an element to the end of the array
+    fn push(&mut self, value: T) {
+        if self.length >= self.capacity {
+            // Need to resize
+            let new_capacity = if self.capacity == 0 { 4 } else { self.capacity * 2 };
+            self.resize(new_capacity);
+        }
+        
+        unsafe {
+            let offset = self.length as isize;
+            ptr::write(self.data.offset(offset), value);
+        }
+        self.length += 1;
+    }
+    
+    /// Resizes the array to new capacity
+    fn resize(&mut self, new_capacity: i64) {
+        if new_capacity <= self.capacity {
+            return;
+        }
+        
+        let new_size = new_capacity as usize * std::mem::size_of::<T>();
+        let new_data = std_malloc(new_size) as *mut T;
+        
+        if !self.data.is_null() {
+            // Copy existing data
+            unsafe {
+                ptr::copy_nonoverlapping(self.data, new_data, self.length as usize);
+            }
+            // Free old data
+            std_free(self.data as *mut u8);
+        }
+        
+        self.data = new_data;
+        self.capacity = new_capacity;
+    }
+    
+    /// Gets the length of the array
+    fn len(&self) -> i64 {
+        self.length
+    }
+    
+    /// Gets an element by index
+    fn get(&self, index: i64) -> Option<&T> {
+        if index < 0 || index >= self.length {
+            None
+        } else {
+            unsafe {
+                Some(&*self.data.offset(index as isize))
+            }
+        }
+    }
+    
+    /// Gets a mutable element by index
+    fn get_mut(&mut self, index: i64) -> Option<&mut T> {
+        if index < 0 || index >= self.length {
+            None
+        } else {
+            unsafe {
+                Some(&mut *self.data.offset(index as isize))
+            }
+        }
+    }
+}
+
+// C-compatible interface functions
+// These will be called from generated LLVM code
+
+/// Creates a new dynamic array
+fn array_new() -> i64 {
+    let arr = Box::new(DynamicArray::<i64>::new());
+    Box::into_raw(arr) as i64
+}
+
+/// Pushes a value to a dynamic array
+fn array_push(arr_ptr: i64, value: i64) {
+    if arr_ptr == 0 {
+        return;
+    }
+    let arr = unsafe { &mut *(arr_ptr as *mut DynamicArray<i64>) };
+    arr.push(value);
+}
+
+/// Gets the length of a dynamic array
+fn array_len(arr_ptr: i64) -> i64 {
+    if arr_ptr == 0 {
+        return 0;
+    }
+    let arr = unsafe { &*(arr_ptr as *const DynamicArray<i64>) };
+    arr.len()
+}
+
+/// Gets an element from a dynamic array by index
+fn array_get(arr_ptr: i64, index: i64) -> i64 {
+    if arr_ptr == 0 {
+        return 0;
+    }
+    let arr = unsafe { &*(arr_ptr as *const DynamicArray<i64>) };
+    match arr.get(index) {
+        Some(&value) => value,
+        None => 0,
+    }
+}
+
+/// Frees a dynamic array
+fn array_free(arr_ptr: i64) {
+    if arr_ptr == 0 {
+        return;
+    }
+    let _ = unsafe { Box::from_raw(arr_ptr as *mut DynamicArray<i64>) };
+}

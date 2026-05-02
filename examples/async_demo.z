@@ -1,0 +1,31 @@
+// examples/async_demo.zeta
+// Demo of async/await functionality in Zeta v0.5.0
+
+// Define an async function
+async fn fetch_data() -> i64 {
+    // Simulate some async work
+    return 42;
+}
+
+// Main function using await
+async fn main() -> i64 {
+    let data = fetch_data().await;
+    return data;
+}
+
+// Example with atomic operations
+fn atomic_demo() -> i64 {
+    // These would be implemented by runtime
+    // let counter = AtomicUsize::new(0);
+    // counter.fetch_add(1, SeqCst);
+    return 0;
+}
+
+// Example with channels
+fn channel_demo() -> i64 {
+    // These would be implemented by runtime
+    // let (tx, rx) = mpsc::channel();
+    // tx.send(42);
+    // let value = rx.recv();
+    return 0;
+}

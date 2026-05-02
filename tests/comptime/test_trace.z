@@ -1,0 +1,7 @@
+// Trace variable updates
+comptime fn main() -> i64 {
+    var x = 0
+    // Update x in same scope
+    x = 1
+    x
+}

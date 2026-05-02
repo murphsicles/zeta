@@ -1,0 +1,39 @@
+// Test u8 == 0 comparison
+fn test_u8_comparison() -> i64 {
+    let x: u8 = 0;
+    if x == 0 {
+        return 1;
+    }
+    return 0;
+}
+
+// Test array element comparison
+fn test_array_comparison() -> i64 {
+    let arr: [u8; 3] = [0, 1, 2];
+    if arr[0] == 0 {
+        return 1;
+    }
+    return 0;
+}
+
+// Test while loop with u8 comparison
+fn test_while_u8() -> i64 {
+    let mut x: u8 = 0;
+    let mut count = 0;
+    while x == 0 {
+        count = count + 1;
+        x = 1;
+    }
+    return count;
+}
+
+fn main() -> i64 {
+    let test1 = test_u8_comparison();
+    let test2 = test_array_comparison();
+    let test3 = test_while_u8();
+    
+    if test1 == 1 && test2 == 1 && test3 == 1 {
+        return 0; // Success
+    }
+    return 1; // Failure
+}

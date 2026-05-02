@@ -10,7 +10,7 @@ Built from the algebraic foundations of Stepanov's *Elements of Programming* —
 
 ## 🚀 v1.0.0 — Pure Zeta Foundation
 
-This release strips away the Rust bootstrap scaffolding. The compiler binary ships in `bin/`. The `zeta_src/` directory contains 51 self-hosted Zeta source files that compile through the Zeta pipeline. Everything after this builds on a pure Zeta foundation.
+This release strips away the Rust bootstrap scaffolding. The compiler binary ships in `bin/`. The `/src/` directory contains 51+ self-hosted Zeta source files that compile through the Zeta pipeline. Everything after this builds on a pure Zeta foundation.
 
 ## ✨ Features
 
@@ -194,7 +194,7 @@ fn murphy_sieve(limit: i64) -> i64 {
 zeta/
 ├── bin/              # Pre-built compiler binary
 │   └── zetac         # v1.0.0 Linux x86-64
-├── zeta_src/         # Self-hosted Zeta sources (51 files)
+├── src/              # Self-hosted Zeta sources (51+ files)
 │   ├── main.z        # Entry point
 │   ├── frontend/     # Lexer, parser, AST
 │   ├── middle/       # Resolver, MIR, type system
@@ -215,7 +215,7 @@ git clone https://github.com/murphsicles/zeta.git
 cd zeta
 
 # Compile a Zeta source file (Linux)
-./bin/zetac zeta_src/main.z -o output
+./bin/zetac src/main.z -o output
 
 # Or compile an example
 ./bin/zetac examples/hello.z -o hello
@@ -225,12 +225,7 @@ cd zeta
 ./bin/zetac tests/language/basic_tests.z
 ```
 
-### From Source (Rust Bootstrap)
 
-```bash
-cargo build --release
-./target/release/zetac zeta_src/main.z
-```
 
 ## 📝 Examples
 

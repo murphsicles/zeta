@@ -1,0 +1,25 @@
+//! Stub for std::mem — Memory operations
+//!
+//! Provides compile-time size/align queries and runtime swap/replace/drop.
+//! These are compiler intrinsics — implemented inline in codegen.
+
+/// Returns the size of type T in bytes (compile-time constant).
+extern fn size_of<T>() -> u64;
+
+/// Returns the alignment of type T in bytes (compile-time constant).
+extern fn align_of<T>() -> u64;
+
+/// Returns the offset in bytes of a field within a struct (compile-time constant).
+extern fn offset_of<T>(field: &str) -> u64;
+
+/// Swaps two values of the same type.
+extern fn swap<T>(a: &mut T, b: &mut T);
+
+/// Replaces dest with src, returning the old value of dest.
+extern fn replace<T>(dest: &mut T, src: T) -> T;
+
+/// Drops a value running its destructor if any.
+extern fn drop<T>(val: T);
+
+/// Check if T needs drop (compile-time constant).
+extern fn needs_drop<T>() -> bool;

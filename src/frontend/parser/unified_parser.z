@@ -1,0 +1,108 @@
+// zeta_src/frontend/parser/unified_parser.z
+// Unified parser that includes all ML parsing methods
+
+use crate::frontend::ast::AstNode;
+use crate::frontend::parser::parser::{Token, Parser};
+
+// Re-export all ML parser methods
+impl Parser {
+    // Include all ML parsing methods from ml_parser.z
+    // These will be defined in the actual ml_parser.z file
+    
+    pub fn parse_tensor_type(&mut self) -> AstNode {
+        // Placeholder - actual implementation in ml_parser.z
+        AstNode::Lit(0)
+    }
+    
+    pub fn parse_tensor_lit(&mut self) -> AstNode {
+        // Placeholder - actual implementation in ml_parser.z
+        AstNode::Lit(0)
+    }
+    
+    pub fn parse_diff_func_def(&mut self) -> AstNode {
+        // Placeholder - actual implementation in ml_parser.z
+        AstNode::Lit(0)
+    }
+    
+    pub fn parse_layer_def(&mut self) -> AstNode {
+        // Placeholder - actual implementation in ml_parser.z
+        AstNode::Lit(0)
+    }
+    
+    pub fn parse_model_def(&mut self) -> AstNode {
+        // Placeholder - actual implementation in ml_parser.z
+        AstNode::Lit(0)
+    }
+    
+    pub fn parse_tensor_op(&mut self) -> AstNode {
+        // Placeholder - actual implementation in ml_parser.z
+        AstNode::Lit(0)
+    }
+    
+    pub fn parse_gradient_call(&mut self) -> AstNode {
+        // Placeholder - actual implementation in ml_parser.z
+        AstNode::Lit(0)
+    }
+    
+    pub fn parse_train_stmt(&mut self) -> AstNode {
+        // Placeholder - actual implementation in ml_parser.z
+        AstNode::Lit(0)
+    }
+    
+    pub fn parse_backward_stmt(&mut self) -> AstNode {
+        // Placeholder - actual implementation in ml_parser.z
+        AstNode::Lit(0)
+    }
+    
+    pub fn parse_step_stmt(&mut self) -> AstNode {
+        // Placeholder - actual implementation in ml_parser.z
+        AstNode::Lit(0)
+    }
+    
+    pub fn parse_param(&mut self) -> AstNode {
+        // Placeholder - actual implementation in ml_parser.z
+        AstNode::Lit(0)
+    }
+    
+    // Helper methods needed by ML parser
+    pub fn peek_keyword(&self, keyword: &str) -> bool {
+        if let Token::Ident(ident) = self.peek() {
+            ident == keyword
+        } else {
+            false
+        }
+    }
+    
+    pub fn peek_doc_comment(&self) -> bool {
+        // Check if next token is a doc comment
+        false // Simplified for now
+    }
+    
+    pub fn parse_doc_comment(&mut self) -> Result<String, String> {
+        Ok(String::new()) // Simplified for now
+    }
+    
+    pub fn parse_type(&mut self) -> Result<String, String> {
+        // Simplified type parsing
+        if let Token::Ident(ty) = self.peek() {
+            self.advance();
+            Ok(ty)
+        } else {
+            Err("Expected type identifier".to_string())
+        }
+    }
+    
+    pub fn parse_type_name(&mut self) -> Result<String, String> {
+        self.parse_type()
+    }
+    
+    pub fn parse_nested_array(&mut self) -> Result<(Vec<AstNode>, Vec<i64>), String> {
+        // Simplified nested array parsing
+        Ok((vec![], vec![]))
+    }
+    
+    pub fn parse_function_body(&mut self) -> Result<(Vec<AstNode>, Vec<String>, String), String> {
+        // Simplified function body parsing
+        Ok((vec![], vec![], String::new()))
+    }
+}

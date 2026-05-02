@@ -1,0 +1,11 @@
+// Test let inside comptime function at "top level" of function
+
+comptime fn test() -> u64 {
+    // This is top-level within the function
+    let a = 42
+    return a
+}
+
+fn main() -> u64 {
+    return test()
+}

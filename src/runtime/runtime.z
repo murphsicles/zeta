@@ -1,0 +1,109 @@
+extern fn write(fd: i64, buf: i64, nbytes: i64) -> i64;
+extern fn malloc(size: i64) -> i64;
+extern fn free(ptr: i64);
+extern fn strlen(s: i64) -> i64;
+extern fn calloc(count: i64, size: i64) -> i64;
+extern fn realloc(ptr: i64, size: i64) -> i64;
+extern fn array_get(base: i64, idx: i64) -> i64;
+extern fn array_set(base: i64, idx: i64, val: i64);
+extern fn stack_array_get(base: i64, idx: i64) -> i64;
+extern fn stack_array_set(base: i64, idx: i64, val: i64);
+extern fn clock_gettime(clk_id: i64, tp: i64) -> i64;
+
+pub fn runtime_malloc(size: i64) -> i64 { malloc(size) }
+pub fn runtime_free(ptr: i64) { free(ptr); }
+pub fn amp(val: i64) -> i64 { val }
+pub fn clone_i64(val: i64) -> i64 { val }
+pub fn is_null_i64(val: i64) -> i64 { if val == 0 { 1 } else { 0 } }
+pub fn or_i64(a: i64, b: i64) -> i64 { a | b }
+pub fn and_i64(a: i64, b: i64) -> i64 { a & b }
+pub fn host_result_is_ok(val: i64) -> i64 { 1 }
+pub fn host_result_get_data(val: i64) -> i64 { val }
+pub fn host_result_make_ok(val: i64) -> i64 { val }
+pub fn host_result_make_err(val: i64) -> i64 { val }
+pub fn host_result_free(val: i64) {}
+pub fn Ok(val: i64) -> i64 { val }
+pub fn Err(val: i64) -> i64 { val }
+pub fn option_make_some(val: i64) -> i64 { val }
+pub fn option_make_none() -> i64 { 0 }
+pub fn option_is_some(val: i64) -> i64 { if val != 0 { 1 } else { 0 } }
+pub fn option_get_data(val: i64) -> i64 { val }
+pub fn option_free(val: i64) {}
+pub fn unwrap_i64(val: i64) -> i64 { val }
+pub fn unwrap_or_i64(a: i64, b: i64) -> i64 { a }
+pub fn get_i64(a: i64, b: i64) -> i64 { a }
+pub fn cloned_i64(val: i64) -> i64 { val }
+pub fn peek_i64(val: i64) -> i64 { val }
+pub fn query_i64(a: i64, b: i64) -> i64 { 0 }
+pub fn parse_type_i64(val: i64) -> i64 { 0 }
+pub fn new_inst_i64() -> i64 { 0 }
+pub fn test_return_i64(val: i64) -> i64 { val }
+pub fn is_null_bool(val: i64) -> i64 { if val == 0 { 1 } else { 0 } }
+pub fn clone_bool(val: i64) -> i64 { val }
+pub fn map_new() -> i64 { 0 }
+pub fn MapInner_new() -> i64 { 0 }
+pub fn map_insert(map: i64, key: i64, val: i64) {}
+pub fn map_free(map: i64) {}
+pub fn insert_i64(map: i64, key: i64, val: i64) -> i64 { 0 }
+pub fn array_push(ary: i64, val: i64) -> i64 { ary }
+pub fn array_free(ary: i64) {}
+pub fn array_set_len(ary: i64, len: i64) {}
+pub fn array_new(cap: i64) -> i64 { return malloc(cap * 8); }
+pub fn String_new() -> i64 { return malloc(8); }
+pub fn host_str_concat(a: i64, b: i64) -> i64 { a }
+pub fn host_str_to_uppercase(s: i64) -> i64 { s }
+pub fn host_str_to_lowercase(s: i64) -> i64 { s }
+pub fn host_str_trim(s: i64) -> i64 { s }
+pub fn host_str_starts_with(s: i64) -> i64 { 0 }
+pub fn host_str_ends_with(s: i64) -> i64 { 0 }
+pub fn host_str_contains(s: i64) -> i64 { 0 }
+pub fn host_str_replace(s: i64) -> i64 { s }
+pub fn to_string_str(ptr: i64) -> i64 { ptr }
+pub fn str_join_i64(sep: i64, strs: i64) -> i64 { 0 }
+pub fn duration_since_i64(start: i64) -> i64 { 0 }
+pub fn as_millis_i64(val: i64) -> i64 { val }
+pub fn scheduler__init_runtime() {}
+pub fn linked_list_new() -> i64 { 0 }
+pub fn push_back_i64(list: i64, val: i64) -> i64 { 0 }
+pub fn pop_front_i64(list: i64) -> i64 { 0 }
+pub fn iter_i64(list: i64) -> i64 { 0 }
+pub fn find_i64(list: i64, val: i64) -> i64 { 0 }
+pub fn split_i64(list: i64) -> i64 { 0 }
+pub fn advance_i64(list: i64) -> i64 { 0 }
+pub fn len_i64(list: i64) -> i64 { 0 }
+pub fn push_i64(list: i64, val: i64) -> i64 { 0 }
+pub fn ptr_null_mut() -> i64 { 0 }
+pub fn vector_free_u64x8(v: i64) {}
+pub fn vector_free_i32x4(v: i64) {}
+pub fn vector_free_u64x4(v: i64) {}
+pub fn get_time_us() -> i64 { return 0; }
+pub fn time_is_up(start_us: i64, target_us: i64) -> i64 { return 0; }
+pub fn host_datetime_now() -> i64 { return 0; }
+pub fn SystemTime_now() -> i64 { return 0; }
+pub fn current_us() -> i64 { return 0; }
+pub fn AstNode__Lit(val: i64) -> i64 { val }
+pub fn AstNode__FuncDef(val: i64) -> i64 { val }
+pub fn AstNode__Call(val: i64) -> i64 { val }
+pub fn AstNode__Var(val: i64) -> i64 { val }
+pub fn AstNode__BinaryOp(val: i64) -> i64 { val }
+pub fn AstNode__If(val: i64) -> i64 { val }
+pub fn AstNode__Return(val: i64) -> i64 { val }
+pub fn AstNode__Let(val: i64) -> i64 { val }
+pub fn AstNode__Match(val: i64) -> i64 { val }
+pub fn AstNode__StructDef(val: i64) -> i64 { val }
+pub fn AstNode__EnumDef(val: i64) -> i64 { val }
+pub fn AstNode__ImplBlock(val: i64) -> i64 { val }
+pub fn AstNode__Use(val: i64) -> i64 { val }
+pub fn AstNode__ModDef(val: i64) -> i64 { val }
+pub fn AstNode__Program(val: i64) -> i64 { val }
+pub fn AstNode__Unit(val: i64) -> i64 { val }
+pub fn Box__new(val: i64) -> i64 { return malloc(8); }
+pub fn Box__into_raw(p: i64) -> i64 { p }
+pub fn Box__from_raw(p: i64) -> i64 { p }
+pub fn Error_new(val: i64) -> i64 { val }
+pub fn std_free(ptr: i64) { free(ptr); }
+pub fn runtime_calloc(count: i64, size: i64) -> i64 { return calloc(count, size); }
+pub fn runtime_realloc(ptr: i64, size: i64) -> i64 { return realloc(ptr, size); }
+pub fn flush() {}
+
+

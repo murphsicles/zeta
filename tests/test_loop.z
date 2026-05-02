@@ -1,0 +1,11 @@
+fn main() -> i64 {
+    let mut i = 0;
+    loop {
+        println_i64(i);
+        i += 1;
+        if i > 5 {
+            break;
+        }
+    }
+    return i;
+}

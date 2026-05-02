@@ -1,0 +1,142 @@
+// Benchmark for scalar Murphy's Sieve
+// Based on prime.z implementation
+
+fn murphy_sieve_scalar(limit: u64) -> u64 {
+    // Handle edge cases
+    if limit < 2 {
+        return 0
+    }
+    if limit == 2 {
+        return 1
+    }
+    
+    // Create bit array: 1 = prime, 0 = composite
+    let array_size = limit + 1
+    let mut bits: [u8] = []
+    
+    // Initialize with ones (all numbers prime initially)
+    let mut i: u64 = 0
+    while i < array_size {
+        bits.append(1)
+        i += 1
+    }
+    
+    // Mark 0 and 1 as composite
+    bits[0] = 0
+    bits[1] = 0
+    
+    // WHEEL FACTORIZATION: Skip multiples of first 6 primes
+    // This implements wheel of size 30030
+    
+    // Mark multiples of 2 (except 2 itself)
+    i = 4
+    while i <= limit {
+        bits[i] = 0
+        i += 2
+    }
+    
+    // Mark multiples of 3 (except 3 itself)
+    i = 6
+    while i <= limit {
+        bits[i] = 0
+        i += 3
+    }
+    
+    // Mark multiples of 5 (except 5 itself)
+    i = 10
+    while i <= limit {
+        bits[i] = 0
+        i += 5
+    }
+    
+    // Mark multiples of 7 (except 7 itself)
+    i = 14
+    while i <= limit {
+        bits[i] = 0
+        i += 7
+    }
+    
+    // Mark multiples of 11 (except 11 itself)
+    i = 22
+    while i <= limit {
+        bits[i] = 0
+        i += 11
+    }
+    
+    // Mark multiples of 13 (except 13 itself)
+    i = 26
+    while i <= limit {
+        bits[i] = 0
+        i += 13
+    }
+    
+    // Main sieve loop
+    // Start from 17 (next number after last wheel prime)
+    let mut p: u64 = 17
+    
+    while p * p <= limit {
+        // If p is prime (bit is 1)
+        if bits[p] == 1 {
+            // Mark multiples of p starting from p*p
+            let mut multiple = p * p
+            
+            while multiple <= limit {
+                bits[multiple] = 0
+                multiple += p
+            }
+        }
+        
+        // Move to next candidate using wheel logic
+        // Skip numbers divisible by any wheel prime
+        p += 1
+        
+        while p <= limit && (p % 2 == 0 || p % 3 == 0 || p % 5 == 0 || 
+                            p % 7 == 0 || p % 11 == 0 || p % 13 == 0) {
+            p += 1
+        }
+    }
+    
+    // Count primes
+    let mut count: u64 = 0
+    i = 2
+    
+    while i <= limit {
+        if bits[i] == 1 {
+            count += 1
+        }
+        i += 1
+    }
+    
+    return count
+}
+
+// Simple timing benchmark
+fn benchmark_scalar() -> u64 {
+    let start_time = 0 // We'll need a timing function
+    
+    // Run sieve multiple times for better measurement
+    let mut total_primes: u64 = 0
+    let iterations = 10
+    
+    let mut iter = 0
+    while iter < iterations {
+        total_primes += murphy_sieve_scalar(1000000)
+        iter += 1
+    }
+    
+    // Return average (should be 78498 * 10 / 10 = 78498)
+    return total_primes / iterations
+}
+
+fn main() -> u64 {
+    // Test correctness
+    let test_limit = 1000000
+    let result = murphy_sieve_scalar(test_limit)
+    
+    // Should be 78498
+    if result == 78498 {
+        return 1 // Success
+    } else {
+        return 0 // Failure
+    }
+}

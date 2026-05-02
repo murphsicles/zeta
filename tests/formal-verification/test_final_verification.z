@@ -1,0 +1,66 @@
+// Final verification test for the compiler fix
+// This tests the specific pattern that was failing in Murphy's Sieve
+
+fn test_if_without_else() -> u64 {
+    let mut x: u64 = 0
+    let mut i: u64 = 0
+    
+    while i < 10 {
+        if i % 2 == 0 {
+            x += i
+        }
+        i += 1
+    }
+    
+    return x
+}
+
+fn test_if_with_else() -> u64 {
+    let mut x: u64 = 0
+    let mut i: u64 = 0
+    
+    while i < 10 {
+        if i % 2 == 0 {
+            x += i
+        } else {
+            x -= 1
+        }
+        i += 1
+    }
+    
+    return x
+}
+
+fn test_nested_if() -> u64 {
+    let mut count: u64 = 0
+    let mut i: u64 = 2
+    
+    while i < 20 {
+        let mut j: u64 = 2
+        let mut is_prime: u64 = 1
+        
+        while j < i {
+            if i % j == 0 {
+                is_prime = 0
+                j = i  // break
+            }
+            j += 1
+        }
+        
+        if is_prime == 1 {
+            count += 1
+        }
+        i += 1
+    }
+    
+    return count
+}
+
+fn main() -> u64 {
+    let result1 = test_if_without_else()
+    let result2 = test_if_with_else()
+    let result3 = test_nested_if()
+    
+    // Return a combined result to verify all tests pass
+    return result1 + result2 + result3
+}

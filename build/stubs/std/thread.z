@@ -1,0 +1,9 @@
+//! Stub for std::thread — Lightweight thread spawning
+//! Backed by runtime host functions (maps to actor scheduler).
+
+extern fn thread_spawn(func: i64, arg: i64) -> i64;
+extern fn thread_join(handle: i64) -> i64;
+extern fn thread_sleep_ms(ms: i64);
+
+/// A handle to a spawned thread.
+pub struct JoinHandle { pub inner: i64 }

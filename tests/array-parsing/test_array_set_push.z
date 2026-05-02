@@ -1,0 +1,24 @@
+fn test_array_set() -> u64 {
+    // Create empty dynamic array
+    let arr = [dynamic]u8{}
+    
+    // Push three zeros
+    arr.push(0u8)
+    arr.push(0u8)
+    arr.push(0u8)
+    
+    // Set values using subscript assignment
+    arr[0] = 42u8
+    arr[1] = 100u8
+    arr[2] = 255u8
+    
+    // Get values and sum them (need to cast to u64 for addition)
+    let a = arr[0] as u64
+    let b = arr[1] as u64
+    let c = arr[2] as u64
+    return a + b + c  // Should be 42 + 100 + 255 = 397
+}
+
+fn main() -> u64 {
+    test_array_set()
+}

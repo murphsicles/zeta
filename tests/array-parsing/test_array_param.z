@@ -1,0 +1,8 @@
+// Test array parameter
+fn sum(arr: [u64; 10]) -> u64 {
+    return 0
+}
+
+fn main() -> u64 {
+    return 42
+}

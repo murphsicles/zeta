@@ -1,0 +1,15 @@
+// Minimal comptime test
+const MODULUS: u64 = 30030
+const NUM_RESIDUES: usize = 5760
+
+// Comptime variable declaration
+comptime residues: [NUM_RESIDUES]u64 = [0; NUM_RESIDUES]
+
+// Comptime function declaration
+comptime fn generate_residues() -> [NUM_RESIDUES]u64 {
+    return [0; NUM_RESIDUES]
+}
+
+fn main() -> i64 {
+    return 0
+}

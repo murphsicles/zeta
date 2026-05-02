@@ -1,0 +1,118 @@
+// Test PrimeZeta compatibility
+// Objective 4: Make generate_residues() work COMPLETELY
+
+// Simplified version of PrimeZeta's generate_residues function
+comptime fn generate_residues_simple() -> [i64; 10] {
+    var residues = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    var index = 0
+    
+    for i in 0..100 {
+        if i % 2 == 0 {
+            continue
+        }
+        
+        // Simple prime-like filtering
+        var is_prime_like = true
+        for j in 2..i {
+            if i % j == 0 {
+                is_prime_like = false
+                break
+            }
+        }
+        
+        if is_prime_like && i > 1 {
+            if index < 10 {
+                residues[index] = i
+                index = index + 1
+            } else {
+                break
+            }
+        }
+    }
+    
+    residues
+}
+
+// More complex version with nested loops and conditions
+comptime fn generate_residues_complex(limit: i64) -> [i64; 20] {
+    var result = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    var count = 0
+    
+    for n in 1..limit {
+        if count >= 20 {
+            break
+        }
+        
+        // Sieve-like logic
+        var valid = true
+        for p in 2..n {
+            if n % p == 0 {
+                valid = false
+                break
+            }
+        }
+        
+        if valid && n > 1 {
+            // Additional filtering
+            if n % 4 == 3 {
+                result[count] = n * 2
+            } else {
+                result[count] = n
+            }
+            count = count + 1
+        }
+    }
+    
+    result
+}
+
+// Test with array manipulation
+comptime fn process_residues() -> [i64; 5] {
+    let residues = generate_residues_simple()
+    var processed = [0, 0, 0, 0, 0]
+    
+    for i in 0..5 {
+        if i < residues.array_len() {
+            processed[i] = residues[i] * 10
+        }
+    }
+    
+    processed
+}
+
+// Test with function composition
+comptime fn composite_residue_function() -> i64 {
+    let arr1 = generate_residues_simple()
+    let arr2 = generate_residues_complex(50)
+    
+    var sum = 0
+    for i in 0..10 {
+        sum = sum + arr1[i] + arr2[i]
+    }
+    
+    sum
+}
+
+fn main() -> i64 {
+    let simple_residues = generate_residues_simple()
+    let complex_residues = generate_residues_complex(30)
+    let processed = process_residues()
+    let composite_result = composite_residue_function()
+    
+    // Calculate total sum
+    var total = composite_result
+    
+    for elem in simple_residues {
+        total = total + elem
+    }
+    
+    for elem in complex_residues {
+        total = total + elem
+    }
+    
+    for elem in processed {
+        total = total + elem
+    }
+    
+    total
+}

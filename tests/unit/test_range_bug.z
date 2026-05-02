@@ -1,0 +1,7 @@
+fn main() -> i64 {
+    let mut sum = 0;
+    for i in 0..10 {
+        sum = sum + i;
+    }
+    sum
+}

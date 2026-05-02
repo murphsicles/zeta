@@ -1,0 +1,15 @@
+// Simple test for monomorphization
+// This should compile to vec_new_inst_i32
+
+struct Vec<T> {
+    data: [T],
+}
+
+fn vec_new<T>() -> Vec<T> {
+    Vec { data: [] }
+}
+
+fn main() -> i64 {
+    let v = vec_new::<i32>();
+    0
+}

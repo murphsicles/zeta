@@ -1,0 +1,22 @@
+fn test_array_set() -> u64 {
+    // Create a dynamic array
+    let arr = [dynamic]u8{}
+    
+    // Push some initial values
+    arr.push(0)
+    arr.push(0)
+    arr.push(0)
+    
+    // Set values using array_set operation
+    arr[0] = 42
+    arr[1] = 100
+    arr[2] = 255
+    
+    // Get and sum values to verify
+    let sum = arr[0] + arr[1] + arr[2]
+    return sum  // Should be 42 + 100 + 255 = 397
+}
+
+fn main() -> u64 {
+    test_array_set()
+}

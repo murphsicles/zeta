@@ -1,0 +1,5 @@
+fn main() -> i32 {
+    // Just declare a SIMD vector type
+    let v: Vector<i32, 4>;
+    return 0;
+}

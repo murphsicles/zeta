@@ -1,0 +1,8 @@
+// Test regular variable declaration
+fn main() -> u64 {
+    // Declare a regular variable
+    let x: u64
+    
+    // For now, just return 0
+    return 0
+}

@@ -1,0 +1,9 @@
+// Test function returning dynamic array
+fn make_array() -> [dynamic]u64 {
+    // For now, just return something
+    return 0
+}
+
+fn main() -> u64 {
+    return 42
+}

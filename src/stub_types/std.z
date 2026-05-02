@@ -1,0 +1,2 @@
+//! Stub for std::std
+pub struct Stub;

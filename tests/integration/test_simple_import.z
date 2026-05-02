@@ -1,0 +1,8 @@
+// Test simple import without using Option methods
+use zorb::std::option::Option;
+
+fn main() -> i64 {
+    // Just create an Option, don't use it
+    let x: Option<i64> = Option::Some(42);
+    0
+}

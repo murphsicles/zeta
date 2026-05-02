@@ -1,0 +1,20 @@
+fn test_simple() -> i64 {
+    let mut count = 0;
+    for n in 2..10 {
+        let mut is_prime = true;
+        for i in 2..n {
+            if n % i == 0 {
+                is_prime = false;
+                break;
+            }
+        }
+        if is_prime {
+            count += 1;
+        }
+    }
+    count
+}
+
+fn main() -> i64 {
+    test_simple()
+}

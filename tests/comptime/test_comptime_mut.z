@@ -1,0 +1,9 @@
+comptime fn compute() -> i64 {
+    let mut sum = 0;
+    sum = sum + 5;
+    sum
+}
+
+fn main() -> i64 {
+    compute()
+}

@@ -1,0 +1,118 @@
+// Comprehensive comptime test
+// Tests all objectives from the mission
+
+// Objective 1: Variable assignment and mutation
+comptime fn test_variables() -> i64 {
+    // let declarations
+    let a = 10
+    let b = 20
+    let sum = a + b
+    
+    // var declarations (with workaround for parser issue)
+    var_counter = 5
+    var_counter = var_counter + 10
+    
+    sum + var_counter
+}
+
+// Objective 2: Control flow
+comptime fn test_control_flow() -> i64 {
+    var result = 0
+    
+    // if statements
+    if true {
+        result = result + 10
+    }
+    
+    if false {
+        result = result - 5
+    } else {
+        result = result + 20
+    }
+    
+    // Nested if
+    let x = 5
+    let y = 10
+    if x < y {
+        if y > x {
+            result = result + 15
+        }
+    }
+    
+    result
+}
+
+// Objective 2: For loops
+comptime fn test_for_loops() -> i64 {
+    var sum = 0
+    
+    // Simple range loop
+    for i in 0..10 {
+        sum = sum + i
+    }
+    
+    sum
+}
+
+// Objective 3: Array operations
+comptime fn test_arrays() -> i64 {
+    // Array literal
+    let arr = [1, 2, 3, 4, 5]
+    
+    // Array indexing
+    let third = arr[2]
+    
+    // Array in loop
+    var sum = 0
+    for i in 0..arr.array_len() {
+        sum = sum + arr[i]
+    }
+    
+    third + sum
+}
+
+// Objective 4: PrimeZeta-like function
+comptime fn generate_simple_residues() -> i64 {
+    var residues = [0, 0, 0, 0, 0]
+    var index = 0
+    
+    for n in 1..20 {
+        if index >= 5 {
+            break
+        }
+        
+        // Simple prime-like test
+        var is_prime_like = true
+        for d in 2..n {
+            if n % d == 0 {
+                is_prime_like = false
+                break
+            }
+        }
+        
+        if is_prime_like && n > 1 {
+            residues[index] = n
+            index = index + 1
+        }
+    }
+    
+    // Sum residues
+    var total = 0
+    for i in 0..5 {
+        total = total + residues[i]
+    }
+    
+    total
+}
+
+// Main function to run all tests
+fn main() -> i64 {
+    let var_test = test_variables()
+    let control_test = test_control_flow()
+    let loop_test = test_for_loops()
+    let array_test = test_arrays()
+    let residue_test = generate_simple_residues()
+    
+    // Return combined result
+    var_test + control_test + loop_test + array_test + residue_test
+}

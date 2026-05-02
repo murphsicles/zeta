@@ -1,0 +1,43 @@
+//! Stub for std::string — String type
+
+/// A UTF-8 encoded, growable string.
+pub struct String {
+    vec: Vec<u8>,
+}
+
+impl String {
+    /// Creates a new empty String.
+    pub fn new() -> Self {
+        String { vec: Vec::new() }
+    }
+
+    /// Returns the length of the String in bytes.
+    pub fn len(&self) -> usize {
+        self.vec.len()
+    }
+
+    /// Returns true if the String has a length of zero.
+    pub fn is_empty(&self) -> bool {
+        self.vec.is_empty()
+    }
+
+    /// Appends a string slice to the String.
+    pub fn push_str(&mut self, string: &str) {
+        // stub
+    }
+
+    /// Appends the given char to the end of this String.
+    pub fn push(&mut self, ch: char) {
+        // stub
+    }
+
+    /// Returns a byte slice of this String's contents.
+    pub fn as_bytes(&self) -> &[u8] {
+        &[]
+    }
+
+    /// Extracts a string slice containing the entire String.
+    pub fn as_str(&self) -> &str {
+        ""
+    }
+}

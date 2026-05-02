@@ -1,0 +1,6 @@
+// Minimal test: just parse the use statement
+use zorb::std::option::Option;
+
+fn main() -> i64 {
+    42
+}

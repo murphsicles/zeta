@@ -1,0 +1,14 @@
+// Test enum functionality
+use zorb::std::option::Option;
+
+fn main() -> i64 {
+    // Test Option enum
+    let x = Option::Some(42);
+    let y = Option::None;
+    
+    // Test pattern matching
+    match x {
+        Option::Some(val) => val,
+        Option::None => 0,
+    }
+}

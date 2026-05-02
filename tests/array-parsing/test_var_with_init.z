@@ -1,0 +1,7 @@
+// Test variable declaration with initializer
+fn main() -> u64 {
+    // Declare a variable with initializer
+    let x: u64 = 0
+    
+    return x
+}

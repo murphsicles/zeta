@@ -1,0 +1,111 @@
+// zeta_src/frontend/parser/stmt.z
+use super::parser::{Parser, Token};
+use crate::frontend::ast::AstNode;
+
+impl Parser {
+    pub fn parse_stmt(&mut self) -> AstNode {
+        match self.peek() {
+            Token::KeywordReturn => {
+                self.advance();
+                let expr = self.parse_expr();
+                AstNode::Return(Box::new(expr))
+            }
+            Token::KeywordIf => self.parse_if_stmt(),
+            Token::KeywordDefer => {
+                self.advance();
+                let expr = self.parse_expr();
+                AstNode::Defer(Box::new(expr))
+            }
+            Token::KeywordLet => self.parse_let_stmt(),
+            Token::KeywordTrain => self.parse_train_stmt(),
+            Token::KeywordBackward => self.parse_backward_stmt(),
+            Token::KeywordStep => self.parse_step_stmt(),
+            _ => {
+                let expr = self.parse_expr();
+                if self.consume(Token::Semi) {
+                    AstNode::ExprStmt { expr: Box::new(expr) }
+                } else {
+                    expr
+                }
+            }
+        }
+    }
+
+    fn parse_if_stmt(&mut self) -> AstNode {
+        self.expect(Token::KeywordIf);
+        let cond = Box::new(self.parse_expr());
+        let then_ = self.parse_block();
+        let else_ = if self.consume(Token::KeywordElse) {
+            self.parse_block()
+        } else {
+            vec![]
+        };
+        AstNode::If { cond, then_, else_ }
+    }
+
+    pub fn parse_block(&mut self) -> Vec<AstNode> {
+        self.expect(Token::LBrace);
+        let mut stmts = vec![];
+        while self.peek() != Token::RBrace && !self.at_end() {
+            stmts.push(self.parse_stmt());
+        }
+        self.expect(Token::RBrace);
+        stmts
+    }
+
+    fn parse_let_stmt(&mut self) -> AstNode {
+        self.expect(Token::KeywordLet);
+        
+        // Parse identifier name
+        let name = match self.advance() {
+            Token::Ident(ident) => ident,
+            _ => {
+                // Error handling - expected identifier
+                return AstNode::Let {
+                    name: String::new(),
+                    ty: None,
+                    value: Box::new(AstNode::Lit(0)),
+                };
+            }
+        };
+        
+        // Check for optional type annotation
+        let ty = if self.consume(Token::Colon) {
+            // Parse type - could be simple identifier or array type [dynamic]T
+            if self.consume(Token::LBracket) {
+                // Array type syntax: [dynamic]T
+                if let Token::Ident(type_qual) = self.advance() {
+                    if type_qual == "dynamic" {
+                        self.expect(Token::RBracket);
+                        let elem_type = self.expect_ident();
+                        Some(format!("[dynamic]{}", elem_type))
+                    } else {
+                        // Not dynamic array, handle other array types if needed
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                // Simple identifier type
+                match self.advance() {
+                    Token::Ident(type_ident) => Some(type_ident),
+                    _ => None,
+                }
+            }
+        } else {
+            None
+        };
+        
+        // Expect equals sign
+        self.expect(Token::Eq);
+        
+        // Parse expression value
+        let value = Box::new(self.parse_expr());
+        
+        // Expect semicolon
+        self.expect(Token::Semi);
+        
+        AstNode::Let { name, ty, value }
+    }
+}
