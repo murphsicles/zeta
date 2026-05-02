@@ -35,6 +35,8 @@ jobs:
       with:
         toolchain: ${{ matrix.toolchain }}
         components: rustfmt, clippy
+    - name: Debug Rust version
+      run: rustc --version && cargo --version
     - name: Cache cargo
       uses: actions/cache@v4
       with:
@@ -44,7 +46,12 @@ jobs:
           target
         key: ${{ runner.os }}-${{ matrix.toolchain }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     - name: Check
-      run: cargo check --workspace --all-features --all-targets
+      run: cargo check --workspace --all-features --all-targets 2>&1
+    - name: Show errors if any
+      if: failure()
+      run: |
+        echo "=== BUILD FAILED. Trying detailed cargo check ==="
+        cargo check --workspace --all-features --all-targets 2>&1 | head -50
     - name: Clippy
       run: cargo clippy --workspace --all-features --all-targets -- -D warnings
     - name: Fmt
