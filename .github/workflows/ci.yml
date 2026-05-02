@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        toolchain: [nightly] # 2024 edition requires nightly (stable post-2024)
+        toolchain: [stable] # 2024 edition (stable Rust now supports it)
     steps:
     - uses: actions/checkout@v4
     - name: Install LLVM 21
@@ -69,7 +69,7 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
-        toolchain: nightly
+        toolchain: stable
         components: rustfmt, clippy
     - name: Cache cargo
       uses: actions/cache@v4
@@ -92,7 +92,7 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
-        toolchain: nightly
+        toolchain: stable
     - name: Audit deps
       uses: EmbarkStudios/cargo-deny-action@v2
       with:
@@ -111,7 +111,7 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
-        toolchain: nightly
+        toolchain: stable
     - name: Run agent-specific checks
       run: |
         echo "Running agent-specific quality checks..."
