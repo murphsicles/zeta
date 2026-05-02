@@ -48,10 +48,14 @@ jobs:
     - name: Check
       run: cargo check --workspace --all-features --all-targets 2>&1
     - name: Show errors if any
-      if: failure()
+      if: always()
       run: |
-        echo "=== BUILD FAILED. Trying detailed cargo check ==="
-        cargo check --workspace --all-features --all-targets 2>&1 | head -50
+        cargo check --workspace --all-features --all-targets 2>&1 | head -50 > /tmp/cargo_errors.txt
+        cat /tmp/cargo_errors.txt
+        echo "=== RUST VERSION ==="
+        rustc --version
+        cargo --version
+        echo "=== DONE ==="
     - name: Clippy
       run: cargo clippy --workspace --all-features --all-targets -- -D warnings
     - name: Fmt
