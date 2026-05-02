@@ -11,7 +11,7 @@ static NEXT_ID: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new
 /// Spawns a thread that calls func(arg) and returns the result.
 /// Note: this spawns a real OS thread via std::thread::spawn.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn thread_spawn(func_ptr: i64, arg: i64) -> i64 {
+pub unsafe extern "C" fn thread_spawn(func_ptr: i64, arg: i64) -> i64 { unsafe {
     let id = NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     let handle = std::thread::spawn(move || {
         // Reconstruct function pointer from i64
@@ -20,7 +20,7 @@ pub unsafe extern "C" fn thread_spawn(func_ptr: i64, arg: i64) -> i64 {
     });
     HANDLES.lock().unwrap().insert(id, handle);
     id
-}
+}}
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thread_join(handle: i64) -> i64 {

@@ -9,7 +9,7 @@ use std::ptr;
 /// Create a new Vec with the given capacity.
 /// Returns a pointer to the data area (first i64 element).
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn zeta_vec_new(capacity: i64) -> i64 {
+pub unsafe extern "C" fn zeta_vec_new(capacity: i64) -> i64 { unsafe {
     let cap = if capacity < 4 { 4 } else { capacity };
     let total = 16 + (cap as usize) * 8;
     let raw = std_malloc(total as usize);
@@ -22,12 +22,12 @@ pub unsafe extern "C" fn zeta_vec_new(capacity: i64) -> i64 {
         ptr::write_unaligned(base.add(8) as *mut i64, 0i64);
     }
     (raw as usize + 16) as i64
-}
+}}
 
 /// Push a value onto the end of the Vec.
 /// Returns the (possibly reallocated) data pointer.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn zeta_vec_push(ptr: i64, val: i64) -> i64 {
+pub unsafe extern "C" fn zeta_vec_push(ptr: i64, val: i64) -> i64 { unsafe {
     if ptr == 0 {
         let new_ptr = zeta_vec_new(4);
         return zeta_vec_push(new_ptr, val);
@@ -56,7 +56,7 @@ pub unsafe extern "C" fn zeta_vec_push(ptr: i64, val: i64) -> i64 {
         ptr::write_unaligned(base.add(8) as *mut i64, len + 1);
     }
     ptr
-}
+}}
 
 /// Pop a value from the end of the Vec.
 #[unsafe(no_mangle)]

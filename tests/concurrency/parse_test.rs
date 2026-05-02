@@ -55,7 +55,7 @@ async fn compute() -> i32 {
         result
     );
 
-    let (remaining, asts) = result.unwrap();
+    let (remaining, _asts) = result.unwrap();
     assert!(
         remaining.trim().is_empty(),
         "Incomplete parse: '{}'",

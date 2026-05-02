@@ -4000,7 +4000,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let pointee_llvm_type = self
                     .context
                     .custom_width_int_type((*pointee_width as u32) * 8);
-                let pointed_ptr_type = pointee_llvm_type.ptr_type(inkwell::AddressSpace::default());
+                let pointed_ptr_type = self.context.ptr_type(inkwell::AddressSpace::default());
                 let ptr = self
                     .builder
                     .build_int_to_ptr(ptr_as_i64, pointed_ptr_type, "deref_ptr")

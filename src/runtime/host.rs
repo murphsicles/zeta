@@ -203,7 +203,7 @@ pub unsafe extern "C" fn host_str_replace(s: i64, old: i64, new: i64) -> i64 {
 }
 
 /// Split a string by delimiter — returns first part pointer (for now)
-pub unsafe extern "C" fn host_str_split(s: i64, delim: i64) -> i64 {
+pub unsafe extern "C" fn host_str_split(s: i64, delim: i64) -> i64 { unsafe {
     if s == 0 || delim == 0 {
         return 0;
     }
@@ -223,10 +223,10 @@ pub unsafe extern "C" fn host_str_split(s: i64, delim: i64) -> i64 {
         ptr::copy_nonoverlapping(cstring.as_ptr(), ptr as *mut c_char, len);
     }
     ptr
-}
+}}
 
 /// Join strings with a separator
-pub unsafe extern "C" fn host_str_join(parts_ptr: i64, sep: i64) -> i64 {
+pub unsafe extern "C" fn host_str_join(parts_ptr: i64, sep: i64) -> i64 { unsafe {
     if parts_ptr == 0 || sep == 0 {
         return 0;
     }
@@ -241,7 +241,7 @@ pub unsafe extern "C" fn host_str_join(parts_ptr: i64, sep: i64) -> i64 {
         ptr::copy_nonoverlapping(cstring.as_ptr(), ptr as *mut c_char, len);
     }
     ptr
-}
+}}
 
 /// Find substring position (returns index or -1)
 pub unsafe extern "C" fn host_str_find(haystack: i64, needle: i64) -> i64 {
@@ -272,19 +272,19 @@ pub unsafe extern "C" fn host_str_count(haystack: i64, needle: i64) -> i64 {
 }
 
 /// Strip whitespace from both ends
-pub unsafe extern "C" fn host_str_strip(s: i64) -> i64 {
+pub unsafe extern "C" fn host_str_strip(s: i64) -> i64 { unsafe {
     string_op(s, |st| st.trim().to_string())
-}
+}}
 
 /// Strip whitespace from left
-pub unsafe extern "C" fn host_str_lstrip(s: i64) -> i64 {
+pub unsafe extern "C" fn host_str_lstrip(s: i64) -> i64 { unsafe {
     string_op(s, |st| st.trim_start().to_string())
-}
+}}
 
 /// Strip whitespace from right
-pub unsafe extern "C" fn host_str_rstrip(s: i64) -> i64 {
+pub unsafe extern "C" fn host_str_rstrip(s: i64) -> i64 { unsafe {
     string_op(s, |st| st.trim_end().to_string())
-}
+}}
 
 /// Check if string is alphabetic
 pub unsafe extern "C" fn host_str_isalpha(s: i64) -> i64 {

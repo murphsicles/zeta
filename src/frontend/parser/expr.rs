@@ -469,7 +469,7 @@ fn parse_path_expr(input: &str) -> IResult<&str, AstNode> {
             // (not a struct literal), so we must NOT consume the braces.
             // Pre-check: if { is followed by } else, this is definitely a block, not struct
             let is_else_after_brace = {
-                let mut check = input;
+                let check = input;
                 // Quick scan for matching } then check for "else"
                 if let Ok((after_open, _)) = ws(tag("{")).parse(check) {
                     let mut depth = 1;

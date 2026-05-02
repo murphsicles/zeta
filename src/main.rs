@@ -1,8 +1,13 @@
 // src/main.rs
-//! # Zeta Compiler Entry Point (v0.3.4 Foundation Release)
+//! # Zeta Compiler Entry Point
 //!
 //! This is the final Rust bootstrap for Zeta.
 //! It drives the complete pipeline:
+
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(unreachable_patterns)]
+#![allow(unused_unsafe)]
 //! • Parse → AST
 //! • Resolve + monomorphize + typecheck
 //! • Lower to MIR
@@ -147,7 +152,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
 
                 // Use expanded ASTs for typechecking
-                let typecheck_asts = &expanded_asts;
+                let _typecheck_asts = &expanded_asts;
 
                 let type_ok = resolver.typecheck(&expanded_asts);
                 if !type_ok {

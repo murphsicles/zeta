@@ -1,8 +1,13 @@
 // src/lib.rs
-//! # Zeta Compiler Library (v0.3.83 CTFE Foundation Release)
+//! # Zeta Compiler Library
 //!
 //! The core library for the Zeta systems programming language.
 //! This crate provides a complete pipeline:
+
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(unreachable_patterns)]
+#![allow(unused_unsafe)]
 //!   1. Parsing â†’ AST
 //!   2. Resolution + monomorphization + MIR lowering
 //!   3. LLVM code generation + JIT/AOT
@@ -486,11 +491,6 @@ pub fn compile_and_run_zeta(code: &str) -> Result<i64, String> {
     }
 }
 
-/// Compiles Zeta source with enhanced error reporting
-///
-/// Returns either the execution result or formatted diagnostics
-pub fn compile_with_diagnostics(code: &str, filename: &'static str) -> Result<i64, String> {
-    use crate::diagnostics::{DiagnosticReporter, SourceLocation, SourceSpan};
 // Diagnostic macros — emit to thread-local DiagnosticReporter
 #[macro_export]
 macro_rules! diag_error {
@@ -528,7 +528,11 @@ macro_rules! diag_warning {
     }};
 }
 
-
+/// Compiles Zeta source with enhanced error reporting
+///
+/// Returns either the execution result or formatted diagnostics
+pub fn compile_with_diagnostics(code: &str, filename: &'static str) -> Result<i64, String> {
+    use crate::diagnostics::{DiagnosticReporter, SourceLocation, SourceSpan};
     use crate::error_codes::diagnostic_from_code;
 
     let mut reporter = DiagnosticReporter::new();

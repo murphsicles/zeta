@@ -133,7 +133,7 @@ pub unsafe extern "C" fn std_calloc(count: i64, size: i64) -> i64 {
 /// # Safety
 /// ptr must be from std_malloc/std_calloc or null.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn std_realloc(ptr: i64, new_size: i64) -> i64 {
+pub unsafe extern "C" fn std_realloc(ptr: i64, new_size: i64) -> i64 { unsafe {
     if ptr == 0 || new_size <= 0 {
         if new_size > 0 {
             return std_malloc(new_size as usize);
@@ -163,7 +163,7 @@ pub unsafe extern "C" fn std_realloc(ptr: i64, new_size: i64) -> i64 {
 
         new_ptr
     }
-}
+}}
 
 /// Creates a new dynamic array.
 /// Returns a pointer to the array structure.
