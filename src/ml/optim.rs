@@ -79,11 +79,7 @@ impl Optimizer for SGD {
                 // Momentum update
                 let grad = Tensor::rand(param.shape().to_vec(), false); // Placeholder for gradient
 
-                if !self.velocity.contains_key(&i) {
-                    // Initialize velocity
-                    self.velocity
-                        .insert(i, Tensor::zeros(param.shape().to_vec(), false));
-                }
+                self.velocity.entry(i).or_insert_with(|| Tensor::zeros(param.shape().to_vec(), false));
 
                 let velocity = self.velocity.get_mut(&i).unwrap();
                 // velocity = momentum * velocity - lr * grad
@@ -178,9 +174,8 @@ impl Optimizer for Adam {
             // 6. Update parameters: param = param - lr * m_hat / (sqrt(v_hat) + eps)
 
             // Initialize state if needed
-            if !self.exp_avg.contains_key(&i) {
-                self.exp_avg
-                    .insert(i, Tensor::zeros(param.shape().to_vec(), false));
+            if let std::collections::hash_map::Entry::Vacant(e) = self.exp_avg.entry(i) {
+                e.insert(Tensor::zeros(param.shape().to_vec(), false));
                 self.exp_avg_sq
                     .insert(i, Tensor::zeros(param.shape().to_vec(), false));
                 if self.amsgrad {
@@ -274,9 +269,8 @@ impl Optimizer for RMSprop {
             // 4. Else: param = param - lr * grad / sqrt(square_avg + eps)
 
             // Initialize state if needed
-            if !self.square_avg.contains_key(&i) {
-                self.square_avg
-                    .insert(i, Tensor::zeros(param.shape().to_vec(), false));
+            if let std::collections::hash_map::Entry::Vacant(e) = self.square_avg.entry(i) {
+                e.insert(Tensor::zeros(param.shape().to_vec(), false));
                 if self.centered {
                     self.grad_avg
                         .insert(i, Tensor::zeros(param.shape().to_vec(), false));
@@ -349,10 +343,7 @@ impl Optimizer for Adagrad {
             // sum = sum + grad^2
             // param = param - lr * grad / (sqrt(sum) + eps)
 
-            if !self.sum.contains_key(&i) {
-                self.sum
-                    .insert(i, Tensor::zeros(param.shape().to_vec(), false));
-            }
+            self.sum.entry(i).or_insert_with(|| Tensor::zeros(param.shape().to_vec(), false));
 
             // Placeholder for actual update
         }
@@ -420,9 +411,8 @@ impl Optimizer for Adadelta {
             // param = param - delta
             // acc_delta = rho * acc_delta + (1 - rho) * delta^2
 
-            if !self.square_avg.contains_key(&i) {
-                self.square_avg
-                    .insert(i, Tensor::zeros(param.shape().to_vec(), false));
+            if let std::collections::hash_map::Entry::Vacant(e) = self.square_avg.entry(i) {
+                e.insert(Tensor::zeros(param.shape().to_vec(), false));
                 self.acc_delta
                     .insert(i, Tensor::zeros(param.shape().to_vec(), false));
             }

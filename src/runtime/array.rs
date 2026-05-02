@@ -117,8 +117,8 @@ pub unsafe extern "C" fn array_new(capacity: usize) -> i64 {
     }
 
     // Return data pointer (not header pointer)
-    let result = data_ptr as i64;
-    result
+    
+    data_ptr as i64
 }
 
 /// Get array length
@@ -216,8 +216,8 @@ pub unsafe extern "C" fn array_get(ptr: i64, index: i64) -> i64 {
             return -4; // Error code for capacity exceeded
         }
 
-        let value = unsafe { *data_ptr.offset(index as isize) };
-        value
+        
+        unsafe { *data_ptr.offset(index as isize) }
     } else {
         // This is a stack array (no header)
         // Just read the value directly
@@ -356,7 +356,7 @@ pub unsafe extern "C" fn array_push(ptr: i64, value: i64) {
 
         // Add element
         unsafe {
-            *data_ptr.offset(len as isize) = value;
+            *data_ptr.add(len) = value;
             (*header).len = len + 1;
         }
     } else {
@@ -399,8 +399,7 @@ pub unsafe extern "C" fn array_set_len(ptr: i64, len: i64) {
                 len, capacity
             );
         }
-    } else {
-    }
+    } 
     // For stack arrays, we don't have a length field
 }
 

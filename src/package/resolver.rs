@@ -62,12 +62,12 @@ impl PackageRegistry {
     pub fn add_package(&mut self, name: &str, version: Version, metadata: PackageMetadata) {
         self.packages
             .entry(name.to_string())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(version.clone());
 
         self.metadata
             .entry(name.to_string())
-            .or_insert_with(HashMap::new)
+            .or_default()
             .insert(version, metadata);
     }
 
@@ -273,8 +273,8 @@ impl ResolutionResult {
             lockfile.push_str(&format!("version = \"{}\"\n", version));
 
             // Add dependencies if any
-            if let Some(node) = self.graph.nodes.get(name) {
-                if !node.dependencies.is_empty() {
+            if let Some(node) = self.graph.nodes.get(name)
+                && !node.dependencies.is_empty() {
                     lockfile.push_str("dependencies = [\n");
                     for dep in &node.dependencies {
                         if let Some(dep_version) = self.versions.get(dep) {
@@ -283,9 +283,8 @@ impl ResolutionResult {
                     }
                     lockfile.push_str("]\n");
                 }
-            }
 
-            lockfile.push_str("\n");
+            lockfile.push('\n');
         }
 
         lockfile

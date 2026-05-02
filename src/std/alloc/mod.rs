@@ -50,7 +50,7 @@ pub unsafe extern "C" fn realloc<T>(ptr: *mut T, new_count: usize) -> *mut T {
     // In a real implementation, this would use libc realloc
     let new_ptr = unsafe { std::std_malloc(new_size) as *mut T };
     if !new_ptr.is_null() && !ptr.is_null() {
-        let old_size = mem::size_of::<T>() * 1; // Simplified
+        let old_size = mem::size_of::<T>(); // Simplified
         let copy_size = cmp::min(new_size, old_size);
         unsafe { ptr::copy_nonoverlapping(ptr as *const u8, new_ptr as *mut u8, copy_size) };
         unsafe { std::std_free(ptr as *mut u8 as usize) };

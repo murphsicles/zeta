@@ -31,6 +31,12 @@ pub struct LegacyCompatConstEvaluator {
     inner: ConstEvaluator,
 }
 
+impl Default for LegacyCompatConstEvaluator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LegacyCompatConstEvaluator {
     pub fn new() -> Self {
         Self {
@@ -55,7 +61,7 @@ impl LegacyCompatConstEvaluator {
     ) -> Result<Option<ConstValue>, String> {
         self.inner
             .try_eval_const_call(func, args)
-            .map(|v| Some(v))
+            .map(Some)
             .map_err(|e: CtfeError| e.to_string())
     }
 }

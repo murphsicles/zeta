@@ -271,7 +271,7 @@ impl<T: Clone + Eq + std::hash::Hash> ORSet<T> {
     pub fn add(&mut self, element: T, node: NodeId, clock: &mut VectorClock) {
         clock.increment(node);
 
-        let entry = self.elements.entry(element).or_insert_with(Vec::new);
+        let entry = self.elements.entry(element).or_default();
         entry.push(clock.clone());
     }
 
@@ -312,7 +312,7 @@ impl<T: Clone + Eq + std::hash::Hash> ORSet<T> {
             let entry = self
                 .elements
                 .entry(element.clone())
-                .or_insert_with(Vec::new);
+                .or_default();
             entry.extend(other_clocks.iter().cloned());
         }
     }

@@ -8,7 +8,7 @@ use std::sync::Mutex;
 fn to_cstring_ptr(s: &str) -> i64 {
     let c = CString::new(s).unwrap();
     let len = c.as_bytes_with_nul().len();
-    let p = unsafe { crate::runtime::std::std_malloc(len as usize) };
+    let p = unsafe { crate::runtime::std::std_malloc(len) };
     if p == 0 {
         return 0;
     }

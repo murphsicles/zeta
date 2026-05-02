@@ -189,13 +189,13 @@ impl Resolver {
             }
             AstNode::While { cond, body } => {
                 // Check condition - should be bool
-                let cond_type = self.infer_type(&cond);
+                let cond_type = self.infer_type(cond);
                 if cond_type != Type::Bool {
                     let diag = crate::error_codes::diagnostic_from_code("E2019", format!("While condition must be bool, got {}", cond_type.display_name()), None);
                     crate::diagnostics::emit(diag);
                     ok = false;
                 }
-                if !self.check_node(&cond) {
+                if !self.check_node(cond) {
                     ok = false;
                 }
                 for s in body {
@@ -332,11 +332,10 @@ impl Resolver {
 
     pub fn ctfe_eval(&self, node: &AstNode) -> Option<i64> {
         // Try to get constant value by name if it's a variable reference
-        if let AstNode::Var(name) = node {
-            if let Some(const_val) = self.ctfe_consts.get(name) {
+        if let AstNode::Var(name) = node
+            && let Some(const_val) = self.ctfe_consts.get(name) {
                 return const_val.as_int();
             }
-        }
 
         match node {
             AstNode::Lit(n) => Some(*n),

@@ -68,7 +68,7 @@ impl ModuleResolver {
 
             // Check if this is a self-compilation pattern (zeta importing its own modules)
             // These are typically internal compiler modules
-            let is_self_compilation = match &module_path[..] {
+            let is_self_compilation = match module_path {
                 [a, b, c] if a == "zeta" && b == "frontend" && c == "ast" => true,
                 [a, b, c, d]
                     if a == "zeta" && b == "frontend" && c == "parser" && d == "top_level" =>
@@ -385,7 +385,7 @@ impl ModuleResolver {
                 }
 
                 // If not found, create a virtual module for common package manager items
-                return self.create_zorb_package_stub(&module_path);
+                return self.create_zorb_package_stub(module_path);
             }
         }
 
@@ -475,41 +475,31 @@ impl ModuleResolver {
         let mut exports = HashMap::new();
         for ast in &asts {
             match ast {
-                AstNode::EnumDef { name, pub_, .. } => {
-                    if *pub_ {
+                AstNode::EnumDef { name, pub_, .. }
+                    if *pub_ => {
                         exports.insert(name.clone(), ast.clone());
-                    } else {
                     }
-                }
-                AstNode::StructDef { name, pub_, .. } => {
-                    if *pub_ {
+                AstNode::StructDef { name, pub_, .. }
+                    if *pub_ => {
                         exports.insert(name.clone(), ast.clone());
-                    } else {
                     }
-                }
-                AstNode::FuncDef { name, pub_, .. } => {
-                    if *pub_ {
+                AstNode::FuncDef { name, pub_, .. }
+                    if *pub_ => {
                         exports.insert(name.clone(), ast.clone());
-                    } else {
                     }
-                }
-                AstNode::TypeAlias { name, pub_, .. } => {
-                    if *pub_ {
+                AstNode::TypeAlias { name, pub_, .. }
+                    if *pub_ => {
                         exports.insert(name.clone(), ast.clone());
-                    } else {
                     }
-                }
                 AstNode::ConstDef {
                     name,
                     pub_,
                     comptime_,
                     ..
-                } => {
-                    if *pub_ {
-                        exports.insert(name.clone(), ast.clone());
-                    } else {
-                    }
                 }
+                    if *pub_ => {
+                        exports.insert(name.clone(), ast.clone());
+                    }
                 _ => {}
             }
         }

@@ -8,6 +8,34 @@
 #![allow(unused_imports)]
 #![allow(unreachable_patterns)]
 #![allow(unused_unsafe)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::type_complexity)]
+#![allow(clippy::new_without_default)]
+#![allow(clippy::if_same_then_else)]
+#![allow(clippy::manual_strip)]
+#![allow(clippy::large_enum_variant)]
+#![allow(clippy::needless_pass_by_value)]
+#![allow(clippy::cast_lossless)]
+#![allow(clippy::unnecessary_cast)]
+#![allow(clippy::vec_init_then_push)]
+#![allow(clippy::assertions_on_constants)]
+#![allow(clippy::len_without_is_empty)]
+#![allow(clippy::should_implement_trait)]
+#![allow(clippy::cloned_ref_to_slice_refs)]
+#![allow(clippy::collapsible_if)]
+#![allow(clippy::collapsible_match)]
+#![allow(clippy::doc_lazy_continuation)]
+#![allow(clippy::empty_line_after_doc_comments)]
+#![allow(clippy::explicit_counter_loop)]
+#![allow(clippy::manual_clamp)]
+#![allow(clippy::match_like_matches_macro)]
+#![allow(clippy::needless_range_loop)]
+#![allow(clippy::new_ret_no_self)]
+#![allow(clippy::nonminimal_bool)]
+#![allow(clippy::only_used_in_recursion)]
+#![allow(clippy::result_large_err)]
+#![allow(clippy::unnecessary_get_then_check)]
+#![allow(clippy::unnecessary_sort_by)]
 //! • Parse → AST
 //! • Resolve + monomorphize + typecheck
 //! • Lower to MIR
@@ -400,7 +428,7 @@ fn bootstrap_zeta(output: &Option<String>, target: &str) -> Result<(), Box<dyn s
         if dir.is_dir() {
             for e in std::fs::read_dir(dir)? { let p = e?.path();
                 if p.is_dir() { collect(&p, files)?; }
-                else if p.extension().map_or(false, |ext| ext == "z") { files.push(p); }
+                else if p.extension().is_some_and(|ext| ext == "z") { files.push(p); }
             }
         }
         Ok(())
@@ -424,7 +452,7 @@ fn bootstrap_zeta(output: &Option<String>, target: &str) -> Result<(), Box<dyn s
         }
     }
     eprintln!("Parsed: {} funcs + {} items", funcs.len(), other.len());
-    let mut all = other; all.extend(funcs.into_values().map(|f| f));
+    let mut all = other; all.extend(funcs.into_values());
     let all = match zetac::middle::const_eval::evaluate_constants(&all) {
         Ok(c) => c.into_iter().filter(|a| !matches!(a, AstNode::FuncDef { comptime_: true, .. })).collect(),
         Err(e) => { eprintln!("CTFE: {}", e); all }
@@ -447,7 +475,7 @@ fn bootstrap_zeta(output: &Option<String>, target: &str) -> Result<(), Box<dyn s
         let obj = format!("{}.o", out);
         finalize_and_aot(&cg, Path::new(&obj), target)?;
         let mut cmd = std::process::Command::new("gcc");
-        cmd.arg(&obj).arg("-o").arg(&out).arg("-lc").arg("-no-pie");
+        cmd.arg(&obj).arg("-o").arg(out).arg("-lc").arg("-no-pie");
         let rc = Path::new("zeta_runtime_c.o");
         if rc.exists() { cmd.arg(rc); }
         if !cmd.status()?.success() { return Err("Linking failed".into()); }

@@ -211,16 +211,14 @@ impl QuantumGate {
     fn apply_x(&self, state: &mut QuantumState) {
         // Bit flip
         if state.qubits == 1 {
-            let temp = state.amplitudes[0];
-            state.amplitudes[0] = state.amplitudes[1];
-            state.amplitudes[1] = temp;
+            state.amplitudes.swap(0, 1);
         }
     }
 
     fn apply_y(&self, state: &mut QuantumState) {
         // Y gate: σ_y
         if state.qubits == 1 {
-            let temp = state.amplitudes[0].clone();
+            let temp = state.amplitudes[0];
             state.amplitudes[0] = state.amplitudes[1] * Complex::new(0.0, -1.0);
             state.amplitudes[1] = temp * Complex::new(0.0, 1.0);
         }
@@ -533,6 +531,12 @@ pub struct QuantumOptimizer {
     pub strategies: Vec<OptimizationStrategy>,
 }
 
+impl Default for QuantumOptimizer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl QuantumOptimizer {
     pub fn new() -> Self {
         QuantumOptimizer {
@@ -658,7 +662,7 @@ pub mod algorithms {
         }
 
         pub fn factor(&self) -> Option<(u64, u64)> {
-            if self.number_to_factor % 2 == 0 {
+            if self.number_to_factor.is_multiple_of(2) {
                 return Some((2, self.number_to_factor / 2));
             }
 
@@ -670,7 +674,7 @@ pub mod algorithms {
             // Use quantum period finding to find factors
             let period = self.quantum_period_finding();
 
-            if period % 2 != 0 {
+            if !period.is_multiple_of(2) {
                 // Try again with different base
                 return None;
             }
@@ -827,9 +831,9 @@ pub mod algorithms {
             }
 
             let angle = (m / n).sqrt().asin();
-            let probability = (angle * (2.0 * iterations as f64 + 1.0)).sin().powi(2);
+            
 
-            probability
+            (angle * (2.0 * iterations as f64 + 1.0)).sin().powi(2)
         }
     }
 
@@ -939,12 +943,12 @@ impl QuantumOperator {
         Self::pauli_operator(qubit, total_qubits, "Y", |i, j| {
             let bit_diff = i ^ j;
             if bit_diff == (1 << qubit) {
-                let phase = if (i >> qubit) & 1 == 0 {
+                
+                if (i >> qubit) & 1 == 0 {
                     Complex::new(0.0, -1.0)
                 } else {
                     Complex::new(0.0, 1.0)
-                };
-                phase
+                }
             } else {
                 Complex::zero()
             }

@@ -186,6 +186,12 @@ pub mod meta {
         pub fitness: f64,
     }
 
+    impl Default for MetaCompiler {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
     impl MetaCompiler {
         pub fn new() -> Self {
             MetaCompiler {

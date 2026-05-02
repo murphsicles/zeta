@@ -118,7 +118,7 @@ pub unsafe extern "C" fn atomic_i64_fetch_and(ptr: i64, val: i64) -> i64 {
     if ptr == 0 {
         return 0;
     }
-    unsafe { (*(ptr as *mut AtomicI64)).fetch_and(val, SEQ) as i64 }
+    unsafe { (*(ptr as *mut AtomicI64)).fetch_and(val, SEQ) }
 }
 
 #[unsafe(no_mangle)]
@@ -126,7 +126,7 @@ pub unsafe extern "C" fn atomic_i64_fetch_or(ptr: i64, val: i64) -> i64 {
     if ptr == 0 {
         return 0;
     }
-    unsafe { (*(ptr as *mut AtomicI64)).fetch_or(val, SEQ) as i64 }
+    unsafe { (*(ptr as *mut AtomicI64)).fetch_or(val, SEQ) }
 }
 
 #[unsafe(no_mangle)]
@@ -134,7 +134,7 @@ pub unsafe extern "C" fn atomic_i64_fetch_xor(ptr: i64, val: i64) -> i64 {
     if ptr == 0 {
         return 0;
     }
-    unsafe { (*(ptr as *mut AtomicI64)).fetch_xor(val, SEQ) as i64 }
+    unsafe { (*(ptr as *mut AtomicI64)).fetch_xor(val, SEQ) }
 }
 
 // === AtomicI32 ===

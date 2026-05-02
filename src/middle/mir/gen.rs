@@ -647,8 +647,8 @@ impl MirGen {
                             let stmts_before = self.stmts.len();
 
                             // Map pattern variable to collection[index] in body
-                            if is_simple_var {
-                                if let AstNode::Var(item_name) = &*pattern_clone {
+                            if is_simple_var
+                                && let AstNode::Var(item_name) = &*pattern_clone {
                                     let get_id = self.next_id();
                                     self.stmts.push(MirStmt::Call {
                                         func: "array_get".to_string(),
@@ -660,7 +660,6 @@ impl MirGen {
                                     self.exprs.insert(get_id, MirExpr::Var(get_id));
                                     self.type_map.insert(get_id, Type::I64);
                                 }
-                            }
 
                             for stmt in &body_clone {
                                 self.lower_ast(stmt);
@@ -739,7 +738,7 @@ impl MirGen {
                     self.stmts.push(MirStmt::For {
                         iterator: range_id,
                         pattern: var_name.clone(),
-                        var_id: var_id,
+                        var_id,
                         body: body_stmts,
                     });
                 }
@@ -1492,7 +1491,7 @@ impl MirGen {
                 // SPECIAL HANDLING: pre()/post()/invariant() assertions
                 if (method == "pre" || method == "post" || method == "invariant")
                     && receiver.is_none()
-                    && args.len() >= 1
+                    && !args.is_empty()
                 {
                     let cond_id = self.lower_expr(&args[0]);
                     let message = if args.len() >= 2 {
@@ -1730,7 +1729,7 @@ impl MirGen {
                         && arg_ids
                             .first()
                             .map(|&id| {
-                                self.source_types.get(&id).map_or(false, |st| {
+                                self.source_types.get(&id).is_some_and(|st| {
                                     st.contains("*mut") || st.contains("*const")
                                 })
                             })
@@ -2660,11 +2659,10 @@ impl MirGen {
             }
             AstNode::Unsafe { body } => {
                 // Evaluate the last expression in an unsafe block as the result
-                if let Some(last) = body.last() {
-                    if let AstNode::ExprStmt { expr } = last {
+                if let Some(last) = body.last()
+                    && let AstNode::ExprStmt { expr } = last {
                         return self.lower_expr(expr);
                     }
-                }
                 // Fallback: evaluate the whole body as statements
                 for stmt in body {
                     self.lower_ast(stmt);

@@ -211,7 +211,7 @@ impl DataLoader {
 
     /// Get number of batches
     pub fn num_batches(&self) -> usize {
-        (self.dataset.len() + self.batch_size - 1) / self.batch_size
+        self.dataset.len().div_ceil(self.batch_size)
     }
 }
 
@@ -463,13 +463,12 @@ impl CSVDataset {
         let mut feature_names = Vec::new();
 
         // Read headers if present
-        if has_header {
-            if let Ok(headers) = reader.headers() {
+        if has_header
+            && let Ok(headers) = reader.headers() {
                 for header in headers.iter() {
                     feature_names.push(header.to_string());
                 }
             }
-        }
 
         // Read records
         for result in reader.records() {

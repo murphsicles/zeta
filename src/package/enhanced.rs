@@ -118,7 +118,7 @@ impl DependencyGraph {
         resolver: &DependencyResolver,
         nodes: &mut HashMap<String, DependencyNode>,
     ) {
-        for (dep_name, _) in &manifest.dependencies {
+        for dep_name in manifest.dependencies.keys() {
             if !nodes.contains_key(dep_name) {
                 // Try to resolve the dependency
                 // Note: In a real implementation, this would call resolver.resolve_dependency
@@ -153,11 +153,10 @@ impl DependencyGraph {
                 Self::build_graph(dep_name, &dep_manifest, resolver, nodes);
             } else {
                 // Update reverse dependencies
-                if let Some(node) = nodes.get_mut(dep_name) {
-                    if !node.reverse_dependencies.contains(&current.to_string()) {
+                if let Some(node) = nodes.get_mut(dep_name)
+                    && !node.reverse_dependencies.contains(&current.to_string()) {
                         node.reverse_dependencies.push(current.to_string());
                     }
-                }
             }
         }
     }
@@ -228,7 +227,7 @@ impl DependencyGraph {
             ));
         }
 
-        dot.push_str("\n");
+        dot.push('\n');
 
         // Add edges
         for (name, node) in &self.nodes {
@@ -290,7 +289,7 @@ impl VulnerabilityDatabase {
     pub fn add_vulnerability(&mut self, package_name: String, vulnerability: Vulnerability) {
         self.vulnerabilities
             .entry(package_name)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(vulnerability);
     }
 
@@ -405,7 +404,7 @@ impl PackageSigner {
         // For now, return a dummy signature
         let mut signature = Vec::new();
         signature.extend_from_slice(b"SIGNATURE:");
-        signature.extend_from_slice(&self.signer.as_bytes());
+        signature.extend_from_slice(self.signer.as_bytes());
         signature.extend_from_slice(b":");
         signature.extend_from_slice(&self.private_key[..8]); // First 8 bytes
 

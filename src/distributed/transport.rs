@@ -297,7 +297,6 @@ impl NetworkTransport {
         while *self.running.read().unwrap() {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
-        return;
     }
 
     /// Handle incoming connection

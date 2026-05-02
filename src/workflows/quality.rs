@@ -294,11 +294,10 @@ impl CodeQualityChecker {
                 }
             } else if path.is_file() {
                 // Check Rust and Zeta files
-                if let Some(ext) = path.extension() {
-                    if ext == "rs" || ext == "z" {
+                if let Some(ext) = path.extension()
+                    && (ext == "rs" || ext == "z") {
                         issues.extend(self.check_file(&path));
                     }
-                }
             }
         }
 
@@ -354,7 +353,7 @@ pub fn check_code_quality(
         .filter(|i| i.severity == IssueSeverity::Info)
         .count();
 
-    report.push_str(&format!("## Summary\n\n"));
+    report.push_str("## Summary\n\n");
     report.push_str(&format!("- Total Issues: {}\n", issues.len()));
     report.push_str(&format!("- Critical: {}\n", critical_count));
     report.push_str(&format!("- High: {}\n", high_count));
@@ -390,7 +389,7 @@ pub fn check_code_quality(
                 report.push_str(&format!("- {}\n", issue.format()));
             }
 
-            report.push_str("\n");
+            report.push('\n');
         }
     }
 

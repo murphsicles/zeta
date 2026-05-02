@@ -227,7 +227,6 @@ fn test_advanced_features_integration() {
     println!("Mangled name: {}", mangled);
 
     // All tests pass if we get here
-    assert!(true);
 }
 
 #[test]

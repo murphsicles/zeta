@@ -951,7 +951,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.current_type_map = Some(mir.type_map.clone());
         let all_ids = self.collect_all_local_ids(mir);
         for &id in &all_ids {
-            let alloca = self.builder.build_alloca(self.i64_type, &"").unwrap();
+            let alloca = self.builder.build_alloca(self.i64_type, "").unwrap();
             self.locals.insert(id, alloca);
         }
         for (i, _) in mir.param_indices.iter().enumerate() {
@@ -1402,11 +1402,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
         // println (no-args or with args) maps to println_i64 in the module.
         // The println! macro and user-declared extern fn println(msg: i64)
         // both resolve through this path.
-        if name == "println" {
-            if let Some(f) = self.module.get_function("println_i64") {
+        if name == "println"
+            && let Some(f) = self.module.get_function("println_i64") {
                 return f;
             }
-        }
         // === NEW: handle call_i64 - function call dispatcher ===
         if name == "call_i64"
             && let Some(f) = self.module.get_function("call_i64")
@@ -1529,7 +1528,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         // other user-defined functions to be resolved by the linker at AOT time, or
         // to be provided via the JIT's global mapping table.
         // If we're still in the module definition phase, emit a declaration.
-        if name.contains("::") || !self.module.get_function(name).is_some() {
+        if name.contains("::") || self.module.get_function(name).is_none() {
             // Create a declaration for the function (will be resolved at link time)
             let void_type = self.context.void_type();
             let fn_type = void_type.fn_type(&[self.i64_type.into()], false);
@@ -1706,11 +1705,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 return f;
             }
             // Check host-mapped name
-            if !host_mapped_name.is_empty() {
-                if let Some(f) = self.module.get_function(&host_mapped_name) {
+            if !host_mapped_name.is_empty()
+                && let Some(f) = self.module.get_function(&host_mapped_name) {
                     return f;
                 }
-            }
             // Check bare name in case it's a non-generic runtime function
             if let Some(f) = self.module.get_function(name) {
                 return f;
@@ -2962,10 +2960,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 // Generate then block
                 self.builder.position_at_end(then_bb);
                 let then_ends_with_break =
-                    then.last().map_or(false, |s| matches!(s, MirStmt::Break));
+                    then.last().is_some_and(|s| matches!(s, MirStmt::Break));
                 let then_ends_with_continue = then
                     .last()
-                    .map_or(false, |s| matches!(s, MirStmt::Continue));
+                    .is_some_and(|s| matches!(s, MirStmt::Continue));
                 if then_ends_with_break {
                     for s in &then[..then.len() - 1] {
                         self.gen_stmt(s, exprs);
@@ -2995,10 +2993,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 // Generate else block
                 self.builder.position_at_end(else_bb);
                 let else_ends_with_break =
-                    else_.last().map_or(false, |s| matches!(s, MirStmt::Break));
+                    else_.last().is_some_and(|s| matches!(s, MirStmt::Break));
                 let else_ends_with_continue = else_
                     .last()
-                    .map_or(false, |s| matches!(s, MirStmt::Continue));
+                    .is_some_and(|s| matches!(s, MirStmt::Continue));
                 if else_ends_with_break {
                     for s in &else_[..else_.len() - 1] {
                         self.gen_stmt(s, exprs);
@@ -4041,9 +4039,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
         dest: &u32,
     ) {
         // Handle simd::method names inline — resolve and dispatch directly
-        if func.starts_with("simd::") {
-            let method = &func[6..];
-            let elem_type = if type_args.len() >= 1 {
+        if let Some(method) = func.strip_prefix("simd::") {
+            let elem_type = if !type_args.is_empty() {
                 match &type_args[0] {
                     Type::I32 => "i32",
                     Type::I64 | Type::U64 => "i64",
@@ -4262,7 +4259,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             "sub" => self.builder.build_int_sub(vec_a, vec_b, "vsub").unwrap(),
             "mul" if is_float => self.builder.build_float_mul(vec_a, vec_b, "vmul").unwrap(),
             "mul" => self.builder.build_int_mul(vec_a, vec_b, "vmul").unwrap(),
-            _ => vec_a.into(),
+            _ => vec_a,
         };
         self.builder.build_store(result_alloca, result).unwrap();
     }

@@ -308,11 +308,10 @@ Examples:
         }
 
         // Check target triple format if specified
-        if let Some(triple) = &self.target_triple {
-            if triple.split('-').count() < 3 {
+        if let Some(triple) = &self.target_triple
+            && triple.split('-').count() < 3 {
                 return Err(format!("Invalid target triple: {}", triple));
             }
-        }
 
         Ok(())
     }

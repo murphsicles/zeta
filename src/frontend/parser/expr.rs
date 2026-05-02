@@ -112,7 +112,7 @@ pub fn parse_lit(input: &str) -> IResult<&str, AstNode> {
         {
             let (radix, valid_chars): (u32, fn(u8) -> bool) = match prefix {
                 b'x' | b'X' => (16, |c: u8| c.is_ascii_hexdigit() || c == b'_'),
-                b'o' | b'O' => (8, |c: u8| (c >= b'0' && c <= b'7') || c == b'_'),
+                b'o' | b'O' => (8, |c: u8| (b'0'..=b'7').contains(&c) || c == b'_'),
                 b'b' | b'B' => (2, |c: u8| c == b'0' || c == b'1' || c == b'_'),
                 _ => unreachable!(),
             };
@@ -182,11 +182,11 @@ fn parse_triple_quoted_string(input: &str) -> IResult<&str, AstNode> {
     };
 
     let mut content = String::new();
-    let mut chars = input.chars();
+    let chars = input.chars();
     let mut pos = 0;
     let mut quote_run = 0;
 
-    while let Some(c) = chars.next() {
+    for c in chars {
         pos += c.len_utf8();
         if c == quote_char {
             quote_run += 1;
@@ -281,10 +281,10 @@ fn parse_string_lit(input: &str) -> IResult<&str, AstNode> {
 fn parse_raw_string_lit(input: &str) -> IResult<&str, AstNode> {
     let (input, _) = tag("r\"")(input)?;
     let mut content = String::new();
-    let mut chars = input.chars();
+    let chars = input.chars();
     let mut pos = 0;
 
-    while let Some(c) = chars.next() {
+    for c in chars {
         pos += c.len_utf8();
         if c == '"' {
             let remaining = &input[pos..];
@@ -801,7 +801,7 @@ fn parse_trait_query(input: &str) -> IResult<&str, AstNode> {
     // We pass the type arguments as AstNode::StringLit nodes that represent type names
     let args: Vec<AstNode> = type_args
         .into_iter()
-        .map(|t| AstNode::StringLit(t))
+        .map(AstNode::StringLit)
         .collect();
 
     Ok((
@@ -855,12 +855,11 @@ pub(crate) fn parse_postfix(input: &str) -> IResult<&str, AstNode> {
         // Check if we have a dot
         if pos < bytes.len() && bytes[pos] == b'.' {
             // Check if next character is also dot or equals
-            if pos + 1 < bytes.len() {
-                if bytes[pos + 1] == b'.' {
+            if pos + 1 < bytes.len()
+                && bytes[pos + 1] == b'.' {
                     // This is ".." or "..="
                     is_range_operator = true;
                 }
-            }
         }
 
         // Check if this is a range operator
@@ -981,10 +980,8 @@ fn parse_logical_or(input: &str) -> IResult<&str, AstNode> {
         let (remaining_input, _) = skip_ws_and_comments0(input)?;
 
         // Check for || operator
-        if remaining_input.starts_with("||") {
+        if let Some(after_op) = remaining_input.strip_prefix("||") {
             // Consume ||
-            let after_op = &remaining_input[2..];
-
             // Skip whitespace after ||
             let (after_ws, _) = skip_ws_and_comments0(after_op)?;
 

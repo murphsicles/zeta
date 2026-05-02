@@ -228,8 +228,8 @@ impl MacroExpander {
             match &pattern[pattern_idx] {
                 MacroToken::Ident(name) => {
                     // Check if it's a pattern variable like $x:expr
-                    if name.starts_with('$') {
-                        let var_name = &name[1..]; // Remove $
+                    if let Some(var_name) = name.strip_prefix('$') {
+                        // Remove $
 
                         // Check for fragment specifier
                         let specifier = if let Some(colon_idx) = var_name.find(':') {
@@ -276,16 +276,14 @@ impl MacroExpander {
 
                     // Check repetition bounds
                     let count = matched_args.len();
-                    if let Some(min_count) = min {
-                        if count < *min_count {
+                    if let Some(min_count) = min
+                        && count < *min_count {
                             return None;
                         }
-                    }
-                    if let Some(max_count) = max {
-                        if count > *max_count {
+                    if let Some(max_count) = max
+                        && count > *max_count {
                             return None;
                         }
-                    }
 
                     // Store the matched arguments
                     // For now, use a placeholder name
@@ -318,8 +316,7 @@ impl MacroExpander {
         for token in expansion {
             match token {
                 MacroToken::Ident(name) => {
-                    if name.starts_with('$') {
-                        let var_name = &name[1..];
+                    if let Some(var_name) = name.strip_prefix('$') {
                         if let Some(bound_args) = bindings.get(var_name) {
                             result.extend(bound_args.clone());
                         } else {

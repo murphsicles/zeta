@@ -192,13 +192,13 @@ pub unsafe extern "C" fn vector_mul_u64x8(a: i64, b: i64) -> i64 {
 /// index must be in range 0..8
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn vector_get_u64x8(ptr: i64, index: i64) -> i64 {
-    if ptr == 0 || index < 0 || index >= 8 {
+    if ptr == 0 || !(0..8).contains(&index) {
         return 0;
     }
 
     let vec_ptr = ptr as *const VectorU64x8;
     let data = unsafe { &(*vec_ptr).data };
-    data[index as usize] as i64
+    data[index as usize]
 }
 
 /// Set element in Vector<u64, 8>
@@ -208,7 +208,7 @@ pub unsafe extern "C" fn vector_get_u64x8(ptr: i64, index: i64) -> i64 {
 /// index must be in range 0..8
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn vector_set_u64x8(ptr: i64, index: i64, value: i64) {
-    if ptr == 0 || index < 0 || index >= 8 {
+    if ptr == 0 || !(0..8).contains(&index) {
         return;
     }
 
@@ -302,7 +302,7 @@ pub unsafe extern "C" fn vector_mul_i32x4(a: i64, b: i64) -> i64 {
 /// index must be in range 0..4
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn vector_get_i32x4(ptr: i64, index: i64) -> i64 {
-    if ptr == 0 || index < 0 || index >= 4 {
+    if ptr == 0 || !(0..4).contains(&index) {
         return 0;
     }
 
@@ -318,7 +318,7 @@ pub unsafe extern "C" fn vector_get_i32x4(ptr: i64, index: i64) -> i64 {
 /// index must be in range 0..4
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn vector_set_i32x4(ptr: i64, index: i64, value: i64) {
-    if ptr == 0 || index < 0 || index >= 4 {
+    if ptr == 0 || !(0..4).contains(&index) {
         return;
     }
 

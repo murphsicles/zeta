@@ -370,7 +370,6 @@ impl DiagnosticReporter {
                 match warning_level {
                     WarningLevel::Allow => {
                         // Don't add the warning
-                        return;
                     }
                     WarningLevel::Warn => {
                         // Add as warning

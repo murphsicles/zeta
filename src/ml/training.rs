@@ -111,11 +111,10 @@ impl LossFunction for CrossEntropyLoss {
         let target_data = targets.data();
 
         for (i, &target) in target_data.iter().enumerate() {
-            if let Some(ignore_idx) = self.ignore_index {
-                if target as usize == ignore_idx {
+            if let Some(ignore_idx) = self.ignore_index
+                && target as usize == ignore_idx {
                     continue;
                 }
-            }
 
             // Simplified: loss = -log(softmax(prediction)[target])
             // For now, use a placeholder
@@ -428,7 +427,7 @@ impl Trainer {
 
                 // Save best model
                 if let Some(ref dir) = self.checkpoint_dir {
-                    self.save_checkpoint(&format!("{}/best_model", dir)).ok();
+                    self.save_checkpoint(format!("{}/best_model", dir)).ok();
                 }
             } else {
                 self.patience_counter += 1;
@@ -438,9 +437,9 @@ impl Trainer {
         // Save checkpoint
         if let Some(ref dir) = self.checkpoint_dir {
             let epoch = self.metrics.train_loss.len();
-            if epoch % 5 == 0 {
+            if epoch.is_multiple_of(5) {
                 // Save every 5 epochs
-                self.save_checkpoint(&format!("{}/epoch_{}", dir, epoch))
+                self.save_checkpoint(format!("{}/epoch_{}", dir, epoch))
                     .ok();
             }
         }

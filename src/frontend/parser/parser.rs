@@ -191,20 +191,20 @@ pub fn parse_array_type(input: &str) -> IResult<&str, String> {
 
     // First, try dynamic array (special case: [dynamic]T)
     match parse_dynamic_array(original_input) {
-        Ok(result) => return Ok(result),
+        Ok(result) => Ok(result),
         Err(_) => {
             // Dynamic array failed, try PrimeZeta style first (for [limit]bool syntax)
             match parse_primezeta_array(original_input) {
                 Ok((remaining, (size, elem_type))) => {
-                    return Ok((remaining, format!("[{}; {}]", elem_type, size)));
+                    Ok((remaining, format!("[{}; {}]", elem_type, size)))
                 }
                 Err(_) => {
                     // PrimeZeta style failed, try Zeta style
                     match parse_zeta_array(original_input) {
-                        Ok(result) => return Ok(result),
+                        Ok(result) => Ok(result),
                         Err(e) => {
                             // All failed, return the error
-                            return Err(e);
+                            Err(e)
                         }
                     }
                 }
@@ -716,9 +716,9 @@ fn parse_attribute_content(input: &str) -> IResult<&str, String> {
     let mut in_string = false;
     let mut escape_next = false;
     let mut result = String::new();
-    let mut chars = input.char_indices();
+    let chars = input.char_indices();
 
-    while let Some((i, c)) = chars.next() {
+    for (i, c) in chars {
         match c {
             '[' if !in_string => {
                 depth += 1;
@@ -754,9 +754,9 @@ fn parse_attribute_content(input: &str) -> IResult<&str, String> {
 
 fn parse_angle_bracketed_content_inner_slice(input: &str) -> IResult<&str, &str> {
     let mut depth = 1;
-    let mut chars = input.char_indices();
+    let chars = input.char_indices();
 
-    while let Some((i, c)) = chars.next() {
+    for (i, c) in chars {
         match c {
             '<' => depth += 1,
             '>' => {
@@ -780,9 +780,9 @@ fn parse_angle_bracketed_content_inner_slice(input: &str) -> IResult<&str, &str>
 fn parse_angle_bracketed_content(input: &str) -> IResult<&str, String> {
     let mut depth = 0;
     let mut result = String::new();
-    let mut chars = input.char_indices();
+    let chars = input.char_indices();
 
-    while let Some((i, c)) = chars.next() {
+    for (i, c) in chars {
         match c {
             '<' => {
                 depth += 1;
@@ -812,9 +812,9 @@ fn parse_angle_bracketed_content(input: &str) -> IResult<&str, String> {
 fn parse_angle_bracketed_content_inner(input: &str) -> IResult<&str, String> {
     let mut depth = 1;
     let mut result = String::new();
-    let mut chars = input.char_indices();
+    let chars = input.char_indices();
 
-    while let Some((i, c)) = chars.next() {
+    for (i, c) in chars {
         match c {
             '<' => {
                 depth += 1;

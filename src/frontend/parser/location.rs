@@ -14,6 +14,12 @@ pub struct Position {
     pub column: usize, // 1-indexed column number
 }
 
+impl Default for Position {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Position {
     pub fn new() -> Self {
         Self {

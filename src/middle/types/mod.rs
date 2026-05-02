@@ -413,8 +413,8 @@ impl Type {
                 }
 
                 // Check for identity type shorthand: string[identity:read] or string[identity:read+write]
-                if let Some(base_end) = s.find('[') {
-                    if s[base_end..].contains("identity:") {
+                if let Some(base_end) = s.find('[')
+                    && s[base_end..].contains("identity:") {
                         // Parse base type (should be "string")
                         let base = &s[..base_end];
                         // Extract the part inside brackets
@@ -443,7 +443,6 @@ impl Type {
                             }));
                         }
                     }
-                }
 
                 // Check for array type: [T; N] or [dynamic]T
                 if s.starts_with('[') && s.ends_with(']') {
@@ -1371,15 +1370,10 @@ impl Substitution {
             }
 
             // Expressions are more complex - for now, require exact match
-            (ArraySize::Expr(e1), ArraySize::Expr(e2)) => {
-                if e1 == e2 {
+            (ArraySize::Expr(e1), ArraySize::Expr(e2))
+                if e1 == e2 => {
                     Ok(())
-                } else {
-                    let t1 = Type::Array(Box::new(Type::Error), size1.clone());
-                    let t2 = Type::Array(Box::new(Type::Error), size2.clone());
-                    Err(UnifyError::Mismatch(t1, t2))
                 }
-            }
 
             // Mixed expression with literal/const - for now, don't unify
             // In a full implementation, we'd need to evaluate/simplify expressions
@@ -1701,7 +1695,7 @@ impl Substitution {
                     // Both are concrete - check capability compatibility
                     // For identity types, unification succeeds if either can substitute the other
                     // This allows for capability subtyping (e.g., read+write can substitute read)
-                    if id1.can_substitute(&id2) || id2.can_substitute(&id1) {
+                    if id1.can_substitute(id2) || id2.can_substitute(id1) {
                         Ok(())
                     } else {
                         Err(UnifyError::Mismatch(t1, t2))

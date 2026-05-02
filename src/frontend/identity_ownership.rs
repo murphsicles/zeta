@@ -120,6 +120,12 @@ pub struct IdentityAwareBorrowChecker {
     errors: Vec<String>,
 }
 
+impl Default for IdentityAwareBorrowChecker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl IdentityAwareBorrowChecker {
     pub fn new() -> Self {
         Self {

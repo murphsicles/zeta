@@ -126,8 +126,7 @@ impl InferContext {
         // Check for array/slice type
         if s.starts_with('[') {
             // Check for dynamic array: [dynamic]T (special case, doesn't end with ])
-            if s.starts_with("[dynamic]") {
-                let type_part = &s["[dynamic]".len()..];
+            if let Some(type_part) = s.strip_prefix("[dynamic]") {
                 let inner_type = self.parse_type_string(type_part.trim())?;
                 return Ok(Type::DynamicArray(Box::new(inner_type)));
             }
@@ -920,13 +919,13 @@ impl InferContext {
                         AstNode::ExprStmt { expr } => {
                             // Re-infer the expression type (we already have it from earlier inference)
                             // But we need to get the type of the expression, not the statement
-                            let expr_ty = self.infer(expr)?;
-                            expr_ty
+                            
+                            self.infer(expr)?
                         }
                         AstNode::Return(expr) => {
                             // Return statement: use the inner expression's type
-                            let expr_ty = self.infer(expr)?;
-                            expr_ty
+                            
+                            self.infer(expr)?
                         }
                         _ => last_stmt_type,
                     };
@@ -1642,13 +1641,13 @@ impl InferContext {
                     match last_node {
                         AstNode::ExprStmt { expr } => {
                             // Expression statement: the block's value is the expression's type
-                            let ty = self.infer(expr);
-                            ty
+                            
+                            self.infer(expr)
                         }
                         _ => {
                             // Any other statement: block's type is the statement's type
-                            let ty = self.infer(last_node);
-                            ty
+                            
+                            self.infer(last_node)
                         }
                     }
                 }

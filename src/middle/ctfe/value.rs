@@ -254,14 +254,14 @@ impl ConstValue {
             "|" => Ok(left | right),
             "^" => Ok(left ^ right),
             "<<" => {
-                if right < 0 || right >= 64 {
+                if !(0..64).contains(&right) {
                     Err(CtfeError::Overflow)
                 } else {
                     Ok(left.wrapping_shl(right as u32))
                 }
             }
             ">>" => {
-                if right < 0 || right >= 64 {
+                if !(0..64).contains(&right) {
                     Err(CtfeError::Overflow)
                 } else {
                     Ok(left.wrapping_shr(right as u32))

@@ -73,7 +73,7 @@ pub unsafe extern "C" fn process_output_stdout(output: i64) -> i64 {
     if let Some(o) = outputs.get(&output) {
         let c = CString::new(String::from_utf8_lossy(&o.stdout).as_ref()).unwrap();
         let len = c.as_bytes_with_nul().len();
-        let ptr = unsafe { crate::runtime::std::std_malloc(len as usize) };
+        let ptr = unsafe { crate::runtime::std::std_malloc(len) };
         if ptr != 0 {
             unsafe {
                 std::ptr::copy_nonoverlapping(c.as_ptr(), ptr as *mut i8, len);
@@ -91,7 +91,7 @@ pub unsafe extern "C" fn process_output_stderr(output: i64) -> i64 {
     if let Some(o) = outputs.get(&output) {
         let c = CString::new(String::from_utf8_lossy(&o.stderr).as_ref()).unwrap();
         let len = c.as_bytes_with_nul().len();
-        let ptr = unsafe { crate::runtime::std::std_malloc(len as usize) };
+        let ptr = unsafe { crate::runtime::std::std_malloc(len) };
         if ptr != 0 {
             unsafe {
                 std::ptr::copy_nonoverlapping(c.as_ptr(), ptr as *mut i8, len);

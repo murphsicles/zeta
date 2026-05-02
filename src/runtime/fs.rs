@@ -7,7 +7,7 @@ use std::path::Path;
 fn to_cstring_ptr(s: &str) -> i64 {
     let c = CString::new(s).unwrap();
     let len = c.as_bytes_with_nul().len();
-    let ptr = unsafe { crate::runtime::std::std_malloc(len as usize) };
+    let ptr = unsafe { crate::runtime::std::std_malloc(len) };
     if ptr == 0 {
         return 0;
     }

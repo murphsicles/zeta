@@ -186,14 +186,12 @@ impl Worker {
                 // Try to steal work from other workers
                 let workers = system.workers.lock().unwrap();
                 for other_worker in workers.iter() {
-                    if other_worker.id != self.id {
-                        if let Some(task) = other_worker.deque.steal() {
-                            if task.state() != TaskState::Completed {
+                    if other_worker.id != self.id
+                        && let Some(task) = other_worker.deque.steal()
+                            && task.state() != TaskState::Completed {
                                 let _ = task.poll();
                                 break;
                             }
-                        }
-                    }
                 }
 
                 // No work available, yield

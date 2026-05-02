@@ -417,7 +417,7 @@ impl Resolver {
     #[allow(clippy::type_complexity)]
     pub fn get_func_signature(&self, name: &str) -> Option<&(Vec<(String, Type)>, Type, bool)> {
         let result = self.funcs.get(name);
-        if result.is_none() {}
+        result.is_none();
         result
     }
 
@@ -730,7 +730,7 @@ impl Resolver {
 
     /// Get all registered function ASTs
     pub fn get_registered_funcs(&self) -> Vec<AstNode> {
-        for (name, _) in &self.registered_funcs {}
+        for name in self.registered_funcs.keys() {}
         self.registered_funcs.values().cloned().collect()
     }
 

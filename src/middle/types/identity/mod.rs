@@ -141,14 +141,13 @@ impl IdentityType {
 
         // Check constraints
         for (param, arg) in self.type_params.iter().zip(type_args.iter()) {
-            if let Some(constraint) = &param.constraint {
-                if !arg.satisfies_constraint(constraint) {
+            if let Some(constraint) = &param.constraint
+                && !arg.satisfies_constraint(constraint) {
                     return Err(format!(
                         "Type argument {} does not satisfy constraint {}",
                         arg, constraint
                     ));
                 }
-            }
         }
 
         Ok(Self {
@@ -400,11 +399,10 @@ impl IdentityContext {
     /// Unify two identity types
     pub fn unify(&self, t1: &IdentityType, t2: &IdentityType) -> Option<IdentityType> {
         // If both have values, they must match
-        if let (Some(v1), Some(v2)) = (&t1.value, &t2.value) {
-            if v1 != v2 {
+        if let (Some(v1), Some(v2)) = (&t1.value, &t2.value)
+            && v1 != v2 {
                 return None;
             }
-        }
 
         // Take the union of capabilities
         let mut capabilities = t1.capabilities.clone();

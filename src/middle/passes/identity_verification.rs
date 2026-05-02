@@ -254,14 +254,13 @@ impl IdentityVerificationPass {
     /// Check assignment for identity capabilities
     fn check_assignment_for_identity(&mut self, target: &AstNode, value: &AstNode) {
         // Check if we're assigning to something that looks like an identity
-        if let AstNode::Var(name) = target {
-            if name.starts_with("identity_") || name.ends_with("_id") || name.ends_with("_token") {
+        if let AstNode::Var(name) = target
+            && (name.starts_with("identity_") || name.ends_with("_id") || name.ends_with("_token")) {
                 self.warnings.push(format!(
                     "Assignment to identity-like variable '{}' - capability transfer may be needed",
                     name
                 ));
             }
-        }
 
         // Check if we're assigning an identity-like string
         if let AstNode::StringLit(value_str) = value {
@@ -287,17 +286,16 @@ impl IdentityVerificationPass {
 
             // Check if any arguments look like identities
             for arg in args {
-                if let AstNode::Var(name) = arg {
-                    if name.starts_with("identity_")
+                if let AstNode::Var(name) = arg
+                    && (name.starts_with("identity_")
                         || name.ends_with("_id")
-                        || name.ends_with("_token")
+                        || name.ends_with("_token"))
                     {
                         self.warnings.push(format!(
                             "Argument '{}' to function '{}' appears to be an identity - ensure it has required capabilities",
                             name, func_name
                         ));
                     }
-                }
             }
         }
     }
@@ -307,8 +305,8 @@ impl IdentityVerificationPass {
         // Parse capability constraints from type string
         if type_str.contains("[identity:") {
             // Extract capability list
-            if let Some(start) = type_str.find("[identity:") {
-                if let Some(end) = type_str[start..].find(']') {
+            if let Some(start) = type_str.find("[identity:")
+                && let Some(end) = type_str[start..].find(']') {
                     let constraint_str = &type_str[start + 9..start + end];
                     let capabilities: Vec<&str> = constraint_str.split('+').collect();
 
@@ -319,7 +317,6 @@ impl IdentityVerificationPass {
                         ));
                     }
                 }
-            }
         }
     }
 

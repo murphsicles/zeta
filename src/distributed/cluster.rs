@@ -547,11 +547,10 @@ impl LoadBalancer {
     /// Decrement connection count for node
     pub fn decrement_connections(&self, node_id: NodeId) {
         let mut counts = self.connection_counts.write().unwrap();
-        if let Some(count) = counts.get_mut(&node_id) {
-            if *count > 0 {
+        if let Some(count) = counts.get_mut(&node_id)
+            && *count > 0 {
                 *count -= 1;
             }
-        }
     }
 }
 
@@ -572,7 +571,7 @@ impl ServiceDiscovery {
     /// Register service on node
     pub fn register_service(&self, service_name: String, node: NodeInfo) -> Result<(), String> {
         let mut services = self.services.write().unwrap();
-        let entry = services.entry(service_name).or_insert_with(Vec::new);
+        let entry = services.entry(service_name).or_default();
         entry.push(node);
         Ok(())
     }
@@ -593,8 +592,7 @@ impl ServiceDiscovery {
     pub fn discover_service(&self, service_name: &str) -> Vec<NodeInfo> {
         let services = self.services.read().unwrap();
         services
-            .get(service_name)
-            .map(|nodes| nodes.clone())
+            .get(service_name).cloned()
             .unwrap_or_default()
     }
 

@@ -309,7 +309,7 @@ impl Dropout {
     /// Create a new dropout layer
     pub fn new(p: f32) -> Self {
         assert!(
-            p >= 0.0 && p <= 1.0,
+            (0.0..=1.0).contains(&p),
             "Dropout probability must be between 0 and 1"
         );
         Dropout { p, training: true }

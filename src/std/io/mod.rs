@@ -162,10 +162,7 @@ pub unsafe extern "C" fn io_write(data_ptr: *const u8, data_len: usize) -> isize
 /// Flushes standard output.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn io_flush() -> bool {
-    match io::stdout().flush() {
-        Ok(_) => true,
-        Err(_) => false,
-    }
+    io::stdout().flush().is_ok()
 }
 
 // ============================================================================

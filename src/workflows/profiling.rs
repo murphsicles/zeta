@@ -230,8 +230,8 @@ impl Profiler {
         f: F,
     ) -> ProfileResult
     where
-        S: Fn() -> (),
-        T: Fn() -> (),
+        S: Fn(),
+        T: Fn(),
         F: Fn() -> R,
     {
         let mut result = ProfileResult::new(name);

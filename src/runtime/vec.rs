@@ -12,7 +12,7 @@ use std::ptr;
 pub unsafe extern "C" fn zeta_vec_new(capacity: i64) -> i64 { unsafe {
     let cap = if capacity < 4 { 4 } else { capacity };
     let total = 16 + (cap as usize) * 8;
-    let raw = std_malloc(total as usize);
+    let raw = std_malloc(total);
     if raw == 0 {
         return 0;
     }

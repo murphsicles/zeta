@@ -73,21 +73,20 @@ impl IdentityInferenceContext {
                 IdentityConstraint::Pattern(pattern) => {
                     // Apply pattern constraint to all type variables with known values
                     for (_, identity_type) in self.type_vars.iter_mut() {
-                        if let Some(value) = &identity_type.value {
-                            if !value.contains(pattern) {
+                        if let Some(value) = &identity_type.value
+                            && !value.contains(pattern) {
                                 self.errors.push(format!(
                                     "Identity value '{}' does not match pattern '{}'",
                                     value, pattern
                                 ));
                             }
-                        }
                     }
                 }
                 IdentityConstraint::MaxLength(max) => {
                     // Apply max length constraint
                     for (name, identity_type) in self.type_vars.iter_mut() {
-                        if let Some(value) = &identity_type.value {
-                            if value.len() > *max {
+                        if let Some(value) = &identity_type.value
+                            && value.len() > *max {
                                 self.errors.push(format!(
                                     "Identity '{}' length {} exceeds maximum {}",
                                     name,
@@ -95,14 +94,13 @@ impl IdentityInferenceContext {
                                     max
                                 ));
                             }
-                        }
                     }
                 }
                 IdentityConstraint::MinLength(min) => {
                     // Apply min length constraint
                     for (name, identity_type) in self.type_vars.iter_mut() {
-                        if let Some(value) = &identity_type.value {
-                            if value.len() < *min {
+                        if let Some(value) = &identity_type.value
+                            && value.len() < *min {
                                 self.errors.push(format!(
                                     "Identity '{}' length {} is less than minimum {}",
                                     name,
@@ -110,7 +108,6 @@ impl IdentityInferenceContext {
                                     min
                                 ));
                             }
-                        }
                     }
                 }
                 IdentityConstraint::Capability(required_cap) => {
@@ -203,7 +200,7 @@ impl IdentityInferenceRules for IdentityContext {
             }
             IdentityOp::Delegate => {
                 // Delegate requires owned identity and returns delegated identity
-                if args.len() >= 1 {
+                if !args.is_empty() {
                     let mut delegated = args[0].clone();
                     delegated.delegatable = true;
                     Some(delegated.downgrade(vec![CapabilityLevel::Owned]))
@@ -254,7 +251,7 @@ impl IdentityInferenceRules for IdentityContext {
             }
             IdentityOp::Verify => {
                 // Verify requires at least one identity to verify
-                if args.len() >= 1 {
+                if !args.is_empty() {
                     Ok(())
                 } else {
                     Err("Verify operation requires at least one identity".to_string())
@@ -262,7 +259,7 @@ impl IdentityInferenceRules for IdentityContext {
             }
             IdentityOp::Delegate => {
                 // Delegate requires owned capability
-                if args.len() >= 1 && args[0].has_capability(CapabilityLevel::Owned) {
+                if !args.is_empty() && args[0].has_capability(CapabilityLevel::Owned) {
                     Ok(())
                 } else {
                     Err("Delegate operation requires owned identity".to_string())
@@ -270,7 +267,7 @@ impl IdentityInferenceRules for IdentityContext {
             }
             IdentityOp::Revoke => {
                 // Revoke requires owned capability
-                if args.len() >= 1 && args[0].has_capability(CapabilityLevel::Owned) {
+                if !args.is_empty() && args[0].has_capability(CapabilityLevel::Owned) {
                     Ok(())
                 } else {
                     Err("Revoke operation requires owned identity".to_string())
@@ -286,7 +283,7 @@ impl IdentityInferenceRules for IdentityContext {
             }
             IdentityOp::Split => {
                 // Split requires at least one identity
-                if args.len() >= 1 {
+                if !args.is_empty() {
                     Ok(())
                 } else {
                     Err("Split operation requires at least one identity".to_string())

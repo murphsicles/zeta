@@ -48,54 +48,43 @@ pub fn handle_initialized(state: &mut ServerState) -> LspResult<()> {
 
 /// Handle textDocument/didOpen notification
 pub fn handle_did_open(notification: Notification, state: &mut ServerState) -> LspResult<()> {
-    if let Some(params) = notification.params.as_object() {
-        if let Some(text_document) = params.get("textDocument") {
-            if let Some(uri) = text_document.get("uri").and_then(Value::as_str) {
-                if let Some(text) = text_document.get("text").and_then(Value::as_str) {
+    if let Some(params) = notification.params.as_object()
+        && let Some(text_document) = params.get("textDocument")
+            && let Some(uri) = text_document.get("uri").and_then(Value::as_str)
+                && let Some(text) = text_document.get("text").and_then(Value::as_str) {
                     log::info!("Document opened: {}", uri);
                     state.documents.insert(uri.to_string(), text.to_string());
                 }
-            }
-        }
-    }
     Ok(())
 }
 
 /// Handle textDocument/didChange notification
 pub fn handle_did_change(notification: Notification, state: &mut ServerState) -> LspResult<()> {
-    if let Some(params) = notification.params.as_object() {
-        if let Some(text_document) = params.get("textDocument") {
-            if let Some(uri) = text_document.get("uri").and_then(Value::as_str) {
-                if let Some(content_changes) = params.get("contentChanges") {
-                    if let Some(changes) = content_changes.as_array() {
-                        if !changes.is_empty() {
+    if let Some(params) = notification.params.as_object()
+        && let Some(text_document) = params.get("textDocument")
+            && let Some(uri) = text_document.get("uri").and_then(Value::as_str)
+                && let Some(content_changes) = params.get("contentChanges")
+                    && let Some(changes) = content_changes.as_array()
+                        && !changes.is_empty() {
                             // For full sync, take the last change
-                            if let Some(last_change) = changes.last() {
-                                if let Some(text) = last_change.get("text").and_then(Value::as_str)
+                            if let Some(last_change) = changes.last()
+                                && let Some(text) = last_change.get("text").and_then(Value::as_str)
                                 {
                                     log::debug!("Document changed: {}", uri);
                                     state.documents.insert(uri.to_string(), text.to_string());
                                 }
-                            }
                         }
-                    }
-                }
-            }
-        }
-    }
     Ok(())
 }
 
 /// Handle textDocument/didClose notification
 pub fn handle_did_close(notification: Notification, state: &mut ServerState) -> LspResult<()> {
-    if let Some(params) = notification.params.as_object() {
-        if let Some(text_document) = params.get("textDocument") {
-            if let Some(uri) = text_document.get("uri").and_then(Value::as_str) {
+    if let Some(params) = notification.params.as_object()
+        && let Some(text_document) = params.get("textDocument")
+            && let Some(uri) = text_document.get("uri").and_then(Value::as_str) {
                 log::info!("Document closed: {}", uri);
                 state.documents.remove(uri);
             }
-        }
-    }
     Ok(())
 }
 

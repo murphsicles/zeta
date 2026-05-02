@@ -430,13 +430,10 @@ pub fn strength_reduction(mir: &mut Mir) {
     for (id, expr) in mir.exprs.iter_mut() {
         // This would be more comprehensive in a real implementation
         // For now, we'll just mark where strength reduction could be applied
-        match expr {
-            MirExpr::Lit(value) => {
-                // Check if this is used in multiplication/division
-                // In a full implementation, we'd track uses and replace
-                // x * 2 with x << 1, x / 4 with x >> 2, etc.
-            }
-            _ => {}
+        if let MirExpr::Lit(value) = expr {
+            // Check if this is used in multiplication/division
+            // In a full implementation, we'd track uses and replace
+            // x * 2 with x << 1, x / 4 with x >> 2, etc.
         }
     }
 }
@@ -444,12 +441,7 @@ pub fn strength_reduction(mir: &mut Mir) {
 /// Algebraic simplification
 pub fn algebraic_simplification(mir: &mut Mir) {
     for (id, expr) in mir.exprs.iter_mut() {
-        match expr {
-            // x * 0 = 0, x * 1 = x, 0 * x = 0, 1 * x = x
-            // x + 0 = x, 0 + x = x
-            // These would be implemented when we have binary operations in MIR
-            _ => {}
-        }
+        {}
     }
 }
 

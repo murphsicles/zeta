@@ -31,8 +31,7 @@ pub unsafe extern "C" fn std_malloc(size: usize) -> i64 {
     }
 
     // Create vector with capacity, leak it to get pointer
-    let mut vec = Vec::<u8>::with_capacity(size);
-    vec.resize(size, 0);
+    let mut vec = vec![0; size];
     let ptr = vec.as_mut_ptr();
     std::mem::forget(vec); // Leak memory - caller must free with std_free
 
@@ -125,7 +124,7 @@ pub unsafe extern "C" fn std_args() -> *mut *mut u8 {
 pub unsafe extern "C" fn std_calloc(count: i64, size: i64) -> i64 {
     // For now, return a dummy pointer
     // In a real implementation, this would allocate zero-initialized memory
-    0x2000 as i64
+    0x2000_i64
 }
 
 /// Reallocates memory.
@@ -171,7 +170,7 @@ pub unsafe extern "C" fn std_realloc(ptr: i64, new_size: i64) -> i64 { unsafe {
 pub unsafe extern "C" fn dynamic_array_new() -> i64 {
     // Allocate memory for array structure (capacity, length, data pointer)
     // For now, return a dummy pointer
-    0x4000 as i64
+    0x4000_i64
 }
 
 /// Pushes a value onto a dynamic array.
@@ -400,7 +399,7 @@ pub unsafe extern "C" fn simd_store_i32x4(ptr: i64, vec: i64) {
 /// Requires SSE4.1 support (for _mm_extract_epi32)
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn simd_extract_i32x4(vec: i64, index: i64) -> i64 {
-    if vec == 0 || index < 0 || index >= 4 {
+    if vec == 0 || !(0..4).contains(&index) {
         return 0;
     }
 
@@ -429,7 +428,7 @@ pub unsafe extern "C" fn simd_extract_i32x4(vec: i64, index: i64) -> i64 {
 /// Requires SSE4.1 support (for _mm_insert_epi32)
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn simd_insert_i32x4(vec: i64, value: i64, index: i64) -> i64 {
-    if vec == 0 || index < 0 || index >= 4 {
+    if vec == 0 || !(0..4).contains(&index) {
         return 0;
     }
 

@@ -325,11 +325,10 @@ impl TypeFamilyContext {
         match ty {
             Type::Named(name, args) => {
                 // Check if this is a type variable in the substitution
-                if args.is_empty() {
-                    if let Some(subst_ty) = substitution.get(name) {
+                if args.is_empty()
+                    && let Some(subst_ty) = substitution.get(name) {
                         return subst_ty.clone();
                     }
-                }
 
                 // Apply substitution to arguments
                 let new_args = args

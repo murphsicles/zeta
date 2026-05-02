@@ -3,7 +3,7 @@
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn char_is_digit(ch: i64) -> i64 {
     char::from_u32(ch as u32)
-        .map(|c| c.is_digit(10) as i64)
+        .map(|c| c.is_ascii_digit() as i64)
         .unwrap_or(0)
 }
 

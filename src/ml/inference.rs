@@ -292,7 +292,7 @@ impl Pruner {
     /// Create a new pruner
     pub fn new(sparsity: f32, method: PruningMethod) -> Self {
         assert!(
-            sparsity >= 0.0 && sparsity <= 1.0,
+            (0.0..=1.0).contains(&sparsity),
             "Sparsity must be between 0 and 1"
         );
         Pruner { sparsity, method }

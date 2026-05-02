@@ -222,7 +222,7 @@ impl ActorSystem {
 
         // Record parent-child relationship
         let mut children = self.children.write().unwrap();
-        children.entry(parent).or_insert_with(Vec::new).push(id);
+        children.entry(parent).or_default().push(id);
 
         // Spawn actor task
         let system_clone = Arc::clone(&system);
@@ -337,6 +337,12 @@ pub struct EchoActor {
     received: usize,
 }
 
+impl Default for EchoActor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EchoActor {
     pub fn new() -> Self {
         Self { received: 0 }
@@ -380,6 +386,12 @@ impl Actor for EchoActor {
 /// Worker actor for processing tasks
 pub struct WorkerActor {
     processed: usize,
+}
+
+impl Default for WorkerActor {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl WorkerActor {

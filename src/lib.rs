@@ -5,9 +5,23 @@
 //! This crate provides a complete pipeline:
 
 #![allow(dead_code)]
+#![allow(unused_must_use)]
 #![allow(unused_imports)]
 #![allow(unreachable_patterns)]
 #![allow(unused_unsafe)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::type_complexity)]
+#![allow(clippy::new_without_default)]
+#![allow(clippy::if_same_then_else)]
+#![allow(clippy::manual_strip)]
+#![allow(clippy::large_enum_variant)]
+#![allow(clippy::needless_pass_by_value)]
+#![allow(clippy::cast_lossless)]
+#![allow(clippy::unnecessary_cast)]
+#![allow(clippy::vec_init_then_push)]
+#![allow(clippy::assertions_on_constants)]
+#![allow(clippy::len_without_is_empty)]
+#![allow(clippy::should_implement_trait)]
 //!   1. Parsing â†’ AST
 //!   2. Resolution + monomorphization + MIR lowering
 //!   3. LLVM code generation + JIT/AOT
@@ -16,6 +30,21 @@
 
 #![allow(clippy::missing_safety_doc)]
 #![allow(unused_variables)]
+#![allow(clippy::cloned_ref_to_slice_refs)]
+#![allow(clippy::collapsible_if)]
+#![allow(clippy::collapsible_match)]
+#![allow(clippy::doc_lazy_continuation)]
+#![allow(clippy::empty_line_after_doc_comments)]
+#![allow(clippy::explicit_counter_loop)]
+#![allow(clippy::manual_clamp)]
+#![allow(clippy::match_like_matches_macro)]
+#![allow(clippy::needless_range_loop)]
+#![allow(clippy::new_ret_no_self)]
+#![allow(clippy::nonminimal_bool)]
+#![allow(clippy::only_used_in_recursion)]
+#![allow(clippy::result_large_err)]
+#![allow(clippy::unnecessary_get_then_check)]
+#![allow(clippy::unnecessary_sort_by)]
 //! Every line is optimized for speed, simplicity, and clarity.
 
 pub mod backend;

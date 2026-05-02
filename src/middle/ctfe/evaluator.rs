@@ -32,7 +32,7 @@ impl ConstEvaluator {
                 Self::contains_variable(left) || Self::contains_variable(right)
             }
             AstNode::UnaryOp { expr, .. } => Self::contains_variable(expr),
-            AstNode::Call { args, .. } => args.iter().any(|a| Self::contains_variable(a)),
+            AstNode::Call { args, .. } => args.iter().any(Self::contains_variable),
             AstNode::Subscript { base, index, .. } => {
                 Self::contains_variable(base) || Self::contains_variable(index)
             }
@@ -59,12 +59,9 @@ impl ConstEvaluator {
                 comptime_,
                 ..
             } = ast
-            {
-                if *const_ || *comptime_ {
+                && (*const_ || *comptime_) {
                     self.context.register_function(name.clone(), ast.clone());
-                }
-            } else {
-            }
+                } 
         }
 
         // Second pass: evaluate constants and transform AST
@@ -319,17 +316,16 @@ impl ConstEvaluator {
                 // is actually invoked.
                 if receiver.is_none() {
                     let func_opt = self.context.get_function(method);
-                    if let Some(func) = func_opt {
-                        if let AstNode::FuncDef {
+                    if let Some(func) = func_opt
+                        && let AstNode::FuncDef {
                             const_, comptime_, ..
                         } = func
-                        {
-                            if *const_ || *comptime_ {
+                            && (*const_ || *comptime_) {
                                 // Check if all args are simple (no variable references).
                                 // If any arg references a variable, skip eager eval —
                                 // we're inside a function body and vars aren't bound yet.
                                 let has_vars =
-                                    transformed_args.iter().any(|a| Self::contains_variable(a));
+                                    transformed_args.iter().any(Self::contains_variable);
                                 if !has_vars {
                                     match self.eval_function_call(None, method, &transformed_args) {
                                         Ok(ConstValue::Int(n)) => {
@@ -343,8 +339,6 @@ impl ConstEvaluator {
                                     }
                                 }
                             }
-                        }
-                    }
                 }
 
                 // Return transformed call
@@ -712,12 +706,12 @@ impl ConstEvaluator {
     fn eval_unary_op(&mut self, op: &str, expr: &AstNode) -> CtfeResult<ConstValue> {
         let val = self.eval_const_expr(expr)?;
 
-        let result = val.unary_op(op).map_err(|e| CtfeError::InvalidOperation {
+        
+        val.unary_op(op).map_err(|e| CtfeError::InvalidOperation {
             op: op.to_string(),
             left_type: val.type_name().to_string(),
             right_type: None,
-        });
-        result
+        })
     }
 
     /// Evaluate a variable reference
@@ -986,8 +980,8 @@ impl ConstEvaluator {
         } else if let Some(else_expr) = else_branch {
             // else branch is a single expression, not a block — it can't have let declarations
             // so we always skip scope management for it
-            let result = self.eval_const_expr(else_expr);
-            result
+            
+            self.eval_const_expr(else_expr)
         } else {
             Ok(ConstValue::Unit)
         }
@@ -1273,7 +1267,7 @@ impl ConstEvaluator {
         match func {
             AstNode::FuncDef { name, .. } => {
                 // Register the function if not already registered
-                if !self.context.get_function(name).is_some() {
+                if self.context.get_function(name).is_none() {
                     self.context.register_function(name.clone(), func.clone());
                 }
                 // Evaluate the function call
