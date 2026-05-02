@@ -8,6 +8,9 @@ use std::path::{Path, PathBuf};
 use crate::frontend::ast::AstNode;
 use crate::frontend::parser::top_level::parse_zeta;
 
+/// Directory for generated stub type definitions (build artifact)
+const STUB_DIR: &str = "build/stubs";
+
 /// Module cache entry
 #[derive(Debug, Clone)]
 pub struct Module {
@@ -189,9 +192,9 @@ impl ModuleResolver {
 
         // Check for Rust standard library imports: `use std::collections::HashMap;`
         if !path.is_empty() && path[0] == "std" {
-            // For Rust std imports, we need to resolve to stub_types/std/
+            // For Rust std imports, we need to resolve to build/stubs/std/
             // For `use std::collections::HashMap;`, path is ["std", "collections", "HashMap"]
-            // We need to resolve ["std", "collections"] to stub_types/std/collections/
+            // We need to resolve ["std", "collections"] to build/stubs/std/collections/
 
             let module_path = if path.len() > 1 {
                 &path[..path.len() - 1] // Remove the last component (the item name)
@@ -199,7 +202,7 @@ impl ModuleResolver {
                 path // Keep all if only 1 component
             };
 
-            let mut std_path = PathBuf::from("stub_types");
+            let mut std_path = PathBuf::from(STUB_DIR);
 
             for component in module_path {
                 std_path.push(component);
@@ -214,7 +217,7 @@ impl ModuleResolver {
             }
 
             // For std:: imports, we don't use mod.z structure
-            // We create single .z files like stub_types/std/collections.z
+            // We create single .z files like build/stubs/std/collections.z
 
             // If not found, create a minimal stub
             ;
@@ -226,9 +229,9 @@ impl ModuleResolver {
             && path[0] == "zorb"
             && (path[1] == "reqwest" || path[1] == "serde" || path[1] == "serde_json")
         {
-            // For external crate imports via zorb::, we need to resolve to stub_types/external/
+            // For external crate imports via zorb::, we need to resolve to build/stubs/external/
             // For `use zorb::reqwest::blocking::Client;`, path is ["zorb", "reqwest", "blocking", "Client"]
-            // We need to resolve ["reqwest", "blocking"] to stub_types/external/reqwest/blocking/
+            // We need to resolve ["reqwest", "blocking"] to build/stubs/external/reqwest/blocking/
             // (skip the "zorb" prefix)
 
             let module_path = if path.len() > 2 {
@@ -239,7 +242,7 @@ impl ModuleResolver {
                 path // Shouldn't happen for valid zorb:: imports
             };
 
-            let mut ext_path = PathBuf::from("stub_types/external");
+            let mut ext_path = PathBuf::from(STUB_DIR).join("external");
 
             for component in module_path {
                 ext_path.push(component);
@@ -254,7 +257,7 @@ impl ModuleResolver {
             }
 
             // For external crate imports, we don't use mod.z structure
-            // We create single .z files like stub_types/external/reqwest.z
+            // We create single .z files like build/stubs/external/reqwest.z
 
             // If not found, create a minimal stub
             ;
@@ -268,7 +271,7 @@ impl ModuleResolver {
         {
             // For backward compatibility with existing code that uses Rust-style imports
             // For `use reqwest::blocking::Client;`, path is ["reqwest", "blocking", "Client"]
-            // We need to resolve ["reqwest", "blocking"] to stub_types/external/reqwest/blocking/
+            // We need to resolve ["reqwest", "blocking"] to build/stubs/external/reqwest/blocking/
 
             let module_path = if path.len() > 1 {
                 &path[..path.len() - 1] // Remove the last component (the item name)
@@ -276,7 +279,7 @@ impl ModuleResolver {
                 path // Keep all if only 1 component
             };
 
-            let mut ext_path = PathBuf::from("stub_types/external");
+            let mut ext_path = PathBuf::from(STUB_DIR).join("external");
 
             for component in module_path {
                 ext_path.push(component);
@@ -291,7 +294,7 @@ impl ModuleResolver {
             }
 
             // For external crate imports, we don't use mod.z structure
-            // We create single .z files like stub_types/external/reqwest.z
+            // We create single .z files like build/stubs/external/reqwest.z
 
             // If not found, create a minimal stub
             ;
@@ -448,8 +451,8 @@ impl ModuleResolver {
         }
 
         // Check if this is the root std module (handle specially for PrimeZeta)
-        // Submodules like stub_types/std/mem.z are parsed normally.
-        if path_str.ends_with("stub_types/std.z") || path_str.ends_with("stub_types\\std.z") {
+        // Submodules like build/stubs/std/mem.z are parsed normally.
+        if path_str.ends_with("build/stubs/std.z") || path_str.ends_with("build/stubs\\std.z") {
             return self.load_std_module();
         }
 
@@ -650,7 +653,7 @@ impl ModuleResolver {
         // Create the module
         let module = Module {
             name: "std".to_string(),
-            path: PathBuf::from("stub_types/std.z"),
+            path: PathBuf::from(STUB_DIR).join("std.z"),
             asts,
             exports,
         };
@@ -937,7 +940,7 @@ impl ModuleResolver {
     /// Create a minimal stub for a std module that doesn't exist yet
     fn create_std_stub(&mut self, module_path: &[String]) -> Result<PathBuf, String> {
         // Create directory structure
-        let mut stub_path = PathBuf::from("stub_types");
+        let mut stub_path = PathBuf::from(STUB_DIR);
 
         for component in module_path {
             stub_path.push(component);
@@ -1155,7 +1158,7 @@ pub struct JoinHandle { pub inner: i64; }
     /// Create a minimal stub for an external crate that doesn't exist yet
     fn create_external_stub(&mut self, module_path: &[String]) -> Result<PathBuf, String> {
         // Create directory structure
-        let mut stub_path = PathBuf::from("stub_types/external");
+        let mut stub_path = PathBuf::from(STUB_DIR).join("external");
 
         // Create all parent directories first
         fs::create_dir_all(&stub_path)

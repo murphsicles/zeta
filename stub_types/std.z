@@ -1,8 +1,0 @@
-// Stub for std module with PrimeZeta functions
-
-// PrimeZeta required functions
-extern fn malloc(size: i64) -> i64;
-extern fn free(ptr: i64);
-extern fn print(msg: i64);
-extern fn println(msg: i64);
-extern fn args() -> i64;
