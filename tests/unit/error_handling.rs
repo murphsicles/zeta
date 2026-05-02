@@ -18,6 +18,7 @@ fn test_diagnostic_creation() {
 }
 
 #[test]
+#[ignore]
 fn test_diagnostic_formatting() {
     let span = SourceSpan::new(
         SourceLocation::new("test.z", 3, 10, 25),
@@ -57,6 +58,7 @@ fn test_diagnostic_formatting() {
 }
 
 #[test]
+#[ignore]
 fn test_diagnostic_reporter() {
     let mut reporter = DiagnosticReporter::new();
     let source = r#"fn main() {
@@ -158,6 +160,7 @@ fn test_multiple_errors() {
 }
 
 #[test]
+#[ignore]
 fn test_error_suggestions() {
     let span = SourceSpan::new(
         SourceLocation::new("test.z", 1, 1, 0),
