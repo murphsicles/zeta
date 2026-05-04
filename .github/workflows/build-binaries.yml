@@ -47,11 +47,14 @@ jobs:
       - name: Install LLVM 21 (Windows)
         if: runner.os == 'Windows'
         run: |
-          # Download and install LLVM 21 silently
-          curl.exe -fsSL -o LLVM-21.1.0-win64.exe https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/LLVM-21.1.0-win64.exe
-          Start-Process -Wait -FilePath .\LLVM-21.1.0-win64.exe -ArgumentList '/S /D=C:\llvm-21'
-          echo "LLVM_SYS_211_PREFIX=C:\llvm-21" >> $env:GITHUB_ENV
-          Remove-Item LLVM-21.1.0-win64.exe -Force
+          # Download and extract LLVM 21 pre-built archive
+          curl.exe -fsSL -o llvm.tar.xz ^
+            https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/clang+llvm-21.1.0-x86_64-pc-windows-msvc.tar.xz
+          tar -xzf llvm.tar.xz -C C:\
+          $llvmDir = Get-ChildItem C:\clang+llvm-*
+          echo "LLVM_SYS_211_PREFIX=$llvmDir" >> $env:GITHUB_ENV
+          Write-Host "LLVM extracted to: $llvmDir"
+          Remove-Item llvm.tar.xz -Force
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
