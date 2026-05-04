@@ -1,5 +1,5 @@
 # .github/workflows/build-macos.yml
-# Builds zetac binaries for macOS, commits them to bin/ on main.
+# Builds zetac for macOS ARM64 and commits to bin/ on main.
 name: Build Binaries (macOS)
 
 env:
@@ -10,20 +10,7 @@ on:
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-14
-            target: aarch64-apple-darwin
-            artifact: zetac
-            bin_name: zetac-macos-arm64
-          - os: macos-13
-            target: x86_64-apple-darwin
-            artifact: zetac
-            bin_name: zetac-macos-x64
-
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
         with:
@@ -38,16 +25,16 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly
-          targets: ${{ matrix.target }}
+          targets: aarch64-apple-darwin
 
       - name: Build release
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --target aarch64-apple-darwin
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.bin_name }}
-          path: target/${{ matrix.target }}/release/${{ matrix.artifact }}
+          name: zetac-macos-arm64
+          path: target/aarch64-apple-darwin/release/zetac
 
   deploy:
     needs: build
@@ -60,22 +47,18 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: zetac-macos-arm64
+          path: bin
 
-      - name: Stage binaries
+      - name: Rename and commit
         run: |
-          mkdir -p bin
-          for src in zetac-macos-arm64/* zetac-macos-x64/*; do
-            [ -f "$src" ] && cp "$src" "bin/$(basename $src)"
-          done
-          chmod +x bin/* 2>/dev/null || true
+          mv bin/zetac bin/zetac-macos-arm64
+          chmod +x bin/zetac-macos-arm64
           ls -lh bin/
-
-      - name: Commit to main
-        run: |
           git config user.name "Zeta Build Bot"
           git config user.email "builds@zeta-lang.org"
           git add bin/
-          git diff --cached --quiet || git commit -m "Update macOS binaries"
+          git diff --cached --quiet || git commit -m "Update macOS ARM64 binary [skip ci]"
           git push origin main
