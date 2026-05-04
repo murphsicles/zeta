@@ -61,12 +61,14 @@ jobs:
       - name: Install LLVM 21 (Windows)
         if: runner.os == 'Windows'
         run: |
-          # Download and extract LLVM 21 for Windows
+          # Download and extract LLVM 21 pre-built
           curl -fsSL -o llvm.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/clang+llvm-21.1.0-x86_64-pc-windows-msvc.tar.xz
           7z x llvm.tar.xz -y > $null
-          ls *.tar
-          7z x *.tar -oC:\llvm-21 -y > $null
-          echo "LLVM_SYS_211_PREFIX=C:\llvm-21" >> $env:GITHUB_ENV
+          $tarFile = Get-ChildItem -Filter '*.tar' | Select-Object -First 1
+          $tarName = $tarFile.BaseName
+          7z x $tarFile.Name -oC:\ -y > $null
+          $llvmDir = "C:\$tarName"
+          echo "LLVM_SYS_211_PREFIX=$llvmDir" >> $env:GITHUB_ENV
           Remove-Item *.tar, *.tar.xz -Force 2>$null
 
       - name: Install Rust
