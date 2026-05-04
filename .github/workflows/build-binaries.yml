@@ -1,0 +1,109 @@
+# .github/workflows/build-binaries.yml
+# Builds zetac binaries for all platforms and commits them to bin/ on main.
+name: Build Binaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag to build (e.g. v0.10.0)'
+        required: true
+        default: 'v0.10.0'
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: zetac
+            bin_name: zetac
+          - os: macos-14
+            target: aarch64-apple-darwin
+            artifact: zetac
+            bin_name: zetac-macos-arm64
+          - os: macos-13
+            target: x86_64-apple-darwin
+            artifact: zetac
+            bin_name: zetac-macos-x64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: zetac.exe
+            bin_name: zetac.exe
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: bootstrap
+
+      - name: Install LLVM 21 (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          wget -q https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 21
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq llvm-21 llvm-21-dev llvm-21-tools libpolly-21-dev
+          echo "LLVM_SYS_211_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
+
+      - name: Install LLVM 21 (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install llvm@21
+          echo "LLVM_SYS_211_PREFIX=$(brew --prefix llvm@21)" >> $GITHUB_ENV
+
+      - name: Install LLVM 21 (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install llvm --version=21.0.0 --no-progress -y
+          echo "LLVM_SYS_211_PREFIX=C:\Program Files\LLVM" >> $env:GITHUB_ENV
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+          targets: ${{ matrix.target }}
+
+      - name: Build release
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.bin_name }}
+          path: target/${{ matrix.target }}/release/${{ matrix.artifact }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Stage binaries
+        run: |
+          mkdir -p bin
+          for src in zetac/* zetac-macos-arm64/* zetac-macos-x64/*; do
+            [ -f "$src" ] && cp "$src" "bin/$(basename $src)"
+          done
+          find . -path ./bin/zetac.exe -exec cp {} bin/ \;
+          chmod +x bin/* 2>/dev/null || true
+          ls -lh bin/
+
+      - name: Commit to main
+        run: |
+          git config user.name "Zeta Build Bot"
+          git config user.email "builds@zeta-lang.org"
+          git add bin/
+          git diff --cached --quiet || git commit -m "Update pre-built binaries"
+          git push origin main
