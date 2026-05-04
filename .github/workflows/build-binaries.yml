@@ -61,14 +61,20 @@ jobs:
       - name: Install LLVM 21 (Windows)
         if: runner.os == 'Windows'
         run: |
-          # Download and extract LLVM 21 pre-built
-          curl -fsSL -o llvm.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/clang+llvm-21.1.0-x86_64-pc-windows-msvc.tar.xz
-          7z x llvm.tar.xz -y > $null
-          $tarFile = Get-ChildItem -Filter '*.tar' | Select-Object -First 1
-          $tarName = $tarFile.BaseName
-          7z x $tarFile.Name -oC:\ -y > $null
-          $llvmDir = "C:\$tarName"
-          echo "LLVM_SYS_211_PREFIX=$llvmDir" >> $env:GITHUB_ENV
+          # Download and extract LLVM 21 pre-built for Windows
+          $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/clang+llvm-21.1.0-x86_64-pc-windows-msvc.tar.xz"
+          $out = "llvm.tar.xz"
+          curl.exe -fsSL -o $out $url
+          7z x $out -y | Out-Null
+          Get-ChildItem *.tar | ForEach-Object {
+            $dirName = $_.Name.Replace('.tar','')
+            Write-Host "Extracting $($_.Name)..."
+            7z x $_.Name -oC:\ -y | Out-Null
+            $prefix = "C:\$dirName"
+            Write-Host "LLVM prefix: $prefix"
+            echo "LLVM_SYS_211_PREFIX=$prefix" >> $env:GITHUB_ENV
+            Get-ChildItem $prefix -Depth 0 | Select-Object Name
+          }
           Remove-Item *.tar, *.tar.xz -Force 2>$null
 
       - name: Install Rust
