@@ -2,6 +2,9 @@
 # Builds zetac binaries for all platforms and commits them to bin/ on main.
 name: Build Binaries
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   workflow_dispatch:
     inputs:
