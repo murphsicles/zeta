@@ -58,7 +58,7 @@ jobs:
       - name: Install LLVM 21 (Windows)
         if: runner.os == 'Windows'
         run: |
-          choco install llvm --version=21.0.0 --no-progress -y
+          choco install llvm --no-progress -y
           echo "LLVM_SYS_211_PREFIX=C:\Program Files\LLVM" >> $env:GITHUB_ENV
 
       - name: Install Rust
