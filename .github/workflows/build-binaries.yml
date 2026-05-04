@@ -1,6 +1,6 @@
 # .github/workflows/build-binaries.yml
-# Builds zetac binaries for all platforms and commits them to bin/ on main.
-name: Build Binaries
+# Builds zetac binaries for Linux and Windows, commits them to bin/ on main.
+name: Build Binaries (Linux + Windows)
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -23,14 +23,6 @@ jobs:
             target: x86_64-unknown-linux-gnu
             artifact: zetac
             bin_name: zetac
-          - os: macos-14
-            target: aarch64-apple-darwin
-            artifact: zetac
-            bin_name: zetac-macos-arm64
-          - os: macos-13
-            target: x86_64-apple-darwin
-            artifact: zetac
-            bin_name: zetac-macos-x64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact: zetac.exe
@@ -52,30 +44,14 @@ jobs:
           sudo apt-get install -y -qq llvm-21 llvm-21-dev llvm-21-tools libpolly-21-dev
           echo "LLVM_SYS_211_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
 
-      - name: Install LLVM 21 (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew install llvm@21
-          echo "LLVM_SYS_211_PREFIX=$(brew --prefix llvm@21)" >> $GITHUB_ENV
-
       - name: Install LLVM 21 (Windows)
         if: runner.os == 'Windows'
         run: |
-          # Download and extract LLVM 21 pre-built for Windows
-          $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/clang+llvm-21.1.0-x86_64-pc-windows-msvc.tar.xz"
-          $out = "llvm.tar.xz"
-          curl.exe -fsSL -o $out $url
-          7z x $out -y | Out-Null
-          Get-ChildItem *.tar | ForEach-Object {
-            $dirName = $_.Name.Replace('.tar','')
-            Write-Host "Extracting $($_.Name)..."
-            7z x $_.Name -oC:\ -y | Out-Null
-            $prefix = "C:\$dirName"
-            Write-Host "LLVM prefix: $prefix"
-            echo "LLVM_SYS_211_PREFIX=$prefix" >> $env:GITHUB_ENV
-            Get-ChildItem $prefix -Depth 0 | Select-Object Name
-          }
-          Remove-Item *.tar, *.tar.xz -Force 2>$null
+          # Download and install LLVM 21 silently
+          curl.exe -fsSL -o LLVM-21.1.0-win64.exe https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/LLVM-21.1.0-win64.exe
+          Start-Process -Wait -FilePath .\LLVM-21.1.0-win64.exe -ArgumentList '/S /D=C:\llvm-21'
+          echo "LLVM_SYS_211_PREFIX=C:\llvm-21" >> $env:GITHUB_ENV
+          Remove-Item LLVM-21.1.0-win64.exe -Force
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
@@ -109,10 +85,9 @@ jobs:
       - name: Stage binaries
         run: |
           mkdir -p bin
-          for src in zetac/* zetac-macos-arm64/* zetac-macos-x64/*; do
+          for src in zetac/* zetac.exe/*; do
             [ -f "$src" ] && cp "$src" "bin/$(basename $src)"
           done
-          find . -path ./bin/zetac.exe -exec cp {} bin/ \;
           chmod +x bin/* 2>/dev/null || true
           ls -lh bin/
 
