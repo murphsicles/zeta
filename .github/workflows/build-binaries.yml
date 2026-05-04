@@ -58,8 +58,12 @@ jobs:
       - name: Install LLVM 21 (Windows)
         if: runner.os == 'Windows'
         run: |
-          choco install llvm --no-progress -y
-          echo "LLVM_SYS_211_PREFIX=C:\Program Files\LLVM" >> $env:GITHUB_ENV
+          # Download and extract LLVM 21 for Windows
+          curl -fsSL -o llvm.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/clang+llvm-21.1.0-x86_64-pc-windows-msvc.tar.xz
+          7z x llvm.tar.xz -oC:\ > $null
+          7z x C:\clang+llvm-21.1.0-x86_64-pc-windows-msvc.tar -oC:\llvm-21 -y > $null
+          echo "LLVM_SYS_211_PREFIX=C:\llvm-21" >> $env:GITHUB_ENV
+          Remove-Item C:\clang+llvm-21.1.0-x86_64-pc-windows-msvc.tar -Force 2>$null
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
