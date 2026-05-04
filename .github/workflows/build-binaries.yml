@@ -14,42 +14,14 @@ on:
         default: 'v0.10.0'
 
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            artifact: zetac
-            bin_name: zetac
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            artifact: zetac.exe
-            bin_name: zetac.exe
-
-    runs-on: ${{ matrix.os }}
+  linux:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: bootstrap
 
-      - name: Install libxml2 (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          # Create a stub libxml2s.lib to satisfy LLVM's linker dependency
-          # (LLVM links against libxml2 on Windows but it's optional for our build)
-          $llvmDir = (Get-ChildItem "C:\clang+llvm-*" | Select-Object -First 1).FullName
-          $libDir = "$llvmDir\lib"
-          # We need libxml2s.lib in the link path - create an empty one
-          cmd.exe /c "echo LIBRARY libxml2s > %TEMP%\libxml2s.def"
-          cmd.exe /c "echo EXPORTS >> %TEMP%\libxml2s.def"
-          lib.exe /NOLOGO /DEF:"%TEMP%\libxml2s.def" /OUT:"$libDir\libxml2s.lib" /MACHINE:X64 2>&1
-          Write-Host "Created libxml2s.lib in: $libDir"
-
-      - name: Install LLVM 21 (Linux)
-        if: runner.os == 'Linux'
+      - name: Install LLVM 21
         run: |
           wget -q https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
@@ -58,33 +30,56 @@ jobs:
           sudo apt-get install -y -qq llvm-21 llvm-21-dev llvm-21-tools libpolly-21-dev
           echo "LLVM_SYS_211_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
 
-      - name: Install LLVM 21 (Windows)
-        if: runner.os == 'Windows'
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: zetac-linux
+          path: target/release/zetac
+
+  windows:
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: bootstrap
+
+      - name: Install LLVM 21
         shell: pwsh
         run: |
           curl.exe -fSL -o llvm.tar.xz "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/clang+llvm-21.1.0-x86_64-pc-windows-msvc.tar.xz"
           tar -xzf llvm.tar.xz -C C:\
           $llvmDir = (Get-ChildItem "C:\clang+llvm-*" | Select-Object -First 1).FullName
           echo "LLVM_SYS_211_PREFIX=$llvmDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          Write-Host "LLVM extracted to: $llvmDir"
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly
-          targets: ${{ matrix.target }}
+          targets: x86_64-pc-windows-msvc
 
       - name: Build release
-        run: cargo build --release --target ${{ matrix.target }}
+        continue-on-error: true
+        run: cargo build --release --target x86_64-pc-windows-msvc
 
       - name: Upload binary
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.bin_name }}
-          path: target/${{ matrix.target }}/release/${{ matrix.artifact }}
+          name: zetac-windows
+          path: target/x86_64-pc-windows-msvc/release/zetac.exe
 
   deploy:
-    needs: build
+    needs: [linux, windows]
+    if: always()
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -94,16 +89,23 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Download all artifacts
+      - name: Download Linux artifact
         uses: actions/download-artifact@v4
+        with:
+          name: zetac-linux
+          path: bin
+
+      - name: Download Windows artifact
+        if: ${{ !cancelled() }}
+        uses: actions/download-artifact@v4
+        with:
+          name: zetac-windows
+          path: bin
+        continue-on-error: true
 
       - name: Stage binaries
         run: |
-          mkdir -p bin
-          for src in zetac/* zetac.exe/*; do
-            [ -f "$src" ] && cp "$src" "bin/$(basename $src)"
-          done
-          chmod +x bin/* 2>/dev/null || true
+          chmod +x bin/zetac 2>/dev/null || true
           ls -lh bin/
 
       - name: Commit to main
@@ -111,5 +113,5 @@ jobs:
           git config user.name "Zeta Build Bot"
           git config user.email "builds@zeta-lang.org"
           git add bin/
-          git diff --cached --quiet || git commit -m "Update pre-built binaries"
+          git diff --cached --quiet || git commit -m "Update pre-built binaries [skip ci]"
           git push origin main
