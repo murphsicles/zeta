@@ -34,6 +34,20 @@ jobs:
         with:
           ref: bootstrap
 
+      - name: Install libxml2 (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # Create a stub libxml2s.lib to satisfy LLVM's linker dependency
+          # (LLVM links against libxml2 on Windows but it's optional for our build)
+          $llvmDir = (Get-ChildItem "C:\clang+llvm-*" | Select-Object -First 1).FullName
+          $libDir = "$llvmDir\lib"
+          # We need libxml2s.lib in the link path - create an empty one
+          cmd.exe /c "echo LIBRARY libxml2s > %TEMP%\libxml2s.def"
+          cmd.exe /c "echo EXPORTS >> %TEMP%\libxml2s.def"
+          lib.exe /NOLOGO /DEF:"%TEMP%\libxml2s.def" /OUT:"$libDir\libxml2s.lib" /MACHINE:X64 2>&1
+          Write-Host "Created libxml2s.lib in: $libDir"
+
       - name: Install LLVM 21 (Linux)
         if: runner.os == 'Linux'
         run: |
