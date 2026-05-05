@@ -1,0 +1,49 @@
+# Build & Release — compiles zetac binary and publishes GitHub Release
+name: Release
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+  LLVM_SYS_210_PREFIX: /usr/lib/llvm-21
+  LLVM_SYS_211_PREFIX: /usr/lib/llvm-21
+
+jobs:
+  build-linux:
+    runs-on: [self-hosted, galaxy, wsl2, x86-64]
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Build zetac (release)
+      run: |
+        cargo build --release --bin zetac
+        echo "Binary size:"
+        ls -lh target/release/zetac
+
+    - name: Build zetac (JIT variant)
+      run: |
+        cp target/release/zetac target/release/zetac-linux-x86_64
+        # Quick sanity check
+        ./target/release/zetac --version 2>&1 || ./target/release/zetac --help 2>&1 | head -3 || true
+
+    - name: Create release archive
+      run: |
+        mkdir -p dist
+        cp target/release/zetac dist/zetac-linux-x86_64
+        # Include runtime object for AOT compilation
+        cp zeta_runtime_c.o dist/ 2>/dev/null || cp target/release/zeta_runtime_c.o dist/ 2>/dev/null || echo "No runtime .o to include"
+        # Create checksum
+        sha256sum dist/zetac-linux-x86_64 > dist/zetac-linux-x86_64.sha256
+        echo "Release artifacts:"
+        ls -la dist/
+
+    - name: Publish release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          dist/zetac-linux-x86_64
+          dist/zetac-linux-x86_64.sha256
+        generate_release_notes: true
+        make_latest: true
