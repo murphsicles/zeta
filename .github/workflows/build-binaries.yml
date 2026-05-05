@@ -35,13 +35,11 @@ jobs:
         with:
           ref: dev
 
-      - name: Install LLVM 21
+      - name: Install LLVM 21 (via vcpkg)
         shell: pwsh
         run: |
-          curl.exe -fSL -o llvm.tar.xz "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/clang+llvm-21.1.0-x86_64-pc-windows-msvc.tar.xz"
-          tar -xzf llvm.tar.xz -C C:\
-          $llvmDir = (Get-ChildItem "C:\clang+llvm-*" | Select-Object -First 1).FullName
-          echo "LLVM_SYS_211_PREFIX=$llvmDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          vcpkg install llvm[core,wasm]:x64-windows --clean-after-build
+          echo "LLVM_SYS_211_PREFIX=$env:VCPKG_ROOT\installed\x64-windows" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master

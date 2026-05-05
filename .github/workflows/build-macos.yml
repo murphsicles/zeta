@@ -29,7 +29,7 @@ jobs:
       - name: Build release
         run: cargo build --release
 
-      - name: Upload binary
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: zetac-macos-x64
@@ -58,15 +58,15 @@ jobs:
         continue-on-error: true
         run: cargo build --release --target aarch64-apple-darwin
 
-      - name: Upload binary
+      - name: Upload artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: zetac-macos-arm64
           path: target/aarch64-apple-darwin/release/zetac
 
-  deploy:
-    needs: [build-x64, build-arm64]
+  deploy-x64:
+    needs: build-x64
     if: always()
     runs-on: ubuntu-latest
     permissions:
@@ -80,33 +80,55 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: zetac-macos-x64
-          path: bin/x64
+          path: bin
         continue-on-error: true
+
+      - name: Stage and commit
+        run: |
+          if [ -f bin/zetac ]; then
+            mv bin/zetac bin/zetac-macos-x64
+            chmod +x bin/zetac-macos-x64
+            ls -lh bin/zetac-macos-x64
+            git config user.name "Zeta Build Bot"
+            git config user.email "builds@zeta-lang.org"
+            git add bin/zetac-macos-x64
+            git diff --cached --quiet || git commit -m "Update macOS x86_64 binary [skip ci]"
+            git push origin main
+            echo "✅ macOS x86_64 binary deployed"
+          else
+            echo "⚠️ No macOS x86_64 binary produced"
+          fi
+
+  deploy-arm64:
+    needs: build-arm64
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
 
       - uses: actions/download-artifact@v4
         with:
           name: zetac-macos-arm64
-          path: bin/arm64
+          path: bin
         continue-on-error: true
 
-      - name: Stage binaries
+      - name: Stage and commit
         run: |
-          if [ -f bin/x64/zetac ]; then
-            mv bin/x64/zetac bin/zetac-macos-x64
-            chmod +x bin/zetac-macos-x64
-            echo "✅ macOS x86_64 binary built"
-          fi
-          if [ -f bin/arm64/zetac ]; then
-            mv bin/arm64/zetac bin/zetac-macos-arm64
+          if [ -f bin/zetac ]; then
+            mv bin/zetac bin/zetac-macos-arm64
             chmod +x bin/zetac-macos-arm64
-            echo "✅ macOS ARM64 binary built"
+            ls -lh bin/zetac-macos-arm64
+            git config user.name "Zeta Build Bot"
+            git config user.email "builds@zeta-lang.org"
+            git add bin/zetac-macos-arm64
+            git diff --cached --quiet || git commit -m "Update macOS ARM64 binary [skip ci]"
+            git push origin main
+            echo "✅ macOS ARM64 binary deployed"
+          else
+            echo "⚠️ No macOS ARM64 binary produced"
           fi
-          ls -lh bin/zetac-macos-* 2>/dev/null || echo "⚠️ No macOS binaries produced"
-
-      - name: Commit to main
-        run: |
-          git config user.name "Zeta Build Bot"
-          git config user.email "builds@zeta-lang.org"
-          git add bin/
-          git diff --cached --quiet || git commit -m "Update macOS binaries [skip ci]"
-          git push origin main
