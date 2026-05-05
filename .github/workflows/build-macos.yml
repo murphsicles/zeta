@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: dev
+          ref: bootstrap
 
       - name: Install LLVM 21
         run: |
@@ -41,7 +41,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: dev
+          ref: bootstrap
 
       - name: Install LLVM 21
         run: |

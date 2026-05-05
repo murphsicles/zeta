@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: dev
+          ref: bootstrap
 
       - name: Build release
         run: cargo build --release
@@ -33,7 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: dev
+          ref: bootstrap
 
       - name: Install LLVM 21 (via vcpkg)
         shell: pwsh
