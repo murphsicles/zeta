@@ -1,4 +1,4 @@
-name: Build Binaries (macOS ARM64)
+name: Build Binaries (macOS)
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-arm64:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -34,8 +34,33 @@ jobs:
           name: zetac-macos-arm64
           path: target/aarch64-apple-darwin/release/zetac
 
+  build-x64:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LLVM 21
+        run: |
+          brew install llvm@21
+          echo "LLVM_SYS_211_PREFIX=$(brew --prefix llvm@21)" >> $GITHUB_ENV
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+          targets: x86_64-apple-darwin
+
+      - name: Build release
+        run: cargo build --release --target x86_64-apple-darwin
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: zetac-macos-x64
+          path: target/x86_64-apple-darwin/release/zetac
+
   deploy:
-    needs: build
+    needs: [build-arm64, build-x64]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -49,14 +74,22 @@ jobs:
         with:
           name: zetac-macos-arm64
           path: bin
+      - uses: actions/download-artifact@v4
+        with:
+          name: zetac-macos-x64
+          path: bin
 
-      - name: Rename and commit
+      - name: Rename and stage
         run: |
-          mv bin/zetac bin/zetac-macos-arm64
-          chmod +x bin/zetac-macos-arm64
+          mv bin/zetac bin/zetac-macos-arm64 2>/dev/null
+          mv bin/zetac bin/zetac-macos-x64 2>/dev/null
+          chmod +x bin/zetac-macos-arm64 bin/zetac-macos-x64
           ls -lh bin/
+
+      - name: Commit to main
+        run: |
           git config user.name "Zeta Build Bot"
           git config user.email "builds@zeta-lang.org"
           git add bin/
-          git diff --cached --quiet || git commit -m "Update macOS ARM64 binary [skip ci]"
+          git diff --cached --quiet || git commit -m "Update macOS binaries [skip ci]"
           git push origin main
