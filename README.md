@@ -2,6 +2,7 @@
 
 [<img alt="Zeta Logo" width="128px" src="https://z-lang.org/assets/images/z128.png" />](https://z-lang.org)
 [![Latest Release](https://img.shields.io/github/v/release/murphsicles/zeta)](https://github.com/murphsicles/zeta/releases)
+[![Zeta v1.0.1](https://img.shields.io/badge/Zeta-v1.0.1-8A2BE2)](https://github.com/murphsicles/zeta/releases/tag/v1.0.1)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Zeta is a self-hosted systems programming language targeting LLVM.
