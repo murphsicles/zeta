@@ -10,6 +10,7 @@ pub struct MirGen {
     defers: Vec<u32>,
     defer_stmts: Vec<MirStmt>,
     type_map: HashMap<u32, String>,
+    param_types: HashMap<String, String>,
 }
 
 impl MirGen {
@@ -22,6 +23,7 @@ impl MirGen {
             defers: vec![],
             defer_stmts: vec![],
             type_map: HashMap::new(),
+            param_types: HashMap::new(),
         }
     }
 
@@ -185,7 +187,7 @@ impl MirGen {
                 
                 // Check if base is an array type
                 let base_ty = self.type_map.get(&base_id).cloned().unwrap_or_default();
-                if base_ty.starts_with("[dynamic]") {
+                if base_ty.starts_with("[") {
                     // Array subscript
                     self.stmts.push(MirStmt::Call {
                         func: "array_get".to_string(),
@@ -209,7 +211,11 @@ impl MirGen {
                 let cleanup_stmts = subgen.finalize_mir().stmts;
                 self.defer_stmts.extend(cleanup_stmts);
             }
-            AstNode::FuncDef { body, .. } => {
+            AstNode::FuncDef { body, params, .. } => {
+                // Store parameter types for array reference resolution
+                for (name, ty) in params {
+                    self.param_types.insert(name.clone(), ty.clone());
+                }
                 let mut collected_defers = VecDeque::new();
                 for stmt in body {
                     if let AstNode::Defer(_) = stmt {
@@ -254,9 +260,15 @@ impl MirGen {
     fn lower_expr(&mut self, expr: &AstNode) -> u32 {
         let id = self.next_id();
         match expr {
-            AstNode::Var(_name) => {
+            AstNode::Var(name) => {
                 self.exprs.insert(id, MirExpr::Var(id));
-                self.type_map.insert(id, "i64".to_string());
+                // Check if this variable has a known array type from function params
+                let known_ty = self.param_types.get(name);
+                if known_ty.is_some() && known_ty.unwrap().starts_with("[") {
+                    self.type_map.insert(id, known_ty.unwrap().clone());
+                } else {
+                    self.type_map.insert(id, "i64".to_string());
+                }
             }
             AstNode::Lit(n) => {
                 self.exprs.insert(id, MirExpr::Lit(*n));
