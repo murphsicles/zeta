@@ -1,39 +1,20 @@
-# .github/workflows/build-binaries.yml
-# Builds zetac binaries for Linux and Windows, commits them to bin/ on main.
 name: Build Binaries (Linux + Windows)
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  LLVM_SYS_210_PREFIX: /usr/lib/llvm-21
+  LLVM_SYS_211_PREFIX: /usr/lib/llvm-21
 
 on:
+  push:
+    branches: [ main ]
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Version tag to build (e.g. v0.10.0)'
-        required: true
-        default: 'v0.10.0'
 
 jobs:
   linux:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, galaxy, wsl2, x86-64]
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: bootstrap
-
-      - name: Install LLVM 21
-        run: |
-          wget -q https://apt.llvm.org/llvm.sh
-          chmod +x llvm.sh
-          sudo ./llvm.sh 21
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq llvm-21 llvm-21-dev llvm-21-tools libpolly-21-dev
-          echo "LLVM_SYS_211_PREFIX=/usr/lib/llvm-21" >> $GITHUB_ENV
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly
 
       - name: Build release
         run: cargo build --release
@@ -49,8 +30,6 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: bootstrap
 
       - name: Install LLVM 21
         shell: pwsh
@@ -96,7 +75,7 @@ jobs:
           path: bin
 
       - name: Download Windows artifact
-        if: ${{ !cancelled() }}
+        if: success()
         uses: actions/download-artifact@v4
         with:
           name: zetac-windows

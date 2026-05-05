@@ -1,11 +1,11 @@
-# .github/workflows/build-macos.yml
-# Builds zetac for macOS ARM64 and commits to bin/ on main.
-name: Build Binaries (macOS)
+name: Build Binaries (macOS ARM64)
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 on:
+  push:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -13,8 +13,6 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: bootstrap
 
       - name: Install LLVM 21
         run: |
