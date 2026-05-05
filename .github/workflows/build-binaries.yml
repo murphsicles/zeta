@@ -15,6 +15,8 @@ jobs:
     runs-on: [self-hosted, galaxy, wsl2, x86-64]
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: dev
 
       - name: Build release
         run: cargo build --release
@@ -30,6 +32,8 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: dev
 
       - name: Install LLVM 21
         shell: pwsh
