@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (leave empty to use latest commit)'
+        required: false
+        type: string
 
 env:
   CARGO_TERM_COLOR: always
