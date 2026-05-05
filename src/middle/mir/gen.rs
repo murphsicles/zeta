@@ -241,6 +241,8 @@ impl MirGen {
 
                     // Check if base is an array type
                     let base_ty = self.type_map.get(&base_id).cloned().unwrap_or(Type::I64);
+                    let source_ty = self.source_types.get(&base_id).cloned().unwrap_or_default();
+                    let is_array_param = source_ty.starts_with("[") || source_ty.starts_with("*mut [");
                     if let Type::DynamicArray(_) = base_ty {
                         // Generate array_set call for dynamic arrays
                         self.stmts.push(MirStmt::VoidCall {
@@ -266,6 +268,11 @@ impl MirGen {
                                 });
                             }
                         }
+                    } else if is_array_param {
+                        self.stmts.push(MirStmt::VoidCall {
+                            func: "array_set".to_string(),
+                            args: vec![base_id, index_id, rhs_id],
+                        });
                     } else {
                         // Use DictInsert for other types (maps/dicts)
                         self.stmts.push(MirStmt::DictInsert {
@@ -2526,6 +2533,9 @@ impl MirGen {
 
                 // Check if base is an array type (dynamic or static)
                 let base_ty = self.type_map.get(&bid).cloned().unwrap_or(Type::I64);
+                // Also check source_types for function params with array types
+                let source_ty = self.source_types.get(&bid).cloned().unwrap_or_default();
+                let is_array_param = source_ty.starts_with("[") || source_ty.starts_with("*mut [");
                 if let Type::DynamicArray(_) = base_ty {
                     // Generate array_get call for dynamic arrays
                     self.stmts.push(MirStmt::Call {
@@ -2557,6 +2567,14 @@ impl MirGen {
                             });
                         }
                     }
+                } else if is_array_param {
+                    // Param is an array type even if type_map doesn't know it yet
+                    self.stmts.push(MirStmt::Call {
+                        func: "array_get".to_string(),
+                        args: vec![bid, iid],
+                        dest: id,
+                        type_args: vec![],
+                    });
                 } else {
                     // Use DictGet for other types (maps/dicts)
                     self.stmts.push(MirStmt::DictGet {
