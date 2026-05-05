@@ -7,7 +7,7 @@
 Zeta is a self-hosted systems programming language targeting LLVM.
 Built from the algebraic foundations of Stepanov's *Elements of Programming* — first principles, zero bloat, maximum efficiency.
 
-## v1.0.0 — Pure Zeta
+## v1.0.1 — Pure Zeta
 
 The compiler is written entirely in Zeta. The bootstrap loop is closed:
 
