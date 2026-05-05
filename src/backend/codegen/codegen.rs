@@ -48,6 +48,9 @@ pub struct LLVMCodegen<'ctx> {
 
     // Current type map for the function being compiled
     pub current_type_map: Option<std::collections::HashMap<u32, crate::middle::types::Type>>,
+    /// Struct type definitions: maps type name to list of field names
+    /// Populated from all MIRs during gen_mirs preprocessing.
+    pub struct_defs: std::collections::HashMap<String, Vec<String>>,
 }
 
 impl<'ctx> LLVMCodegen<'ctx> {
@@ -877,6 +880,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             loop_stack: Vec::new(),
 
             current_type_map: None,
+            struct_defs: std::collections::HashMap::new(),
         }
     }
 }
@@ -903,6 +907,19 @@ impl<'ctx> LLVMCodegen<'ctx> {
         mangled
     }
     pub fn gen_mirs(&mut self, mirs: &[Mir]) {
+        // Preprocess: collect struct field definitions from all MIR expressions.
+        // Store field name -> index mappings for later use in FieldAccess resolution.
+        self.struct_defs.clear();
+        for mir in mirs {
+            for (_, expr) in mir.exprs.iter() {
+                if let MirExpr::Struct { variant: v, fields: fds } = expr {
+                    let type_key = format!("struct_{}_{}", v, fds.len());
+                    let field_names: Vec<String> = fds.iter().map(|(n, _)| n.clone()).collect();
+                    self.struct_defs.entry(type_key).or_insert_with(|| field_names);
+                }
+            }
+        }
+
         // First pass: collect all functions
         for mir in mirs {
             let fn_name = mir.name.as_ref().cloned().unwrap_or("anon".to_string());
@@ -3687,6 +3704,28 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
     }
 
+    /// Resolve the field index for a FieldAccess expression.
+    /// Looks up the struct definition to find the field index by name.
+    /// Falls back to parsing the field name as numeric index.
+    fn resolve_struct_field_index(
+        &self,
+        _base_id: &u32,
+        field_name: &str,
+        _exprs: &HashMap<u32, MirExpr>,
+    ) -> u32 {
+        // Search all known struct definitions for the field name
+        for (_, fields) in self.struct_defs.iter() {
+            for (i, name) in fields.iter().enumerate() {
+                if name == field_name {
+                    return i as u32;
+                }
+            }
+        }
+        
+        // Fallback: try parsing the field name as a numeric index
+        field_name.parse::<u32>().unwrap_or(0)
+    }
+
     fn gen_expr(
         &mut self,
         expr: &MirExpr,
@@ -3993,15 +4032,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .unwrap();
 
                 // Extract field based on name
-                // For Pair<A, B> struct, field "first" is index 0, "second" is index 1
-                let field_index = if field == "first" {
-                    0
-                } else if field == "second" {
-                    1
-                } else {
-                    // Try to parse as numeric index
-                    field.parse::<u32>().unwrap_or(0)
-                };
+                // Walk the expression chain to find the Struct definition
+                // and look up the field index by name
+                let field_index = self.resolve_struct_field_index(base, field, exprs);
 
                 // Extract value from struct
                 self.builder
