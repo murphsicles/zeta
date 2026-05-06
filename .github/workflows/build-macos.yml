@@ -1,7 +1,5 @@
 name: Build Binaries (macOS)
 
-env:
-
 on:
   push:
     branches: [ main ]
