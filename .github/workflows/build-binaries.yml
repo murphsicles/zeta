@@ -38,37 +38,38 @@ jobs:
       - name: Install LLVM 21
         shell: pwsh
         run: |
-          # First check if LLVM 21 is already on this runner
-          $paths = @(
-              "C:\Program Files\LLVM",
-              "${env:ProgramFiles}\LLVM",
-              "${env:ProgramFiles(x86)}\LLVM",
-              "C:\Program Files\LLVM\bin",
-              "${env:VCPKG_ROOT}\installed\x64-windows"
+          # Search common paths for LLVM 21.x
+          $prefixes = @(
+            "C:\Program Files\LLVM",
+            "${env:ProgramFiles}\LLVM",
+            "${env:VCPKG_ROOT}\installed\x64-windows"
           )
           $found = $false
-          foreach ($p in $paths) {
-              $configPath = Join-Path $p "bin\llvm-config.exe"
-              if (Test-Path $configPath) {
-                  $version = & $configPath --version
-                  Write-Host "Found LLVM $version at $p"
-                  $prefix = & $configPath --prefix
-                  echo "LLVM_SYS_211_PREFIX=$prefix" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-                  $found = $true
-                  break
+          foreach ($p in $prefixes) {
+            $exe = Join-Path $p "bin\llvm-config.exe"
+            if (Test-Path $exe) {
+              $ver = & $exe --version 2>`$null
+              Write-Host "LLVM at $p: $ver"
+              if ($ver -match '^21\.') {
+                Write-Host "Found LLVM 21 at $p"
+                echo "LLVM_SYS_211_PREFIX=$p" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+                $found = $true
+                break
               }
+            }
           }
           if (-not $found) {
-              Write-Host "LLVM 21 not found. Installing via vcpkg..."
-              vcpkg install llvm[core,wasm]:x64-windows
-              $vcpkgPath = "${env:VCPKG_ROOT}\installed\x64-windows"
-              if (Test-Path (Join-Path $vcpkgPath "bin\llvm-config.exe")) {
-                  echo "LLVM_SYS_211_PREFIX=$vcpkgPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-                  Write-Host "LLVM installed via vcpkg at $vcpkgPath"
-              } else {
-                  Write-Host "::error::Failed to install LLVM 21"
-                  exit 1
-              }
+            Write-Host "LLVM 21 not found. Installing via vcpkg..."
+            vcpkg install llvm:x64-windows
+            $vp = "${env:VCPKG_ROOT}\installed\x64-windows"
+            $vexe = Join-Path $vp "bin\llvm-config.exe"
+            if (Test-Path $vexe) {
+              echo "LLVM_SYS_211_PREFIX=$vp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+              Write-Host "LLVM 21 installed at $vp"
+            } else {
+              Write-Host "::error::Failed to install LLVM 21 on Windows"
+              exit 1
+            }
           }
 
       - name: Install Rust
