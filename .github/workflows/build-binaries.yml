@@ -41,8 +41,8 @@ jobs:
           # Check if LLVM 21 is already installed in common paths
           $candidates = @(
             "C:\Program Files\LLVM",
-            "${env:ProgramFiles}\LLVM",
-            "${env:VCPKG_ROOT}\installed\x64-windows"
+            "$(Join-Path ${env:ProgramFiles} 'LLVM')",
+            "$(Join-Path ${env:VCPKG_ROOT} 'installed\x64-windows')"
           )
           foreach ($dir in $candidates) {
             $cfg = Join-Path $dir "bin\llvm-config.exe"
@@ -51,7 +51,7 @@ jobs:
               if ($ver -match '^21\.') {
                 Write-Host "Found LLVM 21 at $dir"
                 echo "LLVM_SYS_211_PREFIX=$dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-                echo "$dir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+                echo "$(Join-Path $dir 'bin')" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
                 exit 0
               }
             }
@@ -62,16 +62,17 @@ jobs:
           $out = "$env:TEMP\llvm-installer.exe"
           Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
           Write-Host "Extracting LLVM with 7-Zip..."
-          & "C:\Program Files\7-Zip\7z.exe" x "$out" -o"$env:ProgramFiles\LLVM" -y -bso0 | Out-Null
-          $installed = "$env:ProgramFiles\LLVM"
-          $cfg2 = Join-Path $installed "bin\llvm-config.exe"
+          $targetDir = Join-Path ${env:ProgramFiles} 'LLVM'
+          & "C:\Program Files\7-Zip\7z.exe" x "$out" -o"$targetDir" -y -bso0 | Out-Null
+          $cfg2 = Join-Path $targetDir "bin\llvm-config.exe"
           if (Test-Path $cfg2) {
             $ver2 = & $cfg2 --version 2>`$null
             Write-Host "LLVM extracted: $ver2"
-            echo "LLVM_SYS_211_PREFIX=$installed" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-            echo "$installed\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            echo "LLVM_SYS_211_PREFIX=$targetDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            echo "$(Join-Path $targetDir 'bin')" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           } else {
-            Write-Host "::error::llvm-config.exe not found after extraction"
+            Write-Host "::error::llvm-config.exe not found after extraction (checked: $cfg2)"
+            Get-ChildItem $targetDir -Recurse -Filter "*.exe" -Name | Select-Object -First 20
             exit 1
           }
 
