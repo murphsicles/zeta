@@ -37,13 +37,44 @@ jobs:
 
       - name: Install LLVM 21
         shell: pwsh
-        continue-on-error: true
         run: |
-          $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/LLVM-21.1.0-win64.exe"
-          $out = "$env:TEMP\llvm-installer.exe"
-          Invoke-WebRequest -Uri $url -OutFile $out
-          Start-Process -Wait -FilePath $out -ArgumentList "/S"
-          echo "LLVM_SYS_211_PREFIX=$env:ProgramFiles\LLVM" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          # Check if LLVM is already available
+          $llvmConfig = Get-Command "llvm-config.exe" -ErrorAction SilentlyContinue
+          if ($llvmConfig) {
+              $version = & $llvmConfig.Source --version
+              Write-Host "LLVM found: $version at $($llvmConfig.Source)"
+              $prefix = & $llvmConfig.Source --prefix
+              Write-Host "LLVM_SYS_211_PREFIX=$prefix"
+              echo "LLVM_SYS_211_PREFIX=$prefix" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          } else {
+              Write-Host "LLVM not found. Downloading LLVM 21.1.0..."
+              $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/LLVM-21.1.0-win64.exe"
+              $out = "$env:TEMP\llvm-installer.exe"
+              Invoke-WebRequest -Uri $url -OutFile $out
+              Write-Host "Installing LLVM..."
+              & $out /S
+              Write-Host "Waiting for install to complete..."
+              Start-Sleep -Seconds 10
+              # Try to find it after install
+              $llvmConfig = Get-Command "llvm-config.exe" -ErrorAction SilentlyContinue
+              if ($llvmConfig) {
+                  $prefix = & $llvmConfig.Source --prefix
+                  Write-Host "LLVM installed at: $prefix"
+                  echo "LLVM_SYS_211_PREFIX=$prefix" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+              } else {
+                  # Fall back to default path
+                  $defaultPath = "C:\Program Files\LLVM"
+                  if (Test-Path $defaultPath) {
+                      Write-Host "Using default LLVM path: $defaultPath"
+                      echo "LLVM_SYS_211_PREFIX=$defaultPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+                  } else {
+                      Write-Host "LLVM not found after install. Trying vcpkg..."
+                      # Final fallback: try vcpkg without clean-after-build
+                      vcpkg install llvm[core,wasm]:x64-windows
+                      echo "LLVM_SYS_211_PREFIX=$env:VCPKG_ROOT\installed\x64-windows" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+                  }
+              }
+          }
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
