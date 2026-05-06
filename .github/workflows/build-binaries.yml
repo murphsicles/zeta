@@ -47,18 +47,21 @@ jobs:
               exit 0
             }
           }
+          # Collect candidate vcpkg directories, skipping any that are empty
           $vcpkgDirs = @(
             "${env:VCPKG_ROOT}",
             "C:\vcpkg"
-          )
+          ) | Where-Object { $_ -ne '' }
           $vcpkgExe = $null
           foreach ($d in $vcpkgDirs) {
-            if (Test-Path (Join-Path $d "vcpkg.exe")) {
-              $vcpkgExe = Join-Path $d "vcpkg.exe"
+            $exe = Join-Path $d "vcpkg.exe"
+            if (Test-Path $exe) {
+              $vcpkgExe = $exe
               break
             }
-            if (Test-Path (Join-Path $d "vcpkg")) {
-              $vcpkgExe = Join-Path $d "vcpkg"
+            $bat = Join-Path $d "vcpkg"
+            if (Test-Path $bat) {
+              $vcpkgExe = $bat
               break
             }
           }
