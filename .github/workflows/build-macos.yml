@@ -135,8 +135,8 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            git config user.name "Zeta Build Bot"
-            git config user.email "builds@zeta-lang.org"
+            git config user.name "Zak Murphy"
+            git config user.email "zak@z-lang.org"
             git commit -m "Update macOS binaries [skip ci]"
             git push origin main
             echo "✅ macOS binaries deployed"
