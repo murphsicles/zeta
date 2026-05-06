@@ -56,24 +56,25 @@ jobs:
               }
             }
           }
-          # Download LLVM 21.1.0 and extract with 7-Zip
-          Write-Host "Downloading LLVM 21.1.0..."
-          $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/LLVM-21.1.0-win64.exe"
-          $out = "$env:TEMP\llvm-installer.exe"
+          # llvm-config is only in the full clang+llvm pre-built package
+          Write-Host "Downloading clang+llvm 21.1.0 for Windows..."
+          $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/clang+llvm-21.1.0-x86_64-pc-windows-msvc.tar.xz"
+          $out = "$env:TEMP\llvm.tar.xz"
           Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
-          Write-Host "Extracting LLVM with 7-Zip..."
-          $targetDir = Join-Path ${env:ProgramFiles} 'LLVM'
-          & "C:\Program Files\7-Zip\7z.exe" x "$out" -o"$targetDir" -y -bso0 | Out-Null
+          Write-Host "Extracting LLVM (this may take a moment)..."
+          $targetDir = "C:\LLVM"
+          New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+          # tar is built into Windows Server 2025
+          tar -xf $out -C $targetDir --strip-components=1
           $cfg2 = Join-Path $targetDir "bin\llvm-config.exe"
           if (Test-Path $cfg2) {
-            $ver2 = & $cfg2 --version 2>`$null
+            $ver2 = & $cfg2 --version
             Write-Host "LLVM extracted: $ver2"
             echo "LLVM_SYS_211_PREFIX=$targetDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
             echo "$(Join-Path $targetDir 'bin')" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           } else {
-            Write-Host "::error::llvm-config.exe not found after extraction (checked: $cfg2)"
-            Get-ChildItem $targetDir -Recurse -Filter "*.exe" -Name | Select-Object -First 20
-            exit 1
+            Get-ChildItem $targetDir -Recurse -Filter "*.exe" -Name | Select-Object -First 30
+            throw "llvm-config.exe not found in $targetDir"
           }
 
       - name: Install Rust
