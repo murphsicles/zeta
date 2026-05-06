@@ -38,38 +38,35 @@ jobs:
       - name: Install LLVM 21
         shell: pwsh
         run: |
-          # Search common paths for LLVM 21.x
-          $prefixes = @(
-            "C:\Program Files\LLVM",
-            "${env:ProgramFiles}\LLVM",
-            "${env:VCPKG_ROOT}\installed\x64-windows"
-          )
-          $found = $false
-          foreach ($p in $prefixes) {
-            $exe = Join-Path $p "bin\llvm-config.exe"
-            if (Test-Path $exe) {
-              $ver = & $exe --version 2>`$null
-              Write-Host "LLVM at $p: $ver"
-              if ($ver -match '^21\.') {
-                Write-Host "Found LLVM 21 at $p"
-                echo "LLVM_SYS_211_PREFIX=$p" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-                $found = $true
-                break
-              }
+          # Check if LLVM 21 is already installed
+          $llvmDir = "C:\Program Files\LLVM"
+          $configPath = Join-Path $llvmDir "bin\llvm-config.exe"
+          if (Test-Path $configPath) {
+            $ver = & $configPath --version
+            Write-Host "Found LLVM: $ver"
+            if ($ver -match '^21\.') {
+              echo "LLVM_SYS_211_PREFIX=$llvmDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+              echo "$llvmDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+              exit 0
             }
           }
-          if (-not $found) {
-            Write-Host "LLVM 21 not found. Installing via vcpkg..."
-            vcpkg install llvm:x64-windows
-            $vp = "${env:VCPKG_ROOT}\installed\x64-windows"
-            $vexe = Join-Path $vp "bin\llvm-config.exe"
-            if (Test-Path $vexe) {
-              echo "LLVM_SYS_211_PREFIX=$vp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-              Write-Host "LLVM 21 installed at $vp"
-            } else {
-              Write-Host "::error::Failed to install LLVM 21 on Windows"
-              exit 1
-            }
+          # Download official LLVM 21.1.0 installer
+          Write-Host "Downloading LLVM 21.1.0..."
+          $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/LLVM-21.1.0-win64.exe"
+          $out = "$env:TEMP\llvm-installer.exe"
+          Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
+          Write-Host "Installing LLVM 21.1.0..."
+          $proc = Start-Process -FilePath $out -ArgumentList '/S' -Wait -PassThru
+          Write-Host "Installer exit code: $($proc.ExitCode)"
+          Start-Sleep -Seconds 5
+          if (Test-Path $configPath) {
+            $ver = & $configPath --version
+            Write-Host "LLVM $ver installed."
+            echo "LLVM_SYS_211_PREFIX=$llvmDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            echo "$llvmDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          } else {
+            Write-Host "::error::LLVM 21.1.0 installer did not produce llvm-config.exe at expected path"
+            exit 1
           }
 
       - name: Install Rust
