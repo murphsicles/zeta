@@ -18,9 +18,9 @@ jobs:
       matrix:
         toolchain: [nightly] # 2024 edition requires nightly (stable post-2024)
     steps:
-    - uses: actions/checkout@v4
-        with:
-          ref: bootstrap
+    - uses: actions/checkout@v6
+      with:
+        ref: bootstrap
     - name: Install LLVM 21
       run: |
         wget https://apt.llvm.org/llvm.sh
@@ -38,7 +38,7 @@ jobs:
         toolchain: ${{ matrix.toolchain }}
         components: rustfmt, clippy
     - name: Cache cargo
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: |
           ~/.cargo/registry
@@ -56,9 +56,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: check
     steps:
-    - uses: actions/checkout@v4
-        with:
-          ref: bootstrap
+    - uses: actions/checkout@v6
+      with:
+        ref: bootstrap
     - name: Install LLVM 21
       run: |
         wget https://apt.llvm.org/llvm.sh
@@ -76,7 +76,7 @@ jobs:
         toolchain: nightly
         components: rustfmt, clippy
     - name: Cache cargo
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: |
           ~/.cargo/registry
@@ -92,9 +92,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     steps:
-    - uses: actions/checkout@v4
-        with:
-          ref: bootstrap
+    - uses: actions/checkout@v6
+      with:
+        ref: bootstrap
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
@@ -113,9 +113,9 @@ jobs:
     needs: test
     if: always()
     steps:
-    - uses: actions/checkout@v4
-        with:
-          ref: bootstrap
+    - uses: actions/checkout@v6
+      with:
+        ref: bootstrap
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
@@ -155,9 +155,9 @@ jobs:
     needs: test
     if: always()
     steps:
-    - uses: actions/checkout@v4
-        with:
-          ref: bootstrap
+    - uses: actions/checkout@v6
+      with:
+        ref: bootstrap
     - name: Validate agent workflows
       run: |
         echo "Validating agent workflow files..."
@@ -198,9 +198,9 @@ jobs:
     needs: test
     if: always()
     steps:
-    - uses: actions/checkout@v4
-        with:
-          ref: bootstrap
+    - uses: actions/checkout@v6
+      with:
+        ref: bootstrap
     - name: Run system health checks
       run: |
         echo "🏥 SYSTEM HEALTH CHECKS"
@@ -239,9 +239,9 @@ jobs:
     needs: test
     if: always()
     steps:
-    - uses: actions/checkout@v4
-        with:
-          ref: bootstrap
+    - uses: actions/checkout@v6
+      with:
+        ref: bootstrap
     - name: Poll agent status
       run: |
         echo "🤖 AGENT STATUS POLLING"
@@ -293,9 +293,9 @@ jobs:
     needs: [check, test, security, agent-checks, agent-workflow-validation, polling-health-checks, agent-status-polling]
     if: always()
     steps:
-    - uses: actions/checkout@v4
-        with:
-          ref: bootstrap
+    - uses: actions/checkout@v6
+      with:
+        ref: bootstrap
     - name: Generate comprehensive status report
       run: |
         echo "📊 ZETA CI STATUS REPORT WITH POLLING"
