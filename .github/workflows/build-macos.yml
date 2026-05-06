@@ -35,8 +35,6 @@ jobs:
 
   build-arm64:
     runs-on: macos-14
-    # Best-effort: ARM64 runners are scarce and the build may fail.
-    # We do NOT use continue-on-error so failures are visible in the UI.
     steps:
       - uses: actions/checkout@v6
         with:
@@ -64,9 +62,11 @@ jobs:
           name: zetac-macos-arm64
           path: target/aarch64-apple-darwin/release/zetac
 
-  deploy:
-    needs: [build-x64, build-arm64]
-    # Always run deploy so x64 gets pushed even when arm64 fails
+  # Deploy ARM64 independently of x64 — they use separate runners and
+  # the Intel runner (macos-13) is often in limited supply.
+  # Each deploy validates the binary is genuine Mach-O before committing.
+  deploy-arm64:
+    needs: build-arm64
     if: always()
     runs-on: ubuntu-latest
     permissions:
@@ -77,48 +77,26 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      # --- x86_64 binary ---
-      - name: Download macOS x86_64 artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: zetac-macos-x64
-          path: bin
-        continue-on-error: true
-
-      - name: Validate and stage x86_64 binary
-        run: |
-          if [ -f bin/zetac ]; then
-            file_type=$(file bin/zetac)
-            if echo "$file_type" | grep -qi "Mach-O"; then
-              mv bin/zetac bin/zetac-macos-x64
-              chmod +x bin/zetac-macos-x64
-              echo "✅ macOS x86_64 binary validated and staged"
-            else
-              echo "❌ macOS x86_64 binary is wrong format: $file_type"
-              rm -f bin/zetac
-            fi
-          else
-            echo "⚠️ No macOS x86_64 binary produced"
-          fi
-
-      # --- ARM64 binary ---
-      # Sequentially download so we avoid file name collision: after x64 is
-      # renamed to zetac-macos-x64, bin/zetac is free for the ARM64 artifact.
-      - name: Download macOS ARM64 artifact
-        uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@v8
         with:
           name: zetac-macos-arm64
           path: bin
         continue-on-error: true
 
-      - name: Validate and stage ARM64 binary
+      - name: Validate and stage
         run: |
           if [ -f bin/zetac ]; then
             file_type=$(file bin/zetac)
             if echo "$file_type" | grep -qi "Mach-O"; then
               mv bin/zetac bin/zetac-macos-arm64
               chmod +x bin/zetac-macos-arm64
-              echo "✅ macOS ARM64 binary validated and staged"
+              echo "✅ macOS ARM64 binary validated"
+              git config user.name "Zak Murphy"
+              git config user.email "zak@z-lang.org"
+              git add bin/zetac-macos-arm64
+              git diff --cached --quiet || git commit -m "Update macOS ARM64 binary [skip ci]"
+              git push origin main
+              echo "✅ macOS ARM64 binary deployed"
             else
               echo "❌ macOS ARM64 binary is wrong format: $file_type"
               rm -f bin/zetac
@@ -127,16 +105,46 @@ jobs:
             echo "⚠️ No macOS ARM64 binary produced"
           fi
 
-      - name: Commit and push
+  deploy-x64:
+    needs: build-x64
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: zetac-macos-x64
+          path: bin
+        continue-on-error: true
+
+      - name: Validate and stage
         run: |
-          git add bin/zetac-macos-x64 2>/dev/null || true
-          git add bin/zetac-macos-arm64 2>/dev/null || true
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
+          if [ -f bin/zetac ]; then
+            file_type=$(file bin/zetac)
+            if echo "$file_type" | grep -qi "Mach-O"; then
+              mv bin/zetac bin/zetac-macos-x64
+              chmod +x bin/zetac-macos-x64
+              echo "✅ macOS x86_64 binary validated"
+              git config user.name "Zak Murphy"
+              git config user.email "zak@z-lang.org"
+              git add bin/zetac-macos-x64
+              if git diff --cached --quiet; then
+                echo "No changes (binary unchanged)"
+              else
+                git commit -m "Update macOS x86_64 binary [skip ci]"
+                git push origin main
+                echo "✅ macOS x86_64 binary deployed"
+              fi
+            else
+              echo "❌ macOS x86_64 binary is wrong format: $file_type"
+              rm -f bin/zetac
+            fi
           else
-            git config user.name "Zak Murphy"
-            git config user.email "zak@z-lang.org"
-            git commit -m "Update macOS binaries [skip ci]"
-            git push origin main
-            echo "✅ macOS binaries deployed"
+            echo "⚠️ No macOS x86_64 binary produced"
           fi
