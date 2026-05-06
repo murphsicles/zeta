@@ -1,5 +1,11 @@
 // src/runtime/std.rs
+
+// Architecture-specific SIMD intrinsics
+#[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
+#[cfg(target_arch = "aarch64")]
+use std::arch::aarch64::*;
+
 use std::collections::HashMap;
 use std::env;
 use std::sync::Mutex;
@@ -207,250 +213,282 @@ pub unsafe extern "C" fn dynamic_array_get(array_ptr: i64, index: i64) -> i64 {
     0
 }
 
-// SIMD Runtime Functions - Stub implementations to prevent crashes
+// SIMD Runtime Functions
 
 /// SIMD splat operation for i32x4 vectors
-///
-/// # Safety
-/// Value must be a valid i32 value
-/// Requires AVX2 support (for _mm_set1_epi32)
+#[cfg(target_arch = "x86_64")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn simd_splat_i32x4(value: i64) -> i64 {
     let val = value as i32;
-    // Use SSE/AVX intrinsics to create splat vector
-    let vec = unsafe { _mm_set1_epi32(val) };
-    // Store in heap-allocated structure
+    let vec = _mm_set1_epi32(val);
     let mut result = [0i32; 4];
-    unsafe { _mm_store_si128(result.as_mut_ptr() as *mut __m128i, vec) };
+    _mm_store_si128(result.as_mut_ptr() as *mut __m128i, vec);
+    let boxed = Box::new(I32x4(result));
+    Box::into_raw(boxed) as i64
+}
 
+#[cfg(target_arch = "aarch64")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn simd_splat_i32x4(value: i64) -> i64 {
+    let val = value as i32;
+    let vec = vdupq_n_s32(val);
+    let mut result = [0i32; 4];
+    vst1q_s32(result.as_mut_ptr() as *mut i32, vec);
     let boxed = Box::new(I32x4(result));
     Box::into_raw(boxed) as i64
 }
 
 /// SIMD splat operation for i64x2 vectors
-///
-/// # Safety
-/// Value must be a valid i64 value
-/// Requires SSE4.2/AVX support (for _mm_set1_epi64x)
+#[cfg(target_arch = "x86_64")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn simd_splat_i64x2(value: i64) -> i64 {
-    // Use SSE/AVX intrinsics to create splat vector
-    let vec = unsafe { _mm_set1_epi64x(value) };
-    // Store in heap-allocated structure
+    let vec = _mm_set1_epi64x(value);
     let mut result = [0i64; 2];
-    unsafe { _mm_store_si128(result.as_mut_ptr() as *mut __m128i, vec) };
+    _mm_store_si128(result.as_mut_ptr() as *mut __m128i, vec);
+    let boxed = Box::new(I64x2(result));
+    Box::into_raw(boxed) as i64
+}
 
+#[cfg(target_arch = "aarch64")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn simd_splat_i64x2(value: i64) -> i64 {
+    let vec = vdupq_n_s64(value);
+    let mut result = [0i64; 2];
+    vst1q_s64(result.as_mut_ptr() as *mut i64, vec);
     let boxed = Box::new(I64x2(result));
     Box::into_raw(boxed) as i64
 }
 
 /// SIMD splat operation for f32x4 vectors
-///
-/// # Safety
-/// Value must be a valid f32 value (passed as i64)
-/// Requires SSE support (for _mm_set1_ps)
+#[cfg(target_arch = "x86_64")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn simd_splat_f32x4(value: i64) -> i64 {
     let val = f32::from_bits(value as u32);
-    // Use SSE intrinsics to create splat vector
-    let vec = unsafe { _mm_set1_ps(val) };
-    // Store in heap-allocated structure
+    let vec = _mm_set1_ps(val);
     let mut result = [0f32; 4];
-    unsafe { _mm_store_ps(result.as_mut_ptr() as *mut f32, vec) };
+    _mm_store_ps(result.as_mut_ptr() as *mut f32, vec);
+    let boxed = Box::new(F32x4(result));
+    Box::into_raw(boxed) as i64
+}
 
+#[cfg(target_arch = "aarch64")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn simd_splat_f32x4(value: i64) -> i64 {
+    let val = f32::from_bits(value as u32);
+    let vec = vdupq_n_f32(val);
+    let mut result = [0f32; 4];
+    vst1q_f32(result.as_mut_ptr() as *mut f32, vec);
     let boxed = Box::new(F32x4(result));
     Box::into_raw(boxed) as i64
 }
 
 /// SIMD addition for i32x4 vectors
-///
-/// # Safety
-/// a and b must be valid i32x4 vector values
-/// Requires SSE2 support (for _mm_add_epi32)
+#[cfg(target_arch = "x86_64")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn simd_add_i32x4(a: i64, b: i64) -> i64 {
-    if a == 0 || b == 0 {
-        return 0;
-    }
-
+    if a == 0 || b == 0 { return 0; }
     let a_ptr = a as *const I32x4;
     let b_ptr = b as *const I32x4;
-
-    // Load vectors
-    let a_vec = unsafe { _mm_load_si128((*a_ptr).0.as_ptr() as *const __m128i) };
-    let b_vec = unsafe { _mm_load_si128((*b_ptr).0.as_ptr() as *const __m128i) };
-
-    // Perform addition
-    let result_vec = unsafe { _mm_add_epi32(a_vec, b_vec) };
-
-    // Store result
+    let a_vec = _mm_load_si128((*a_ptr).0.as_ptr() as *const __m128i);
+    let b_vec = _mm_load_si128((*b_ptr).0.as_ptr() as *const __m128i);
+    let result_vec = _mm_add_epi32(a_vec, b_vec);
     let mut result = [0i32; 4];
-    unsafe { _mm_store_si128(result.as_mut_ptr() as *mut __m128i, result_vec) };
+    _mm_store_si128(result.as_mut_ptr() as *mut __m128i, result_vec);
+    let boxed = Box::new(I32x4(result));
+    Box::into_raw(boxed) as i64
+}
 
+#[cfg(target_arch = "aarch64")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn simd_add_i32x4(a: i64, b: i64) -> i64 {
+    if a == 0 || b == 0 { return 0; }
+    let a_ptr = a as *const I32x4;
+    let b_ptr = b as *const I32x4;
+    let a_vec = vld1q_s32((*a_ptr).0.as_ptr() as *const i32);
+    let b_vec = vld1q_s32((*b_ptr).0.as_ptr() as *const i32);
+    let result_vec = vaddq_s32(a_vec, b_vec);
+    let mut result = [0i32; 4];
+    vst1q_s32(result.as_mut_ptr() as *mut i32, result_vec);
     let boxed = Box::new(I32x4(result));
     Box::into_raw(boxed) as i64
 }
 
 /// SIMD multiplication for i32x4 vectors
-///
-/// # Safety
-/// a and b must be valid i32x4 vector values
-/// Requires SSE4.1 support (for _mm_mullo_epi32)
+#[cfg(target_arch = "x86_64")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn simd_mul_i32x4(a: i64, b: i64) -> i64 {
-    if a == 0 || b == 0 {
-        return 0;
-    }
-
+    if a == 0 || b == 0 { return 0; }
     let a_ptr = a as *const I32x4;
     let b_ptr = b as *const I32x4;
-
-    // Load vectors
-    let a_vec = unsafe { _mm_load_si128((*a_ptr).0.as_ptr() as *const __m128i) };
-    let b_vec = unsafe { _mm_load_si128((*b_ptr).0.as_ptr() as *const __m128i) };
-
-    // Perform multiplication (low 32 bits of each 64-bit result)
-    let result_vec = unsafe { _mm_mullo_epi32(a_vec, b_vec) };
-
-    // Store result
+    let a_vec = _mm_load_si128((*a_ptr).0.as_ptr() as *const __m128i);
+    let b_vec = _mm_load_si128((*b_ptr).0.as_ptr() as *const __m128i);
+    let result_vec = _mm_mullo_epi32(a_vec, b_vec);
     let mut result = [0i32; 4];
-    unsafe { _mm_store_si128(result.as_mut_ptr() as *mut __m128i, result_vec) };
+    _mm_store_si128(result.as_mut_ptr() as *mut __m128i, result_vec);
+    let boxed = Box::new(I32x4(result));
+    Box::into_raw(boxed) as i64
+}
 
+#[cfg(target_arch = "aarch64")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn simd_mul_i32x4(a: i64, b: i64) -> i64 {
+    if a == 0 || b == 0 { return 0; }
+    let a_ptr = a as *const I32x4;
+    let b_ptr = b as *const I32x4;
+    let a_vec = vld1q_s32((*a_ptr).0.as_ptr() as *const i32);
+    let b_vec = vld1q_s32((*b_ptr).0.as_ptr() as *const i32);
+    let result_vec = vmulq_s32(a_vec, b_vec);
+    let mut result = [0i32; 4];
+    vst1q_s32(result.as_mut_ptr() as *mut i32, result_vec);
     let boxed = Box::new(I32x4(result));
     Box::into_raw(boxed) as i64
 }
 
 /// SIMD subtraction for i32x4 vectors
-///
-/// # Safety
-/// a and b must be valid i32x4 vector values
-/// Requires SSE2 support (for _mm_sub_epi32)
+#[cfg(target_arch = "x86_64")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn simd_sub_i32x4(a: i64, b: i64) -> i64 {
-    if a == 0 || b == 0 {
-        return 0;
-    }
-
+    if a == 0 || b == 0 { return 0; }
     let a_ptr = a as *const I32x4;
     let b_ptr = b as *const I32x4;
-
-    // Load vectors
-    let a_vec = unsafe { _mm_load_si128((*a_ptr).0.as_ptr() as *const __m128i) };
-    let b_vec = unsafe { _mm_load_si128((*b_ptr).0.as_ptr() as *const __m128i) };
-
-    // Perform subtraction
-    let result_vec = unsafe { _mm_sub_epi32(a_vec, b_vec) };
-
-    // Store result
+    let a_vec = _mm_load_si128((*a_ptr).0.as_ptr() as *const __m128i);
+    let b_vec = _mm_load_si128((*b_ptr).0.as_ptr() as *const __m128i);
+    let result_vec = _mm_sub_epi32(a_vec, b_vec);
     let mut result = [0i32; 4];
-    unsafe { _mm_store_si128(result.as_mut_ptr() as *mut __m128i, result_vec) };
+    _mm_store_si128(result.as_mut_ptr() as *mut __m128i, result_vec);
+    let boxed = Box::new(I32x4(result));
+    Box::into_raw(boxed) as i64
+}
 
+#[cfg(target_arch = "aarch64")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn simd_sub_i32x4(a: i64, b: i64) -> i64 {
+    if a == 0 || b == 0 { return 0; }
+    let a_ptr = a as *const I32x4;
+    let b_ptr = b as *const I32x4;
+    let a_vec = vld1q_s32((*a_ptr).0.as_ptr() as *const i32);
+    let b_vec = vld1q_s32((*b_ptr).0.as_ptr() as *const i32);
+    let result_vec = vsubq_s32(a_vec, b_vec);
+    let mut result = [0i32; 4];
+    vst1q_s32(result.as_mut_ptr() as *mut i32, result_vec);
     let boxed = Box::new(I32x4(result));
     Box::into_raw(boxed) as i64
 }
 
 /// SIMD load operation for i32x4 vectors
-///
-/// # Safety
-/// ptr must be a valid pointer to at least 4 i32 values, 16-byte aligned
-/// Requires SSE support (for _mm_load_si128)
+#[cfg(target_arch = "x86_64")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn simd_load_i32x4(ptr: i64) -> i64 {
-    if ptr == 0 {
-        return 0;
-    }
-
+    if ptr == 0 { return 0; }
     let data_ptr = ptr as *const i32;
-    // Load 4 i32 values (16 bytes)
-    let vec = unsafe { _mm_load_si128(data_ptr as *const __m128i) };
-
-    // Store in heap-allocated structure
+    let vec = _mm_load_si128(data_ptr as *const __m128i);
     let mut result = [0i32; 4];
-    unsafe { _mm_store_si128(result.as_mut_ptr() as *mut __m128i, vec) };
+    _mm_store_si128(result.as_mut_ptr() as *mut __m128i, vec);
+    let boxed = Box::new(I32x4(result));
+    Box::into_raw(boxed) as i64
+}
 
+#[cfg(target_arch = "aarch64")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn simd_load_i32x4(ptr: i64) -> i64 {
+    if ptr == 0 { return 0; }
+    let data_ptr = ptr as *const i32;
+    let vec = vld1q_s32(data_ptr);
+    let mut result = [0i32; 4];
+    vst1q_s32(result.as_mut_ptr() as *mut i32, vec);
     let boxed = Box::new(I32x4(result));
     Box::into_raw(boxed) as i64
 }
 
 /// SIMD store operation for i32x4 vectors
-///
-/// # Safety
-/// ptr must be a valid pointer to at least 4 i32 values, 16-byte aligned
-/// vec must be a valid i32x4 vector value
-/// Requires SSE support (for _mm_store_si128)
+#[cfg(target_arch = "x86_64")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn simd_store_i32x4(ptr: i64, vec: i64) {
-    if ptr == 0 || vec == 0 {
-        return;
-    }
-
+    if ptr == 0 || vec == 0 { return; }
     let data_ptr = ptr as *mut i32;
     let vec_ptr = vec as *const I32x4;
+    let vec_data = _mm_load_si128((*vec_ptr).0.as_ptr() as *const __m128i);
+    _mm_store_si128(data_ptr as *mut __m128i, vec_data);
+}
 
-    // Load vector from heap
-    let vec_data = unsafe { _mm_load_si128((*vec_ptr).0.as_ptr() as *const __m128i) };
-    // Store to memory
-    unsafe { _mm_store_si128(data_ptr as *mut __m128i, vec_data) };
+#[cfg(target_arch = "aarch64")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn simd_store_i32x4(ptr: i64, vec: i64) {
+    if ptr == 0 || vec == 0 { return; }
+    let data_ptr = ptr as *mut i32;
+    let vec_ptr = vec as *const I32x4;
+    let vec_data = vld1q_s32((*vec_ptr).0.as_ptr() as *const i32);
+    vst1q_s32(data_ptr, vec_data);
 }
 
 /// SIMD extract element from i32x4 vector
-///
-/// # Safety
-/// vec must be a valid i32x4 vector value
-/// index must be 0, 1, 2, or 3
-/// Requires SSE4.1 support (for _mm_extract_epi32)
+#[cfg(target_arch = "x86_64")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn simd_extract_i32x4(vec: i64, index: i64) -> i64 {
-    if vec == 0 || !(0..4).contains(&index) {
-        return 0;
-    }
-
+    if vec == 0 || !(0..4).contains(&index) { return 0; }
     let vec_ptr = vec as *const I32x4;
-    // Load vector
-    let vec_data = unsafe { _mm_load_si128((*vec_ptr).0.as_ptr() as *const __m128i) };
-
-    // Extract element at specified index
+    let vec_data = _mm_load_si128((*vec_ptr).0.as_ptr() as *const __m128i);
     let element = match index {
-        0 => unsafe { _mm_extract_epi32(vec_data, 0) },
-        1 => unsafe { _mm_extract_epi32(vec_data, 1) },
-        2 => unsafe { _mm_extract_epi32(vec_data, 2) },
-        3 => unsafe { _mm_extract_epi32(vec_data, 3) },
+        0 => _mm_extract_epi32(vec_data, 0),
+        1 => _mm_extract_epi32(vec_data, 1),
+        2 => _mm_extract_epi32(vec_data, 2),
+        3 => _mm_extract_epi32(vec_data, 3),
         _ => 0,
     };
+    element as i64
+}
 
+#[cfg(target_arch = "aarch64")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn simd_extract_i32x4(vec: i64, index: i64) -> i64 {
+    if vec == 0 || !(0..4).contains(&index) { return 0; }
+    let vec_ptr = vec as *const I32x4;
+    let vec_data = vld1q_s32((*vec_ptr).0.as_ptr() as *const i32);
+    let element = match index {
+        0 => vgetq_lane_s32(vec_data, 0),
+        1 => vgetq_lane_s32(vec_data, 1),
+        2 => vgetq_lane_s32(vec_data, 2),
+        3 => vgetq_lane_s32(vec_data, 3),
+        _ => 0,
+    };
     element as i64
 }
 
 /// SIMD insert element into i32x4 vector
-///
-/// # Safety
-/// vec must be a valid i32x4 vector value
-/// value must be a valid i32 value
-/// index must be 0, 1, 2, or 3
-/// Requires SSE4.1 support (for _mm_insert_epi32)
+#[cfg(target_arch = "x86_64")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn simd_insert_i32x4(vec: i64, value: i64, index: i64) -> i64 {
-    if vec == 0 || !(0..4).contains(&index) {
-        return 0;
-    }
-
+    if vec == 0 || !(0..4).contains(&index) { return 0; }
     let vec_ptr = vec as *const I32x4;
-    // Load original vector
-    let mut vec_data = unsafe { _mm_load_si128((*vec_ptr).0.as_ptr() as *const __m128i) };
-
-    // Insert element at specified index
+    let mut vec_data = _mm_load_si128((*vec_ptr).0.as_ptr() as *const __m128i);
     vec_data = match index {
-        0 => unsafe { _mm_insert_epi32(vec_data, value as i32, 0) },
-        1 => unsafe { _mm_insert_epi32(vec_data, value as i32, 1) },
-        2 => unsafe { _mm_insert_epi32(vec_data, value as i32, 2) },
-        3 => unsafe { _mm_insert_epi32(vec_data, value as i32, 3) },
+        0 => _mm_insert_epi32(vec_data, value as i32, 0),
+        1 => _mm_insert_epi32(vec_data, value as i32, 1),
+        2 => _mm_insert_epi32(vec_data, value as i32, 2),
+        3 => _mm_insert_epi32(vec_data, value as i32, 3),
         _ => vec_data,
     };
-
-    // Store result in new heap-allocated structure
     let mut result = [0i32; 4];
-    unsafe { _mm_store_si128(result.as_mut_ptr() as *mut __m128i, vec_data) };
+    _mm_store_si128(result.as_mut_ptr() as *mut __m128i, vec_data);
+    let boxed = Box::new(I32x4(result));
+    Box::into_raw(boxed) as i64
+}
 
+#[cfg(target_arch = "aarch64")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn simd_insert_i32x4(vec: i64, value: i64, index: i64) -> i64 {
+    if vec == 0 || !(0..4).contains(&index) { return 0; }
+    let vec_ptr = vec as *const I32x4;
+    let vec_data = vld1q_s32((*vec_ptr).0.as_ptr() as *const i32);
+    let result_vec = match index {
+        0 => vsetq_lane_s32(value as i32, vec_data, 0),
+        1 => vsetq_lane_s32(value as i32, vec_data, 1),
+        2 => vsetq_lane_s32(value as i32, vec_data, 2),
+        3 => vsetq_lane_s32(value as i32, vec_data, 3),
+        _ => vec_data,
+    };
+    let mut result = [0i32; 4];
+    vst1q_s32(result.as_mut_ptr() as *mut i32, result_vec);
     let boxed = Box::new(I32x4(result));
     Box::into_raw(boxed) as i64
 }
@@ -597,7 +635,6 @@ pub unsafe extern "C" fn intrinsic_clflush(ptr: i64) {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn intrinsic_mfence() {
     // Stub implementation - does nothing
-    // In a real implementation, this would use _mm_mfence
 }
 
 /// Load fence (lfence) instruction.
@@ -608,7 +645,6 @@ pub unsafe extern "C" fn intrinsic_mfence() {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn intrinsic_lfence() {
     // Stub implementation - does nothing
-    // In a real implementation, this would use _mm_lfence
 }
 
 /// Store fence (sfence) instruction.
@@ -619,7 +655,6 @@ pub unsafe extern "C" fn intrinsic_lfence() {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn intrinsic_sfence() {
     // Stub implementation - does nothing
-    // In a real implementation, this would use _mm_sfence
 }
 
 /// Pause instruction for spin loops.
@@ -630,7 +665,6 @@ pub unsafe extern "C" fn intrinsic_sfence() {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn intrinsic_pause() {
     // Stub implementation - does nothing
-    // In a real implementation, this would use _mm_pause
 }
 
 /// Test function for intrinsics
