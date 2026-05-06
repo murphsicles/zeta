@@ -42,20 +42,22 @@ jobs:
           $out = "$env:TEMP\llvm.tar.xz"
           Write-Host "Downloading clang+llvm 21.1.0 (900MB)..."
           Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
-          Write-Host "Extracting with 7-Zip..."
+          Write-Host "Extracting with tar (built-in)..."
           $targetDir = "C:\LLVM"
           New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
-          & "C:\Program Files\7-Zip\7z.exe" x "$out" -o"$targetDir" -y -bso0 | Out-Null
-          # Find llvm-config.exe wherever it ended up (archive may have top-level dir)
+          tar -xf "$out" -C "$targetDir" --strip-components=1
+          Write-Host "Looking for llvm-config.exe..."
           $cfg = Get-ChildItem $targetDir -Recurse -Filter "llvm-config.exe" | Select-Object -First 1
           if ($cfg) {
             $ver = & $cfg.FullName --version
+            $prefixDir = Resolve-Path (Join-Path $cfg.Directory.FullName "..")
             Write-Host "LLVM $ver at $($cfg.DirectoryName)"
-            echo "LLVM_SYS_211_PREFIX=$(Resolve-Path $cfg.DirectoryName/..)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-            echo "$(Resolve-Path $cfg.DirectoryName)" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            echo "LLVM_SYS_211_PREFIX=$prefixDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            echo "$(Join-Path $prefixDir 'bin')" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           } else {
-            Get-ChildItem $targetDir -Recurse -Depth 3 -Name | Select-Object -First 30
-            throw "llvm-config.exe not found in $targetDir"
+            Write-Host "Contents of $targetDir (top 3 levels):"
+            Get-ChildItem $targetDir -Depth 2 -Name | Select-Object -First 50
+            throw "llvm-config.exe not found"
           }
 
       - name: Install Rust
