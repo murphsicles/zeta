@@ -38,43 +38,34 @@ jobs:
       - name: Install LLVM 21
         shell: pwsh
         run: |
-          # Check if LLVM 21 is already installed in common paths
-          $candidates = @(
-            "C:\Program Files\LLVM",
-            "$(Join-Path ${env:ProgramFiles} 'LLVM')",
-            "$(Join-Path ${env:VCPKG_ROOT} 'installed\x64-windows')"
-          )
-          foreach ($dir in $candidates) {
-            $cfg = Join-Path $dir "bin\llvm-config.exe"
-            if (Test-Path $cfg) {
-              $ver = & $cfg --version 2>`$null
-              if ($ver -match '^21\.') {
-                Write-Host "Found LLVM 21 at $dir"
-                echo "LLVM_SYS_211_PREFIX=$dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-                echo "$(Join-Path $dir 'bin')" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-                exit 0
-              }
+          # Check if LLVM 21 is already available
+          $cfg = Get-Command "llvm-config.exe" -ErrorAction SilentlyContinue
+          if ($cfg) {
+            $ver = & $cfg --version
+            if ($ver -match '^21\.') {
+              $prefix = & $cfg --prefix
+              echo "LLVM_SYS_211_PREFIX=$prefix" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+              exit 0
             }
           }
-          # llvm-config is only in the full clang+llvm pre-built package
-          Write-Host "Downloading clang+llvm 21.1.0 for Windows..."
-          $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/clang+llvm-21.1.0-x86_64-pc-windows-msvc.tar.xz"
-          $out = "$env:TEMP\llvm.tar.xz"
-          Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
-          Write-Host "Extracting LLVM (this may take a moment)..."
-          $targetDir = "C:\LLVM"
-          New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
-          # tar is built into Windows Server 2025
-          tar -xf $out -C $targetDir --strip-components=1
-          $cfg2 = Join-Path $targetDir "bin\llvm-config.exe"
+          # Bootstrap vcpkg and install LLVM
+          Write-Host "Bootstrapping vcpkg..."
+          & "${env:VCPKG_ROOT}\vcpkg" bootstrap
+          Write-Host "Installing LLVM via vcpkg (this will take a while)..."
+          & "${env:VCPKG_ROOT}\vcpkg" install llvm:x64-windows
+          $vcpkgDir = "${env:VCPKG_ROOT}\installed\x64-windows"
+          $cfg2 = Join-Path $vcpkgDir "tools\llvm\llvm-config.exe"
+          if (-not (Test-Path $cfg2)) {
+            $cfg2 = Join-Path $vcpkgDir "bin\llvm-config.exe"
+          }
           if (Test-Path $cfg2) {
-            $ver2 = & $cfg2 --version
-            Write-Host "LLVM extracted: $ver2"
-            echo "LLVM_SYS_211_PREFIX=$targetDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-            echo "$(Join-Path $targetDir 'bin')" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            $ver2 = & $cfg2 --version 2>`$null
+            Write-Host "LLVM $ver2 installed at $(Split-Path $cfg2 -Parent)"
+            echo "LLVM_SYS_211_PREFIX=${env:VCPKG_ROOT}\installed\x64-windows" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           } else {
-            Get-ChildItem $targetDir -Recurse -Filter "*.exe" -Name | Select-Object -First 30
-            throw "llvm-config.exe not found in $targetDir"
+            Write-Host "::error::llvm-config.exe not found after vcpkg install"
+            Get-ChildItem "${env:VCPKG_ROOT}\installed\x64-windows" -Recurse -Filter "*.exe" -Name | Select-Object -First 30
+            exit 1
           }
 
       - name: Install Rust
