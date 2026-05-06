@@ -38,34 +38,40 @@ jobs:
       - name: Install LLVM 21
         shell: pwsh
         run: |
-          # Check if LLVM 21 is already installed
-          $llvmDir = "C:\Program Files\LLVM"
-          $configPath = Join-Path $llvmDir "bin\llvm-config.exe"
-          if (Test-Path $configPath) {
-            $ver = & $configPath --version
-            Write-Host "Found LLVM: $ver"
-            if ($ver -match '^21\.') {
-              echo "LLVM_SYS_211_PREFIX=$llvmDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-              echo "$llvmDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-              exit 0
+          # Check if LLVM 21 is already installed in common paths
+          $candidates = @(
+            "C:\Program Files\LLVM",
+            "${env:ProgramFiles}\LLVM",
+            "${env:VCPKG_ROOT}\installed\x64-windows"
+          )
+          foreach ($dir in $candidates) {
+            $cfg = Join-Path $dir "bin\llvm-config.exe"
+            if (Test-Path $cfg) {
+              $ver = & $cfg --version 2>`$null
+              if ($ver -match '^21\.') {
+                Write-Host "Found LLVM 21 at $dir"
+                echo "LLVM_SYS_211_PREFIX=$dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+                echo "$dir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+                exit 0
+              }
             }
           }
-          # Download official LLVM 21.1.0 installer
+          # Download LLVM 21.1.0 and extract with 7-Zip
           Write-Host "Downloading LLVM 21.1.0..."
           $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/LLVM-21.1.0-win64.exe"
           $out = "$env:TEMP\llvm-installer.exe"
           Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
-          Write-Host "Installing LLVM 21.1.0..."
-          $proc = Start-Process -FilePath $out -ArgumentList '/S' -Wait -PassThru
-          Write-Host "Installer exit code: $($proc.ExitCode)"
-          Start-Sleep -Seconds 5
-          if (Test-Path $configPath) {
-            $ver = & $configPath --version
-            Write-Host "LLVM $ver installed."
-            echo "LLVM_SYS_211_PREFIX=$llvmDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-            echo "$llvmDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          Write-Host "Extracting LLVM with 7-Zip..."
+          & "C:\Program Files\7-Zip\7z.exe" x "$out" -o"$env:ProgramFiles\LLVM" -y -bso0 | Out-Null
+          $installed = "$env:ProgramFiles\LLVM"
+          $cfg2 = Join-Path $installed "bin\llvm-config.exe"
+          if (Test-Path $cfg2) {
+            $ver2 = & $cfg2 --version 2>`$null
+            Write-Host "LLVM extracted: $ver2"
+            echo "LLVM_SYS_211_PREFIX=$installed" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            echo "$installed\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           } else {
-            Write-Host "::error::LLVM 21.1.0 installer did not produce llvm-config.exe at expected path"
+            Write-Host "::error::llvm-config.exe not found after extraction"
             exit 1
           }
 
