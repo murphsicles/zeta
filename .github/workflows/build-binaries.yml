@@ -37,27 +37,35 @@ jobs:
       - name: Install LLVM 21
         shell: pwsh
         run: |
-          # Download pre-built clang+llvm for Windows (has llvm-config.exe)
-          $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/clang+llvm-21.1.0-x86_64-pc-windows-msvc.tar.xz"
-          $out = "$env:TEMP\llvm.tar.xz"
-          Write-Host "Downloading clang+llvm 21.1.0 (900MB)..."
-          curl.exe -sL $url -o $out
-          Write-Host "Extracting with tar..."
-          $targetDir = "C:\LLVM"
-          New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
-          tar -xf "$out" -C "$targetDir" --strip-components=1
-          Write-Host "Looking for llvm-config.exe..."
-          $cfg = Get-ChildItem $targetDir -Recurse -Filter "llvm-config.exe" | Select-Object -First 1
+          # Check if LLVM 21 is already installed
+          $knownPaths = @(
+            "C:\Program Files\LLVM",
+            "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm"
+          )
+          foreach ($p in $knownPaths) {
+            $cfg = Join-Path $p "bin\llvm-config.exe"
+            if (Test-Path $cfg) {
+              $ver = & $cfg --version 2>`$null
+              if ($ver -match '^21\.') {
+                echo "LLVM_SYS_211_PREFIX=$p" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+                echo "$(Join-Path $p 'bin')" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+                exit 0
+              }
+            }
+          }
+          # Install LLVM via choco with version check
+          Write-Host "Installing LLVM via chocolatey..."
+          choco install llvm --no-progress -y 2>&1 | Write-Host
+          # Search for llvm-config.exe anywhere
+          $cfg = Get-ChildItem "${env:ProgramFiles}" -Recurse -Filter "llvm-config.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $cfg) { $cfg = Get-ChildItem "${env:ProgramFiles(x86)}" -Recurse -Filter "llvm-config.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 }
           if ($cfg) {
-            $ver = & $cfg.FullName --version
-            $prefixDir = Resolve-Path (Join-Path $cfg.Directory.FullName "..")
-            Write-Host "LLVM $ver at $($cfg.DirectoryName)"
-            echo "LLVM_SYS_211_PREFIX=$prefixDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-            echo "$(Join-Path $prefixDir 'bin')" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            $ver = & $cfg.FullName --version 2>`$null
+            $dir = Resolve-Path (Join-Path $cfg.Directory.FullName '..')
+            echo "LLVM_SYS_211_PREFIX=$dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            exit 0
           } else {
-            Write-Host "Contents of $targetDir (top 3 levels):"
-            Get-ChildItem $targetDir -Depth 2 -Name | Select-Object -First 50
-            throw "llvm-config.exe not found"
+            throw "llvm-config.exe not found after choco install"
           }
 
       - name: Install Rust
