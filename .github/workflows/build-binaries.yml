@@ -41,8 +41,8 @@ jobs:
           $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/clang+llvm-21.1.0-x86_64-pc-windows-msvc.tar.xz"
           $out = "$env:TEMP\llvm.tar.xz"
           Write-Host "Downloading clang+llvm 21.1.0 (900MB)..."
-          Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
-          Write-Host "Extracting with tar (built-in)..."
+          curl.exe -sL $url -o $out
+          Write-Host "Extracting with tar..."
           $targetDir = "C:\LLVM"
           New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
           tar -xf "$out" -C "$targetDir" --strip-components=1
