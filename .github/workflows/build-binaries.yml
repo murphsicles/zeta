@@ -1,7 +1,6 @@
 name: Build Binaries (Linux + Windows)
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   LLVM_SYS_210_PREFIX: /usr/lib/llvm-21
   LLVM_SYS_211_PREFIX: /usr/lib/llvm-21
 
@@ -14,7 +13,7 @@ jobs:
   linux:
     runs-on: [self-hosted, galaxy, wsl2, x86-64]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: bootstrap
 
@@ -22,21 +21,23 @@ jobs:
         run: cargo build --release
 
       - name: Upload binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: zetac-linux
           path: target/release/zetac
 
   windows:
     runs-on: windows-latest
-    continue-on-error: true
+    # Windows builds are best-effort (LLVM via vcpkg is slow and flaky).
+    # Failures are visible so we know when something's wrong.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: bootstrap
 
       - name: Install LLVM 21 (via vcpkg)
         shell: pwsh
+        continue-on-error: true
         run: |
           vcpkg install llvm[core,wasm]:x64-windows --clean-after-build
           echo "LLVM_SYS_211_PREFIX=$env:VCPKG_ROOT\installed\x64-windows" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
@@ -48,12 +49,11 @@ jobs:
           targets: x86_64-pc-windows-msvc
 
       - name: Build release
-        continue-on-error: true
         run: cargo build --release --target x86_64-pc-windows-msvc
 
       - name: Upload binary
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: zetac-windows
           path: target/x86_64-pc-windows-msvc/release/zetac.exe
@@ -65,20 +65,20 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: main
           fetch-depth: 0
 
       - name: Download Linux artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: zetac-linux
           path: bin
 
       - name: Download Windows artifact
         if: success()
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: zetac-windows
           path: bin

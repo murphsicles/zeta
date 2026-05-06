@@ -1,7 +1,6 @@
 name: Build Binaries (macOS)
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 on:
   push:
@@ -12,7 +11,7 @@ jobs:
   build-x64:
     runs-on: macos-13
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: bootstrap
 
@@ -31,7 +30,7 @@ jobs:
         run: cargo build --release
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: zetac-macos-x64
           path: target/release/zetac
@@ -41,7 +40,7 @@ jobs:
     # Best-effort: ARM64 runners are scarce and the build may fail.
     # We do NOT use continue-on-error so failures are visible in the UI.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: bootstrap
 
@@ -62,7 +61,7 @@ jobs:
 
       - name: Upload artifact
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: zetac-macos-arm64
           path: target/aarch64-apple-darwin/release/zetac
@@ -75,14 +74,14 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: main
           fetch-depth: 0
 
       # --- x86_64 binary ---
       - name: Download macOS x86_64 artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: zetac-macos-x64
           path: bin
@@ -108,7 +107,7 @@ jobs:
       # Sequentially download so we avoid file name collision: after x64 is
       # renamed to zetac-macos-x64, bin/zetac is free for the ARM64 artifact.
       - name: Download macOS ARM64 artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: zetac-macos-arm64
           path: bin
