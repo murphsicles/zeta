@@ -19,6 +19,7 @@ jobs:
       - name: Install LLVM 21
         run: |
           brew install llvm@21
+          brew link --overwrite llvm@21
           echo "LLVM_SYS_211_PREFIX=$(brew --prefix llvm@21)" >> $GITHUB_ENV
 
       - name: Install Rust
@@ -47,6 +48,7 @@ jobs:
       - name: Install LLVM 21
         run: |
           brew install llvm@21
+          brew link --overwrite llvm@21
           echo "LLVM_SYS_211_PREFIX=$(brew --prefix llvm@21)" >> $GITHUB_ENV
 
       - name: Install Rust
