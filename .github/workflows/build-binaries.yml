@@ -49,7 +49,7 @@ jobs:
           }
           $vcpkgDirs = @(
             "${env:VCPKG_ROOT}",
-            "C:\vcpkg",
+            "C:\vcpkg"
           )
           $vcpkgExe = $null
           foreach ($d in $vcpkgDirs) {
