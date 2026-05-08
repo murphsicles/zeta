@@ -26,3 +26,4 @@ pub mod vec;
 pub mod vector;
 pub mod xai;
 pub mod zeta_runtime;
+pub mod reactor;
