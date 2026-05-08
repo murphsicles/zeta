@@ -247,7 +247,84 @@ impl<'ctx> LLVMCodegen<'ctx> {
             ),
             None,
         );
-        // V4I64 vector intrinsics (AVX2) — handled inline in codegen
+        
+        // ── Reactor runtime functions (from zeta_src/runtime/reactor.z) ──
+        module.add_function(
+            "reactor_create",
+            i64_type.fn_type(&[], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "reactor_add",
+            i64_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "reactor_remove",
+            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "reactor_poll",
+            i64_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "reactor_event_fd",
+            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "reactor_event_flags",
+            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "reactor_destroy",
+            void_type.fn_type(&[i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "waker_create",
+            i64_type.fn_type(&[], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "waker_wake",
+            i64_type.fn_type(&[i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "waker_consume",
+            i64_type.fn_type(&[i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "waker_destroy",
+            void_type.fn_type(&[i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "set_nonblocking",
+            i64_type.fn_type(&[i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "monotonic_ns",
+            i64_type.fn_type(&[], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "scheduler_register_waker",
+            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "scheduler_run_reactor",
+            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
+            Some(Linkage::External),
+        );
+// V4I64 vector intrinsics (AVX2) — handled inline in codegen
         module.add_function(
             "__builtin_v4i64_store",
             void_type.fn_type(
