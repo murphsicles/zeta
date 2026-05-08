@@ -1,16 +1,16 @@
-# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta v1.0.2 — CI hardened, cross-platform pipeline
+# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta v1.0.3 — Epoll reactor, waker, self-hosting fixes
 
 [<img alt="Zeta Logo" width="128px" src="https://z-lang.org/assets/images/z128.png" />](https://z-lang.org) [![Latest Release](https://img.shields.io/github/v/release/murphsicles/zeta)](https://github.com/murphsicles/zeta/releases) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM.** v1.0.2 ships 35 commits since v1.0.1: Windows LLVM support, macOS ARM64 CI, Node 24 action upgrades, and updated pre-built binaries.
+**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM.** v1.0.3 ships the v0.12.0 bootstrap compiler, bringing epoll reactor, waker pipe, timerfd, blocking thread pool, and self-hosting pipeline fixes (29→1 error) to the self-hosted Zeta compiler.
 
 Built from the algebraic foundations of Stepanov's *Elements of Programming* — first principles, zero bloat, maximum efficiency.
 
 > "Weaponized minimalism. Surgical violence against complexity." — Roy Murphy
 
-## 🚀 v1.0.2 — CI Infrastructure
+## 🚀 v1.0.3 — Async Runtime Bootstrap
 
-Cross-platform CI: Windows LLVM via choco, macOS ARM64 + x86-64, self-hosted Galaxy runner. Pre-built binaries updated for all platforms.
+Self-hosted compiler now built from v0.12.0 bootstrap with epoll reactor, waker pipe, timerfd, blocking thread pool, and non-blocking I/O runtime. Self-hosting pipeline at 1 error (from 29). Kernel-level async primitives available to all Zeta code via extern fn.
 
 ## ✨ Features
 
