@@ -2283,10 +2283,10 @@ impl MirGen {
                         fields: field_ids,
                     },
                 );
-                // For now, assume struct type is a generic type
-                // TODO: Need proper type inference for struct literals
+                // Store the actual struct type name (e.g., "Point", "Runtime")
+                // This is used by method dispatch to resolve Type::method calls.
                 self.type_map
-                    .insert(id, Type::Named("Struct".to_string(), vec![]));
+                    .insert(id, Type::Named(variant.clone(), vec![]));
             }
             AstNode::PathCall {
                 path,

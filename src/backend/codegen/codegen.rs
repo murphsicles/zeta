@@ -1899,8 +1899,21 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 return f;
             }
         }
+        // Try get_function as final fallback — it has the split("::") logic
+        // that can resolve "Point::sum" → "sum" by extracting the method name.
+        if let Some(f) = self.module.get_function(name) {
+            return f;
+        }
+        // For path-qualified names like "Point::sum", try the base method name
+        if name.contains("::") {
+            if let Some(method_name) = name.split("::").last() {
+                if let Some(&f) = self.fns.get(method_name) {
+                    return f;
+                }
+            }
+        }
+
         // Not found — create extern declaration matching the call site's arg count
-        // Use mangled name (:: → __) for consistency with gen_mirs/gen_fn
         let actual_name = if type_args.is_empty() {
             name.replace("::", "__")
         } else {
@@ -4106,25 +4119,39 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 };
 
                 // Get the base expression to determine struct type
-                let base_expr = &exprs[base];
-                let field_count = if let MirExpr::Struct { variant: _, fields } = base_expr {
-                    fields.len()
+                // Trace through Var chain to find the original Struct definition
+                let mut base_expr = &exprs[base];
+                let mut visited = 0;
+                while visited < 10 {
+                    match base_expr {
+                        MirExpr::Var(v) => { base_expr = match exprs.get(v) { Some(e) => e, None => break, }; visited += 1; }
+                        MirExpr::FieldAccess { base: inner, .. } => { base_expr = match exprs.get(inner) { Some(e) => e, None => break, }; visited += 1; }
+                        _ => break,
+                    }
+                }
+
+                let (variant, field_count) = if let MirExpr::Struct { variant, fields } = base_expr {
+                    (variant.clone(), fields.len())
                 } else {
-                    // Default to 2 fields for Pair<A, B>
-                    2
+                    // Default: search struct_defs for a struct with this field
+                    let mut fv = String::new();
+                    let mut fc = 2;
+                    for (key, fields) in self.struct_defs.iter() {
+                        if fields.iter().any(|n| n == field) {
+                            fc = fields.len(); fv = key.clone(); break;
+                        }
+                    }
+                    (fv, fc)
                 };
 
-                // Create type key for lookup
-                let type_key = format!("struct_fields_{}", field_count);
+                // Create type key matching the Struct handler format: "{variant}_fields_{count}"
+                let type_key = format!("{}_fields_{}", variant, field_count);
 
                 // Get cached struct type or create it
                 let struct_type = if let Some(ty) = self.specialized_types.get(&type_key) {
                     *ty
                 } else {
-                    // Create struct type with field_count i64 fields
-                    let field_types: Vec<_> =
-                        (0..field_count).map(|_| self.i64_type.into()).collect();
-
+                    let field_types: Vec<_> = (0..field_count).map(|_| self.i64_type.into()).collect();
                     let ty = self.context.struct_type(&field_types, false);
                     self.specialized_types.insert(type_key.clone(), ty);
                     ty
