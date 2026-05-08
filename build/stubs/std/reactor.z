@@ -1,26 +1,3 @@
-//! Stub for reactor — epoll, waker, timerfd, non-blocking I/O
-//! Backed by Zeta bootstrap runtime.
-
-extern fn reactor_create() -> i64;
-extern fn reactor_add(epfd: i64, fd: i64, events: i64) -> i64;
-extern fn reactor_modify(epfd: i64, fd: i64, events: i64) -> i64;
-extern fn reactor_remove(epfd: i64, fd: i64) -> i64;
-extern fn reactor_poll(epfd: i64, timeout_ms: i64) -> i64;
-extern fn reactor_event_fd(n: i64) -> i64;
-extern fn reactor_event_flags(n: i64) -> i64;
-extern fn reactor_destroy(epfd: i64);
-
-extern fn waker_create() -> i64;
-extern fn waker_wake(read_fd: i64) -> i64;
-extern fn waker_consume(read_fd: i64) -> i64;
-extern fn waker_destroy(read_fd: i64);
-
-extern fn timerfd_create() -> i64;
-extern fn timerfd_set(fd: i64, ns: i64) -> i64;
-extern fn timerfd_set_absolute(fd: i64, abs_ns: i64) -> i64;
-extern fn timerfd_read(fd: i64) -> i64;
-
-extern fn set_nonblocking(fd: i64) -> i64;
-extern fn monotonic_ns() -> i64;
-
+//! Stub for zeta::runtime::reactor — epoll reactor, waker, timerfd
+//! Interface: see zeta_src/runtime/reactor.z
 pub struct Stub;

@@ -1,0 +1,39 @@
+// zeta_src/runtime/reactor.z
+// Zeta Tokio Reactor — epoll, waker pipe, timerfd
+// This is the Zeta-side interface. The bootstrap (Rust) provides the host functions.
+// When self-hosting, these extern fn calls resolve to native Zeta implementations.
+
+// ── Reactor ──
+
+extern fn reactor_create() -> i64;
+extern fn reactor_add(epfd: i64, fd: i64, events: i64) -> i64;
+extern fn reactor_modify(epfd: i64, fd: i64, events: i64) -> i64;
+extern fn reactor_remove(epfd: i64, fd: i64) -> i64;
+extern fn reactor_poll(epfd: i64, events_buf: i64, max_events: i64, timeout_ms: i64) -> i64;
+extern fn reactor_event_fd(events_buf: i64, idx: i64) -> i64;
+extern fn reactor_event_flags(events_buf: i64, idx: i64) -> i64;
+extern fn reactor_destroy(epfd: i64);
+
+// ── Waker ──
+
+extern fn waker_create() -> i64;
+extern fn waker_wake(read_fd: i64) -> i64;
+extern fn waker_consume(read_fd: i64) -> i64;
+extern fn waker_destroy(read_fd: i64);
+
+// ── Timerfd ──
+
+extern fn timerfd_create() -> i64;
+extern fn timerfd_set(fd: i64, ns: i64) -> i64;
+extern fn timerfd_set_absolute(fd: i64, abs_ns: i64) -> i64;
+extern fn timerfd_read(fd: i64) -> i64;
+
+// ── Non-blocking I/O ──
+
+extern fn set_nonblocking(fd: i64) -> i64;
+extern fn monotonic_ns() -> i64;
+
+pub const READABLE: i64 = 1;
+pub const WRITABLE: i64 = 2;
+pub const ERROR_EVENT: i64 = 4;
+pub const TIMEOUT_INFINITE: i64 = -1;

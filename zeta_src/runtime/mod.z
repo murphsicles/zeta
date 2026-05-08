@@ -7,3 +7,4 @@ pub mod xai;
 pub mod array;
 pub mod tensor;
 pub mod ml;
+pub mod reactor;
