@@ -136,6 +136,7 @@ impl MirGen {
             } else {
                 None
             },
+            // Count params for potential name mangling (used by get_or_declare_function)
             param_indices: if let AstNode::FuncDef { params, .. } = ast {
                 params
                     .iter()

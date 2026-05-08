@@ -1015,22 +1015,25 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.generic_defs.insert(fn_name.clone(), mir.clone());
             } else {
                 // Non-generic function: declare as before.
-                // Skip if function with this name already declared.
-                if !self.fns.contains_key(&fn_name) && self.module.get_function(&fn_name).is_none() {
+                // If function with this name already exists in the module with
+                // a DIFFERENT param count, use a mangled name: name_N where N
+                // is the param count. This avoids LLVM name collisions for
+                // overloaded functions (e.g., fn new() vs fn new(input)).
+                let is_overloaded = self.module.get_function(&fn_name)
+                    .map(|f| f.count_params() != mir.param_indices.len() as u32)
+                    .unwrap_or(false);
+                let actual_name = if is_overloaded {
+                    format!("{}_{}", fn_name, mir.param_indices.len())
+                } else {
+                    fn_name.clone()
+                };
+                if !self.fns.contains_key(&actual_name) && self.module.get_function(&actual_name).is_none() {
                     let param_types: Vec<_> = (0..mir.param_indices.len())
                         .map(|_| self.i64_type.into())
                         .collect();
                     let fn_type = self.i64_type.fn_type(&param_types, false);
-                    let fn_val = self.module.add_function(&fn_name, fn_type, None);
-                    self.fns.insert(fn_name.clone(), fn_val);
-                } else {
-                    // Function already declared — use existing declaration.
-                    // Important: the function BODY is still generated in gen_fn.
-                    // Multiple Zeta functions can share an LLVM function name
-                    // if they have the same signature (same param count).
-                    // If signatures differ (e.g., fn new() vs fn new(input)),
-                    // the first declaration wins and the second is compiled
-                    // under the inherited signature.
+                    let fn_val = self.module.add_function(&actual_name, fn_type, None);
+                    self.fns.insert(actual_name.clone(), fn_val);
                 }
             }
         }
@@ -1038,14 +1041,24 @@ impl<'ctx> LLVMCodegen<'ctx> {
         // Second pass: generate non-generic function bodies
         for mir in mirs {
             if !self.is_generic_function(mir) {
-                // Skip function body generation if this function name was already
-                // declared with a DIFFERENT param count (name overload, e.g., fn new()).
-                // The body would be generated against the wrong LLVM function type.
                 let fn_name = mir.name.as_ref().cloned().unwrap_or("anon".to_string());
-                let param_count = mir.param_indices.len();
-                let should_skip = if let Some(&fn_val) = self.fns.get(&fn_name) {
-                    fn_val.count_params() != param_count as u32
-                } else { false };
+                let param_count = mir.param_indices.len() as u32;
+
+                // Determine actual function name, matching first-pass logic.
+                let actual_name = self.module.get_function(&fn_name)
+                    .map(|f| f.count_params() != param_count)
+                    .unwrap_or(false)
+                    .then(|| format!("{}_{}", fn_name, param_count))
+                    .unwrap_or_else(|| fn_name.clone());
+
+                // Skip if this function was pre-declared with a non-i64 return type.
+                let mut should_skip = self.module.get_function(&actual_name)
+                    .and_then(|f| match f.get_type().get_return_type() {
+                        Some(rt) if rt == self.i64_type.into() => None,
+                        _ => Some(()),
+                    })
+                    .is_some();
+
                 if !should_skip {
                     self.gen_fn(mir);
                 }
@@ -1055,8 +1068,16 @@ impl<'ctx> LLVMCodegen<'ctx> {
     }
 
     fn gen_fn(&mut self, mir: &Mir) {
+        // Use param-count-suffixed name if this function is overloaded
         let fn_name = mir.name.as_ref().cloned().unwrap_or("anon".to_string());
-        let fn_val = self.get_function(&fn_name);
+        let param_count = mir.param_indices.len() as u32;
+        let actual_name = self.module.get_function(&fn_name)
+            .map(|f| f.count_params() != param_count)
+            .unwrap_or(false)
+            .then(|| format!("{}_{}", fn_name, param_count))
+            .unwrap_or_else(|| fn_name.clone());
+        // First try the actual (potentially mangled) name, then fall back to the original
+        let fn_val = self.get_function(&actual_name);
 
         // If function has no body (extern/FFI declaration), mark as
         // external linkage and skip body generation — the linker will
@@ -1568,6 +1589,17 @@ impl<'ctx> LLVMCodegen<'ctx> {
         if let Some(f) = self.module.get_function(name) {
             return f;
         }
+        // Try param-count-suffixed names: "new" → "new_0", "new_1", etc.
+        // (handles overloaded functions disambiguated by gen_mirs)
+        for pc in 0..=10u32 {
+            let suffixed = format!("{}_{}", name, pc);
+            if let Some(f) = self.module.get_function(&suffixed) {
+                return f;
+            }
+            if let Some(&f) = self.fns.get(&suffixed) {
+                return f;
+            }
+        }
 
         let base = name.split('_').next().unwrap_or(name);
         if let Some(&f) = self.fns.get(base) {
@@ -1876,13 +1908,24 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     return f;
                 }
             }
-            // Fall through to raw name check
+            // Fall through to raw name check.
+            // Only return the function if the param count matches.
+            // If param count differs, try param-suffixed name below.
             if let Some(f) = self.module.get_function(name) {
-                return f;
+                if f.count_params() == args_count as u32 {
+                    return f;
+                }
             }
             if let Some(&f) = self.fns.get(name) {
-                return f;
+                if f.count_params() == args_count as u32 {
+                    return f;
+                }
             }
+            // Try param-count-suffixed name before extern declaration.
+            // Handles overloaded functions declared as name_N in gen_mirs.
+            let param_suffixed = format!("{}_{}", name, args_count);
+            if let Some(f) = self.module.get_function(&param_suffixed) { return f; }
+            if let Some(&f) = self.fns.get(&param_suffixed) { return f; }
         } else {
             let mangled = self.mangle_function_name(name, type_args);
             if let Some(f) = self.module.get_function(&mangled) {
@@ -1899,8 +1942,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 return f;
             }
         }
+        // Try param-count-suffixed name before creating extern.
+        // Handles overloaded functions declared as name_N in gen_mirs.
+        let param_suffixed = format!("{}_{}", name, args_count);
+        if let Some(f) = self.module.get_function(&param_suffixed) { return f; }
+        if let Some(&f) = self.fns.get(&param_suffixed) { return f; }
+
         // Not found — create extern declaration matching the call site's arg count
-        // Use mangled name (:: → __) for consistency with gen_mirs/gen_fn
         let actual_name = if type_args.is_empty() {
             name.replace("::", "__")
         } else {
@@ -3811,6 +3859,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
     /// Resolve the field index for a FieldAccess expression.
     /// Looks up the struct definition to find the field index by name.
     /// Falls back to parsing the field name as numeric index.
+    /// Resolve a field name to its index in the struct.
+    /// If `variant_hint` is provided, only search that specific struct definition.
     fn resolve_struct_field_index(
         &self,
         _base_id: &u32,
@@ -3828,6 +3878,25 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
         // Fallback: try parsing the field name as a numeric index
         field_name.parse::<u32>().unwrap_or(0)
+    }
+
+    /// Resolve a field name to its index within a specific struct variant.
+    /// Searches only the struct definition matching the given variant and field count.
+    fn resolve_struct_field_index_for_variant(
+        &self,
+        variant: &str,
+        field_count: usize,
+        field_name: &str,
+    ) -> u32 {
+        let type_key = format!("struct_{}_{}", variant, field_count);
+        if let Some(fields) = self.struct_defs.get(&type_key) {
+            for (i, name) in fields.iter().enumerate() {
+                if name == field_name {
+                    return i as u32;
+                }
+            }
+        }
+        0
     }
 
     fn gen_expr(
@@ -4105,26 +4174,34 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     return self.i64_type.const_int(0, true).into();
                 };
 
-                // Get the base expression to determine struct type
-                let base_expr = &exprs[base];
-                let field_count = if let MirExpr::Struct { variant: _, fields } = base_expr {
-                    fields.len()
+                // Trace through Var chain to find the original Struct expression
+                let mut base_expr = &exprs[base];
+                for _ in 0..10 {
+                    match base_expr {
+                        MirExpr::Var(v) => { base_expr = match exprs.get(v) { Some(e) => e, None => break, }; }
+                        MirExpr::FieldAccess { base: inner, .. } => { base_expr = match exprs.get(inner) { Some(e) => e, None => break, }; }
+                        _ => break,
+                    }
+                }
+
+                // Determine struct type from the Struct expression
+                let (variant, field_count) = if let MirExpr::Struct { variant, fields } = base_expr {
+                    (variant.clone(), fields.len())
                 } else {
-                    // Default to 2 fields for Pair<A, B>
-                    2
+                    (String::new(), 2)
                 };
 
-                // Create type key for lookup
-                let type_key = format!("struct_fields_{}", field_count);
+                // Use same type key format as the Struct handler: "{variant}_fields_{count}"
+                let type_key = if variant.is_empty() {
+                    format!("struct_fields_{}", field_count)
+                } else {
+                    format!("{}_fields_{}", variant, field_count)
+                };
 
-                // Get cached struct type or create it
                 let struct_type = if let Some(ty) = self.specialized_types.get(&type_key) {
                     *ty
                 } else {
-                    // Create struct type with field_count i64 fields
-                    let field_types: Vec<_> =
-                        (0..field_count).map(|_| self.i64_type.into()).collect();
-
+                    let field_types: Vec<_> = (0..field_count).map(|_| self.i64_type.into()).collect();
                     let ty = self.context.struct_type(&field_types, false);
                     self.specialized_types.insert(type_key.clone(), ty);
                     ty
@@ -4138,7 +4215,18 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 // Extract field based on name
                 // Walk the expression chain to find the Struct definition
                 // and look up the field index by name
-                let field_index = self.resolve_struct_field_index(base, field, exprs);
+                // Try variant-specific lookup first, then fall back to global search
+                let field_index = if !variant.is_empty() {
+                    self.resolve_struct_field_index_for_variant(&variant, field_count, field)
+                } else {
+                    self.resolve_struct_field_index(base, field, exprs)
+                };
+                // If still out of range, fall back to numeric parse
+                let field_index = if field_index >= field_count as u32 {
+                    field.parse::<u32>().unwrap_or(0)
+                } else {
+                    field_index
+ };
 
                 // Extract value from struct
                 self.builder
