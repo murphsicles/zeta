@@ -330,26 +330,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         // First try C runtime object file (simpler, no Rust stdlib dependencies)
                         let runtime_c_obj = std::path::Path::new("zeta_runtime_c.o");
                         let runtime_rust_obj = std::path::Path::new("zeta_runtime.o");
+                        let tokio_runtime_obj = std::path::Path::new("tokio_runtime.o");
 
                         if runtime_c_obj.exists() {
-                            // Use C runtime (preferred - no Rust stdlib dependencies)
                             cmd.arg(runtime_c_obj);
                         } else if runtime_rust_obj.exists() {
-                            // Fallback to old Rust runtime object
                             cmd.arg(runtime_rust_obj);
                         } else {
-                            // Check for compiled libraries
                             let runtime_lib_windows =
                                 std::path::Path::new("runtime_lib/target/release/zeta_runtime.lib");
                             let runtime_lib_unix = std::path::Path::new("libzeta.a");
-
                             if runtime_lib_windows.exists() {
-                                // Windows: link against .lib file
                                 cmd.arg(runtime_lib_windows);
                             } else if runtime_lib_unix.exists() {
-                                // Unix: link against .a file
                                 cmd.arg(runtime_lib_unix);
                             }
+                        }
+
+                        // Link tokio_runtime.o if present (provides reactor, waker, timerfd, scheduler)
+                        if tokio_runtime_obj.exists() {
+                            cmd.arg(tokio_runtime_obj);
                         }
 
                         let status = cmd.status()?;
