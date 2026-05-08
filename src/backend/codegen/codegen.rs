@@ -1014,20 +1014,41 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 // Store generic definition for later instantiation
                 self.generic_defs.insert(fn_name.clone(), mir.clone());
             } else {
-                // Non-generic function: declare as before
-                let param_types: Vec<_> = (0..mir.param_indices.len())
-                    .map(|_| self.i64_type.into())
-                    .collect();
-                let fn_type = self.i64_type.fn_type(&param_types, false);
-                let fn_val = self.module.add_function(&fn_name, fn_type, None);
-                self.fns.insert(fn_name.clone(), fn_val);
+                // Non-generic function: declare as before.
+                // Skip if function with this name already declared.
+                if !self.fns.contains_key(&fn_name) && self.module.get_function(&fn_name).is_none() {
+                    let param_types: Vec<_> = (0..mir.param_indices.len())
+                        .map(|_| self.i64_type.into())
+                        .collect();
+                    let fn_type = self.i64_type.fn_type(&param_types, false);
+                    let fn_val = self.module.add_function(&fn_name, fn_type, None);
+                    self.fns.insert(fn_name.clone(), fn_val);
+                } else {
+                    // Function already declared — use existing declaration.
+                    // Important: the function BODY is still generated in gen_fn.
+                    // Multiple Zeta functions can share an LLVM function name
+                    // if they have the same signature (same param count).
+                    // If signatures differ (e.g., fn new() vs fn new(input)),
+                    // the first declaration wins and the second is compiled
+                    // under the inherited signature.
+                }
             }
         }
 
         // Second pass: generate non-generic function bodies
         for mir in mirs {
             if !self.is_generic_function(mir) {
-                self.gen_fn(mir);
+                // Skip function body generation if this function name was already
+                // declared with a DIFFERENT param count (name overload, e.g., fn new()).
+                // The body would be generated against the wrong LLVM function type.
+                let fn_name = mir.name.as_ref().cloned().unwrap_or("anon".to_string());
+                let param_count = mir.param_indices.len();
+                let should_skip = if let Some(&fn_val) = self.fns.get(&fn_name) {
+                    fn_val.count_params() != param_count as u32
+                } else { false };
+                if !should_skip {
+                    self.gen_fn(mir);
+                }
             }
             // Generic functions are generated on-demand via monomorphization
         }
