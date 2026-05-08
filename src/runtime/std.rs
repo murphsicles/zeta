@@ -1,10 +1,10 @@
 // src/runtime/std.rs
 
 // Architecture-specific SIMD intrinsics
-#[cfg(target_arch = "x86_64")]
-use std::arch::x86_64::*;
 #[cfg(target_arch = "aarch64")]
 use std::arch::aarch64::*;
+#[cfg(target_arch = "x86_64")]
+use std::arch::x86_64::*;
 
 use std::collections::HashMap;
 use std::env;
@@ -218,14 +218,14 @@ pub unsafe extern "C" fn dynamic_array_get(array_ptr: i64, index: i64) -> i64 {
 /// SIMD splat operation for i32x4 vectors
 #[cfg(target_arch = "x86_64")]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn simd_splat_i32x4(value: i64) -> i64 {
+pub unsafe extern "C" fn simd_splat_i32x4(value: i64) -> i64 { unsafe {
     let val = value as i32;
     let vec = _mm_set1_epi32(val);
     let mut result = [0i32; 4];
     _mm_store_si128(result.as_mut_ptr() as *mut __m128i, vec);
     let boxed = Box::new(I32x4(result));
     Box::into_raw(boxed) as i64
-}
+}}
 
 #[cfg(target_arch = "aarch64")]
 #[unsafe(no_mangle)]
@@ -241,13 +241,13 @@ pub unsafe extern "C" fn simd_splat_i32x4(value: i64) -> i64 {
 /// SIMD splat operation for i64x2 vectors
 #[cfg(target_arch = "x86_64")]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn simd_splat_i64x2(value: i64) -> i64 {
+pub unsafe extern "C" fn simd_splat_i64x2(value: i64) -> i64 { unsafe {
     let vec = _mm_set1_epi64x(value);
     let mut result = [0i64; 2];
     _mm_store_si128(result.as_mut_ptr() as *mut __m128i, vec);
     let boxed = Box::new(I64x2(result));
     Box::into_raw(boxed) as i64
-}
+}}
 
 #[cfg(target_arch = "aarch64")]
 #[unsafe(no_mangle)]
@@ -262,14 +262,14 @@ pub unsafe extern "C" fn simd_splat_i64x2(value: i64) -> i64 {
 /// SIMD splat operation for f32x4 vectors
 #[cfg(target_arch = "x86_64")]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn simd_splat_f32x4(value: i64) -> i64 {
+pub unsafe extern "C" fn simd_splat_f32x4(value: i64) -> i64 { unsafe {
     let val = f32::from_bits(value as u32);
     let vec = _mm_set1_ps(val);
     let mut result = [0f32; 4];
     _mm_store_ps(result.as_mut_ptr() as *mut f32, vec);
     let boxed = Box::new(F32x4(result));
     Box::into_raw(boxed) as i64
-}
+}}
 
 #[cfg(target_arch = "aarch64")]
 #[unsafe(no_mangle)]
@@ -285,8 +285,10 @@ pub unsafe extern "C" fn simd_splat_f32x4(value: i64) -> i64 {
 /// SIMD addition for i32x4 vectors
 #[cfg(target_arch = "x86_64")]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn simd_add_i32x4(a: i64, b: i64) -> i64 {
-    if a == 0 || b == 0 { return 0; }
+pub unsafe extern "C" fn simd_add_i32x4(a: i64, b: i64) -> i64 { unsafe {
+    if a == 0 || b == 0 {
+        return 0;
+    }
     let a_ptr = a as *const I32x4;
     let b_ptr = b as *const I32x4;
     let a_vec = _mm_load_si128((*a_ptr).0.as_ptr() as *const __m128i);
@@ -296,12 +298,14 @@ pub unsafe extern "C" fn simd_add_i32x4(a: i64, b: i64) -> i64 {
     _mm_store_si128(result.as_mut_ptr() as *mut __m128i, result_vec);
     let boxed = Box::new(I32x4(result));
     Box::into_raw(boxed) as i64
-}
+}}
 
 #[cfg(target_arch = "aarch64")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn simd_add_i32x4(a: i64, b: i64) -> i64 {
-    if a == 0 || b == 0 { return 0; }
+    if a == 0 || b == 0 {
+        return 0;
+    }
     let a_ptr = a as *const I32x4;
     let b_ptr = b as *const I32x4;
     let a_vec = vld1q_s32((*a_ptr).0.as_ptr() as *const i32);
@@ -316,8 +320,10 @@ pub unsafe extern "C" fn simd_add_i32x4(a: i64, b: i64) -> i64 {
 /// SIMD multiplication for i32x4 vectors
 #[cfg(target_arch = "x86_64")]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn simd_mul_i32x4(a: i64, b: i64) -> i64 {
-    if a == 0 || b == 0 { return 0; }
+pub unsafe extern "C" fn simd_mul_i32x4(a: i64, b: i64) -> i64 { unsafe {
+    if a == 0 || b == 0 {
+        return 0;
+    }
     let a_ptr = a as *const I32x4;
     let b_ptr = b as *const I32x4;
     let a_vec = _mm_load_si128((*a_ptr).0.as_ptr() as *const __m128i);
@@ -327,12 +333,14 @@ pub unsafe extern "C" fn simd_mul_i32x4(a: i64, b: i64) -> i64 {
     _mm_store_si128(result.as_mut_ptr() as *mut __m128i, result_vec);
     let boxed = Box::new(I32x4(result));
     Box::into_raw(boxed) as i64
-}
+}}
 
 #[cfg(target_arch = "aarch64")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn simd_mul_i32x4(a: i64, b: i64) -> i64 {
-    if a == 0 || b == 0 { return 0; }
+    if a == 0 || b == 0 {
+        return 0;
+    }
     let a_ptr = a as *const I32x4;
     let b_ptr = b as *const I32x4;
     let a_vec = vld1q_s32((*a_ptr).0.as_ptr() as *const i32);
@@ -347,8 +355,10 @@ pub unsafe extern "C" fn simd_mul_i32x4(a: i64, b: i64) -> i64 {
 /// SIMD subtraction for i32x4 vectors
 #[cfg(target_arch = "x86_64")]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn simd_sub_i32x4(a: i64, b: i64) -> i64 {
-    if a == 0 || b == 0 { return 0; }
+pub unsafe extern "C" fn simd_sub_i32x4(a: i64, b: i64) -> i64 { unsafe {
+    if a == 0 || b == 0 {
+        return 0;
+    }
     let a_ptr = a as *const I32x4;
     let b_ptr = b as *const I32x4;
     let a_vec = _mm_load_si128((*a_ptr).0.as_ptr() as *const __m128i);
@@ -358,12 +368,14 @@ pub unsafe extern "C" fn simd_sub_i32x4(a: i64, b: i64) -> i64 {
     _mm_store_si128(result.as_mut_ptr() as *mut __m128i, result_vec);
     let boxed = Box::new(I32x4(result));
     Box::into_raw(boxed) as i64
-}
+}}
 
 #[cfg(target_arch = "aarch64")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn simd_sub_i32x4(a: i64, b: i64) -> i64 {
-    if a == 0 || b == 0 { return 0; }
+    if a == 0 || b == 0 {
+        return 0;
+    }
     let a_ptr = a as *const I32x4;
     let b_ptr = b as *const I32x4;
     let a_vec = vld1q_s32((*a_ptr).0.as_ptr() as *const i32);
@@ -378,20 +390,24 @@ pub unsafe extern "C" fn simd_sub_i32x4(a: i64, b: i64) -> i64 {
 /// SIMD load operation for i32x4 vectors
 #[cfg(target_arch = "x86_64")]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn simd_load_i32x4(ptr: i64) -> i64 {
-    if ptr == 0 { return 0; }
+pub unsafe extern "C" fn simd_load_i32x4(ptr: i64) -> i64 { unsafe {
+    if ptr == 0 {
+        return 0;
+    }
     let data_ptr = ptr as *const i32;
     let vec = _mm_load_si128(data_ptr as *const __m128i);
     let mut result = [0i32; 4];
     _mm_store_si128(result.as_mut_ptr() as *mut __m128i, vec);
     let boxed = Box::new(I32x4(result));
     Box::into_raw(boxed) as i64
-}
+}}
 
 #[cfg(target_arch = "aarch64")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn simd_load_i32x4(ptr: i64) -> i64 {
-    if ptr == 0 { return 0; }
+    if ptr == 0 {
+        return 0;
+    }
     let data_ptr = ptr as *const i32;
     let vec = vld1q_s32(data_ptr);
     let mut result = [0i32; 4];
@@ -403,18 +419,22 @@ pub unsafe extern "C" fn simd_load_i32x4(ptr: i64) -> i64 {
 /// SIMD store operation for i32x4 vectors
 #[cfg(target_arch = "x86_64")]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn simd_store_i32x4(ptr: i64, vec: i64) {
-    if ptr == 0 || vec == 0 { return; }
+pub unsafe extern "C" fn simd_store_i32x4(ptr: i64, vec: i64) { unsafe {
+    if ptr == 0 || vec == 0 {
+        return;
+    }
     let data_ptr = ptr as *mut i32;
     let vec_ptr = vec as *const I32x4;
     let vec_data = _mm_load_si128((*vec_ptr).0.as_ptr() as *const __m128i);
     _mm_store_si128(data_ptr as *mut __m128i, vec_data);
-}
+}}
 
 #[cfg(target_arch = "aarch64")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn simd_store_i32x4(ptr: i64, vec: i64) {
-    if ptr == 0 || vec == 0 { return; }
+    if ptr == 0 || vec == 0 {
+        return;
+    }
     let data_ptr = ptr as *mut i32;
     let vec_ptr = vec as *const I32x4;
     let vec_data = vld1q_s32((*vec_ptr).0.as_ptr() as *const i32);
@@ -424,8 +444,10 @@ pub unsafe extern "C" fn simd_store_i32x4(ptr: i64, vec: i64) {
 /// SIMD extract element from i32x4 vector
 #[cfg(target_arch = "x86_64")]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn simd_extract_i32x4(vec: i64, index: i64) -> i64 {
-    if vec == 0 || !(0..4).contains(&index) { return 0; }
+pub unsafe extern "C" fn simd_extract_i32x4(vec: i64, index: i64) -> i64 { unsafe {
+    if vec == 0 || !(0..4).contains(&index) {
+        return 0;
+    }
     let vec_ptr = vec as *const I32x4;
     let vec_data = _mm_load_si128((*vec_ptr).0.as_ptr() as *const __m128i);
     let element = match index {
@@ -436,12 +458,14 @@ pub unsafe extern "C" fn simd_extract_i32x4(vec: i64, index: i64) -> i64 {
         _ => 0,
     };
     element as i64
-}
+}}
 
 #[cfg(target_arch = "aarch64")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn simd_extract_i32x4(vec: i64, index: i64) -> i64 {
-    if vec == 0 || !(0..4).contains(&index) { return 0; }
+    if vec == 0 || !(0..4).contains(&index) {
+        return 0;
+    }
     let vec_ptr = vec as *const I32x4;
     let vec_data = vld1q_s32((*vec_ptr).0.as_ptr() as *const i32);
     let element = match index {
@@ -457,8 +481,10 @@ pub unsafe extern "C" fn simd_extract_i32x4(vec: i64, index: i64) -> i64 {
 /// SIMD insert element into i32x4 vector
 #[cfg(target_arch = "x86_64")]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn simd_insert_i32x4(vec: i64, value: i64, index: i64) -> i64 {
-    if vec == 0 || !(0..4).contains(&index) { return 0; }
+pub unsafe extern "C" fn simd_insert_i32x4(vec: i64, value: i64, index: i64) -> i64 { unsafe {
+    if vec == 0 || !(0..4).contains(&index) {
+        return 0;
+    }
     let vec_ptr = vec as *const I32x4;
     let mut vec_data = _mm_load_si128((*vec_ptr).0.as_ptr() as *const __m128i);
     vec_data = match index {
@@ -472,12 +498,14 @@ pub unsafe extern "C" fn simd_insert_i32x4(vec: i64, value: i64, index: i64) -> 
     _mm_store_si128(result.as_mut_ptr() as *mut __m128i, vec_data);
     let boxed = Box::new(I32x4(result));
     Box::into_raw(boxed) as i64
-}
+}}
 
 #[cfg(target_arch = "aarch64")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn simd_insert_i32x4(vec: i64, value: i64, index: i64) -> i64 {
-    if vec == 0 || !(0..4).contains(&index) { return 0; }
+    if vec == 0 || !(0..4).contains(&index) {
+        return 0;
+    }
     let vec_ptr = vec as *const I32x4;
     let vec_data = vld1q_s32((*vec_ptr).0.as_ptr() as *const i32);
     let result_vec = match index {

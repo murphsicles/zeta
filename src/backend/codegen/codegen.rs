@@ -912,10 +912,16 @@ impl<'ctx> LLVMCodegen<'ctx> {
         self.struct_defs.clear();
         for mir in mirs {
             for (_, expr) in mir.exprs.iter() {
-                if let MirExpr::Struct { variant: v, fields: fds } = expr {
+                if let MirExpr::Struct {
+                    variant: v,
+                    fields: fds,
+                } = expr
+                {
                     let type_key = format!("struct_{}_{}", v, fds.len());
                     let field_names: Vec<String> = fds.iter().map(|(n, _)| n.clone()).collect();
-                    self.struct_defs.entry(type_key).or_insert_with(|| field_names);
+                    self.struct_defs
+                        .entry(type_key)
+                        .or_insert_with(|| field_names);
                 }
             }
         }
@@ -3721,7 +3727,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
             }
         }
-        
+
         // Fallback: try parsing the field name as a numeric index
         field_name.parse::<u32>().unwrap_or(0)
     }

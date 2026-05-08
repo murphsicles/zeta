@@ -4,7 +4,7 @@
 # Package name.
 name = "zetac"
 # Current version.
-version = "0.8.3"  # V4I64 native vector types with AVX2 intrinsics
+version = "0.10.3"
 # Rust edition.
 edition = "2024"
 # Minimum Rust version.

@@ -6,9 +6,9 @@ Zeta is a systems programming language bootstrapped in Rust, targeting LLVM. Bui
 
 > "It's not just efficiency, it's weaponized minimalism. Surgical violence against complexity." — Roy Murphy
 
-## 🚀 v0.10.0 — Bootstrap Maturity
+## 🚀 v0.10.3 — aarch64 NEON + struct field access fixes
 
-**51 self-hosted Zeta source files compile through the Zeta compiler itself.**
+**Full aarch64 NEON SIMD support. Struct field access by name. Self-hosted Zeta compiler compiles all sources.**
 
 The north star is full self-hosting: Zeta compiling Zeta, then shedding the Rust bootstrap entirely. Every release brings us closer. The compiler is written in Rust today, but its core semantic analysis, MIR, and code generation paths are being re-expressed in Zeta itself — one module at a time.
 

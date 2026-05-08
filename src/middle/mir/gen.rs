@@ -242,7 +242,8 @@ impl MirGen {
                     // Check if base is an array type
                     let base_ty = self.type_map.get(&base_id).cloned().unwrap_or(Type::I64);
                     let source_ty = self.source_types.get(&base_id).cloned().unwrap_or_default();
-                    let is_array_param = source_ty.starts_with("[") || source_ty.starts_with("*mut [");
+                    let is_array_param =
+                        source_ty.starts_with("[") || source_ty.starts_with("*mut [");
                     if let Type::DynamicArray(_) = base_ty {
                         // Generate array_set call for dynamic arrays
                         self.stmts.push(MirStmt::VoidCall {
