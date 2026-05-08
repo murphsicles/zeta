@@ -2301,26 +2301,52 @@ impl MirGen {
                     format!("{}::{}", path.join("::"), method)
                 };
 
-                // Generate argument IDs
-                let mut arg_ids = vec![];
-                for a in args {
-                    arg_ids.push(self.lower_expr(a));
+                // If this is a path-qualified call with an uppercase method name
+                // (e.g., AstNode::Lit(42)), it's an enum variant constructor —
+                // emit Struct instead of Call. Lowercase method names like
+                // `LLVMCodegen::new("bench")` are regular (static) function calls.
+                // Type_args also indicate a generic function call.
+                let is_upper = !method.is_empty()
+                    && method.chars().next().map(|c| c.is_uppercase()).unwrap_or(false);
+                if !path.is_empty() && type_args.is_empty() && is_upper {
+                    // Lower as enum/struct constructor
+                    let mut field_ids = Vec::new();
+                    for a in args {
+                        let field_id = self.lower_expr(a);
+                        // Use field index as name for unnamed fields
+                        field_ids.push((format!("f{}", field_ids.len()), field_id));
+                    }
+                    self.exprs.insert(
+                        id,
+                        MirExpr::Struct {
+                            variant: method.clone(),
+                            fields: field_ids,
+                        },
+                    );
+                    self.type_map.insert(id, Type::I64);
+                } else {
+                    // Regular function call or unqualified call
+                    // Generate argument IDs
+                    let mut arg_ids = vec![];
+                    for a in args {
+                        arg_ids.push(self.lower_expr(a));
+                    }
+
+                    // Convert type arguments from strings to Type objects
+                    let mir_type_args: Vec<Type> =
+                        type_args.iter().map(|t| Type::from_string(t)).collect();
+
+                    // Generate call statement
+                    self.stmts.push(MirStmt::Call {
+                        func: func_name,
+                        args: arg_ids,
+                        dest: id,
+                        type_args: mir_type_args,
+                    });
+
+                    self.exprs.insert(id, MirExpr::Var(id));
+                    self.type_map.insert(id, Type::I64);
                 }
-
-                // Convert type arguments from strings to Type objects
-                let mir_type_args: Vec<Type> =
-                    type_args.iter().map(|t| Type::from_string(t)).collect();
-
-                // Generate call statement
-                self.stmts.push(MirStmt::Call {
-                    func: func_name,
-                    args: arg_ids,
-                    dest: id,
-                    type_args: mir_type_args,
-                });
-
-                self.exprs.insert(id, MirExpr::Var(id));
-                self.type_map.insert(id, Type::I64);
             }
             AstNode::Cast { expr, ty } => {
                 let expr_id = self.lower_expr(expr);
