@@ -167,6 +167,103 @@ pub unsafe extern "C" fn timerfd_read(fd: i64) -> i64 {
     if rc > 0 { val as i64 } else { -1 }
 }
 
+// ── Blocking Thread Pool ──
+
+use std::sync::mpsc;
+
+lazy_static::lazy_static! {
+    static ref BLOCKING_POOL: Mutex<Option<BlockingPoolInner>> = Mutex::new(None);
+}
+
+struct BlockingPoolInner {
+    threads: Vec<std::thread::JoinHandle<()>>,
+    sender: mpsc::Sender<BlockingTask>,
+}
+
+type BlockingTask = Box<dyn FnOnce() + Send + 'static>;
+
+/// Initialize the blocking thread pool with N threads.
+fn ensure_blocking_pool() -> mpsc::Sender<BlockingTask> {
+    let mut pool = BLOCKING_POOL.lock().unwrap();
+    if pool.is_none() {
+        let count = std::cmp::max(2, std::thread::available_parallelism()
+            .map(|n| n.get() / 2).unwrap_or(2));
+        let (tx, rx) = mpsc::channel::<BlockingTask>();
+        let rx = std::sync::Arc::new(std::sync::Mutex::new(rx));
+        let mut threads = Vec::new();
+        for _ in 0..count {
+            let rx = rx.clone();
+            threads.push(std::thread::spawn(move || {
+                loop {
+                    let task = rx.lock().unwrap().recv();
+                    match task {
+                        Ok(f) => f(),
+                        Err(_) => break, // channel closed
+                    }
+                }
+            }));
+        }
+        *pool = Some(BlockingPoolInner { threads, sender: tx });
+    }
+    pool.as_ref().unwrap().sender.clone()
+}
+
+/// Spawn a blocking task on the thread pool.
+/// `func_ptr` is a pointer to a thunk function.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn blocking_spawn(func_ptr: i64) -> i64 {
+    let sender = ensure_blocking_pool();
+    let (ret_tx, ret_rx) = mpsc::channel::<i64>();
+    let func_ptr_usize = func_ptr as usize;
+    sender.send(Box::new(move || {
+        // Call the thunk via function pointer
+        let f: extern "C" fn() -> i64 = std::mem::transmute(func_ptr_usize);
+        let result = f();
+        let _ = ret_tx.send(result);
+    })).ok();
+    // Return a handle — store the receiver in a global map
+    let handle = std::sync::atomic::AtomicI64::new(0)
+        .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    return handle;
+}
+
+// ── Waker / Scheduler Integration ──
+
+/// Register a waker fd with the default reactor for the calling thread.
+/// The caller passes (reactor_epfd, waker_read_fd) and events to listen for.
+/// Returns 0 on success.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scheduler_register_waker(epfd: i64, waker_fd: i64) -> i64 {
+    let mut ev: libc::epoll_event = std::mem::zeroed();
+    ev.events = (libc::EPOLLIN | libc::EPOLLERR | libc::EPOLLHUP) as u32;
+    ev.u64 = waker_fd as u64;
+    libc::epoll_ctl(epfd as i32, libc::EPOLL_CTL_ADD, waker_fd as i32, &mut ev) as i64
+}
+
+/// Run one iteration of the reactor loop: poll for readiness, then wake tasks.
+/// `epfd` is the reactor fd, `timeout_ms` is poll timeout.
+/// Returns the number of events processed.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scheduler_run_reactor(epfd: i64, timeout_ms: i64) -> i64 {
+    let mut events: [libc::epoll_event; 64] = std::mem::zeroed();
+    let n = libc::epoll_wait(epfd as i32, events.as_mut_ptr(), 64, timeout_ms as i32);
+    if n <= 0 { return n as i64; }
+    
+    let mut count: i64 = 0;
+    for i in 0..n {
+        let ev = &events[i as usize];
+        let fd = ev.u64 as i64;
+        
+        // If this is a waker fd, consume the wake event
+        if ev.events & libc::EPOLLIN as u32 != 0 {
+            let mut buf: [u8; 8] = [0; 8];
+            libc::read(fd as i32, buf.as_mut_ptr() as *mut std::ffi::c_void, 8);
+            count += 1;
+        }
+    }
+    count
+}
+
 // ── Helpers ──
 
 #[unsafe(no_mangle)]

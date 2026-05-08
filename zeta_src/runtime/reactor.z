@@ -28,6 +28,15 @@ extern fn timerfd_set(fd: i64, ns: i64) -> i64;
 extern fn timerfd_set_absolute(fd: i64, abs_ns: i64) -> i64;
 extern fn timerfd_read(fd: i64) -> i64;
 
+// ── Blocking Thread Pool ──
+
+extern fn blocking_spawn(func_ptr: i64) -> i64;
+
+// ── Scheduler Integration ──
+
+extern fn scheduler_register_waker(epfd: i64, waker_fd: i64) -> i64;
+extern fn scheduler_run_reactor(epfd: i64, timeout_ms: i64) -> i64;
+
 // ── Non-blocking I/O ──
 
 extern fn set_nonblocking(fd: i64) -> i64;
