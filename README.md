@@ -1,16 +1,16 @@
-# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta v1.0.1 — The Foundational Release
+# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta v1.0.2 — CI hardened, cross-platform pipeline
 
 [<img alt="Zeta Logo" width="128px" src="https://z-lang.org/assets/images/z128.png" />](https://z-lang.org) [![Latest Release](https://img.shields.io/github/v/release/murphsicles/zeta)](https://github.com/murphsicles/zeta/releases) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM.** v1.0.1 marks the foundational release — pure Zeta, self-hosting ready, with everything needed to build on top.
+**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM.** v1.0.2 ships 35 commits since v1.0.1: Windows LLVM support, macOS ARM64 CI, Node 24 action upgrades, and updated pre-built binaries.
 
 Built from the algebraic foundations of Stepanov's *Elements of Programming* — first principles, zero bloat, maximum efficiency.
 
 > "Weaponized minimalism. Surgical violence against complexity." — Roy Murphy
 
-## 🚀 v1.0.1 — Pure Zeta Foundation
+## 🚀 v1.0.2 — CI Infrastructure
 
-This release strips away the Rust bootstrap scaffolding. The compiler binary ships in `bin/`. The `/src/` directory contains 51+ self-hosted Zeta source files that compile through the Zeta pipeline. Everything after this builds on a pure Zeta foundation.
+Cross-platform CI: Windows LLVM via choco, macOS ARM64 + x86-64, self-hosted Galaxy runner. Pre-built binaries updated for all platforms.
 
 ## ✨ Features
 
