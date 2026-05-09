@@ -1015,8 +1015,66 @@ impl ModuleResolver {
             self.imports.insert(name.clone(), full_path);
         }
 
-        // Return the module's ASTs so they can be registered
-        Ok(module.asts)
+        // Collect all ASTs, recursively including submodule contents so generic
+        // functions defined in submodule files are available for monomorphization.
+        let mut all_asts = module.asts.clone();
+        let parent_dir = module.path.parent().unwrap_or(std::path::Path::new(""));
+
+        for ast in &module.asts {
+            if let AstNode::ModDef { name, items, pub_: true, .. } = ast {
+                if items.is_empty() {
+                    let mut sub_path = parent_dir.to_path_buf();
+                    sub_path.push(format!("{}.z", name));
+                    if sub_path.exists() {
+                        if let Ok(sub_module) = self.load_module(&sub_path) {
+                            for sa in &sub_module.asts {
+                                if let AstNode::FuncDef {
+                                    name: fn_name,
+                                    generics,
+                                    lifetimes,
+                                    params,
+                                    ret,
+                                    body,
+                                    attrs,
+                                    ret_expr,
+                                    single_line,
+                                    doc,
+                                    pub_,
+                                    async_,
+                                    const_,
+                                    comptime_,
+                                    where_clauses,
+                                } = sa
+                                {
+                                    let qualified = format!("{}::{}", name, fn_name);
+                                    all_asts.push(AstNode::FuncDef {
+                                        name: qualified,
+                                        generics: generics.clone(),
+                                        lifetimes: lifetimes.clone(),
+                                        params: params.clone(),
+                                        ret: ret.clone(),
+                                        body: body.clone(),
+                                        attrs: attrs.clone(),
+                                        ret_expr: ret_expr.clone(),
+                                        single_line: *single_line,
+                                        doc: doc.clone(),
+                                        pub_: *pub_,
+                                        async_: *async_,
+                                        const_: *const_,
+                                        comptime_: *comptime_,
+                                        where_clauses: where_clauses.clone(),
+                                    });
+                                } else {
+                                    all_asts.push(sa.clone());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(all_asts)
     }
 
     /// Look up an item in the import scope
