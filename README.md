@@ -1,16 +1,16 @@
-# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta v1.0.5 — Extern fn resolution fix, echo server working
+# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta v1.0.6 — TCP default host, echo server working
 
 [<img alt="Zeta Logo" width="128px" src="https://z-lang.org/assets/images/z128.png" />](https://z-lang.org) [![Latest Release](https://img.shields.io/github/v/release/murphsicles/zeta)](https://github.com/murphsicles/zeta/releases) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM.** v1.0.5 ships the v0.13.2 bootstrap compiler with a critical extern function resolution fix for the JIT and AOT paths. TCP runtime functions (`tcp_bind`, `tcp_accept`, etc.) now link correctly — the echo server example is fully functional.
+**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM.** v1.0.6 ships the v0.13.3 bootstrap with TCP null host handling. `tcp_bind(0, port)` and `tcp_connect(0, port)` now default to `0.0.0.0` — the Tokio echo server example is fully functional.
 
 Built from the algebraic foundations of Stepanov's *Elements of Programming* — first principles, zero bloat, maximum efficiency.
 
 > "Weaponized minimalism. Surgical violence against complexity." — Roy Murphy
 
-## 🚀 v1.0.5 — Extern FN _N Suffix Fix
+## 🚀 v1.0.6 — TCP Null Host Fix
 
-The MIR generator appends `_N` (argument count) to function call names for overloaded dispatch (e.g., `tcp_bind_2`). The codegen's `get_or_declare_function` was creating extern LLVM declarations using the mangled name, but runtime symbols use the base name (`tcp_bind`). The JIT symbol mapping and AOT linker couldn't match them → segfault on all TCP calls. Fixed by stripping the `_N` suffix before creating the extern declaration. Echo server now runs clean via JIT.
+`tcp_bind(0, port)` was passing an empty C string to the Rust runtime, producing an invalid address like `:8080` (name resolution failure). Now defaults to `"0.0.0.0"` when host is null. Also added `host_str_all_interfaces()` runtime function for explicit use from Zeta code.
 
 ## ✨ Features
 
@@ -193,7 +193,7 @@ fn murphy_sieve(limit: i64) -> i64 {
 ```
 zeta/
 ├── bin/              # Pre-built compiler binary
-│   └── zetac         # v1.0.5 Linux x86-64 (v0.13.2 bootstrap)
+│   └── zetac         # v1.0.6 Linux x86-64 (v0.13.3 bootstrap)
 ├── src/              # Self-hosted Zeta sources (51+ files)
 │   ├── main.z        # Entry point
 │   ├── frontend/     # Lexer, parser, AST
@@ -285,4 +285,4 @@ The compiler pipeline processes Zeta source through multiple IR tiers:
 
 ---
 
-*Zeta v1.0.5 — The language that will outlive its bootstrap.*
+*Zeta v1.0.6 — The language that will outlive its bootstrap.*
