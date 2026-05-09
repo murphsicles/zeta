@@ -216,6 +216,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let mut used_specs = resolver.collect_used_specializations(&asts);
 
+
+
                 // Ensure add<i64> specialization exists
                 let add_key = MonoKey {
                     func_name: "add".to_string(),
@@ -271,7 +273,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let context = Context::create();
                 let mut codegen = LLVMCodegen::new(&context, "module");
                 codegen.gen_mirs(&all_mirs);
-                codegen.module.print_to_stderr();
 
                 if let Some(out) = output {
                     let obj_path = format!("{}.o", out);

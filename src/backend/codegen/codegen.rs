@@ -2137,6 +2137,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
     /// Check if a function is generic
     fn is_generic_function(&self, mir: &crate::middle::mir::mir::Mir) -> bool {
+        // If the name contains _inst_, it's already monomorphized — skip generic check.
+        if let Some(ref name) = mir.name {
+            if name.contains("_inst_") {
+                return false;
+            }
+        }
         // Check if function has type parameters
         // We need a better heuristic. For now, check if the function name
         // contains generic type parameters in its type map.
@@ -4495,22 +4501,34 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 // Create array type
                 let array_type = elem_type.array_type(*size as u32);
 
-                // Allocate on stack
-                let alloca = self
-                    .builder
-                    .build_alloca(array_type, "stack_array")
-                    .unwrap();
+                // Allocate on HEAP (was stack) — tuples are returned across function
+                // boundaries and stack allocation causes use-after-free.
+                let total_bytes = self.i64_type.const_int(*size as u64 * 8, false);
+                let malloc_fn = self.module.get_function("runtime_malloc").unwrap_or_else(|| {
+                    let i64_type = self.context.i64_type();
+                    let fn_type = i64_type.fn_type(&[i64_type.into()], false);
+                    self.module.add_function("runtime_malloc", fn_type, None)
+                });
+                let call = self.builder.build_call(malloc_fn, &[total_bytes.into()], "heap_array").unwrap();
+                let heap_ptr = Self::call_site_to_basic_value(call)
+                    .unwrap()
+                    .into_int_value();
 
                 // Initialize each element
                 for (i, element_id) in elements.iter().enumerate() {
                     let element_val = self
                         .gen_expr(&exprs[element_id], exprs, None)
                         .into_int_value();
+                    let ptr_type = self.context.ptr_type(inkwell::AddressSpace::default());
+                    let heap_ptr_val = self
+                        .builder
+                        .build_int_to_ptr(heap_ptr, ptr_type, "heap_p")
+                        .unwrap();
                     let element_ptr = unsafe {
                         self.builder
                             .build_gep(
                                 array_type,
-                                alloca,
+                                heap_ptr_val,
                                 &[
                                     self.i64_type.const_int(0, false),
                                     self.i64_type.const_int(i as u64, false),
@@ -4522,12 +4540,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     self.builder.build_store(element_ptr, element_val).unwrap();
                 }
 
-                // Return pointer to array (as i64)
-                let ptr_as_int = self
-                    .builder
-                    .build_ptr_to_int(alloca, self.i64_type, "array_ptr_to_int")
-                    .unwrap();
-                ptr_as_int.into()
+                // Return heap pointer (as i64)
+                heap_ptr.into()
             }
             MirExpr::Range { start, end } => {
                 // For now, just return the start value
