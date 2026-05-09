@@ -1977,6 +1977,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
 
         // Strip trailing _N suffix and try base name with param count validation.
         // (Reverses the MIR gen's name_N disambiguation for runtime/pre-declared fns.)
+        let mut stripped_name = String::new();
         if let Some(pos) = name.rfind('_') {
             let suffix = &name[pos + 1..];
             let digits: String = suffix.chars().filter(|c| c.is_ascii_digit()).collect();
@@ -1994,14 +1995,18 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         return f;
                     }
                 }
+                // Base not declared yet — use the stripped name so extern declaration
+                // (created below) matches runtime symbols (e.g., tcp_bind vs tcp_bind_2).
+                stripped_name = base.to_string();
             }
         }
 
         // Not found — create extern declaration matching the call site's arg count
+        let base_name = if stripped_name.is_empty() { name } else { &stripped_name };
         let actual_name = if type_args.is_empty() {
-            name.replace("::", "__")
+            base_name.replace("::", "__")
         } else {
-            self.mangle_function_name(name, type_args)
+            self.mangle_function_name(base_name, type_args)
         };
         let param_types: Vec<_> = (0..args_count).map(|_| self.i64_type.into()).collect();
         let fn_type = self.i64_type.fn_type(&param_types, false);
