@@ -95,6 +95,11 @@ impl MirGen {
                         param_id: id,
                         arg_index: i as u32,
                     });
+                    // &self and &mut self are parsed with "&" prefix in the name
+                    // Register "self" as an alias so the body can reference it.
+                    if name == "&self" || name == "&mut self" {
+                        self.name_to_id.insert("self".to_string(), id);
+                    }
                 }
             }
 
@@ -1717,10 +1722,11 @@ impl MirGen {
                             }
                         }
                     } else {
-                        // For inherent methods, use qualified name: Type::method
-                        let rty_name = rty.display_name();
-                        let qualified = format!("{}::{}", rty_name, method);
-                        (qualified, false, false)
+                        // For inherent methods, use plain method name.
+                        // The codegen's get_function split("::") fallback would resolve
+                        // Type::method to method, but the split creates wrong-name externs.
+                        // Using the plain name ensures get_function finds the right function.
+                        (method.clone(), false, false)
                     }
                 } else {
                     (method.clone(), false, false)
