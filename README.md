@@ -1,24 +1,16 @@
-# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta v1.0.9 — Module extern resolution, use super:: fixes
+# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta v1.0.10 — Generic fn disambiguation, module-qualified externs
 
 [<img alt="Zeta Logo" width="128px" src="https://z-lang.org/assets/images/z128.png" />](https://z-lang.org) [![Latest Release](https://img.shields.io/github/v/release/murphsicles/zeta)](https://github.com/murphsicles/zeta/releases) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM.** v1.0.9 ships the v0.13.6 bootstrap fixing path-prefixed extern fn resolution and `use super::` module resolution with `src/` fallback.
+**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM.** v1.0.10 ships the v0.13.7 bootstrap fixing generic function name collisions across modules (oneshot::channel vs mpsc::channel now produce different LLVM symbols).
 
 Built from the algebraic foundations of Stepanov's *Elements of Programming* — first principles, zero bloat, maximum efficiency.
 
 > "Weaponized minimalism. Surgical violence against complexity." — Roy Murphy
 
-## 🚀 v1.0.9 — Module Resolution Fixes
+## 🚀 v1.0.10 — Generic Function Disambiguation
 
-### use super::
-- Parser `parse_path` now accepts `super`, `crate`, `self` as keywords in paths
-- ModuleResolver: `src/` fallback for super paths (finds `src/runtime/mod.z`)
-- Single-component super paths (`use super::runtime`) try the component as a module
-
-### Path-prefixed extern resolution
-- `runtime::reactor_create()` was getting mangled to `runtime__reactor_create`
-- JIT mappings have bare names (`reactor_create`) — path prefix now stripped
-- `get_or_declare_function` tries bare method name before mangled path name
+When two modules define generic functions with the same name (e.g., both `oneshot::channel::<i64>()` and `mpsc::channel::<i64>(n)`), the monomorphized LLVM symbols now carry the module path as a prefix: `oneshot__channel_inst_i64` vs `mpsc__channel_inst_i64`. This prevents arg count mismatches at call sites.
 
 Built from the algebraic foundations of Stepanov's *Elements of Programming* — first principles, zero bloat, maximum efficiency.
 
@@ -226,7 +218,7 @@ fn murphy_sieve(limit: i64) -> i64 {
 ```
 zeta/
 ├── bin/              # Pre-built compiler binary
-│   └── zetac         # v1.0.9 Linux x86-64 (v0.13.6 bootstrap)
+│   └── zetac         # v1.0.10 Linux x86-64 (v0.13.7 bootstrap)
 ├── src/              # Self-hosted Zeta sources (51+ files)
 │   ├── main.z        # Entry point
 │   ├── frontend/     # Lexer, parser, AST
@@ -318,4 +310,4 @@ The compiler pipeline processes Zeta source through multiple IR tiers:
 
 ---
 
-*Zeta v1.0.9 — The language that will outlive its bootstrap.*
+*Zeta v1.0.10 — The language that will outlive its bootstrap.*
