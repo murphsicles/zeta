@@ -89,6 +89,9 @@ impl<'ctx> crate::backend::codegen::LLVMCodegen<'ctx> {
         // Run the full LLVM optimization pipeline before JIT
         optimize_module(&self.module, &target_machine);
 
+        // Debug: print module IR
+        // self.module.print_to_stderr();
+
         let ee = self
             .module
             .create_jit_execution_engine(OptimizationLevel::Aggressive)?;
@@ -232,6 +235,29 @@ impl<'ctx> crate::backend::codegen::LLVMCodegen<'ctx> {
         }
         if let Some(f) = self.module.get_function("array_free") {
             ee.add_global_mapping(&f, array_free as *const () as usize);
+        }
+
+        // Async/future runtime functions
+        if let Some(f) = self.module.get_function("future_poll_alloc") {
+            ee.add_global_mapping(&f, crate::runtime::host::future_poll_alloc as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("future_poll_free") {
+            ee.add_global_mapping(&f, crate::runtime::host::future_poll_free as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("future_state_get") {
+            ee.add_global_mapping(&f, crate::runtime::host::future_state_get as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("future_state_set") {
+            ee.add_global_mapping(&f, crate::runtime::host::future_state_set as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("future_poll") {
+            ee.add_global_mapping(&f, crate::runtime::host::future_poll as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("future_result") {
+            ee.add_global_mapping(&f, crate::runtime::host::future_result as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("future_ready") {
+            ee.add_global_mapping(&f, crate::runtime::host::future_ready as *const () as usize);
         }
 
         // Zeta runtime mapping

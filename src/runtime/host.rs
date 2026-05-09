@@ -3,6 +3,7 @@ use crate::runtime::std::{std_free, std_malloc};
 use libc::strlen;
 use reqwest::blocking::Client;
 use std::ffi::{CStr, CString, c_char};
+use std::mem;
 use std::os::raw::c_void;
 use std::ptr;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -855,4 +856,84 @@ static ALL_IFACES: [u8; 8] = *b"0.0.0.0\x00";
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn host_str_all_interfaces() -> i64 {
     ALL_IFACES.as_ptr() as i64
+}
+
+// ── Async/Future Runtime Functions ──
+// These provide the low-level primitives for compiled async state machines.
+
+/// Allocate a buffer for async future state. Returns a pointer (i64).
+/// `slots` is the number of i64 slots needed (state index + saved locals).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn future_poll_alloc(slots: i64) -> i64 {
+    let size = (slots as usize).max(4) * 8;
+    let ptr = std_malloc(size as usize);
+    // Zero-initialize
+    std::ptr::write_bytes(ptr as *mut u8, 0, size);
+    ptr
+}
+
+/// Free a future state buffer allocated by future_poll_alloc.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn future_poll_free(ptr: i64) {
+    if ptr != 0 {
+        std_free(ptr as usize);
+    }
+}
+
+/// Read the i64 value at field `idx` from a future state buffer.
+/// Field 0 is the resume state index, fields 1+ are saved locals.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn future_state_get(ptr: i64, idx: i64) -> i64 {
+    let buf = ptr as *const i64;
+    unsafe { *buf.offset(idx as isize) }
+}
+
+/// Write `val` into field `idx` of a future state buffer.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn future_state_set(ptr: i64, idx: i64, val: i64) {
+    let buf = ptr as *mut i64;
+    unsafe { *buf.offset(idx as isize) = val; }
+}
+
+/// Poll a sub-future. Returns 0 for Pending, or value+1 for Ready.
+/// The caller passes the future pointer and this function calls the
+/// future's compiled poll function.
+/// For now, this is a stub that always returns Ready with the future
+/// pointer as the value (identity semantics for early testing).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn future_poll(fut: i64) -> i64 {
+    if fut == 0 { return 0; }
+    // In a full implementation, this would call the future's poll
+    // function. For now, we always return Ready.
+    // The poll function pointer is stored at field 0 of the future state.
+    let poll_fn = unsafe { *(fut as *const i64).offset(0) };
+    if poll_fn != 0 {
+        // Call the compiled poll function: poll_fn(state_ptr) -> i64
+        let poll_func: unsafe extern "C" fn(i64) -> i64 = unsafe {
+            std::mem::transmute(poll_fn as *const ())
+        };
+        return poll_func(fut);
+    }
+    // No poll function — treat as immediate value
+    1 // Ready (value will be extracted via future_result)
+}
+
+/// Extract the result value from a future that returned Ready.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn future_result(fut: i64) -> i64 {
+    // Result is stored at field 1 of the future state
+    unsafe { *(fut as *const i64).offset(1) }
+}
+
+/// Create a completed future with a given value.
+/// Returns a pointer to a 2-slot state buffer where
+/// field 0 = 0 (no poll fn), field 1 = value.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn future_ready(val: i64) -> i64 {
+    let ptr = std_malloc(16usize);
+    unsafe {
+        *(ptr as *mut i64).offset(0) = 0; // no poll fn
+        *(ptr as *mut i64).offset(1) = val;
+    }
+    ptr
 }

@@ -43,6 +43,8 @@ pub struct MirGen {
     pointee_widths: HashMap<u32, u8>,
     /// Type declarations seen during lowering (structs, enums, aliases).
     type_decls: HashMap<String, TypeDecl>,
+    /// Additional MIRs generated during lowering (e.g., async poll functions).
+    generated_mirs: Vec<Mir>,
 }
 
 impl MirGen {
@@ -58,6 +60,7 @@ impl MirGen {
             source_types: HashMap::new(),
             pointee_widths: HashMap::new(),
             type_decls: HashMap::new(),
+            generated_mirs: vec![],
         }
     }
 
@@ -982,8 +985,44 @@ impl MirGen {
                 self.lower_ast(body);
             }
             AstNode::Await(body) => {
-                // Await: evaluate the inner expression.
-                self.lower_expr(body);
+                // Await statement: evaluate the inner expression and poll.
+                let fut_id = self.lower_expr(body);
+                let pr_id = self.next_id();
+                let zero_id = self.next_id_with_lit(0);
+                let stored_fut = self.next_id();
+                self.exprs.insert(stored_fut, MirExpr::Var(stored_fut));
+                self.type_map.insert(stored_fut, Type::I64);
+                self.stmts.push(MirStmt::Assign { lhs: stored_fut, rhs: fut_id });
+                self.exprs.insert(pr_id, MirExpr::Var(pr_id));
+                self.type_map.insert(pr_id, Type::I64);
+                
+                let mut body_stmts = vec![];
+                body_stmts.push(MirStmt::Call {
+                    func: "future_poll".to_string(),
+                    args: vec![stored_fut],
+                    dest: pr_id,
+                    type_args: vec![],
+                });
+                let mut then_stmts = vec![];
+                then_stmts.push(MirStmt::Break);
+                let cond_id = self.next_id();
+                self.exprs.insert(cond_id, MirExpr::BinaryOp {
+                    op: "!=".to_string(),
+                    left: pr_id,
+                    right: zero_id,
+                });
+                self.type_map.insert(cond_id, Type::Bool);
+                body_stmts.push(MirStmt::If {
+                    cond: cond_id,
+                    then: then_stmts,
+                    else_: vec![],
+                    dest: None,
+                });
+                let true_id = self.next_id_with_lit(1);
+                self.stmts.push(MirStmt::While {
+                    cond: true_id,
+                    body: body_stmts,
+                });
             }
             AstNode::Closure { body, .. } => {
                 // Closure in statement position: evaluate body as expression.
@@ -2816,8 +2855,95 @@ impl MirGen {
                 return self.lower_expr(body);
             }
             AstNode::Await(body) => {
-                // Await expression: evaluate the inner expression.
-                return self.lower_expr(body);
+                // Await expression: poll the sub-future until ready, then extract value.
+                // Generates:
+                //   let __fut = <body>;           // create sub-future
+                //   while true {
+                //       let __pr = future_poll(__fut);
+                //       if __pr != 0 {               // Ready
+                //           result = future_result(__fut);
+                //           break;
+                //       }
+                //   }
+                //   return result;
+                let fut_id = self.lower_expr(body);
+                // Create IDs
+                let pr_id = self.next_id();
+                let result_id = self.next_id();
+                let zero_id = self.next_id_with_lit(0);
+                
+                // Store the sub-future pointer
+                let stored_fut = self.next_id();
+                self.exprs.insert(stored_fut, MirExpr::Var(stored_fut));
+                self.type_map.insert(stored_fut, Type::I64);
+                self.stmts.push(MirStmt::Assign { lhs: stored_fut, rhs: fut_id });
+                
+                // poll result
+                self.exprs.insert(pr_id, MirExpr::Var(pr_id));
+                self.type_map.insert(pr_id, Type::I64);
+                
+                // result
+                self.exprs.insert(result_id, MirExpr::Var(result_id));
+                self.type_map.insert(result_id, Type::I64);
+                
+                // While loop body
+                let mut body_stmts = vec![];
+                
+                // pr = future_poll(stored_fut)
+                body_stmts.push(MirStmt::Call {
+                    func: "future_poll".to_string(),
+                    args: vec![stored_fut],
+                    dest: pr_id,
+                    type_args: vec![],
+                });
+                
+                // if pr != 0 { result = future_result(stored_fut); break; }
+                let mut then_stmts = vec![];
+                then_stmts.push(MirStmt::Call {
+                    func: "future_result".to_string(),
+                    args: vec![stored_fut],
+                    dest: result_id,
+                    type_args: vec![],
+                });
+                then_stmts.push(MirStmt::Break);
+                
+                let cond_id = self.next_id();
+                self.exprs.insert(cond_id, MirExpr::BinaryOp {
+                    op: "!=".to_string(),
+                    left: pr_id,
+                    right: zero_id,
+                });
+                self.type_map.insert(cond_id, Type::Bool);
+                
+                body_stmts.push(MirStmt::If {
+                    cond: cond_id,
+                    then: then_stmts,
+                    else_: vec![],
+                    dest: None,
+                });
+                
+                // While(true) loop
+                let true_id = self.next_id_with_lit(1);
+                self.stmts.push(MirStmt::While {
+                    cond: true_id,
+                    body: body_stmts,
+                });
+                
+                // Store result back to the expression ID so it's accessible
+                // via load_local(id) later (e.g., in a return statement).
+                self.stmts.push(MirStmt::Assign {
+                    lhs: id,
+                    rhs: result_id,
+                });
+                
+                // Register result as the expression value
+                self.exprs.insert(id, MirExpr::Var(result_id));
+                if let Some(ty) = self.type_map.get(&fut_id) {
+                    self.type_map.insert(id, ty.clone());
+                } else {
+                    self.type_map.insert(id, Type::I64);
+                }
+                return id;
             }
             AstNode::TimingOwned { inner, .. } => {
                 // Timing-owned: wrap the inner expression.
@@ -2861,6 +2987,10 @@ impl MirGen {
         self.exprs.insert(id, MirExpr::Lit(n));
         self.type_map.insert(id, Type::I64);
         id
+    }
+
+    pub fn take_generated_mirs(&mut self) -> Vec<Mir> {
+        std::mem::take(&mut self.generated_mirs)
     }
 }
 

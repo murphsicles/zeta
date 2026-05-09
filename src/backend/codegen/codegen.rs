@@ -3482,7 +3482,16 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.builder.position_at_end(loop_exit_bb);
             }
 
-            MirStmt::Break | MirStmt::Continue => {}
+            MirStmt::Break | MirStmt::Continue => {
+                if let Some((cond_bb, exit_bb)) = self.loop_stack.last() {
+                    if matches!(stmt, MirStmt::Break) {
+                        self.builder.build_unconditional_branch(*exit_bb).unwrap();
+                    } else {
+                        // Continue: branch back to the loop condition block
+                        self.builder.build_unconditional_branch(*cond_bb).unwrap();
+                    }
+                }
+            }
 
             // Swap: exchange two memory regions via memcpy
             MirStmt::Swap { a_ptr, b_ptr, size } => {

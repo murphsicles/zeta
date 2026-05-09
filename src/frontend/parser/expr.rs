@@ -862,6 +862,14 @@ pub(crate) fn parse_postfix(input: &str) -> IResult<&str, AstNode> {
             break;
         }
 
+        // Check for .await BEFORE general .ident parsing — .await must not be
+        // consumed as a field access to a method named "await".
+        if let Ok((i, _)) = ws(tag(".await")).parse(input) {
+            expr = AstNode::Await(Box::new(expr));
+            input = i;
+            continue; // allow more postfix operators after .await
+        }
+
         let dot_result = ws(tag(".")).parse(input);
         if let Ok((i, _)) = dot_result {
             let (j, field_or_method) = parse_ident(i)?;
