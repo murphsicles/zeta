@@ -1898,6 +1898,21 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 if let Some(&f) = self.fns.get(&mangled) {
                     return f;
                 }
+                // Also try the method name directly (Self::new → new)
+                // with param count validation and suffix search.
+                if let Some(method) = name.split("::").last() {
+                    // Try bare method name with param count
+                    if let Some(f) = self.module.get_function(method) {
+                        if f.count_params() == args_count as u32 {
+                            return f;
+                        }
+                    }
+                    // Try param-suffixed: new_0, new_1, etc.
+                    let suffixed = format!("{}_{}", method, args_count);
+                    if let Some(f) = self.module.get_function(&suffixed) {
+                        return f;
+                    }
+                }
             }
             // Check host-mapped name for str_* functions
             if !host_mapped_name.is_empty() {
