@@ -1,16 +1,16 @@
-# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta v1.0.3 — Epoll reactor, waker, self-hosting fixes
+# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta v1.0.4 — Self-hosting pipeline: zero errors
 
 [<img alt="Zeta Logo" width="128px" src="https://z-lang.org/assets/images/z128.png" />](https://z-lang.org) [![Latest Release](https://img.shields.io/github/v/release/murphsicles/zeta)](https://github.com/murphsicles/zeta/releases) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM.** v1.0.3 ships the v0.12.0 bootstrap compiler, bringing epoll reactor, waker pipe, timerfd, blocking thread pool, and self-hosting pipeline fixes (29→1 error) to the self-hosted Zeta compiler.
+**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM.** v1.0.4 ships the v0.13.1 bootstrap compiler — the self-hosting pipeline now compiles all Zeta sources with **zero errors**. Every Tokio runtime fix (epoll, waker, timerfd, blocking thread pool, impl method dispatch, param-suffixed lookup, overloaded fns) is backported to the self-hosted compiler.
 
 Built from the algebraic foundations of Stepanov's *Elements of Programming* — first principles, zero bloat, maximum efficiency.
 
 > "Weaponized minimalism. Surgical violence against complexity." — Roy Murphy
 
-## 🚀 v1.0.3 — Async Runtime Bootstrap
+## 🚀 v1.0.4 — Self-Hosting Pipeline: Zero Errors
 
-Self-hosted compiler now built from v0.12.0 bootstrap with epoll reactor, waker pipe, timerfd, blocking thread pool, and non-blocking I/O runtime. Self-hosting pipeline at 1 error (from 29). Kernel-level async primitives available to all Zeta code via extern fn.
+Self-hosted compiler now built from v0.13.1 bootstrap with the full Tokio runtime support — epoll reactor, waker pipe, timerfd, blocking thread pool, impl method dispatch fix, param-suffixed function lookup (HashMap→Vec), and overloaded function resolution. All 51+ self-hosted Zeta sources compile with **zero errors**.
 
 ## ✨ Features
 
@@ -193,7 +193,7 @@ fn murphy_sieve(limit: i64) -> i64 {
 ```
 zeta/
 ├── bin/              # Pre-built compiler binary
-│   └── zetac         # v1.0.1 Linux x86-64
+│   └── zetac         # v1.0.4 Linux x86-64 (v0.13.1 bootstrap)
 ├── src/              # Self-hosted Zeta sources (51+ files)
 │   ├── main.z        # Entry point
 │   ├── frontend/     # Lexer, parser, AST
@@ -285,4 +285,4 @@ The compiler pipeline processes Zeta source through multiple IR tiers:
 
 ---
 
-*Zeta v1.0.1 — The language that will outlive its bootstrap.*
+*Zeta v1.0.4 — The language that will outlive its bootstrap.*
