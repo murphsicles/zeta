@@ -2997,7 +2997,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     } else {
                         func
                     };
-                    let callee = self.get_or_declare_function(actual_func, type_args, args.len());
+                    // For overloaded functions (same name, different param counts),
+                    // try param-suffixed name first. gen_mirs creates name_N for
+                    // overloaded declarations.
+                    let callee = {
+                        let param_suffixed = format!("{}_{}", actual_func, args.len());
+                        self.module.get_function(&param_suffixed)
+                            .or_else(|| self.fns.get(&param_suffixed).copied())
+                            .unwrap_or_else(|| self.get_or_declare_function(actual_func, type_args, args.len()))
+                    };
 
                     // Check if this is a runtime function that takes pointer arguments
                     let needs_ptr_arg = func == "option_is_some"
