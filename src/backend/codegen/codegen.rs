@@ -1601,9 +1601,22 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
         }
 
-        let base = name.split('_').next().unwrap_or(name);
-        if let Some(&f) = self.fns.get(base) {
-            return f;
+        // Strip trailing _N suffix with param count validation.
+        // This reverses the MIR gen's name_N disambiguation.
+        // e.g., "host_result_is_ok_1" → "host_result_is_ok" only if count matches.
+        if let Some(pos) = name.rfind('_') {
+            let suffix = &name[pos + 1..];
+            let digits: String = suffix.chars().filter(|c| c.is_ascii_digit()).collect();
+            if !digits.is_empty() && suffix.len() == digits.len() {
+                let expected = digits.parse::<u32>().unwrap_or(0);
+                let base = &name[..pos];
+                if let Some(&f) = self.fns.get(base) {
+                    if f.count_params() == expected { return f; }
+                }
+                if let Some(f) = self.module.get_function(base) {
+                    if f.count_params() == expected { return f; }
+                }
+            }
         }
         if name == "add"
             && let Some(&f) = self.fns.get("add_i64")
@@ -1958,10 +1971,31 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
         }
         // Try param-count-suffixed name before creating extern.
-        // Handles overloaded functions declared as name_N in gen_mirs.
         let param_suffixed = format!("{}_{}", name, args_count);
         if let Some(f) = self.module.get_function(&param_suffixed) { return f; }
         if let Some(&f) = self.fns.get(&param_suffixed) { return f; }
+
+        // Strip trailing _N suffix and try base name with param count validation.
+        // (Reverses the MIR gen's name_N disambiguation for runtime/pre-declared fns.)
+        if let Some(pos) = name.rfind('_') {
+            let suffix = &name[pos + 1..];
+            let digits: String = suffix.chars().filter(|c| c.is_ascii_digit()).collect();
+            if !digits.is_empty() {
+                let base = &name[..pos];
+                if let Some(f) = self.module.get_function(base) {
+                    let expected = digits.parse::<u32>().unwrap_or(0);
+                    if f.count_params() == expected {
+                        return f;
+                    }
+                }
+                if let Some(&f) = self.fns.get(base) {
+                    let expected = digits.parse::<u32>().unwrap_or(0);
+                    if f.count_params() == expected {
+                        return f;
+                    }
+                }
+            }
+        }
 
         // Not found — create extern declaration matching the call site's arg count
         let actual_name = if type_args.is_empty() {
@@ -2997,29 +3031,32 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     } else {
                         func
                     };
-                    // For overloaded functions (same name, different param counts),
-                    // try param-suffixed name first. gen_mirs creates name_N for
-                    // overloaded declarations.
-                    let callee = {
-                        let param_suffixed = format!("{}_{}", actual_func, args.len());
-                        self.module.get_function(&param_suffixed)
-                            .or_else(|| self.fns.get(&param_suffixed).copied())
-                            .unwrap_or_else(|| self.get_or_declare_function(actual_func, type_args, args.len()))
-                    };
+                    // The MIR gen already appends _N (arg count) to function names.
+                    // Use the name as-is; the codegen's get_function has trailing _N
+                    // stripping to find the base function declaration.
+                    let callee = self.get_or_declare_function(actual_func, type_args, args.len());
+
+                    // Strip trailing _N suffix from function name for special-case checks
+                    let base_func = if let Some(pos) = func.rfind('_') {
+                        let suffix = &func[pos + 1..];
+                        if suffix.chars().all(|c| c.is_ascii_digit()) {
+                            &func[..pos]
+                        } else { func }
+                    } else { func };
 
                     // Check if this is a runtime function that takes pointer arguments
-                    let needs_ptr_arg = func == "option_is_some"
-                        || func == "option_get_data"
-                        || func == "option_free"
-                        || func == "host_result_is_ok"
-                        || func == "host_result_get_data"
-                        || func == "host_result_free";
+                    let needs_ptr_arg = base_func == "option_is_some"
+                        || base_func == "option_get_data"
+                        || base_func == "option_free"
+                        || base_func == "host_result_is_ok"
+                        || base_func == "host_result_get_data"
+                        || base_func == "host_result_free";
 
                     // Check if this is a runtime function that returns a pointer
-                    let returns_ptr = func == "option_make_some"
-                        || func == "option_make_none"
-                        || func == "host_result_make_ok"
-                        || func == "host_result_make_err";
+                    let returns_ptr = base_func == "option_make_some"
+                        || base_func == "option_make_none"
+                        || base_func == "host_result_make_ok"
+                        || base_func == "host_result_make_err";
 
                     let arg_vals: Vec<BasicMetadataValueEnum> = args
                         .iter()

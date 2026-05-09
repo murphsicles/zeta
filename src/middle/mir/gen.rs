@@ -1806,8 +1806,12 @@ impl MirGen {
                 let mir_type_args: Vec<Type> =
                     type_args.iter().map(|t| Type::from_string(t)).collect();
 
+                // Append arg count to disambiguate overloaded functions.
+                // gen_mirs creates name_N for overloaded declarations;
+                // this ensures call sites match the right declaration.
+                let func_name = format!("{}_{}", func, arg_ids.len());
                 self.stmts.push(MirStmt::Call {
-                    func: func.clone(),
+                    func: func_name,
                     args: arg_ids,
                     dest: id,
                     type_args: mir_type_args,
@@ -2343,9 +2347,9 @@ impl MirGen {
                     let mir_type_args: Vec<Type> =
                         type_args.iter().map(|t| Type::from_string(t)).collect();
 
-                    // Generate call statement
+                    // Generate call statement with arg count disambiguation
                     self.stmts.push(MirStmt::Call {
-                        func: func_name,
+                        func: format!("{}_{}", func_name, arg_ids.len()),
                         args: arg_ids,
                         dest: id,
                         type_args: mir_type_args,
