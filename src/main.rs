@@ -467,7 +467,9 @@ fn bootstrap_zeta(output: &Option<String>, target: &str) -> Result<(), Box<dyn s
         }
         Ok(())
     }
-    let mut funcs: std::collections::HashMap<String, AstNode> = std::collections::HashMap::new();
+    // Use Vec to preserve all functions, even those with duplicate names
+    // (e.g., multiple fn new() with different param counts).
+    let mut funcs: Vec<(String, AstNode)> = Vec::new();
     let mut other: Vec<AstNode> = Vec::new();
     let mut zf = Vec::new();
     collect(Path::new("zeta_src"), &mut zf)?;
@@ -485,7 +487,7 @@ fn bootstrap_zeta(output: &Option<String>, target: &str) -> Result<(), Box<dyn s
             }
             for a in asts {
                 if let AstNode::FuncDef { name, .. } = &a {
-                    funcs.insert(name.clone(), a);
+                    funcs.push((name.clone(), a));
                 } else {
                     other.push(a);
                 }
@@ -494,7 +496,7 @@ fn bootstrap_zeta(output: &Option<String>, target: &str) -> Result<(), Box<dyn s
     }
     eprintln!("Parsed: {} funcs + {} items", funcs.len(), other.len());
     let mut all = other;
-    all.extend(funcs.into_values());
+    all.extend(funcs.into_iter().map(|(_, ast)| ast));
     let all = match zetac::middle::const_eval::evaluate_constants(&all) {
         Ok(c) => c
             .into_iter()
