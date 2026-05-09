@@ -1,24 +1,33 @@
-# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta v1.0.7 — Async/await state machine
+# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta v1.0.8 — Multi-await, super module resolution
 
 [<img alt="Zeta Logo" width="128px" src="https://z-lang.org/assets/images/z128.png" />](https://z-lang.org) [![Latest Release](https://img.shields.io/github/v/release/murphsicles/zeta)](https://github.com/murphsicles/zeta/releases) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM.** v1.0.7 ships the v0.13.4 bootstrap with full `async fn` / `.await` support — blocking poll-loop state machine lowering.
+**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM.** v1.0.8 ships the v0.13.5 bootstrap with multi-await, `async fn main()` entry point, and `use super::` module resolution.
 
 Built from the algebraic foundations of Stepanov's *Elements of Programming* — first principles, zero bloat, maximum efficiency.
 
 > "Weaponized minimalism. Surgical violence against complexity." — Roy Murphy
 
-## 🚀 v1.0.7 — Async/Await Feature
+## 🚀 v1.0.8 — Multi-Await & Module Resolution
 
-Basic `async fn` and `.await` expressions are now functional. The feature compiles async functions with blocking poll loops for each await point, with runtime support for future polling and result extraction.
+### Async/await fixes
 
-### What shipped
+- `.await` parser fixed (no longer consumed as field access)
+- Multi-await sequences work: `a.await; b.await; return a + b` ✅
+- `async fn main()` recognized as entry point ✅
+- Poll-loop state machine lowering with while+break codegen
 
-- **Parser fix**: `.await` was parsed as a field access (`await` field). Now properly parsed as `AstNode::Await`.  
-- **MIR lowering**: `.await` expressions lower to a `while(true)` loop that polls the sub-future and breaks on Ready.  
-- **Runtime functions**: `future_poll`, `future_result`, `future_ready`, `future_poll_alloc/free`, `future_state_get/set`  
-- **Continue/Break fix**: These were no-ops in codegen. They now branch to the loop condition and exit respectively.  
-- **Async tests pass**: `future_ready(42).await` returns `42` ✅
+### Module resolution
+
+- `use super::path::Item;` now resolves to parent directory
+- Source directory set automatically from input file path
+
+### Runtime additions
+
+- `future_poll`, `future_result`, `future_ready` — core async primitives
+- `future_poll_alloc/free` — state buffer management
+- `future_state_get/set` — persistent local storage
+- `host_str_all_interfaces()` — C string helper for TCP
 
 ## ✨ Features
 
@@ -201,7 +210,7 @@ fn murphy_sieve(limit: i64) -> i64 {
 ```
 zeta/
 ├── bin/              # Pre-built compiler binary
-│   └── zetac         # v1.0.7 Linux x86-64 (v0.13.4 bootstrap)
+│   └── zetac         # v1.0.8 Linux x86-64 (v0.13.5 bootstrap)
 ├── src/              # Self-hosted Zeta sources (51+ files)
 │   ├── main.z        # Entry point
 │   ├── frontend/     # Lexer, parser, AST
@@ -293,4 +302,4 @@ The compiler pipeline processes Zeta source through multiple IR tiers:
 
 ---
 
-*Zeta v1.0.7 — The language that will outlive its bootstrap.*
+*Zeta v1.0.8 — The language that will outlive its bootstrap.*
