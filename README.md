@@ -1,16 +1,16 @@
-# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta v1.0.4 — Self-hosting pipeline: zero errors
+# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta v1.0.5 — Extern fn resolution fix, echo server working
 
 [<img alt="Zeta Logo" width="128px" src="https://z-lang.org/assets/images/z128.png" />](https://z-lang.org) [![Latest Release](https://img.shields.io/github/v/release/murphsicles/zeta)](https://github.com/murphsicles/zeta/releases) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM.** v1.0.4 ships the v0.13.1 bootstrap compiler — the self-hosting pipeline now compiles all Zeta sources with **zero errors**. Every Tokio runtime fix (epoll, waker, timerfd, blocking thread pool, impl method dispatch, param-suffixed lookup, overloaded fns) is backported to the self-hosted compiler.
+**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM.** v1.0.5 ships the v0.13.2 bootstrap compiler with a critical extern function resolution fix for the JIT and AOT paths. TCP runtime functions (`tcp_bind`, `tcp_accept`, etc.) now link correctly — the echo server example is fully functional.
 
 Built from the algebraic foundations of Stepanov's *Elements of Programming* — first principles, zero bloat, maximum efficiency.
 
 > "Weaponized minimalism. Surgical violence against complexity." — Roy Murphy
 
-## 🚀 v1.0.4 — Self-Hosting Pipeline: Zero Errors
+## 🚀 v1.0.5 — Extern FN _N Suffix Fix
 
-Self-hosted compiler now built from v0.13.1 bootstrap with the full Tokio runtime support — epoll reactor, waker pipe, timerfd, blocking thread pool, impl method dispatch fix, param-suffixed function lookup (HashMap→Vec), and overloaded function resolution. All 51+ self-hosted Zeta sources compile with **zero errors**.
+The MIR generator appends `_N` (argument count) to function call names for overloaded dispatch (e.g., `tcp_bind_2`). The codegen's `get_or_declare_function` was creating extern LLVM declarations using the mangled name, but runtime symbols use the base name (`tcp_bind`). The JIT symbol mapping and AOT linker couldn't match them → segfault on all TCP calls. Fixed by stripping the `_N` suffix before creating the extern declaration. Echo server now runs clean via JIT.
 
 ## ✨ Features
 
@@ -193,7 +193,7 @@ fn murphy_sieve(limit: i64) -> i64 {
 ```
 zeta/
 ├── bin/              # Pre-built compiler binary
-│   └── zetac         # v1.0.4 Linux x86-64 (v0.13.1 bootstrap)
+│   └── zetac         # v1.0.5 Linux x86-64 (v0.13.2 bootstrap)
 ├── src/              # Self-hosted Zeta sources (51+ files)
 │   ├── main.z        # Entry point
 │   ├── frontend/     # Lexer, parser, AST
@@ -285,4 +285,4 @@ The compiler pipeline processes Zeta source through multiple IR tiers:
 
 ---
 
-*Zeta v1.0.4 — The language that will outlive its bootstrap.*
+*Zeta v1.0.5 — The language that will outlive its bootstrap.*
