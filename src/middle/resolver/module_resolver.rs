@@ -436,6 +436,46 @@ impl ModuleResolver {
                 return Ok(mod_path);
             }
             
+            // If item_path has only 1 component, also try it as a module path
+            // (e.g., `use super::runtime` — "runtime" is the module, not an item)
+            if item_path.len() <= 1 {
+                // Try the last component as a module file
+                let mut as_module = super_path.parent()
+                    .map(|p| p.join("src"))
+                    .unwrap_or_else(|| super_path.clone());
+                for component in item_path {
+                    as_module.push(component);
+                }
+                let mut as_module_z = as_module.clone();
+                as_module_z.set_extension("z");
+                if as_module_z.exists() {
+                    return Ok(as_module_z);
+                }
+                let mut as_module_mod = as_module.clone();
+                as_module_mod.push("mod.z");
+                if as_module_mod.exists() {
+                    return Ok(as_module_mod);
+                }
+            }
+            
+            // Fallback: try with src/ prefix (common project layout: src/<module>.z)
+            let mut src_path = super_path.parent()
+                .map(|p| p.join("src"))
+                .unwrap_or_else(|| super_path.clone());
+            for component in module_path {
+                src_path.push(component);
+            }
+            let mut src_z = src_path.clone();
+            src_z.set_extension("z");
+            if src_z.exists() {
+                return Ok(src_z);
+            }
+            let mut src_mod = src_path.clone();
+            src_mod.push("mod.z");
+            if src_mod.exists() {
+                return Ok(src_mod);
+            }
+            
             return Err(format!(
                 "Super module not found: {} (resolved from {:?} via {:?})",
                 path.join("::"),
@@ -486,6 +526,23 @@ impl ModuleResolver {
             if full_z_path.exists() {
                 return Ok(full_z_path);
             }
+        }
+        
+        // Try with src/ prefix (common project layout: src/<module>.z)
+        let mut src_file_path = self.root_dir.clone();
+        src_file_path.push("src");
+        for component in module_path {
+            src_file_path.push(component);
+        }
+        let mut src_z_path = src_file_path.clone();
+        src_z_path.set_extension("z");
+        if src_z_path.exists() {
+            return Ok(src_z_path);
+        }
+        let mut src_mod_path = src_file_path.clone();
+        src_mod_path.push("mod.z");
+        if src_mod_path.exists() {
+            return Ok(src_mod_path);
         }
 
         Err(format!("Module not found: {}", path.join("::")))

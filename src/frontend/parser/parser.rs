@@ -83,10 +83,22 @@ pub fn parse_ident(input: &str) -> IResult<&str, String> {
     Ok((input, ident.to_string()))
 }
 
+/// Parse a path separator (::) followed by an identifier
+fn parse_path_segment(input: &str) -> IResult<&str, String> {
+    // Also allow "super" and "crate" as path components (keywords valid in use paths).
+    ws(alt((
+        value("super".to_string(), tag("super")),
+        value("crate".to_string(), tag("crate")),
+        value("self".to_string(), tag("self")),
+        parse_ident,
+    )))
+    .parse(input)
+}
+
 pub fn parse_path(input: &str) -> IResult<&str, Vec<String>> {
     let result = preceded(
         opt(ws(tag("::"))),
-        separated_list1(ws(tag("::")), ws(parse_ident)),
+        separated_list1(ws(tag("::")), parse_path_segment),
     )
     .parse(input);
     if let Ok((remaining, path)) = &result {}
