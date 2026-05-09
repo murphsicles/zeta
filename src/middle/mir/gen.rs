@@ -45,6 +45,14 @@ pub struct MirGen {
     type_decls: HashMap<String, TypeDecl>,
     /// Additional MIRs generated during lowering (e.g., async poll functions).
     generated_mirs: Vec<Mir>,
+    /// Async state machine: state pointer expression ID.
+    async_state_ptr: Option<u32>,
+    /// Async state machine: current segment index for dispatch.
+    async_segment_count: u32,
+    /// Whether we are lowering an async function body.
+    is_async_fn: bool,
+    /// Snapshot of name_to_id at current await point for variable save/restore.
+    async_saved_vars: Vec<(String, u32)>,
 }
 
 impl MirGen {
@@ -61,6 +69,10 @@ impl MirGen {
             pointee_widths: HashMap::new(),
             type_decls: HashMap::new(),
             generated_mirs: vec![],
+            async_state_ptr: None,
+            async_segment_count: 0,
+            is_async_fn: false,
+            async_saved_vars: vec![],
         }
     }
 

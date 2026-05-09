@@ -448,6 +448,12 @@ impl Resolver {
         );
     }
 
+    pub fn set_source_dir(&mut self, path: &std::path::Path) {
+        if let Some(parent) = path.parent() {
+            self.module_resolver.set_root_dir(parent);
+        }
+    }
+
     pub fn lower_to_mir(&self, ast: &AstNode) -> Mir {
         let mut mir_gen =
             crate::middle::mir::r#gen::MirGen::new().with_global_consts(self.ctfe_consts.clone());

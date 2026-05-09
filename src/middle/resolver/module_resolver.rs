@@ -43,6 +43,12 @@ impl ModuleResolver {
         }
     }
 
+    /// Update the root directory for module resolution.
+    /// Used when processing files from different source directories.
+    pub fn set_root_dir(&mut self, dir: impl AsRef<Path>) {
+        self.root_dir = dir.as_ref().to_path_buf();
+    }
+
     /// Resolve a use statement path to a module file
     /// For `use a::b::c::Item;`, we resolve `a::b::c` to a module file
     pub fn resolve_use_path(&mut self, path: &[String]) -> Result<PathBuf, String> {
@@ -387,6 +393,55 @@ impl ModuleResolver {
                 // If not found, create a virtual module for common package manager items
                 return self.create_zorb_package_stub(module_path);
             }
+        }
+
+        // Handle `super::` paths: resolve relative to parent of source directory.
+        // `use super::module::Item;` resolves to ../module/Item.z relative to root.
+        if !path.is_empty() && path[0] == "super" {
+            let item_path = if path.len() > 1 {
+                &path[1..]  // Everything after "super"
+            } else {
+                &[]  // Just "use super;" — invalid but handle gracefully
+            };
+            
+            // Resolve relative to parent of root_dir
+            let mut super_path = self.root_dir.clone();
+            // Go up one directory
+            if let Some(parent) = super_path.parent() {
+                super_path = parent.to_path_buf();
+            }
+            
+            // Now resolve the rest of the path
+            let module_path = if item_path.len() > 1 {
+                &item_path[..item_path.len() - 1]  // Remove item name
+            } else {
+                item_path
+            };
+            
+            for component in module_path {
+                super_path.push(component);
+            }
+            
+            // Try with .z extension
+            let mut z_path = super_path.clone();
+            z_path.set_extension("z");
+            if z_path.exists() {
+                return Ok(z_path);
+            }
+            
+            // Try as directory with mod.z
+            let mut mod_path = super_path.clone();
+            mod_path.push("mod.z");
+            if mod_path.exists() {
+                return Ok(mod_path);
+            }
+            
+            return Err(format!(
+                "Super module not found: {} (resolved from {:?} via {:?})",
+                path.join("::"),
+                self.root_dir,
+                super_path
+            ));
         }
 
         // Try to resolve the path without the last component

@@ -172,6 +172,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 };
 
                 let mut resolver = Resolver::new();
+                // Set source directory for use super:: resolution
+                resolver.set_source_dir(std::path::Path::new(&file));
 
                 // Expand macros before registration
                 let expanded_asts = match resolver.expand_macros(&asts) {
