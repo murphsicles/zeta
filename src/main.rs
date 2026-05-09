@@ -239,7 +239,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 for (fn_name, specs) in &used_specs {
                     if let Some(base_ast) = func_asts.iter().find(|a| {
                         if let AstNode::FuncDef { name, .. } = a {
-                            name == fn_name
+                            name == fn_name || fn_name.ends_with(&format!("::{}", name))
                         } else {
                             false
                         }
@@ -271,6 +271,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let context = Context::create();
                 let mut codegen = LLVMCodegen::new(&context, "module");
                 codegen.gen_mirs(&all_mirs);
+                codegen.module.print_to_stderr();
 
                 if let Some(out) = output {
                     let obj_path = format!("{}.o", out);
@@ -411,7 +412,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         for (fn_name, specs) in &used_specs {
             if let Some(base) = func_asts.iter().find(|a| {
                 if let AstNode::FuncDef { name, .. } = a {
-                    name == fn_name
+                    name == fn_name || fn_name.ends_with(&format!("::{}", name))
                 } else {
                     false
                 }

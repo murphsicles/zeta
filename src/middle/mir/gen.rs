@@ -243,14 +243,41 @@ impl MirGen {
                         // For other pattern types, generate a simple assignment
                         // This is a simplification - in a full implementation,
                         // we would need to handle destructuring patterns
-                        let rhs_id = self.lower_expr(expr);
-                        let lhs_id = self.next_id();
-                        self.stmts.push(MirStmt::Assign {
-                            lhs: lhs_id,
-                            rhs: rhs_id,
-                        });
-                        self.exprs.insert(lhs_id, MirExpr::Var(lhs_id));
-                        self.type_map.insert(lhs_id, Type::I64);
+                        if let AstNode::Tuple(elements) = &**pattern {
+                            // Tuple destructuring: let (a, b) = expr;
+                            // Lower as multiple field accesses.
+                            let rhs_id = self.lower_expr(expr);
+                            for (i, elem) in elements.iter().enumerate() {
+                                match elem {
+                                    AstNode::Var(name) => {
+                                        let elem_id = self.next_id();
+                                        // Access field i of the tuple
+                                        let field_id = self.next_id();
+                                        self.exprs.insert(field_id, MirExpr::Lit(i as i64));
+                                        self.type_map.insert(field_id, Type::I64);
+                                        self.stmts.push(MirStmt::Call {
+                                            func: "stack_array_get".to_string(),
+                                            args: vec![rhs_id, field_id],
+                                            dest: elem_id,
+                                            type_args: vec![],
+                                        });
+                                        self.name_to_id.insert(name.clone(), elem_id);
+                                        self.exprs.insert(elem_id, MirExpr::Var(elem_id));
+                                        self.type_map.insert(elem_id, Type::I64);
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        } else {
+                            let rhs_id = self.lower_expr(expr);
+                            let lhs_id = self.next_id();
+                            self.stmts.push(MirStmt::Assign {
+                                lhs: lhs_id,
+                                rhs: rhs_id,
+                            });
+                            self.exprs.insert(lhs_id, MirExpr::Var(lhs_id));
+                            self.type_map.insert(lhs_id, Type::I64);
+                        }
                     }
                 }
             }

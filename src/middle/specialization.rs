@@ -24,7 +24,7 @@ impl MonoKey {
         if self.type_args.is_empty() {
             self.func_name.clone()
         } else {
-            format!("{}_{}", self.func_name, self.type_args.join("_"))
+            format!("{}_inst_{}", self.func_name, self.type_args.join("_"))
         }
     }
 }

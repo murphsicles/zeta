@@ -528,6 +528,24 @@ impl Resolver {
                     used.entry(method.clone()).or_default().push(args);
                 }
             }
+            if let AstNode::PathCall {
+                path,
+                method,
+                type_args,
+                ..
+            } = node
+            {
+                if !type_args.is_empty() {
+                    // Use fully-qualified name to disambiguate functions with the same
+                    // method name but different modules (e.g., oneshot::channel vs mpsc::channel)
+                    let qualified = if path.is_empty() {
+                        method.clone()
+                    } else {
+                        format!("{}::{}", path.join("::"), method)
+                    };
+                    used.entry(qualified).or_default().push(type_args.clone());
+                }
+            }
             match node {
                 AstNode::FuncDef { body, .. } => body.iter().for_each(|s| walk(s, used, resolver)),
                 AstNode::Return(inner) => walk(inner, used, resolver),

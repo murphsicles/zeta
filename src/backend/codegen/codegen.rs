@@ -1959,6 +1959,51 @@ impl<'ctx> LLVMCodegen<'ctx> {
             if let Some(f) = self.module.get_function(&mangled) {
                 return f;
             }
+            // For path-qualified names (e.g., "oneshot::channel::channel_0"), also try mangling
+            // just the base method name — monomorphized functions use fully-qualified keys.
+            if name.contains("::") {
+                if let Some(method) = name.split("::").last() {
+                    let method_mangled = self.mangle_function_name(method, type_args);
+                    if let Some(f) = self.module.get_function(&method_mangled) {
+                        return f;
+                    }
+                    // Strip trailing _N from method name
+                    if let Some(pos) = method.rfind('_') {
+                        let suffix = &method[pos + 1..];
+                        if suffix.chars().all(|c| c.is_ascii_digit()) {
+                            let base_method = &method[..pos];
+                            let base_mangled = self.mangle_function_name(base_method, type_args);
+                            if let Some(f) = self.module.get_function(&base_mangled) {
+                                return f;
+                            }
+                        }
+                    }
+                }
+                // Also try the fully-qualified module path as the function name.
+                // e.g., "oneshot::channel::channel_0" → qualified = "oneshot::channel"
+                // Then mangle: "oneshot::channel_inst_i64" and look up with __.
+                if let Some(last_colon) = name.rfind("::") {
+                    let qualified = &name[..last_colon]; // strip "::channel_0"
+                    let qual_mangled = self.mangle_function_name(qualified, type_args);
+                    // gen_mirs stores functions with :: replaced by __
+                    let qual_stored = qual_mangled.replace("::", "__");
+                    if let Some(f) = self.module.get_function(&qual_stored) {
+                        return f;
+                    }
+                    // Also strip _N from the last component of the qualified name
+                    if let Some(pos) = qualified.rfind('_') {
+                        let suffix = &qualified[pos + 1..];
+                        if suffix.chars().all(|c| c.is_ascii_digit()) {
+                            let base_qual = &qualified[..pos];
+                            let base_qual_mangled = self.mangle_function_name(base_qual, type_args);
+                            let base_qual_stored = base_qual_mangled.replace("::", "__");
+                            if let Some(f) = self.module.get_function(&base_qual_stored) {
+                                return f;
+                            }
+                        }
+                    }
+                }
+            }
             // Check host-mapped name
             if !host_mapped_name.is_empty()
                 && let Some(f) = self.module.get_function(&host_mapped_name)
@@ -2004,33 +2049,38 @@ impl<'ctx> LLVMCodegen<'ctx> {
         // Not found — create extern declaration matching the call site's arg count
         let base_name = if stripped_name.is_empty() { name } else { &stripped_name };
         
-        // For path-qualified names (e.g., "runtime::reactor_create"), try the bare
-        // method name first ("reactor_create") — runtime symbols don't carry module
-        // prefixes. Only fall back to the mangled path name if the bare name fails.
-        let bare_method = base_name.split("::").last().unwrap_or(base_name);
-        if bare_method != base_name {
+        // For path-qualified names (e.g., "runtime::reactor_create"), ensure the
+        // declaration uses the correct name. Try qualified form first (with __),
+        // then bare method name, to avoid colliding names across modules.
+        if base_name.contains("::") {
+            // First try the qualified form: oneshot::channel → oneshot__channel
+            let qualified_actual = if type_args.is_empty() {
+                base_name.replace("::", "__")
+            } else {
+                self.mangle_function_name(base_name, type_args).replace("::", "__")
+            };
+            if let Some(f) = self.module.get_function(&qualified_actual) {
+                return f;
+            }
+            // Check bare method name (for runtime symbols like reactor_create)
+            let bare_method = base_name.split("::").last().unwrap_or(base_name);
             let bare_actual = if type_args.is_empty() {
                 bare_method.to_string()
             } else {
                 self.mangle_function_name(bare_method, type_args)
             };
-            // If bare name already exists in the module (e.g., extern fn declared in module),
-            // return the existing function directly.
             if let Some(f) = self.module.get_function(&bare_actual) {
                 return f;
             }
-            if let Some(&f) = self.fns.get(&bare_actual) {
-                return f;
-            }
-            // Create extern with bare method name
+            // Create qualified extern
             let param_types: Vec<_> = (0..args_count).map(|_| self.i64_type.into()).collect();
             let fn_type = self.i64_type.fn_type(&param_types, false);
-            return self.module.add_function(&bare_actual, fn_type, Some(Linkage::External));
+            return self.module.add_function(&qualified_actual, fn_type, Some(Linkage::External));
         }
         
-        // Fall back to mangled path-qualified name
+        // Non-qualified name: use as-is
         let actual_name = if type_args.is_empty() {
-            base_name.replace("::", "__")
+            base_name.to_string()
         } else {
             self.mangle_function_name(base_name, type_args)
         };
