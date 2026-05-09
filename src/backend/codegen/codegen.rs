@@ -2072,10 +2072,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
             if let Some(f) = self.module.get_function(&bare_actual) {
                 return f;
             }
-            // Create qualified extern
+            // Create extern with BARE method name for runtime/JIT symbol resolution.
+            // Path-qualified names (e.g., runtime::new_waker) are regular JIT-mapped
+            // runtime functions — using the bare name ensures the JIT can find them.
             let param_types: Vec<_> = (0..args_count).map(|_| self.i64_type.into()).collect();
             let fn_type = self.i64_type.fn_type(&param_types, false);
-            return self.module.add_function(&qualified_actual, fn_type, Some(Linkage::External));
+            return self.module.add_function(&bare_actual, fn_type, Some(Linkage::External));
         }
         
         // Non-qualified name: use as-is
