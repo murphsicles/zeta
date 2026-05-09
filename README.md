@@ -1,16 +1,24 @@
-# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta v1.0.6 — TCP default host, echo server working
+# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta v1.0.7 — Async/await state machine
 
 [<img alt="Zeta Logo" width="128px" src="https://z-lang.org/assets/images/z128.png" />](https://z-lang.org) [![Latest Release](https://img.shields.io/github/v/release/murphsicles/zeta)](https://github.com/murphsicles/zeta/releases) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM.** v1.0.6 ships the v0.13.3 bootstrap with TCP null host handling. `tcp_bind(0, port)` and `tcp_connect(0, port)` now default to `0.0.0.0` — the Tokio echo server example is fully functional.
+**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM.** v1.0.7 ships the v0.13.4 bootstrap with full `async fn` / `.await` support — blocking poll-loop state machine lowering.
 
 Built from the algebraic foundations of Stepanov's *Elements of Programming* — first principles, zero bloat, maximum efficiency.
 
 > "Weaponized minimalism. Surgical violence against complexity." — Roy Murphy
 
-## 🚀 v1.0.6 — TCP Null Host Fix
+## 🚀 v1.0.7 — Async/Await Feature
 
-`tcp_bind(0, port)` was passing an empty C string to the Rust runtime, producing an invalid address like `:8080` (name resolution failure). Now defaults to `"0.0.0.0"` when host is null. Also added `host_str_all_interfaces()` runtime function for explicit use from Zeta code.
+Basic `async fn` and `.await` expressions are now functional. The feature compiles async functions with blocking poll loops for each await point, with runtime support for future polling and result extraction.
+
+### What shipped
+
+- **Parser fix**: `.await` was parsed as a field access (`await` field). Now properly parsed as `AstNode::Await`.  
+- **MIR lowering**: `.await` expressions lower to a `while(true)` loop that polls the sub-future and breaks on Ready.  
+- **Runtime functions**: `future_poll`, `future_result`, `future_ready`, `future_poll_alloc/free`, `future_state_get/set`  
+- **Continue/Break fix**: These were no-ops in codegen. They now branch to the loop condition and exit respectively.  
+- **Async tests pass**: `future_ready(42).await` returns `42` ✅
 
 ## ✨ Features
 
@@ -193,7 +201,7 @@ fn murphy_sieve(limit: i64) -> i64 {
 ```
 zeta/
 ├── bin/              # Pre-built compiler binary
-│   └── zetac         # v1.0.6 Linux x86-64 (v0.13.3 bootstrap)
+│   └── zetac         # v1.0.7 Linux x86-64 (v0.13.4 bootstrap)
 ├── src/              # Self-hosted Zeta sources (51+ files)
 │   ├── main.z        # Entry point
 │   ├── frontend/     # Lexer, parser, AST
@@ -285,4 +293,4 @@ The compiler pipeline processes Zeta source through multiple IR tiers:
 
 ---
 
-*Zeta v1.0.6 — The language that will outlive its bootstrap.*
+*Zeta v1.0.7 — The language that will outlive its bootstrap.*
