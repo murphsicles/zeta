@@ -38,7 +38,7 @@ static NEXT_ID: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn tcp_connect(host: i64, port: i64) -> i64 {
-    let h = from_cstr(host);
+    let h = if host == 0 { "0.0.0.0".to_string() } else { from_cstr(host) };
     let addr = format!("{}:{}", h, port);
     match TcpStream::connect(&addr) {
         Ok(stream) => {
@@ -89,7 +89,7 @@ pub unsafe extern "C" fn tcp_close(stream: i64) {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn tcp_bind(host: i64, port: i64) -> i64 {
-    let h = from_cstr(host);
+    let h = if host == 0 { "0.0.0.0".to_string() } else { from_cstr(host) };
     let addr = format!("{}:{}", h, port);
     match TcpListener::bind(&addr) {
         Ok(listener) => {

@@ -431,6 +431,10 @@ impl<'ctx> crate::backend::codegen::LLVMCodegen<'ctx> {
                 crate::runtime::net::tcp_accept as *const () as usize,
             ),
             (
+                "host_str_all_interfaces",
+                crate::runtime::host::host_str_all_interfaces as *const () as usize,
+            ),
+            (
                 "atomic_bool_new",
                 crate::runtime::atomic::atomic_bool_new as *const () as usize,
             ),

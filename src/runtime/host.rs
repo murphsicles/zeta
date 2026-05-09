@@ -846,3 +846,13 @@ pub unsafe extern "C" fn append_stack_array(arr_ptr: i64, value: i64) -> i64 {
     0 // Return 0 for success
 }
 */
+
+/// Returns a pointer to the string "0.0.0.0" suitable for passing
+/// to TCP bind/connect functions. Avoids need for C string allocation
+/// from Zeta code.
+static ALL_IFACES: [u8; 8] = *b"0.0.0.0\x00";
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn host_str_all_interfaces() -> i64 {
+    ALL_IFACES.as_ptr() as i64
+}
