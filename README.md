@@ -1,16 +1,32 @@
-# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta v1.0.10 — Generic fn disambiguation, module-qualified externs
+# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta v1.0.11 — monomorphized call resolution, waker JIT mappings, submodule loading
 
 [<img alt="Zeta Logo" width="128px" src="https://z-lang.org/assets/images/z128.png" />](https://z-lang.org) [![Latest Release](https://img.shields.io/github/v/release/murphsicles/zeta)](https://github.com/murphsicles/zeta/releases) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM.** v1.0.10 ships the v0.13.7 bootstrap fixing generic function name collisions across modules (oneshot::channel vs mpsc::channel now produce different LLVM symbols).
+**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM.** v1.0.11 ships the v0.14.4 bootstrap with full actor channel support — submodule loading, monomorphized call resolution, and end-to-end working channel examples.
 
 Built from the algebraic foundations of Stepanov's *Elements of Programming* — first principles, zero bloat, maximum efficiency.
 
 > "Weaponized minimalism. Surgical violence against complexity." — Roy Murphy
 
-## 🚀 v1.0.10 — Generic Function Disambiguation
+## 🚀 v1.0.11 — Channel Example End-to-End
 
-When two modules define generic functions with the same name (e.g., both `oneshot::channel::<i64>()` and `mpsc::channel::<i64>(n)`), the monomorphized LLVM symbols now carry the module path as a prefix: `oneshot__channel_inst_i64` vs `mpsc__channel_inst_i64`. This prevents arg count mismatches at call sites.
+### Recursive submodule loading
+- `process_use_statement` now scans module ASTs for `ModDef` nodes and recursively loads submodule `.z` files
+- Functions from submodules registered with qualified names (e.g., `oneshot::channel`) for monomorphization lookup
+- Only loads the submodule matching the `use` path item name — prevents cross-module collisions
+
+### Submodule impl blocks
+- Functions from `impl` blocks in submodules (`Sender::send`, `Receiver::recv`, etc.) registered so method calls resolve
+- First-registered module's signature wins at registration to avoid overwrites
+
+### JIT extern resolution
+- `get_or_declare_function` strips module prefixes from path-qualified extern calls (`runtime::new_waker` → `new_waker`)
+- Added `create_waker`, `wake_waker`, and `host_mpsc_channel/send/recv/try_recv` JIT mappings
+- Trailing `_N` suffix stripped before type-arg mangling to match monomorphized symbol names
+
+### StackArray heap allocation
+- StackArray now allocates on the heap instead of blowing the stack
+- `_inst_` generic detection improved for proper monomorphization
 
 Built from the algebraic foundations of Stepanov's *Elements of Programming* — first principles, zero bloat, maximum efficiency.
 
@@ -218,7 +234,7 @@ fn murphy_sieve(limit: i64) -> i64 {
 ```
 zeta/
 ├── bin/              # Pre-built compiler binary
-│   └── zetac         # v1.0.10 Linux x86-64 (v0.13.7 bootstrap)
+│   └── zetac         # v1.0.11 Linux x86-64 (v0.14.4 bootstrap)
 ├── src/              # Self-hosted Zeta sources (51+ files)
 │   ├── main.z        # Entry point
 │   ├── frontend/     # Lexer, parser, AST
@@ -310,4 +326,4 @@ The compiler pipeline processes Zeta source through multiple IR tiers:
 
 ---
 
-*Zeta v1.0.10 — The language that will outlive its bootstrap.*
+*Zeta v1.0.11 — The language that will outlive its bootstrap.*
