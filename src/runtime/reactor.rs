@@ -17,6 +17,36 @@ lazy_static::lazy_static! {
 thread_local! {
     static EVENT_BUF: std::cell::RefCell<[libc::epoll_event; 1024]> =
         const { std::cell::RefCell::new([libc::epoll_event { events: 0, u64: 0 }; 1024]) };
+    /// Current thread's reactor epfd (0 = no reactor active).
+    static CURRENT_EPFD: std::cell::Cell<i64> = const { std::cell::Cell::new(0) };
+    /// Current thread's waker read fd (0 = no waker).
+    static CURRENT_WAKER: std::cell::Cell<i64> = const { std::cell::Cell::new(0) };
+}
+
+/// Set the current thread's reactor epfd (called by the tokio runtime on init).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn runtime_set_epfd(epfd: i64) {
+    CURRENT_EPFD.with(|c| c.set(epfd));
+}
+
+/// Get the current thread's reactor epfd (0 if none active).
+/// Used by the .await lowering to know which reactor to poll.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn runtime_get_epfd() -> i64 {
+    CURRENT_EPFD.with(|c| c.get())
+}
+
+/// Set the current thread's waker read fd.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn runtime_set_waker(waker: i64) {
+    CURRENT_WAKER.with(|c| c.set(waker));
+}
+
+/// Get the current thread's waker read fd.
+/// Used by the .await lowering to drain wake notifications after reactor poll.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn runtime_get_waker() -> i64 {
+    CURRENT_WAKER.with(|c| c.get())
 }
 
 // ── Reactor ──
