@@ -98,6 +98,12 @@ impl MirGen {
         // so the codegen can emit an external declaration instead of a stub.
         let is_extern = matches!(ast, AstNode::FuncDef { body, ret_expr, .. } if body.is_empty() && ret_expr.is_none());
 
+        // Check if this is an async function — if so, we need to wrap the
+        // return value in a future_ready() call for the .await poll loop.
+        if let AstNode::FuncDef { async_, .. } = ast {
+            self.is_async_fn = *async_;
+        }
+
         if !is_extern {
             if let AstNode::FuncDef { params, .. } = ast {
                 for (i, (name, param_type)) in params.iter().enumerate() {
@@ -148,6 +154,47 @@ impl MirGen {
                 self.next_id_with_lit(0)
             };
             self.stmts.push(MirStmt::Return { val: ret_val });
+        }
+
+        // For async functions, wrap return values in future_ready() so the
+        // .await poll loop gets a valid future struct pointer (2-slot state
+        // buffer) instead of a raw i64. Without this, future_poll(value)
+        // would dereference an invalid pointer and segfault.
+        // For async functions, wrap return values in future_ready() so the
+        // .await poll loop gets a valid future struct pointer (2-slot state
+        // buffer) instead of a raw i64. Without this, future_poll(value)
+        // would dereference an invalid pointer and segfault.
+        //
+        // EXCEPTION: the entry point `main` should NOT wrap — the runtime
+        // expects main() to return the actual i64 result, not a future ptr.
+        let fn_name = if let AstNode::FuncDef { name, .. } = ast {
+            Some(name.clone())
+        } else {
+            None
+        };
+        if self.is_async_fn {
+            let is_main = matches!(&fn_name, Some(n) if n == "main");
+            if !is_main {
+                let old_stmts = self.stmts.clone();
+                let mut new_stmts: Vec<MirStmt> = Vec::new();
+                for stmt in &old_stmts {
+                    if let MirStmt::Return { val } = stmt {
+                        let ready_id = self.next_id();
+                        self.exprs.insert(ready_id, MirExpr::Var(ready_id));
+                        self.type_map.insert(ready_id, crate::middle::types::Type::I64);
+                        new_stmts.push(MirStmt::Call {
+                            func: "future_ready".to_string(),
+                            args: vec![*val],
+                            dest: ready_id,
+                            type_args: vec![],
+                        });
+                        new_stmts.push(MirStmt::Return { val: ready_id });
+                    } else {
+                        new_stmts.push(stmt.clone());
+                    }
+                }
+                self.stmts = new_stmts;
+            }
         }
 
         Mir {

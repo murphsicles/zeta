@@ -126,3 +126,23 @@ pub unsafe extern "C" fn host_mpsc_recv(id: i64) -> i64 {
 pub unsafe extern "C" fn host_mpsc_try_recv(id: i64) -> i64 {
     host_channel_recv(id)
 }
+
+/// Poll an mpsc channel: return 1 if data is available, 0 if not.
+/// This is needed for async polling to distinguish "empty" from "value = 0".
+pub unsafe extern "C" fn host_mpsc_poll(id: i64) -> i64 {
+    let map = match CHANNEL_MAP.get() {
+        Some(m) => m,
+        None => return 0,
+    };
+    let guard = map.blocking_lock();
+    if let Some(inner) = guard.get(&id) {
+        let mut rx_guard = inner.rx.blocking_lock();
+        match rx_guard.try_recv() {
+            Ok(_) => 1,
+            Err(mpsc::error::TryRecvError::Empty) => 0,
+            Err(_) => 0,
+        }
+    } else {
+        0
+    }
+}
