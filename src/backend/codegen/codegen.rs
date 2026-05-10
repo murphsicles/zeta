@@ -2205,7 +2205,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
 
         // Apply substitution to create a monomorphized MIR
-        let monomorphized_mir = self.substitute_mir(generic_mir, &substitution);
+        let mut monomorphized_mir = self.substitute_mir(generic_mir, &substitution);
+
+        // Set the MIR name to the mangled name so gen_fn can find the
+        // correct LLVM function (otherwise it looks up the generic name
+        // which may collide with other modules' functions).
+        monomorphized_mir.name = Some(mangled_name.clone());
 
         // Generate the function body
         self.gen_fn(&monomorphized_mir);

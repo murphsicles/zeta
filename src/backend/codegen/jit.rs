@@ -11,9 +11,9 @@ use crate::runtime::actor::scheduler::host_spawn;
 use crate::runtime::reactor::{waker_create, waker_wake};
 use crate::runtime::array::{array_free, array_get, array_len, array_new, array_push, array_set};
 use crate::runtime::host::{
-    host_http_get, host_str_concat, host_str_contains, host_str_ends_with, host_str_len,
-    host_str_replace, host_str_starts_with, host_str_to_lowercase, host_str_to_uppercase,
-    host_str_trim, host_tls_handshake,
+    host_async_yield, host_http_get, host_str_concat, host_str_contains, host_str_ends_with,
+    host_str_len, host_str_replace, host_str_starts_with, host_str_to_lowercase,
+    host_str_to_uppercase, host_str_trim, host_tls_handshake,
 };
 use crate::runtime::std::std_free;
 use crate::runtime::zeta_runtime::{
@@ -198,6 +198,9 @@ impl<'ctx> crate::backend::codegen::LLVMCodegen<'ctx> {
         }
         if let Some(f) = self.module.get_function("host_mpsc_try_recv") {
             ee.add_global_mapping(&f, host_mpsc_try_recv as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("async_yield") {
+            ee.add_global_mapping(&f, host_async_yield as *const () as usize);
         }
         if let Some(f) = self.module.get_function("create_waker") {
             ee.add_global_mapping(&f, waker_create as *const () as usize);

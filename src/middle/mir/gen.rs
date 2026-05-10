@@ -2954,10 +2954,18 @@ impl MirGen {
                 });
                 self.type_map.insert(cond_id, Type::Bool);
                 
+                // When poll returns Pending (0), yield to the event loop
+                // instead of busy-spinning. async_yield() calls sched_yield()
+                // or a brief sleep to let other tasks run.
                 body_stmts.push(MirStmt::If {
                     cond: cond_id,
                     then: then_stmts,
-                    else_: vec![],
+                    else_: vec![MirStmt::Call {
+                        func: "async_yield".to_string(),
+                        args: vec![],
+                        dest: self.next_id(),
+                        type_args: vec![],
+                    }],
                     dest: None,
                 });
                 

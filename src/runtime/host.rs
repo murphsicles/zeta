@@ -929,6 +929,16 @@ pub unsafe extern "C" fn future_result(fut: i64) -> i64 {
 /// Returns a pointer to a 2-slot state buffer where
 /// field 0 = 0 (no poll fn), field 1 = value.
 #[unsafe(no_mangle)]
+/// Yield the current async task to let other tasks run.
+/// Calls sched_yield() to avoid busy-spinning in the .await loop.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn host_async_yield() -> i64 {
+    unsafe { libc::sched_yield(); }
+    0
+}
+
+/// Mark a future as ready with a value.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn future_ready(val: i64) -> i64 {
     let ptr = std_malloc(16usize);
     unsafe {
