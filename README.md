@@ -1,32 +1,29 @@
-# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta v1.0.11 — monomorphized call resolution, waker JIT mappings, submodule loading
+# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta v1.0.14 — Full async waker wiring, generic monomorphization fix
 
 [<img alt="Zeta Logo" width="128px" src="https://z-lang.org/assets/images/z128.png" />](https://z-lang.org) [![Latest Release](https://img.shields.io/github/v/release/murphsicles/zeta)](https://github.com/murphsicles/zeta/releases) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM.** v1.0.11 ships the v0.14.4 bootstrap with full actor channel support — submodule loading, monomorphized call resolution, and end-to-end working channel examples.
+**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM.** v1.0.14 ships the v0.14.4 bootstrap with full async waker wiring via thread-local reactor state and fixed generic monomorphization in async context.
 
 Built from the algebraic foundations of Stepanov's *Elements of Programming* — first principles, zero bloat, maximum efficiency.
 
 > "Weaponized minimalism. Surgical violence against complexity." — Roy Murphy
 
-## 🚀 v1.0.11 — Channel Example End-to-End
+## 🚀 v1.0.14 — Full Async Waker Wiring
 
-### Recursive submodule loading
-- `process_use_statement` now scans module ASTs for `ModDef` nodes and recursively loads submodule `.z` files
-- Functions from submodules registered with qualified names (e.g., `oneshot::channel`) for monomorphization lookup
-- Only loads the submodule matching the `use` path item name — prevents cross-module collisions
+### Thread-local reactor state
+- `runtime_set_epfd` / `runtime_get_epfd`: store/retrieve current reactor epfd
+- `runtime_set_waker` / `runtime_get_waker`: store/retrieve current waker fd
+- `.await` lowering yields to reactor (`scheduler_run_reactor` + `waker_consume`) when Runtime is active
+- Falls back to `sched_yield()` when no Runtime is set up
 
-### Submodule impl blocks
-- Functions from `impl` blocks in submodules (`Sender::send`, `Receiver::recv`, etc.) registered so method calls resolve
-- First-registered module's signature wins at registration to avoid overwrites
+### Generic monomorphization in async context
+- `has_generics` field on Mir struct (set from AST generics list)
+- `get_or_declare_function` checks `generic_defs` before creating extern declarations
+- Module-based generic functions (`oneshot::channel`, `mpsc::channel`) work from async functions
 
-### JIT extern resolution
-- `get_or_declare_function` strips module prefixes from path-qualified extern calls (`runtime::new_waker` → `new_waker`)
-- Added `create_waker`, `wake_waker`, and `host_mpsc_channel/send/recv/try_recv` JIT mappings
-- Trailing `_N` suffix stripped before type-arg mangling to match monomorphized symbol names
-
-### StackArray heap allocation
-- StackArray now allocates on the heap instead of blowing the stack
-- `_inst_` generic detection improved for proper monomorphization
+### Async function future wrapping
+- Async fn returns wrapped in `future_ready()` for safe `.await` poll loop
+- `main()` exempted — returns actual i64 directly
 
 Built from the algebraic foundations of Stepanov's *Elements of Programming* — first principles, zero bloat, maximum efficiency.
 
@@ -234,7 +231,7 @@ fn murphy_sieve(limit: i64) -> i64 {
 ```
 zeta/
 ├── bin/              # Pre-built compiler binary
-│   └── zetac         # v1.0.11 Linux x86-64 (v0.14.4 bootstrap)
+│   └── zetac         # v1.0.14 Linux x86-64 (v0.14.4 bootstrap)
 ├── src/              # Self-hosted Zeta sources (51+ files)
 │   ├── main.z        # Entry point
 │   ├── frontend/     # Lexer, parser, AST
@@ -326,4 +323,4 @@ The compiler pipeline processes Zeta source through multiple IR tiers:
 
 ---
 
-*Zeta v1.0.11 — The language that will outlive its bootstrap.*
+*Zeta v1.0.14 — The language that will outlive its bootstrap.*
