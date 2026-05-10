@@ -4,7 +4,7 @@
 //! Final stage of compilation: optimization, execution engine creation, and runtime mapping.
 //! Clean, minimal, and production-ready.
 
-use crate::runtime::actor::channel::{host_channel_recv, host_channel_send};
+use crate::runtime::actor::channel::{host_channel_recv, host_channel_send, host_mpsc_channel, host_mpsc_recv, host_mpsc_send, host_mpsc_try_recv};
 use crate::runtime::actor::map::{host_map_get, host_map_insert, host_map_new};
 use crate::runtime::actor::result::{host_result_get_data, host_result_is_ok};
 use crate::runtime::actor::scheduler::host_spawn;
@@ -185,6 +185,18 @@ impl<'ctx> crate::backend::codegen::LLVMCodegen<'ctx> {
         }
         if let Some(f) = self.module.get_function("channel_recv") {
             ee.add_global_mapping(&f, host_channel_recv as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("host_mpsc_channel") {
+            ee.add_global_mapping(&f, host_mpsc_channel as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("host_mpsc_send") {
+            ee.add_global_mapping(&f, host_mpsc_send as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("host_mpsc_recv") {
+            ee.add_global_mapping(&f, host_mpsc_recv as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("host_mpsc_try_recv") {
+            ee.add_global_mapping(&f, host_mpsc_try_recv as *const () as usize);
         }
         if let Some(f) = self.module.get_function("spawn") {
             ee.add_global_mapping(&f, host_spawn as *const () as usize);

@@ -191,7 +191,46 @@ impl Resolver {
                                     // The function will be available as `malloc` in current scope
                                     self.register(module_ast);
                                 }
-                                // Skip impl blocks for now - they cause issues
+                                AstNode::ImplBlock { concept, ty, body, .. } => {
+                                    // Register impl block functions with qualified names
+                                    // (Type::method) so method calls can be resolved.
+                                    self.impls.insert((concept.clone(), ty.clone()), body.clone());
+                                    for b in body.clone() {
+                                        if let AstNode::FuncDef {
+                                            name, params, ret, async_, ..
+                                        } = &b
+                                        {
+                                            let qualified_name = format!("{}::{}", ty, name);
+                                            let typed_params: Vec<_> = params
+                                                .iter()
+                                                .map(|(n, t)| {
+                                                    (n.clone(), self.string_to_type(t))
+                                                })
+                                                .collect();
+                                            let typed_ret = self.string_to_type(ret);
+                                            self.funcs.insert(
+                                                qualified_name,
+                                                (typed_params, typed_ret, *async_),
+                                            );
+                                        }
+                                        if let AstNode::FuncDef {
+                                            name: fn_name, ..
+                                        } = &b
+                                        {
+                                            let qualified = format!("{}::{}", ty, fn_name);
+                                            let mut qualified_ast = b.clone();
+                                            if let AstNode::FuncDef {
+                                                name: ref mut q_name, ..
+                                            } = qualified_ast
+                                            {
+                                                *q_name = qualified.clone();
+                                            }
+                                            self.registered_funcs.insert(qualified, qualified_ast);
+                                        }
+                                        self.register(b);
+                                    }
+                                }
+                                // Skip other items (impl blocks with issues, etc.)
                                 _ => {}
                             }
                         }

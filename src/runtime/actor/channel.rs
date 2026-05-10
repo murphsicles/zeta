@@ -19,7 +19,7 @@ static CHANNEL_MAP: OnceLock<ChannelMap> = OnceLock::new();
 #[repr(C)]
 #[derive(Clone, Debug)]
 pub struct Channel {
-    id: i64,
+    pub id: i64,
 }
 
 #[derive(Debug)]
@@ -100,4 +100,29 @@ pub unsafe extern "C" fn host_channel_recv(chan_id: i64) -> i64 {
     } else {
         0
     }
+}
+
+// ---- mpsc channel host functions ----
+// These wrap the existing Channel implementation to provide the
+// host_mpsc_* API expected by the tokio mpsc.z module.
+
+/// Create a new mpsc channel, returning its ID.
+pub unsafe extern "C" fn host_mpsc_channel() -> i64 {
+    let chan = Channel::new();
+    chan.id
+}
+
+/// Send a message to an mpsc channel.
+pub unsafe extern "C" fn host_mpsc_send(id: i64, msg: i64) -> i64 {
+    host_channel_send(id, msg)
+}
+
+/// Receive a message from an mpsc channel.
+pub unsafe extern "C" fn host_mpsc_recv(id: i64) -> i64 {
+    host_channel_recv(id)
+}
+
+/// Try to receive a message from an mpsc channel (non-blocking).
+pub unsafe extern "C" fn host_mpsc_try_recv(id: i64) -> i64 {
+    host_channel_recv(id)
 }
