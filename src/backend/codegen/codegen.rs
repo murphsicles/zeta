@@ -1771,7 +1771,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
         panic!("CRITICAL: Missing function '{}'", name);
     }
 
-    /// Get function with type arguments for monomorphization
+    /// Get function with type arguments for monomorphization.
+    /// `name` should be the full path-qualified name (e.g., "oneshot::channel")
+    /// so the mangled LLVM symbol includes the module path.
     fn get_function_with_types(
         &mut self,
         name: &str,
@@ -1819,15 +1821,20 @@ impl<'ctx> LLVMCodegen<'ctx> {
             return f;
         }
 
-        // Check if we have a generic definition
-        if let Some(generic_mir) = self.generic_defs.get(name) {
-            // Clone the MIR to avoid borrowing issues
-            let generic_mir_clone = generic_mir.clone();
-            // Monomorphize the generic function
+        // Check if we have a generic definition (try full name then bare name)
+        let generic_mir = self.generic_defs.get(name).or_else(|| {
+            if name.contains("::") {
+                name.split("::").last()
+                    .and_then(|bare| self.generic_defs.get(bare))
+            } else {
+                None
+            }
+        });
+        if let Some(mir) = generic_mir {
+            let generic_mir_clone = mir.clone();
             let monomorphized_fn = self.monomorphize_function(&generic_mir_clone, name, type_args);
             self.specialized_fns
                 .insert(mangled_name.clone(), monomorphized_fn);
-            // Also add to regular functions map for future lookups
             self.fns.insert(mangled_name, monomorphized_fn);
             return monomorphized_fn;
         }
@@ -1955,6 +1962,39 @@ impl<'ctx> LLVMCodegen<'ctx> {
             if let Some(f) = self.module.get_function(&param_suffixed) { return f; }
             if let Some(&f) = self.fns.get(&param_suffixed) { return f; }
         } else {
+            // ── Type-argument path: try monomorphization first ──
+            // Check if this name has a generic definition (stored bare, no module path).
+            let gen_key = if self.generic_defs.contains_key(name) {
+                Some(name.to_string())
+            } else if name.contains("::") {
+                let bare = name.split("::").last().unwrap_or(name);
+                if self.generic_defs.contains_key(bare) {
+                    Some(name.to_string())  // pass path-qualified for correct mangling
+                } else { None }
+            } else { None };
+            if let Some(ref gk) = gen_key {
+                return self.get_function_with_types(gk, type_args);
+            }
+            // Also try stripping trailing _N suffix before generic lookup
+            if !gen_key.is_some() {
+                if let Some(pos) = name.rfind('_') {
+                    let suffix = &name[pos + 1..];
+                    if suffix.chars().all(|c| c.is_ascii_digit()) {
+                        let base = &name[..pos];
+                        let base_key = if self.generic_defs.contains_key(base) {
+                            Some(base.to_string())
+                        } else if base.contains("::") {
+                            let bare = base.split("::").last().unwrap_or(base);
+                            if self.generic_defs.contains_key(bare) {
+                                Some(base.to_string())
+                            } else { None }
+                        } else { None };
+                        if let Some(ref bk) = base_key {
+                            return self.get_function_with_types(bk, type_args);
+                        }
+                    }
+                }
+            }
             let mangled = self.mangle_function_name(name, type_args);
             if let Some(f) = self.module.get_function(&mangled) {
                 return f;

@@ -232,6 +232,11 @@ impl MirGen {
             } else {
                 vec![]
             },
+            has_generics: if let AstNode::FuncDef { generics, .. } = ast {
+                !generics.is_empty()
+            } else {
+                false
+            },
             stmts: std::mem::take(&mut self.stmts),
             exprs: std::mem::take(&mut self.exprs),
             ctfe_consts: std::mem::take(&mut self.ctfe_consts),

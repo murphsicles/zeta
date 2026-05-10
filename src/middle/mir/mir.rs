@@ -14,6 +14,10 @@ pub struct Mir {
     /// Mathematical properties for this function
     /// "commutative", "associative", "identity(value)"
     pub properties: Vec<String>,
+    /// True if the function has type parameters (e.g., \<T\>).
+    /// Used by is_generic_function to detect generic functions even when
+    /// the type_map doesn't directly reference Type::Variable.
+    pub has_generics: bool,
 }
 
 #[derive(Debug, Clone)]

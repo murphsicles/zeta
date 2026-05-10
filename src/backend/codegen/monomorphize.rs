@@ -382,6 +382,7 @@ mod tests {
             type_map: HashMap::new(),
             global_consts: HashMap::new(),
             properties: vec![],
+            has_generics: false,
         };
 
         // Add some types with variables
@@ -423,6 +424,7 @@ mod tests {
             type_map: HashMap::new(),
             global_consts: HashMap::new(),
             properties: vec![],
+            has_generics: false,
         };
 
         mir.type_map.insert(1, Type::I32);
