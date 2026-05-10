@@ -3001,17 +3001,110 @@ impl MirGen {
                 });
                 self.type_map.insert(cond_id, Type::Bool);
                 
-                // When poll returns Pending (0), yield to the event loop
-                // instead of busy-spinning. async_yield() calls sched_yield()
-                // or a brief sleep to let other tasks run.
+                // When poll returns Pending (0), yield to the reactor event
+                // loop if one is active (via thread-local runtime state).
+                // This allows the async task to block on epoll_wait instead
+                // of busy-spinning or just sched_yield().
+                //
+                // Semantics:
+                //   let epfd = runtime_get_epfd();
+                //   if epfd != 0 {
+                //       scheduler_run_reactor(epfd, 1);
+                //       let waker = runtime_get_waker();
+                //       if waker != 0 { waker_consume(waker); }
+                //   } else {
+                //       async_yield();
+                //   }
+                let epfd_id = self.next_id();
+                self.exprs.insert(epfd_id, MirExpr::Var(epfd_id));
+                self.type_map.insert(epfd_id, Type::I64);
+                let get_epfd = MirStmt::Call {
+                    func: "runtime_get_epfd".to_string(),
+                    args: vec![],
+                    dest: epfd_id,
+                    type_args: vec![],
+                };
+
+                let zero_epfd_id = self.next_id_with_lit(0);
+                let epfd_cond = self.next_id();
+                self.exprs.insert(epfd_cond, MirExpr::BinaryOp {
+                    op: "!=".to_string(),
+                    left: epfd_id,
+                    right: zero_epfd_id,
+                });
+                self.type_map.insert(epfd_cond, Type::Bool);
+
+                // then: reactor is active
+                let reactor_timeout_id = self.next_id_with_lit(1);
+                let reactor_call_id = self.next_id();
+                self.exprs.insert(reactor_call_id, MirExpr::Var(reactor_call_id));
+                self.type_map.insert(reactor_call_id, Type::I64);
+                let mut reactor_then = vec![
+                    get_epfd,
+                    MirStmt::Call {
+                        func: "scheduler_run_reactor".to_string(),
+                        args: vec![epfd_id, reactor_timeout_id],
+                        dest: reactor_call_id,
+                        type_args: vec![],
+                    },
+                ];
+
+                // Get waker and consume if valid
+                let waker_id = self.next_id();
+                self.exprs.insert(waker_id, MirExpr::Var(waker_id));
+                self.type_map.insert(waker_id, Type::I64);
+                let get_waker_call = MirStmt::Call {
+                    func: "runtime_get_waker".to_string(),
+                    args: vec![],
+                    dest: waker_id,
+                    type_args: vec![],
+                };
+
+                let zero_waker_id = self.next_id_with_lit(0);
+                let waker_cond = self.next_id();
+                self.exprs.insert(waker_cond, MirExpr::BinaryOp {
+                    op: "!=".to_string(),
+                    left: waker_id,
+                    right: zero_waker_id,
+                });
+                self.type_map.insert(waker_cond, Type::Bool);
+
+                let consume_call_id = self.next_id();
+                self.exprs.insert(consume_call_id, MirExpr::Var(consume_call_id));
+                self.type_map.insert(consume_call_id, Type::I64);
+                let consume_call = MirStmt::Call {
+                    func: "waker_consume".to_string(),
+                    args: vec![waker_id],
+                    dest: consume_call_id,
+                    type_args: vec![],
+                };
+
+                reactor_then.push(MirStmt::If {
+                    cond: waker_cond,
+                    then: vec![consume_call],
+                    else_: vec![],
+                    dest: None,
+                });
+
+                // else: no reactor — fall back to async_yield
+                let yield_call_id = self.next_id();
+                self.exprs.insert(yield_call_id, MirExpr::Var(yield_call_id));
+                self.type_map.insert(yield_call_id, Type::I64);
+                let yield_call = MirStmt::Call {
+                    func: "async_yield".to_string(),
+                    args: vec![],
+                    dest: yield_call_id,
+                    type_args: vec![],
+                };
+
                 body_stmts.push(MirStmt::If {
                     cond: cond_id,
                     then: then_stmts,
-                    else_: vec![MirStmt::Call {
-                        func: "async_yield".to_string(),
-                        args: vec![],
-                        dest: self.next_id(),
-                        type_args: vec![],
+                    else_: vec![MirStmt::If {
+                        cond: epfd_cond,
+                        then: reactor_then,
+                        else_: vec![yield_call],
+                        dest: None,
                     }],
                     dest: None,
                 });
