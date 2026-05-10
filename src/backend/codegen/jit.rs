@@ -8,6 +8,7 @@ use crate::runtime::actor::channel::{host_channel_recv, host_channel_send, host_
 use crate::runtime::actor::map::{host_map_get, host_map_insert, host_map_new};
 use crate::runtime::actor::result::{host_result_get_data, host_result_is_ok};
 use crate::runtime::actor::scheduler::host_spawn;
+use crate::runtime::reactor::{waker_create, waker_wake};
 use crate::runtime::array::{array_free, array_get, array_len, array_new, array_push, array_set};
 use crate::runtime::host::{
     host_http_get, host_str_concat, host_str_contains, host_str_ends_with, host_str_len,
@@ -197,6 +198,12 @@ impl<'ctx> crate::backend::codegen::LLVMCodegen<'ctx> {
         }
         if let Some(f) = self.module.get_function("host_mpsc_try_recv") {
             ee.add_global_mapping(&f, host_mpsc_try_recv as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("create_waker") {
+            ee.add_global_mapping(&f, waker_create as *const () as usize);
+        }
+        if let Some(f) = self.module.get_function("wake_waker") {
+            ee.add_global_mapping(&f, waker_wake as *const () as usize);
         }
         if let Some(f) = self.module.get_function("spawn") {
             ee.add_global_mapping(&f, host_spawn as *const () as usize);

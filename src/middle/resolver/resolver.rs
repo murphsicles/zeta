@@ -208,6 +208,7 @@ impl Resolver {
                                                 })
                                                 .collect();
                                             let typed_ret = self.string_to_type(ret);
+                                            eprintln!("REG_IB: {} -> {} params={}", name, qualified_name, params.len());
                                             self.funcs.insert(
                                                 qualified_name,
                                                 (typed_params, typed_ret, *async_),
@@ -225,7 +226,11 @@ impl Resolver {
                                             {
                                                 *q_name = qualified.clone();
                                             }
-                                            self.registered_funcs.insert(qualified, qualified_ast);
+                                            // Don't overwrite existing entries — modules loaded first (oneshot)
+                                            // should keep their function signatures over later modules (broadcast).
+                                            if !self.registered_funcs.contains_key(&qualified) {
+                                                self.registered_funcs.insert(qualified.clone(), qualified_ast);
+                                            }
                                         }
                                         self.register(b);
                                     }

@@ -583,6 +583,22 @@ impl ModuleResolver {
             ));
         }
 
+        eprintln!("LOAD_MODULE: {} -> {} ASTs", path_str, asts.len());
+        for a in &asts {
+            if let AstNode::FuncDef { name, params, .. } = a {
+                let pstr: Vec<String> = params.iter().map(|(n,t)| format!("{}:{}",n,t)).collect();
+                eprintln!("  FD: {} params=[{}]", name, pstr.join(", "));
+            }
+            if let AstNode::ImplBlock { ty, body, .. } = a {
+                eprintln!("  IB: ty={}", ty);
+                for (i, b) in body.iter().enumerate() {
+                    if let AstNode::FuncDef { name, params, .. } = b {
+                        let pstr: Vec<String> = params.iter().map(|(n,t)| format!("{}:{}",n,t)).collect();
+                        eprintln!("    FN[{}]: {} params=[{}]", i, name, pstr.join(", "));
+                    }
+                }
+            }
+        }
         // Extract exports (public items)
         let mut exports = HashMap::new();
         for ast in &asts {
@@ -1020,9 +1036,12 @@ impl ModuleResolver {
         let mut all_asts = module.asts.clone();
         let parent_dir = module.path.parent().unwrap_or(std::path::Path::new(""));
 
+        // Only load the submodule matching the item name from the use path.
+        // e.g., `use super::channel::oneshot` only loads oneshot.z, not all submodules.
+        let item_name = path.last().cloned().unwrap_or_default();
         for ast in &module.asts {
             if let AstNode::ModDef { name, items, pub_: true, .. } = ast {
-                if items.is_empty() {
+                if *name == item_name && items.is_empty() {
                     let mut sub_path = parent_dir.to_path_buf();
                     sub_path.push(format!("{}.z", name));
                     if sub_path.exists() {
@@ -1047,6 +1066,8 @@ impl ModuleResolver {
                                 } = sa
                                 {
                                     let qualified = format!("{}::{}", name, fn_name);
+                                    // Push both the original (simple name) and qualified version
+                                    all_asts.push(sa.clone());
                                     all_asts.push(AstNode::FuncDef {
                                         name: qualified,
                                         generics: generics.clone(),

@@ -1959,6 +1959,20 @@ impl<'ctx> LLVMCodegen<'ctx> {
             if let Some(f) = self.module.get_function(&mangled) {
                 return f;
             }
+            eprintln!("CODEGEN_CALL: name={} mangled={} type_args={:?}", name, mangled, type_args);
+            // Also try stripping trailing _N from the full name before mangling.
+            // MIR gen appends _0 for overload disambiguation (oneshot::channel_0),
+            // but the monomorphized function is stored as oneshot::channel_inst_i64.
+            if let Some(pos) = name.rfind('_') {
+                let suffix = &name[pos + 1..];
+                if suffix.chars().all(|c| c.is_ascii_digit()) {
+                    let base = &name[..pos];
+                    let base_mangled = self.mangle_function_name(base, type_args);
+                    if let Some(f) = self.module.get_function(&base_mangled) {
+                        return f;
+                    }
+                }
+            }
             // For path-qualified names (e.g., "oneshot::channel::channel_0"), also try mangling
             // just the base method name — monomorphized functions use fully-qualified keys.
             if name.contains("::") {
