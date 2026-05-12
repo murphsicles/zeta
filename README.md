@@ -1,202 +1,104 @@
-# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta v1.0.15 — Codegen fix for qualified method calls
+# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta — The language that will outlive its bootstrap
 
-[<img alt="Zeta Logo" width="128px" src="https://z-lang.org/assets/images/z128.png" />](https://z-lang.org) [![Latest Release](https://img.shields.io/github/v/release/murphsicles/zeta)](https://github.com/murphsicles/zeta/releases) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[<img alt="Zeta Logo" width="128px" src="https://z-lang.org/assets/images/z128.png" />](https://z-lang.org) [![Latest Release](https://img.shields.io/github/v/release/murphsicles/zeta?label=zeta)](https://github.com/murphsicles/zeta/releases) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Self-Hosting](https://img.shields.io/badge/self--hosting-51%2F51%20files-success)](https://github.com/murphsicles/zeta)
 
-**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM.** v1.0.15 ships the v0.14.5 bootstrap with a fix for qualified method call codegen during self-compilation.
+**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM — writing itself in Zeta since v0.9.18.** No lifetimes, no borrow checker overhead, no ceremony. Just first-principles systems programming built from the algebraic foundations of Stepanov's *Elements of Programming*.
 
-Built from the algebraic foundations of Stepanov's *Elements of Programming* — first principles, zero bloat, maximum efficiency.
+> *"Weaponized minimalism. Surgical violence against complexity."* — Roy Murphy
 
-> "Weaponized minimalism. Surgical violence against complexity." — Roy Murphy
+## Why Zeta?
 
-## 🚀 v1.0.15 — Codegen fix for qualified method calls
+### For Rust developers tired of the ceremony
 
-### Qualified method call disambiguation
-`get_or_declare_function` no longer returns a bare function name without checking that the param count matches the call site. When two different types use the same method name with different argument counts (e.g. `String::new()` vs `LLVMCodegen::new("bench")`), each now gets its own qualified extern declaration with the correct param count.
+| Rust | Zeta |
+|------|------|
+| `fn foo(x: &'a mut Vec<i32>)` | `fn foo(x: &Vec<i64>)` |
+| Lifetime annotations everywhere | Simple borrowing — inferred, no annotations needed |
+| `Box::new(...)` for heap | `let v = Vec::new()` — heap when you need it |
+| `#[derive(Debug)]` boilerplate | Built-in debug printing |
+| Separate crate for SIMD | `[i64; 4]` vector type built into the language |
+| Procedural macros are extern | CTFE `comptime {}` blocks inline |
 
-Fixes the `"Incorrect number of arguments passed to called function!"` LLVM verification error during self-compilation.
-
-### Community
-- Thanks to **@pjstevns** for the detailed bug report and reproduction steps on Ubuntu 24.04. Contributed to v1.0.15. 🚀
-
-### Main branch cleanup
-- Main branch is now pure Zeta — all Rust, C, Cargo files moved to the `bootstrap` branch
-
-Built from the algebraic foundations of Stepanov's *Elements of Programming* — first principles, zero bloat, maximum efficiency.
-
-> "Weaponized minimalism. Surgical violence against complexity." — Roy Murphy
-
-## 🚀 v1.0.14 — Full Async Waker Wiring
-
-### Thread-local reactor state
-- `runtime_set_epfd` / `runtime_get_epfd`: store/retrieve current reactor epfd
-- `runtime_set_waker` / `runtime_get_waker`: store/retrieve current waker fd
-- `.await` lowering yields to reactor (`scheduler_run_reactor` + `waker_consume`) when Runtime is active
-- Falls back to `sched_yield()` when no Runtime is set up
-
-### Generic monomorphization in async context
-- `has_generics` field on Mir struct (set from AST generics list)
-- `get_or_declare_function` checks `generic_defs` before creating extern declarations
-- Module-based generic functions (`oneshot::channel`, `mpsc::channel`) work from async functions
-
-### Async function future wrapping
-- Async fn returns wrapped in `future_ready()` for safe `.await` poll loop
-- `main()` exempted — returns actual i64 directly
-
-## 🚀 v1.0.8 — Multi-Await & Module Resolution
-
-### Async/await fixes
-
-- `.await` parser fixed (no longer consumed as field access)
-- Multi-await sequences work: `a.await; b.await; return a + b` ✅
-- `async fn main()` recognized as entry point ✅
-- Poll-loop state machine lowering with while+break codegen
-
-### Module resolution
-
-- `use super::path::Item;` now resolves to parent directory
-- Source directory set automatically from input file path
-
-### Runtime additions
-
-- `future_poll`, `future_result`, `future_ready` — core async primitives
-- `future_poll_alloc/free` — state buffer management
-- `future_state_get/set` — persistent local storage
-- `host_str_all_interfaces()` — C string helper for TCP
-
-## ✨ Features
-
-### Core Language
-
-**Strong static typing** with type inference:
 ```zeta
-fn add(x: i64, y: i64) -> i64 {
-    return x + y;
-}
-
-fn infer() {
-    let x = 42;       // inferred i64
-    let y = 3.14;     // inferred f64
-    let b = true;     // inferred bool
+// Zeta: clean, fast, readable
+fn sieve(limit: i64) -> i64 {
+    let mut count = 1;   // 2 is prime
+    let mut i = 3;
+    while i <= limit {
+        if is_prime(i) { count += 1; }
+        i += 2;
+    }
+    return count;
 }
 ```
 
-**First-class functions and closures:**
+## What Zeta is
+
+A **production-ready systems language** with:
+
+### Zero-compromise compilation
+- **AOT** — Compile directly to native executables via LLVM
+- **JIT** — REPL and runtime code generation for rapid iteration
+- **Self-hosting** — 51/51 source files compiling themselves since v0.9.18
+
+### First-class language features
+- **Algebraic data types** — structs, enums, tuples, generics, specialization
+- **CTFE** — `comptime {}` blocks execute at compile time, not runtime
+- **SIMD** — Vector types (`[i64; 4]`, `[f32; 4]`, etc.) with full LLVM auto-vectorization
+- **Async/await** — State machine lowering with thread-local reactor
+- **Ownership without lifetimes** — Simple borrowing model, no annotation tax
+
+### Built for real work
+- **Direct LLVM IR** — No intermediate C dependency, full optimization control
+- **Murphy's Sieve** — Wheel-optimized prime sieving, competition-ready
+- **Blockchain primitives** — BSV and Solana support built in
+
+## ✨ Features at a glance
+
+### Core Language
 ```zeta
-fn apply(f: (i64) -> i64, x: i64) -> i64 {
-    return f(x);
+// Strong static typing with inference
+fn add(x: i64, y: i64) -> i64 { return x + y; }
+fn infer() {
+    let x = 42;      // inferred i64
+    let b = true;    // inferred bool
 }
 
+// First-class functions and closures
+fn apply(f: (i64) -> i64, x: i64) -> i64 { return f(x); }
 fn make_adder(n: i64) -> (i64) -> i64 {
     return fn(x: i64) -> i64 { x + n };
 }
-```
 
-**Algebraic data types** (structs, enums, tuples):
-```zeta
-struct Point {
-    x: i64,
-    y: i64,
-}
+// Algebraic data types
+struct Point { x: i64, y: i64 }
+enum Option<T> { Some(T), None }
 
-enum Option<T> {
-    Some(T),
-    None,
-}
-
-fn origin() -> Point {
-    return Point { x: 0, y: 0 };
-}
-```
-
-**Generics and specialization:**
-```zeta
-fn identity<T>(x: T) -> T {
-    return x;
-}
-
+// Generics with specialization
+fn identity<T>(x: T) -> T { return x; }
 fn max<T: Ord>(a: T, b: T) -> T {
     if a >= b { return a; }
     return b;
 }
 ```
 
-### Memory Model
-
-**Stack-priority allocation** with optional heap:
+### Memory Model — stack by default, heap when you ask
 ```zeta
 fn stack_example() {
     let arr: [i64; 5] = [1, 2, 3, 4, 5];  // stack allocated
-    let sum = arr[0] + arr[1];
 }
-
 fn heap_example() {
     let vec = Vec::new();                    // heap allocated
     vec.push(42);
-    vec.push(100);
 }
-```
-
-**Ownership and borrowing:**
-```zeta
-fn borrow_example() {
+fn borrow() {
     let data = Vec::new();
-    data.push(1);
-    
     let len = data.len();      // immutable borrow
-    let first = data[0];       // immutable borrow
-    
-    data.push(2);              // mutable borrow (unique)
+    data.push(2);              // mutable borrow (exclusive)
 }
 ```
 
-### Standard Library (Tier 1)
-
-| Module | Description | Status |
-|--------|-------------|--------|
-| `std::mem` | Memory operations, size_of, align_of | ✅ |
-| `std::ptr` | Raw pointer operations | ✅ |
-| `std::cmp` | Ordering, comparison traits | ✅ |
-| `std::hash` | Hashing infrastructure | ✅ |
-| `std::iter` | Iterator traits and adapters | ✅ |
-| `std::vec` | Vector type with dynamic sizing | ✅ |
-| `std::string` | UTF-8 string type | ✅ |
-| `std::option` | Option enum | ✅ |
-| `std::result` | Result enum | ✅ |
-| `std::collections` | Collection types | ✅ |
-| `std::simd` | SIMD vector operations | ✅ |
-| `std::thread` | Threading primitives | ✅ |
-| `std::sync` | Synchronization primitives | ✅ |
-| `std::io` | Input/Output | ✅ |
-| `std::fs` | Filesystem operations | ✅ |
-| `std::net` | Networking | ✅ |
-| `std::time` | Time and duration | ✅ |
-| `std::path` | Path manipulation | ✅ |
-| `std::process` | Process management | ✅ |
-| `std::char` | Character operations | ✅ |
-| `std::marker` | Marker types | ✅ |
-| `std::ffi` | Foreign function interface | ✅ |
-
-### Compiler Pipeline
-
-```
-Zeta Source (.z)
-    │
-    ▼ Lexer → Parser
-    │
-    ▼ AST → HIR (High-level IR)
-    │
-    ▼ Resolver (imports, generics, specialization)
-    │
-    ▼ THIR (Typed HIR)
-    │
-    ▼ MIR (Mid-level IR — CFG with basic blocks)
-    │
-    ▼ LLVM IR → Machine Code
-```
-
-### Compile-Time Evaluation (CTFE)
-
-Execute Zeta code at compile time:
+### Compile-Time Evaluation
 ```zeta
 const FACTORIAL_10: i64 = comptime {
     fn fact(n: i64) -> i64 {
@@ -205,135 +107,58 @@ const FACTORIAL_10: i64 = comptime {
     }
     fact(10)
 };
-// FACTORIAL_10 = 3628800 at runtime
+// FACTORIAL_10 = 3628800 — computed at build time
 ```
 
-### SIMD Vector Types
-
+### SIMD — no special syntax needed
 ```zeta
 fn simd_add(a: [i64; 4], b: [i64; 4]) -> [i64; 4] {
-    return a + b;  // auto-vectorized where possible
+    return a + b;  // LLVM auto-vectorizes
 }
 ```
 
-### Murphy's Sieve — Prime Sieving
+### Standard Library — 20+ modules, ready
+`std::mem` · `std::ptr` · `std::cmp` · `std::hash` · `std::iter` · `std::vec` · `std::string` · `std::option` · `std::result` · `std::collections` · `std::simd` · `std::thread` · `std::sync` · `std::io` · `std::fs` · `std::net` · `std::time` · `std::path` · `std::process` · `std::ffi`
 
-Competition-ready wheel-optimized prime counting:
-```zeta
-fn murphy_sieve(limit: i64) -> i64 {
-    if limit < 2 { return 0; }
-    
-    // 30030-wheel: 80.8% reduction in checks
-    const WHEEL: i64 = 30030;  // 2×3×5×7×11×13
-    
-    let mut count: i64 = 1;  // 2 is prime
-    let mut i: i64 = 3;
-    
-    while i <= limit {
-        if is_coprime_to_wheel(i) {
-            if is_prime(i) { count += 1; }
-        }
-        i += 2;
-    }
-    return count;
-}
-```
-
-## 📁 Project Layout
+## 📁 Layout
 
 ```
 zeta/
-├── bin/              # Pre-built compiler binary
-│   └── zetac         # v1.0.14 Linux x86-64 (v0.14.4 bootstrap)
+├── bin/              # Pre-built zetac compiler
 ├── src/              # Self-hosted Zeta sources (51+ files)
 │   ├── main.z        # Entry point
 │   ├── frontend/     # Lexer, parser, AST
 │   ├── middle/       # Resolver, MIR, type system
-│   ├── backend/      # Code generation
+│   ├── backend/      # Code generation (LLVM)
 │   └── runtime/      # Runtime library
-├── build/stubs/      # Generated stdlib stubs (bootstrap)
-├── tests/            # Zeta test suite (44+ categories)
+├── tests/            # Zeta test suite (44 categories)
 ├── examples/         # Example programs
-├── docs/             # Documentation
-└── README.md         # This file
+└── docs/             # Documentation
 ```
 
-## 🔧 Getting Started
+## 🔧 Get started
 
 ```bash
-# Clone the repository
 git clone https://github.com/murphsicles/zeta.git
 cd zeta
 
-# Compile a Zeta source file (Linux)
-./bin/zetac src/main.z -o output
-
-# Or compile an example
-./bin/zetac examples/hello.z -o hello
+# Compile a Zeta source file
+./bin/zetac src/main.z -o zetac_new   # Self-compile the compiler
+./bin/zetac examples/hello.z -o hello  # Or compile a program
 ./hello
 
 # Run tests
 ./bin/zetac tests/language/basic_tests.z
 ```
 
-
-
-## 📝 Examples
-
-### Hello, Zeta
-```zeta
-fn main() -> i64 {
-    println_str("Hello, Zeta!");
-    return 0;
-}
-```
-
-### Fibonacci
-```zeta
-fn fib(n: i64) -> i64 {
-    if n <= 1 { return n; }
-    return fib(n - 1) + fib(n - 2);
-}
-
-fn main() -> i64 {
-    let result = fib(20);
-    println_i64(result);  // Output: 6765
-    return 0;
-}
-```
-
-### Working with Vectors
-```zeta
-fn main() -> i64 {
-    let v = Vec::new();
-    v.push(10);
-    v.push(20);
-    v.push(30);
-    
-    let sum: i64 = v[0] + v[1] + v[2];
-    println_i64(sum);  // Output: 60
-    return 0;
-}
-```
-
-## 🏗️ Architecture
-
-The compiler pipeline processes Zeta source through multiple IR tiers:
-
-1. **Lexing & Parsing** — Tokenizes and builds AST from `.z` files
-2. **HIR** — High-level IR: resolves imports, identities, and macros
-3. **Resolver** — Type resolution, generics, specialization, concept checking
-4. **THIR** — Typed HIR: fully resolved types and identities
-5. **MIR** — Mid-level IR: control flow graph with basic blocks
-6. **LLVM Codegen** — Lowers MIR to LLVM IR, runs optimization passes
-7. **Machine Code** — LLVM produces native executable
-
 ## 🔗 Links
 
 - **GitHub**: https://github.com/murphsicles/zeta
 - **Website**: https://z-lang.org
+- **Releases**: https://github.com/murphsicles/zeta/releases
+- **Bootstrap branch** (Rust source): https://github.com/murphsicles/zeta/tree/bootstrap
 - **License**: MIT
 
 ---
 
-*Zeta v1.0.14 — The language that will outlive its bootstrap.*
+*Zeta — The language that will outlive its bootstrap.*
