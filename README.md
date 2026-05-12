@@ -1,8 +1,25 @@
-# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta v1.0.14 — Full async waker wiring, generic monomorphization fix
+# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta v1.0.15 — Codegen fix for qualified method calls
 
 [<img alt="Zeta Logo" width="128px" src="https://z-lang.org/assets/images/z128.png" />](https://z-lang.org) [![Latest Release](https://img.shields.io/github/v/release/murphsicles/zeta)](https://github.com/murphsicles/zeta/releases) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM.** v1.0.14 ships the v0.14.4 bootstrap with full async waker wiring via thread-local reactor state and fixed generic monomorphization in async context.
+**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM.** v1.0.15 ships the v0.14.5 bootstrap with a fix for qualified method call codegen during self-compilation.
+
+Built from the algebraic foundations of Stepanov's *Elements of Programming* — first principles, zero bloat, maximum efficiency.
+
+> "Weaponized minimalism. Surgical violence against complexity." — Roy Murphy
+
+## 🚀 v1.0.15 — Codegen fix for qualified method calls
+
+### Qualified method call disambiguation
+`get_or_declare_function` no longer returns a bare function name without checking that the param count matches the call site. When two different types use the same method name with different argument counts (e.g. `String::new()` vs `LLVMCodegen::new("bench")`), each now gets its own qualified extern declaration with the correct param count.
+
+Fixes the `"Incorrect number of arguments passed to called function!"` LLVM verification error during self-compilation.
+
+### Community
+- Thanks to **@pjstevns** for the detailed bug report and reproduction steps on Ubuntu 24.04. Contributed to v1.0.15. 🚀
+
+### Main branch cleanup
+- Main branch is now pure Zeta — all Rust, C, Cargo files moved to the `bootstrap` branch
 
 Built from the algebraic foundations of Stepanov's *Elements of Programming* — first principles, zero bloat, maximum efficiency.
 
@@ -24,10 +41,6 @@ Built from the algebraic foundations of Stepanov's *Elements of Programming* —
 ### Async function future wrapping
 - Async fn returns wrapped in `future_ready()` for safe `.await` poll loop
 - `main()` exempted — returns actual i64 directly
-
-Built from the algebraic foundations of Stepanov's *Elements of Programming* — first principles, zero bloat, maximum efficiency.
-
-> "Weaponized minimalism. Surgical violence against complexity." — Roy Murphy
 
 ## 🚀 v1.0.8 — Multi-Await & Module Resolution
 
