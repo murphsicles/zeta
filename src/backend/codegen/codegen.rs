@@ -2084,14 +2084,25 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.mangle_function_name(bare_method, type_args)
             };
             if let Some(f) = self.module.get_function(&bare_actual) {
-                return f;
+                // Only return the bare function if its param count matches the call site.
+                // Otherwise qualify the name to avoid collisions between different
+                // types' methods with the same name (e.g., String::new vs LLVMCodegen::new).
+                if f.count_params() == args_count as u32 {
+                    return f;
+                }
             }
-            // Create extern with BARE method name for runtime/JIT symbol resolution.
-            // Path-qualified names (e.g., runtime::new_waker) are regular JIT-mapped
-            // runtime functions — using the bare name ensures the JIT can find them.
+            // Try qualified name before declaring new extern.
+            if let Some(f) = self.module.get_function(&qualified_actual) {
+                if f.count_params() == args_count as u32 {
+                    return f;
+                }
+            }
+            // Use qualified name for extern declaration to avoid collisions between
+            // path-qualified names with the same bare method name but different param counts
+            // (e.g., String::new() vs LLVMCodegen::new("bench")).
             let param_types: Vec<_> = (0..args_count).map(|_| self.i64_type.into()).collect();
             let fn_type = self.i64_type.fn_type(&param_types, false);
-            return self.module.add_function(&bare_actual, fn_type, Some(Linkage::External));
+            return self.module.add_function(&qualified_actual, fn_type, Some(Linkage::External));
         }
         
         // Non-qualified name: use as-is
