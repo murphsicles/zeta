@@ -1,4 +1,5 @@
 //! BSV mining operations with Teranode integration
+#![allow(non_snake_case)]
 //!
 //! Implements Teranode mining integration with RPC client.
 
@@ -140,7 +141,7 @@ impl MiningManager {
 }
 
 // Global mining manager instance
-static MINING_MANAGER: Mutex<Option<Arc<Mutex<MiningManager>>>> = Mutex::new(None);
+static MINING_MANAGER: Mutex<Option<Arc<Mutex<MiningManager>>>> = Mutex::const_new(None);
 
 /// Initialize mining module
 pub fn init(config: &BlockchainConfig) -> Result<(), BlockchainError> {
@@ -167,7 +168,7 @@ pub fn init(config: &BlockchainConfig) -> Result<(), BlockchainError> {
     let manager = MiningManager::new(teranode_config);
 
     // Store in global instance
-    let mut global_manager = tokio::runtime::Runtime::new()
+    let global_manager = tokio::runtime::Runtime::new()
         .map_err(|e| BlockchainError::internal(format!("Failed to create runtime: {}", e)))?
         .block_on(async {
             let mut mgr = MINING_MANAGER.lock().await;
@@ -176,7 +177,7 @@ pub fn init(config: &BlockchainConfig) -> Result<(), BlockchainError> {
         });
 
     // Initialize asynchronously
-    if let Some(manager) = global_manager {
+    if let Some(ref manager) = global_manager {
         tokio::runtime::Runtime::new()
             .map_err(|e| BlockchainError::internal(format!("Failed to create runtime: {}", e)))?
             .block_on(async {

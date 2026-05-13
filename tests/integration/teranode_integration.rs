@@ -81,9 +81,9 @@ mod tests {
         let original_password = std::env::var("TERANODE_RPC_PASSWORD").ok();
 
         // Set test environment variables
-        std::env::set_var("TERANODE_RPC_URL", "http://test:18332");
-        std::env::set_var("TERANODE_RPC_USERNAME", "testuser");
-        std::env::set_var("TERANODE_RPC_PASSWORD", "testpass");
+        unsafe { std::env::set_var("TERANODE_RPC_URL", "http://test:18332"); }
+        unsafe { std::env::set_var("TERANODE_RPC_USERNAME", "testuser"); }
+        unsafe { std::env::set_var("TERANODE_RPC_PASSWORD", "testpass"); }
 
         let config = TeranodeClientConfig::from_env();
         assert!(config.is_ok());
@@ -95,21 +95,21 @@ mod tests {
 
         // Restore original environment variables
         if let Some(url) = original_url {
-            std::env::set_var("TERANODE_RPC_URL", url);
+            unsafe { std::env::set_var("TERANODE_RPC_URL", url); }
         } else {
-            std::env::remove_var("TERANODE_RPC_URL");
+            unsafe { std::env::remove_var("TERANODE_RPC_URL"); }
         }
 
         if let Some(username) = original_username {
-            std::env::set_var("TERANODE_RPC_USERNAME", username);
+            unsafe { std::env::set_var("TERANODE_RPC_USERNAME", username); }
         } else {
-            std::env::remove_var("TERANODE_RPC_USERNAME");
+            unsafe { std::env::remove_var("TERANODE_RPC_USERNAME"); }
         }
 
         if let Some(password) = original_password {
-            std::env::set_var("TERANODE_RPC_PASSWORD", password);
+            unsafe { std::env::set_var("TERANODE_RPC_PASSWORD", password); }
         } else {
-            std::env::remove_var("TERANODE_RPC_PASSWORD");
+            unsafe { std::env::remove_var("TERANODE_RPC_PASSWORD"); }
         }
     }
 

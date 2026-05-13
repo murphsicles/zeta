@@ -31,7 +31,7 @@ pub fn encrypt_seed(seed: &[u8], password: &str) -> Result<(Vec<u8>, Vec<u8>), B
 
     // Generate salt
     let salt = SaltString::generate(&mut OsRng);
-    let salt_bytes = salt.as_bytes().to_vec();
+    let salt_bytes = salt.as_str().as_bytes().to_vec();
 
     // Derive key from password using Argon2
     let argon2 = Argon2::default();

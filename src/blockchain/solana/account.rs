@@ -1,4 +1,5 @@
 //! Solana account operations
+#![allow(non_snake_case)]
 //!
 //! Implements the `Solana_Account_*` function family.
 

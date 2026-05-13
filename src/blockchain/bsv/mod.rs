@@ -1,4 +1,5 @@
 //! Bitcoin SV (BSV) blockchain integration
+#![allow(non_snake_case)]
 //!
 //! This module provides BSV blockchain functionality using Father's `nour` library.
 //! It implements the `Bitcoin_` function family as specified in the API design.
@@ -12,11 +13,14 @@ pub mod teranode;
 pub mod transaction;
 
 // Re-export BSV functionality
+#[allow(ambiguous_glob_reexports)]
 pub use address::*;
 pub use keys::*;
+#[allow(ambiguous_glob_reexports)]
 pub use mining::*;
 pub use network::*;
 pub use script::*;
+#[allow(ambiguous_glob_reexports)]
 pub use teranode::*;
 pub use transaction::*;
 

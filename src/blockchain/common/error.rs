@@ -39,6 +39,15 @@ pub enum BlockchainError {
     /// Not implemented errors
     NotImplemented(String),
 
+    /// Mining errors
+    Mining(String),
+
+    /// Internal errors
+    Internal(String),
+
+    /// Account errors
+    Account(String),
+
     /// Unknown errors
     Unknown(String),
 }
@@ -57,6 +66,9 @@ impl fmt::Display for BlockchainError {
             BlockchainError::Storage(msg) => write!(f, "Storage error: {}", msg),
             BlockchainError::Validation(msg) => write!(f, "Validation error: {}", msg),
             BlockchainError::NotImplemented(msg) => write!(f, "Not implemented: {}", msg),
+            BlockchainError::Mining(msg) => write!(f, "Mining error: {}", msg),
+            BlockchainError::Internal(msg) => write!(f, "Internal error: {}", msg),
+            BlockchainError::Account(msg) => write!(f, "Account error: {}", msg),
             BlockchainError::Unknown(msg) => write!(f, "Unknown error: {}", msg),
         }
     }
@@ -111,6 +123,18 @@ impl BlockchainError {
 
     pub fn not_implemented(msg: impl Into<String>) -> Self {
         BlockchainError::NotImplemented(msg.into())
+    }
+
+    pub fn mining(msg: impl Into<String>) -> Self {
+        BlockchainError::Mining(msg.into())
+    }
+
+    pub fn internal(msg: impl Into<String>) -> Self {
+        BlockchainError::Internal(msg.into())
+    }
+
+    pub fn account(msg: impl Into<String>) -> Self {
+        BlockchainError::Account(msg.into())
     }
 
     pub fn unknown(msg: impl Into<String>) -> Self {

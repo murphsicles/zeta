@@ -1,4 +1,5 @@
 //! Solana transaction operations
+#![allow(non_snake_case)]
 //!
 //! Implements the `Solana_Transaction_*` function family.
 

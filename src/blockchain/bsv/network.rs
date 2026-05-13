@@ -1,4 +1,5 @@
 //! BSV network operations
+#![allow(non_snake_case)]
 //!
 //! Implements the `Bitcoin_Network_*` function family.
 
@@ -46,7 +47,8 @@ pub fn Bitcoin_Network_broadcast_transaction(
     // This would send to RPC endpoint or P2P network
 
     // For now, return a placeholder transaction ID
-    let txid = sha256::digest(tx_bytes);
+    use sha2::{Digest, Sha256};
+    let txid = hex::encode(Sha256::digest(tx_bytes));
     Ok(TransactionId::new(txid))
 }
 

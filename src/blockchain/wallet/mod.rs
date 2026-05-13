@@ -14,7 +14,8 @@ pub use storage::*;
 use crate::blockchain::bsv::keys::BtcKeyPair;
 use crate::blockchain::common::config::BlockchainConfig;
 use crate::blockchain::common::error::BlockchainError;
-use crate::blockchain::common::types::{Address, DerivationPath, KeyPair, Network};
+use crate::blockchain::common::types::{Address, DerivationPath, Network};
+use crate::blockchain::common::KeyPair;
 use crate::blockchain::solana::address::SolanaAddress;
 
 /// Main wallet structure
@@ -28,6 +29,26 @@ pub struct Wallet {
     config: WalletConfig,
     /// Derived keys cache
     key_cache: std::collections::HashMap<String, KeyPair>,
+}
+
+/// Encrypted storage container for wallet data
+#[derive(Debug, Clone)]
+pub struct EncryptedStorage {
+    /// Encrypted seed bytes
+    pub encrypted_seed: Vec<u8>,
+    /// Encryption salt
+    pub salt: Vec<u8>,
+}
+
+/// Key derivation configuration
+#[derive(Debug, Clone)]
+pub struct KeyDerivation {
+    /// Derivation path string
+    pub path: String,
+    /// Derivation algorithm
+    pub algorithm: String,
+    /// Number of iterations
+    pub iterations: u32,
 }
 
 /// Wallet configuration
@@ -167,7 +188,7 @@ impl Wallet {
         } else if path.coin_type == 501 {
             // Solana
             // Solana uses Ed25519
-            use ed25519_dalek::{Signature, SigningKey};
+            use ed25519_dalek::{Signature, Signer, SigningKey};
 
             let signing_key = SigningKey::from_bytes(
                 &key.private_key[..32]

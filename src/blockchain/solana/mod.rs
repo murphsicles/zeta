@@ -1,4 +1,5 @@
 //! Solana blockchain integration
+#![allow(non_snake_case)]
 //!
 //! This module provides Solana blockchain functionality.
 //! It implements the `Solana_` function family as specified in the API design.

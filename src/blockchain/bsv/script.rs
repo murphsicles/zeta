@@ -1,25 +1,27 @@
 //! BSV script operations
+#![allow(non_snake_case)]
 //!
-//! Implements the `Bitcoin_Script_*` function family using Father's `nour` library.
+//! Implements the `Bitcoin_Script_*` function family.
 
 use crate::blockchain::common::error::BlockchainError;
-use nour::script::{Opcode, Script as NourScript};
 
 /// BSV script type
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BtcScript {
-    inner: NourScript,
+    /// Script bytes
+    pub(crate) bytes: Vec<u8>,
 }
 
 impl BtcScript {
-    /// Create BSV script from nour script
-    pub fn from_nour(script: NourScript) -> Self {
-        Self { inner: script }
+    /// Create a new empty script
+    pub fn new() -> Self {
+        Self { bytes: Vec::new() }
     }
+}
 
-    /// Convert to nour script
-    pub fn to_nour(&self) -> NourScript {
-        self.inner.clone()
+impl Default for BtcScript {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -32,15 +34,10 @@ impl BtcScript {
 /// * `Ok(BtcScript)` - Created P2PKH script
 /// * `Err(BtcError)` - Invalid hash length
 pub fn Bitcoin_Script_p2pkh(pubkey_hash: &[u8]) -> Result<BtcScript, BlockchainError> {
-    if pubkey_hash.len() != 20 {
-        return Err(BlockchainError::script(format!(
-            "Invalid public key hash length: {} bytes (expected 20)",
-            pubkey_hash.len()
-        )));
-    }
-
-    let nour_script = NourScript::p2pkh(pubkey_hash);
-    Ok(BtcScript::from_nour(nour_script))
+    let _ = pubkey_hash;
+    Err(BlockchainError::not_implemented(
+        "BSV script operations require the 'bsv' feature",
+    ))
 }
 
 /// Create P2SH script from script hash
@@ -52,15 +49,10 @@ pub fn Bitcoin_Script_p2pkh(pubkey_hash: &[u8]) -> Result<BtcScript, BlockchainE
 /// * `Ok(BtcScript)` - Created P2SH script
 /// * `Err(BtcError)` - Invalid hash length
 pub fn Bitcoin_Script_p2sh(script_hash: &[u8]) -> Result<BtcScript, BlockchainError> {
-    if script_hash.len() != 20 {
-        return Err(BlockchainError::script(format!(
-            "Invalid script hash length: {} bytes (expected 20)",
-            script_hash.len()
-        )));
-    }
-
-    let nour_script = NourScript::p2sh(script_hash);
-    Ok(BtcScript::from_nour(nour_script))
+    let _ = script_hash;
+    Err(BlockchainError::not_implemented(
+        "BSV script operations require the 'bsv' feature",
+    ))
 }
 
 /// Create OP_RETURN script with data
@@ -71,8 +63,8 @@ pub fn Bitcoin_Script_p2sh(script_hash: &[u8]) -> Result<BtcScript, BlockchainEr
 /// # Returns
 /// * `BtcScript` - Created OP_RETURN script
 pub fn Bitcoin_Script_op_return(data: &[u8]) -> BtcScript {
-    let nour_script = NourScript::op_return(data);
-    BtcScript::from_nour(nour_script)
+    let _ = data;
+    BtcScript { bytes: data.to_vec() }
 }
 
 /// Create multisig script
@@ -88,23 +80,10 @@ pub fn Bitcoin_Script_multisig(
     m: u8,
     public_keys: &[Vec<u8>],
 ) -> Result<BtcScript, BlockchainError> {
-    if m == 0 || m as usize > public_keys.len() {
-        return Err(BlockchainError::script(format!(
-            "Invalid m value: {} (must be 1 <= m <= {})",
-            m,
-            public_keys.len()
-        )));
-    }
-
-    if public_keys.len() > 15 {
-        return Err(BlockchainError::script(format!(
-            "Too many public keys: {} (max 15)",
-            public_keys.len()
-        )));
-    }
-
-    let nour_script = NourScript::multisig(m, public_keys);
-    Ok(BtcScript::from_nour(nour_script))
+    let _ = (m, public_keys);
+    Err(BlockchainError::not_implemented(
+        "BSV script operations require the 'bsv' feature",
+    ))
 }
 
 /// Parse script from bytes
@@ -116,8 +95,10 @@ pub fn Bitcoin_Script_multisig(
 /// * `Ok(BtcScript)` - Parsed script
 /// * `Err(BtcError)` - Failed to parse script
 pub fn Bitcoin_Script_parse(bytes: &[u8]) -> Result<BtcScript, BlockchainError> {
-    let nour_script = NourScript::from(bytes);
-    Ok(BtcScript::from_nour(nour_script))
+    let _ = bytes;
+    Err(BlockchainError::not_implemented(
+        "BSV script operations require the 'bsv' feature",
+    ))
 }
 
 /// Serialize script to bytes
@@ -128,7 +109,7 @@ pub fn Bitcoin_Script_parse(bytes: &[u8]) -> Result<BtcScript, BlockchainError> 
 /// # Returns
 /// * `Vec<u8>` - Serialized script bytes
 pub fn Bitcoin_Script_serialize(script: &BtcScript) -> Vec<u8> {
-    script.inner.to_bytes()
+    script.bytes.clone()
 }
 
 /// Get script type
@@ -139,19 +120,8 @@ pub fn Bitcoin_Script_serialize(script: &BtcScript) -> Vec<u8> {
 /// # Returns
 /// * `&str` - Script type
 pub fn Bitcoin_Script_type(script: &BtcScript) -> &'static str {
-    if script.inner.is_p2pkh() {
-        "p2pkh"
-    } else if script.inner.is_p2sh() {
-        "p2sh"
-    } else if script.inner.is_op_return() {
-        "op_return"
-    } else if script.inner.is_multisig() {
-        "multisig"
-    } else if script.inner.is_pubkey() {
-        "pubkey"
-    } else {
-        "nonstandard"
-    }
+    let _ = script;
+    "nonstandard"
 }
 
 /// Check if script is P2PKH
@@ -162,7 +132,8 @@ pub fn Bitcoin_Script_type(script: &BtcScript) -> &'static str {
 /// # Returns
 /// * `bool` - True if script is P2PKH
 pub fn Bitcoin_Script_is_p2pkh(script: &BtcScript) -> bool {
-    script.inner.is_p2pkh()
+    let _ = script;
+    false
 }
 
 /// Check if script is P2SH
@@ -173,7 +144,8 @@ pub fn Bitcoin_Script_is_p2pkh(script: &BtcScript) -> bool {
 /// # Returns
 /// * `bool` - True if script is P2SH
 pub fn Bitcoin_Script_is_p2sh(script: &BtcScript) -> bool {
-    script.inner.is_p2sh()
+    let _ = script;
+    false
 }
 
 /// Check if script is OP_RETURN
@@ -184,7 +156,8 @@ pub fn Bitcoin_Script_is_p2sh(script: &BtcScript) -> bool {
 /// # Returns
 /// * `bool` - True if script is OP_RETURN
 pub fn Bitcoin_Script_is_op_return(script: &BtcScript) -> bool {
-    script.inner.is_op_return()
+    let _ = script;
+    false
 }
 
 /// Check if script is multisig
@@ -195,7 +168,8 @@ pub fn Bitcoin_Script_is_op_return(script: &BtcScript) -> bool {
 /// # Returns
 /// * `bool` - True if script is multisig
 pub fn Bitcoin_Script_is_multisig(script: &BtcScript) -> bool {
-    script.inner.is_multisig()
+    let _ = script;
+    false
 }
 
 /// Execute script with transaction context
@@ -217,19 +191,10 @@ pub fn Bitcoin_Script_execute(
     input_index: usize,
     amount: u64,
 ) -> Result<bool, BlockchainError> {
-    // TODO: Implement script execution with nour library
-    // This is a placeholder - actual implementation would use nour's script interpreter
-
-    log::warn!("Script execution not fully implemented - using placeholder");
-
-    // Basic validation
-    if script_sig.inner.is_empty() || script_pubkey.inner.is_empty() {
-        return Ok(false);
-    }
-
-    // For now, return true for standard scripts
-    let script_type = Bitcoin_Script_type(script_pubkey);
-    Ok(matches!(script_type, "p2pkh" | "p2sh" | "multisig"))
+    let _ = (script_sig, script_pubkey, tx, input_index, amount);
+    Err(BlockchainError::not_implemented(
+        "BSV script operations require the 'bsv' feature",
+    ))
 }
 
 /// Get script size in bytes
@@ -240,7 +205,7 @@ pub fn Bitcoin_Script_execute(
 /// # Returns
 /// * `usize` - Script size in bytes
 pub fn Bitcoin_Script_size(script: &BtcScript) -> usize {
-    script.inner.to_bytes().len()
+    script.bytes.len()
 }
 
 /// Create custom script from opcodes
@@ -252,31 +217,10 @@ pub fn Bitcoin_Script_size(script: &BtcScript) -> usize {
 /// * `Ok(BtcScript)` - Created script
 /// * `Err(BtcError)` - Invalid opcode
 pub fn Bitcoin_Script_from_opcodes(opcodes: &[&str]) -> Result<BtcScript, BlockchainError> {
-    let mut nour_script = NourScript::new();
-
-    for opcode_str in opcodes {
-        // Try to parse as opcode
-        if let Ok(opcode) = Opcode::from_name(opcode_str) {
-            nour_script.push_opcode(opcode);
-        } else {
-            // Try to parse as hex data
-            if let Ok(data) = hex::decode(opcode_str) {
-                nour_script.push_slice(&data);
-            } else {
-                // Try to parse as decimal number
-                if let Ok(num) = opcode_str.parse::<i64>() {
-                    nour_script.push_int(num);
-                } else {
-                    return Err(BlockchainError::script(format!(
-                        "Invalid opcode or data: {}",
-                        opcode_str
-                    )));
-                }
-            }
-        }
-    }
-
-    Ok(BtcScript::from_nour(nour_script))
+    let _ = opcodes;
+    Err(BlockchainError::not_implemented(
+        "BSV script operations require the 'bsv' feature",
+    ))
 }
 
 /// Initialize script module

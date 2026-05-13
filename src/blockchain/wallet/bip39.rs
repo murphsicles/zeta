@@ -3,9 +3,10 @@
 //! Implements BIP-39 standard for mnemonic phrase generation and seed derivation.
 
 use crate::blockchain::common::error::BlockchainError;
-use crate::blockchain::common::types::{DerivationPath, KeyPair};
-use bip39::{Language, Mnemonic, Seed};
-use hmac::Hmac;
+use crate::blockchain::common::types::DerivationPath;
+use crate::blockchain::common::KeyPair;
+use bip39::{Language, Mnemonic};
+use hmac::{Hmac, Mac};
 use pbkdf2::pbkdf2;
 use sha2::Sha512;
 
@@ -32,7 +33,7 @@ pub fn generate_mnemonic(word_count: usize) -> Result<String, BlockchainError> {
         }
     };
 
-    let mnemonic = Mnemonic::generate_in(Language::English, entropy_bits)
+    let mnemonic = Mnemonic::generate(word_count)
         .map_err(|e| BlockchainError::wallet(format!("Failed to generate mnemonic: {}", e)))?;
 
     Ok(mnemonic.to_string())
@@ -51,8 +52,7 @@ pub fn mnemonic_to_seed(mnemonic: &str, password: &str) -> Result<Vec<u8>, Block
     let mnemonic_obj = Mnemonic::parse_in(Language::English, mnemonic)
         .map_err(|e| BlockchainError::wallet(format!("Invalid mnemonic: {}", e)))?;
 
-    let seed = Seed::new(&mnemonic_obj, password);
-    Ok(seed.as_bytes().to_vec())
+    Ok(mnemonic_obj.to_seed(password).to_vec())
 }
 
 /// Validate mnemonic phrase
@@ -196,7 +196,6 @@ fn get_public_key(private_key: &[u8], compressed: bool) -> Result<Vec<u8>, Block
 
 /// Add two private keys (mod n)
 fn add_private_keys(a: &[u8], b: &[u8]) -> Result<Vec<u8>, BlockchainError> {
-    use bitcoin_hashes::sha256;
     use secp256k1::{Secp256k1, SecretKey};
 
     let secp = Secp256k1::new();
@@ -208,7 +207,7 @@ fn add_private_keys(a: &[u8], b: &[u8]) -> Result<Vec<u8>, BlockchainError> {
         .map_err(|e| BlockchainError::crypto(format!("Invalid private key B: {}", e)))?;
 
     // Add the keys
-    let mut result = key_a
+    let result = key_a
         .add_tweak(&key_b.into())
         .map_err(|e| BlockchainError::crypto(format!("Key addition failed: {}", e)))?;
 

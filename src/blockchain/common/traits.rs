@@ -1,7 +1,9 @@
 //! Common traits for blockchain operations
 
+use crate::blockchain::common::config::BlockchainConfig;
 use crate::blockchain::common::error::BlockchainError;
 use crate::blockchain::common::types::*;
+use serde::{Deserialize, Serialize};
 
 /// Trait for blockchain address operations
 pub trait AddressOps {

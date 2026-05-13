@@ -1,9 +1,11 @@
 //! BSV key operations
+#![allow(non_snake_case)]
 //!
 //! Implements the `Bitcoin_Key_*` function family using Father's `nour` library.
 
 use crate::blockchain::common::error::BlockchainError;
-use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, Signature, ecdsa};
+use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, ecdsa};
+use secp256k1::ecdsa::Signature;
 
 /// BSV key pair
 #[derive(Debug, Clone)]
@@ -29,7 +31,8 @@ impl BtcKeyPair {
     /// Generate new random key pair
     pub fn generate(compressed: bool) -> Result<Self, BlockchainError> {
         let secp = Secp256k1::new();
-        let (secret_key, public_key) = secp.generate_keypair(&mut rand::thread_rng());
+        let secret_key = SecretKey::new(&mut rand::thread_rng());
+        let public_key = PublicKey::from_secret_key(&secp, &secret_key);
 
         let secret_bytes = secret_key.secret_bytes().to_vec();
         let public_bytes = if compressed {
@@ -120,7 +123,7 @@ pub fn Bitcoin_Key_sign(message: &[u8], private_key: &[u8]) -> Result<Vec<u8>, B
     let secret_key = SecretKey::from_slice(private_key)
         .map_err(|e| BlockchainError::key(format!("Invalid private key: {}", e)))?;
 
-    let message_obj = Message::from_slice(message)
+    let message_obj = Message::from_digest_slice(message)
         .map_err(|e| BlockchainError::crypto(format!("Invalid message: {}", e)))?;
 
     let signature = secp.sign_ecdsa(&message_obj, &secret_key);
@@ -157,7 +160,7 @@ pub fn Bitcoin_Key_verify(
     }
 
     let secp = Secp256k1::new();
-    let message_obj = Message::from_slice(message)
+    let message_obj = Message::from_digest_slice(message)
         .map_err(|e| BlockchainError::crypto(format!("Invalid message: {}", e)))?;
 
     let signature_obj = Signature::from_compact(signature)

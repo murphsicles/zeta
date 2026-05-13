@@ -1,6 +1,7 @@
 //! Teranode RPC client implementation
 
 use base64;
+use base64::Engine;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
 use reqwest::{Client, ClientBuilder, Response};
 use serde::{Serialize, de::DeserializeOwned};
@@ -96,68 +97,71 @@ impl TeranodeClient {
         &self,
         method: &str,
         params: Vec<Value>,
-        attempt: u32,
+        mut attempt: u32,
     ) -> Result<T, TeranodeError> {
-        // Generate request ID
-        let mut counter = self.request_counter.lock().await;
-        let request_id = *counter;
-        *counter = request_id.wrapping_add(1);
-        drop(counter);
+        loop {
+            // Generate request ID
+            let mut counter = self.request_counter.lock().await;
+            let request_id = *counter;
+            *counter = request_id.wrapping_add(1);
+            drop(counter);
 
-        // Create request
-        let request = RpcRequest::new(method, params, request_id);
+            // Create request
+            let request = RpcRequest::new(method, params.clone(), request_id);
 
-        // Make HTTP request
-        let response = self
-            .client
-            .post(&self.base_url)
-            .json(&request)
-            .send()
-            .await
-            .map_err(|e| {
-                if e.is_timeout() {
-                    TeranodeError::Timeout(self.config.request_timeout)
-                } else {
-                    TeranodeError::Network(e)
-                }
-            })?;
+            // Make HTTP request
+            let response = self
+                .client
+                .post(&self.base_url)
+                .json(&request)
+                .send()
+                .await
+                .map_err(|e| {
+                    if e.is_timeout() {
+                        TeranodeError::Timeout(self.config.request_timeout)
+                    } else {
+                        TeranodeError::Network(e)
+                    }
+                })?;
 
-        // Check response status
-        if !response.status().is_success() {
-            return match response.status().as_u16() {
-                401 | 403 => Err(TeranodeError::Auth("Authentication failed".to_string())),
-                _ => {
-                    let status = response.status();
-                    let text = response.text().await.unwrap_or_default();
-                    Err(TeranodeError::Other(format!("HTTP {}: {}", status, text)))
-                }
-            };
-        }
-
-        // Parse response
-        let rpc_response: RpcResponse<T> = response
-            .json()
-            .await
-            .map_err(|e| TeranodeError::Json(serde_json::Error::custom(e.to_string())))?;
-
-        // Check for RPC error
-        if let Some(error) = rpc_response.error {
-            // Check if we should retry
-            if attempt < self.config.max_retries {
-                // Some RPC errors are retryable (e.g., temporary failures)
-                if Self::is_retryable_error(&error) {
-                    tokio::time::sleep(Duration::from_millis(self.config.retry_delay_ms)).await;
-                    return self.call_with_retry(method, params, attempt + 1).await;
-                }
+            // Check response status
+            if !response.status().is_success() {
+                return match response.status().as_u16() {
+                    401 | 403 => Err(TeranodeError::Auth("Authentication failed".to_string())),
+                    _ => {
+                        let status = response.status();
+                        let text = response.text().await.unwrap_or_default();
+                        Err(TeranodeError::Other(format!("HTTP {}: {}", status, text)))
+                    }
+                };
             }
 
-            return Err(TeranodeError::rpc(error.code, &error.message));
-        }
+            // Parse response
+            let rpc_response: RpcResponse<T> = response
+                .json()
+                .await
+                .map_err(|e| TeranodeError::Json(serde::de::Error::custom(e)))?;
 
-        // Extract result
-        rpc_response.result.ok_or_else(|| {
-            TeranodeError::InvalidResponse("Response missing result field".to_string())
-        })
+            // Check for RPC error
+            if let Some(error) = rpc_response.error {
+                // Check if we should retry
+                if attempt < self.config.max_retries {
+                    // Some RPC errors are retryable (e.g., temporary failures)
+                    if Self::is_retryable_error(&error) {
+                        tokio::time::sleep(Duration::from_millis(self.config.retry_delay_ms)).await;
+                        attempt += 1;
+                        continue;
+                    }
+                }
+
+                return Err(TeranodeError::rpc(error.code, &error.message));
+            }
+
+            // Extract result
+            return rpc_response.result.ok_or_else(|| {
+                TeranodeError::InvalidResponse("Response missing result field".to_string())
+            });
+        }
     }
 
     /// Check if an RPC error is retryable
@@ -396,7 +400,7 @@ impl TeranodeClient {
         let responses: Vec<RpcResponse<T>> = response
             .json()
             .await
-            .map_err(|e| TeranodeError::Json(serde_json::Error::custom(e.to_string())))?;
+            .map_err(|e| TeranodeError::Json(serde::de::Error::custom(e)))?;
 
         // Convert to results
         let mut results = Vec::new();
