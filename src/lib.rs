@@ -5,6 +5,7 @@
 //! This crate provides a complete pipeline:
 
 #![allow(dead_code)]
+#![allow(unsafe_op_in_unsafe_fn)]  // 2024 edition: unsafe fn bodies are safe by default
 #![allow(unused_must_use)]
 #![allow(unused_imports)]
 #![allow(unreachable_patterns)]

@@ -1052,7 +1052,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .unwrap_or_else(|| fn_name.clone());
 
                 // Skip if this function was pre-declared with a non-i64 return type.
-                let mut should_skip = self.module.get_function(&actual_name)
+                let should_skip = self.module.get_function(&actual_name)
                     .and_then(|f| match f.get_type().get_return_type() {
                         Some(rt) if rt == self.i64_type.into() => None,
                         _ => Some(()),
