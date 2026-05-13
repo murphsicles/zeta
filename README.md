@@ -1,126 +1,189 @@
-# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta — The language that will outlive its bootstrap
+# [<img alt="Zeta Logo" width="24px" src="https://z-lang.org/assets/images/z72.png" />](https://z-lang.org) Zeta — The final systems language
 
 [<img alt="Zeta Logo" width="128px" src="https://z-lang.org/assets/images/z128.png" />](https://z-lang.org) [![Latest Release](https://img.shields.io/github/v/release/murphsicles/zeta?label=zeta)](https://github.com/murphsicles/zeta/releases) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Self-Hosting](https://img.shields.io/badge/self--hosting-51%2F51%20files-success)](https://github.com/murphsicles/zeta)
 
-**Zeta is a systems programming language bootstrapped in Rust, targeting LLVM — writing itself in Zeta since v0.9.18.** No lifetimes, no borrow checker overhead, no ceremony. Just first-principles systems programming built from the algebraic foundations of Stepanov's *Elements of Programming*.
+**Zeta is a next-generation systems language built on the algebraic foundations of Alexander Stepanov's *Elements of Programming*.** Zero bloat, maximum efficiency, first principles engineering from the ground up. A compiler that writes itself, targeting LLVM with full AOT and JIT capability.
 
 > *"Weaponized minimalism. Surgical violence against complexity."* — Roy Murphy
 
-## Why Zeta?
+## Built on First Principles
 
-### For Rust developers tired of the ceremony
-
-| Rust | Zeta |
-|------|------|
-| `fn foo(x: &'a mut Vec<i32>)` | `fn foo(x: &Vec<i64>)` |
-| Lifetime annotations everywhere | Simple borrowing — inferred, no annotations needed |
-| `Box::new(...)` for heap | `let v = Vec::new()` — heap when you need it |
-| `#[derive(Debug)]` boilerplate | Built-in debug printing |
-| Separate crate for SIMD | `[i64; 4]` vector type built into the language |
-| Procedural macros are extern | CTFE `comptime {}` blocks inline |
+Zeta is engineered from the algebraic bedrock. Every feature traces back to fundamental mathematical structures — semigroups, monoids, rings, and their compositions. This isn't academic: it produces measurable wins in code size, cache behavior, and compilation speed.
 
 ```zeta
-// Zeta: clean, fast, readable
-fn sieve(limit: i64) -> i64 {
-    let mut count = 1;   // 2 is prime
-    let mut i = 3;
-    while i <= limit {
-        if is_prime(i) { count += 1; }
-        i += 2;
+// Semiring folds — fold over addition and multiplication simultaneously
+// in a single pass, using the algebraic structure to eliminate
+// intermediate computation.
+fn dot_product(a: &[i64], b: &[i64]) -> i64 {
+    return semiring_fold(a, b, 0, 1, add, mul);
+}
+```
+
+## The Memory System
+
+Zeta's memory model is **stack-priority by default, explicit when you need the heap**. No garbage collector, no reference counting overhead, no lifetime annotation tax.
+
+```zeta
+// Stack allocation — zero overhead
+fn process() {
+    let data: [i64; 1024] = [0; 1024];
+    let result = compute(&data);
+}
+
+// Heap when you need it — explicit, no surprises
+fn build_buffer() -> &Vec<i64> {
+    let buf = Vec::new();
+    buf.reserve(100_000);
+    return buf;
+}
+```
+
+The compiler eliminates allocations it can prove unnecessary. When you allocate, you know exactly why and where.
+
+## Algebraic Type System
+
+Generics built on concepts, not constraints. Specialization that composes. An identity system that tracks capabilities through the type graph.
+
+```zeta
+// Concept-constrained generics
+fn sorted_insert<T: Ordered>(list: &List<T>, item: T) {
+    let pos = list.position(|x| x >= item);
+    list.insert(pos, item);
+}
+
+// Specialized implementations — the compiler picks the right one
+fn zero<T>() -> T;
+// specializations resolve at monomorphization time
+```
+
+## Compile-Time Evaluation (CTFE)
+
+Run Zeta code at compile time. Full interpreter with access to the same semantics as runtime code. Compute once, embed the result.
+
+```zeta
+const CRC32_TABLE: [u64; 256] = comptime {
+    let table: [u64; 256] = [0; 256];
+    var i = 0;
+    while i < 256 {
+        var crc = i;
+        var j = 0;
+        while j < 8 {
+            if crc & 1 != 0 {
+                crc = (crc >> 1) ^ 0xEDB88320;
+            } else {
+                crc = crc >> 1;
+            }
+            j += 1;
+        }
+        table[i] = crc;
+        i += 1;
     }
-    return count;
-}
-```
-
-## What Zeta is
-
-A **production-ready systems language** with:
-
-### Zero-compromise compilation
-- **AOT** — Compile directly to native executables via LLVM
-- **JIT** — REPL and runtime code generation for rapid iteration
-- **Self-hosting** — 51/51 source files compiling themselves since v0.9.18
-
-### First-class language features
-- **Algebraic data types** — structs, enums, tuples, generics, specialization
-- **CTFE** — `comptime {}` blocks execute at compile time, not runtime
-- **SIMD** — Vector types (`[i64; 4]`, `[f32; 4]`, etc.) with full LLVM auto-vectorization
-- **Async/await** — State machine lowering with thread-local reactor
-- **Ownership without lifetimes** — Simple borrowing model, no annotation tax
-
-### Built for real work
-- **Direct LLVM IR** — No intermediate C dependency, full optimization control
-- **Murphy's Sieve** — Wheel-optimized prime sieving, competition-ready
-- **Blockchain primitives** — BSV and Solana support built in
-
-## ✨ Features at a glance
-
-### Core Language
-```zeta
-// Strong static typing with inference
-fn add(x: i64, y: i64) -> i64 { return x + y; }
-fn infer() {
-    let x = 42;      // inferred i64
-    let b = true;    // inferred bool
-}
-
-// First-class functions and closures
-fn apply(f: (i64) -> i64, x: i64) -> i64 { return f(x); }
-fn make_adder(n: i64) -> (i64) -> i64 {
-    return fn(x: i64) -> i64 { x + n };
-}
-
-// Algebraic data types
-struct Point { x: i64, y: i64 }
-enum Option<T> { Some(T), None }
-
-// Generics with specialization
-fn identity<T>(x: T) -> T { return x; }
-fn max<T: Ord>(a: T, b: T) -> T {
-    if a >= b { return a; }
-    return b;
-}
-```
-
-### Memory Model — stack by default, heap when you ask
-```zeta
-fn stack_example() {
-    let arr: [i64; 5] = [1, 2, 3, 4, 5];  // stack allocated
-}
-fn heap_example() {
-    let vec = Vec::new();                    // heap allocated
-    vec.push(42);
-}
-fn borrow() {
-    let data = Vec::new();
-    let len = data.len();      // immutable borrow
-    data.push(2);              // mutable borrow (exclusive)
-}
-```
-
-### Compile-Time Evaluation
-```zeta
-const FACTORIAL_10: i64 = comptime {
-    fn fact(n: i64) -> i64 {
-        if n <= 1 { return 1; }
-        return n * fact(n - 1);
-    }
-    fact(10)
+    table
 };
-// FACTORIAL_10 = 3628800 — computed at build time
+// CRC32_TABLE is embedded in the binary — zero runtime cost
 ```
 
-### SIMD — no special syntax needed
+## SIMD — Vectorized by Default
+
+Full SIMD support built into the type system. LLVM auto-vectorization where possible, explicit vectors when you need control.
+
 ```zeta
-fn simd_add(a: [i64; 4], b: [i64; 4]) -> [i64; 4] {
-    return a + b;  // LLVM auto-vectorizes
+// Explicit vector types — compiler maps directly to SIMD registers
+fn vec_add(a: [i64; 4], b: [i64; 4]) -> [i64; 4] {
+    return a + b;
+}
+
+fn horizontal_sum(v: [i64; 4]) -> i64 {
+    // LLVM lowers to hadd or equivalent
+    return v[0] + v[1] + v[2] + v[3];
 }
 ```
 
-### Standard Library — 20+ modules, ready
-`std::mem` · `std::ptr` · `std::cmp` · `std::hash` · `std::iter` · `std::vec` · `std::string` · `std::option` · `std::result` · `std::collections` · `std::simd` · `std::thread` · `std::sync` · `std::io` · `std::fs` · `std::net` · `std::time` · `std::path` · `std::process` · `std::ffi`
+## Error System
 
-## 📁 Layout
+Structured, recoverable, and zero-cost when unused. No unwinding overhead — the compiler knows which paths are clean.
+
+```zeta
+fn read_config(path: &str) -> Result<Config, Error> {
+    let file = fs::open(path)?;
+    let data = file.read_all()?;
+    return Config::parse(data);
+}
+
+// Pattern match on errors — exhaustive, checked at compile time
+fn main() -> i64 {
+    match read_config("/etc/zeta.conf") {
+        Result::Ok(cfg) => run(cfg),
+        Result::Err(e) => {
+            log_error("config", e);
+            return 1;
+        }
+    }
+}
+```
+
+## Logging & Diagnostics
+
+Zero-cost logging that compiles away in release builds. Structured diagnostics with 175+ error codes, each with explanatory text. The compiler tells you what went wrong and where — not just that something failed.
+
+## Zorbs Package Manager
+
+Built-in package management. Dependencies, workspaces, version resolution, and integrated build system. No external tooling required.
+
+```zeta
+// package.zorba — declare dependencies once
+package "my_app" {
+    version = "1.0.0"
+    dep "zeta/std" = "1.0"
+    dep "zeta/net" = "1.0"
+}
+```
+
+## Self-Hosting Pipeline
+
+Zeta compiles itself. The bootstrap compiler (written in Rust) builds the Zeta compiler (written in Zeta), which then compiles everything else. Every release tightens the loop.
+
+```
+Rust bootstrap  →  Zeta compiler (.z sources)  →  zetac binary
+                      ↑ compiles itself ↺
+```
+
+51 source files, all self-compiling. Each release reduces the Rust footprint.
+
+## Where Zeta Excels
+
+- **Embedded systems** — deterministic allocation, no runtime, minimal binary footprint
+- **High-frequency trading** — predictable latency, SIMD pipelines, cache-conscious data layout
+- **Streaming systems** — zero-copy buffers, backpressure-aware channels, async reactor
+- **Databases** — CTFE-compiled query plans, tight memory control, lock-free primitives
+- **LLM and agentic systems** — efficient tensor pipelines, hardware-aware dispatch, minimal inference overhead
+- **Automation infrastructure** — fast compile times, self-hosting reduces toolchain dependencies, repeatable builds
+
+## The Compiler Pipeline
+
+```
+Zeta Source (.z)  →  Lexer → Parser → AST → HIR → Resolver → THIR → MIR → LLVM IR → Machine Code
+                                                    ↕
+                                              CTFE Interpreter
+```
+
+Seven IR tiers, each with a specific purpose. The MIR (Mid-level IR) is a control-flow graph with basic blocks — explicit, inspectable, optimizable. The LLVM backend handles register allocation, scheduling, and target-specific lowering.
+
+## Quick Start
+
+```bash
+git clone https://github.com/murphsicles/zeta.git
+cd zeta
+
+# Self-compile the compiler
+./bin/zetac src/main.z -o zetac_new
+
+# Compile and run a program
+./bin/zetac examples/hello.z -o hello
+./hello
+```
+
+## Project Layout
 
 ```
 zeta/
@@ -129,36 +192,21 @@ zeta/
 │   ├── main.z        # Entry point
 │   ├── frontend/     # Lexer, parser, AST
 │   ├── middle/       # Resolver, MIR, type system
-│   ├── backend/      # Code generation (LLVM)
+│   ├── backend/      # LLVM code generation
 │   └── runtime/      # Runtime library
-├── tests/            # Zeta test suite (44 categories)
+├── tests/            # Zeta test suite
 ├── examples/         # Example programs
-└── docs/             # Documentation
+└── docs/             # Documentation, specifications
 ```
 
-## 🔧 Get started
-
-```bash
-git clone https://github.com/murphsicles/zeta.git
-cd zeta
-
-# Compile a Zeta source file
-./bin/zetac src/main.z -o zetac_new   # Self-compile the compiler
-./bin/zetac examples/hello.z -o hello  # Or compile a program
-./hello
-
-# Run tests
-./bin/zetac tests/language/basic_tests.z
-```
-
-## 🔗 Links
+## Links
 
 - **GitHub**: https://github.com/murphsicles/zeta
 - **Website**: https://z-lang.org
 - **Releases**: https://github.com/murphsicles/zeta/releases
-- **Bootstrap branch** (Rust source): https://github.com/murphsicles/zeta/tree/bootstrap
+- **Bootstrap source**: https://github.com/murphsicles/zeta/tree/bootstrap
 - **License**: MIT
 
 ---
 
-*Zeta — The language that will outlive its bootstrap.*
+*Zeta — The final systems language. Built from first principles. Proved by algebra.*
