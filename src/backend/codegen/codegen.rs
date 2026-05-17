@@ -1366,7 +1366,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     self.collect_ids_from_expr_safe(e, ids, exprs);
                 }
             }
-            MirExpr::ConstEval(_) | MirExpr::StringLit(_) | MirExpr::Lit(_) => {
+            MirExpr::ConstEval(_) | MirExpr::StringLit(_) | MirExpr::Lit(_) | MirExpr::Syscall(_, _) => {
                 // No IDs to collect
             }
         }
@@ -4169,6 +4169,33 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 self.builder
                     .build_load(self.i64_type, ptr, "timing_load")
                     .unwrap()
+            }
+            MirExpr::Syscall(num_id, arg_ids) => {
+                // Build args: number + up to 6 syscall args
+                let num_val = self.gen_expr(&exprs[num_id], exprs, None).into_int_value();
+                let mut all_args: Vec<BasicMetadataValueEnum> = vec![num_val.into()];
+                for arg_id in arg_ids {
+                    let val = self.gen_expr(exprs.get(arg_id).unwrap(), exprs, None).into_int_value();
+                    all_args.push(val.into());
+                    if all_args.len() >= 7 { break; } // 7 = number + 6 args
+                }
+                // Pad to 7 args (number + 6 zero args for unused)
+                while all_args.len() < 7 {
+                    all_args.push(self.i64_type.const_zero().into());
+                }
+                
+                // Declare and call the C syscall wrapper
+                let fn_type = self.i64_type.fn_type(
+                    &[self.i64_type.into(); 7],
+                    false,
+                );
+                let callee = self.module.add_function("zenith_syscall", fn_type, None);
+                let call = self.builder.build_call(callee, &all_args, "syscall").unwrap();
+                // CallSiteValue -> BasicValueEnum via try_as_basic_value()
+                match call.try_as_basic_value() {
+                    inkwell::values::ValueKind::Basic(val) => val,
+                    _ => self.i64_type.const_zero().into(),
+                }
             }
             MirExpr::BinaryOp { op, left, right } => {
                 let left_val = self.gen_expr(&exprs[left], exprs, None).into_int_value();

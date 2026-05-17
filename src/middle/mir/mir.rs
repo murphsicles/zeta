@@ -140,6 +140,8 @@ pub enum MirExpr {
         base: u32,
         field: String,
     },
+    // Raw syscall: syscall(number_expr_id, arg_expr_ids...)
+    Syscall(u32, Vec<u32>),
     // Type conversion expression
     As {
         expr: u32,

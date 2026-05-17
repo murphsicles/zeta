@@ -1529,6 +1529,18 @@ impl MirGen {
                     return id;
                 }
 
+                // SPECIAL HANDLING: syscall() — emits raw Linux syscall via inline asm
+                if method == "syscall" && receiver.is_none() && args.len() >= 1 {
+                    let num_id = self.lower_expr(&args[0]);
+                    let mut arg_ids = Vec::new();
+                    for i in 1..args.len() {
+                        arg_ids.push(self.lower_expr(&args[i]));
+                    }
+                    self.exprs.insert(id, MirExpr::Syscall(num_id, arg_ids));
+                    self.type_map.insert(id, Type::I64);
+                    return id;
+                }
+
                 // SPECIAL HANDLING: trait queries — trait::value_type<T>, trait::is_same<T, U>, etc.
                 if method.starts_with("trait::") && receiver.is_none() {
                     let query = &method[7..]; // Strip "trait::"

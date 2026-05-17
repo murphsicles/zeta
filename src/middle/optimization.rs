@@ -273,6 +273,10 @@ pub fn common_subexpression_elimination(mir: &mut Mir) {
             }
             MirExpr::Deref { addr_id, .. } => format!("Deref({})", addr_id),
             MirExpr::TimingOwned(inner_id) => format!("TimingOwned({})", inner_id),
+            MirExpr::Syscall(num_id, arg_ids) => {
+                let args = arg_ids.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(",");
+                format!("Syscall({},[{}])", num_id, args)
+            }
             MirExpr::StringLit(s) => format!("StringLit({})", s),
             MirExpr::Struct {
                 variant, fields, ..
