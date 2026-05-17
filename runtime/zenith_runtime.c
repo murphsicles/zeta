@@ -64,7 +64,7 @@ static const uint32_t CRC32C_TABLE[256] = {
 
 /* ───── Existing Zeta runtime functions ───── */
 
-void* runtime_malloc(long size) { return malloc((size_t)size); }
+void* runtime_malloc(long size) { if (size <= 0) return NULL; return malloc((size_t)size); }
 void runtime_free(void* ptr) { free(ptr); }
 
 void println_i64(long val) { printf("%ld\n", val); }
