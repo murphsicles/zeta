@@ -75,6 +75,7 @@ pub enum MirExpr {
     FString(Vec<u32>),
     ConstEval(i64),
     TimingOwned(u32),
+    Syscall(u32, Vec<u32>),  // syscall(number_expr_id, arg_expr_ids)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -195,6 +195,27 @@ impl IRGen {
             }
             MirExpr::ConstEval(n) => format!("{}", n),
             MirExpr::TimingOwned(inner_id) => self.gen_expr(&mir.exprs[inner_id], mir),
+            MirExpr::Syscall(num_id, ref arg_ids) => {
+                let num = self.gen_expr(&mir.exprs[num_id], mir);
+                let mut constraints = "={rax}".to_string();
+                let mut llvm_type_args = format!("i64 {}", num);
+                
+                let registers = ["rdi", "rsi", "rdx", "r10", "r8", "r9"];
+                for (i, arg_id) in arg_ids.iter().enumerate() {
+                    if i >= 6 { break; }
+                    let arg_val = self.gen_expr(&mir.exprs[*arg_id], mir);
+                    constraints.push_str(&format!(", {{{}}}", registers[i]));
+                    llvm_type_args.push_str(&format!(", i64 {}", arg_val));
+                }
+                
+                let reg = format!("%{}", self.next_reg);
+                self.next_reg += 1;
+                self.ir.push_str(&format!(
+                    "  {} = call i64 asm sideeffect \"syscall\", \"{}\", ~{{rcx}}, ~{{r11}}({})\n",
+                    reg, constraints, llvm_type_args
+                ));
+                reg[1..].to_string()
+            },
         }
     }
 
