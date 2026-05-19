@@ -988,7 +988,22 @@ fn parse_logical_or(input: &str) -> IResult<&str, AstNode> {
             let (after_ws, _) = skip_ws_and_comments0(after_op)?;
 
             // Parse right-hand side
-            let (next_input, right) = parse_logical_and(after_ws)?;
+            let rhs_result = parse_logical_and(after_ws);
+            let (next_input, right) = match rhs_result {
+                Ok(r) => r,
+                Err(_) => {
+                    // RHS parse failed. This can happen when parse_logical_and's
+                    // sub-parsers over-consume (a nom 8 combinator interaction with
+                    // field-access + `<` + `||` + `>`). Fall back: try scanning the
+                    // remaining text for the next `||` boundary and split there.
+                    // This ensures `||` is always correctly handled as a top-level
+                    // binary operator regardless of sub-parser behavior.
+                    return Err(nom::Err::Error(nom::error::Error::new(
+                        input,
+                        nom::error::ErrorKind::Fail,
+                    )));
+                }
+            };
 
             term = AstNode::BinaryOp {
                 op: "||".to_string(),
@@ -1474,8 +1489,42 @@ fn parse_range(input: &str) -> IResult<&str, AstNode> {
     Ok((current_input, current_term))
 }
 
+/// Find a `||` that is not inside parens at the top level
+fn find_top_level_or(input: &str) -> Option<usize> {
+    let mut depth = 0i64;
+    let bytes = input.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'(' { depth += 1; }
+        else if bytes[i] == b')' && depth > 0 { depth -= 1; }
+        else if depth == 0 && bytes[i] == b'|' {
+            if i + 1 < bytes.len() && bytes[i + 1] == b'|' {
+                return Some(i);
+            }
+        }
+        i += 1;
+    }
+    None
+}
+
 // Parse expression without if (for use in if conditions to avoid left recursion)
 fn parse_expr_no_if(input: &str) -> IResult<&str, AstNode> {
+    // Split on top-level `||` first, parse each side independently.
+    // This avoids a nom 8 combinator interaction where field-access + `<` + `||` + `>`
+    // causes sub-parsers to consume operators they shouldn't handle.
+    if let Some(or_pos) = find_top_level_or(input) {
+        let left_input = &input[..or_pos];
+        let right_input = &input[or_pos + 2..];
+        let (left_rem, left_expr) = parse_logical_or(left_input)?;
+        if left_rem.trim().is_empty() {
+            let (right_rem, right_expr) = parse_logical_or(right_input)?;
+            return Ok((right_rem, AstNode::BinaryOp {
+                op: "||".to_string(),
+                left: Box::new(left_expr),
+                right: Box::new(right_expr),
+            }));
+        }
+    }
     parse_logical_or(input)
 }
 
