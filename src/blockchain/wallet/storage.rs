@@ -22,12 +22,16 @@ pub fn shutdown() -> Result<(), BlockchainError> {
 pub fn save_wallet(_wallet: &Wallet, _path: &str, _password: &str) -> Result<(), BlockchainError> {
     // TODO: Implement wallet serialization and encrypted file storage
     log::warn!("Wallet storage save not implemented - placeholder");
-    Err(BlockchainError::not_implemented("Wallet save not implemented"))
+    Err(BlockchainError::not_implemented(
+        "Wallet save not implemented",
+    ))
 }
 
 /// Load wallet from file
 pub fn load_wallet(_path: &str, _password: &str) -> Result<Wallet, BlockchainError> {
     // TODO: Implement wallet deserialization from encrypted file storage
     log::warn!("Wallet storage load not implemented - placeholder");
-    Err(BlockchainError::not_implemented("Wallet load not implemented"))
+    Err(BlockchainError::not_implemented(
+        "Wallet load not implemented",
+    ))
 }

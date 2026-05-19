@@ -892,7 +892,9 @@ pub unsafe extern "C" fn future_state_get(ptr: i64, idx: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn future_state_set(ptr: i64, idx: i64, val: i64) {
     let buf = ptr as *mut i64;
-    unsafe { *buf.offset(idx as isize) = val; }
+    unsafe {
+        *buf.offset(idx as isize) = val;
+    }
 }
 
 /// Poll a sub-future. Returns 0 for Pending, or value+1 for Ready.
@@ -902,16 +904,17 @@ pub unsafe extern "C" fn future_state_set(ptr: i64, idx: i64, val: i64) {
 /// pointer as the value (identity semantics for early testing).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn future_poll(fut: i64) -> i64 {
-    if fut == 0 { return 0; }
+    if fut == 0 {
+        return 0;
+    }
     // In a full implementation, this would call the future's poll
     // function. For now, we always return Ready.
     // The poll function pointer is stored at field 0 of the future state.
     let poll_fn = unsafe { *(fut as *const i64).offset(0) };
     if poll_fn != 0 {
         // Call the compiled poll function: poll_fn(state_ptr) -> i64
-        let poll_func: unsafe extern "C" fn(i64) -> i64 = unsafe {
-            std::mem::transmute(poll_fn as *const ())
-        };
+        let poll_func: unsafe extern "C" fn(i64) -> i64 =
+            unsafe { std::mem::transmute(poll_fn as *const ()) };
         return poll_func(fut);
     }
     // No poll function — treat as immediate value

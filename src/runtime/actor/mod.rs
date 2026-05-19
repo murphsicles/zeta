@@ -7,7 +7,10 @@ pub mod scheduler;
 pub use advanced::{
     Actor, ActorContext, ActorId, ActorMessage, ActorState, ActorSystem, EchoActor, WorkerActor,
 };
-pub use channel::{Channel, host_channel_recv, host_channel_send, host_mpsc_channel, host_mpsc_recv, host_mpsc_send, host_mpsc_try_recv};
+pub use channel::{
+    Channel, host_channel_recv, host_channel_send, host_mpsc_channel, host_mpsc_recv,
+    host_mpsc_send, host_mpsc_try_recv,
+};
 pub use map::{host_map_free, host_map_get, host_map_insert, host_map_new};
 pub use result::{
     host_result_free, host_result_get_data, host_result_is_ok, host_result_make_err,

@@ -248,24 +248,21 @@ impl MirGen {
                             // Lower as multiple field accesses.
                             let rhs_id = self.lower_expr(expr);
                             for (i, elem) in elements.iter().enumerate() {
-                                match elem {
-                                    AstNode::Var(name) => {
-                                        let elem_id = self.next_id();
-                                        // Access field i of the tuple
-                                        let field_id = self.next_id();
-                                        self.exprs.insert(field_id, MirExpr::Lit(i as i64));
-                                        self.type_map.insert(field_id, Type::I64);
-                                        self.stmts.push(MirStmt::Call {
-                                            func: "stack_array_get".to_string(),
-                                            args: vec![rhs_id, field_id],
-                                            dest: elem_id,
-                                            type_args: vec![],
-                                        });
-                                        self.name_to_id.insert(name.clone(), elem_id);
-                                        self.exprs.insert(elem_id, MirExpr::Var(elem_id));
-                                        self.type_map.insert(elem_id, Type::I64);
-                                    }
-                                    _ => {}
+                                if let AstNode::Var(name) = elem {
+                                    let elem_id = self.next_id();
+                                    // Access field i of the tuple
+                                    let field_id = self.next_id();
+                                    self.exprs.insert(field_id, MirExpr::Lit(i as i64));
+                                    self.type_map.insert(field_id, Type::I64);
+                                    self.stmts.push(MirStmt::Call {
+                                        func: "stack_array_get".to_string(),
+                                        args: vec![rhs_id, field_id],
+                                        dest: elem_id,
+                                        type_args: vec![],
+                                    });
+                                    self.name_to_id.insert(name.clone(), elem_id);
+                                    self.exprs.insert(elem_id, MirExpr::Var(elem_id));
+                                    self.type_map.insert(elem_id, Type::I64);
                                 }
                             }
                         } else {
@@ -1031,10 +1028,13 @@ impl MirGen {
                 let stored_fut = self.next_id();
                 self.exprs.insert(stored_fut, MirExpr::Var(stored_fut));
                 self.type_map.insert(stored_fut, Type::I64);
-                self.stmts.push(MirStmt::Assign { lhs: stored_fut, rhs: fut_id });
+                self.stmts.push(MirStmt::Assign {
+                    lhs: stored_fut,
+                    rhs: fut_id,
+                });
                 self.exprs.insert(pr_id, MirExpr::Var(pr_id));
                 self.type_map.insert(pr_id, Type::I64);
-                
+
                 let mut body_stmts = vec![];
                 body_stmts.push(MirStmt::Call {
                     func: "future_poll".to_string(),
@@ -1045,11 +1045,14 @@ impl MirGen {
                 let mut then_stmts = vec![];
                 then_stmts.push(MirStmt::Break);
                 let cond_id = self.next_id();
-                self.exprs.insert(cond_id, MirExpr::BinaryOp {
-                    op: "!=".to_string(),
-                    left: pr_id,
-                    right: zero_id,
-                });
+                self.exprs.insert(
+                    cond_id,
+                    MirExpr::BinaryOp {
+                        op: "!=".to_string(),
+                        left: pr_id,
+                        right: zero_id,
+                    },
+                );
                 self.type_map.insert(cond_id, Type::Bool);
                 body_stmts.push(MirStmt::If {
                     cond: cond_id,
@@ -2408,7 +2411,11 @@ impl MirGen {
                 // `LLVMCodegen::new("bench")` are regular (static) function calls.
                 // Type_args also indicate a generic function call.
                 let is_upper = !method.is_empty()
-                    && method.chars().next().map(|c| c.is_uppercase()).unwrap_or(false);
+                    && method
+                        .chars()
+                        .next()
+                        .map(|c| c.is_uppercase())
+                        .unwrap_or(false);
                 if !path.is_empty() && type_args.is_empty() && is_upper {
                     // Lower as enum/struct constructor
                     let mut field_ids = Vec::new();
@@ -2922,24 +2929,27 @@ impl MirGen {
                 let pr_id = self.next_id();
                 let result_id = self.next_id();
                 let zero_id = self.next_id_with_lit(0);
-                
+
                 // Store the sub-future pointer
                 let stored_fut = self.next_id();
                 self.exprs.insert(stored_fut, MirExpr::Var(stored_fut));
                 self.type_map.insert(stored_fut, Type::I64);
-                self.stmts.push(MirStmt::Assign { lhs: stored_fut, rhs: fut_id });
-                
+                self.stmts.push(MirStmt::Assign {
+                    lhs: stored_fut,
+                    rhs: fut_id,
+                });
+
                 // poll result
                 self.exprs.insert(pr_id, MirExpr::Var(pr_id));
                 self.type_map.insert(pr_id, Type::I64);
-                
+
                 // result
                 self.exprs.insert(result_id, MirExpr::Var(result_id));
                 self.type_map.insert(result_id, Type::I64);
-                
+
                 // While loop body
                 let mut body_stmts = vec![];
-                
+
                 // pr = future_poll(stored_fut)
                 body_stmts.push(MirStmt::Call {
                     func: "future_poll".to_string(),
@@ -2947,7 +2957,7 @@ impl MirGen {
                     dest: pr_id,
                     type_args: vec![],
                 });
-                
+
                 // if pr != 0 { result = future_result(stored_fut); break; }
                 let mut then_stmts = vec![];
                 then_stmts.push(MirStmt::Call {
@@ -2957,36 +2967,39 @@ impl MirGen {
                     type_args: vec![],
                 });
                 then_stmts.push(MirStmt::Break);
-                
+
                 let cond_id = self.next_id();
-                self.exprs.insert(cond_id, MirExpr::BinaryOp {
-                    op: "!=".to_string(),
-                    left: pr_id,
-                    right: zero_id,
-                });
+                self.exprs.insert(
+                    cond_id,
+                    MirExpr::BinaryOp {
+                        op: "!=".to_string(),
+                        left: pr_id,
+                        right: zero_id,
+                    },
+                );
                 self.type_map.insert(cond_id, Type::Bool);
-                
+
                 body_stmts.push(MirStmt::If {
                     cond: cond_id,
                     then: then_stmts,
                     else_: vec![],
                     dest: None,
                 });
-                
+
                 // While(true) loop
                 let true_id = self.next_id_with_lit(1);
                 self.stmts.push(MirStmt::While {
                     cond: true_id,
                     body: body_stmts,
                 });
-                
+
                 // Store result back to the expression ID so it's accessible
                 // via load_local(id) later (e.g., in a return statement).
                 self.stmts.push(MirStmt::Assign {
                     lhs: id,
                     rhs: result_id,
                 });
-                
+
                 // Register result as the expression value
                 self.exprs.insert(id, MirExpr::Var(result_id));
                 if let Some(ty) = self.type_map.get(&fut_id) {

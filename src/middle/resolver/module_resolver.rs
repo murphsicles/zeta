@@ -399,48 +399,49 @@ impl ModuleResolver {
         // `use super::module::Item;` resolves to ../module/Item.z relative to root.
         if !path.is_empty() && path[0] == "super" {
             let item_path = if path.len() > 1 {
-                &path[1..]  // Everything after "super"
+                &path[1..] // Everything after "super"
             } else {
-                &[]  // Just "use super;" — invalid but handle gracefully
+                &[] // Just "use super;" — invalid but handle gracefully
             };
-            
+
             // Resolve relative to parent of root_dir
             let mut super_path = self.root_dir.clone();
             // Go up one directory
             if let Some(parent) = super_path.parent() {
                 super_path = parent.to_path_buf();
             }
-            
+
             // Now resolve the rest of the path
             let module_path = if item_path.len() > 1 {
-                &item_path[..item_path.len() - 1]  // Remove item name
+                &item_path[..item_path.len() - 1] // Remove item name
             } else {
                 item_path
             };
-            
+
             for component in module_path {
                 super_path.push(component);
             }
-            
+
             // Try with .z extension
             let mut z_path = super_path.clone();
             z_path.set_extension("z");
             if z_path.exists() {
                 return Ok(z_path);
             }
-            
+
             // Try as directory with mod.z
             let mut mod_path = super_path.clone();
             mod_path.push("mod.z");
             if mod_path.exists() {
                 return Ok(mod_path);
             }
-            
+
             // If item_path has only 1 component, also try it as a module path
             // (e.g., `use super::runtime` — "runtime" is the module, not an item)
             if item_path.len() <= 1 {
                 // Try the last component as a module file
-                let mut as_module = super_path.parent()
+                let mut as_module = super_path
+                    .parent()
                     .map(|p| p.join("src"))
                     .unwrap_or_else(|| super_path.clone());
                 for component in item_path {
@@ -457,9 +458,10 @@ impl ModuleResolver {
                     return Ok(as_module_mod);
                 }
             }
-            
+
             // Fallback: try with src/ prefix (common project layout: src/<module>.z)
-            let mut src_path = super_path.parent()
+            let mut src_path = super_path
+                .parent()
                 .map(|p| p.join("src"))
                 .unwrap_or_else(|| super_path.clone());
             for component in module_path {
@@ -475,7 +477,7 @@ impl ModuleResolver {
             if src_mod.exists() {
                 return Ok(src_mod);
             }
-            
+
             return Err(format!(
                 "Super module not found: {} (resolved from {:?} via {:?})",
                 path.join("::"),
@@ -527,7 +529,7 @@ impl ModuleResolver {
                 return Ok(full_z_path);
             }
         }
-        
+
         // Try with src/ prefix (common project layout: src/<module>.z)
         let mut src_file_path = self.root_dir.clone();
         src_file_path.push("src");
@@ -586,14 +588,16 @@ impl ModuleResolver {
         eprintln!("LOAD_MODULE: {} -> {} ASTs", path_str, asts.len());
         for a in &asts {
             if let AstNode::FuncDef { name, params, .. } = a {
-                let pstr: Vec<String> = params.iter().map(|(n,t)| format!("{}:{}",n,t)).collect();
+                let pstr: Vec<String> =
+                    params.iter().map(|(n, t)| format!("{}:{}", n, t)).collect();
                 eprintln!("  FD: {} params=[{}]", name, pstr.join(", "));
             }
             if let AstNode::ImplBlock { ty, body, .. } = a {
                 eprintln!("  IB: ty={}", ty);
                 for (i, b) in body.iter().enumerate() {
                     if let AstNode::FuncDef { name, params, .. } = b {
-                        let pstr: Vec<String> = params.iter().map(|(n,t)| format!("{}:{}",n,t)).collect();
+                        let pstr: Vec<String> =
+                            params.iter().map(|(n, t)| format!("{}:{}", n, t)).collect();
                         eprintln!("    FN[{}]: {} params=[{}]", i, name, pstr.join(", "));
                     }
                 }
@@ -1040,7 +1044,13 @@ impl ModuleResolver {
         // e.g., `use super::channel::oneshot` only loads oneshot.z, not all submodules.
         let item_name = path.last().cloned().unwrap_or_default();
         for ast in &module.asts {
-            if let AstNode::ModDef { name, items, pub_: true, .. } = ast {
+            if let AstNode::ModDef {
+                name,
+                items,
+                pub_: true,
+                ..
+            } = ast
+            {
                 if *name == item_name && items.is_empty() {
                     let mut sub_path = parent_dir.to_path_buf();
                     sub_path.push(format!("{}.z", name));

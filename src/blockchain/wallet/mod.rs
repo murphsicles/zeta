@@ -12,10 +12,10 @@ pub use encryption::*;
 pub use storage::*;
 
 use crate::blockchain::bsv::keys::BtcKeyPair;
+use crate::blockchain::common::KeyPair;
 use crate::blockchain::common::config::BlockchainConfig;
 use crate::blockchain::common::error::BlockchainError;
 use crate::blockchain::common::types::{Address, DerivationPath, Network};
-use crate::blockchain::common::KeyPair;
 use crate::blockchain::solana::address::SolanaAddress;
 
 /// Main wallet structure
