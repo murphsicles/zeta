@@ -1,0 +1,38 @@
+// RELEASE NOTES — Zeta v1.0.17 "Parser Precision" 🎯
+// ===================================================
+
+// "Every impl block, every method, every edge case — Zeta reads your code as you intended."
+
+// 🐛 Parser Fixes (bootstrap v0.14.6 → main v1.0.17)
+// ----------------------------------------------------
+// Two parser bugs that silently dropped methods from impl blocks have been exterminated.
+//
+//   1. `mut self` not recognized — When a method had `mut self` as its first parameter
+//      (owned, mutable self), the parser failed to recognize it. This caused ALL builder-
+//      pattern functions in config.z, tree.z, heap.z to silently vanish from the AST.
+//      Fix: Added dedicated `mut self` alt arm in `parse_param`.
+//
+//   2. `||` with field-access + `<`/`>` — A deep nom 8 combinator interaction caused
+//      over-consumption when a condition like `self.x < 0 || self.y > 100` appeared.
+//      The sub-parser chain ate operators belonging to higher-level parsers, leaving
+//      `100` as remaining input and stopping `many0` from parsing further impl methods.
+//      Fix: Added `find_top_level_or()` that pre-splits on `||` outside parens before
+//      delegating to the nom combinator chain. All 22 variant test cases pass.
+
+// 🔧 Code Quality
+// ---------------
+//    - Full rustfmt pass across all Rust source (20 files, 555 insertions/302 deletions)
+//    - Clippy fixes: obfuscated_if_else, single_match, let_and_return
+//    - Zero warnings on `cargo clippy --all-targets --no-deps`
+
+// 📦 Pre-built Binaries
+// ---------------------
+// bin/zetac                   — Self-hosted compiler (x86-64 Linux, 18.1 MB)
+// bin/zetac-macos-arm64       — macOS ARM64 binary
+// bin/zetac-macos-x64         — macOS x86-64 binary
+
+// 🚀 Next Up
+// ----------
+//    - Full self-hosting verification (compile 51+ zeta_src files with zetac itself)
+//    - CTFE pipeline completion
+//    - Stable ABI / TBAA / SIMD intrinsics
