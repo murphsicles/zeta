@@ -2,9 +2,9 @@
 //!
 //! Implements BIP-39 standard for mnemonic phrase generation and seed derivation.
 
+use crate::blockchain::common::KeyPair;
 use crate::blockchain::common::error::BlockchainError;
 use crate::blockchain::common::types::DerivationPath;
-use crate::blockchain::common::KeyPair;
 use bip39::{Language, Mnemonic};
 use hmac::{Hmac, Mac};
 use pbkdf2::pbkdf2;

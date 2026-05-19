@@ -1495,9 +1495,11 @@ fn find_top_level_or(input: &str) -> Option<usize> {
     let bytes = input.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
-        if bytes[i] == b'(' { depth += 1; }
-        else if bytes[i] == b')' && depth > 0 { depth -= 1; }
-        else if depth == 0 && bytes[i] == b'|' {
+        if bytes[i] == b'(' {
+            depth += 1;
+        } else if bytes[i] == b')' && depth > 0 {
+            depth -= 1;
+        } else if depth == 0 && bytes[i] == b'|' {
             if i + 1 < bytes.len() && bytes[i + 1] == b'|' {
                 return Some(i);
             }
@@ -1518,11 +1520,14 @@ fn parse_expr_no_if(input: &str) -> IResult<&str, AstNode> {
         let (left_rem, left_expr) = parse_logical_or(left_input)?;
         if left_rem.trim().is_empty() {
             let (right_rem, right_expr) = parse_logical_or(right_input)?;
-            return Ok((right_rem, AstNode::BinaryOp {
-                op: "||".to_string(),
-                left: Box::new(left_expr),
-                right: Box::new(right_expr),
-            }));
+            return Ok((
+                right_rem,
+                AstNode::BinaryOp {
+                    op: "||".to_string(),
+                    left: Box::new(left_expr),
+                    right: Box::new(right_expr),
+                },
+            ));
         }
     }
     parse_logical_or(input)

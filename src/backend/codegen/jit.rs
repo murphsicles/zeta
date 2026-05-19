@@ -4,17 +4,20 @@
 //! Final stage of compilation: optimization, execution engine creation, and runtime mapping.
 //! Clean, minimal, and production-ready.
 
-use crate::runtime::actor::channel::{host_channel_recv, host_channel_send, host_mpsc_channel, host_mpsc_recv, host_mpsc_send, host_mpsc_try_recv};
+use crate::runtime::actor::channel::{
+    host_channel_recv, host_channel_send, host_mpsc_channel, host_mpsc_recv, host_mpsc_send,
+    host_mpsc_try_recv,
+};
 use crate::runtime::actor::map::{host_map_get, host_map_insert, host_map_new};
 use crate::runtime::actor::result::{host_result_get_data, host_result_is_ok};
 use crate::runtime::actor::scheduler::host_spawn;
-use crate::runtime::reactor::{waker_create, waker_wake};
 use crate::runtime::array::{array_free, array_get, array_len, array_new, array_push, array_set};
 use crate::runtime::host::{
     host_http_get, host_str_concat, host_str_contains, host_str_ends_with, host_str_len,
     host_str_replace, host_str_starts_with, host_str_to_lowercase, host_str_to_uppercase,
     host_str_trim, host_tls_handshake,
 };
+use crate::runtime::reactor::{waker_create, waker_wake};
 use crate::runtime::std::std_free;
 use crate::runtime::zeta_runtime::{
     zeta_array_get_bool, zeta_array_get_i64, zeta_array_set_bool, zeta_array_set_i64,
@@ -258,22 +261,37 @@ impl<'ctx> crate::backend::codegen::LLVMCodegen<'ctx> {
 
         // Async/future runtime functions
         if let Some(f) = self.module.get_function("future_poll_alloc") {
-            ee.add_global_mapping(&f, crate::runtime::host::future_poll_alloc as *const () as usize);
+            ee.add_global_mapping(
+                &f,
+                crate::runtime::host::future_poll_alloc as *const () as usize,
+            );
         }
         if let Some(f) = self.module.get_function("future_poll_free") {
-            ee.add_global_mapping(&f, crate::runtime::host::future_poll_free as *const () as usize);
+            ee.add_global_mapping(
+                &f,
+                crate::runtime::host::future_poll_free as *const () as usize,
+            );
         }
         if let Some(f) = self.module.get_function("future_state_get") {
-            ee.add_global_mapping(&f, crate::runtime::host::future_state_get as *const () as usize);
+            ee.add_global_mapping(
+                &f,
+                crate::runtime::host::future_state_get as *const () as usize,
+            );
         }
         if let Some(f) = self.module.get_function("future_state_set") {
-            ee.add_global_mapping(&f, crate::runtime::host::future_state_set as *const () as usize);
+            ee.add_global_mapping(
+                &f,
+                crate::runtime::host::future_state_set as *const () as usize,
+            );
         }
         if let Some(f) = self.module.get_function("future_poll") {
             ee.add_global_mapping(&f, crate::runtime::host::future_poll as *const () as usize);
         }
         if let Some(f) = self.module.get_function("future_result") {
-            ee.add_global_mapping(&f, crate::runtime::host::future_result as *const () as usize);
+            ee.add_global_mapping(
+                &f,
+                crate::runtime::host::future_result as *const () as usize,
+            );
         }
         if let Some(f) = self.module.get_function("future_ready") {
             ee.add_global_mapping(&f, crate::runtime::host::future_ready as *const () as usize);

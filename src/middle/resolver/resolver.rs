@@ -191,37 +191,45 @@ impl Resolver {
                                     // The function will be available as `malloc` in current scope
                                     self.register(module_ast);
                                 }
-                                AstNode::ImplBlock { concept, ty, body, .. } => {
+                                AstNode::ImplBlock {
+                                    concept, ty, body, ..
+                                } => {
                                     // Register impl block functions with qualified names
                                     // (Type::method) so method calls can be resolved.
-                                    self.impls.insert((concept.clone(), ty.clone()), body.clone());
+                                    self.impls
+                                        .insert((concept.clone(), ty.clone()), body.clone());
                                     for b in body.clone() {
                                         if let AstNode::FuncDef {
-                                            name, params, ret, async_, ..
+                                            name,
+                                            params,
+                                            ret,
+                                            async_,
+                                            ..
                                         } = &b
                                         {
                                             let qualified_name = format!("{}::{}", ty, name);
                                             let typed_params: Vec<_> = params
                                                 .iter()
-                                                .map(|(n, t)| {
-                                                    (n.clone(), self.string_to_type(t))
-                                                })
+                                                .map(|(n, t)| (n.clone(), self.string_to_type(t)))
                                                 .collect();
                                             let typed_ret = self.string_to_type(ret);
-                                            eprintln!("REG_IB: {} -> {} params={}", name, qualified_name, params.len());
+                                            eprintln!(
+                                                "REG_IB: {} -> {} params={}",
+                                                name,
+                                                qualified_name,
+                                                params.len()
+                                            );
                                             self.funcs.insert(
                                                 qualified_name,
                                                 (typed_params, typed_ret, *async_),
                                             );
                                         }
-                                        if let AstNode::FuncDef {
-                                            name: fn_name, ..
-                                        } = &b
-                                        {
+                                        if let AstNode::FuncDef { name: fn_name, .. } = &b {
                                             let qualified = format!("{}::{}", ty, fn_name);
                                             let mut qualified_ast = b.clone();
                                             if let AstNode::FuncDef {
-                                                name: ref mut q_name, ..
+                                                name: ref mut q_name,
+                                                ..
                                             } = qualified_ast
                                             {
                                                 *q_name = qualified.clone();
@@ -229,7 +237,8 @@ impl Resolver {
                                             // Don't overwrite existing entries — modules loaded first (oneshot)
                                             // should keep their function signatures over later modules (broadcast).
                                             if !self.registered_funcs.contains_key(&qualified) {
-                                                self.registered_funcs.insert(qualified.clone(), qualified_ast);
+                                                self.registered_funcs
+                                                    .insert(qualified.clone(), qualified_ast);
                                             }
                                         }
                                         self.register(b);

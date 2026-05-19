@@ -247,7 +247,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             ),
             None,
         );
-        
+
         // ── Reactor runtime functions (from zeta_src/runtime/reactor.z) ──
         module.add_function(
             "reactor_create",
@@ -266,7 +266,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
         );
         module.add_function(
             "reactor_poll",
-            i64_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into(), i64_type.into()], false),
+            i64_type.fn_type(
+                &[
+                    i64_type.into(),
+                    i64_type.into(),
+                    i64_type.into(),
+                    i64_type.into(),
+                ],
+                false,
+            ),
             Some(Linkage::External),
         );
         module.add_function(
@@ -324,7 +332,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
             i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
             Some(Linkage::External),
         );
-// V4I64 vector intrinsics (AVX2) — handled inline in codegen
+        // V4I64 vector intrinsics (AVX2) — handled inline in codegen
         module.add_function(
             "__builtin_v4i64_store",
             void_type.fn_type(
@@ -1019,7 +1027,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 // a DIFFERENT param count, use a mangled name: name_N where N
                 // is the param count. This avoids LLVM name collisions for
                 // overloaded functions (e.g., fn new() vs fn new(input)).
-                let is_overloaded = self.module.get_function(&fn_name)
+                let is_overloaded = self
+                    .module
+                    .get_function(&fn_name)
                     .map(|f| f.count_params() != mir.param_indices.len() as u32)
                     .unwrap_or(false);
                 let actual_name = if is_overloaded {
@@ -1027,7 +1037,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 } else {
                     fn_name.clone()
                 };
-                if !self.fns.contains_key(&actual_name) && self.module.get_function(&actual_name).is_none() {
+                if !self.fns.contains_key(&actual_name)
+                    && self.module.get_function(&actual_name).is_none()
+                {
                     let param_types: Vec<_> = (0..mir.param_indices.len())
                         .map(|_| self.i64_type.into())
                         .collect();
@@ -1045,14 +1057,21 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let param_count = mir.param_indices.len() as u32;
 
                 // Determine actual function name, matching first-pass logic.
-                let actual_name = self.module.get_function(&fn_name)
+                let actual_name = if self
+                    .module
+                    .get_function(&fn_name)
                     .map(|f| f.count_params() != param_count)
                     .unwrap_or(false)
-                    .then(|| format!("{}_{}", fn_name, param_count))
-                    .unwrap_or_else(|| fn_name.clone());
+                {
+                    format!("{}_{}", fn_name, param_count)
+                } else {
+                    fn_name.clone()
+                };
 
                 // Skip if this function was pre-declared with a non-i64 return type.
-                let should_skip = self.module.get_function(&actual_name)
+                let should_skip = self
+                    .module
+                    .get_function(&actual_name)
                     .and_then(|f| match f.get_type().get_return_type() {
                         Some(rt) if rt == self.i64_type.into() => None,
                         _ => Some(()),
@@ -1071,11 +1090,16 @@ impl<'ctx> LLVMCodegen<'ctx> {
         // Use param-count-suffixed name if this function is overloaded
         let fn_name = mir.name.as_ref().cloned().unwrap_or("anon".to_string());
         let param_count = mir.param_indices.len() as u32;
-        let actual_name = self.module.get_function(&fn_name)
+        let actual_name = if self
+            .module
+            .get_function(&fn_name)
             .map(|f| f.count_params() != param_count)
             .unwrap_or(false)
-            .then(|| format!("{}_{}", fn_name, param_count))
-            .unwrap_or_else(|| fn_name.clone());
+        {
+            format!("{}_{}", fn_name, param_count)
+        } else {
+            fn_name.clone()
+        };
         // First try the actual (potentially mangled) name, then fall back to the original
         let fn_val = self.get_function(&actual_name);
 
@@ -1611,10 +1635,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let expected = digits.parse::<u32>().unwrap_or(0);
                 let base = &name[..pos];
                 if let Some(&f) = self.fns.get(base) {
-                    if f.count_params() == expected { return f; }
+                    if f.count_params() == expected {
+                        return f;
+                    }
                 }
                 if let Some(f) = self.module.get_function(base) {
-                    if f.count_params() == expected { return f; }
+                    if f.count_params() == expected {
+                        return f;
+                    }
                 }
             }
         }
@@ -1952,14 +1980,21 @@ impl<'ctx> LLVMCodegen<'ctx> {
             // Try param-count-suffixed name before extern declaration.
             // Handles overloaded functions declared as name_N in gen_mirs.
             let param_suffixed = format!("{}_{}", name, args_count);
-            if let Some(f) = self.module.get_function(&param_suffixed) { return f; }
-            if let Some(&f) = self.fns.get(&param_suffixed) { return f; }
+            if let Some(f) = self.module.get_function(&param_suffixed) {
+                return f;
+            }
+            if let Some(&f) = self.fns.get(&param_suffixed) {
+                return f;
+            }
         } else {
             let mangled = self.mangle_function_name(name, type_args);
             if let Some(f) = self.module.get_function(&mangled) {
                 return f;
             }
-            eprintln!("CODEGEN_CALL: name={} mangled={} type_args={:?}", name, mangled, type_args);
+            eprintln!(
+                "CODEGEN_CALL: name={} mangled={} type_args={:?}",
+                name, mangled, type_args
+            );
             // Also try stripping trailing _N from the full name before mangling.
             // MIR gen appends _0 for overload disambiguation (oneshot::channel_0),
             // but the monomorphized function is stored as oneshot::channel_inst_i64.
@@ -2031,8 +2066,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
         // Try param-count-suffixed name before creating extern.
         let param_suffixed = format!("{}_{}", name, args_count);
-        if let Some(f) = self.module.get_function(&param_suffixed) { return f; }
-        if let Some(&f) = self.fns.get(&param_suffixed) { return f; }
+        if let Some(f) = self.module.get_function(&param_suffixed) {
+            return f;
+        }
+        if let Some(&f) = self.fns.get(&param_suffixed) {
+            return f;
+        }
 
         // Strip trailing _N suffix and try base name with param count validation.
         // (Reverses the MIR gen's name_N disambiguation for runtime/pre-declared fns.)
@@ -2061,8 +2100,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
         }
 
         // Not found — create extern declaration matching the call site's arg count
-        let base_name = if stripped_name.is_empty() { name } else { &stripped_name };
-        
+        let base_name = if stripped_name.is_empty() {
+            name
+        } else {
+            &stripped_name
+        };
+
         // For path-qualified names (e.g., "runtime::reactor_create"), ensure the
         // declaration uses the correct name. Try qualified form first (with __),
         // then bare method name, to avoid colliding names across modules.
@@ -2071,7 +2114,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
             let qualified_actual = if type_args.is_empty() {
                 base_name.replace("::", "__")
             } else {
-                self.mangle_function_name(base_name, type_args).replace("::", "__")
+                self.mangle_function_name(base_name, type_args)
+                    .replace("::", "__")
             };
             if let Some(f) = self.module.get_function(&qualified_actual) {
                 return f;
@@ -2102,9 +2146,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
             // (e.g., String::new() vs LLVMCodegen::new("bench")).
             let param_types: Vec<_> = (0..args_count).map(|_| self.i64_type.into()).collect();
             let fn_type = self.i64_type.fn_type(&param_types, false);
-            return self.module.add_function(&qualified_actual, fn_type, Some(Linkage::External));
+            return self
+                .module
+                .add_function(&qualified_actual, fn_type, Some(Linkage::External));
         }
-        
+
         // Non-qualified name: use as-is
         let actual_name = if type_args.is_empty() {
             base_name.to_string()
@@ -3155,8 +3201,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         let suffix = &func[pos + 1..];
                         if suffix.chars().all(|c| c.is_ascii_digit()) {
                             &func[..pos]
-                        } else { func }
-                    } else { func };
+                        } else {
+                            func
+                        }
+                    } else {
+                        func
+                    };
 
                     // Check if this is a runtime function that takes pointer arguments
                     let needs_ptr_arg = base_func == "option_is_some"
@@ -4361,14 +4411,25 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let mut base_expr = &exprs[base];
                 for _ in 0..10 {
                     match base_expr {
-                        MirExpr::Var(v) => { base_expr = match exprs.get(v) { Some(e) => e, None => break, }; }
-                        MirExpr::FieldAccess { base: inner, .. } => { base_expr = match exprs.get(inner) { Some(e) => e, None => break, }; }
+                        MirExpr::Var(v) => {
+                            base_expr = match exprs.get(v) {
+                                Some(e) => e,
+                                None => break,
+                            };
+                        }
+                        MirExpr::FieldAccess { base: inner, .. } => {
+                            base_expr = match exprs.get(inner) {
+                                Some(e) => e,
+                                None => break,
+                            };
+                        }
                         _ => break,
                     }
                 }
 
                 // Determine struct type from the Struct expression
-                let (variant, field_count) = if let MirExpr::Struct { variant, fields } = base_expr {
+                let (variant, field_count) = if let MirExpr::Struct { variant, fields } = base_expr
+                {
                     (variant.clone(), fields.len())
                 } else {
                     (String::new(), 2)
@@ -4384,7 +4445,8 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let struct_type = if let Some(ty) = self.specialized_types.get(&type_key) {
                     *ty
                 } else {
-                    let field_types: Vec<_> = (0..field_count).map(|_| self.i64_type.into()).collect();
+                    let field_types: Vec<_> =
+                        (0..field_count).map(|_| self.i64_type.into()).collect();
                     let ty = self.context.struct_type(&field_types, false);
                     self.specialized_types.insert(type_key.clone(), ty);
                     ty
@@ -4409,7 +4471,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     field.parse::<u32>().unwrap_or(0)
                 } else {
                     field_index
- };
+                };
 
                 // Extract value from struct
                 self.builder
@@ -4531,12 +4593,18 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 // Allocate on HEAP (was stack) — tuples are returned across function
                 // boundaries and stack allocation causes use-after-free.
                 let total_bytes = self.i64_type.const_int(*size as u64 * 8, false);
-                let malloc_fn = self.module.get_function("runtime_malloc").unwrap_or_else(|| {
-                    let i64_type = self.context.i64_type();
-                    let fn_type = i64_type.fn_type(&[i64_type.into()], false);
-                    self.module.add_function("runtime_malloc", fn_type, None)
-                });
-                let call = self.builder.build_call(malloc_fn, &[total_bytes.into()], "heap_array").unwrap();
+                let malloc_fn = self
+                    .module
+                    .get_function("runtime_malloc")
+                    .unwrap_or_else(|| {
+                        let i64_type = self.context.i64_type();
+                        let fn_type = i64_type.fn_type(&[i64_type.into()], false);
+                        self.module.add_function("runtime_malloc", fn_type, None)
+                    });
+                let call = self
+                    .builder
+                    .build_call(malloc_fn, &[total_bytes.into()], "heap_array")
+                    .unwrap();
                 let heap_ptr = Self::call_site_to_basic_value(call)
                     .unwrap()
                     .into_int_value();

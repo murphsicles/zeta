@@ -4,8 +4,8 @@
 //! Implements the `Bitcoin_Key_*` function family using Father's `nour` library.
 
 use crate::blockchain::common::error::BlockchainError;
-use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, ecdsa};
 use secp256k1::ecdsa::Signature;
+use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, ecdsa};
 
 /// BSV key pair
 #[derive(Debug, Clone)]

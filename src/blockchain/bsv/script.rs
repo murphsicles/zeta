@@ -64,7 +64,9 @@ pub fn Bitcoin_Script_p2sh(script_hash: &[u8]) -> Result<BtcScript, BlockchainEr
 /// * `BtcScript` - Created OP_RETURN script
 pub fn Bitcoin_Script_op_return(data: &[u8]) -> BtcScript {
     let _ = data;
-    BtcScript { bytes: data.to_vec() }
+    BtcScript {
+        bytes: data.to_vec(),
+    }
 }
 
 /// Create multisig script
