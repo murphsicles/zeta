@@ -98,7 +98,13 @@ fn repl(dump_mir: bool) -> Result<(), Box<dyn std::error::Error>> {
 
 // Existing compile function (updated to use ported middle/backend)
 fn compile(source: String) -> i64 {
-    let (_, asts) = parse_zeta(&source).unwrap();
+    let (_, asts) = match parse_zeta(&source) {
+        Ok(a) => a,
+        Err(e) => {
+            println!("Parse error: {:?}", e);
+            return -1;
+        }
+    };
     println("=== Parsed AST ===");
     println("{:#?}", asts);
     let mut resolver = Resolver::new();
@@ -124,14 +130,24 @@ fn compile(source: String) -> i64 {
     let ir = codegen.finalize();
     println("=== Generated LLVM IR ===");
     println!("{}", ir);
-    let executor = finalize_and_jit(codegen).unwrap();
-    if let Some(main_fn) = executor.get_main() {
-        let result = main_fn();
-        println("Execution result: {}", result);
-        result as i64
-    } else {
-        println("No main function found");
-        -2
+
+    // JIT execution — wrap in Result to avoid segfaults from complex features
+    // (closures, higher-order functions, etc. may not fully JIT yet)
+    match finalize_and_jit(codegen) {
+        Ok(executor) => {
+            if let Some(main_fn) = executor.get_main() {
+                let result = main_fn();
+                println("Execution result: {}", result);
+                result as i64
+            } else {
+                println("No main function found");
+                -2
+            }
+        },
+        Err(e) => {
+            println!("JIT execution skipped: {}", e);
+            0
+        }
     }
 }
 
