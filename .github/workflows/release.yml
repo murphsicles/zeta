@@ -1,0 +1,332 @@
+# Multi-Platform Release — builds zetac binary for Linux, macOS, Windows
+# Triggered by version tags (v*) or manual workflow_dispatch
+# Publishes all platform assets to a single GitHub Release
+
+name: Multi-Platform Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Override release tag (leave empty for auto)'
+        required: false
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ─── Linux x86_64 (self-hosted Galaxy runner) ──────────────────────
+  linux-x86_64:
+    name: Linux x86_64 (Galaxy)
+    runs-on: [self-hosted, galaxy, wsl2, x86-64]
+    env:
+      LLVM_SYS_210_PREFIX: /usr/lib/llvm-21
+      LLVM_SYS_211_PREFIX: /usr/lib/llvm-21
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: bootstrap
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Package artifact
+        run: |
+          mkdir -p dist
+          cp target/release/zetac dist/zetac-linux-x86_64
+          cp zeta_runtime_c.o dist/ 2>/dev/null || echo "No runtime .o to include"
+          chmod +x dist/zetac-linux-x86_64
+          cd dist && sha256sum zetac-linux-x86_64 > zetac-linux-x86_64.sha256
+          echo "Artifacts:"
+          ls -lh dist/
+
+      - uses: actions/upload-artifact@v8
+        with:
+          name: zetac-linux-x86_64
+          path: dist/
+
+  # ─── Linux x86_64 (GitHub CI runner, backup) ──────────────────────
+  linux-x86_64-ci:
+    name: Linux x86_64 (CI)
+    runs-on: ubuntu-latest
+    env:
+      LLVM_SYS_210_PREFIX: /usr/lib/llvm-21
+      LLVM_SYS_211_PREFIX: /usr/lib/llvm-21
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: bootstrap
+
+      - name: Install LLVM 21
+        run: |
+          wget -q https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 21
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq llvm-21 llvm-21-dev llvm-21-tools libpolly-21-dev
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Package artifact
+        run: |
+          mkdir -p dist
+          cp target/release/zetac dist/zetac-linux-x86_64
+          chmod +x dist/zetac-linux-x86_64
+          cd dist && sha256sum zetac-linux-x86_64 > zetac-linux-x86_64.sha256
+          echo "Artifacts:"
+          ls -lh dist/
+
+      - uses: actions/upload-artifact@v8
+        with:
+          name: zetac-linux-x86_64-ci
+          path: dist/
+
+  # ─── macOS x86_64 (Intel, GitHub macos-13 runner) ─────────────────
+  macos-x86_64:
+    name: macOS x86_64
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: bootstrap
+
+      - name: Install LLVM 21
+        run: |
+          brew install llvm@21
+          brew link --overwrite llvm@21
+          echo "LLVM_SYS_211_PREFIX=$(brew --prefix llvm@21)" >> $GITHUB_ENV
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Package artifact
+        run: |
+          mkdir -p dist
+          cp target/release/zetac dist/zetac-macos-x86_64
+          chmod +x dist/zetac-macos-x86_64
+          cd dist && shasum -a 256 zetac-macos-x86_64 > zetac-macos-x86_64.sha256
+          echo "Artifacts:"
+          ls -lh dist/
+
+      - uses: actions/upload-artifact@v8
+        with:
+          name: zetac-macos-x86_64
+          path: dist/
+
+  # ─── macOS ARM64 (Apple Silicon, GitHub macos-14 runner) ──────────
+  macos-arm64:
+    name: macOS ARM64
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: bootstrap
+
+      - name: Install LLVM 21
+        run: |
+          brew install llvm@21
+          brew link --overwrite llvm@21
+          echo "LLVM_SYS_211_PREFIX=$(brew --prefix llvm@21)" >> $GITHUB_ENV
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+          targets: aarch64-apple-darwin
+
+      - name: Build release
+        run: cargo build --release --target aarch64-apple-darwin
+
+      - name: Package artifact
+        run: |
+          mkdir -p dist
+          cp target/aarch64-apple-darwin/release/zetac dist/zetac-macos-arm64
+          chmod +x dist/zetac-macos-arm64
+          cd dist && shasum -a 256 zetac-macos-arm64 > zetac-macos-arm64.sha256
+          echo "Artifacts:"
+          ls -lh dist/
+
+      - uses: actions/upload-artifact@v8
+        with:
+          name: zetac-macos-arm64
+          path: dist/
+
+  # ─── Windows x86_64 (GitHub windows-2022 runner) ─────────────────
+  windows-x86_64:
+    name: Windows x86_64
+    runs-on: windows-2022
+    # Windows LLVM setup is the most fragile — don't block the release
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: bootstrap
+
+      - name: Install LLVM 21
+        shell: pwsh
+        run: |
+          # Check known paths for pre-installed LLVM 21
+          $knownPaths = @(
+            "C:\Program Files\LLVM",
+            "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm"
+          )
+          foreach ($p in $knownPaths) {
+            $cfg = Join-Path $p "bin\llvm-config.exe"
+            if (Test-Path $cfg) {
+              $ver = & $cfg --version 2>`$null
+              if ($ver -match '^21\.') {
+                Write-Host "Found LLVM 21 at $p"
+                "LLVM_SYS_211_PREFIX=$p" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+                "$(Join-Path $p 'bin')" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+                exit 0
+              }
+            }
+          }
+          # Install via chocolatey
+          Write-Host "Installing LLVM via chocolatey..."
+          choco install llvm --no-progress -y 2>&1 | Write-Host
+          # Locate llvm-config
+          $cfg = Get-ChildItem "${env:ProgramFiles}" -Recurse -Filter "llvm-config.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $cfg) {
+            $cfg = Get-ChildItem "${env:ProgramFiles(x86)}" -Recurse -Filter "llvm-config.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          }
+          if ($cfg) {
+            $ver = & $cfg.FullName --version 2>`$null
+            $dir = Resolve-Path (Join-Path $cfg.Directory.FullName '..')
+            "LLVM_SYS_211_PREFIX=$dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            "$(Join-Path $dir 'bin')" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            Write-Host "Installed LLVM $ver at $dir"
+          } else {
+            throw "llvm-config.exe not found after choco install"
+          }
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+          targets: x86_64-pc-windows-msvc
+
+      - name: Build release
+        run: cargo build --release --target x86_64-pc-windows-msvc
+
+      - name: Package artifact
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist
+          Copy-Item "target/x86_64-pc-windows-msvc/release/zetac.exe" "dist/zetac-windows-x86_64.exe"
+          $hash = (Get-FileHash "dist/zetac-windows-x86_64.exe" -Algorithm SHA256).Hash.ToLower()
+          Set-Content -Path "dist/zetac-windows-x86_64.exe.sha256" -Value "$hash  zetac-windows-x86_64.exe"
+          Write-Host "Windows artifacts:"
+          Get-ChildItem dist/
+
+      - uses: actions/upload-artifact@v8
+        with:
+          name: zetac-windows-x86_64
+          path: dist/
+
+  # ─── Publish Release ──────────────────────────────────────────────
+  publish:
+    name: Publish Release
+    needs:
+      - linux-x86_64
+      - linux-x86_64-ci
+      - macos-x86_64
+      - macos-arm64
+      - windows-x86_64
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: zetac-*
+          merge-multiple: false
+
+      - name: Stage release assets
+        run: |
+          mkdir -p release-assets
+          # Collect from each artifact directory, preferring non-ci builds
+          for dir in zetac-linux-x86_64 zetac-linux-x86_64-ci zetac-macos-x86_64 zetac-macos-arm64 zetac-windows-x86_64; do
+            if [ -d "$dir" ]; then
+              cp -v "$dir"/* release-assets/ 2>/dev/null || true
+            fi
+          done
+          # Prefer Galaxy binary over CI binary (identical names — CI overwrites)
+          rm -f release-assets/zetac-linux-x86_64.sha256.ci 2>/dev/null || true
+          echo ""
+          echo "=== Release assets ==="
+          ls -lh release-assets/
+
+      - name: Generate release body
+        id: body
+        run: |
+          cat > body.md << 'BODY'
+          ## Zeta ${{ github.ref_name }}
+
+          ### Downloads
+
+          | Platform | Binary | SHA256 |
+          |---|---|---|
+          | Linux x86_64 | [zetac-linux-x86_64](./zetac-linux-x86_64) | [checksum](./zetac-linux-x86_64.sha256) |
+          | macOS x86_64 (Intel) | [zetac-macos-x86_64](./zetac-macos-x86_64) | [checksum](./zetac-macos-x86_64.sha256) |
+          | macOS ARM64 (Apple Silicon) | [zetac-macos-arm64](./zetac-macos-arm64) | [checksum](./zetac-macos-arm64.sha256) |
+          | Windows x86_64 | [zetac-windows-x86_64.exe](./zetac-windows-x86_64.exe) | [checksum](./zetac-windows-x86_64.exe.sha256) |
+
+          ### Quick Install
+
+          **Linux/macOS:**
+          \`\`\`bash
+          curl -sSf https://raw.githubusercontent.com/murphsicles/zeta/main/install.sh | sh
+          \`\`\`
+
+          **Windows (PowerShell):**
+          \`\`\`powershell
+          iex (iwr -useb https://raw.githubusercontent.com/murphsicles/zeta/main/install.ps1)
+          \`\`\`
+
+          ### Verify
+
+          \`\`\`bash
+          # Linux
+          sha256sum -c zetac-linux-x86_64.sha256
+          # macOS
+          shasum -a 256 -c zetac-macos-arm64.sha256
+          # Windows (PowerShell)
+          Get-FileHash zetac-windows-x86_64.exe -Algorithm SHA256
+          \`\`\`
+
+          ### Notes
+
+          - Self-hosted Linux build includes \`zeta_runtime_c.o\` when available
+          - Windows build is best-effort (LLVM 21 on Windows is experimental)
+          - All binaries are statically linked where possible
+          BODY
+          echo "body<<BODYEOF" >> $GITHUB_OUTPUT
+          cat body.md >> $GITHUB_OUTPUT
+          echo "BODYEOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          body_path: body.md
+          generate_release_notes: true
+          make_latest: true
