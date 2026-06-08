@@ -93,10 +93,12 @@ impl MirGen {
         self.type_decls.clear();
         self.next_id = 1;
 
-        // Check if this is an extern/FFI function (empty body, no ret expr).
-        // Extern functions should produce a minimal MIR with no body stmts,
-        // so the codegen can emit an external declaration instead of a stub.
-        let is_extern = matches!(ast, AstNode::FuncDef { body, ret_expr, .. } if body.is_empty() && ret_expr.is_none());
+        // Check if this is an extern/FFI function declaration.
+        // Only AstNode::ExternFunc is truly extern. FuncDef with empty
+        // bodies are user-defined stub functions, not extern — they get
+        // stub body emission in codegen.
+        // Builtins like malloc/free are handled via a name lookup in codegen.
+        let is_extern = matches!(ast, AstNode::ExternFunc { .. });
 
         if !is_extern {
             if let AstNode::FuncDef { params, .. } = ast {
@@ -151,20 +153,22 @@ impl MirGen {
         }
 
         Mir {
-            name: if let AstNode::FuncDef { name, .. } = ast {
-                Some(name.clone())
-            } else {
-                None
+            name: match ast {
+                AstNode::FuncDef { name, .. } | AstNode::ExternFunc { name, .. } => {
+                    Some(name.clone())
+                }
+                _ => None,
             },
             // Count params for potential name mangling (used by get_or_declare_function)
-            param_indices: if let AstNode::FuncDef { params, .. } = ast {
-                params
-                    .iter()
-                    .enumerate()
-                    .map(|(i, (n, _))| (n.clone(), i as u32))
-                    .collect()
-            } else {
-                vec![]
+            param_indices: match ast {
+                AstNode::FuncDef { params, .. } | AstNode::ExternFunc { params, .. } => {
+                    params
+                        .iter()
+                        .enumerate()
+                        .map(|(i, (n, _))| (n.clone(), i as u32))
+                        .collect()
+                }
+                _ => vec![],
             },
             properties: if let AstNode::FuncDef { attrs, .. } = ast {
                 attrs
@@ -187,6 +191,7 @@ impl MirGen {
             },
             stmts: std::mem::take(&mut self.stmts),
             exprs: std::mem::take(&mut self.exprs),
+            is_extern, // store whether this is an extern/FFI declaration
             ctfe_consts: std::mem::take(&mut self.ctfe_consts),
             type_map: std::mem::take(&mut self.type_map),
             global_consts: std::mem::take(&mut self.global_consts),

@@ -14,6 +14,9 @@ pub struct Mir {
     /// Mathematical properties for this function
     /// "commutative", "associative", "identity(value)"
     pub properties: Vec<String>,
+    /// True if this is an extern/FFI declaration (empty body + no ret expr).
+    /// Distinguishes extern fns from user-defined empty functions.
+    pub is_extern: bool,
 }
 
 #[derive(Debug, Clone)]

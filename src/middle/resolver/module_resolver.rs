@@ -663,85 +663,53 @@ impl ModuleResolver {
         let mut asts = Vec::new();
 
         // Create malloc function
-        let malloc_func = AstNode::FuncDef {
+        let malloc_func = AstNode::ExternFunc {
             name: "malloc".to_string(),
             generics: vec![],
             lifetimes: vec![],
             params: vec![("size".to_string(), "i64".to_string())],
             ret: "i64".to_string(),
-            body: vec![],
-            attrs: vec![],
-            ret_expr: None,
-            single_line: false,
-            doc: "Allocate memory".to_string(),
-            pub_: true,
-            async_: false,
-            const_: false,
-            comptime_: false,
             where_clauses: vec![],
+
         };
         asts.push(malloc_func.clone());
         exports.insert("malloc".to_string(), malloc_func);
 
         // Create free function
-        let free_func = AstNode::FuncDef {
+        let free_func = AstNode::ExternFunc {
             name: "free".to_string(),
             generics: vec![],
             lifetimes: vec![],
             params: vec![("ptr".to_string(), "i64".to_string())],
             ret: "()".to_string(),
-            body: vec![],
-            attrs: vec![],
-            ret_expr: None,
-            single_line: false,
-            doc: "Free memory".to_string(),
-            pub_: true,
-            async_: false,
-            const_: false,
-            comptime_: false,
             where_clauses: vec![],
+
         };
         asts.push(free_func.clone());
         exports.insert("free".to_string(), free_func);
 
         // Create print function
-        let print_func = AstNode::FuncDef {
+        let print_func = AstNode::ExternFunc {
             name: "print".to_string(),
             generics: vec![],
             lifetimes: vec![],
             params: vec![("msg".to_string(), "i64".to_string())],
             ret: "()".to_string(),
-            body: vec![],
-            attrs: vec![],
-            ret_expr: None,
-            single_line: false,
-            doc: "Print message".to_string(),
-            pub_: true,
-            async_: false,
-            const_: false,
-            comptime_: false,
             where_clauses: vec![],
+
         };
         asts.push(print_func.clone());
         exports.insert("print".to_string(), print_func);
 
         // Create println function
-        let println_func = AstNode::FuncDef {
+        let println_func = AstNode::ExternFunc {
             name: "println".to_string(),
             generics: vec![],
             lifetimes: vec![],
             params: vec![("msg".to_string(), "i64".to_string())],
             ret: "()".to_string(),
-            body: vec![],
-            attrs: vec![],
-            ret_expr: None,
-            single_line: false,
-            doc: "Print message with newline".to_string(),
-            pub_: true,
-            async_: false,
-            const_: false,
-            comptime_: false,
             where_clauses: vec![],
+
         };
         asts.push(println_func.clone());
         exports.insert("println".to_string(), println_func);

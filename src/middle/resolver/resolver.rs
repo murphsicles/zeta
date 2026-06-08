@@ -819,40 +819,22 @@ impl Resolver {
     /// Register built-in runtime functions that are required for compilation
     fn register_builtin_functions(&mut self) {
         // malloc(size: i64) -> i64 (allocate memory)
-        self.register(AstNode::FuncDef {
+        self.register(AstNode::ExternFunc {
             name: "malloc".to_string(),
             generics: vec![],
             lifetimes: vec![],
             params: vec![("size".to_string(), "i64".to_string())],
             ret: "i64".to_string(),
-            body: vec![],
-            attrs: vec![],
-            ret_expr: None,
-            single_line: false,
-            doc: "Allocate memory".to_string(),
-            pub_: true,
-            async_: false,
-            const_: false,
-            comptime_: false,
             where_clauses: vec![],
         });
 
         // free(ptr: i64) -> () (free memory)
-        self.register(AstNode::FuncDef {
+        self.register(AstNode::ExternFunc {
             name: "free".to_string(),
             generics: vec![],
             lifetimes: vec![],
             params: vec![("ptr".to_string(), "i64".to_string())],
             ret: "()".to_string(),
-            body: vec![],
-            attrs: vec![],
-            ret_expr: None,
-            single_line: false,
-            doc: "Free memory".to_string(),
-            pub_: true,
-            async_: false,
-            const_: false,
-            comptime_: false,
             where_clauses: vec![],
         });
 

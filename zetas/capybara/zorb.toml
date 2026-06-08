@@ -1,0 +1,12 @@
+[package]
+name = "@database/capybara"
+version = "0.1.0"
+description = "The World's Fastest OLTP Database — TigerBeetle-inspired, pure Zeta"
+authors = ["Zak Murphy", "Roy Murphy"]
+license = "MIT"
+
+[dependencies]
+
+[fmt]
+style = "zeta-strict"
+max_width = 100

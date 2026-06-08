@@ -1103,11 +1103,25 @@ impl<'ctx> LLVMCodegen<'ctx> {
         // First try the actual (potentially mangled) name, then fall back to the original
         let fn_val = self.get_function(&actual_name);
 
-        // If function has no body (extern/FFI declaration), mark as
-        // external linkage and skip body generation — the linker will
-        // resolve the symbol at link time instead of producing a stub.
+        // If function has no body, check the MIR is_extern flag.
+        // Extern functions get External linkage (resolved at link time).
+        // User-defined empty functions get a ret i64 0 stub body.
+        // If function has no body:
+        //   - ExternFunc (true FFI) → External linkage, linker resolves
+        //   - Everything else → ret i64 0 stub
+        // Builtins like malloc/free are now ExternFunc (from resolver.rs
+        // and module_resolver.rs), so they get External linkage correctly.
         if mir.stmts.is_empty() {
-            fn_val.set_linkage(Linkage::External);
+            if mir.is_extern {
+                fn_val.set_linkage(Linkage::External);
+                return;
+            }
+            // User-defined empty function: emit ret i64 0 stub.
+            let entry = self.context.append_basic_block(fn_val, "entry");
+            self.builder.position_at_end(entry);
+            self.builder
+                .build_return(Some(&self.i64_type.const_zero()))
+                .unwrap();
             return;
         }
 
