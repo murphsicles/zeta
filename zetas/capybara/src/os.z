@@ -8,22 +8,12 @@ extern fn runtime_malloc(size: i64) -> i64;
 extern fn runtime_free(ptr: i64);
 
 // io_uring async I/O (still C)
-extern fn iouring_init(state_buf: i64, entries: i64) -> i64;
-extern fn iouring_sqe(state_buf: i64) -> i64;
-extern fn iouring_submit(state_buf: i64, sq_count: i64, wait_nr: i64) -> i64;
-extern fn iouring_cqe(state_buf: i64) -> i64;
-extern fn iouring_cqe_res(state_buf: i64) -> i64;
-extern fn uring_accept_sqe(sqe: i64, server_fd: i64, user_data: i64) -> i64;
-extern fn uring_read_sqe(sqe: i64, fd: i64, buf: i64, len: i64, user_data: i64) -> i64;
-extern fn uring_write_sqe(sqe: i64, fd: i64, buf: i64, len: i64, user_data: i64) -> i64;
 
 // Built-in memory ops (now compiler intrinsics — emitted as LLVM load/store)
 extern fn capy_store_i64(addr: i64, val: i64) -> i64;
 extern fn capy_load_i64(addr: i64) -> i64;
 
 // Standard C memory ops
-extern fn memset(ptr: i64, val: i64, n: i64) -> i64;
-extern fn memcpy(dst: i64, src: i64, n: i64) -> i64;
 
 // ─── Logging & Time ─────────────────────────────────────────────────
 fn os_log(msg: i64) { print_str(msg); }
@@ -49,15 +39,126 @@ fn os_mkdir(path: i64, mode: i64) -> i64 { return syscall(83, path, mode, 0, 0, 
 
 // ─── Networking ──────────────────────────────────────────────────────
 
-// ─── Async I/O (io_uring) ─────────────────────────────────────────────
-fn os_uring_init(st: i64, entries: i64) -> i64 { return iouring_init(st, entries); }
-fn os_uring_sqe(st: i64) -> i64 { return iouring_sqe(st); }
-fn os_uring_submit(st: i64, count: i64, wait: i64) -> i64 { return iouring_submit(st, count, wait); }
-fn os_uring_cqe(st: i64) -> i64 { return iouring_cqe(st); }
-fn os_uring_cqe_res(st: i64) -> i64 { return iouring_cqe_res(st); }
-fn os_uring_accept_sqe(sqe: i64, fd: i64, ud: i64) -> i64 { return uring_accept_sqe(sqe, fd, ud); }
-fn os_uring_read_sqe(sqe: i64, fd: i64, buf: i64, len: i64, ud: i64) -> i64 { return uring_read_sqe(sqe, fd, buf, len, ud); }
-fn os_uring_write_sqe(sqe: i64, fd: i64, buf: i64, len: i64, ud: i64) -> i64 { return uring_write_sqe(sqe, fd, buf, len, ud); }
+// ─── Async I/O (io_uring) — pure Zeta via syscall() + os_store/os_load ───
+// io_uring state block: 0=fd, 8=sq, 16=sqe, 24=cq, 32=sq_ent, 40=cq_ent
+//   48=sq_tail, 56=cq_head, 64=sq_array, 72=cq_cqes
+//   80=sq_mask, 88=cq_mask, 96=cq_tail, 104=sq_head
+//   112=cqe_res, 120=index
+
+fn os_uring_init(st: i64, entries: i64) -> i64 {
+    let p = os_alloc(128); os_zero(p, 128);
+    // io_uring_setup(entries, p) = syscall 425
+    let fd = syscall(425, entries, p, 0, 0, 0, 0);
+    if fd < 0 { os_dealloc(p); return -1; }
+    let sq_ent = os_load(p) & 0xFFFFFFFF;      // u32
+    let cq_ent = os_load(p+4) & 0xFFFFFFFF;     // u32
+    let sq_tail = os_load(p+40) & 0xFFFFFFFF;   // u32
+    let sq_head = os_load(p+44) & 0xFFFFFFFF;   // u32
+    let sq_mask = os_load(p+48) & 0xFFFFFFFF;   // u32
+    let sq_arr = os_load(p+52) & 0xFFFFFFFF;    // u32
+    let cq_head = os_load(p+72) & 0xFFFFFFFF;   // u32
+    let cq_tail = os_load(p+76) & 0xFFFFFFFF;   // u32
+    let cq_mask = os_load(p+80) & 0xFFFFFFFF;   // u32
+    let cq_cqes = os_load(p+84) & 0xFFFFFFFF;   // u32
+    os_dealloc(p);
+    // mmaps: syscall 9 = mmap(addr, len, prot, flags, fd, offset)
+    let sq_sz = sq_arr + sq_ent * 4;
+    let sq = syscall(9, 0, sq_sz, 3, 0x08001, fd, 0);
+    if sq < 0 || sq > -4096 { syscall(3, fd); return -2; }
+    let sqe_sz = entries * 64;
+    let sqe = syscall(9, 0, sqe_sz, 3, 0x08001, fd, 0x10000000);
+    if sqe < 0 || sqe > -4096 { syscall(3, fd); return -3; }
+    let cq_sz = cq_cqes + cq_ent * 16;
+    let cq = syscall(9, 0, cq_sz, 3, 0x08001, fd, 0x8000000);
+    if cq < 0 || cq > -4096 { syscall(3, fd); return -4; }
+    os_store(st, fd); os_store(st+8, sq); os_store(st+16, sqe); os_store(st+24, cq);
+    os_store(st+32, sq_ent); os_store(st+40, cq_ent);
+    os_store(st+48, sq_tail); os_store(st+56, cq_head);
+    os_store(st+64, sq_arr); os_store(st+72, cq_cqes);
+    os_store(st+80, sq_mask); os_store(st+88, cq_mask);
+    os_store(st+96, cq_tail); os_store(st+104, sq_head);
+    os_store(st+112, 0); os_store(st+120, 0);
+    return 0;
+}
+
+fn os_uring_sqe(st: i64) -> i64 {
+    let sq = os_load(st+8); let sqe = os_load(st+16);
+    let t = os_load(sq + os_load(st+48));  // tail
+    let h = os_load(sq + os_load(st+104));  // head
+    let sq_ent = os_load(st+32);
+    if t - h >= sq_ent { return 0; }
+    let idx = os_load(st+120);
+    os_store(st+120, idx + 1);
+    let mask = os_load(st+80);
+    return sqe + ((t + idx) & mask) * 64;
+}
+
+fn os_uring_submit(st: i64, count: i64, wait: i64) -> i64 {
+    let sq = os_load(st+8); let fd = os_load(st);
+    let tail_off = os_load(st+48); let arr_off = os_load(st+64);
+    let mask = os_load(st+80);
+    let t = os_load(sq + tail_off);
+    let i: i64 = 0;
+    while i < count {
+        let idx = (t + i) & mask;
+        // Write to array at (sq + arr_off + i*4) = idx (u32)
+        os_store(sq + arr_off + i*4, idx);
+        i = i + 1;
+    }
+    os_store(sq + tail_off, t + count);
+    os_store(st+120, 0);
+    // io_uring_enter = syscall 426: (fd, to_submit, min_complete, flags, sig, sig_size)
+    let flags = 0;
+    if wait > 0 { flags = 1; }  // IORING_ENTER_GETEVENTS
+    return syscall(426, fd, count, wait, flags, 0, 0);
+}
+
+fn os_uring_cqe(st: i64) -> i64 {
+    let cq = os_load(st+24);
+    let h = os_load(cq + os_load(st+56));  // head
+    let t = os_load(cq + os_load(st+96));  // tail
+    if h == t { return 0; }
+    let cqes = cq + os_load(st+72);
+    let mask = os_load(st+88);
+    let idx = h & mask;
+    let res = os_load(cqes + idx * 16 + 8);  // CQE: 0=user_data, 8=res
+    let ud = os_load(cqes + idx * 16);  // user_data
+    os_store(st+112, res);
+    os_store(cq + os_load(st+56), h + 1);  // advance head
+    return ud;
+}
+
+fn os_uring_cqe_res(st: i64) -> i64 { return os_load(st+112); }
+
+fn os_uring_accept_sqe(sqe: i64, fd: i64, ud: i64) -> i64 {
+    os_zero(sqe, 64);
+    os_store(sqe, 22);     // opcode = IORING_OP_ACCEPT = 22
+    os_store(sqe+4, fd);   // fd at offset 4
+    os_store(sqe+40, ud);  // user_data at offset 40
+    return 0;
+}
+
+fn os_uring_read_sqe(sqe: i64, fd: i64, buf: i64, len: i64, ud: i64) -> i64 {
+    os_zero(sqe, 64);
+    os_store(sqe, 18);     // opcode = IORING_OP_READ = 18
+    os_store(sqe+4, fd);   // fd
+    os_store(sqe+8, 0);    // offset = 0
+    os_store(sqe+16, buf); // addr / buf ptr
+    os_store(sqe+24, len); // len
+    os_store(sqe+40, ud);  // user_data
+    return 0;
+}
+
+fn os_uring_write_sqe(sqe: i64, fd: i64, buf: i64, len: i64, ud: i64) -> i64 {
+    os_zero(sqe, 64);
+    os_store(sqe, 19);     // opcode = IORING_OP_WRITE = 19
+    os_store(sqe+4, fd);   // fd
+    os_store(sqe+8, 0);    // offset = 0
+    os_store(sqe+16, buf); // addr / buf ptr
+    os_store(sqe+24, len); // len
+    os_store(sqe+40, ud);  // user_data
+    return 0;
+}
 
 // ─── CLI — pure Zeta (replacing capy_argc/capy_argv_i/capy_streq/capy_atoi) ───
 fn os_argc(argc: i64, argv: i64) -> i64 { return argc; }
