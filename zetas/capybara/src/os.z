@@ -1,0 +1,145 @@
+// OS Abstraction Layer — system interface (pure Zeta, replacing C runtime)
+
+// ─── Core Runtime (zeta_runtime_c.o) ────────────────────────────────
+extern fn print_str(s: i64);
+extern fn println_i64(n: i64);
+extern fn get_time_us() -> i64;
+extern fn runtime_malloc(size: i64) -> i64;
+extern fn runtime_free(ptr: i64);
+extern fn posix_open_mode(path: i64, flags: i64, mode: i64) -> i64;
+extern fn posix_close(fd: i64);
+extern fn posix_fsync(fd: i64) -> i64;
+extern fn posix_lseek(fd: i64, offset: i64, whence: i64) -> i64;
+extern fn posix_write(fd: i64, buf: i64, count: i64) -> i64;
+extern fn posix_read(fd: i64, buf: i64, count: i64) -> i64;
+extern fn posix_mkdir(path: i64, mode: i64) -> i64;
+
+// TCP networking (still C)
+extern fn net_listen(port: i64) -> i64;
+extern fn net_accept(server_fd: i64) -> i64;
+extern fn net_send(fd: i64, buf: i64, len: i64) -> i64;
+extern fn net_recv(fd: i64, buf: i64, len: i64) -> i64;
+extern fn net_connect(host: i64, port: i64) -> i64;
+extern fn net_close(fd: i64) -> i64;
+extern fn net_nonblock(fd: i64) -> i64;
+
+// io_uring async I/O (still C)
+extern fn iouring_init(state_buf: i64, entries: i64) -> i64;
+extern fn iouring_sqe(state_buf: i64) -> i64;
+extern fn iouring_submit(state_buf: i64, sq_count: i64, wait_nr: i64) -> i64;
+extern fn iouring_cqe(state_buf: i64) -> i64;
+extern fn iouring_cqe_res(state_buf: i64) -> i64;
+extern fn uring_accept_sqe(sqe: i64, server_fd: i64, user_data: i64) -> i64;
+extern fn uring_read_sqe(sqe: i64, fd: i64, buf: i64, len: i64, user_data: i64) -> i64;
+extern fn uring_write_sqe(sqe: i64, fd: i64, buf: i64, len: i64, user_data: i64) -> i64;
+
+// Built-in memory ops (now compiler intrinsics — emitted as LLVM load/store)
+extern fn capy_store_i64(addr: i64, val: i64) -> i64;
+extern fn capy_load_i64(addr: i64) -> i64;
+
+// Standard C memory ops
+extern fn memset(ptr: i64, val: i64, n: i64) -> i64;
+extern fn memcpy(dst: i64, src: i64, n: i64) -> i64;
+
+// ─── Logging & Time ─────────────────────────────────────────────────
+fn os_log(msg: i64) { print_str(msg); }
+fn os_log_i64(n: i64) { println_i64(n); }
+fn os_now_us() -> i64 { return get_time_us(); }
+
+// ─── Memory ─────────────────────────────────────────────────────────
+fn os_alloc(size: i64) -> i64 { return runtime_malloc(size); }
+fn os_dealloc(ptr: i64) { runtime_free(ptr); }
+fn os_zero(ptr: i64, n: i64) { memset(ptr, 0, n); }
+fn os_copy(dst: i64, src: i64, n: i64) { memcpy(dst, src, n); }
+fn os_store(addr: i64, val: i64) { capy_store_i64(addr, val); }
+fn os_load(addr: i64) -> i64 { return capy_load_i64(addr); }
+
+// ─── File I/O ───────────────────────────────────────────────────────
+fn os_open(path: i64, flags: i64, mode: i64) -> i64 { return posix_open_mode(path, flags, mode); }
+fn os_close(fd: i64) { posix_close(fd); }
+fn os_sync(fd: i64) -> i64 { return posix_fsync(fd); }
+fn os_seek(fd: i64, off: i64, whence: i64) -> i64 { return posix_lseek(fd, off, whence); }
+fn os_write(fd: i64, buf: i64, count: i64) -> i64 { return posix_write(fd, buf, count); }
+fn os_read(fd: i64, buf: i64, count: i64) -> i64 { return posix_read(fd, buf, count); }
+fn os_mkdir(path: i64, mode: i64) -> i64 { return posix_mkdir(path, mode); }
+
+// ─── Networking ──────────────────────────────────────────────────────
+fn os_listen(port: i64) -> i64 { return net_listen(port); }
+fn os_accept(server_fd: i64) -> i64 { return net_accept(server_fd); }
+fn os_send(fd: i64, buf: i64, len: i64) -> i64 { return net_send(fd, buf, len); }
+fn os_recv(fd: i64, buf: i64, len: i64) -> i64 { return net_recv(fd, buf, len); }
+fn os_net_close(fd: i64) -> i64 { return net_close(fd); }
+fn os_connect(host: i64, port: i64) -> i64 { return net_connect(host, port); }
+fn os_nonblock(fd: i64) -> i64 { return net_nonblock(fd); }
+
+// ─── Async I/O (io_uring) ─────────────────────────────────────────────
+fn os_uring_init(st: i64, entries: i64) -> i64 { return iouring_init(st, entries); }
+fn os_uring_sqe(st: i64) -> i64 { return iouring_sqe(st); }
+fn os_uring_submit(st: i64, count: i64, wait: i64) -> i64 { return iouring_submit(st, count, wait); }
+fn os_uring_cqe(st: i64) -> i64 { return iouring_cqe(st); }
+fn os_uring_cqe_res(st: i64) -> i64 { return iouring_cqe_res(st); }
+fn os_uring_accept_sqe(sqe: i64, fd: i64, ud: i64) -> i64 { return uring_accept_sqe(sqe, fd, ud); }
+fn os_uring_read_sqe(sqe: i64, fd: i64, buf: i64, len: i64, ud: i64) -> i64 { return uring_read_sqe(sqe, fd, buf, len, ud); }
+fn os_uring_write_sqe(sqe: i64, fd: i64, buf: i64, len: i64, ud: i64) -> i64 { return uring_write_sqe(sqe, fd, buf, len, ud); }
+
+// ─── CLI — pure Zeta (replacing capy_argc/capy_argv_i/capy_streq/capy_atoi) ───
+fn os_argc(argc: i64, argv: i64) -> i64 { return argc; }
+
+fn os_argv(argc: i64, argv: i64, i: i64) -> i64 {
+    if i < 0 { return 0; }
+    if i >= argc { return 0; }
+    // argv is a char** — array of string pointers. Each entry is 8 bytes.
+    // argv + i*8 holds the i-th string pointer.
+    return os_load(argv + i * 8);
+}
+
+fn os_streq(a: i64, b: i64) -> i64 {
+    // Compare 8 bytes at a time using os_load.
+    // Two strings are equal if all bytes through the null terminator match.
+    let mut off: i64 = 0;
+    while true {
+        let va = os_load(a + off);
+        let vb = os_load(b + off);
+        if va != vb { return 0; }
+        // All 8 bytes match. Check if any byte is null (end of string).
+        // Quick check: if the entire 64-bit value is 0, we're past the end.
+        if va == 0 { return 1; }
+        // Check first byte
+        let b0 = va & 0xFF;
+        if b0 == 0 { return 1; }
+        // Check remaining bytes via shift
+        let b1 = (va >> 8) & 0xFF;
+        if b1 == 0 { return 1; }
+        let b2 = (va >> 16) & 0xFF;
+        if b2 == 0 { return 1; }
+        let b3 = (va >> 24) & 0xFF;
+        if b3 == 0 { return 1; }
+        let b4 = (va >> 32) & 0xFF;
+        if b4 == 0 { return 1; }
+        let b5 = (va >> 40) & 0xFF;
+        if b5 == 0 { return 1; }
+        let b6 = (va >> 48) & 0xFF;
+        if b6 == 0 { return 1; }
+        let b7 = (va >> 56) & 0xFF;
+        if b7 == 0 { return 1; }
+        off = off + 8;
+    }
+}
+
+fn os_atoi(s: i64) -> i64 {
+    let mut val: i64 = 0;
+    let mut i: i64 = 0;
+    let mut neg: i64 = 0;
+    // Handle sign: '-' = 45, '+' = 43
+    let b0 = os_load(s) & 0xFF;
+    if b0 == 45 { neg = 1; i = 1; }
+    else if b0 == 43 { i = 1; }
+    // Parse digits
+    while true {
+        let b = os_load(s + i) & 0xFF;
+        if b < 48 { return neg == 1 ? -val : val; }
+        if b > 57 { return neg == 1 ? -val : val; }
+        val = val * 10 + (b - 48);
+        i = i + 1;
+    }
+}
