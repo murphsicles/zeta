@@ -14,15 +14,6 @@ extern fn posix_write(fd: i64, buf: i64, count: i64) -> i64;
 extern fn posix_read(fd: i64, buf: i64, count: i64) -> i64;
 extern fn posix_mkdir(path: i64, mode: i64) -> i64;
 
-// TCP networking (still C)
-extern fn net_listen(port: i64) -> i64;
-extern fn net_accept(server_fd: i64) -> i64;
-extern fn net_send(fd: i64, buf: i64, len: i64) -> i64;
-extern fn net_recv(fd: i64, buf: i64, len: i64) -> i64;
-extern fn net_connect(host: i64, port: i64) -> i64;
-extern fn net_close(fd: i64) -> i64;
-extern fn net_nonblock(fd: i64) -> i64;
-
 // io_uring async I/O (still C)
 extern fn iouring_init(state_buf: i64, entries: i64) -> i64;
 extern fn iouring_sqe(state_buf: i64) -> i64;
@@ -64,13 +55,6 @@ fn os_read(fd: i64, buf: i64, count: i64) -> i64 { return posix_read(fd, buf, co
 fn os_mkdir(path: i64, mode: i64) -> i64 { return posix_mkdir(path, mode); }
 
 // ─── Networking ──────────────────────────────────────────────────────
-fn os_listen(port: i64) -> i64 { return net_listen(port); }
-fn os_accept(server_fd: i64) -> i64 { return net_accept(server_fd); }
-fn os_send(fd: i64, buf: i64, len: i64) -> i64 { return net_send(fd, buf, len); }
-fn os_recv(fd: i64, buf: i64, len: i64) -> i64 { return net_recv(fd, buf, len); }
-fn os_net_close(fd: i64) -> i64 { return net_close(fd); }
-fn os_connect(host: i64, port: i64) -> i64 { return net_connect(host, port); }
-fn os_nonblock(fd: i64) -> i64 { return net_nonblock(fd); }
 
 // ─── Async I/O (io_uring) ─────────────────────────────────────────────
 fn os_uring_init(st: i64, entries: i64) -> i64 { return iouring_init(st, entries); }
@@ -142,4 +126,54 @@ fn os_atoi(s: i64) -> i64 {
         val = val * 10 + (b - 48);
         i = i + 1;
     }
+}
+
+// ─── Networking — pure Zeta via syscall() builtin (replaces capybara_runtime.c) ───
+fn os_listen(port: i64) -> i64 {
+    let fd = syscall(41, 2, 1, 0);  // socket(AF_INET=2, SOCK_STREAM=1, 0)
+    if fd < 0 { return -1; }
+    // setsockopt(fd, SOL_SOCKET=1, SO_REUSEADDR=2, &opt, 4)
+    let optbuf = os_alloc(8); os_store(optbuf, 1);
+    syscall(54, fd, 1, 2, optbuf, 4, 0); os_dealloc(optbuf);
+    // Build sockaddr_in in buffer
+    let addr = os_alloc(16); os_zero(addr, 16);
+    let nport = ((port & 0xFF) << 8) | ((port >> 8) & 0xFF);  // htons(port)
+    os_store(addr, (nport << 16) | 2);    // family=2, port=nport
+    os_store(addr + 4, 0x0100007f);        // addr=htonl(INADDR_LOOPBACK)
+    let br = syscall(49, fd, addr, 16, 0, 0, 0);  // bind
+    if br < 0 { syscall(3, fd); os_dealloc(addr); return -2; }
+    let lr = syscall(50, fd, 128, 0, 0, 0, 0);  // listen(fd, 128)
+    if lr < 0 { syscall(3, fd); os_dealloc(addr); return -3; }
+    os_dealloc(addr); return fd;
+}
+
+fn os_accept(server_fd: i64) -> i64 {
+    let addr = os_alloc(16); let addrlen = os_alloc(8); os_store(addrlen, 16);
+    let fd = syscall(43, server_fd, addr, addrlen, 0, 0, 0);  // accept
+    os_dealloc(addr); os_dealloc(addrlen); return fd;
+}
+
+fn os_send(fd: i64, buf: i64, len: i64) -> i64 { return syscall(1, fd, buf, len, 0, 0, 0); }
+
+fn os_recv(fd: i64, buf: i64, len: i64) -> i64 { return syscall(0, fd, buf, len, 0, 0, 0); }
+
+fn os_net_close(fd: i64) -> i64 { return syscall(3, fd, 0, 0, 0, 0, 0); }
+
+fn os_connect(host: i64, port: i64) -> i64 {
+    let fd = syscall(41, 2, 1, 0);  // socket
+    if fd < 0 { return -1; }
+    let addr = os_alloc(16); os_zero(addr, 16);
+    let nport = ((port & 0xFF) << 8) | ((port >> 8) & 0xFF);
+    os_store(addr, (nport << 16) | 2);
+    os_store(addr + 4, 0x0100007f);  // 127.0.0.1
+    let cr = syscall(42, fd, addr, 16, 0, 0, 0);  // connect
+    os_dealloc(addr);
+    if cr < 0 { syscall(3, fd); return -2; }
+    return fd;
+}
+
+fn os_nonblock(fd: i64) -> i64 {
+    let flags = syscall(72, fd, 0, 0, 0, 0, 0);  // F_GETFL
+    if flags < 0 { return -1; }
+    return syscall(72, fd, 4, flags | 2048, 0, 0, 0);  // F_SETFL | O_NONBLOCK
 }
