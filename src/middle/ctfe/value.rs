@@ -17,6 +17,8 @@ pub enum ConstValue {
     IntArray(Vec<i64>),
     /// Unit type (empty tuple)
     Unit,
+    /// String literal (the content, e.g. "/tmp/data")
+    String(String),
 }
 
 impl ConstValue {
@@ -29,6 +31,7 @@ impl ConstValue {
             ConstValue::Array(_) => "array",
             ConstValue::IntArray(_) => "int_array",
             ConstValue::Unit => "unit",
+            ConstValue::String(_) => "str",
         }
     }
 

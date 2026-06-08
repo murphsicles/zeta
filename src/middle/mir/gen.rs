@@ -875,6 +875,12 @@ impl MirGen {
                             crate::middle::ctfe::value::ConstValue::Bool(*b),
                         );
                     }
+                    AstNode::StringLit(s) => {
+                        self.global_consts.insert(
+                            name.clone(),
+                            crate::middle::ctfe::value::ConstValue::String(s.clone()),
+                        );
+                    }
                     _ => {
                         // Try CTFE evaluation at MIR gen time
                         if let Ok(val) = crate::middle::ctfe::eval_const_expr(value) {
@@ -1180,6 +1186,12 @@ impl MirGen {
                         crate::middle::ctfe::value::ConstValue::Int(n) => {
                             self.exprs.insert(id, MirExpr::Lit(*n));
                             self.type_map.insert(id, Type::I64);
+                            return id;
+                        }
+                        crate::middle::ctfe::value::ConstValue::String(s) => {
+                            self.exprs
+                                .insert(id, MirExpr::StringLit(s.clone()));
+                            self.type_map.insert(id, Type::Str);
                             return id;
                         }
                         crate::middle::ctfe::value::ConstValue::Array(elements) => {
