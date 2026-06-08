@@ -1,0 +1,26 @@
+// Zeta Compiler v0.14.7 — Bootstrap Release
+// Compiler bug fix pass: empty bodies, struct returns, const strings, println!
+//
+// Build: bootstrap branch, commit 68d8516a
+// Date: 2026-06-08
+
+release_notes {
+    version: "v0.14.7",
+    codename: "Compiler Bug Squash",
+    date: "2026-06-08",
+    highlights: [
+        "Bug #1: Empty function bodies now emit ret i64 0 stub instead of External linkage",
+        "Bug #4: Struct/tuple return values now use heap allocation — no more garbage fields",
+        "Bug #5: Const string to extern correctly resolves to string literal pointer",
+        "Bug #6: println!(\"hello\") now prints the string instead of calling println_i64() with zero args",
+    ],
+    fixes: [
+        "Builtins (malloc/free/print/println) changed to ExternFunc to distinguish from user empty fns",
+        "StructNew and MirExpr::Struct use runtime_malloc (heap) instead of build_alloca (stack)",
+        "ConstValue::String variant added for CTFE string constant resolution",
+        "expand_println handles format-string-only case by generating print_str + newline calls",
+    ],
+    regressions: [
+        "All existing tests pass: empty body, struct return, const string, println!, malloc, Capybara DB",
+    ],
+}
