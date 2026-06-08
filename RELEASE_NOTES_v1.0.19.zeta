@@ -1,0 +1,26 @@
+// Zeta Compiler v1.0.19 — Production Release
+// Contains all fixes from bootstrap v0.14.7
+//
+// Binary compiled from bootstrap branch, commit 68d8516a
+
+release_notes {
+    version: "v1.0.19",
+    codename: "Compiler Bug Squash",
+    date: "2026-06-08",
+    bootstrap: "v0.14.7",
+    highlights: [
+        "Empty function bodies now compile and link correctly",
+        "Struct/tuple return values return correct field data (42 99 instead of garbage)",
+        "Const string variables resolve to correct string literal pointers",
+        "println!("hello") prints the string properly",
+    ],
+    fixes: [
+        "User-defined empty functions emit ret i64 0 stub (previously failed to link)",
+        "Struct literals allocate on heap via runtime_malloc — no dangling stack pointers",
+        "Const string declarations work correctly with extern C functions",
+        "println! macro handles format-string-only arguments",
+    ],
+    regressions: [
+        "All tests pass: empty body, struct return, const string, println!, malloc, Capybara DB",
+    ],
+}
