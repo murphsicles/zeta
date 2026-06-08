@@ -168,16 +168,3 @@ long uring_write_sqe(long sqe, long fd, long buf, long len, long ud) {
     s->addr = buf; s->len = len; s->user_data = ud;
     return 0;
 }
-
-// ─── Raw syscall wrapper (used by Zeta syscall() builtin) ──────────
-long zenith_syscall(long n, long a1, long a2, long a3, long a4, long a5, long a6) {
-    register long rax asm("rax") = n;
-    register long rdi asm("rdi") = a1;
-    register long rsi asm("rsi") = a2;
-    register long rdx asm("rdx") = a3;
-    register long r10 asm("r10") = a4;
-    register long r8  asm("r8")  = a5;
-    register long r9  asm("r9")  = a6;
-    asm volatile("syscall" : "+r"(rax) : "r"(rdi), "r"(rsi), "r"(rdx), "r"(r10), "r"(r8), "r"(r9) : "rcx", "r11", "memory");
-    return rax;
-}

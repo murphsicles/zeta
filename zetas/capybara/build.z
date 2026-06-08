@@ -1,5 +1,5 @@
 // === os.z ===
-// OS Abstraction Layer — system interface via zeta_runtime_c.o + capy_runtime.o
+// OS Abstraction Layer — system interface (pure Zeta, replacing C runtime)
 
 // ─── Core Runtime (zeta_runtime_c.o) ────────────────────────────────
 extern fn print_str(s: i64);
@@ -7,34 +7,8 @@ extern fn println_i64(n: i64);
 extern fn get_time_us() -> i64;
 extern fn runtime_malloc(size: i64) -> i64;
 extern fn runtime_free(ptr: i64);
-extern fn posix_open_mode(path: i64, flags: i64, mode: i64) -> i64;
-extern fn posix_close(fd: i64);
-extern fn posix_fsync(fd: i64) -> i64;
-extern fn posix_lseek(fd: i64, offset: i64, whence: i64) -> i64;
-extern fn posix_write(fd: i64, buf: i64, count: i64) -> i64;
-extern fn posix_read(fd: i64, buf: i64, count: i64) -> i64;
-extern fn posix_mkdir(path: i64, mode: i64) -> i64;
 
-// ─── Custom Runtime (capy_runtime.o) ────────────────────────────────
-extern fn capy_argc(argc: i64, argv: i64) -> i64;
-extern fn capy_argv_i(argc: i64, argv: i64, i: i64) -> i64;
-extern fn capy_streq(a: i64, b: i64) -> i64;
-extern fn capy_atoi(s: i64) -> i64;
-extern fn capy_store_i64(addr: i64, val: i64) -> i64;
-extern fn capy_load_i64(addr: i64) -> i64;
-extern fn memset(ptr: i64, val: i64, n: i64) -> i64;
-extern fn memcpy(dst: i64, src: i64, n: i64) -> i64;
-
-// TCP networking
-extern fn net_listen(port: i64) -> i64;
-extern fn net_accept(server_fd: i64) -> i64;
-extern fn net_send(fd: i64, buf: i64, len: i64) -> i64;
-extern fn net_recv(fd: i64, buf: i64, len: i64) -> i64;
-extern fn net_connect(host: i64, port: i64) -> i64;
-extern fn net_close(fd: i64) -> i64;
-extern fn net_nonblock(fd: i64) -> i64;
-
-// io_uring async I/O (full ring buffer model)
+// io_uring async I/O (still C)
 extern fn iouring_init(state_buf: i64, entries: i64) -> i64;
 extern fn iouring_sqe(state_buf: i64) -> i64;
 extern fn iouring_submit(state_buf: i64, sq_count: i64, wait_nr: i64) -> i64;
@@ -43,6 +17,14 @@ extern fn iouring_cqe_res(state_buf: i64) -> i64;
 extern fn uring_accept_sqe(sqe: i64, server_fd: i64, user_data: i64) -> i64;
 extern fn uring_read_sqe(sqe: i64, fd: i64, buf: i64, len: i64, user_data: i64) -> i64;
 extern fn uring_write_sqe(sqe: i64, fd: i64, buf: i64, len: i64, user_data: i64) -> i64;
+
+// Built-in memory ops (now compiler intrinsics — emitted as LLVM load/store)
+extern fn capy_store_i64(addr: i64, val: i64) -> i64;
+extern fn capy_load_i64(addr: i64) -> i64;
+
+// Standard C memory ops
+extern fn memset(ptr: i64, val: i64, n: i64) -> i64;
+extern fn memcpy(dst: i64, src: i64, n: i64) -> i64;
 
 // ─── Logging & Time ─────────────────────────────────────────────────
 fn os_log(msg: i64) { print_str(msg); }
@@ -58,47 +40,147 @@ fn os_store(addr: i64, val: i64) { capy_store_i64(addr, val); }
 fn os_load(addr: i64) -> i64 { return capy_load_i64(addr); }
 
 // ─── File I/O ───────────────────────────────────────────────────────
-fn os_open(path: i64, flags: i64, mode: i64) -> i64 { return posix_open_mode(path, flags, mode); }
-fn os_close(fd: i64) { posix_close(fd); }
-fn os_sync(fd: i64) -> i64 { return posix_fsync(fd); }
-fn os_seek(fd: i64, off: i64, whence: i64) -> i64 { return posix_lseek(fd, off, whence); }
-fn os_write(fd: i64, buf: i64, count: i64) -> i64 { return posix_write(fd, buf, count); }
-fn os_read(fd: i64, buf: i64, count: i64) -> i64 { return posix_read(fd, buf, count); }
-fn os_mkdir(path: i64, mode: i64) -> i64 { return posix_mkdir(path, mode); }
+fn os_open(path: i64, flags: i64, mode: i64) -> i64 { return syscall(2, path, flags, mode, 0, 0, 0); }
+fn os_close(fd: i64) { syscall(3, fd, 0, 0, 0, 0, 0); }
+fn os_sync(fd: i64) -> i64 { return syscall(74, fd, 0, 0, 0, 0, 0); }
+fn os_seek(fd: i64, off: i64, whence: i64) -> i64 { return syscall(8, fd, off, whence, 0, 0, 0); }
+fn os_write(fd: i64, buf: i64, count: i64) -> i64 { return syscall(1, fd, buf, count, 0, 0, 0); }
+fn os_read(fd: i64, buf: i64, count: i64) -> i64 { return syscall(0, fd, buf, count, 0, 0, 0); }
+fn os_mkdir(path: i64, mode: i64) -> i64 { return syscall(83, path, mode, 0, 0, 0, 0); }
 
 // ─── Networking ──────────────────────────────────────────────────────
-fn os_listen(port: i64) -> i64 { return net_listen(port); }
-fn os_accept(server_fd: i64) -> i64 { return net_accept(server_fd); }
-fn os_send(fd: i64, buf: i64, len: i64) -> i64 { return net_send(fd, buf, len); }
-fn os_recv(fd: i64, buf: i64, len: i64) -> i64 { return net_recv(fd, buf, len); }
-fn os_net_close(fd: i64) -> i64 { return net_close(fd); }
-fn os_connect(host: i64, port: i64) -> i64 { return net_connect(host, port); }
-fn os_nonblock(fd: i64) -> i64 { return net_nonblock(fd); }
 
 // ─── Async I/O (io_uring) ─────────────────────────────────────────────
-// Low-level: init ring, get SQE slot, submit, reap CQE
 fn os_uring_init(st: i64, entries: i64) -> i64 { return iouring_init(st, entries); }
 fn os_uring_sqe(st: i64) -> i64 { return iouring_sqe(st); }
 fn os_uring_submit(st: i64, count: i64, wait: i64) -> i64 { return iouring_submit(st, count, wait); }
 fn os_uring_cqe(st: i64) -> i64 { return iouring_cqe(st); }
 fn os_uring_cqe_res(st: i64) -> i64 { return iouring_cqe_res(st); }
-
-// SQE preparation helpers
 fn os_uring_accept_sqe(sqe: i64, fd: i64, ud: i64) -> i64 { return uring_accept_sqe(sqe, fd, ud); }
 fn os_uring_read_sqe(sqe: i64, fd: i64, buf: i64, len: i64, ud: i64) -> i64 { return uring_read_sqe(sqe, fd, buf, len, ud); }
 fn os_uring_write_sqe(sqe: i64, fd: i64, buf: i64, len: i64, ud: i64) -> i64 { return uring_write_sqe(sqe, fd, buf, len, ud); }
 
-// ─── CLI ────────────────────────────────────────────────────────────
-fn os_argc(argc: i64, argv: i64) -> i64 { return capy_argc(argc, argv); }
-fn os_argv(argc: i64, argv: i64, i: i64) -> i64 { return capy_argv_i(argc, argv, i); }
-fn os_streq(a: i64, b: i64) -> i64 { return capy_streq(a, b); }
-fn os_atoi(s: i64) -> i64 { return capy_atoi(s); }
+// ─── CLI — pure Zeta (replacing capy_argc/capy_argv_i/capy_streq/capy_atoi) ───
+fn os_argc(argc: i64, argv: i64) -> i64 { return argc; }
 
-// ─── Flags ──────────────────────────────────────────────────────────
-fn os_rdwr() -> i64 { return 66; }
-fn os_seek_end() -> i64 { return 2; }
-fn os_m644() -> i64 { return 420; }
-fn os_m755() -> i64 { return 493; }
+fn os_argv(argc: i64, argv: i64, i: i64) -> i64 {
+    if i < 0 { return 0; }
+    if i >= argc { return 0; }
+    // argv is a char** — array of string pointers. Each entry is 8 bytes.
+    // argv + i*8 holds the i-th string pointer.
+    return os_load(argv + i * 8);
+}
+
+fn os_streq(a: i64, b: i64) -> i64 {
+    // Compare 8 bytes at a time using os_load.
+    // Two strings are equal if all bytes through the null terminator match.
+    let mut off: i64 = 0;
+    while true {
+        let va = os_load(a + off);
+        let vb = os_load(b + off);
+        if va != vb { return 0; }
+        // All 8 bytes match. Check if any byte is null (end of string).
+        // Quick check: if the entire 64-bit value is 0, we're past the end.
+        if va == 0 { return 1; }
+        // Check first byte
+        let b0 = va & 0xFF;
+        if b0 == 0 { return 1; }
+        // Check remaining bytes via shift
+        let b1 = (va >> 8) & 0xFF;
+        if b1 == 0 { return 1; }
+        let b2 = (va >> 16) & 0xFF;
+        if b2 == 0 { return 1; }
+        let b3 = (va >> 24) & 0xFF;
+        if b3 == 0 { return 1; }
+        let b4 = (va >> 32) & 0xFF;
+        if b4 == 0 { return 1; }
+        let b5 = (va >> 40) & 0xFF;
+        if b5 == 0 { return 1; }
+        let b6 = (va >> 48) & 0xFF;
+        if b6 == 0 { return 1; }
+        let b7 = (va >> 56) & 0xFF;
+        if b7 == 0 { return 1; }
+        off = off + 8;
+    }
+}
+
+fn os_atoi(s: i64) -> i64 {
+    let mut val: i64 = 0;
+    let mut i: i64 = 0;
+    let mut neg: i64 = 0;
+    // Handle sign: '-' = 45, '+' = 43
+    let b0 = os_load(s) & 0xFF;
+    if b0 == 45 { neg = 1; i = 1; }
+    else if b0 == 43 { i = 1; }
+    // Parse digits
+    while true {
+        let b = os_load(s + i) & 0xFF;
+        if b < 48 {
+            if neg == 1 { return -val; } else { return val; }
+        }
+        if b > 57 {
+            if neg == 1 { return -val; } else { return val; }
+        }
+        val = val * 10 + (b - 48);
+        i = i + 1;
+    }
+}
+
+// ─── Networking — pure Zeta via syscall() builtin (replaces capybara_runtime.c) ───
+fn os_listen(port: i64) -> i64 {
+    let fd = syscall(41, 2, 1, 0);  // socket(AF_INET=2, SOCK_STREAM=1, 0)
+    if fd < 0 { return -1; }
+    // setsockopt(fd, SOL_SOCKET=1, SO_REUSEADDR=2, &opt, 4)
+    let optbuf = os_alloc(8); os_store(optbuf, 1);
+    syscall(54, fd, 1, 2, optbuf, 4, 0); os_dealloc(optbuf);
+    // Build sockaddr_in in buffer
+    let addr = os_alloc(16); os_zero(addr, 16);
+    let nport = ((port & 0xFF) << 8) | ((port >> 8) & 0xFF);  // htons(port)
+    os_store(addr, (nport << 16) | 2);    // family=2, port=nport
+    os_store(addr + 4, 0x0100007f);        // addr=htonl(INADDR_LOOPBACK)
+    let br = syscall(49, fd, addr, 16, 0, 0, 0);  // bind
+    if br < 0 { syscall(3, fd); os_dealloc(addr); return -2; }
+    let lr = syscall(50, fd, 128, 0, 0, 0, 0);  // listen(fd, 128)
+    if lr < 0 { syscall(3, fd); os_dealloc(addr); return -3; }
+    os_dealloc(addr); return fd;
+}
+
+fn os_accept(server_fd: i64) -> i64 {
+    let addr = os_alloc(16); let addrlen = os_alloc(8); os_store(addrlen, 16);
+    let fd = syscall(43, server_fd, addr, addrlen, 0, 0, 0);  // accept
+    os_dealloc(addr); os_dealloc(addrlen); return fd;
+}
+
+fn os_send(fd: i64, buf: i64, len: i64) -> i64 { return syscall(1, fd, buf, len, 0, 0, 0); }
+
+fn os_recv(fd: i64, buf: i64, len: i64) -> i64 { return syscall(0, fd, buf, len, 0, 0, 0); }
+
+fn os_net_close(fd: i64) -> i64 { return syscall(3, fd, 0, 0, 0, 0, 0); }
+
+fn os_connect(host: i64, port: i64) -> i64 {
+    let fd = syscall(41, 2, 1, 0);  // socket
+    if fd < 0 { return -1; }
+    let addr = os_alloc(16); os_zero(addr, 16);
+    let nport = ((port & 0xFF) << 8) | ((port >> 8) & 0xFF);
+    os_store(addr, (nport << 16) | 2);
+    os_store(addr + 4, 0x0100007f);  // 127.0.0.1
+    let cr = syscall(42, fd, addr, 16, 0, 0, 0);  // connect
+    os_dealloc(addr);
+    if cr < 0 { syscall(3, fd); return -2; }
+    return fd;
+}
+
+fn os_nonblock(fd: i64) -> i64 {
+    let flags = syscall(72, fd, 0, 0, 0, 0, 0);  // F_GETFL
+    if flags < 0 { return -1; }
+    return syscall(72, fd, 4, flags | 2048, 0, 0, 0);  // F_SETFL | O_NONBLOCK
+}
+
+// ─── File I/O Flags — pure Zeta constants ──────────────────────────────
+fn os_rdwr() -> i64 { return 66; }      // O_RDWR | O_CREAT
+fn os_seek_end() -> i64 { return 2; }   // SEEK_END
+fn os_m644() -> i64 { return 420; }     // 0644
+fn os_m755() -> i64 { return 493; }     // 0755
 
 // === runtime.z ===
 // Runtime — SuperBlock + WAL persistence
@@ -470,60 +552,6 @@ fn ledg_pending_exists(b: i64, id: i64) -> i64 {
 
 fn ledg_apply_op(b: i64, ot: i64) -> i64 { return 0; }
 
-// === net.z ===
-// TCP Client Handler — process frames, apply to ledger + WAL.
-// Async VSR replication (fire-and-forget, no ack wait).
-
-const BS: i64 = 4096; const HDR: i64 = 16;
-
-fn handle_client(c: i64, buf: i64, rbuf: i64, acct: i64, wal: i64, vs: i64) {
-let mut op: i64 = 1;
-while (op == 1) {
-let n = os_recv(c, buf, BS);
-if (n <= 0) { op = 0; break; }
-if (n >= HDR) {
-let ot = os_load(buf); let bl = os_load(buf+8); let d = buf + HDR;
-let mut rc: i64 = 0;
-if (ot == 1) { let id=os_load(d);let db=os_load(d+8);let cr=os_load(d+16);
-rc=ledg_create_account(acct,id,db,cr,0,0);
-let wb=os_alloc(128);rt_prepare_create(wb,0,id,db,cr,0,0);rt_append_buf(wal,wb);os_dealloc(wb);
-// Async replication: connect, send, close (no wait for ack)
-if(vs!=0&&os_load(vs+VS_CLUSTER)>=2){
-let me=os_load(vs+VS_ID);let mut j:i64=0;
-while(j<os_load(vs+VS_CLUSTER)){
-if(j!=me){let fd=os_connect("127.0.0.1",VSR_PORT+j);
-if(fd>=0){os_store(buf,1);os_store(buf+8,1);os_store(buf+16,1);
-os_store(buf+24,id);os_store(buf+32,db);os_store(buf+40,cr);os_send(fd,buf,48);os_recv(fd,buf,8);os_net_close(fd);}}
-j=j+1;}}}
-else if (ot == 2) { let db=os_load(d);let cr=os_load(d+8);let am=os_load(d+16);
-rc=ledg_transfer(acct,db,cr,am);
-let wb=os_alloc(128);rt_prepare_transfer(wb,0,db,cr,am);rt_append_buf(wal,wb);os_dealloc(wb);}
-else if (ot == 3) { let id=os_load(d);let am=os_load(d+8);
-rc=ledg_credit(acct,id,am);
-let wb=os_alloc(128);rt_prepare_credit(wb,0,id,am);rt_append_buf(wal,wb);os_dealloc(wb);
-if(vs!=0&&os_load(vs+VS_CLUSTER)>=2){
-let me=os_load(vs+VS_ID);let mut j:i64=0;
-while(j<os_load(vs+VS_CLUSTER)){
-if(j!=me){let fd=os_connect("127.0.0.1",VSR_PORT+j);
-if(fd>=0){os_store(buf,1);os_store(buf+8,2);os_store(buf+16,3);
-os_store(buf+24,id);os_store(buf+32,am);os_send(fd,buf,40);os_net_close(fd);}}
-j=j+1;}}}
-else if (ot == 5) { let id=os_load(d);let db=os_load(d+8);let cr=os_load(d+16);
-let am=os_load(d+24);let tm=os_load(d+32);let co=os_load(d+40);
-rc=ledg_create_pending(acct,id,db,cr,am,tm,co,0);
-let wb=os_alloc(128);rt_prepare_pending(wb,0,id,db,cr,am,tm,co,0);rt_append_buf(wal,wb);os_dealloc(wb);}
-else if (ot == 6) { rc=ledg_post_pending(acct,os_load(d));
-let wb=os_alloc(128);rt_prepare_post(wb,0,os_load(d));rt_append_buf(wal,wb);os_dealloc(wb);}
-else if (ot == 7) { rc=ledg_void_pending(acct,os_load(d));
-let wb=os_alloc(128);rt_prepare_void(wb,0,os_load(d));rt_append_buf(wal,wb);os_dealloc(wb);}
-else if (ot == 10) { rc = ledg_balance(acct, os_load(d)); }
-else if (ot == 11) { rc = ledg_exists(acct, os_load(d)); }
-else { rc = -98; }
-if (ot == 10 || ot == 11) { os_store(rbuf,0);os_store(rbuf+8,rc);os_send(c,rbuf,16); }
-else { os_store(rbuf,rc);os_send(c,rbuf,8); }
-}
-}
-}
 
 // === vsr.z ===
 // VSR — Viewstamped Replication with per-field args (no body buffer).
@@ -605,6 +633,8 @@ while(i<cl){if(i!=me){let fd=os_connect("127.0.0.1",VSR_PORT+i);if(fd>=0){os_sen
 // === main.z ===
 // Capybara DB — client handling first, then VSR replication outside.
 
+const BS: i64 = 4096;
+
 fn main(argc: i64, argv: i64) -> i64 {
 let t0=os_now_us();os_log("capybara v0.1.0\n");
 let mut rid:i64=0;let mut port:i64=8700;
@@ -630,7 +660,7 @@ if(rid==0){
 let sv=os_listen(port);
 let mut run:i64=1;
 while(run==1){
-let c=net_accept(sv);
+let c=os_accept(sv);
 if(c>=0){handle_client(c,buf,rbuf,acct,wal,vs);os_net_close(c);}
 else{run=0;}
 }
@@ -641,7 +671,7 @@ let cli_sv=os_listen(port);os_nonblock(cli_sv);
 let mut run:i64=1;
 while(run==1){
 // VSR poll
-let vc=net_accept(vsr_sv);
+let vc=os_accept(vsr_sv);
 if(vc>=0){
 let n=os_recv(vc,buf,BS);
 if(n>0&&os_load(buf)==1){
@@ -653,7 +683,7 @@ let wb=os_alloc(128);rt_prepare_credit(wb,0,a1,a2);rt_append_buf(wal,wb);os_deal
 os_store(buf,2);os_send(vc,buf,8);}
 os_net_close(vc);}
 // Client poll
-let cc=net_accept(cli_sv);
+let cc=os_accept(cli_sv);
 if(cc>=0){handle_client(cc,buf,rbuf,acct,wal,vs);os_net_close(cc);}
 // Small spin-delay — 1000 iterations of get_time_us
 let t1=get_time_us();let mut s:i64=0;
@@ -663,4 +693,36 @@ while(s<50){let t2=get_time_us();if(t2-t1>s){s=t2-t1;}}
 os_dealloc(buf);os_dealloc(rbuf);ledg_destroy(acct);rt_close(sb,wal);
 os_log("up ");os_log_i64(os_now_us()-t0);os_log("\n");
 return 0;
+}
+
+
+
+fn handle_client(c: i64, buf: i64, rbuf: i64, acct: i64, wal: i64, vs: i64) {
+let mut run:i64=1;
+while(run==1){
+let n=os_recv(c,buf,BS);
+if(n>0){
+let ot=os_load(buf);
+let id=os_load(buf+16);let a1=os_load(buf+24);let a2=os_load(buf+32);
+let mut rc:i64=0;
+if(ot==1){ledg_create_account(acct,id,a1,a2,0,0);
+let wb=os_alloc(128);rt_prepare_create(wb,0,id,a1,a2,0,0);rt_append_buf(wal,wb);os_dealloc(wb);}
+else if(ot==3){ledg_credit(acct,id,a1);
+let wb=os_alloc(128);rt_prepare_credit(wb,0,id,a1);rt_append_buf(wal,wb);os_dealloc(wb);}
+else if(ot==2){ledg_transfer(acct,id,a1,a2);
+let wb=os_alloc(128);rt_prepare_transfer(wb,0,id,a1,a2);rt_append_buf(wal,wb);os_dealloc(wb);}
+else if(ot==4){ledg_set_flags(acct,id,a1);
+let wb=os_alloc(128);rt_prepare_flags(wb,0,id,a1);rt_append_buf(wal,wb);os_dealloc(wb);}
+else if(ot==5){let db=os_load(buf+40);let cr=os_load(buf+48);let am=os_load(buf+56);let tm=os_load(buf+64);let co=os_load(buf+72);
+rc=ledg_create_pending(acct,id,a1,db,cr,am,tm,co);
+let wb=os_alloc(128);rt_prepare_pending(wb,0,id,a1,db,cr,am,tm,co);rt_append_buf(wal,wb);os_dealloc(wb);}
+else if(ot==6){rc=ledg_post_pending(acct,id);
+let wb=os_alloc(128);rt_prepare_post(wb,0,id);rt_append_buf(wal,wb);os_dealloc(wb);}
+else if(ot==7){rc=ledg_void_pending(acct,id);
+let wb=os_alloc(128);rt_prepare_void(wb,0,id);rt_append_buf(wal,wb);os_dealloc(wb);}
+else if(ot==10){let bal=ledg_balance(acct,id);os_store(buf,10);os_store(buf+8,bal);os_send(c,buf,16);}
+os_store(buf,ot);os_send(c,buf,8);
+}
+else{run=0;}
+}
 }

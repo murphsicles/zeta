@@ -3199,8 +3199,35 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         return;
                     }
 
+                    // Intercept syscall(N, a1, a2, ...) → call zenith_syscall C wrapper
+                    if func == "syscall" || func.starts_with("syscall_") {
+                        let num_val = self.gen_expr_safe(&args[0], exprs).into_int_value();
+                        let mut all_args: Vec<BasicMetadataValueEnum> = vec![num_val.into()];
+                        for i in 1..args.len() {
+                            let val = self.gen_expr_safe(&args[i], exprs).into_int_value();
+                            all_args.push(val.into());
+                        }
+                        while all_args.len() < 7 {
+                            all_args.push(self.i64_type.const_zero().into());
+                        }
+                        let fn_type = self.i64_type.fn_type(
+                            &[self.i64_type.into(); 7],
+                            false,
+                        );
+                        let callee = self.module.add_function(
+                            "zenith_syscall", fn_type, None,
+                        );
+                        let call = self.builder
+                            .build_call(callee, &all_args, "syscall")
+                            .unwrap();
+                        let basic_val = Self::call_site_to_basic_value(call)
+                            .unwrap_or(self.i64_type.const_zero().into());
+                        let alloca = *self.locals.get(dest).unwrap();
+                        self.builder.build_store(alloca, basic_val).unwrap();
+                        return;
+                    }
+
                     // Intercept `capy_store_i64(addr, val)` → emit LLVM store directly
-                    // instead of calling the C runtime. This is a one-instruction op.
                     if func == "capy_store_i64" || func == "capy_store_i64_2" {
                         if args.len() >= 2 {
                             let addr = self.gen_expr_safe(&args[0], exprs).into_int_value();
@@ -3307,6 +3334,26 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
             }
             MirStmt::VoidCall { func, args } => {
+                // Intercept syscall(N, a1, a2, ...) → call zenith_syscall C wrapper
+                if func == "syscall" || func.starts_with("syscall_") {
+                    let num_val = self.gen_expr_safe(&args[0], exprs).into_int_value();
+                    let mut all_args: Vec<BasicMetadataValueEnum> = vec![num_val.into()];
+                    for i in 1..args.len() {
+                        let val = self.gen_expr_safe(&args[i], exprs).into_int_value();
+                        all_args.push(val.into());
+                    }
+                    while all_args.len() < 7 {
+                        all_args.push(self.i64_type.const_zero().into());
+                    }
+                    let fn_type = self.i64_type.fn_type(
+                        &[self.i64_type.into(); 7],
+                        false,
+                    );
+                    let callee = self.module.add_function("zenith_syscall", fn_type, None);
+                    let _ = self.builder.build_call(callee, &all_args, "syscall").unwrap();
+                    return;
+                }
+
                 // Intercept capy_store_i64(addr, val) → emit LLVM store directly
                 if func == "capy_store_i64" || func == "capy_store_i64_2" {
                     if args.len() >= 2 {
@@ -4314,12 +4361,15 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     all_args.push(self.i64_type.const_zero().into());
                 }
                 
-                // Declare and call the C syscall wrapper
+                // Find or declare the C syscall wrapper (use get_function to avoid duplicate .N suffixes)
                 let fn_type = self.i64_type.fn_type(
                     &[self.i64_type.into(); 7],
                     false,
                 );
-                let callee = self.module.add_function("zenith_syscall", fn_type, None);
+                let callee = match self.module.get_function("zenith_syscall") {
+                    Some(f) => f,
+                    None => self.module.add_function("zenith_syscall", fn_type, None),
+                };
                 let call = self.builder.build_call(callee, &all_args, "syscall").unwrap();
                 // CallSiteValue -> BasicValueEnum via try_as_basic_value()
                 match call.try_as_basic_value() {

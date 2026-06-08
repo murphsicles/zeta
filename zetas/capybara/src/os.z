@@ -6,13 +6,6 @@ extern fn println_i64(n: i64);
 extern fn get_time_us() -> i64;
 extern fn runtime_malloc(size: i64) -> i64;
 extern fn runtime_free(ptr: i64);
-extern fn posix_open_mode(path: i64, flags: i64, mode: i64) -> i64;
-extern fn posix_close(fd: i64);
-extern fn posix_fsync(fd: i64) -> i64;
-extern fn posix_lseek(fd: i64, offset: i64, whence: i64) -> i64;
-extern fn posix_write(fd: i64, buf: i64, count: i64) -> i64;
-extern fn posix_read(fd: i64, buf: i64, count: i64) -> i64;
-extern fn posix_mkdir(path: i64, mode: i64) -> i64;
 
 // io_uring async I/O (still C)
 extern fn iouring_init(state_buf: i64, entries: i64) -> i64;
@@ -46,13 +39,13 @@ fn os_store(addr: i64, val: i64) { capy_store_i64(addr, val); }
 fn os_load(addr: i64) -> i64 { return capy_load_i64(addr); }
 
 // ─── File I/O ───────────────────────────────────────────────────────
-fn os_open(path: i64, flags: i64, mode: i64) -> i64 { return posix_open_mode(path, flags, mode); }
-fn os_close(fd: i64) { posix_close(fd); }
-fn os_sync(fd: i64) -> i64 { return posix_fsync(fd); }
-fn os_seek(fd: i64, off: i64, whence: i64) -> i64 { return posix_lseek(fd, off, whence); }
-fn os_write(fd: i64, buf: i64, count: i64) -> i64 { return posix_write(fd, buf, count); }
-fn os_read(fd: i64, buf: i64, count: i64) -> i64 { return posix_read(fd, buf, count); }
-fn os_mkdir(path: i64, mode: i64) -> i64 { return posix_mkdir(path, mode); }
+fn os_open(path: i64, flags: i64, mode: i64) -> i64 { return syscall(2, path, flags, mode, 0, 0, 0); }
+fn os_close(fd: i64) { syscall(3, fd, 0, 0, 0, 0, 0); }
+fn os_sync(fd: i64) -> i64 { return syscall(74, fd, 0, 0, 0, 0, 0); }
+fn os_seek(fd: i64, off: i64, whence: i64) -> i64 { return syscall(8, fd, off, whence, 0, 0, 0); }
+fn os_write(fd: i64, buf: i64, count: i64) -> i64 { return syscall(1, fd, buf, count, 0, 0, 0); }
+fn os_read(fd: i64, buf: i64, count: i64) -> i64 { return syscall(0, fd, buf, count, 0, 0, 0); }
+fn os_mkdir(path: i64, mode: i64) -> i64 { return syscall(83, path, mode, 0, 0, 0, 0); }
 
 // ─── Networking ──────────────────────────────────────────────────────
 
@@ -121,8 +114,12 @@ fn os_atoi(s: i64) -> i64 {
     // Parse digits
     while true {
         let b = os_load(s + i) & 0xFF;
-        if b < 48 { return neg == 1 ? -val : val; }
-        if b > 57 { return neg == 1 ? -val : val; }
+        if b < 48 {
+            if neg == 1 { return -val; } else { return val; }
+        }
+        if b > 57 {
+            if neg == 1 { return -val; } else { return val; }
+        }
         val = val * 10 + (b - 48);
         i = i + 1;
     }
@@ -177,3 +174,9 @@ fn os_nonblock(fd: i64) -> i64 {
     if flags < 0 { return -1; }
     return syscall(72, fd, 4, flags | 2048, 0, 0, 0);  // F_SETFL | O_NONBLOCK
 }
+
+// ─── File I/O Flags — pure Zeta constants ──────────────────────────────
+fn os_rdwr() -> i64 { return 66; }      // O_RDWR | O_CREAT
+fn os_seek_end() -> i64 { return 2; }   // SEEK_END
+fn os_m644() -> i64 { return 420; }     // 0644
+fn os_m755() -> i64 { return 493; }     // 0755
