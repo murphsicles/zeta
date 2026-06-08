@@ -4061,35 +4061,55 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 fields,
                 dest,
             } => {
-                // Allocate struct on stack and store field values
-                let type_key = format!("{}_fields_{}", variant, fields.len());
-                let struct_type = if let Some(ty) = self.specialized_types.get(&type_key) {
-                    *ty
-                } else {
-                    let field_types: Vec<_> =
-                        (0..fields.len()).map(|_| self.i64_type.into()).collect();
-                    let ty = self.context.struct_type(&field_types, false);
-                    self.specialized_types.insert(type_key.clone(), ty);
-                    ty
-                };
-                let alloca = self
+                // Allocate struct on HEAP to prevent dangling pointers
+                let total_bytes = self.i64_type.const_int(
+                    (fields.len() as u64) * 8,
+                    false,
+                );
+                let malloc_fn = self
+                    .module
+                    .get_function("runtime_malloc")
+                    .unwrap_or_else(|| {
+                        let fn_type =
+                            self.i64_type.fn_type(&[self.i64_type.into()], false);
+                        self.module
+                            .add_function("runtime_malloc", fn_type, None)
+                    });
+                let heap_ptr = self
                     .builder
-                    .build_alloca(struct_type, "struct_alloca")
+                    .build_call(malloc_fn, &[total_bytes.into()], "struct_heap")
+                    .unwrap();
+                let heap_ptr_val = Self::call_site_to_basic_value(heap_ptr)
+                    .unwrap()
+                    .into_int_value();
+
+                // Convert heap i64 to pointer and store fields
+                let ptr_type = self.context.ptr_type(inkwell::AddressSpace::default());
+                let struct_base = self
+                    .builder
+                    .build_int_to_ptr(heap_ptr_val, ptr_type, "struct_base")
                     .unwrap();
                 for (i, (field_name, field_id)) in fields.iter().enumerate() {
-                    let field_ptr = self
+                    let field_ptr = unsafe {
+                        self
                         .builder
-                        .build_struct_gep(struct_type, alloca, i as u32, "")
-                        .unwrap();
-                    let field_val = self.gen_expr_safe(field_id, exprs).into_int_value();
+                        .build_gep(
+                            self.i64_type,
+                            struct_base,
+                            &[self.i64_type.const_int(i as u64, false)],
+                            "field_ptr",
+                        )
+                        .unwrap()
+                    };
+                    let field_val = self
+                        .gen_expr_safe(field_id, exprs)
+                        .into_int_value();
                     self.builder.build_store(field_ptr, field_val).unwrap();
                 }
-                let ptr_as_int = self
-                    .builder
-                    .build_ptr_to_int(alloca, self.i64_type, "struct_ptr")
-                    .unwrap();
                 let dest_alloca = *self.locals.get(dest).unwrap();
-                self.builder.build_store(dest_alloca, ptr_as_int).unwrap();
+                self.builder
+                    .build_store(dest_alloca, heap_ptr_val)
+                    .unwrap();
             }
             _ => {}
         }
@@ -4382,50 +4402,54 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
             }
             MirExpr::Struct { variant, fields } => {
-                // Allocate struct on stack and store field values
-                // Create a type key for caching
-                let type_key = format!("{}_fields_{}", variant, fields.len());
-
-                // Get or create LLVM struct type
-                let struct_type = if let Some(ty) = self.specialized_types.get(&type_key) {
-                    *ty
-                } else {
-                    // Create struct type based on field count
-                    // For now, assume all fields are i64
-                    let field_types: Vec<_> =
-                        (0..fields.len()).map(|_| self.i64_type.into()).collect();
-
-                    let ty = self.context.struct_type(&field_types, false);
-                    self.specialized_types.insert(type_key.clone(), ty);
-                    ty
-                };
-
-                // Allocate struct on stack
-                let alloca = self
+                // Allocate struct on HEAP to prevent dangling pointers
+                let total_bytes = self.i64_type.const_int(
+                    (fields.len() as u64) * 8,
+                    false,
+                );
+                let malloc_fn = self
+                    .module
+                    .get_function("runtime_malloc")
+                    .unwrap_or_else(|| {
+                        let fn_type =
+                            self.i64_type.fn_type(&[self.i64_type.into()], false);
+                        self.module
+                            .add_function("runtime_malloc", fn_type, None)
+                    });
+                let heap_ptr = self
                     .builder
-                    .build_alloca(struct_type, "struct_alloca")
+                    .build_call(malloc_fn, &[total_bytes.into()], "struct_heap")
                     .unwrap();
+                let heap_ptr_val = Self::call_site_to_basic_value(heap_ptr)
+                    .unwrap()
+                    .into_int_value();
 
-                // Store each field value
+                // Convert heap i64 to pointer and store fields
+                let ptr_type = self.context.ptr_type(inkwell::AddressSpace::default());
+                let struct_base = self
+                    .builder
+                    .build_int_to_ptr(heap_ptr_val, ptr_type, "struct_base")
+                    .unwrap();
                 for (i, (field_name, field_id)) in fields.iter().enumerate() {
-                    let field_ptr = self
+                    let field_ptr = unsafe {
+                        self
                         .builder
-                        .build_struct_gep(struct_type, alloca, i as u32, "")
-                        .unwrap();
-
+                        .build_gep(
+                            self.i64_type,
+                            struct_base,
+                            &[self.i64_type.const_int(i as u64, false)],
+                            "field_ptr",
+                        )
+                        .unwrap()
+                    };
                     let field_val = self
                         .gen_expr(&exprs[field_id], exprs, None)
                         .into_int_value();
                     self.builder.build_store(field_ptr, field_val).unwrap();
                 }
 
-                // Return pointer to struct (as i64)
-                // Convert pointer to integer
-                let ptr_as_int = self
-                    .builder
-                    .build_ptr_to_int(alloca, self.i64_type, "ptr_to_int")
-                    .unwrap();
-                ptr_as_int.into()
+                // Return heap pointer as i64 (caller reads from valid heap memory)
+                heap_ptr_val.into()
             }
             MirExpr::FieldAccess { base, field } => {
                 // Handle field access for structs
