@@ -105,6 +105,28 @@ impl MacroExpander {
 
         // For now, simple expansion to a function call
         // In a full implementation, this would handle format strings
+        // Handle simple case: only a format string with no placeholders
+        // e.g. println!("hello") -> print_str("hello"); print_str("\n")
+        if let Some(AstNode::StringLit(format_str)) = args.first() {
+            if args.len() == 1 {
+                let print_call = AstNode::Call {
+                    receiver: None,
+                    method: "print_str".to_string(),
+                    args: vec![AstNode::StringLit(format_str.clone())],
+                    type_args: Vec::new(),
+                    structural: false,
+                };
+                let newline_call = AstNode::Call {
+                    receiver: None,
+                    method: "print_str".to_string(),
+                    args: vec![AstNode::StringLit("\n".to_string())],
+                    type_args: Vec::new(),
+                    structural: false,
+                };
+                return Ok(vec![print_call, newline_call]);
+            }
+        }
+
         // Strip the format string and pass only the value arguments
         let value_args: Vec<AstNode> = if let Some(AstNode::StringLit(_)) = args.first() {
             args[1..].to_vec()
@@ -112,12 +134,22 @@ impl MacroExpander {
             args.to_vec()
         };
 
+        if value_args.is_empty() {
+            let newline_call = AstNode::Call {
+                receiver: None,
+                method: "print_str".to_string(),
+                args: vec![AstNode::StringLit("\n".to_string())],
+                type_args: Vec::new(),
+                structural: false,
+            };
+            return Ok(vec![newline_call]);
+        }
+
         let call = if value_args.len() == 1
             && matches!(
                 &value_args[0],
                 AstNode::Var(_) | AstNode::Lit(_) | AstNode::Call { .. }
             ) {
-            // Simple single-value println: generate void call directly to println_i64
             AstNode::Call {
                 receiver: None,
                 method: "println_i64".to_string(),
@@ -126,7 +158,6 @@ impl MacroExpander {
                 structural: false,
             }
         } else {
-            // Fallback: use generic println (codegen will handle it)
             AstNode::Call {
                 receiver: None,
                 method: "println".to_string(),
