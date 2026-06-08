@@ -3199,6 +3199,38 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         return;
                     }
 
+                    // Intercept `capy_store_i64(addr, val)` → emit LLVM store directly
+                    // instead of calling the C runtime. This is a one-instruction op.
+                    if func == "capy_store_i64" || func == "capy_store_i64_2" {
+                        if args.len() >= 2 {
+                            let addr = self.gen_expr_safe(&args[0], exprs).into_int_value();
+                            let val = self.gen_expr_safe(&args[1], exprs).into_int_value();
+                            let ptr = self
+                                .builder
+                                .build_int_to_ptr(addr, self.ptr_type, "store_ptr")
+                                .unwrap();
+                            self.builder.build_store(ptr, val).unwrap();
+                        }
+                        let alloca = *self.locals.get(dest).unwrap();
+                        self.builder
+                            .build_store(alloca, self.i64_type.const_zero())
+                            .unwrap();
+                        return;
+                    }
+
+                    // Intercept `capy_load_i64(addr)` → emit LLVM load directly
+                    if func == "capy_load_i64" || func == "capy_load_i64_1" {
+                        let addr = self.gen_expr_safe(&args[0], exprs).into_int_value();
+                        let ptr = self
+                            .builder
+                            .build_int_to_ptr(addr, self.ptr_type, "load_ptr")
+                            .unwrap();
+                        let val = self.builder.build_load(self.i64_type, ptr, "loaded").unwrap();
+                        let alloca = *self.locals.get(dest).unwrap();
+                        self.builder.build_store(alloca, val).unwrap();
+                        return;
+                    }
+
                     // Intercept __builtin_ctpop → redirect to llvm.ctpop.i64 (POPCNT instruction)
                     let actual_func = if func == "__builtin_ctpop" {
                         "llvm.ctpop.i64"
@@ -3275,6 +3307,20 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 }
             }
             MirStmt::VoidCall { func, args } => {
+                // Intercept capy_store_i64(addr, val) → emit LLVM store directly
+                if func == "capy_store_i64" || func == "capy_store_i64_2" {
+                    if args.len() >= 2 {
+                        let addr = self.gen_expr_safe(&args[0], exprs).into_int_value();
+                        let val = self.gen_expr_safe(&args[1], exprs).into_int_value();
+                        let ptr = self
+                            .builder
+                            .build_int_to_ptr(addr, self.ptr_type, "store_ptr")
+                            .unwrap();
+                        self.builder.build_store(ptr, val).unwrap();
+                    }
+                    return;
+                }
+
                 // Handle __builtin_memset → LLVM llvm.memset.i64 intrinsic
                 if func == "__builtin_memset" && args.len() >= 3 {
                     let ptr_val = self.gen_expr_safe(&args[0], exprs).into_int_value();
