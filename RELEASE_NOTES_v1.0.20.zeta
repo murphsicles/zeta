@@ -1,0 +1,23 @@
+// Zeta Compiler v1.0.20 — Production Release
+// Contains all fixes from bootstrap v0.14.8
+//
+// Binary compiled from bootstrap branch, commit 11dccbf6
+
+release_notes {
+    version: "v1.0.20",
+    codename: "Module Resolution Fix",
+    date: "2026-06-09",
+    bootstrap: "v0.14.8",
+    highlights: [
+        "use @io/uring::Ring; now compiles all module functions — no more undefined refs",
+        "let x: i64; (type declaration without initializer) accepted by parser",
+        "Scoped package imports @scope/name resolve from packages/ directory",
+    ],
+    fixes: [
+        "Module functions from use @scope/package::Item now compile as define (not declare)",
+        "Parser cascade: let without = no longer silently drops rest of file",
+    ],
+    regressions: [
+        "All tests pass: module import, let decl, struct return, empty body, const string",
+    ],
+}
