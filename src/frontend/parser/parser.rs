@@ -85,8 +85,19 @@ pub fn parse_ident(input: &str) -> IResult<&str, String> {
 
 /// Parse a path separator (::) followed by an identifier
 fn parse_path_segment(input: &str) -> IResult<&str, String> {
+    // Allow scoped package names like @io/uring or @scope/pkg
+    // Parse as a single path segment containing the full scoped name.
+    fn parse_scoped_package(input: &str) -> IResult<&str, String> {
+        let (input, _) = tag("@")(input)?;
+        let (input, scope) = parse_ident(input)?;
+        let (input, _) = tag("/")(input)?;
+        let (input, name) = parse_ident(input)?;
+        Ok((input, format!("@{}/{}", scope, name)))
+    }
+
     // Also allow "super" and "crate" as path components (keywords valid in use paths).
     ws(alt((
+        parse_scoped_package,
         value("super".to_string(), tag("super")),
         value("crate".to_string(), tag("crate")),
         value("self".to_string(), tag("self")),

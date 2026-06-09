@@ -65,8 +65,8 @@ fn parse_let(input: &str) -> IResult<&str, AstNode> {
     let (input, mut_) = opt(ws(tag("mut"))).parse(input)?;
     let (input, pattern) = ws(parse_pattern).parse(input)?;
     let (input, ty) = opt(preceded(ws(tag(":")), ws(parse_type))).parse(input)?;
-    let (input, _) = ws(tag("=")).parse(input)?;
-    let (input, expr) = ws(parse_full_expr).parse(input)?;
+    // Allow `let x: Type;` (no initializer) as well as `let x = expr;` and `let x: Type = expr;`
+    let (input, init_expr) = opt(preceded(ws(tag("=")), ws(parse_full_expr))).parse(input)?;
     let (input, _) = opt(ws(tag(";"))).parse(input)?;
     Ok((
         input,
@@ -74,7 +74,10 @@ fn parse_let(input: &str) -> IResult<&str, AstNode> {
             mut_: mut_.is_some(),
             pattern: Box::new(pattern),
             ty,
-            expr: Box::new(expr),
+            expr: match init_expr {
+                Some(e) => Box::new(e),
+                None => Box::new(AstNode::Lit(0)), // Placeholder for uninitialized
+            },
         },
     ))
 }

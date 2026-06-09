@@ -230,6 +230,67 @@ impl ModuleResolver {
             return self.create_std_stub(module_path);
         }
 
+        // Check for scoped package imports: `use @io/uring::Ring;`, `use @net/http;`
+        // These are Zeta package manager (zorb) packages like @scope/name
+        if !path.is_empty() && path[0].starts_with('@') && path[0].contains('/') {
+            // path[0] is "@scope/name", remaining path components are sub-items
+            let scoped_name = &path[0]; // e.g., "@io/uring"
+            let module_path = if path.len() > 1 {
+                &path[..path.len() - 1] // Remove the last component (the item name)
+            } else {
+                path
+            };
+
+            // Look for the package in the packages directory
+            // Structure: packages/@scope/name/src/mod.z
+            let pkg_path = PathBuf::from("packages").join(scoped_name).join("src");
+            
+            // Try as a module path (e.g., use @io/uring::Ring -> packages/@io/uring/src/mod.z)
+            let mut mod_z = pkg_path.clone();
+            mod_z.push("mod.z");
+            if mod_z.exists() {
+                return Ok(mod_z);
+            }
+
+            // Try as fully-qualified package path (e.g., use @io/uring::sqe::write -> packages/@io/uring/src/sqe.z)  
+            if path.len() > 2 {
+                let mut sub_path = pkg_path.clone();
+                for comp in &path[1..path.len() - 1] {
+                    sub_path.push(format!("{}.z", comp));
+                }
+                if sub_path.exists() {
+                    return Ok(sub_path);
+                }
+                // Try as directory structure
+                let mut dir_path = pkg_path.clone();
+                for comp in &path[1..path.len() - 1] {
+                    dir_path.push(comp);
+                }
+                let mut dir_mod = dir_path;
+                dir_mod.push("mod.z");
+                if dir_mod.exists() {
+                    return Ok(dir_mod);
+                }
+            }
+
+            // Check the zorb package cache (~/.cache/zorb/packages/@scope/name/...)
+            let home = std::env::var("HOME").unwrap_or_else(|_| "/home/zeta".to_string());
+            let mut cache_path = PathBuf::from(&home)
+                .join(".cache/zorb/packages")
+                .join(scoped_name)
+                .join("src");
+            let mut cache_mod = cache_path.clone();
+            cache_mod.push("mod.z");
+            if cache_mod.exists() {
+                return Ok(cache_mod);
+            }
+
+            return Err(format!(
+                "Package not found: {}. Try running `zorb install {}`",
+                scoped_name, scoped_name
+            ));
+        }
+
         // Check for external crate imports via zorb:: prefix: `use zorb::reqwest::blocking::Client;`, `use zorb::serde::Deserialize;`
         if path.len() >= 2
             && path[0] == "zorb"
@@ -585,24 +646,6 @@ impl ModuleResolver {
             ));
         }
 
-        eprintln!("LOAD_MODULE: {} -> {} ASTs", path_str, asts.len());
-        for a in &asts {
-            if let AstNode::FuncDef { name, params, .. } = a {
-                let pstr: Vec<String> =
-                    params.iter().map(|(n, t)| format!("{}:{}", n, t)).collect();
-                eprintln!("  FD: {} params=[{}]", name, pstr.join(", "));
-            }
-            if let AstNode::ImplBlock { ty, body, .. } = a {
-                eprintln!("  IB: ty={}", ty);
-                for (i, b) in body.iter().enumerate() {
-                    if let AstNode::FuncDef { name, params, .. } = b {
-                        let pstr: Vec<String> =
-                            params.iter().map(|(n, t)| format!("{}:{}", n, t)).collect();
-                        eprintln!("    FN[{}]: {} params=[{}]", i, name, pstr.join(", "));
-                    }
-                }
-            }
-        }
         // Extract exports (public items)
         let mut exports = HashMap::new();
         for ast in &asts {
