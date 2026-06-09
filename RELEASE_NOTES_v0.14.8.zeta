@@ -1,0 +1,26 @@
+// Zeta Compiler v0.14.8 — Bootstrap Release
+// Module resolution fix: use @scope/package::Item; now compiles full packages
+//
+// Build: bootstrap branch, commit 11dccbf6
+// Date: 2026-06-09
+
+release_notes {
+    version: "v0.14.8",
+    codename: "Module Resolution Fix",
+    date: "2026-06-09",
+    highlights: [
+        "Bug: use @io/uring::Ring; produced extern declarations instead of compiled functions",
+        "Root cause: parse_let required = expr — broke on let x: i64; (no initializer)",
+        "Fix: Made = expr optional in parse_let; uninitialized vars get Lit(0) placeholder",
+        "Scoped package imports: @scope/name paths now resolve from packages/ directory",
+    ],
+    fixes: [
+        "use @scope/name::Item now fully compiles all module functions as define (not declare)",
+        "let x: Type; syntax without initializer now parses correctly",
+        "let x; syntax (no type, no initializer) also supported",
+        "Parser cascade fixed: function body no longer silently dropped after unparseable let",
+    ],
+    regressions: [
+        "All tests pass: module import, let decl, struct return, empty body, const string",
+    ],
+}
