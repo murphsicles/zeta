@@ -134,7 +134,7 @@ pub fn parse_lit(input: &str) -> IResult<&str, AstNode> {
             let remaining = &input[pos..];
             // Remove underscores and parse with appropriate radix
             let clean: String = num_str[2..].chars().filter(|c| *c != '_').collect();
-            let value = i64::from_str_radix(&clean, radix).unwrap_or(0);
+            let value = u64::from_str_radix(&clean, radix).unwrap_or(0) as i64;
             return Ok((remaining, AstNode::Lit(value)));
         }
     }
