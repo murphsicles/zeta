@@ -5,8 +5,8 @@
 #![allow(unused_variables)]
 use super::expr::parse_full_expr;
 use super::parser::{
-    parse_attributes, parse_generic_params_as_enum, parse_ident, parse_path, parse_trait_bounds,
-    parse_type, parse_where_clause, skip_ws_and_comments, ws,
+    cfg_should_skip, parse_attributes, parse_generic_params_as_enum, parse_ident, parse_path,
+    parse_trait_bounds, parse_type, parse_where_clause, skip_ws_and_comments, ws,
 };
 use super::stmt::parse_block_body;
 use crate::frontend::ast::AstNode;
@@ -692,11 +692,29 @@ fn parse_mod(input: &str) -> IResult<&str, AstNode> {
     // Parse attributes first
     let (input, attrs) = parse_attributes(input)?;
 
-    // Parse visibility
+    // Parse visibility before checking cfg — must consume tokens in order
     let (input, pub_) = parse_visibility(input)?;
 
     let (input, _) = ws(tag("mod")).parse(input)?;
     let (input, name) = ws(parse_ident).parse(input)?;
+
+    // Check #[cfg(feature = "...")] — if false, skip this module but still consume body
+    if cfg_should_skip(&attrs) {
+        // Consume body without building AST
+        let (input, _) = alt((
+            delimited(
+                ws(tag("{")),
+                many0(ws(alt((
+                    parse_use_statement,
+                    map(parse_top_level_item, |node| vec![node]),
+                )))),
+                ws(tag("}")),
+            ),
+            map(ws(tag(";")), |_| vec![]),
+        ))
+        .parse(input)?;
+        return Ok((input, AstNode::Skip));
+    }
 
     // Parse module body — either { ... } or ; (forward declaration)
     let (input, items) = alt((
@@ -714,8 +732,12 @@ fn parse_mod(input: &str) -> IResult<&str, AstNode> {
     ))
     .parse(input)?;
 
-    // Flatten the items
-    let items: Vec<AstNode> = items.into_iter().flatten().collect();
+    // Flatten the items and filter out skipped cfg-gated items
+    let items: Vec<AstNode> = items
+        .into_iter()
+        .flatten()
+        .filter(|n| !matches!(n, AstNode::Skip))
+        .collect();
 
     Ok((
         input,
@@ -804,7 +826,11 @@ pub fn parse_zeta(input: &str) -> IResult<&str, Vec<AstNode>> {
         }
     };
 
-    let asts: Vec<AstNode> = vec_vec.into_iter().flatten().collect::<Vec<AstNode>>();
+    let asts: Vec<AstNode> = vec_vec
+        .into_iter()
+        .flatten()
+        .filter(|n| !matches!(n, AstNode::Skip))
+        .collect::<Vec<AstNode>>();
 
     Ok((input, asts))
 }

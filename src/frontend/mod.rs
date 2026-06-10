@@ -1,6 +1,7 @@
 // src/frontend/mod.rs
 pub mod ast;
 pub mod borrow;
+pub mod cfg;
 pub mod borrow_enhanced;
 pub mod identity_ownership;
 pub mod macro_expand;

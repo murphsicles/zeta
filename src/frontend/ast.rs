@@ -273,6 +273,8 @@ pub enum AstNode {
     MacroCall { name: String, args: Vec<AstNode> },
     /// Macro definition (macro_rules!).
     MacroDef { name: String, patterns: String },
+    /// Placeholder for an item skipped by #[cfg(feature = "...")] evaluation.
+    Skip,
     /// Struct literal.
     StructLit {
         variant: String,

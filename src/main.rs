@@ -112,6 +112,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .and_then(|i| args.get(i + 1))
         .cloned();
     let mut target = "native".to_string();
+    let mut features = String::new();
     let mut i = 1;
 
     if args.iter().any(|a| a == "--bootstrap") {
@@ -127,6 +128,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             "--dump-mir" => {}
+            "--features" => {
+                i += 1;
+                if i < args.len() {
+                    features = args[i].clone();
+                }
+            }
             "--target" => {
                 i += 1;
                 if i < args.len() {
@@ -136,6 +143,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             _ => input = Some(args[i].clone()),
         }
         i += 1;
+    }
+
+    // Initialize cfg feature set from --features flag
+    if !features.is_empty() {
+        zetac::frontend::cfg::init_features(&features);
     }
     if let Some(file) = input {
         let code = fs::read_to_string(&file)?;

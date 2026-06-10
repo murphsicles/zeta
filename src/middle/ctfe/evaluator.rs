@@ -202,6 +202,7 @@ impl ConstEvaluator {
             | AstNode::Defer(_)
             | AstNode::TryProp { .. }
             | AstNode::DictLit { .. }
+            | AstNode::Skip
             | AstNode::Subscript { .. }
             | AstNode::FieldAccess { .. }
             | AstNode::FString(_)

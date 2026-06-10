@@ -886,6 +886,14 @@ fn split_top_level_commas(input: &str) -> Vec<&str> {
     result
 }
 
+/// Check if any parsed attribute has a `#[cfg(...)]` that evaluates to false.
+/// If so, the item should be skipped (not compiled).
+pub fn cfg_should_skip(attrs: &[String]) -> bool {
+    attrs
+        .iter()
+        .any(|a| crate::frontend::cfg::check_cfg_attr(a) == Some(false))
+}
+
 /// Parse zero or more attributes
 pub fn parse_attributes(input: &str) -> IResult<&str, Vec<String>> {
     let mut attributes = Vec::new();
