@@ -1,0 +1,80 @@
+// Client Session — exactly-once semantics via request dedup
+// Fixed table of client sessions. Each session tracks:
+//   client_id, last_request_number, last_result
+
+const CS_MAX: i64 = 64;
+const CS_ENTRY: i64 = 24;  // client_id(8) + last_req(8) + last_result(8)
+
+// Session state buffer:
+//   0: session count
+//   8: entries[CS_MAX] of CS_ENTRY bytes
+
+const CS_COUNT: i64 = 0;
+const CS_DATA: i64 = 8;
+
+fn cs_entry_ptr(p: i64, i: i64) -> i64 {
+    return p + CS_DATA + i * CS_ENTRY;
+}
+
+fn cs_init() -> i64 {
+    let sz = CS_DATA + CS_MAX * CS_ENTRY;
+    let p = os_alloc(sz);
+    os_zero(p, sz);
+    return p;
+}
+
+fn cs_destroy(p: i64) {
+    if (p != 0) { os_dealloc(p); }
+}
+
+fn cs_count(p: i64) -> i64 {
+    return os_load(p + CS_COUNT);
+}
+
+fn cs_find(p: i64, client_id: i64) -> i64 {
+    let count = os_load(p + CS_COUNT);
+    let mut i: i64 = 0;
+    while (i < count) {
+        let ep = cs_entry_ptr(p, i);
+        if (os_load(ep) == client_id) { return i; }
+        i = i + 1;
+    }
+    return -1;  // not found
+}
+
+fn cs_register(p: i64, client_id: i64) -> i64 {
+    let count = os_load(p + CS_COUNT);
+    if (count >= CS_MAX) { return -1; }
+    // Check if already registered
+    let existing = cs_find(p, client_id);
+    if (existing >= 0) { return existing; }
+    // Allocate new slot
+    let ep = cs_entry_ptr(p, count);
+    os_store(ep, client_id);
+    os_store(ep + 8, 0);     // last_request_number = 0
+    os_store(ep + 16, 0);    // last_result = 0
+    os_store(p + CS_COUNT, count + 1);
+    return count;
+}
+
+fn cs_check_dedup(p: i64, client_id: i64, req_num: i64) -> i64 {
+    let idx = cs_find(p, client_id);
+    if (idx < 0) { return -2; }  // not registered
+    let ep = cs_entry_ptr(p, idx);
+    let last_req = os_load(ep + 8);
+    if (req_num <= last_req) { return -3; }  // duplicate/replayed
+    return 0;  // new request, ok to process
+}
+
+fn cs_update_result(p: i64, client_id: i64, req_num: i64, result: i64) {
+    let idx = cs_find(p, client_id);
+    if (idx < 0) { return; }
+    let ep = cs_entry_ptr(p, idx);
+    os_store(ep + 8, req_num);    // update last_request_number
+    os_store(ep + 16, result);    // cache result
+}
+
+// Protocol extension
+// Request header: client_id(8) | request_number(8) | op_type(8) | pad(4) | data...
+// Response header: op_type(8) | result(8) | request_number(8)
+// client_id=0, request_number=0 = legacy mode (no dedup)

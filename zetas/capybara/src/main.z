@@ -9,31 +9,59 @@ const UD_VSR_ACCEPT: i64 = 200;
 const UD_CLI_READ: i64 = 300;
 const UD_VSR_READ: i64 = 400;
 
-fn handle_client(c: i64, buf: i64, rbuf: i64, acct: i64, wal: i64, vs: i64) {
+fn handle_client(c: i64, buf: i64, rbuf: i64, acct: i64, wal: i64, vs: i64, cs: i64) {
     let arena = arena_init();
     let mut run: i64 = 1;
     while (run == 1) {
         let n = os_recv(c, buf, BS);
         if (n > 0) {
+            // Protocol: [client_id(8) | request_number(8) | op_type(8) | data...]
+            // If first qword is small (≤20), treat as legacy: [op_type | pad | data]
+            let first_qw = os_load(buf);
+            let is_legacy: i64;
+            let client_id: i64;
+            let request_number: i64;
+            let data_off: i64;
+            let min_advance: i64;
+
+            if (first_qw > 0 && first_qw <= 20) {
+                is_legacy = 1; client_id = 0; request_number = 0;
+                data_off = 0; min_advance = 24;
+            } else {
+                is_legacy = 0;
+                client_id = first_qw;
+                request_number = os_load(buf+8);
+                data_off = 16;
+                min_advance = 24;  // cid + rn + ot (at least)
+            }
+
             let batch_wb = batch_init();
             let mut batch_count: i64 = 0;
             let mut batch_ok: i64 = 1;
             let mut off: i64 = 0;
             let mut first_rc: i64 = 0;
 
-            while (off + 24 <= n) {
-                let ot = os_load(buf+off);
-                let id = os_load(buf+off+16);
-                let a1 = os_load(buf+off+24);
-                let a2 = os_load(buf+off+32);
+            while (off + min_advance <= n) {
+                let ot = os_load(buf+off+data_off);  // op_type at data_off
+                let id = os_load(buf+off+data_off+16);
+                let a1 = os_load(buf+off+data_off+24);
+                let a2 = os_load(buf+off+data_off+32);
                 let wb = batch_prepare_wb(batch_wb, batch_count);
                 let mut rc: i64 = 0;
-                let mut advance: i64 = 40;
-                if (ot == 5 || ot == 72) { advance = 72; }
-                if (ot == 10) { advance = 24; }
+                let mut advance: i64 = data_off + 40;
+                if (ot == 5 || ot == 72) { advance = data_off + 72; }
+                if (ot == 10) { advance = data_off + 24; }
+
+                // Dedup check for session mode
+                if (is_legacy == 0 && request_number > 0) {
+                    let dedup_rc = cs_check_dedup(cs, client_id, request_number);
+                    if (dedup_rc == -3) {
+                        off = off + advance;
+                        continue;
+                    }
+                }
 
                 if (ot == 10) {
-                    // Balance check — read-only, no replication
                     let bal = ledg_balance(acct, id);
                     os_store(buf, 10);
                     os_store(buf+8, bal);
@@ -52,10 +80,10 @@ fn handle_client(c: i64, buf: i64, rbuf: i64, acct: i64, wal: i64, vs: i64) {
                         rc = ledg_set_flags(acct, id, a1);
                         if (rc == 0) { rt_prepare_flags(wb, 0, id, a1); batch_count = batch_count + 1; }
                     } else if (ot == 5) {
-                        let amt = os_load(buf+off+40);
-                        let tmout = os_load(buf+off+48);
-                        let code = os_load(buf+off+56);
-                        let ledg = os_load(buf+off+64);
+                        let amt = os_load(buf+off+data_off+40);
+                        let tmout = os_load(buf+off+data_off+48);
+                        let code = os_load(buf+off+data_off+56);
+                        let ledg = os_load(buf+off+data_off+64);
                         rc = ledg_create_pending(acct, id, a1, a2, amt, tmout, code, ledg);
                         if (rc == 0) { rt_prepare_pending(wb, 0, id, a1, a2, amt, tmout, code, ledg); batch_count = batch_count + 1; }
                     } else if (ot == 6) {
@@ -64,6 +92,9 @@ fn handle_client(c: i64, buf: i64, rbuf: i64, acct: i64, wal: i64, vs: i64) {
                     } else if (ot == 7) {
                         rc = ledg_void_pending(acct, id);
                         if (rc == 0) { rt_prepare_void(wb, 0, id); batch_count = batch_count + 1; }
+                    }
+                    if (is_legacy == 0 && request_number > 0 && rc == 0) {
+                        cs_update_result(cs, client_id, request_number, rc);
                     }
                     if (rc != 0) {
                         if (first_rc == 0) { first_rc = rc; }
@@ -78,7 +109,6 @@ fn handle_client(c: i64, buf: i64, rbuf: i64, acct: i64, wal: i64, vs: i64) {
                 off = off + advance;
             }
 
-            // Flush WAL batch + replicate if primary
             if (batch_count > 0 && batch_ok == 1) {
                 batch_flush(batch_wb, wal, batch_count);
                 if (vs != 0 && os_load(vs+VS_AM_PRIMARY) == 1) {
@@ -199,6 +229,11 @@ fn main(argc: i64, argv: i64) -> i64 {
 
     let acct = ledg_init();
 
+    // ─── Client Sessions ────────────────────────────────────────────
+    let cs = cs_init();
+    os_log("sessions: "); os_log_i64(cs); os_log("
+");
+
     // ─── LSM Setup ──────────────────────────────────────────────────
     let lsm_dir = os_alloc(64);
     os_zero(lsm_dir, 64);
@@ -305,7 +340,7 @@ fn main(argc: i64, argv: i64) -> i64 {
         while (run == 1) {
             // Blocking accept loop
             let cc = os_accept(cli_sv);
-            if (cc >= 0) { handle_client(cc, buf, rbuf, acct, wal, vs); os_net_close(cc); }
+            if (cc >= 0) { handle_client(cc, buf, rbuf, acct, wal, vs, cs); os_net_close(cc); }
             let vc = os_accept(vsr_sv);
             if (vc >= 0) {
                 os_nonblock(vc);
@@ -360,7 +395,7 @@ fn main(argc: i64, argv: i64) -> i64 {
                     if (ud == UD_CLI_ACCEPT) {
                         // Client accept completed
                         if (res >= 0) {
-                            handle_client(res, buf, rbuf, acct, wal, vs);
+                            handle_client(res, buf, rbuf, acct, wal, vs, cs);
                             os_net_close(res);
                         }
                         // Re-arm client accept
@@ -420,6 +455,7 @@ fn main(argc: i64, argv: i64) -> i64 {
     os_dealloc(buf);
     os_dealloc(rbuf);
     os_dealloc(lsm_dir);
+    cs_destroy(cs);
     ledg_destroy(acct);
     rt_close(sb, wal);
 
