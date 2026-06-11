@@ -1,0 +1,223 @@
+// LSM SSTable — on-disk sorted entry file with bloom filter
+// Format:
+//   Entry[0..N-1]: key(8) + value(64) = 72 bytes each
+//   Bloom filter: BLOOM_BYTES(1024) bytes
+//   Table footer: entry_count(8) | bloom_offset(8) | checksum(8)
+
+const SST_COUNT: i64 = 0;
+const SST_BLOOM_OFF: i64 = 8;
+const SST_CHKSUM: i64 = 16;
+const SST_FOOTER: i64 = 24;  // total footer size
+
+fn sst_path(dir: i64, level: i64, seq: i64) -> i64 {
+    // Build path: dir/sst_L_S.dat
+    // Use a fixed buffer for simplicity
+    let buf = os_alloc(256);
+    os_zero(buf, 256);
+    let mut off: i64 = 0;
+    // Copy dir string
+    let mut di: i64 = 0;
+    while (true) {
+        let b = os_load(dir + di) & 0xFF;
+        if (b == 0) { break; }
+        os_store_8(buf + off, b);
+        off = off + 1;
+        di = di + 1;
+    }
+    // Append "/sst_"
+    os_store_8(buf + off, 47); off = off + 1;  // '/'
+    os_store_8(buf + off, 115); off = off + 1; // 's'
+    os_store_8(buf + off, 115); off = off + 1; // 's'
+    os_store_8(buf + off, 116); off = off + 1; // 't'
+    os_store_8(buf + off, 95); off = off + 1;  // '_'
+    // Append level as decimal
+    let ltmp = os_alloc(16); os_zero(ltmp, 16);
+    let mut lv: i64 = level;
+    let mut li: i64 = 0;
+    if (lv == 0) { os_store_8(ltmp, 48); li = 1; }
+    else {
+        let mut digits: i64 = 0;
+        let mut tmp: i64 = lv;
+        while (tmp > 0) { digits = digits + 1; tmp = tmp / 10; }
+        let mut di2: i64 = digits;
+        while (di2 > 0) {
+            os_store_8(ltmp + di2 - 1, 48 + (lv % 10));
+            lv = lv / 10;
+            di2 = di2 - 1;
+        }
+        li = digits;
+    }
+    let mut li2: i64 = 0;
+    while (li2 < li) {
+        os_store_8(buf + off, os_load(ltmp + li2) & 0xFF);
+        off = off + 1;
+        li2 = li2 + 1;
+    }
+    os_dealloc(ltmp);
+    // Append "_"
+    os_store_8(buf + off, 95); off = off + 1;
+    // Append seq as decimal
+    let stmp = os_alloc(16); os_zero(stmp, 16);
+    let mut sv: i64 = seq;
+    if (sv == 0) { os_store_8(stmp, 48); li = 1; }
+    else {
+        let mut digits: i64 = 0;
+        let mut tmp: i64 = sv;
+        while (tmp > 0) { digits = digits + 1; tmp = tmp / 10; }
+        let mut di3: i64 = digits;
+        while (di3 > 0) {
+            os_store_8(stmp + di3 - 1, 48 + (sv % 10));
+            sv = sv / 10;
+            di3 = di3 - 1;
+        }
+        li = digits;
+    }
+    let mut li3: i64 = 0;
+    while (li3 < li) {
+        os_store_8(buf + off, os_load(stmp + li3) & 0xFF);
+        off = off + 1;
+        li3 = li3 + 1;
+    }
+    os_dealloc(stmp);
+    // Append ".dat"
+    os_store_8(buf + off, 46); off = off + 1;  // '.'
+    os_store_8(buf + off, 100); off = off + 1; // 'd'
+    os_store_8(buf + off, 97); off = off + 1;  // 'a'
+    os_store_8(buf + off, 116); off = off + 1; // 't'
+    os_store_8(buf + off, 0);  // null terminator
+
+    return buf;
+}
+
+fn sst_create(fd: i64, mt: i64, bloom: i64) -> i64 {
+    let count = mt_count(mt);
+    if (count == 0) { return 0; }
+
+    let entry_bytes = count * MT_ENTRY;
+    let bloom_offset = entry_bytes;  // bloom starts right after entries
+
+    // Write entries
+    let mut i: i64 = 0;
+    while (i < count) {
+        let src = mt_entry_ptr(mt, i);
+        let wrote = os_write(fd, src, MT_ENTRY);
+        if (wrote != MT_ENTRY) { return -1; }
+        // Add to bloom
+        if (bloom != 0) { bloom_add(bloom, os_load(src)); }
+        i = i + 1;
+    }
+
+    // Write bloom filter
+    if (bloom != 0) {
+        os_write(fd, bloom, BLOOM_BYTES);
+    } else {
+        let zb = os_alloc(BLOOM_BYTES);
+        os_zero(zb, BLOOM_BYTES);
+        os_write(fd, zb, BLOOM_BYTES);
+        os_dealloc(zb);
+    }
+
+    // Write table footer
+    let footer = os_alloc(SST_FOOTER);
+    os_store(footer + SST_COUNT, count);            // actual entry count
+    os_store(footer + SST_BLOOM_OFF, bloom_offset);  // bloom offset
+    let total_size = bloom_offset + BLOOM_BYTES + SST_FOOTER;
+    os_store(footer + SST_CHKSUM, 0);
+    let csum = xxh64(footer, SST_FOOTER, 0);
+    os_store(footer + SST_CHKSUM, csum);
+    os_write(fd, footer, SST_FOOTER);
+    os_sync(fd);
+    os_dealloc(footer);
+
+    return count;
+}
+
+// Read SSTable footer from a file
+fn sst_read_footer(fd: i64, footer: i64) -> i64 {
+    let end = os_seek(fd, 0, os_seek_end());
+    if (end < SST_FOOTER) { return -1; }
+    let footer_off = end - SST_FOOTER;
+    os_seek(fd, footer_off, 0);
+    let n = os_read(fd, footer, SST_FOOTER);
+    if (n != SST_FOOTER) { return -1; }
+    // Verify checksum
+    let stored_csum = os_load(footer + SST_CHKSUM);
+    os_store(footer + SST_CHKSUM, 0);
+    let computed = xxh64(footer, SST_FOOTER, 0);
+    if (computed != stored_csum) {
+        os_store(footer + SST_CHKSUM, stored_csum);
+        return -3;
+    }
+    os_store(footer + SST_CHKSUM, stored_csum);
+    return 0;
+}
+
+fn sst_entry_count(footer: i64) -> i64 {
+    return os_load(footer + SST_COUNT);
+}
+
+fn sst_bloom_offset(footer: i64) -> i64 {
+    return os_load(footer + SST_BLOOM_OFF);
+}
+
+fn sst_total_size(footer: i64) -> i64 {
+    let bo = os_load(footer + SST_BLOOM_OFF);
+    return bo + BLOOM_BYTES + SST_FOOTER;
+}
+
+fn sst_get(fd: i64, footer: i64, key: i64, val: i64, bloom: i64) -> i64 {
+    let count = os_load(footer + SST_COUNT);
+    if (count == 0) { return -1; }
+
+    // Check bloom filter first
+    let bloom_off = os_load(footer + SST_BLOOM_OFF);
+    if (bloom != 0) {
+        // Read bloom filter
+        os_seek(fd, bloom_off, 0);
+        os_read(fd, bloom, BLOOM_BYTES);
+        if (bloom_maybe_contains(bloom, key) == 0) { return -1; }
+    }
+
+    // Binary search entries
+    let mut lo: i64 = 0;
+    let mut hi: i64 = count;
+    while (lo < hi) {
+        let mid = (lo + hi) >> 1;
+        let off = mid * MT_ENTRY;
+        let buf = os_alloc(8);
+        os_seek(fd, off, 0);
+        os_read(fd, buf, 8);
+        let mk = os_load(buf);
+        os_dealloc(buf);
+        if (mk < key) { lo = mid + 1; }
+        else if (mk > key) { hi = mid; }
+        else {
+            // Found — read value
+            if (val != 0) {
+                os_seek(fd, off + 8, 0);
+                os_read(fd, val, 64);
+            }
+            return 0;
+        }
+    }
+    return -1;
+}
+
+fn sst_get_all(fd: i64, footer: i64, keys: i64, vals: i64, max_count: i64) -> i64 {
+    let count = os_load(footer + SST_COUNT);
+    let n = count;
+    if (n > max_count) { n = max_count; }
+    os_seek(fd, 0, 0);
+    let mut i: i64 = 0;
+    while (i < n) {
+        let off = i * MT_ENTRY;
+        os_read(fd, keys + i * 8, 8);
+        if (vals != 0) {
+            os_read(fd, vals + i * 64, 64);
+        } else {
+            os_seek(fd, off + 8 + 64, 0);  // skip value
+        }
+        i = i + 1;
+    }
+    return n;
+}

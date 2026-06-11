@@ -1,0 +1,225 @@
+// LSM Manifest — tracks which SSTable files exist and their metadata
+// Stored as a file: dir/manifest.dat
+// In-memory: sorted array of (level, seq, path, entry_count)
+
+const MANIFEST_MAX: i64 = 256;
+const MANIFEST_ENTRY: i64 = 24;  // level(8) + seq(8) + entry_count(8)
+const MANIFEST_FILE: i64 = 40;   // "/tmp/capybara_data/manifest.dat" (variable)
+
+// Manifest state buffer:
+//   0: count
+//   8..: entries[MANIFEST_MAX] of MANIFEST_ENTRY bytes
+
+const MF_COUNT: i64 = 0;
+const MF_DATA: i64 = 8;
+
+fn mf_entry_ptr(p: i64, i: i64) -> i64 {
+    return p + MF_DATA + i * MANIFEST_ENTRY;
+}
+
+fn mf_init() -> i64 {
+    let p = os_alloc(MF_DATA + MANIFEST_MAX * MANIFEST_ENTRY);
+    os_zero(p, MF_DATA + MANIFEST_MAX * MANIFEST_ENTRY);
+    return p;
+}
+
+fn mf_destroy(p: i64) {
+    if (p != 0) { os_dealloc(p); }
+}
+
+fn mf_count(p: i64) -> i64 {
+    return os_load(p + MF_COUNT);
+}
+
+fn mf_level(p: i64, i: i64) -> i64 {
+    return os_load(mf_entry_ptr(p, i));
+}
+
+fn mf_seq(p: i64, i: i64) -> i64 {
+    return os_load(mf_entry_ptr(p, i) + 8);
+}
+
+fn mf_entry_count(p: i64, i: i64) -> i64 {
+    return os_load(mf_entry_ptr(p, i) + 16);
+}
+
+fn mf_add(p: i64, level: i64, seq: i64, entry_count: i64) -> i64 {
+    let count = os_load(p + MF_COUNT);
+    if (count >= MANIFEST_MAX) { return -1; }
+    let ep = mf_entry_ptr(p, count);
+    os_store(ep, level);
+    os_store(ep + 8, seq);
+    os_store(ep + 16, entry_count);
+    os_store(p + MF_COUNT, count + 1);
+    return 0;
+}
+
+fn mf_remove(p: i64, i: i64) {
+    let count = os_load(p + MF_COUNT);
+    if (i >= count) { return; }
+    // Shift entries left
+    let mut j: i64 = i;
+    while (j + 1 < count) {
+        let src = mf_entry_ptr(p, j + 1);
+        let dst = mf_entry_ptr(p, j);
+        os_copy(dst, src, MANIFEST_ENTRY);
+        j = j + 1;
+    }
+    os_store(p + MF_COUNT, count - 1);
+}
+
+fn mf_remove_by_seq(p: i64, seq: i64) {
+    let count = os_load(p + MF_COUNT);
+    let mut i: i64 = 0;
+    while (i < count) {
+        if (mf_seq(p, i) == seq) {
+            mf_remove(p, i);
+            return;
+        }
+        i = i + 1;
+    }
+}
+
+fn mf_find_by_seq(p: i64, seq: i64) -> i64 {
+    let count = os_load(p + MF_COUNT);
+    let mut i: i64 = 0;
+    while (i < count) {
+        if (mf_seq(p, i) == seq) { return i; }
+        i = i + 1;
+    }
+    return -1;
+}
+
+fn mf_sstables_at_level(p: i64, level: i64, out_indices: i64) -> i64 {
+    let count = os_load(p + MF_COUNT);
+    let mut n: i64 = 0;
+    let mut i: i64 = 0;
+    while (i < count) {
+        if (mf_level(p, i) == level) {
+            if (out_indices != 0) {
+                os_store(out_indices + n * 8, i);
+            }
+            n = n + 1;
+        }
+        i = i + 1;
+    }
+    return n;
+}
+
+fn mf_sstable_paths_at_level(p: i64, level: i64, dir: i64, out_paths: i64) -> i64 {
+    let indices = os_alloc(MANIFEST_MAX * 8);
+    let n = mf_sstables_at_level(p, level, indices);
+    let mut i: i64 = 0;
+    while (i < n) {
+        let idx = os_load(indices + i * 8);
+        let seq = mf_seq(p, idx);
+        let path = sst_path(dir, level, seq);
+        if (out_paths != 0) {
+            os_store(out_paths + i * 8, path);
+        }
+        i = i + 1;
+    }
+    os_dealloc(indices);
+    return n;
+}
+
+fn mf_next_seq(p: i64) -> i64 {
+    let count = os_load(p + MF_COUNT);
+    let mut max_seq: i64 = 0;
+    let mut i: i64 = 0;
+    while (i < count) {
+        let s = mf_seq(p, i);
+        if (s > max_seq) { max_seq = s; }
+        i = i + 1;
+    }
+    return max_seq + 1;
+}
+
+fn mf_write(p: i64, dir: i64) -> i64 {
+    let path = os_alloc(256);
+    os_zero(path, 256);
+    // Build manifest path
+    let mut off: i64 = 0;
+    let mut di: i64 = 0;
+    while (true) {
+        let b = os_load(dir + di) & 0xFF;
+        if (b == 0) { break; }
+        os_store_8(path + off, b);
+        off = off + 1;
+        di = di + 1;
+    }
+    os_store_8(path + off, 47); off = off + 1;  // '/'
+    os_store_8(path + off, 109); off = off + 1; // 'm'
+    os_store_8(path + off, 97); off = off + 1;  // 'a'
+    os_store_8(path + off, 110); off = off + 1; // 'n'
+    os_store_8(path + off, 105); off = off + 1; // 'i'
+    os_store_8(path + off, 102); off = off + 1; // 'f'
+    os_store_8(path + off, 101); off = off + 1; // 'e'
+    os_store_8(path + off, 115); off = off + 1; // 's'
+    os_store_8(path + off, 116); off = off + 1; // 't'
+    os_store_8(path + off, 46); off = off + 1;  // '.'
+    os_store_8(path + off, 100); off = off + 1; // 'd'
+    os_store_8(path + off, 97); off = off + 1;  // 'a'
+    os_store_8(path + off, 116); off = off + 1; // 't'
+    os_store_8(path + off, 0);
+
+    let fd = os_open(path, os_rdwr(), os_m644());
+    if (fd < 0) { os_dealloc(path); return -1; }
+
+    let count = os_load(p + MF_COUNT);
+    os_write(fd, p + MF_COUNT, 8);  // count
+    if (count > 0) {
+        os_write(fd, p + MF_DATA, count * MANIFEST_ENTRY);
+    }
+    os_sync(fd);
+    os_close(fd);
+    os_dealloc(path);
+    return 0;
+}
+
+fn mf_read(p: i64, dir: i64) -> i64 {
+    let path = os_alloc(256);
+    os_zero(path, 256);
+    let mut off: i64 = 0;
+    let mut di: i64 = 0;
+    while (true) {
+        let b = os_load(dir + di) & 0xFF;
+        if (b == 0) { break; }
+        os_store_8(path + off, b);
+        off = off + 1;
+        di = di + 1;
+    }
+    os_store_8(path + off, 47); off = off + 1;
+    os_store_8(path + off, 109); off = off + 1;
+    os_store_8(path + off, 97); off = off + 1;
+    os_store_8(path + off, 110); off = off + 1;
+    os_store_8(path + off, 105); off = off + 1;
+    os_store_8(path + off, 102); off = off + 1;
+    os_store_8(path + off, 101); off = off + 1;
+    os_store_8(path + off, 115); off = off + 1;
+    os_store_8(path + off, 116); off = off + 1;
+    os_store_8(path + off, 46); off = off + 1;
+    os_store_8(path + off, 100); off = off + 1;
+    os_store_8(path + off, 97); off = off + 1;
+    os_store_8(path + off, 116); off = off + 1;
+    os_store_8(path + off, 0);
+
+    let fd = os_open(path, os_rdwr(), os_m644());
+    if (fd < 0) {
+        // First run — no manifest yet
+        os_dealloc(path);
+        return 0;
+    }
+
+    os_zero(p + MF_DATA, MANIFEST_MAX * MANIFEST_ENTRY);
+    let n = os_read(fd, p + MF_COUNT, 8);
+    if (n != 8) { os_close(fd); os_dealloc(path); return 0; }
+    let count = os_load(p + MF_COUNT);
+    if (count > 0 && count <= MANIFEST_MAX) {
+        os_read(fd, p + MF_DATA, count * MANIFEST_ENTRY);
+    }
+
+    os_close(fd);
+    os_dealloc(path);
+    return count;
+}

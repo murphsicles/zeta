@@ -1,0 +1,260 @@
+// Capybara DB — LSM Integration Test
+// Tests memtable, SSTable, bloom filter, manifest, and LSM tree
+
+fn main(argc: i64, argv: i64) -> i64 {
+    let t0 = os_now_us();
+    os_log("=== LSM Integration Test ===\n");
+    let mut errors: i64 = 0;
+
+    // ─── 1. Bloom Filter Test ─────────────────────────────────────
+    os_log("\n--- Bloom Filter ---\n");
+    let bloom = bloom_new();
+    bloom_add(bloom, 42);
+    bloom_add(bloom, 100);
+    bloom_add(bloom, 999);
+
+    let b1 = bloom_maybe_contains(bloom, 42);
+    let b2 = bloom_maybe_contains(bloom, 100);
+    let b3 = bloom_maybe_contains(bloom, 999);
+    let b4 = bloom_maybe_contains(bloom, 0);
+    let b5 = bloom_maybe_contains(bloom, 43);
+    os_log("  42 contains="); os_log_i64(b1); os_log(" (expect 1)\n");
+    os_log("  100 contains="); os_log_i64(b2); os_log(" (expect 1)\n");
+    os_log("  999 contains="); os_log_i64(b3); os_log(" (expect 1)\n");
+    os_log("  0 contains="); os_log_i64(b4); os_log(" (expect 0 or 1)\n");
+    if (b1 == 0) { errors = errors + 1; os_log("  FAIL: bloom missed key 42\n"); }
+    if (b2 == 0) { errors = errors + 1; os_log("  FAIL: bloom missed key 100\n"); }
+    if (b3 == 0) { errors = errors + 1; os_log("  FAIL: bloom missed key 999\n"); }
+    bloom_free(bloom);
+
+    // ─── 2. Memtable Test ─────────────────────────────────────────
+    os_log("\n--- Memtable ---\n");
+    let mt = mt_init();
+    let val_buf = os_alloc(64);
+
+    // Put some entries (unsorted order)
+    os_zero(val_buf, 64);
+    os_store(val_buf, 1000);
+    mt_put(mt, 50, val_buf);
+
+    os_zero(val_buf, 64);
+    os_store(val_buf, 2000);
+    mt_put(mt, 10, val_buf);
+
+    os_zero(val_buf, 64);
+    os_store(val_buf, 3000);
+    mt_put(mt, 30, val_buf);
+
+    let c = mt_count(mt);
+    os_log("  count="); os_log_i64(c); os_log(" (expect 3)\n");
+    if (c != 3) { errors = errors + 1; os_log("  FAIL: expected 3 entries\n"); }
+
+    // Verify sorted order
+    let k0 = mt_entry_key(mt, 0);
+    let k1 = mt_entry_key(mt, 1);
+    let k2 = mt_entry_key(mt, 2);
+    os_log("  order: "); os_log_i64(k0); os_log(", "); os_log_i64(k1); os_log(", "); os_log_i64(k2); os_log("\n");
+    if (k0 != 10 || k1 != 30 || k2 != 50) {
+        errors = errors + 1;
+        os_log("  FAIL: wrong sort order\n");
+    }
+
+    // Get
+    let get_buf = os_alloc(64);
+    os_zero(get_buf, 64);
+    let rc = mt_get(mt, 30, get_buf);
+    let gv = os_load(get_buf);
+    os_log("  get(30)="); os_log_i64(gv); os_log(" rc="); os_log_i64(rc); os_log(" (expect 3000)\n");
+    if (gv != 3000) { errors = errors + 1; os_log("  FAIL: wrong value\n"); }
+
+    os_dealloc(get_buf);
+    os_dealloc(val_buf);
+
+    // ─── 3. SSTable Write/Read Test ───────────────────────────────
+    os_log("\n--- SSTable ---\n");
+    let dir = os_alloc(32);
+    os_zero(dir, 32);
+    os_store_8(dir, 47); os_store_8(dir+1, 116); os_store_8(dir+2, 109);
+    os_store_8(dir+3, 112); os_store_8(dir+4, 47); os_store_8(dir+5, 99);
+    os_store_8(dir+6, 97); os_store_8(dir+7, 112); os_store_8(dir+8, 121);
+    os_store_8(dir+9, 95); os_store_8(dir+10, 100); os_store_8(dir+11, 98);
+    os_store_8(dir+12, 95); os_store_8(dir+13, 116); os_store_8(dir+14, 101);
+    os_store_8(dir+15, 115); os_store_8(dir+16, 116); os_store_8(dir+17, 0);
+    // /tmp/capy_db_test
+
+    os_mkdir(dir, os_m755());
+    let sst_path = sst_path(dir, 0, 1);
+    let fd = os_open(sst_path, os_rdwr(), os_m644());
+
+    let sst_bloom = bloom_new();
+    let rc2 = sst_create(fd, mt, sst_bloom);
+    os_close(fd);
+    os_log("  sst_create rc="); os_log_i64(rc2); os_log("\n");
+
+    // Read back
+    let rfd = os_open(sst_path, os_rdwr(), os_m644());
+    let footer = os_alloc(SST_FOOTER);
+    let frc = sst_read_footer(rfd, footer);
+    os_log("  footer rc="); os_log_i64(frc); os_log("\n");
+
+    let ec = sst_entry_count(footer);
+    os_log("  entry_count="); os_log_i64(ec); os_log(" (expect 3)\n");
+    if (ec != 3) { errors = errors + 1; os_log("  FAIL: expected 3 entries\n"); }
+
+    // Get from SSTable
+    let get_val = os_alloc(64);
+    let sst_bloom2 = bloom_new();
+    let grc = sst_get(rfd, footer, 30, get_val, sst_bloom2);
+    let sv = os_load(get_val);
+    os_log("  sst_get(30)="); os_log_i64(sv); os_log(" rc="); os_log_i64(grc); os_log(" (expect 3000)\n");
+    if (grc != 0 || sv != 3000) { errors = errors + 1; os_log("  FAIL: sst get wrong\n"); }
+
+    // Test bloom negative
+    let grc2 = sst_get(rfd, footer, 9999, get_val, sst_bloom2);
+    os_log("  sst_get(9999)="); os_log_i64(grc2); os_log(" (expect -1)\n");
+    if (grc2 == 0) { errors = errors + 1; os_log("  FAIL: should not find 9999\n"); }
+
+    os_close(rfd);
+    os_dealloc(footer);
+    os_dealloc(get_val);
+    bloom_free(sst_bloom);
+    bloom_free(sst_bloom2);
+
+    // ─── 4. Manifest Test ─────────────────────────────────────────
+    os_log("\n--- Manifest ---\n");
+    let mf = mf_init();
+    mf_add(mf, 0, 1, 100);
+    mf_add(mf, 0, 2, 200);
+    mf_add(mf, 1, 3, 500);
+
+    let mc = mf_count(mf);
+    os_log("  count="); os_log_i64(mc); os_log(" (expect 3)\n");
+    if (mc != 3) { errors = errors + 1; os_log("  FAIL: expected 3 entries\n"); }
+
+    // Write manifest
+    mf_write(mf, dir);
+    os_log("  write ok\n");
+
+    // Read back
+    let mf2 = mf_init();
+    let mrc = mf_read(mf2, dir);
+    os_log("  read count="); os_log_i64(mrc); os_log(" (expect 3)\n");
+    if (mrc != 3) { errors = errors + 1; os_log("  FAIL: expected 3 from read\n"); }
+
+    let l0_indices = os_alloc(MANIFEST_MAX * 8);
+    let l0_count = mf_sstables_at_level(mf2, 0, l0_indices);
+    os_log("  L0 tables="); os_log_i64(l0_count); os_log(" (expect 2)\n");
+    if (l0_count != 2) { errors = errors + 1; os_log("  FAIL: expected 2 L0 tables\n"); }
+    os_dealloc(l0_indices);
+
+    mf_destroy(mf);
+    mf_destroy(mf2);
+
+    // ─── 5. LSM Tree Basic Test ──────────────────────────────────
+    os_log("\n--- LSM Tree ---\n");
+    let lsm_dir = os_alloc(32);
+    os_zero(lsm_dir, 32);
+    os_store_8(lsm_dir, 47); os_store_8(lsm_dir+1, 116); os_store_8(lsm_dir+2, 109);
+    os_store_8(lsm_dir+3, 112); os_store_8(lsm_dir+4, 47); os_store_8(lsm_dir+5, 108);
+    os_store_8(lsm_dir+6, 115); os_store_8(lsm_dir+7, 109); os_store_8(lsm_dir+8, 116);
+    os_store_8(lsm_dir+9, 101); os_store_8(lsm_dir+10, 115); os_store_8(lsm_dir+11, 116);
+    os_store_8(lsm_dir+12, 0);
+    // /tmp/lsmtest
+    os_mkdir(lsm_dir, os_m755());
+
+    // Remove old data
+    rm_rf(lsm_dir);
+
+    let lsm = lsm_open(lsm_dir);
+    os_log("  lsm open ok\n");
+
+    // Put entries
+    let vbuf = os_alloc(64);
+    os_zero(vbuf, 64); os_store(vbuf, 111); lsm_put(lsm, 10, vbuf);
+    os_zero(vbuf, 64); os_store(vbuf, 222); lsm_put(lsm, 20, vbuf);
+    os_zero(vbuf, 64); os_store(vbuf, 333); lsm_put(lsm, 30, vbuf);
+    os_log("  put 3 entries ok\n");
+
+    // Get entries
+    let gbuf = os_alloc(64);
+    os_zero(gbuf, 64);
+    let grc3 = lsm_get(lsm, 20, gbuf);
+    let gv3 = os_load(gbuf);
+    os_log("  get(20)="); os_log_i64(gv3); os_log(" rc="); os_log_i64(grc3); os_log(" (expect 222)\n");
+    if (grc3 != 0 || gv3 != 222) { errors = errors + 1; os_log("  FAIL: lsm get wrong\n"); }
+
+    os_zero(gbuf, 64);
+    let grc4 = lsm_get(lsm, 999, gbuf);
+    os_log("  get(999)="); os_log_i64(grc4); os_log(" (expect -1)\n");
+    if (grc4 == 0) { errors = errors + 1; os_log("  FAIL: should not find 999\n"); }
+
+    // Close and reopen
+    lsm_close(lsm);
+    os_log("  close ok\n");
+
+    let lsm2 = lsm_open(lsm_dir);
+    os_log("  reopen ok\n");
+    os_zero(gbuf, 64);
+    let grc5 = lsm_get(lsm2, 10, gbuf);
+    let gv5 = os_load(gbuf);
+    os_log("  after reopen get(10)="); os_log_i64(gv5); os_log(" rc="); os_log_i64(grc5); os_log(" (expect 111)\n");
+    if (grc5 != 0 || gv5 != 111) { errors = errors + 1; os_log("  FAIL: lsm reopen get wrong\n"); }
+
+    lsm_close(lsm2);
+
+    os_dealloc(gbuf);
+    os_dealloc(vbuf);
+    os_dealloc(lsm_dir);
+    os_dealloc(dir);
+
+    // ─── Summary ──────────────────────────────────────────────────
+    os_log("\n=== "); os_log_i64(errors);
+    if (errors == 0) { os_log(" errors — ALL PASSED ===\n"); }
+    else { os_log(" errors — FAILURES DETECTED ===\n"); }
+
+    os_log("elapsed: "); os_log_i64((os_now_us() - t0) / 1000); os_log("ms\n");
+    return errors;
+}
+
+fn rm_rf(dir: i64) {
+    // Delete any old sst_*.dat files in the directory
+    let mut i: i64 = 0;
+    while (i < 100) {
+        let sst_path = sst_path(dir, 0, i);
+        syscall(87, sst_path, 0, 0, 0, 0, 0);  // unlink, ignore errors
+        os_dealloc(sst_path);
+        i = i + 1;
+    }
+    let sst_path = sst_path(dir, 1, i);
+    syscall(87, sst_path, 0, 0, 0, 0, 0);
+    os_dealloc(sst_path);
+
+    // Delete manifest
+    let mpath = os_alloc(256);
+    os_zero(mpath, 256);
+    let mut off: i64 = 0;
+    let mut di: i64 = 0;
+    while (true) {
+        let b = os_load(dir + di) & 0xFF;
+        if (b == 0) { break; }
+        os_store_8(mpath + off, b);
+        off = off + 1;
+        di = di + 1;
+    }
+    os_store_8(mpath + off, 47); off = off + 1;
+    os_store_8(mpath + off, 109); off = off + 1;
+    os_store_8(mpath + off, 97); off = off + 1;
+    os_store_8(mpath + off, 110); off = off + 1;
+    os_store_8(mpath + off, 105); off = off + 1;
+    os_store_8(mpath + off, 102); off = off + 1;
+    os_store_8(mpath + off, 101); off = off + 1;
+    os_store_8(mpath + off, 115); off = off + 1;
+    os_store_8(mpath + off, 116); off = off + 1;
+    os_store_8(mpath + off, 46); off = off + 1;
+    os_store_8(mpath + off, 100); off = off + 1;
+    os_store_8(mpath + off, 97); off = off + 1;
+    os_store_8(mpath + off, 116); off = off + 1;
+    os_store_8(mpath + off, 0);
+    syscall(87, mpath, 0, 0, 0, 0, 0);
+    os_dealloc(mpath);
+}

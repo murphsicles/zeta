@@ -1,0 +1,318 @@
+// LSM Tree — Log-Structured Merge Tree for Capybara DB
+// Two levels: memtable (L0) + on-disk SSTables (L1+)
+// Get: search memtable → SSTables (newest first)
+// Put: insert into memtable, auto-flush when full
+// Compaction: merge SSTables from level N to N+1
+
+const LSM_MAX_LEVELS: i64 = 4;
+const LSM_MAX_SST_PER_LEVEL: i64 = 8;  // trigger compaction
+
+// LSM state buffer:
+//   0: memtable pointer
+//   8: manifest pointer  
+//   16: bloom filter (for lookups)
+//   24: data_dir pointer
+//   32: next_seq
+//   40: level 0 sstable count (for compaction trigger)
+//   48: compacting flag
+//   56..: temp buffer for I/O
+
+const LSM_MT: i64 = 0;
+const LSM_MF: i64 = 8;
+const LSM_BLOOM: i64 = 16;
+const LSM_DIR: i64 = 24;
+const LSM_SEQ: i64 = 32;
+const LSM_L0_COUNT: i64 = 40;
+const LSM_COMPACTING: i64 = 48;
+const LSM_TMP: i64 = 56;  // 256 bytes for temp strings
+
+fn lsm_open(dir: i64) -> i64 {
+    let sz = LSM_TMP + 256;
+    let p = os_alloc(sz);
+    os_zero(p, sz);
+
+    // Init memtable
+    os_store(p + LSM_MT, mt_init());
+
+    // Init bloom for lookups
+    os_store(p + LSM_BLOOM, bloom_new());
+
+    // Store dir
+    os_store(p + LSM_DIR, dir);
+
+    // Read manifest
+    let mf = mf_init();
+    mf_read(mf, dir);
+    os_store(p + LSM_MF, mf);
+
+    // Find next sequence number
+    let next_seq = mf_next_seq(mf);
+    os_store(p + LSM_SEQ, next_seq);
+
+    // Count L0 SSTables
+    let l0_count = mf_sstables_at_level(mf, 0, 0);
+    os_store(p + LSM_L0_COUNT, l0_count);
+
+    return p;
+}
+
+fn lsm_close(p: i64) {
+    if (p == 0) { return; }
+
+    // Flush memtable
+    let mt = os_load(p + LSM_MT);
+    if (!mt_is_full(mt) && mt_count(mt) > 0) {
+        lsm_flush(p);
+    }
+
+    // Write manifest
+    let mf = os_load(p + LSM_MF);
+    let dir = os_load(p + LSM_DIR);
+    mf_write(mf, dir);
+
+    // Cleanup
+    mt_destroy(mt);
+    mf_destroy(mf);
+    bloom_free(os_load(p + LSM_BLOOM));
+    os_dealloc(p);
+}
+
+fn lsm_put(p: i64, key: i64, val: i64) -> i64 {
+    if (p == 0) { return -1; }
+    let mt = os_load(p + LSM_MT);
+
+    // Check if memtable is full
+    if (mt_is_full(mt)) {
+        let rc = lsm_flush(p);
+        if (rc < 0) { return rc; }
+    }
+
+    // Put into memtable
+    return mt_put(mt, key, val);
+}
+
+fn lsm_get(p: i64, key: i64, val: i64) -> i64 {
+    if (p == 0) { return -1; }
+    let mt = os_load(p + LSM_MT);
+
+    // Search memtable first
+    let rc = mt_get(mt, key, val);
+    if (rc >= 0) { return 0; }
+
+    // Search SSTables (newest first)
+    let mf = os_load(p + LSM_MF);
+    let dir = os_load(p + LSM_DIR);
+    let bloom = os_load(p + LSM_BLOOM);
+    let count = mf_count(mf);
+
+    // Search in reverse order (newest SSTables first)
+    let mut i: i64 = count;
+    while (i > 0) {
+        i = i - 1;
+        let seq = mf_seq(mf, i);
+        let level = mf_level(mf, i);
+        let sst_path = sst_path(dir, level, seq);
+        let fd = os_open(sst_path, os_rdwr(), os_m644());
+
+        // Read footer
+        let footer = os_alloc(SST_FOOTER);
+        let f_rc = sst_read_footer(fd, footer);
+        if (f_rc == 0) {
+            let g_rc = sst_get(fd, footer, key, val, bloom);
+            os_dealloc(footer);
+            os_close(fd);
+            os_dealloc(sst_path);
+            if (g_rc == 0) { return 0; }  // found
+        } else {
+            os_dealloc(footer);
+            os_close(fd);
+            os_dealloc(sst_path);
+        }
+    }
+
+    return -1;  // not found
+}
+
+fn lsm_flush(p: i64) -> i64 {
+    let mt = os_load(p + LSM_MT);
+    let count = mt_count(mt);
+    if (count == 0) { return 0; }
+
+    let mf = os_load(p + LSM_MF);
+    let dir = os_load(p + LSM_DIR);
+    let seq = os_load(p + LSM_SEQ);
+    let bloom = bloom_new();
+
+    // Build SSTable path
+    let sst_path = sst_path(dir, 0, seq);
+
+    // Open and write SSTable
+    let fd = os_open(sst_path, os_rdwr(), os_m644());
+    if (fd < 0) { bloom_free(bloom); os_dealloc(sst_path); return -1; }
+
+    let rc = sst_create(fd, mt, bloom);
+    os_close(fd);
+
+    if (rc < 0) { bloom_free(bloom); os_dealloc(sst_path); return rc; }
+
+    // Add to manifest
+    mf_add(mf, 0, seq, count);
+
+    // Clear memtable
+    mt_clear(mt);
+
+    // Update sequence
+    os_store(p + LSM_SEQ, seq + 1);
+
+    // Update L0 count
+    let l0_count = os_load(p + LSM_L0_COUNT) + 1;
+    os_store(p + LSM_L0_COUNT, l0_count);
+
+    bloom_free(bloom);
+    os_dealloc(sst_path);
+
+    // Check if compaction needed
+    if (l0_count >= LSM_MAX_SST_PER_LEVEL) {
+        lsm_compact(p);
+    }
+
+    return count;
+}
+
+fn lsm_compact(p: i64) -> i64 {
+    let compacting = os_load(p + LSM_COMPACTING);
+    if (compacting != 0) { return 0; }  // already compacting
+    os_store(p + LSM_COMPACTING, 1);
+
+    let mf = os_load(p + LSM_MF);
+    let dir = os_load(p + LSM_DIR);
+    let seq = os_load(p + LSM_SEQ);
+
+    // Collect all L0 SSTable paths
+    let paths = os_alloc(LSM_MAX_SST_PER_LEVEL * 8);
+    let n = mf_sstable_paths_at_level(mf, 0, dir, paths);
+
+    if (n <= 1) {
+        os_store(p + LSM_COMPACTING, 0);
+        os_dealloc(paths);
+        return 0;
+    }
+
+    // Collect all keys and values from L0 SSTables
+    let total_keys_buf = os_alloc(8);
+    os_store(total_keys_buf, 0);
+
+    // First pass: count total entries
+    let mut total_entries: i64 = 0;
+    let mut i: i64 = 0;
+    while (i < n) {
+        let sst_path = os_load(paths + i * 8);
+        if (sst_path != 0) {
+            let fd = os_open(sst_path, os_rdwr(), os_m644());
+            let footer = os_alloc(SST_FOOTER);
+            if (sst_read_footer(fd, footer) == 0) {
+                total_entries = total_entries + os_load(footer + SST_COUNT_OFF);
+            }
+            os_dealloc(footer);
+            os_close(fd);
+        }
+        i = i + 1;
+    }
+
+    if (total_entries == 0) {
+        os_store(p + LSM_COMPACTING, 0);
+        os_dealloc(paths);
+        os_dealloc(total_keys_buf);
+        return 0;
+    }
+
+    // Allocate merged buffer
+    let merged = os_alloc(total_entries * MT_ENTRY);  // key+value pairs
+    let merge_mt = mt_init();
+
+    // Read all entries into merge memtable (sorted dedup)
+    i = 0;
+    while (i < n) {
+        let sst_path = os_load(paths + i * 8);
+        if (sst_path != 0) {
+            let fd = os_open(sst_path, os_rdwr(), os_m644());
+            let footer = os_alloc(SST_FOOTER);
+            if (sst_read_footer(fd, footer) == 0) {
+                let entry_count = os_load(footer + SST_COUNT_OFF);
+                let keys_buf = os_alloc(entry_count * 8);
+                let vals_buf = os_alloc(entry_count * 64);
+                sst_get_all(fd, footer, keys_buf, vals_buf, entry_count);
+
+                let mut j: i64 = 0;
+                while (j < entry_count) {
+                    let k = os_load(keys_buf + j * 8);
+                    // Only add if not already in merge_mt (newer SSTables take priority)
+                    if (mt_get(merge_mt, k, 0) < 0) {
+                        mt_put(merge_mt, k, vals_buf + j * 64);
+                    }
+                    j = j + 1;
+                }
+                os_dealloc(keys_buf);
+                os_dealloc(vals_buf);
+            }
+            os_dealloc(footer);
+            os_close(fd);
+        }
+        i = i + 1;
+    }
+
+    // Write merged SSTable at level 1
+    let merge_count = mt_count(merge_mt);
+    if (merge_count > 0) {
+        let merged_path = sst_path(dir, 1, seq);
+        let mfd = os_open(merged_path, os_rdwr(), os_m644());
+        let merge_bloom = bloom_new();
+        sst_create(mfd, merge_mt, merge_bloom);
+        os_close(mfd);
+        bloom_free(merge_bloom);
+
+        // Add to manifest
+        mf_add(mf, 1, seq, merge_count);
+        os_store(p + LSM_SEQ, seq + 1);
+
+        // Remove old L0 SSTables from manifest
+        let indices = os_alloc(MANIFEST_MAX * 8);
+        let l0_indices_count = mf_sstables_at_level(mf, 0, indices);
+        let mut ri: i64 = 0;
+        while (ri < l0_indices_count) {
+            let idx = os_load(indices + ri * 8);
+            let old_seq = mf_seq(mf, idx);
+            let old_path = sst_path(dir, 0, old_seq);
+            // Delete old file
+            syscall(87, old_path, 0, 0, 0, 0, 0);  // unlink
+            os_dealloc(old_path);
+            ri = ri + 1;
+        }
+        // Remove from manifest (in reverse to avoid index shifting issues)
+        ri = l0_indices_count;
+        while (ri > 0) {
+            ri = ri - 1;
+            let idx = os_load(indices + ri * 8);
+            mf_remove(mf, idx);
+        }
+        os_dealloc(indices);
+        os_dealloc(merged_path);
+    }
+
+    // Reset L0 count
+    os_store(p + LSM_L0_COUNT, 0);
+    os_store(p + LSM_COMPACTING, 0);
+
+    mt_destroy(merge_mt);
+    os_dealloc(merged);
+    os_dealloc(total_keys_buf);
+    os_dealloc(paths);
+
+    return 0;
+}
+
+fn lsm_write_manifest(p: i64) -> i64 {
+    let mf = os_load(p + LSM_MF);
+    let dir = os_load(p + LSM_DIR);
+    return mf_write(mf, dir);
+}

@@ -1,0 +1,72 @@
+// LSM Bloom Filter — fixed-size bit array with hash-based probe
+// Uses xxh64 with k=3 seeds for hashing. 1024-byte bit array = 8192 bits.
+
+const BLOOM_BYTES: i64 = 1024;
+const BLOOM_BITS: i64 = 8192;
+const BLOOM_SEEDS: i64 = 3;
+const BLOOM_HASHES: i64 = 3;
+
+fn bloom_new() -> i64 {
+    let p = os_alloc(BLOOM_BYTES);
+    os_zero(p, BLOOM_BYTES);
+    return p;
+}
+
+fn bloom_free(p: i64) {
+    if (p != 0) { os_dealloc(p); }
+}
+
+fn bloom_set_bit(p: i64, bit: i64) {
+    let byte_idx = (bit >> 3) % BLOOM_BYTES;
+    let bit_idx = bit & 7;
+    let old = os_load(p + byte_idx);
+    os_store(p + byte_idx, old | (1 << bit_idx));
+}
+
+fn bloom_test_bit(p: i64, bit: i64) -> i64 {
+    let byte_idx = (bit >> 3) % BLOOM_BYTES;
+    let bit_idx = bit & 7;
+    let val = os_load(p + byte_idx);
+    if ((val >> bit_idx) & 1) != 0 { return 1; }
+    return 0;
+}
+
+fn bloom_add(p: i64, key: i64) {
+    let mut i: i64 = 0;
+    while (i < BLOOM_HASHES) {
+        let h = xxh64_bits(key, i);  // hash key with seed i
+        let bit = h % BLOOM_BITS;
+        bloom_set_bit(p, bit);
+        i = i + 1;
+    }
+}
+
+fn bloom_maybe_contains(p: i64, key: i64) -> i64 {
+    let mut i: i64 = 0;
+    while (i < BLOOM_HASHES) {
+        let h = xxh64_bits(key, i);
+        let bit = h % BLOOM_BITS;
+        if (bloom_test_bit(p, bit) == 0) { return 0; }
+        i = i + 1;
+    }
+    return 1;
+}
+
+fn bloom_serialize(p: i64, dst: i64) {
+    os_copy(dst, p, BLOOM_BYTES);
+}
+
+fn bloom_deserialize(p: i64, src: i64) {
+    os_copy(p, src, BLOOM_BYTES);
+}
+
+// xxh64 variant that hashes a single i64 with a seed offset
+fn xxh64_bits(key: i64, seed_off: i64) -> i64 {
+    // Pack key + seed_off into a mini buffer and hash it
+    let buf = os_alloc(16);
+    os_store(buf, key);
+    os_store(buf + 8, seed_off);
+    let h = xxh64(buf, 16, 0);
+    os_dealloc(buf);
+    return h;
+}
