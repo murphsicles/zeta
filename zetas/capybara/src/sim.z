@@ -169,7 +169,7 @@ fn sim_gen_op(rng: i64, acct: i64, buf: i64) -> i64 {
 
     if (effective_op == 1) {
         // create_account(id, debits_allowed, credits_allowed)
-        let id = sim_rand_range(rng, 10, 100);
+        let id = sim_rand_range(rng, 10, 990);
         let db = 1;  // always allow debits for sim simplicity
         let cr = 1;  // always allow credits
         let lg = sim_rand_range(rng, 0, 10);
@@ -184,8 +184,8 @@ fn sim_gen_op(rng: i64, acct: i64, buf: i64) -> i64 {
     } else if (effective_op == 2) {
         // transfer(debit_id, credit_id, amount)
         if (n_accounts < 2) { return 0; }
-        let db = sim_rand_range(rng, 10, 100);
-        let cr = sim_rand_range(rng, 10, 100);
+        let db = sim_rand_range(rng, 10, 990);
+        let cr = sim_rand_range(rng, 10, 990);
         if (db == cr) { cr = (cr + 1) % 100 + 10; if (cr == db) { cr = cr + 1; } }
         if (ledg_exists(acct, db) == 0 || ledg_exists(acct, cr) == 0) { return 0; }
         let amt = sim_rand_range(rng, 1, 500);
@@ -196,7 +196,7 @@ fn sim_gen_op(rng: i64, acct: i64, buf: i64) -> i64 {
     } else if (effective_op == 3) {
         // credit(id, amount)
         if (n_accounts < 1) { return 0; }
-        let id = sim_rand_range(rng, 10, 100);
+        let id = sim_rand_range(rng, 10, 990);
         if (ledg_exists(acct, id) == 0) { return 0; }
         let amt = sim_rand_range(rng, 1, 1000);
         os_store(buf+16, id);
@@ -205,7 +205,7 @@ fn sim_gen_op(rng: i64, acct: i64, buf: i64) -> i64 {
     } else if (effective_op == 4) {
         // set_flags(id, flags)
         if (n_accounts < 1) { return 0; }
-        let id = sim_rand_range(rng, 10, 100);
+        let id = sim_rand_range(rng, 10, 990);
         if (ledg_exists(acct, id) == 0) { return 0; }
         let fl = sim_rand_range(rng, 0, 8);
         os_store(buf+16, id);
@@ -214,9 +214,9 @@ fn sim_gen_op(rng: i64, acct: i64, buf: i64) -> i64 {
     } else if (effective_op == 5) {
         // create_pending(id, debit, credit, amount, timeout, code, ledger)
         if (n_accounts < 2) { return 0; }
-        let pid = sim_rand_range(rng, 100, 500);
-        let db = sim_rand_range(rng, 10, 100);
-        let cr = sim_rand_range(rng, 10, 100);
+        let pid = sim_rand_range(rng, 100, 9900);
+        let db = sim_rand_range(rng, 10, 990);
+        let cr = sim_rand_range(rng, 10, 990);
         if (db == cr) { cr = (cr + 1) % 100 + 10; if (cr == db) { cr = cr + 1; } }
         if (ledg_exists(acct, db) == 0 || ledg_exists(acct, cr) == 0) { return 0; }
         let amt = sim_rand_range(rng, 1, 300);
@@ -232,21 +232,21 @@ fn sim_gen_op(rng: i64, acct: i64, buf: i64) -> i64 {
     } else if (effective_op == 6) {
         // post_pending(id)
         if (n_accounts < 1) { return 0; }
-        let pid = sim_rand_range(rng, 100, 500);
+        let pid = sim_rand_range(rng, 100, 9900);
         if (ledg_pending_exists(acct, pid) == 0) { return 0; }
         os_store(buf+16, pid);
         return 1;
     } else if (effective_op == 7) {
         // void_pending(id)
         if (n_accounts < 1) { return 0; }
-        let pid = sim_rand_range(rng, 100, 500);
+        let pid = sim_rand_range(rng, 100, 9900);
         if (ledg_pending_exists(acct, pid) == 0) { return 0; }
         os_store(buf+16, pid);
         return 1;
     } else if (effective_op == 10) {
         // balance check (read-only)
         if (n_accounts < 1) { return 0; }
-        let id = sim_rand_range(rng, 10, 100);
+        let id = sim_rand_range(rng, 10, 990);
         if (ledg_exists(acct, id) == 0) { return 0; }
         os_store(buf+16, id);
         return 1;
