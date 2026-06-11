@@ -15,24 +15,21 @@ fn handle_client(c: i64, buf: i64, rbuf: i64, acct: i64, wal: i64, vs: i64, cs: 
     while (run == 1) {
         let n = os_recv(c, buf, BS);
         if (n > 0) {
-            // Protocol: [client_id(8) | request_number(8) | op_type(8) | data...]
-            // If first qword is small (≤20), treat as legacy: [op_type | pad | data]
+            // Protocol: [client_id(8) | request_number(8) | op_type(8) | id_lo(8) | id_hi(8) | data...]
             let first_qw = os_load(buf);
             let is_legacy: i64;
             let client_id: i64;
             let request_number: i64;
-            let data_off: i64;
-            let min_advance: i64;
+            let data_off: i64;  // offset where op_type begins
 
             if (first_qw > 0 && first_qw <= 20) {
                 is_legacy = 1; client_id = 0; request_number = 0;
-                data_off = 0; min_advance = 24;
+                data_off = 0;
             } else {
                 is_legacy = 0;
                 client_id = first_qw;
                 request_number = os_load(buf+8);
                 data_off = 16;
-                min_advance = 24;  // cid + rn + ot (at least)
             }
 
             let batch_wb = batch_init();
@@ -41,16 +38,35 @@ fn handle_client(c: i64, buf: i64, rbuf: i64, acct: i64, wal: i64, vs: i64, cs: 
             let mut off: i64 = 0;
             let mut first_rc: i64 = 0;
 
-            while (off + min_advance <= n) {
-                let ot = os_load(buf+off+data_off);  // op_type at data_off
-                let id = os_load(buf+off+data_off+16);
-                let a1 = os_load(buf+off+data_off+24);
-                let a2 = os_load(buf+off+data_off+32);
+            while (off + data_off + 24 <= n) {
+                let ot = os_load(buf+off+data_off);
+                let id_lo: i64;
+                let id_hi: i64;
+                if (is_legacy != 0) {
+                    // Legacy: [ot | pad | id | a1 | a2 | ...]
+                    id_lo = os_load(buf+off+data_off+16);
+                    id_hi = 0;
+                } else {
+                    // Session: [cid | rn | ot | id_lo | id_hi | a1 | a2 | ...]
+                    id_lo = os_load(buf+off+data_off+16);
+                    id_hi = os_load(buf+off+data_off+24);
+                }
+                let a1 = os_load(buf+off+data_off+32);  // arg1 after id fields
+                let a2 = os_load(buf+off+data_off+40);  // arg2 after id fields
                 let wb = batch_prepare_wb(batch_wb, batch_count);
                 let mut rc: i64 = 0;
-                let mut advance: i64 = data_off + 40;
-                if (ot == 5 || ot == 72) { advance = data_off + 72; }
-                if (ot == 10) { advance = data_off + 24; }
+                let mut advance: i64;
+                if (is_legacy != 0) {
+                    // Legacy advance: [ot|pad|id|a1|a2] = 40 bytes
+                    advance = 40;
+                    if (ot == 5 || ot == 72) { advance = 72; }
+                    if (ot == 10) { advance = 24; }
+                } else {
+                    // Session advance: [cid|rn|ot|id_lo|id_hi|a1|a2] = 56 bytes
+                    advance = data_off + 48;
+                    if (ot == 5 || ot == 72) { advance = data_off + 80; }
+                    if (ot == 10) { advance = data_off + 32; }
+                }
 
                 // Dedup check for session mode
                 if (is_legacy == 0 && request_number > 0) {
@@ -62,36 +78,59 @@ fn handle_client(c: i64, buf: i64, rbuf: i64, acct: i64, wal: i64, vs: i64, cs: 
                 }
 
                 if (ot == 10) {
-                    let bal = ledg_balance(acct, id);
+                    let bal = ledg_balance(acct, id_lo, id_hi);
                     os_store(buf, 10);
                     os_store(buf+8, bal);
                     os_send(c, buf, 16);
                 } else {
                     if (ot == 1) {
-                        rc = ledg_create_account(acct, id, a1, a2, 0, 0);
-                        if (rc == 0) { rt_prepare_create(wb, 0, id, a1, a2, 0, 0); batch_count = batch_count + 1; }
+                        rc = ledg_create_account(acct, id_lo, id_hi, a1, a2, 0, 0);
+                        if (rc == 0) { rt_prepare_create(wb, 0, id_lo, id_hi, a1, a2, 0, 0); batch_count = batch_count + 1; }
                     } else if (ot == 3) {
-                        rc = ledg_credit(acct, id, a1);
-                        if (rc == 0) { rt_prepare_credit(wb, 0, id, a1); batch_count = batch_count + 1; }
+                        rc = ledg_credit(acct, id_lo, id_hi, a1);
+                        if (rc == 0) { rt_prepare_credit(wb, 0, id_lo, id_hi, a1); batch_count = batch_count + 1; }
                     } else if (ot == 2) {
-                        rc = ledg_transfer(acct, id, a1, a2);
-                        if (rc == 0) { rt_prepare_transfer(wb, 0, id, a1, a2); batch_count = batch_count + 1; }
+                        // transfer: db_lo, db_hi, cr_lo(a1), cr_hi(a2), amount
+                        let cr_lo = a1; let cr_hi = a2; let amount: i64;
+                        if (is_legacy != 0) {
+                            amount = os_load(buf+off+data_off+40);  // old: [ot|pad|db|cr|amt]
+                            advance = 40;
+                        } else {
+                            amount = os_load(buf+off+data_off+48);  // session: [cid|rn|ot|db_lo|db_hi|cr_lo|cr_hi|amt]
+                            advance = data_off + 56;
+                        }
+                        rc = ledg_transfer(acct, id_lo, id_hi, cr_lo, cr_hi, amount);
+                        if (rc == 0) { rt_prepare_transfer(wb, 0, id_lo, id_hi, cr_lo, cr_hi, amount); batch_count = batch_count + 1; }
                     } else if (ot == 4) {
-                        rc = ledg_set_flags(acct, id, a1);
-                        if (rc == 0) { rt_prepare_flags(wb, 0, id, a1); batch_count = batch_count + 1; }
+                        rc = ledg_set_flags(acct, id_lo, id_hi, a1);
+                        if (rc == 0) { rt_prepare_flags(wb, 0, id_lo, id_hi, a1); batch_count = batch_count + 1; }
                     } else if (ot == 5) {
-                        let amt = os_load(buf+off+data_off+40);
-                        let tmout = os_load(buf+off+data_off+48);
-                        let code = os_load(buf+off+data_off+56);
-                        let ledg = os_load(buf+off+data_off+64);
-                        rc = ledg_create_pending(acct, id, a1, a2, amt, tmout, code, ledg);
-                        if (rc == 0) { rt_prepare_pending(wb, 0, id, a1, a2, amt, tmout, code, ledg); batch_count = batch_count + 1; }
+                        let amt: i64; let tmout: i64; let code: i64; let lg: i64;
+                        if (is_legacy != 0) {
+                            // Legacy pending: [ot|pad|id_lo|a1|a2|amt|tmout|code|ledg] = 72 bytes
+                            amt = os_load(buf+off+40);
+                            tmout = os_load(buf+off+48);
+                            code = os_load(buf+off+56);
+                            lg = os_load(buf+off+64);
+                            // a1=db_lo, a2=db_hi (but in legacy, db is a single ID)
+                            // For legacy, the debit account is id_lo (sender) and credit is a1
+                            // We keep the original semantic: id_lo=id, id_hi=0
+                            rc = ledg_create_pending(acct, id_lo, id_hi, a1, 0, amt, tmout, code, lg, 0, 0);
+                            if (rc == 0) { rt_prepare_pending(wb, 0, id_lo, id_hi, a1, 0, amt, tmout, code, lg, 0, 0); batch_count = batch_count + 1; }
+                        } else {
+                            amt = os_load(buf+off+data_off+48);
+                            tmout = os_load(buf+off+data_off+56);
+                            code = os_load(buf+off+data_off+64);
+                            lg = os_load(buf+off+data_off+72);
+                            rc = ledg_create_pending(acct, id_lo, id_hi, a1, a2, amt, tmout, code, lg, 0, 0);
+                            if (rc == 0) { rt_prepare_pending(wb, 0, id_lo, id_hi, a1, a2, amt, tmout, code, lg, 0, 0); batch_count = batch_count + 1; }
+                        }
                     } else if (ot == 6) {
-                        rc = ledg_post_pending(acct, id);
-                        if (rc == 0) { rt_prepare_post(wb, 0, id); batch_count = batch_count + 1; }
+                        rc = ledg_post_pending(acct, id_lo, id_hi);
+                        if (rc == 0) { rt_prepare_post(wb, 0, id_lo, id_hi); batch_count = batch_count + 1; }
                     } else if (ot == 7) {
-                        rc = ledg_void_pending(acct, id);
-                        if (rc == 0) { rt_prepare_void(wb, 0, id); batch_count = batch_count + 1; }
+                        rc = ledg_void_pending(acct, id_lo, id_hi);
+                        if (rc == 0) { rt_prepare_void(wb, 0, id_lo, id_hi); batch_count = batch_count + 1; }
                     }
                     if (is_legacy == 0 && request_number > 0 && rc == 0) {
                         cs_update_result(cs, client_id, request_number, rc);
@@ -144,16 +183,20 @@ fn ledg_flush_lsm(lsm: i64, acct: i64) -> i64 {
 
     let val_buf = os_alloc(64);
     let mut flushed: i64 = 0;
-    let mut id: i64 = 0;
-    while (id < LEDGER_MAX) {
-        if (ledg_exists(acct, id) != 0) {
-            // Copy 64 bytes of account state to buffer
-            let src = acf(acct, id, 0);  // points to first field of account row
-            os_copy(val_buf, src, 64);
-            lsm_put(lsm, id, val_buf);
-            flushed = flushed + 1;
+    let mut slot: i64 = 0;
+    while (slot < count) {
+        // Get account row pointer by slot
+        let src = ledg_row_ptr(acct, slot);
+        if (src != 0) {
+            let id_lo = ledg_id_lo_at_slot(acct, slot);
+            let id_hi = ledg_id_hi_at_slot(acct, slot);
+            if (id_lo != 0 || id_hi != 0) {
+                os_copy(val_buf, src, 64);
+                lsm_put(lsm, id_lo, val_buf);
+                flushed = flushed + 1;
+            }
         }
-        id = id + 1;
+        slot = slot + 1;
     }
     os_dealloc(val_buf);
 
@@ -165,28 +208,28 @@ fn ledg_flush_lsm(lsm: i64, acct: i64) -> i64 {
 
 fn ledg_restore_lsm(lsm: i64, acct: i64) -> i64 {
     if (lsm == 0 || acct == 0) { return -1; }
-    // Count entries in LSM
     let entry_count = lsm_scan_count(lsm);
     if (entry_count == 0) { return 0; }
 
-    // Read all entries
     let keys = os_alloc(entry_count * 8);
     let vals = os_alloc(entry_count * 64);
     let n = lsm_scan_all(lsm, keys, vals, entry_count);
 
-    // Restore each account into the in-memory ledger
     let mut restored: i64 = 0;
     let mut i: i64 = 0;
     while (i < n) {
-        let id = os_load(keys + i * 8);
-        // Copy 64-byte account state directly into ledger at the right offset
-        let dst = acf(acct, id, 0);
-        os_copy(dst, vals + i * 64, 64);
-        // Update account count if this is a new account
-        if (ledg_count(acct) <= id) {
-            os_store(acct, id + 1);
+        let id_lo = os_load(keys + i * 8);
+        // Use slot-based restore: copy 64-byte value to next free slot
+        let slot = ledg_count(acct);
+        let dst = ledg_row_ptr(acct, slot);
+        if (dst != 0) {
+            os_copy(dst, vals + i * 64, 64);
+            os_store(acct + HDR_COUNT, slot + 1);  // increment count
+            // Rebuild hash index from the account data
+            let id_hi = os_load(dst + F_ID_HI * 8);
+            hash_insert(acct, id_lo, id_hi, slot);
+            restored = restored + 1;
         }
-        restored = restored + 1;
         i = i + 1;
     }
 

@@ -1,11 +1,12 @@
 // LSM Tree — Log-Structured Merge Tree for Capybara DB
-// Two levels: memtable (L0) + on-disk SSTables (L1+)
+// Multi-level: memtable (L0) + on-disk SSTables (L1+) with size-tiered compaction.
 // Get: search memtable → SSTables (newest first)
 // Put: insert into memtable, auto-flush when full
-// Compaction: merge SSTables from level N to N+1
+// Compaction: merge SSTables from level N to N+1 when level exceeds limit
 
 const LSM_MAX_LEVELS: i64 = 4;
-const LSM_MAX_SST_PER_LEVEL: i64 = 8;  // trigger compaction
+const LSM_MAX_SST_PER_LEVEL: i64 = 8;   // max files per level before compaction
+const LSM_COMPACT_WORKERS: i64 = 1;      // single-threaded
 
 // LSM state buffer:
 //   0: memtable pointer
@@ -14,8 +15,7 @@ const LSM_MAX_SST_PER_LEVEL: i64 = 8;  // trigger compaction
 //   24: data_dir pointer
 //   32: next_seq
 //   40: level 0 sstable count (for compaction trigger)
-//   48: compacting flag
-//   56..: temp buffer for I/O
+//   48: compacting flag (0=idle, 1=busy)
 
 const LSM_MT: i64 = 0;
 const LSM_MF: i64 = 8;
@@ -112,9 +112,7 @@ fn lsm_get(p: i64, key: i64, val: i64) -> i64 {
         let seq = mf_seq(mf, i);
         let level = mf_level(mf, i);
         let sst_path = sst_path(dir, level, seq);
-        os_log("    scan_all: opening sst\n");
         let fd = os_open(sst_path, os_rdwr(), os_m644());
-        os_log("    scan_all: fd="); os_log_i64(fd); os_log(" path="); os_log_i64(sst_path); os_log("\n");
 
         // Read footer
         let footer = os_alloc(SST_FOOTER);
@@ -181,66 +179,38 @@ fn lsm_flush(p: i64) -> i64 {
     return count;
 }
 
-fn lsm_compact(p: i64) -> i64 {
-    let compacting = os_load(p + LSM_COMPACTING);
-    if (compacting != 0) { return 0; }  // already compacting
-    os_store(p + LSM_COMPACTING, 1);
+// ─── Multi-Level Compaction ──────────────────────────────────────────
+// For each level starting at 0:
+//   If the number of SSTables at that level exceeds LSM_MAX_SST_PER_LEVEL,
+//   merge them all into a single SSTable at the next level.
+//   Repeat until no level exceeds the limit.
 
+fn lsm_compact_level(p: i64, level: i64) -> i64 {
     let mf = os_load(p + LSM_MF);
     let dir = os_load(p + LSM_DIR);
     let seq = os_load(p + LSM_SEQ);
 
-    // Collect all L0 SSTable paths
-    let paths = os_alloc(LSM_MAX_SST_PER_LEVEL * 8);
-    let n = mf_sstable_paths_at_level(mf, 0, dir, paths);
-
+    // Count SSTables at this level
+    let indices = os_alloc(MANIFEST_MAX * 8);
+    let n = mf_sstables_at_level(mf, level, indices);
     if (n <= 1) {
-        os_store(p + LSM_COMPACTING, 0);
-        os_dealloc(paths);
-        return 0;
+        os_dealloc(indices);
+        return 0;  // nothing to merge
     }
 
-    // Collect all keys and values from L0 SSTables
-    let total_keys_buf = os_alloc(8);
-    os_store(total_keys_buf, 0);
-
-    // First pass: count total entries
-    let mut total_entries: i64 = 0;
+    // Read all entries from all SSTables at this level into a merge memtable
+    let merge_mt = mt_init();
     let mut i: i64 = 0;
     while (i < n) {
-        let sst_path = os_load(paths + i * 8);
-        if (sst_path != 0) {
-            let fd = os_open(sst_path, os_rdwr(), os_m644());
+        let idx = os_load(indices + i * 8);
+        let seq_n = mf_seq(mf, idx);
+        let sst_path = sst_path(dir, level, seq_n);
+
+        let fd = os_open(sst_path, os_rdwr(), os_m644());
+        if (fd >= 0) {
             let footer = os_alloc(SST_FOOTER);
             if (sst_read_footer(fd, footer) == 0) {
-                total_entries = total_entries + os_load(footer + SST_COUNT_OFF);
-            }
-            os_dealloc(footer);
-            os_close(fd);
-        }
-        i = i + 1;
-    }
-
-    if (total_entries == 0) {
-        os_store(p + LSM_COMPACTING, 0);
-        os_dealloc(paths);
-        os_dealloc(total_keys_buf);
-        return 0;
-    }
-
-    // Allocate merged buffer
-    let merged = os_alloc(total_entries * MT_ENTRY);  // key+value pairs
-    let merge_mt = mt_init();
-
-    // Read all entries into merge memtable (sorted dedup)
-    i = 0;
-    while (i < n) {
-        let sst_path = os_load(paths + i * 8);
-        if (sst_path != 0) {
-            let fd = os_open(sst_path, os_rdwr(), os_m644());
-            let footer = os_alloc(SST_FOOTER);
-            if (sst_read_footer(fd, footer) == 0) {
-                let entry_count = os_load(footer + SST_COUNT_OFF);
+                let entry_count = os_load(footer + SST_COUNT);
                 let keys_buf = os_alloc(entry_count * 8);
                 let vals_buf = os_alloc(entry_count * 64);
                 sst_get_all(fd, footer, keys_buf, vals_buf, entry_count);
@@ -248,7 +218,7 @@ fn lsm_compact(p: i64) -> i64 {
                 let mut j: i64 = 0;
                 while (j < entry_count) {
                     let k = os_load(keys_buf + j * 8);
-                    // Only add if not already in merge_mt (newer SSTables take priority)
+                    // Dedup: newer SSTables (higher manifest index) win
                     if (mt_get(merge_mt, k, 0) < 0) {
                         mt_put(merge_mt, k, vals_buf + j * 64);
                     }
@@ -260,56 +230,95 @@ fn lsm_compact(p: i64) -> i64 {
             os_dealloc(footer);
             os_close(fd);
         }
+        os_dealloc(sst_path);
         i = i + 1;
     }
 
-    // Write merged SSTable at level 1
+    // Write merged SSTable at next level
     let merge_count = mt_count(merge_mt);
+    let result: i64;
     if (merge_count > 0) {
-        let merged_path = sst_path(dir, 1, seq);
+        let next_level = level + 1;
+        let merged_path = sst_path(dir, next_level, seq);
         let mfd = os_open(merged_path, os_rdwr(), os_m644());
-        let merge_bloom = bloom_new();
-        sst_create(mfd, merge_mt, merge_bloom);
-        os_close(mfd);
-        bloom_free(merge_bloom);
+        if (mfd >= 0) {
+            let merge_bloom = bloom_new();
+            sst_create(mfd, merge_mt, merge_bloom);
+            os_close(mfd);
+            bloom_free(merge_bloom);
 
-        // Add to manifest
-        mf_add(mf, 1, seq, merge_count);
-        os_store(p + LSM_SEQ, seq + 1);
+            // Add merged SSTable to manifest
+            mf_add(mf, next_level, seq, merge_count);
+            os_store(p + LSM_SEQ, seq + 1);
 
-        // Remove old L0 SSTables from manifest
-        let indices = os_alloc(MANIFEST_MAX * 8);
-        let l0_indices_count = mf_sstables_at_level(mf, 0, indices);
-        let mut ri: i64 = 0;
-        while (ri < l0_indices_count) {
-            let idx = os_load(indices + ri * 8);
-            let old_seq = mf_seq(mf, idx);
-            let old_path = sst_path(dir, 0, old_seq);
-            // Delete old file
-            syscall(87, old_path, 0, 0, 0, 0, 0);  // unlink
-            os_dealloc(old_path);
-            ri = ri + 1;
+            // Remove old SSTables from this level
+            let mut ri: i64 = n;
+            while (ri > 0) {
+                ri = ri - 1;
+                let idx = os_load(indices + ri * 8);
+                let old_seq = mf_seq(mf, idx);
+                let old_path = sst_path(dir, level, old_seq);
+                syscall(87, old_path, 0, 0, 0, 0, 0);  // unlink
+                os_dealloc(old_path);
+                mf_remove(mf, idx);
+            }
+
+            // Reset L0 count if we compacted level 0
+            if (level == 0) {
+                os_store(p + LSM_L0_COUNT, 0);
+            }
+
+            os_dealloc(merged_path);
+            result = merge_count;
+        } else {
+            result = -1;
+            os_dealloc(merged_path);
         }
-        // Remove from manifest (in reverse to avoid index shifting issues)
-        ri = l0_indices_count;
+    } else {
+        result = 0;
+        // No entries to merge — just remove old files
+        let mut ri: i64 = n;
         while (ri > 0) {
             ri = ri - 1;
             let idx = os_load(indices + ri * 8);
+            let old_seq = mf_seq(mf, idx);
+            let old_path = sst_path(dir, level, old_seq);
+            syscall(87, old_path, 0, 0, 0, 0, 0);
+            os_dealloc(old_path);
             mf_remove(mf, idx);
         }
-        os_dealloc(indices);
-        os_dealloc(merged_path);
     }
 
-    // Reset L0 count
-    os_store(p + LSM_L0_COUNT, 0);
-    os_store(p + LSM_COMPACTING, 0);
-
     mt_destroy(merge_mt);
-    os_dealloc(merged);
-    os_dealloc(total_keys_buf);
-    os_dealloc(paths);
+    os_dealloc(indices);
+    return result;
+}
 
+fn lsm_compact(p: i64) -> i64 {
+    let compacting = os_load(p + LSM_COMPACTING);
+    if (compacting != 0) { return 0; }  // already compacting
+    os_store(p + LSM_COMPACTING, 1);
+
+    let mf = os_load(p + LSM_MF);
+
+    // Start from level 0, compact each level that exceeds the limit
+    let mut level: i64 = 0;
+    while (level < LSM_MAX_LEVELS - 1) {
+        let count = mf_sstables_at_level(mf, level, 0);
+        if (count > LSM_MAX_SST_PER_LEVEL) {
+            let merged = lsm_compact_level(p, level);
+            if (merged < 0) {
+                // Failed to compact — continue trying higher levels
+            }
+            // After compacting this level, re-check from the top
+            // (higher levels might now need compacting)
+            level = 0;
+        } else {
+            level = level + 1;
+        }
+    }
+
+    os_store(p + LSM_COMPACTING, 0);
     return 0;
 }
 
@@ -318,20 +327,17 @@ fn lsm_scan_all(p: i64, keys_out: i64, vals_out: i64, max_count: i64) -> i64 {
     let mf = os_load(p + LSM_MF);
     let dir = os_load(p + LSM_DIR);
     let count = mf_count(mf);
-
     let mut total: i64 = 0;
 
-    // Search SSTables newest-first (skip if we already have space)
-    // For restore, we need the latest version of each key
-    // Simplest: read all into a temporary memtable (dedups by newest first)
+    // Read all into a temporary memtable (dedups by newest first)
     let merge_mt = mt_init();
 
     let mut i: i64 = 0;
     while (i < count) {
         let seq = mf_seq(mf, i);
         let level = mf_level(mf, i);
-
         let sst_path = sst_path(dir, level, seq);
+
         let fd = os_open(sst_path, os_rdwr(), os_m644());
         if (fd >= 0) {
             let footer = os_alloc(SST_FOOTER);
@@ -388,8 +394,7 @@ fn lsm_scan_count(p: i64) -> i64 {
     let mut total: i64 = 0;
     let mut i: i64 = 0;
     while (i < count) {
-        let ec = mf_entry_count(mf, i);
-        total = total + ec;
+        total = total + mf_entry_count(mf, i);
         i = i + 1;
     }
     return total;

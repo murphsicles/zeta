@@ -352,24 +352,25 @@ fn vsr_start_vc(st: i64, buf: i64) {
 // ─── State Machine + WAL (full op types) ──────────────────────────────────
 
 fn vsr_apply_op(acct: i64, ot: i64, a1: i64, a2: i64, a3: i64, a4: i64, a5: i64, a6: i64) {
-    if (ot == 1) { ledg_create_account(acct, a1, a2, a3, 0, 0); }
-    else if (ot == 2) { ledg_transfer(acct, a1, a2, a3); }
-    else if (ot == 3) { ledg_credit(acct, a1, a2); }
-    else if (ot == 4) { ledg_set_flags(acct, a1, a2); }
-    else if (ot == 5) { ledg_create_pending(acct, a1, a2, a3, a4, a5, a6, 0); }
-    else if (ot == 6) { ledg_post_pending(acct, a1); }
-    else if (ot == 7) { ledg_void_pending(acct, a1); }
+    // VSR log format (128-bit IDs): [ot, id_lo, id_hi, ...]
+    if (ot == 1) { ledg_create_account(acct, a1, a2, a3, a4, 0, 0); }
+    else if (ot == 2) { ledg_transfer(acct, a1, a2, a3, a4, a5); }
+    else if (ot == 3) { ledg_credit(acct, a1, a2, a3); }
+    else if (ot == 4) { ledg_set_flags(acct, a1, a2, a3); }
+    else if (ot == 5) { ledg_create_pending(acct, a1, a2, a3, a4, a5, a6, 0, 0, 0, 0); }
+    else if (ot == 6) { ledg_post_pending(acct, a1, a2); }
+    else if (ot == 7) { ledg_void_pending(acct, a1, a2); }
 }
 
 fn vsr_write_wal_buf(wb: i64, ot: i64, a1: i64, a2: i64, a3: i64, a4: i64, a5: i64, a6: i64) {
     os_zero(wb, 128);
-    if (ot == 1) { rt_prepare_create(wb, 0, a1, a2, a3, 0, 0); }
-    else if (ot == 2) { rt_prepare_transfer(wb, 0, a1, a2, a3); }
-    else if (ot == 3) { rt_prepare_credit(wb, 0, a1, a2); }
-    else if (ot == 4) { rt_prepare_flags(wb, 0, a1, a2); }
-    else if (ot == 5) { rt_prepare_pending(wb, 0, a1, a2, a3, a4, a5, a6, 0); }
-    else if (ot == 6) { rt_prepare_post(wb, 0, a1); }
-    else if (ot == 7) { rt_prepare_void(wb, 0, a1); }
+    if (ot == 1) { rt_prepare_create(wb, 0, a1, a2, a3, a4, 0, 0); }
+    else if (ot == 2) { rt_prepare_transfer(wb, 0, a1, a2, a3, a4, a5); }
+    else if (ot == 3) { rt_prepare_credit(wb, 0, a1, a2, a3); }
+    else if (ot == 4) { rt_prepare_flags(wb, 0, a1, a2, a3); }
+    else if (ot == 5) { rt_prepare_pending(wb, 0, a1, a2, a3, a4, a5, a6, 0, 0, 0, 0); }
+    else if (ot == 6) { rt_prepare_post(wb, 0, a1, a2); }
+    else if (ot == 7) { rt_prepare_void(wb, 0, a1, a2); }
     os_store(wb+W_CHECKSUM, 0);
     let csum = xxh64(wb, 128, 0);
     os_store(wb+W_CHECKSUM, csum);

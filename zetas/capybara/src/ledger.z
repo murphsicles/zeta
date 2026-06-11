@@ -1,0 +1,322 @@
+// Ledger State Machine — 128-bit IDs with hash table index
+// Account buffer: flat array of 1000 account rows (64 bytes each)
+// Hash index: maps (id_hi, id_lo) → slot index for O(1) lookups
+
+const LEDGER_MAX: i64 = 1000;
+const ACCT_FIELDS: i64 = 8;
+const ACCT_ROW: i64 = 64;
+
+// Account field offsets within 64-byte row
+const F_ID_LO: i64 = 0;     // id lower 64 bits
+const F_DEBITS: i64 = 1;    // debits allowed flag
+const F_CREDITS: i64 = 2;   // credits allowed flag
+const F_BALANCE: i64 = 3;   // current balance
+const F_LEDGER: i64 = 4;    // ledger field
+const F_CODE: i64 = 5;      // code field
+const F_FLAGS: i64 = 6;     // flags
+const F_ID_HI: i64 = 7;     // id upper 64 bits
+
+// Pending transfer fields (same sized arrays)
+const PEND_MAX: i64 = 1000;
+const PEND_FIELDS: i64 = 8;
+const PEND_ROW: i64 = 64;
+const PF_ID_LO: i64 = 0;
+const PF_DEBIT: i64 = 1;
+const PF_CREDIT: i64 = 2;
+const PF_AMOUNT: i64 = 3;
+const PF_TIMEOUT: i64 = 4;
+const PF_CODE: i64 = 5;
+const PF_FLAGS: i64 = 6;
+const PF_ID_HI: i64 = 7;
+const FLAG_PENDING: i64 = 1;
+const FLAG_POSTED: i64 = 2;
+const FLAG_VOIDED: i64 = 4;
+
+// Hash index (open addressing, linear probing)
+const HASH_SLOTS: i64 = 1024;
+const HASH_ENTRY: i64 = 24;  // id_lo(8) + id_hi(8) + slot(8)
+// Hash state in account buffer:
+//   offset 0: account count
+//   offset 8: pending count  
+//   offset 16..16+HASH_SLOTS*HASH_ENTRY: hash table
+//   offset 16+HASH_SLOTS*HASH_ENTRY..: account rows
+//   offset 16+HASH_SLOTS*HASH_ENTRY+ACCT_ROW*LEDGER_MAX: pending rows
+
+const HDR_COUNT: i64 = 0;
+const HDR_PEND_COUNT: i64 = 8;
+const HDR_HASH: i64 = 16;
+const HDR_ACCTS: i64 = HDR_HASH + HASH_SLOTS * HASH_ENTRY;
+const HDR_PENDS: i64 = HDR_ACCTS + ACCT_ROW * LEDGER_MAX;
+
+fn ledg_buf_size() -> i64 { return HDR_PENDS + PEND_ROW * PEND_MAX; }
+
+// ─── Account Row Pointers ─────────────────────────────────────────
+
+fn acf(b: i64, id: i64, f: i64) -> i64 { return b + HDR_ACCTS + (id * ACCT_FIELDS + f) * 8; }
+
+fn pnf(b: i64, id: i64, f: i64) -> i64 { return b + HDR_PENDS + (id * PEND_FIELDS + f) * 8; }
+
+// ─── Hash Table Operations ─────────────────────────────────────────
+
+fn hash_idx(id_lo: i64, id_hi: i64) -> i64 {
+    let h = id_lo ^ (id_hi * 0x9E3779B97F4A7C15);
+    // Ensure positive index
+    let idx = h % HASH_SLOTS;
+    if (idx < 0) { return -idx % HASH_SLOTS; }
+    return idx;
+}
+
+fn hash_entry_ptr(b: i64, slot: i64) -> i64 {
+    return b + HDR_HASH + slot * HASH_ENTRY;
+}
+
+fn hash_entry_lo(b: i64, slot: i64) -> i64 {
+    return os_load(hash_entry_ptr(b, slot));
+}
+
+fn hash_entry_hi(b: i64, slot: i64) -> i64 {
+    return os_load(hash_entry_ptr(b, slot) + 8);
+}
+
+fn hash_entry_slot(b: i64, slot: i64) -> i64 {
+    return os_load(hash_entry_ptr(b, slot) + 16);
+}
+
+fn hash_entry_is_empty(b: i64, slot: i64) -> i64 {
+    if (hash_entry_lo(b, slot) == 0 && hash_entry_hi(b, slot) == 0) { return 1; }
+    return 0;
+}
+
+fn hash_insert(b: i64, id_lo: i64, id_hi: i64, slot: i64) {
+    let start = hash_idx(id_lo, id_hi);
+    let mut i: i64 = 0;
+    while (i < HASH_SLOTS) {
+        let s = (start + i) % HASH_SLOTS;
+        if (hash_entry_is_empty(b, s)) {
+            let ep = hash_entry_ptr(b, s);
+            os_store(ep, id_lo);
+            os_store(ep + 8, id_hi);
+            os_store(ep + 16, slot);
+            return;
+        }
+        i = i + 1;
+    }
+}
+
+fn hash_lookup(b: i64, id_lo: i64, id_hi: i64) -> i64 {
+    let start = hash_idx(id_lo, id_hi);
+    let mut i: i64 = 0;
+    while (i < HASH_SLOTS) {
+        let s = (start + i) % HASH_SLOTS;
+        if (hash_entry_is_empty(b, s)) { return -1; }  // not found (or tombstone)
+        if (hash_entry_lo(b, s) == id_lo && hash_entry_hi(b, s) == id_hi) {
+            return hash_entry_slot(b, s);
+        }
+        i = i + 1;
+    }
+    return -1;  // table full
+}
+
+fn hash_remove(b: i64, id_lo: i64, id_hi: i64) {
+    let start = hash_idx(id_lo, id_hi);
+    let mut i: i64 = 0;
+    while (i < HASH_SLOTS) {
+        let s = (start + i) % HASH_SLOTS;
+        if (hash_entry_is_empty(b, s)) { return; }
+        if (hash_entry_lo(b, s) == id_lo && hash_entry_hi(b, s) == id_hi) {
+            // Clear entry (tombstone by zeroing)
+            let ep = hash_entry_ptr(b, s);
+            os_store(ep, 0);
+            os_store(ep + 8, 0);
+            os_store(ep + 16, 0);
+            return;
+        }
+        i = i + 1;
+    }
+}
+
+// ─── Ledger Init / Destroy ─────────────────────────────────────────
+
+fn ledg_init() -> i64 {
+    let b = os_alloc(ledg_buf_size());
+    if (b != 0) { os_zero(b, ledg_buf_size()); }
+    return b;
+}
+
+fn ledg_destroy(b: i64) { if (b != 0) { os_dealloc(b); } }
+
+fn ledg_count(b: i64) -> i64 { return os_load(b + HDR_COUNT); }
+
+// ─── Account Operations (128-bit IDs) ──────────────────────────────
+
+fn ledg_create_account(b: i64, id_lo: i64, id_hi: i64, db: i64, cr: i64, lg: i64, co: i64) -> i64 {
+    // Check if account already exists
+    let existing = hash_lookup(b, id_lo, id_hi);
+    if (existing >= 0) { return -13; }  // already exists
+
+    // Find a free slot
+    let count = os_load(b + HDR_COUNT);
+    if (count >= LEDGER_MAX) { return -1; }
+
+    let slot = count;
+    let r = acf(b, slot, 0);
+    os_store(r + F_ID_LO * 8, id_lo);
+    os_store(r + F_DEBITS * 8, db);
+    os_store(r + F_CREDITS * 8, cr);
+    os_store(r + F_BALANCE * 8, 0);
+    os_store(r + F_LEDGER * 8, lg);
+    os_store(r + F_CODE * 8, co);
+    os_store(r + F_FLAGS * 8, 0);
+    os_store(r + F_ID_HI * 8, id_hi);
+    os_store(b + HDR_COUNT, count + 1);
+
+    // Add to hash index
+    hash_insert(b, id_lo, id_hi, slot);
+
+    return 0;
+}
+
+fn ledg_balance(b: i64, id_lo: i64, id_hi: i64) -> i64 {
+    let slot = hash_lookup(b, id_lo, id_hi);
+    if (slot < 0) { return 0; }
+    return os_load(acf(b, slot, 0) + F_BALANCE * 8);
+}
+
+fn ledg_exists(b: i64, id_lo: i64, id_hi: i64) -> i64 {
+    if (hash_lookup(b, id_lo, id_hi) >= 0) { return 1; }
+    return 0;
+}
+
+fn ledg_credit(b: i64, id_lo: i64, id_hi: i64, am: i64) -> i64 {
+    let slot = hash_lookup(b, id_lo, id_hi);
+    if (slot < 0) { return -1; }
+    let r = acf(b, slot, 0) + F_BALANCE * 8;
+    os_store(r, os_load(r) + am);
+    return 0;
+}
+
+fn ledg_debit(b: i64, id_lo: i64, id_hi: i64, am: i64) -> i64 {
+    let slot = hash_lookup(b, id_lo, id_hi);
+    if (slot < 0) { return -1; }
+    let r = acf(b, slot, 0) + F_BALANCE * 8;
+    let bal = os_load(r);
+    if (bal < am) { return -7; }
+    os_store(r, bal - am);
+    return 0;
+}
+
+fn ledg_set_flags(b: i64, id_lo: i64, id_hi: i64, f: i64) -> i64 {
+    let slot = hash_lookup(b, id_lo, id_hi);
+    if (slot < 0) { return -1; }
+    os_store(acf(b, slot, 0) + F_FLAGS * 8, f);
+    return 0;
+}
+
+fn ledg_transfer(b: i64, db_lo: i64, db_hi: i64, cr_lo: i64, cr_hi: i64, am: i64) -> i64 {
+    if (am <= 0) { return -4; }
+    if (db_lo == cr_lo && db_hi == cr_hi) { return -4; }
+
+    let db_slot = hash_lookup(b, db_lo, db_hi);
+    let cr_slot = hash_lookup(b, cr_lo, cr_hi);
+    if (db_slot < 0 || cr_slot < 0) { return -6; }
+
+    if (os_load(acf(b, db_slot, 0) + F_DEBITS * 8) == 0) { return -6; }
+    if (os_load(acf(b, cr_slot, 0) + F_CREDITS * 8) == 0) { return -6; }
+
+    let rc = ledg_debit(b, db_lo, db_hi, am);
+    if (rc != 0) { return rc; }
+    ledg_credit(b, cr_lo, cr_hi, am);
+    return 0;
+}
+
+fn ledg_pending_exists(b: i64, id_lo: i64, id_hi: i64) -> i64 {
+    if (hash_lookup(b, id_lo, id_hi) >= 0) { return 1; }
+    return 0;
+}
+
+// ─── Pending Transfer Operations ───────────────────────────────────
+
+fn ledg_create_pending(b: i64, id_lo: i64, id_hi: i64, db_lo: i64, db_hi: i64,
+                       cr_lo: i64, cr_hi: i64, am: i64, tm: i64, co: i64, lg: i64) -> i64 {
+    let pcount = os_load(b + HDR_PEND_COUNT);
+    if (pcount >= PEND_MAX) { return -4; }
+    if (am <= 0) { return -4; }
+
+    // Validate accounts exist
+    let db_slot = hash_lookup(b, db_lo, db_hi);
+    let cr_slot = hash_lookup(b, cr_lo, cr_hi);
+    if (db_slot < 0 || cr_slot < 0) { return -6; }
+
+    let rc = ledg_debit(b, db_lo, db_hi, am);
+    if (rc != 0) { return rc; }
+
+    let pid = pcount;  // use array index as pending id
+    let r = pnf(b, pid, 0);
+    os_store(r + PF_ID_LO * 8, id_lo);
+    os_store(r + PF_DEBIT * 8, db_lo);
+    os_store(r + PF_CREDIT * 8, cr_lo);
+    os_store(r + PF_AMOUNT * 8, am);
+    os_store(r + PF_TIMEOUT * 8, tm);
+    os_store(r + PF_CODE * 8, co);
+    os_store(r + PF_FLAGS * 8, FLAG_PENDING);
+    os_store(r + PF_ID_HI * 8, id_hi);
+    os_store(b + HDR_PEND_COUNT, pcount + 1);
+
+    return 0;
+}
+
+fn ledg_post_pending(b: i64, id_lo: i64, id_hi: i64) -> i64 {
+    let pcount = os_load(b + HDR_PEND_COUNT);
+    let mut pi: i64 = 0;
+    while (pi < pcount) {
+        let r = pnf(b, pi, 0);
+        if (os_load(r + PF_ID_LO * 8) == id_lo && os_load(r + PF_ID_HI * 8) == id_hi) {
+            let fl = os_load(r + PF_FLAGS * 8);
+            if (fl == 0) { return -11; }
+            if (fl != FLAG_PENDING) { return -12; }
+            ledg_credit(b, os_load(r + PF_CREDIT * 8), os_load(r + PF_ID_HI * 8), os_load(r + PF_AMOUNT * 8));
+            os_store(r + PF_FLAGS * 8, FLAG_POSTED);
+            return 0;
+        }
+        pi = pi + 1;
+    }
+    return -10;
+}
+
+fn ledg_void_pending(b: i64, id_lo: i64, id_hi: i64) -> i64 {
+    let pcount = os_load(b + HDR_PEND_COUNT);
+    let mut pi: i64 = 0;
+    while (pi < pcount) {
+        let r = pnf(b, pi, 0);
+        if (os_load(r + PF_ID_LO * 8) == id_lo && os_load(r + PF_ID_HI * 8) == id_hi) {
+            let fl = os_load(r + PF_FLAGS * 8);
+            if (fl == 0) { return -11; }
+            if (fl != FLAG_PENDING) { return -12; }
+            ledg_credit(b, os_load(r + PF_DEBIT * 8), os_load(r + PF_ID_HI * 8), os_load(r + PF_AMOUNT * 8));
+            os_store(r + PF_FLAGS * 8, FLAG_VOIDED);
+            return 0;
+        }
+        pi = pi + 1;
+    }
+    return -10;
+}
+
+fn ledg_balance_at_slot(b: i64, slot: i64) -> i64 {
+    if (slot < 0 || slot >= LEDGER_MAX) { return 0; }
+    return os_load(acf(b, slot, 0) + F_BALANCE * 8);
+}
+
+fn ledg_id_lo_at_slot(b: i64, slot: i64) -> i64 {
+    if (slot < 0 || slot >= LEDGER_MAX) { return 0; }
+    return os_load(acf(b, slot, 0) + F_ID_LO * 8);
+}
+
+fn ledg_id_hi_at_slot(b: i64, slot: i64) -> i64 {
+    if (slot < 0 || slot >= LEDGER_MAX) { return 0; }
+    return os_load(acf(b, slot, 0) + F_ID_HI * 8);
+}
+
+fn ledg_row_ptr(b: i64, slot: i64) -> i64 {
+    if (slot < 0 || slot >= LEDGER_MAX) { return 0; }
+    return acf(b, slot, 0);
+}
