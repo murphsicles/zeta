@@ -1,0 +1,485 @@
+// VSR — Viewstamped Replication, Phase 2
+// Persistent connections, heartbeat keepalive, full log sync, view change, state machine integration.
+
+const MSG_PREPARE: i64 = 1;
+const MSG_PREPARE_OK: i64 = 2;
+const MSG_COMMIT: i64 = 3;
+const MSG_START_VIEW: i64 = 4;
+const MSG_DO_VIEW_CHANGE: i64 = 5;
+const MSG_DO_VIEW_CHANGE_OK: i64 = 6;
+const MSG_START_VIEW_OK: i64 = 7;
+const MSG_SYNC_REQUEST: i64 = 8;
+const MSG_SYNC_REPLY: i64 = 9;
+const MSG_HEARTBEAT: i64 = 10;
+const VSR_PORT: i64 = 9500;
+const VS_TIMEOUT: i64 = 3000000;           // 3s — trigger view change
+const VS_HEARTBEAT_INTERVAL: i64 = 1000000; // 1s — send heartbeat
+const VS_RECONNECT_INTERVAL: i64 = 3000000; // 3s — min time between reconnects to same peer
+
+// VSR state block offsets (4096 bytes total)
+const VS_ID: i64 = 0;
+const VS_VIEW: i64 = 8;
+const VS_OP: i64 = 16;
+const VS_COMMIT: i64 = 24;
+const VS_CLUSTER: i64 = 32;
+const VS_PRIMARY: i64 = 40;
+const VS_SV: i64 = 48;        // VSR listen socket
+const VS_FD: i64 = 56;
+const VS_TICK: i64 = 64;
+const VS_AM_PRIMARY: i64 = 72;
+const VS_HEARTBEAT: i64 = 80;  // last heartbeat rx/tx time
+const VS_LAST_REPAIR: i64 = 88;
+// reserved 96..127
+
+// Connection table starts at offset 128
+// For each peer i: fd at VS_CONN(i), last_connect_attempt at VS_CONN_TIME(i)
+const VS_CONN_ENTRY: i64 = 16;  // 8 bytes fd + 8 bytes last_connect_time
+const VS_CONN_BASE: i64 = 128;
+const VS_CONN_TIME_BASE: i64 = VS_CONN_BASE + 8;
+
+fn vs_cslot_fd(s: i64, i: i64) -> i64 { return s + VS_CONN_BASE + i * VS_CONN_ENTRY; }
+fn vs_cslot_time(s: i64, i: i64) -> i64 { return s + VS_CONN_TIME_BASE + i * VS_CONN_ENTRY; }
+
+// Log entries start at offset 1024 (room for ~62 connection slots + header)
+const VS_LOG: i64 = 1024;
+const VS_LOG_ENTRY: i64 = 72;
+const VS_LOG_MAX: i64 = 42;
+
+fn log_a(s: i64, n: i64) -> i64 { return s + VS_LOG + n * VS_LOG_ENTRY; }
+
+// ─── Init ──────────────────────────────────────────────────────────────────
+
+fn vsr_init(st: i64) {
+    os_store(st+VS_HEARTBEAT, os_now_us());
+    os_store(st+VS_LAST_REPAIR, os_now_us());
+    os_store(st+VS_FD, -1);
+    let cl = os_load(st+VS_CLUSTER);
+    let me = os_load(st+VS_ID);
+    let mut i: i64 = 0;
+    while (i < cl) {
+        if (i != me) {
+            os_store(vs_cslot_fd(st, i), -1);
+            os_store(vs_cslot_time(st, i), 0);
+        }
+        i = i + 1;
+    }
+}
+
+// ─── Connection Management (Persistent) ────────────────────────────────────
+
+fn vsr_get_conn(st: i64, peer: i64, now: i64) -> i64 {
+    let fd = os_load(vs_cslot_fd(st, peer));
+    if (fd >= 0) { return fd; }
+    // Rate-limit reconnection to VS_RECONNECT_INTERVAL
+    let last = os_load(vs_cslot_time(st, peer));
+    if (now - last < VS_RECONNECT_INTERVAL) { return -1; }
+    os_store(vs_cslot_time(st, peer), now);
+    let nfd = os_connect("127.0.0.1", VSR_PORT + peer);
+    if (nfd >= 0) {
+        os_store(vs_cslot_fd(st, peer), nfd);
+        os_nonblock(nfd);
+        os_log("  vsr: conn to "); os_log_i64(peer); os_log("\n");
+        return nfd;
+    }
+    return -1;
+}
+
+fn vsr_retry_conn(st: i64, peer: i64) {
+    let fd = os_load(vs_cslot_fd(st, peer));
+    if (fd >= 0) {
+        os_net_close(fd);
+        os_log("  vsr: drop conn "); os_log_i64(peer); os_log("\n");
+    }
+    os_store(vs_cslot_fd(st, peer), -1);
+}
+
+fn vsr_close_all_conns(st: i64) {
+    let cl = os_load(st+VS_CLUSTER);
+    let me = os_load(st+VS_ID);
+    let mut i: i64 = 0;
+    while (i < cl) {
+        if (i != me) {
+            let fd = os_load(vs_cslot_fd(st, i));
+            if (fd >= 0) { os_net_close(fd); }
+            os_store(vs_cslot_fd(st, i), -1);
+            os_store(vs_cslot_time(st, i), 0);
+        }
+        i = i + 1;
+    }
+}
+
+fn vsr_repair_conns(st: i64, now: i64) {
+    // Periodically try to reconnect to peers that have no connection
+    let last = os_load(st+VS_LAST_REPAIR);
+    if (now - last < VS_RECONNECT_INTERVAL) { return; }
+    os_store(st+VS_LAST_REPAIR, now);
+    let cl = os_load(st+VS_CLUSTER);
+    let me = os_load(st+VS_ID);
+    let mut i: i64 = 0;
+    while (i < cl) {
+        if (i != me) {
+            let fd = os_load(vs_cslot_fd(st, i));
+            if (fd < 0) { vsr_get_conn(st, i, now); }
+        }
+        i = i + 1;
+    }
+}
+
+// ─── Log Management ────────────────────────────────────────────────────────
+
+fn vsr_log_store(st: i64, op: i64, ot: i64, a1: i64, a2: i64, a3: i64, a4: i64, a5: i64, a6: i64) {
+    let p = log_a(st, op % VS_LOG_MAX);
+    os_store(st+VS_OP, op);
+    os_store(p+0, ot);
+    os_store(p+8, a1);
+    os_store(p+16, a2);
+    os_store(p+24, a3);
+    os_store(p+32, a4);
+    os_store(p+40, a5);
+    os_store(p+48, a6);
+}
+
+fn vsr_log_load(st: i64, op: i64, buf: i64) {
+    let p = log_a(st, op % VS_LOG_MAX);
+    os_store(buf+0, os_load(p+0));
+    os_store(buf+8, os_load(p+8));
+    os_store(buf+16, os_load(p+16));
+    os_store(buf+24, os_load(p+24));
+    os_store(buf+32, os_load(p+32));
+    os_store(buf+40, os_load(p+40));
+    os_store(buf+48, os_load(p+48));
+}
+
+// ─── Replication (Persistent Connection) ───────────────────────────────────
+
+fn vsr_replicate(st: i64, buf: i64, ot: i64, a1: i64, a2: i64, a3: i64, a4: i64, a5: i64, a6: i64) -> i64 {
+    if (st == 0) { return -1; }
+    let cl = os_load(st+VS_CLUSTER);
+    if (cl < 2) { return 0; }
+    let me = os_load(st+VS_ID);
+    let op = os_load(st+VS_OP) + 1;
+    let now = os_now_us();
+
+    // Store in local log
+    vsr_log_store(st, op, ot, a1, a2, a3, a4, a5, a6);
+
+    // Build PREPARE message
+    os_store(buf, MSG_PREPARE);
+    os_store(buf+8, op);
+    os_store(buf+16, ot);
+    os_store(buf+24, a1);
+    os_store(buf+32, a2);
+    os_store(buf+40, a3);
+    os_store(buf+48, a4);
+    os_store(buf+56, a5);
+    os_store(buf+64, a6);
+
+    let mut acks: i64 = 1;
+    let mut i: i64 = 0;
+
+    while (i < cl) {
+        if (i != me) {
+            let mut fd = vsr_get_conn(st, i, now);
+            if (fd >= 0) {
+                let wrote = os_send(fd, buf, 72);
+                if (wrote > 0) {
+                    // Wait briefly for PREPARE_OK
+                    let rn = os_recv(fd, buf, 64);
+                    if (rn >= 8 && os_load(buf) == MSG_PREPARE_OK) {
+                        acks = acks + 1;
+                    } else {
+                        // Connection stale — retry once with fresh connection
+                        vsr_retry_conn(st, i);
+                        fd = vsr_get_conn(st, i, now);
+                        if (fd >= 0) {
+                            // Rebuild PREPARE (buf was overwritten by recv)
+                            os_store(buf, MSG_PREPARE);
+                            os_store(buf+8, op); os_store(buf+16, ot);
+                            os_store(buf+24, a1); os_store(buf+32, a2);
+                            os_store(buf+40, a3); os_store(buf+48, a4);
+                            os_store(buf+56, a5); os_store(buf+64, a6);
+                            let wrote2 = os_send(fd, buf, 72);
+                            if (wrote2 > 0) {
+                                let rn2 = os_recv(fd, buf, 64);
+                                if (rn2 >= 8 && os_load(buf) == MSG_PREPARE_OK) {
+                                    acks = acks + 1;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    vsr_retry_conn(st, i);
+                }
+            }
+        }
+        i = i + 1;
+    }
+
+    if (acks >= cl / 2 + 1) {
+        os_store(st+VS_COMMIT, op);
+        os_store(st+VS_HEARTBEAT, now);
+        return 0;
+    }
+    return -1;
+}
+
+// ─── Heartbeats (over persistent connections) ──────────────────────────────
+
+fn vsr_send_heartbeat(st: i64, buf: i64) {
+    let t = os_load(st+VS_HEARTBEAT);
+    let now = os_now_us();
+    if (now - t < VS_HEARTBEAT_INTERVAL) { return; }
+    os_store(st+VS_HEARTBEAT, now);
+
+    let cl = os_load(st+VS_CLUSTER);
+    let me = os_load(st+VS_ID);
+    let op = os_load(st+VS_OP);
+
+    os_store(buf, MSG_HEARTBEAT);
+    os_store(buf+8, op);
+
+    let mut i: i64 = 0;
+    while (i < cl) {
+        if (i != me) {
+            let fd = os_load(vs_cslot_fd(st, i));
+            if (fd >= 0) {
+                // Send heartbeat; if send fails, mark connection for repair
+                let wrote = os_send(fd, buf, 16);
+                if (wrote <= 0) {
+                    vsr_retry_conn(st, i);
+                }
+            } else {
+                // No connection — try to establish one (rate-limited by vsr_repair_conns)
+                vsr_get_conn(st, i, now);
+            }
+        }
+        i = i + 1;
+    }
+}
+
+// ─── Timeout + View Change ────────────────────────────────────────────────
+
+fn vsr_check_timeout(st: i64, buf: i64) {
+    let t = os_load(st+VS_HEARTBEAT);
+    let now = os_now_us();
+    if (now - t <= VS_TIMEOUT) { return; }
+    let am_primary = os_load(st+VS_AM_PRIMARY);
+    if (am_primary == 0) {
+        os_log("  vsr: timeout — start vc\n");
+        vsr_start_vc(st, buf);
+    }
+}
+
+fn vsr_start_vc(st: i64, buf: i64) {
+    let view = os_load(st+VS_VIEW) + 1;
+    os_store(st+VS_VIEW, view);
+    let me = os_load(st+VS_ID);
+    let op = os_load(st+VS_OP);
+    let cl = os_load(st+VS_CLUSTER);
+    let now = os_now_us();
+
+    // Send DO_VIEW_CHANGE to all peers
+    os_store(buf, MSG_DO_VIEW_CHANGE);
+    os_store(buf+8, view);
+    os_store(buf+16, op);
+
+    let mut votes: i64 = 1;  // vote for ourselves
+    let mut i: i64 = 0;
+    while (i < cl) {
+        if (i != me) {
+            let mut retry: i64 = 0;
+            while (retry < 2) {
+                let fd = vsr_get_conn(st, i, now);
+                if (fd >= 0) {
+                    os_send(fd, buf, 24);
+                    let rn = os_recv(fd, buf, 64);
+                    if (rn >= 16 && os_load(buf) == MSG_DO_VIEW_CHANGE_OK) {
+                        votes = votes + 1;
+                        retry = 2;
+                    } else {
+                        vsr_retry_conn(st, i);
+                        retry = retry + 1;
+                    }
+                } else {
+                    retry = 2;  // can't reach this peer right now
+                }
+            }
+        }
+        i = i + 1;
+    }
+
+    if (votes >= cl / 2 + 1) {
+        // We are the new primary
+        let new_primary = me;
+        os_store(st+VS_PRIMARY, new_primary);
+        os_store(st+VS_AM_PRIMARY, 1);
+        os_store(st+VS_HEARTBEAT, now);
+        os_log("  vsr: new primary view "); os_log_i64(view); os_log("\n");
+
+        // Close all old outbound connections — we'll make fresh ones
+        vsr_close_all_conns(st);
+
+        // Send START_VIEW to all peers
+        os_store(buf, MSG_START_VIEW);
+        os_store(buf+8, view);
+        os_store(buf+16, new_primary);
+
+        i = 0;
+        while (i < cl) {
+            if (i != me) {
+                let mut retry: i64 = 0;
+                while (retry < 2) {
+                    let fd = vsr_get_conn(st, i, now);
+                    if (fd >= 0) {
+                        os_send(fd, buf, 24);
+                        let rn = os_recv(fd, buf, 64);
+                        if (rn >= 8 && os_load(buf) == MSG_START_VIEW_OK) {
+                            retry = 2;
+                        } else {
+                            vsr_retry_conn(st, i);
+                            retry = retry + 1;
+                        }
+                    } else {
+                        retry = 2;
+                    }
+                }
+            }
+            i = i + 1;
+        }
+    }
+}
+
+// ─── State Machine + WAL (full op types) ──────────────────────────────────
+
+fn vsr_apply_op(acct: i64, ot: i64, a1: i64, a2: i64, a3: i64, a4: i64, a5: i64, a6: i64) {
+    if (ot == 1) { ledg_create_account(acct, a1, a2, a3, 0, 0); }
+    else if (ot == 2) { ledg_transfer(acct, a1, a2, a3); }
+    else if (ot == 3) { ledg_credit(acct, a1, a2); }
+    else if (ot == 4) { ledg_set_flags(acct, a1, a2); }
+    else if (ot == 5) { ledg_create_pending(acct, a1, a2, a3, a4, a5, a6, 0); }
+    else if (ot == 6) { ledg_post_pending(acct, a1); }
+    else if (ot == 7) { ledg_void_pending(acct, a1); }
+}
+
+fn vsr_write_wal_buf(wb: i64, ot: i64, a1: i64, a2: i64, a3: i64, a4: i64, a5: i64, a6: i64) {
+    os_zero(wb, 128);
+    if (ot == 1) { rt_prepare_create(wb, 0, a1, a2, a3, 0, 0); }
+    else if (ot == 2) { rt_prepare_transfer(wb, 0, a1, a2, a3); }
+    else if (ot == 3) { rt_prepare_credit(wb, 0, a1, a2); }
+    else if (ot == 4) { rt_prepare_flags(wb, 0, a1, a2); }
+    else if (ot == 5) { rt_prepare_pending(wb, 0, a1, a2, a3, a4, a5, a6, 0); }
+    else if (ot == 6) { rt_prepare_post(wb, 0, a1); }
+    else if (ot == 7) { rt_prepare_void(wb, 0, a1); }
+    os_store(wb+W_CHECKSUM, 0);
+    let csum = xxh64(wb, 128, 0);
+    os_store(wb+W_CHECKSUM, csum);
+}
+
+fn vsr_write_wal_append(wal: i64, wb: i64) {
+    os_write(wal, wb, 128);
+    os_sync(wal);
+}
+
+// ─── Message Handler ───────────────────────────────────────────────────────
+
+fn vsr_handle(st: i64, c: i64, buf: i64, n: i64, wal: i64, acct: i64) {
+    if (n < 8) { return; }
+    let msg = os_load(buf);
+    let now = os_now_us();
+    os_store(st+VS_HEARTBEAT, now);
+
+    if (msg == MSG_PREPARE) {
+        let op = os_load(buf+8);
+        let ot = os_load(buf+16);
+        let a1 = os_load(buf+24); let a2 = os_load(buf+32);
+        let a3 = os_load(buf+40); let a4 = os_load(buf+48);
+        let a5 = os_load(buf+56); let a6 = os_load(buf+64);
+        let last_op = os_load(st+VS_OP);
+
+        // Check for log gap — request sync
+        if (op > last_op + 1) {
+            os_store(buf, MSG_SYNC_REQUEST);
+            os_store(buf+8, last_op + 1);
+            os_store(buf+16, op - last_op - 1);
+            os_send(c, buf, 24);
+            return;
+        }
+
+        // Store in log, apply to state machine, write WAL
+        vsr_log_store(st, op, ot, a1, a2, a3, a4, a5, a6);
+        vsr_apply_op(acct, ot, a1, a2, a3, a4, a5, a6);
+
+        // Batch WAL write for ops that come sequentially
+        let wb = os_alloc(128);
+        vsr_write_wal_buf(wb, ot, a1, a2, a3, a4, a5, a6);
+        vsr_write_wal_append(wal, wb);
+        os_dealloc(wb);
+
+        os_store(buf, MSG_PREPARE_OK);
+        os_send(c, buf, 8);
+
+    } else if (msg == MSG_START_VIEW) {
+        let view = os_load(buf+8);
+        let np = os_load(buf+16);
+        os_store(st+VS_VIEW, view);
+        os_store(st+VS_PRIMARY, np);
+        if (np == os_load(st+VS_ID)) {
+            os_store(st+VS_AM_PRIMARY, 1);
+        } else {
+            os_store(st+VS_AM_PRIMARY, 0);
+        }
+        os_store(buf, MSG_START_VIEW_OK);
+        os_send(c, buf, 8);
+
+    } else if (msg == MSG_DO_VIEW_CHANGE) {
+        let view = os_load(buf+8);
+        if (view > os_load(st+VS_VIEW)) {
+            os_store(st+VS_VIEW, view);
+        }
+        os_store(buf, MSG_DO_VIEW_CHANGE_OK);
+        os_store(buf+8, os_load(st+VS_OP));
+        os_send(c, buf, 16);
+
+    } else if (msg == MSG_SYNC_REQUEST) {
+        let from_op = os_load(buf+8);
+        let count = os_load(buf+16);
+        let max = os_load(st+VS_OP);
+        let mut sent: i64 = 0;
+        let mut i: i64 = 0;
+        while (i < count && from_op + i <= max) {
+            vsr_log_load(st, from_op + i, buf + 24 + sent * 72);
+            sent = sent + 1;
+            i = i + 1;
+        }
+        os_store(buf, MSG_SYNC_REPLY);
+        os_store(buf+8, from_op);
+        os_store(buf+16, sent);
+        os_send(c, buf, 24 + sent * 72);
+
+    } else if (msg == MSG_SYNC_REPLY) {
+        let from_op = os_load(buf+8);
+        let count = os_load(buf+16);
+        let mut i: i64 = 0;
+        while (i < count) {
+            let off = 24 + i * 72;
+            let ot = os_load(buf+off+0);
+            let a1 = os_load(buf+off+8); let a2 = os_load(buf+off+16);
+            let a3 = os_load(buf+off+24); let a4 = os_load(buf+off+32);
+            let a5 = os_load(buf+off+40); let a6 = os_load(buf+off+48);
+            let op = from_op + i;
+            vsr_log_store(st, op, ot, a1, a2, a3, a4, a5, a6);
+            vsr_apply_op(acct, ot, a1, a2, a3, a4, a5, a6);
+            let wb = os_alloc(128);
+            vsr_write_wal_buf(wb, ot, a1, a2, a3, a4, a5, a6);
+            vsr_write_wal_append(wal, wb);
+            os_dealloc(wb);
+            i = i + 1;
+        }
+        os_store(buf, MSG_PREPARE_OK);
+        os_send(c, buf, 8);
+
+    } else if (msg == MSG_HEARTBEAT) {
+        os_store(st+VS_HEARTBEAT, now);
+        os_store(st+VS_PRIMARY, os_load(buf+8));
+    }
+}

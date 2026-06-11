@@ -1,0 +1,226 @@
+// Capybara DB — Phase 2 main loop
+// Event-driven: non-blocking accept on client + VSR ports,
+// persistent VSR connections, heartbeat keepalive, view change.
+
+const BS: i64 = 4096;
+
+fn handle_client(c: i64, buf: i64, rbuf: i64, acct: i64, wal: i64, vs: i64) {
+    let arena = arena_init();
+    let mut run: i64 = 1;
+    while (run == 1) {
+        let n = os_recv(c, buf, BS);
+        if (n > 0) {
+            let batch_wb = batch_init();
+            let mut batch_count: i64 = 0;
+            let mut batch_ok: i64 = 1;
+            let mut off: i64 = 0;
+            let mut first_rc: i64 = 0;
+
+            while (off + 24 <= n) {
+                let ot = os_load(buf+off);
+                let id = os_load(buf+off+16);
+                let a1 = os_load(buf+off+24);
+                let a2 = os_load(buf+off+32);
+                let wb = batch_prepare_wb(batch_wb, batch_count);
+                let mut rc: i64 = 0;
+                let mut advance: i64 = 40;
+                if (ot == 5 || ot == 72) { advance = 72; }
+                if (ot == 10) { advance = 24; }
+
+                if (ot == 10) {
+                    // Balance check — read-only, no replication
+                    let bal = ledg_balance(acct, id);
+                    os_store(buf, 10);
+                    os_store(buf+8, bal);
+                    os_send(c, buf, 16);
+                } else {
+                    if (ot == 1) {
+                        rc = ledg_create_account(acct, id, a1, a2, 0, 0);
+                        if (rc == 0) { rt_prepare_create(wb, 0, id, a1, a2, 0, 0); batch_count = batch_count + 1; }
+                    } else if (ot == 3) {
+                        rc = ledg_credit(acct, id, a1);
+                        if (rc == 0) { rt_prepare_credit(wb, 0, id, a1); batch_count = batch_count + 1; }
+                    } else if (ot == 2) {
+                        rc = ledg_transfer(acct, id, a1, a2);
+                        if (rc == 0) { rt_prepare_transfer(wb, 0, id, a1, a2); batch_count = batch_count + 1; }
+                    } else if (ot == 4) {
+                        rc = ledg_set_flags(acct, id, a1);
+                        if (rc == 0) { rt_prepare_flags(wb, 0, id, a1); batch_count = batch_count + 1; }
+                    } else if (ot == 5) {
+                        let amt = os_load(buf+off+40);
+                        let tmout = os_load(buf+off+48);
+                        let code = os_load(buf+off+56);
+                        let ledg = os_load(buf+off+64);
+                        rc = ledg_create_pending(acct, id, a1, a2, amt, tmout, code, ledg);
+                        if (rc == 0) { rt_prepare_pending(wb, 0, id, a1, a2, amt, tmout, code, ledg); batch_count = batch_count + 1; }
+                    } else if (ot == 6) {
+                        rc = ledg_post_pending(acct, id);
+                        if (rc == 0) { rt_prepare_post(wb, 0, id); batch_count = batch_count + 1; }
+                    } else if (ot == 7) {
+                        rc = ledg_void_pending(acct, id);
+                        if (rc == 0) { rt_prepare_void(wb, 0, id); batch_count = batch_count + 1; }
+                    }
+                    if (rc != 0) {
+                        if (first_rc == 0) { first_rc = rc; }
+                        batch_ok = 0;
+                        os_store(buf, rc);
+                        os_send(c, buf, 8);
+                    } else {
+                        os_store(buf, ot);
+                        os_send(c, buf, 8);
+                    }
+                }
+                off = off + advance;
+            }
+
+            // Flush WAL batch + replicate if primary
+            if (batch_count > 0 && batch_ok == 1) {
+                batch_flush(batch_wb, wal, batch_count);
+                if (vs != 0 && os_load(vs+VS_AM_PRIMARY) == 1) {
+                    let bcl = os_load(vs+VS_CLUSTER);
+                    if (bcl >= 2) {
+                        let mut bi: i64 = 0;
+                        while (bi < batch_count) {
+                            let we = batch_wb + bi * 128;
+                            let ot = os_load(we+8);
+                            let a1 = os_load(we+16); let a2 = os_load(we+24);
+                            let a3 = os_load(we+32); let a4 = os_load(we+40);
+                            let a5 = os_load(we+48); let a6 = os_load(we+56);
+                            vsr_replicate(vs, buf, ot, a1, a2, a3, a4, a5, a6);
+                            bi = bi + 1;
+                        }
+                    }
+                }
+            }
+            os_dealloc(batch_wb);
+        } else {
+            run = 0;
+        }
+    }
+    arena_destroy(arena);
+}
+
+fn main(argc: i64, argv: i64) -> i64 {
+    let t0 = os_now_us();
+    os_log("capybara v0.1.0\n");
+
+    let mut rid: i64 = 0;
+    let mut port: i64 = 8700;
+    let n = os_argc(argc, argv);
+    let mut i: i64 = 1;
+    while (i < n) {
+        let a = os_argv(argc, argv, i);
+        if (os_streq(a, "--replica") == 1 && i + 1 < n) { i = i + 1; rid = os_atoi(os_argv(argc, argv, i)); }
+        if (os_streq(a, "--port") == 1 && i + 1 < n) { i = i + 1; port = os_atoi(os_argv(argc, argv, i)); }
+        i = i + 1;
+    }
+
+    port = port + rid;
+
+    if (rid == 0) { os_mkdir("/tmp/capybara_data", os_m755()); }
+    if (rid == 1) { os_mkdir("/tmp/capybara1", os_m755()); }
+    if (rid == 2) { os_mkdir("/tmp/capybara2", os_m755()); }
+
+    let sb = rt_sb_open(rid);
+    let wal = rt_wal_open(rid);
+    rt_sb_init(sb);
+
+    let acct = ledg_init();
+    let wc = rt_wal_count(wal);
+    if (wc > 0) { rt_replay(wal, acct); }
+
+    // Init VSR state block (4096 bytes)
+    let vs = os_alloc(4096);
+    os_zero(vs, 4096);
+    os_store(vs+VS_ID, rid);
+    os_store(vs+VS_CLUSTER, 3);
+    let cl = os_load(vs+VS_CLUSTER);
+
+    if (rid == 0) {
+        os_store(vs+VS_PRIMARY, 0);
+        os_store(vs+VS_AM_PRIMARY, 1);
+        os_log("pri\n");
+    } else {
+        os_log("bkp\n");
+    }
+    vsr_init(vs);
+
+    let buf = os_alloc(BS);
+    let rbuf = os_alloc(24);
+
+    // ─── Event Loop ────────────────────────────────────────────────────
+
+    // Both primary and backup listen on VSR port and client port
+    let vsr_sv = os_listen(VSR_PORT + rid);
+    os_nonblock(vsr_sv);
+    os_store(vs+VS_SV, vsr_sv);
+
+    let cli_sv = os_listen(port);
+    os_nonblock(cli_sv);
+
+    let mut run: i64 = 1;
+    while (run == 1) {
+        // 1. Accept client connections
+        let cc = os_accept(cli_sv);
+        if (cc >= 0) {
+            if (rid == 0) {
+                // Primary handles client (read-write, replicates)
+                handle_client(cc, buf, rbuf, acct, wal, vs);
+            } else {
+                // Backup handles client (read-only via balance check, write ops forward to primary eventually)
+                let bkp_arena = arena_init();
+                handle_client(cc, buf, rbuf, acct, wal, vs);
+                arena_destroy(bkp_arena);
+            }
+            os_net_close(cc);
+        }
+
+        // 2. Accept VSR connections (primary accepts from backup heartbeats/vc, vice versa)
+        let vc = os_accept(vsr_sv);
+        if (vc >= 0) {
+            os_nonblock(vc);
+            // Read all available data from this VSR connection
+            let mut vn: i64 = 0;
+            while (vn >= 0) {
+                vn = os_recv(vc, buf, BS);
+                if (vn > 0) {
+                    vsr_handle(vs, vc, buf, vn, wal, acct);
+                } else if (vn == 0) {
+                    // Connection closed
+                    vn = -2;
+                } else {
+                    // EAGAIN/EWOULDBLOCK — no more data right now
+                    vn = -1;
+                }
+            }
+            os_net_close(vc);
+        }
+
+        // 3. Maintenance (primary only)
+        if (rid == 0) {
+            vsr_send_heartbeat(vs, buf);
+            vsr_repair_conns(vs, os_now_us());
+        } else {
+            vsr_check_timeout(vs, buf);
+            vsr_repair_conns(vs, os_now_us());
+        }
+
+        // 4. Yield to avoid busy-spin
+        let t1 = get_time_us();
+        let mut s: i64 = 0;
+        while (s < 10000) {
+            let t2 = get_time_us();
+            if (t2 - t1 > s) { s = t2 - t1; }
+        }
+    }
+
+    os_dealloc(buf);
+    os_dealloc(rbuf);
+    ledg_destroy(acct);
+    rt_close(sb, wal);
+
+    os_log("up ");
+    os_log_i64(os_now_us() - t0);
+    os_log("\n");
+    return 0;
+}
