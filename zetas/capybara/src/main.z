@@ -1,8 +1,13 @@
-// Capybara DB — Phase 2 main loop
-// Event-driven: non-blocking accept on client + VSR ports,
+// Capybara DB — Phase 2+ event loop with io_uring
+// Event-driven: io_uring for accept, blocking recv/send for client handlers,
 // persistent VSR connections, heartbeat keepalive, view change.
 
 const BS: i64 = 4096;
+const URING_ENTRIES: i64 = 128;
+const UD_CLI_ACCEPT: i64 = 100;
+const UD_VSR_ACCEPT: i64 = 200;
+const UD_CLI_READ: i64 = 300;
+const UD_VSR_READ: i64 = 400;
 
 fn handle_client(c: i64, buf: i64, rbuf: i64, acct: i64, wal: i64, vs: i64) {
     let arena = arena_init();
@@ -100,6 +105,13 @@ fn handle_client(c: i64, buf: i64, rbuf: i64, acct: i64, wal: i64, vs: i64) {
     arena_destroy(arena);
 }
 
+fn uring_submit_accept(uring: i64, fd: i64, ud: i64) -> i64 {
+    let sqe = os_uring_sqe(uring);
+    if (sqe == 0) { return -1; }
+    os_uring_accept_sqe(sqe, fd, ud);
+    return 0;
+}
+
 fn main(argc: i64, argv: i64) -> i64 {
     let t0 = os_now_us();
     os_log("capybara v0.1.0\n");
@@ -134,7 +146,6 @@ fn main(argc: i64, argv: i64) -> i64 {
     os_zero(vs, 4096);
     os_store(vs+VS_ID, rid);
     os_store(vs+VS_CLUSTER, 3);
-    let cl = os_load(vs+VS_CLUSTER);
 
     if (rid == 0) {
         os_store(vs+VS_PRIMARY, 0);
@@ -148,69 +159,105 @@ fn main(argc: i64, argv: i64) -> i64 {
     let buf = os_alloc(BS);
     let rbuf = os_alloc(24);
 
-    // ─── Event Loop ────────────────────────────────────────────────────
+    // ─── io_uring Setup ────────────────────────────────────────────────
+    let uring = os_alloc(128);
+    let uring_rc = os_uring_init(uring, URING_ENTRIES);
+    if (uring_rc < 0) {
+        os_log("  uring: init failed ("); os_log_i64(uring_rc); os_log(")\n");
+        // Fall back to blocking mode
+        os_log("  uring: falling back to blocking I/O\n");
+        let vsr_sv = os_listen(VSR_PORT + rid);
+        os_nonblock(vsr_sv);
+        os_store(vs+VS_SV, vsr_sv);
+        let cli_sv = os_listen(port);
+        os_nonblock(cli_sv);
 
-    // Both primary and backup listen on VSR port and client port
-    let vsr_sv = os_listen(VSR_PORT + rid);
-    os_nonblock(vsr_sv);
-    os_store(vs+VS_SV, vsr_sv);
-
-    let cli_sv = os_listen(port);
-    os_nonblock(cli_sv);
-
-    let mut run: i64 = 1;
-    while (run == 1) {
-        // 1. Accept client connections
-        let cc = os_accept(cli_sv);
-        if (cc >= 0) {
-            if (rid == 0) {
-                // Primary handles client (read-write, replicates)
-                handle_client(cc, buf, rbuf, acct, wal, vs);
-            } else {
-                // Backup handles client (read-only via balance check, write ops forward to primary eventually)
-                let bkp_arena = arena_init();
-                handle_client(cc, buf, rbuf, acct, wal, vs);
-                arena_destroy(bkp_arena);
+        let mut run: i64 = 1;
+        while (run == 1) {
+            // Blocking accept loop
+            let cc = os_accept(cli_sv);
+            if (cc >= 0) { handle_client(cc, buf, rbuf, acct, wal, vs); os_net_close(cc); }
+            let vc = os_accept(vsr_sv);
+            if (vc >= 0) {
+                os_nonblock(vc);
+                let mut vn: i64 = 0;
+                while (vn >= 0) {
+                    vn = os_recv(vc, buf, BS);
+                    if (vn > 0) { vsr_handle(vs, vc, buf, vn, wal, acct); }
+                    else if (vn == 0) { vn = -2; }
+                    else { vn = -1; }
+                }
+                os_net_close(vc);
             }
-            os_net_close(cc);
+            if (rid == 0) { vsr_send_heartbeat(vs, buf); vsr_repair_conns(vs, os_now_us()); }
+            else { vsr_check_timeout(vs, buf); vsr_repair_conns(vs, os_now_us()); }
+            let t1 = get_time_us(); let mut s: i64 = 0;
+            while (s < 10000) { let t2 = get_time_us(); if (t2 - t1 > s) { s = t2 - t1; } }
         }
+    } else {
+        // ─── io_uring Event Loop ──────────────────────────────────────
+        os_log("  uring: init ok\n");
+        let vsr_sv = os_listen(VSR_PORT + rid);
+        os_store(vs+VS_SV, vsr_sv);
+        let cli_sv = os_listen(port);
 
-        // 2. Accept VSR connections (primary accepts from backup heartbeats/vc, vice versa)
-        let vc = os_accept(vsr_sv);
-        if (vc >= 0) {
-            os_nonblock(vc);
-            // Read all available data from this VSR connection
-            let mut vn: i64 = 0;
-            while (vn >= 0) {
-                vn = os_recv(vc, buf, BS);
-                if (vn > 0) {
-                    vsr_handle(vs, vc, buf, vn, wal, acct);
-                } else if (vn == 0) {
-                    // Connection closed
-                    vn = -2;
-                } else {
-                    // EAGAIN/EWOULDBLOCK — no more data right now
-                    vn = -1;
+        // Submit initial accept SQEs
+        uring_submit_accept(uring, cli_sv, UD_CLI_ACCEPT);
+        uring_submit_accept(uring, vsr_sv, UD_VSR_ACCEPT);
+        os_uring_submit(uring, 2, 0);
+
+        let mut run: i64 = 1;
+        while (run == 1) {
+            // Wait for at least one io_uring completion
+            os_uring_submit(uring, 0, 1);
+
+            // Process all available completions
+            let mut timed_out: i64 = 0;
+            while (timed_out == 0) {
+                let ud = os_uring_cqe(uring);
+                if (ud == 0) { timed_out = 1; }
+                else {
+                    let res = os_uring_cqe_res(uring);
+
+                    if (ud == UD_CLI_ACCEPT) {
+                        // Client accept completed
+                        if (res >= 0) {
+                            handle_client(res, buf, rbuf, acct, wal, vs);
+                            os_net_close(res);
+                        }
+                        // Re-arm client accept
+                        uring_submit_accept(uring, cli_sv, UD_CLI_ACCEPT);
+                        os_uring_submit(uring, 1, 0);
+
+                    } else if (ud == UD_VSR_ACCEPT) {
+                        // VSR accept completed
+                        if (res >= 0) {
+                            os_nonblock(res);
+                            let mut vn: i64 = 0;
+                            while (vn >= 0) {
+                                vn = os_recv(res, buf, BS);
+                                if (vn > 0) { vsr_handle(vs, res, buf, vn, wal, acct); }
+                                else if (vn == 0) { vn = -2; }
+                                else { vn = -1; }
+                            }
+                            os_net_close(res);
+                        }
+                        // Re-arm VSR accept
+                        uring_submit_accept(uring, vsr_sv, UD_VSR_ACCEPT);
+                        os_uring_submit(uring, 1, 0);
+                    }
                 }
             }
-            os_net_close(vc);
-        }
 
-        // 3. Maintenance (primary only)
-        if (rid == 0) {
-            vsr_send_heartbeat(vs, buf);
-            vsr_repair_conns(vs, os_now_us());
-        } else {
-            vsr_check_timeout(vs, buf);
-            vsr_repair_conns(vs, os_now_us());
-        }
-
-        // 4. Yield to avoid busy-spin
-        let t1 = get_time_us();
-        let mut s: i64 = 0;
-        while (s < 10000) {
-            let t2 = get_time_us();
-            if (t2 - t1 > s) { s = t2 - t1; }
+            // VSR maintenance (between io_uring waits)
+            let now = os_now_us();
+            if (rid == 0) {
+                vsr_send_heartbeat(vs, buf);
+                vsr_repair_conns(vs, now);
+            } else {
+                vsr_check_timeout(vs, buf);
+                vsr_repair_conns(vs, now);
+            }
         }
     }
 
