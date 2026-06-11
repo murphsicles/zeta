@@ -1,9 +1,9 @@
-// Capybara DB — Phase 2+ event loop with io_uring
-// Event-driven: io_uring for accept, blocking recv/send for client handlers,
-// persistent VSR connections, heartbeat keepalive, view change.
+// Capybara DB — Phase 3+ event loop
+// Event-driven: io_uring + LSM-Tree + VSR replication
 
 const BS: i64 = 4096;
 const URING_ENTRIES: i64 = 128;
+const LSM_FLUSH_INTERVAL: i64 = 5000000;  // flush ledger to LSM every 5s
 const UD_CLI_ACCEPT: i64 = 100;
 const UD_VSR_ACCEPT: i64 = 200;
 const UD_CLI_READ: i64 = 300;
@@ -105,6 +105,66 @@ fn handle_client(c: i64, buf: i64, rbuf: i64, acct: i64, wal: i64, vs: i64) {
     arena_destroy(arena);
 }
 
+// ─── LSM-Ledger Integration ──────────────────────────────────────────
+
+fn ledg_flush_lsm(lsm: i64, acct: i64) -> i64 {
+    if (lsm == 0 || acct == 0) { return -1; }
+    let count = ledg_count(acct);
+    if (count == 0) { return 0; }
+
+    let val_buf = os_alloc(64);
+    let mut flushed: i64 = 0;
+    let mut id: i64 = 0;
+    while (id < LEDGER_MAX) {
+        if (ledg_exists(acct, id) != 0) {
+            // Copy 64 bytes of account state to buffer
+            let src = acf(acct, id, 0);  // points to first field of account row
+            os_copy(val_buf, src, 64);
+            lsm_put(lsm, id, val_buf);
+            flushed = flushed + 1;
+        }
+        id = id + 1;
+    }
+    os_dealloc(val_buf);
+
+    // Force memtable flush to SSTable
+    lsm_flush(lsm);
+
+    return flushed;
+}
+
+fn ledg_restore_lsm(lsm: i64, acct: i64) -> i64 {
+    if (lsm == 0 || acct == 0) { return -1; }
+    // Count entries in LSM
+    let entry_count = lsm_scan_count(lsm);
+    if (entry_count == 0) { return 0; }
+
+    // Read all entries
+    let keys = os_alloc(entry_count * 8);
+    let vals = os_alloc(entry_count * 64);
+    let n = lsm_scan_all(lsm, keys, vals, entry_count);
+
+    // Restore each account into the in-memory ledger
+    let mut restored: i64 = 0;
+    let mut i: i64 = 0;
+    while (i < n) {
+        let id = os_load(keys + i * 8);
+        // Copy 64-byte account state directly into ledger at the right offset
+        let dst = acf(acct, id, 0);
+        os_copy(dst, vals + i * 64, 64);
+        // Update account count if this is a new account
+        if (ledg_count(acct) <= id) {
+            os_store(acct, id + 1);
+        }
+        restored = restored + 1;
+        i = i + 1;
+    }
+
+    os_dealloc(keys);
+    os_dealloc(vals);
+    return restored;
+}
+
 fn uring_submit_accept(uring: i64, fd: i64, ud: i64) -> i64 {
     let sqe = os_uring_sqe(uring);
     if (sqe == 0) { return -1; }
@@ -138,8 +198,77 @@ fn main(argc: i64, argv: i64) -> i64 {
     rt_sb_init(sb);
 
     let acct = ledg_init();
+
+    // ─── LSM Setup ──────────────────────────────────────────────────
+    let lsm_dir = os_alloc(64);
+    os_zero(lsm_dir, 64);
+    // Manually copy the LSM dir path
+    if (rid == 0) {
+        os_store(lsm_dir, 0x6D73616C5F617461); // "lsm_data" in le — actually just build byte by byte
+        let mut bi: i64 = 0;
+        os_store_8(lsm_dir + bi, 47); bi = bi + 1; // '/'
+        os_store_8(lsm_dir + bi, 116); bi = bi + 1; // 't'
+        os_store_8(lsm_dir + bi, 109); bi = bi + 1; // 'm'
+        os_store_8(lsm_dir + bi, 112); bi = bi + 1; // 'p'
+        os_store_8(lsm_dir + bi, 47); bi = bi + 1;  // '/'
+        os_store_8(lsm_dir + bi, 99); bi = bi + 1;  // 'c'
+        os_store_8(lsm_dir + bi, 97); bi = bi + 1;  // 'a'
+        os_store_8(lsm_dir + bi, 112); bi = bi + 1; // 'p'
+        os_store_8(lsm_dir + bi, 121); bi = bi + 1; // 'y'
+        os_store_8(lsm_dir + bi, 98); bi = bi + 1;  // 'b'
+        os_store_8(lsm_dir + bi, 97); bi = bi + 1;  // 'a'
+        os_store_8(lsm_dir + bi, 114); bi = bi + 1; // 'r'
+        os_store_8(lsm_dir + bi, 97); bi = bi + 1;  // 'a'
+        os_store_8(lsm_dir + bi, 95); bi = bi + 1;  // '_'
+        os_store_8(lsm_dir + bi, 100); bi = bi + 1; // 'd'
+        os_store_8(lsm_dir + bi, 97); bi = bi + 1;  // 'a'
+        os_store_8(lsm_dir + bi, 116); bi = bi + 1; // 't'
+        os_store_8(lsm_dir + bi, 97); bi = bi + 1;  // 'a'
+        os_store_8(lsm_dir + bi, 47); bi = bi + 1;  // '/'
+        os_store_8(lsm_dir + bi, 108); bi = bi + 1; // 'l'
+        os_store_8(lsm_dir + bi, 115); bi = bi + 1; // 's'
+        os_store_8(lsm_dir + bi, 109); bi = bi + 1; // 'm'
+        os_store_8(lsm_dir + bi, 0);
+    } else if (rid == 1) {
+        os_store_8(lsm_dir, 47);  os_store_8(lsm_dir+1, 116);  os_store_8(lsm_dir+2, 109);
+        os_store_8(lsm_dir+3, 112); os_store_8(lsm_dir+4, 47); os_store_8(lsm_dir+5, 99);
+        os_store_8(lsm_dir+6, 97);  os_store_8(lsm_dir+7, 112); os_store_8(lsm_dir+8, 121);
+        os_store_8(lsm_dir+9, 98);  os_store_8(lsm_dir+10, 97); os_store_8(lsm_dir+11, 114);
+        os_store_8(lsm_dir+12, 97); os_store_8(lsm_dir+13, 49); os_store_8(lsm_dir+14, 47);
+        os_store_8(lsm_dir+15, 108); os_store_8(lsm_dir+16, 115); os_store_8(lsm_dir+17, 109);
+        os_store_8(lsm_dir+18, 0);
+    } else {
+        os_store_8(lsm_dir, 47);  os_store_8(lsm_dir+1, 116);  os_store_8(lsm_dir+2, 109);
+        os_store_8(lsm_dir+3, 112); os_store_8(lsm_dir+4, 47); os_store_8(lsm_dir+5, 99);
+        os_store_8(lsm_dir+6, 97);  os_store_8(lsm_dir+7, 112); os_store_8(lsm_dir+8, 121);
+        os_store_8(lsm_dir+9, 98);  os_store_8(lsm_dir+10, 97); os_store_8(lsm_dir+11, 114);
+        os_store_8(lsm_dir+12, 97); os_store_8(lsm_dir+13, 50); os_store_8(lsm_dir+14, 47);
+        os_store_8(lsm_dir+15, 108); os_store_8(lsm_dir+16, 115); os_store_8(lsm_dir+17, 109);
+        os_store_8(lsm_dir+18, 0);
+    }
+
+    // Create LSM dir if needed
+    os_mkdir(lsm_dir, os_m755());
+
+    // Open LSM tree
+    let lsm = lsm_open(lsm_dir);
+
+    // Restore accounts from LSM (snapshot) then replay WAL on top
+    let restored = ledg_restore_lsm(lsm, acct);
+    if (restored > 0) {
+        os_log("lsm: restored "); os_log_i64(restored); os_log(" accounts
+");
+    }
+
+    // Replay WAL for crash recovery (operations since last LSM flush)
     let wc = rt_wal_count(wal);
-    if (wc > 0) { rt_replay(wal, acct); }
+    if (wc > 0) {
+        os_log("wal: replaying "); os_log_i64(wc); os_log(" entries
+");
+        rt_replay(wal, acct);
+    }
+
+    let mut last_lsm_flush: i64 = os_now_us();
 
     // Init VSR state block (4096 bytes)
     let vs = os_alloc(4096);
@@ -189,8 +318,17 @@ fn main(argc: i64, argv: i64) -> i64 {
                 }
                 os_net_close(vc);
             }
-            if (rid == 0) { vsr_send_heartbeat(vs, buf); vsr_repair_conns(vs, os_now_us()); }
-            else { vsr_check_timeout(vs, buf); vsr_repair_conns(vs, os_now_us()); }
+            let now = os_now_us();
+            if (rid == 0) { vsr_send_heartbeat(vs, buf); vsr_repair_conns(vs, now); }
+            else { vsr_check_timeout(vs, buf); vsr_repair_conns(vs, now); }
+            // Periodic LSM flush
+            if (now - last_lsm_flush > LSM_FLUSH_INTERVAL) {
+                let flushed = ledg_flush_lsm(lsm, acct);
+                lsm_write_manifest(lsm);
+                os_log("lsm: flushed "); os_log_i64(flushed); os_log(" accounts at "); os_log_i64(now); os_log("
+");
+                last_lsm_flush = now;
+            }
             let t1 = get_time_us(); let mut s: i64 = 0;
             while (s < 10000) { let t2 = get_time_us(); if (t2 - t1 > s) { s = t2 - t1; } }
         }
@@ -249,7 +387,7 @@ fn main(argc: i64, argv: i64) -> i64 {
                 }
             }
 
-            // VSR maintenance (between io_uring waits)
+            // VSR maintenance + LSM flush (between io_uring waits)
             let now = os_now_us();
             if (rid == 0) {
                 vsr_send_heartbeat(vs, buf);
@@ -258,11 +396,30 @@ fn main(argc: i64, argv: i64) -> i64 {
                 vsr_check_timeout(vs, buf);
                 vsr_repair_conns(vs, now);
             }
+            if (now - last_lsm_flush > LSM_FLUSH_INTERVAL) {
+                let flushed = ledg_flush_lsm(lsm, acct);
+                lsm_write_manifest(lsm);
+                if (flushed > 0) {
+                    os_log("lsm: flushed "); os_log_i64(flushed);
+                    os_log(" accounts at "); os_log_i64(now); os_log("
+");
+                }
+                last_lsm_flush = now;
+            }
         }
+    }
+
+    // Flush ledger to LSM on shutdown
+    let flushed = ledg_flush_lsm(lsm, acct);
+    lsm_write_manifest(lsm);
+    lsm_close(lsm);
+    if (flushed > 0) {
+        os_log("lsm: flushed "); os_log_i64(flushed); os_log(" on shutdown\n");
     }
 
     os_dealloc(buf);
     os_dealloc(rbuf);
+    os_dealloc(lsm_dir);
     ledg_destroy(acct);
     rt_close(sb, wal);
 

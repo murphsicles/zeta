@@ -216,7 +216,7 @@ fn mf_read(p: i64, dir: i64) -> i64 {
     if (n != 8) { os_close(fd); os_dealloc(path); return 0; }
     let count = os_load(p + MF_COUNT);
     if (count > 0 && count <= MANIFEST_MAX) {
-        os_read(fd, p + MF_DATA, count * MANIFEST_ENTRY);
+        let rn = os_read(fd, p + MF_DATA, count * MANIFEST_ENTRY);
     }
 
     os_close(fd);

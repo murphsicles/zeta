@@ -59,9 +59,9 @@ fn lsm_open(dir: i64) -> i64 {
 fn lsm_close(p: i64) {
     if (p == 0) { return; }
 
-    // Flush memtable
+    // Flush memtable (force any remaining entries to SSTable)
     let mt = os_load(p + LSM_MT);
-    if (!mt_is_full(mt) && mt_count(mt) > 0) {
+    if (mt_count(mt) > 0) {
         lsm_flush(p);
     }
 
@@ -112,7 +112,9 @@ fn lsm_get(p: i64, key: i64, val: i64) -> i64 {
         let seq = mf_seq(mf, i);
         let level = mf_level(mf, i);
         let sst_path = sst_path(dir, level, seq);
+        os_log("    scan_all: opening sst\n");
         let fd = os_open(sst_path, os_rdwr(), os_m644());
+        os_log("    scan_all: fd="); os_log_i64(fd); os_log(" path="); os_log_i64(sst_path); os_log("\n");
 
         // Read footer
         let footer = os_alloc(SST_FOOTER);
@@ -309,6 +311,88 @@ fn lsm_compact(p: i64) -> i64 {
     os_dealloc(paths);
 
     return 0;
+}
+
+fn lsm_scan_all(p: i64, keys_out: i64, vals_out: i64, max_count: i64) -> i64 {
+    if (p == 0) { return 0; }
+    let mf = os_load(p + LSM_MF);
+    let dir = os_load(p + LSM_DIR);
+    let count = mf_count(mf);
+
+    let mut total: i64 = 0;
+
+    // Search SSTables newest-first (skip if we already have space)
+    // For restore, we need the latest version of each key
+    // Simplest: read all into a temporary memtable (dedups by newest first)
+    let merge_mt = mt_init();
+
+    let mut i: i64 = 0;
+    while (i < count) {
+        let seq = mf_seq(mf, i);
+        let level = mf_level(mf, i);
+
+        let sst_path = sst_path(dir, level, seq);
+        let fd = os_open(sst_path, os_rdwr(), os_m644());
+        if (fd >= 0) {
+            let footer = os_alloc(SST_FOOTER);
+            if (sst_read_footer(fd, footer) == 0) {
+                let entry_count = os_load(footer + SST_COUNT);
+                let keys_buf = os_alloc(entry_count * 8);
+                let vals_buf = os_alloc(entry_count * 64);
+                sst_get_all(fd, footer, keys_buf, vals_buf, entry_count);
+
+                let mut j: i64 = 0;
+                while (j < entry_count) {
+                    let k = os_load(keys_buf + j * 8);
+                    // Only add if not already in merge_mt (newer SSTables win)
+                    if (mt_get(merge_mt, k, 0) < 0) {
+                        mt_put(merge_mt, k, vals_buf + j * 64);
+                    }
+                    j = j + 1;
+                }
+                os_dealloc(keys_buf);
+                os_dealloc(vals_buf);
+            }
+            os_dealloc(footer);
+            os_close(fd);
+        }
+        os_dealloc(sst_path);
+        i = i + 1;
+    }
+
+    // Copy deduplicated entries to output buffers
+    let merge_count = mt_count(merge_mt);
+    let n = merge_count;
+    if (n > max_count) { n = max_count; }
+
+    let mut j: i64 = 0;
+    while (j < n) {
+        if (keys_out != 0) {
+            os_store(keys_out + j * 8, mt_entry_key(merge_mt, j));
+        }
+        if (vals_out != 0) {
+            mt_entry_val(merge_mt, j, vals_out + j * 64);
+        }
+        j = j + 1;
+    }
+
+    total = n;
+    mt_destroy(merge_mt);
+    return total;
+}
+
+fn lsm_scan_count(p: i64) -> i64 {
+    if (p == 0) { return 0; }
+    let mf = os_load(p + LSM_MF);
+    let count = mf_count(mf);
+    let mut total: i64 = 0;
+    let mut i: i64 = 0;
+    while (i < count) {
+        let ec = mf_entry_count(mf, i);
+        total = total + ec;
+        i = i + 1;
+    }
+    return total;
 }
 
 fn lsm_write_manifest(p: i64) -> i64 {

@@ -11,7 +11,6 @@ const SST_FOOTER: i64 = 24;  // total footer size
 
 fn sst_path(dir: i64, level: i64, seq: i64) -> i64 {
     // Build path: dir/sst_L_S.dat
-    // Use a fixed buffer for simplicity
     let buf = os_alloc(256);
     os_zero(buf, 256);
     let mut off: i64 = 0;
