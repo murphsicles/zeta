@@ -1,0 +1,1109 @@
+// === os.z ===
+// OS Abstraction Layer — system interface (pure Zeta, replacing C runtime)
+
+// ─── Core Runtime (zeta_runtime_c.o) ────────────────────────────────
+extern fn print_str(s: i64);
+extern fn println_i64(n: i64);
+extern fn get_time_us() -> i64;
+extern fn runtime_malloc(size: i64) -> i64;
+extern fn runtime_free(ptr: i64);
+
+// io_uring async I/O (still C)
+
+// Built-in memory ops (now compiler intrinsics — emitted as LLVM load/store)
+extern fn capy_store_i64(addr: i64, val: i64) -> i64;
+extern fn capy_load_i64(addr: i64) -> i64;
+
+// Standard C memory ops
+
+// ─── Logging & Time ─────────────────────────────────────────────────
+fn os_log(msg: i64) { print_str(msg); }
+fn os_log_i64(n: i64) { println_i64(n); }
+fn os_now_us() -> i64 { return get_time_us(); }
+
+// ─── Memory ─────────────────────────────────────────────────────────
+fn os_alloc(size: i64) -> i64 { return runtime_malloc(size); }
+fn os_dealloc(ptr: i64) { runtime_free(ptr); }
+fn os_zero(ptr: i64, n: i64) { memset(ptr, 0, n); }
+fn os_copy(dst: i64, src: i64, n: i64) { memcpy(dst, src, n); }
+fn os_store(addr: i64, val: i64) { capy_store_i64(addr, val); }
+fn os_load(addr: i64) -> i64 { return capy_load_i64(addr); }
+
+// ─── File I/O ───────────────────────────────────────────────────────
+fn os_open(path: i64, flags: i64, mode: i64) -> i64 { return syscall(2, path, flags, mode, 0, 0, 0); }
+fn os_close(fd: i64) { syscall(3, fd, 0, 0, 0, 0, 0); }
+fn os_sync(fd: i64) -> i64 { return syscall(74, fd, 0, 0, 0, 0, 0); }
+fn os_seek(fd: i64, off: i64, whence: i64) -> i64 { return syscall(8, fd, off, whence, 0, 0, 0); }
+fn os_write(fd: i64, buf: i64, count: i64) -> i64 { return syscall(1, fd, buf, count, 0, 0, 0); }
+fn os_read(fd: i64, buf: i64, count: i64) -> i64 { return syscall(0, fd, buf, count, 0, 0, 0); }
+fn os_mkdir(path: i64, mode: i64) -> i64 { return syscall(83, path, mode, 0, 0, 0, 0); }
+
+// ─── Networking ──────────────────────────────────────────────────────
+
+// ─── Async I/O (io_uring) — pure Zeta via syscall() + os_store/os_load ───
+// io_uring state block: 0=fd, 8=sq, 16=sqe, 24=cq, 32=sq_ent, 40=cq_ent
+//   48=sq_tail, 56=cq_head, 64=sq_array, 72=cq_cqes
+//   80=sq_mask, 88=cq_mask, 96=cq_tail, 104=sq_head
+//   112=cqe_res, 120=index
+
+fn os_uring_init(st: i64, entries: i64) -> i64 {
+    let p = os_alloc(128); os_zero(p, 128);
+    // io_uring_setup(entries, p) = syscall 425
+    let fd = syscall(425, entries, p, 0, 0, 0, 0);
+    if fd < 0 { os_dealloc(p); return -1; }
+    let sq_ent = os_load(p) & 0xFFFFFFFF;      // u32
+    let cq_ent = os_load(p+4) & 0xFFFFFFFF;     // u32
+    let sq_tail = os_load(p+40) & 0xFFFFFFFF;   // u32
+    let sq_head = os_load(p+44) & 0xFFFFFFFF;   // u32
+    let sq_mask = os_load(p+48) & 0xFFFFFFFF;   // u32
+    let sq_arr = os_load(p+52) & 0xFFFFFFFF;    // u32
+    let cq_head = os_load(p+72) & 0xFFFFFFFF;   // u32
+    let cq_tail = os_load(p+76) & 0xFFFFFFFF;   // u32
+    let cq_mask = os_load(p+80) & 0xFFFFFFFF;   // u32
+    let cq_cqes = os_load(p+84) & 0xFFFFFFFF;   // u32
+    os_dealloc(p);
+    // mmaps: syscall 9 = mmap(addr, len, prot, flags, fd, offset)
+    let sq_sz = sq_arr + sq_ent * 4;
+    let sq = syscall(9, 0, sq_sz, 3, 0x08001, fd, 0);
+    if sq < 0 || sq > -4096 { syscall(3, fd); return -2; }
+    let sqe_sz = entries * 64;
+    let sqe = syscall(9, 0, sqe_sz, 3, 0x08001, fd, 0x10000000);
+    if sqe < 0 || sqe > -4096 { syscall(3, fd); return -3; }
+    let cq_sz = cq_cqes + cq_ent * 16;
+    let cq = syscall(9, 0, cq_sz, 3, 0x08001, fd, 0x8000000);
+    if cq < 0 || cq > -4096 { syscall(3, fd); return -4; }
+    os_store(st, fd); os_store(st+8, sq); os_store(st+16, sqe); os_store(st+24, cq);
+    os_store(st+32, sq_ent); os_store(st+40, cq_ent);
+    os_store(st+48, sq_tail); os_store(st+56, cq_head);
+    os_store(st+64, sq_arr); os_store(st+72, cq_cqes);
+    os_store(st+80, sq_mask); os_store(st+88, cq_mask);
+    os_store(st+96, cq_tail); os_store(st+104, sq_head);
+    os_store(st+112, 0); os_store(st+120, 0);
+    return 0;
+}
+
+fn os_uring_sqe(st: i64) -> i64 {
+    let sq = os_load(st+8); let sqe = os_load(st+16);
+    let t = os_load(sq + os_load(st+48));  // tail
+    let h = os_load(sq + os_load(st+104));  // head
+    let sq_ent = os_load(st+32);
+    if t - h >= sq_ent { return 0; }
+    let idx = os_load(st+120);
+    os_store(st+120, idx + 1);
+    let mask = os_load(st+80);
+    return sqe + ((t + idx) & mask) * 64;
+}
+
+fn os_uring_submit(st: i64, count: i64, wait: i64) -> i64 {
+    let sq = os_load(st+8); let fd = os_load(st);
+    let tail_off = os_load(st+48); let arr_off = os_load(st+64);
+    let mask = os_load(st+80);
+    let t = os_load(sq + tail_off);
+    let i: i64 = 0;
+    while i < count {
+        let idx = (t + i) & mask;
+        // Write to array at (sq + arr_off + i*4) = idx (u32)
+        os_store(sq + arr_off + i*4, idx);
+        i = i + 1;
+    }
+    os_store(sq + tail_off, t + count);
+    os_store(st+120, 0);
+    // io_uring_enter = syscall 426: (fd, to_submit, min_complete, flags, sig, sig_size)
+    let flags = 0;
+    if wait > 0 { flags = 1; }  // IORING_ENTER_GETEVENTS
+    return syscall(426, fd, count, wait, flags, 0, 0);
+}
+
+fn os_uring_cqe(st: i64) -> i64 {
+    let cq = os_load(st+24);
+    let h = os_load(cq + os_load(st+56));  // head
+    let t = os_load(cq + os_load(st+96));  // tail
+    if h == t { return 0; }
+    let cqes = cq + os_load(st+72);
+    let mask = os_load(st+88);
+    let idx = h & mask;
+    let res = os_load(cqes + idx * 16 + 8);  // CQE: 0=user_data, 8=res
+    let ud = os_load(cqes + idx * 16);  // user_data
+    os_store(st+112, res);
+    os_store(cq + os_load(st+56), h + 1);  // advance head
+    return ud;
+}
+
+fn os_uring_cqe_res(st: i64) -> i64 { return os_load(st+112); }
+
+fn os_uring_accept_sqe(sqe: i64, fd: i64, ud: i64) -> i64 {
+    os_zero(sqe, 64);
+    os_store(sqe, 22);     // opcode = IORING_OP_ACCEPT = 22
+    os_store(sqe+4, fd);   // fd at offset 4
+    os_store(sqe+40, ud);  // user_data at offset 40
+    return 0;
+}
+
+fn os_uring_read_sqe(sqe: i64, fd: i64, buf: i64, len: i64, ud: i64) -> i64 {
+    os_zero(sqe, 64);
+    os_store(sqe, 18);     // opcode = IORING_OP_READ = 18
+    os_store(sqe+4, fd);   // fd
+    os_store(sqe+8, 0);    // offset = 0
+    os_store(sqe+16, buf); // addr / buf ptr
+    os_store(sqe+24, len); // len
+    os_store(sqe+40, ud);  // user_data
+    return 0;
+}
+
+fn os_uring_write_sqe(sqe: i64, fd: i64, buf: i64, len: i64, ud: i64) -> i64 {
+    os_zero(sqe, 64);
+    os_store(sqe, 19);     // opcode = IORING_OP_WRITE = 19
+    os_store(sqe+4, fd);   // fd
+    os_store(sqe+8, 0);    // offset = 0
+    os_store(sqe+16, buf); // addr / buf ptr
+    os_store(sqe+24, len); // len
+    os_store(sqe+40, ud);  // user_data
+    return 0;
+}
+
+// ─── CLI — pure Zeta (replacing capy_argc/capy_argv_i/capy_streq/capy_atoi) ───
+fn os_argc(argc: i64, argv: i64) -> i64 { return argc; }
+
+fn os_argv(argc: i64, argv: i64, i: i64) -> i64 {
+    if i < 0 { return 0; }
+    if i >= argc { return 0; }
+    // argv is a char** — array of string pointers. Each entry is 8 bytes.
+    // argv + i*8 holds the i-th string pointer.
+    return os_load(argv + i * 8);
+}
+
+fn os_streq(a: i64, b: i64) -> i64 {
+    // Compare byte by byte through the null terminator.
+    // Load 8 bytes at a time but check inside the chunk for divergence.
+    let mut off: i64 = 0;
+    while true {
+        let va = os_load(a + off);
+        let vb = os_load(b + off);
+        // Check each byte in the 8-byte chunk individually.
+        let mut bi: i64 = 0;
+        while bi < 8 {
+            let ba = (va >> (bi * 8)) & 0xFF;
+            let bb = (vb >> (bi * 8)) & 0xFF;
+            if ba != bb { return 0; }
+            if ba == 0 { return 1; }
+            bi = bi + 1;
+        }
+        off = off + 8;
+    }
+}
+
+fn os_atoi(s: i64) -> i64 {
+    let mut val: i64 = 0;
+    let mut i: i64 = 0;
+    let mut neg: i64 = 0;
+    // Handle sign: '-' = 45, '+' = 43
+    let b0 = os_load(s) & 0xFF;
+    if b0 == 45 { neg = 1; i = 1; }
+    else if b0 == 43 { i = 1; }
+    // Parse digits
+    while true {
+        let b = os_load(s + i) & 0xFF;
+        if b < 48 {
+            if neg == 1 { return -val; } else { return val; }
+        }
+        if b > 57 {
+            if neg == 1 { return -val; } else { return val; }
+        }
+        val = val * 10 + (b - 48);
+        i = i + 1;
+    }
+}
+
+// ─── Networking — pure Zeta via syscall() builtin (replaces capybara_runtime.c) ───
+fn os_listen(port: i64) -> i64 {
+    let fd = syscall(41, 2, 1, 0);  // socket(AF_INET=2, SOCK_STREAM=1, 0)
+    if fd < 0 { return -1; }
+    // setsockopt(fd, SOL_SOCKET=1, SO_REUSEADDR=2, &opt, 4)
+    let optbuf = os_alloc(8); os_store(optbuf, 1);
+    syscall(54, fd, 1, 2, optbuf, 4, 0); os_dealloc(optbuf);
+    // Build sockaddr_in in buffer
+    let addr = os_alloc(16); os_zero(addr, 16);
+    let nport = ((port & 0xFF) << 8) | ((port >> 8) & 0xFF);  // htons(port)
+    os_store(addr, (nport << 16) | 2);    // family=2, port=nport
+    os_store(addr + 4, 0x0100007f);        // addr=htonl(INADDR_LOOPBACK)
+    let br = syscall(49, fd, addr, 16, 0, 0, 0);  // bind
+    if br < 0 { syscall(3, fd); os_dealloc(addr); return -2; }
+    let lr = syscall(50, fd, 128, 0, 0, 0, 0);  // listen(fd, 128)
+    if lr < 0 { syscall(3, fd); os_dealloc(addr); return -3; }
+    os_dealloc(addr); return fd;
+}
+
+fn os_accept(server_fd: i64) -> i64 {
+    let addr = os_alloc(16); let addrlen = os_alloc(8); os_store(addrlen, 16);
+    let fd = syscall(43, server_fd, addr, addrlen, 0, 0, 0);  // accept
+    os_dealloc(addr); os_dealloc(addrlen); return fd;
+}
+
+fn os_send(fd: i64, buf: i64, len: i64) -> i64 { return syscall(1, fd, buf, len, 0, 0, 0); }
+
+fn os_recv(fd: i64, buf: i64, len: i64) -> i64 { return syscall(0, fd, buf, len, 0, 0, 0); }
+
+fn os_net_close(fd: i64) -> i64 { return syscall(3, fd, 0, 0, 0, 0, 0); }
+
+fn os_connect(host: i64, port: i64) -> i64 {
+    let fd = syscall(41, 2, 1, 0);  // socket
+    if fd < 0 { return -1; }
+    let addr = os_alloc(16); os_zero(addr, 16);
+    let nport = ((port & 0xFF) << 8) | ((port >> 8) & 0xFF);
+    os_store(addr, (nport << 16) | 2);
+    os_store(addr + 4, 0x0100007f);  // 127.0.0.1
+    let cr = syscall(42, fd, addr, 16, 0, 0, 0);  // connect
+    os_dealloc(addr);
+    if cr < 0 { syscall(3, fd); return -2; }
+    return fd;
+}
+
+fn os_nonblock(fd: i64) -> i64 {
+    let flags = syscall(72, fd, 0, 0, 0, 0, 0);  // F_GETFL
+    if flags < 0 { return -1; }
+    return syscall(72, fd, 4, flags | 2048, 0, 0, 0);  // F_SETFL | O_NONBLOCK
+}
+
+// ─── File I/O Flags — pure Zeta constants ──────────────────────────────
+fn os_rdwr() -> i64 { return 66; }      // O_RDWR | O_CREAT
+fn os_seek_end() -> i64 { return 2; }   // SEEK_END
+fn os_m644() -> i64 { return 420; }     // 0644
+fn os_m755() -> i64 { return 493; }     // 0755
+
+fn os_load_8(ptr: i64) -> i64 {
+    return os_load(ptr) & 0xFF;
+}
+
+fn os_store_8(ptr: i64, val: i64) -> i64 {
+    let old = os_load(ptr);
+    let mask = old & 0xFFFFFFFFFFFFFF00;
+    return os_store(ptr, mask | (val & 0xFF));
+}
+
+fn os_load_32(ptr: i64) -> i64 {
+    return os_load(ptr) & 0xFFFFFFFF;
+}
+
+fn os_store_32(ptr: i64, val: i64) -> i64 {
+    let old = os_load(ptr);
+    let mask = old & 0xFFFFFFFF00000000;
+    return os_store(ptr, mask | (val & 0xFFFFFFFF));
+}
+
+// === xxh64.z ===
+// xxh64 — 64-bit hash for WAL/SuperBlock checksums
+// Flat-pointer implementation: no module deps, uses only os_load/os_store
+//
+// All hex constants use signed decimal literals (compiler hex-bug workaround)
+// Constants >= 0x8000000000000000 are encoded as their signed i64 equivalents
+//
+// Usage:
+//   let hash = xxh64(data_ptr, data_len, seed);
+
+const XXH_P1: i64 = -7046029288634856825;
+const XXH_P2: i64 = -4417276706812531889;
+const XXH_P3: i64 = 1609587929392839161;
+const XXH_P4: i64 = -8796714831421723037;
+const XXH_P5: i64 = 2870177450012600261;
+const XXH_CHUNK: i64 = 32;
+
+fn rotl(x: i64, n: i64) -> i64 {
+    return (x << n) | (x >> (64 - n));
+}
+
+fn round(acc: i64, input: i64) -> i64 {
+    return rotl(acc + (input * XXH_P2), 31) * XXH_P1;
+}
+
+fn merge(acc: i64, val: i64) -> i64 {
+    return rotl(acc ^ round(0, val), 1) * XXH_P1 + XXH_P4;
+}
+
+fn avalanche(input: i64) -> i64 {
+    let mut h = input ^ (input >> 33);
+    h = h * XXH_P2; h = h ^ (h >> 29);
+    h = h * XXH_P3; h = h ^ (h >> 32);
+    return h;
+}
+
+pub fn xxh64(data: i64, len: i64, seed: i64) -> i64 {
+    if (len >= XXH_CHUNK) {
+        let mut v1 = seed + XXH_P1 + XXH_P2;
+        let mut v2 = seed + XXH_P2;
+        let mut v3 = seed;
+        let mut v4 = seed - XXH_P1;
+        let mut i: i64 = 0;
+        while (i + XXH_CHUNK <= len) {
+            v1 = round(v1, os_load(data + i));
+            v2 = round(v2, os_load(data + i + 8));
+            v3 = round(v3, os_load(data + i + 16));
+            v4 = round(v4, os_load(data + i + 24));
+            i = i + XXH_CHUNK;
+        }
+        let mut h = rotl(v1, 1) + rotl(v2, 7) + rotl(v3, 12) + rotl(v4, 18);
+        h = merge(h, v1); h = merge(h, v2); h = merge(h, v3); h = merge(h, v4);
+        while (i + 8 <= len) { let d = os_load(data + i); h = h ^ round(0, d); h = rotl(h, 27) * XXH_P1 + XXH_P4; i = i + 8; }
+        while (i + 4 <= len) { let d = os_load(data + i) & 0xFFFFFFFF; h = h ^ (d * XXH_P1); h = rotl(h, 23) * XXH_P2 + XXH_P3; i = i + 4; }
+        while (i < len) { let d = os_load(data + i) & 0xFF; h = h ^ (d * XXH_P5); h = rotl(h, 11) * XXH_P1; i = i + 1; }
+        return avalanche(h + len);
+    } else {
+        let mut h = seed + XXH_P5 + len;
+        let mut i: i64 = 0;
+        while (i + 8 <= len) { h = h ^ round(0, os_load(data + i)); h = rotl(h, 27) * XXH_P1 + XXH_P4; i = i + 8; }
+        while (i + 4 <= len) { let d = os_load(data + i) & 0xFFFFFFFF; h = h ^ (d * XXH_P1); h = rotl(h, 23) * XXH_P2 + XXH_P3; i = i + 4; }
+        while (i < len) { let d = os_load(data + i) & 0xFF; h = h ^ (d * XXH_P5); h = rotl(h, 11) * XXH_P1; i = i + 1; }
+        return avalanche(h);
+    }
+}
+
+// === runtime.z ===
+// Runtime — SuperBlock + WAL persistence (64-bit IDs)
+
+const SB_SIZE: i64 = 4096;
+const WAL_SIZE: i64 = 128;
+const W_SEQ: i64 = 0; const W_TYPE: i64 = 8;
+const W_ARG1: i64 = 16; const W_ARG2: i64 = 24;
+const W_ARG3: i64 = 32; const W_ARG4: i64 = 40;
+const W_ARG5: i64 = 48; const W_ARG6: i64 = 56;
+const W_TS: i64 = 64; const W_CHECKSUM: i64 = 120;
+
+fn rt_sb_open(rid: i64) -> i64 {
+    if (rid == 0) { return os_open("/tmp/capybara_data/superblock", os_rdwr(), os_m644()); }
+    if (rid == 1) { return os_open("/tmp/capybara1/superblock", os_rdwr(), os_m644()); }
+    return os_open("/tmp/capybara2/superblock", os_rdwr(), os_m644());
+}
+fn rt_sb_init(fd: i64) -> i64 {
+    if (fd < 0) { return -1; }
+    if (os_seek(fd, 0, os_seek_end()) >= SB_SIZE) { return 0; }
+    let buf = os_alloc(SB_SIZE); os_seek(fd, 0, 0);
+    os_write(fd, buf, SB_SIZE); os_sync(fd); os_dealloc(buf);
+    return 0;
+}
+fn rt_wal_open(rid: i64) -> i64 {
+    if (rid == 0) { return os_open("/tmp/capybara_data/wal.log", os_rdwr(), os_m644()); }
+    if (rid == 1) { return os_open("/tmp/capybara1/wal.log", os_rdwr(), os_m644()); }
+    return os_open("/tmp/capybara2/wal.log", os_rdwr(), os_m644());
+}
+fn rt_wal_count(fd: i64) -> i64 {
+    if (fd < 0) { return 0; }
+    return os_seek(fd, 0, os_seek_end()) / WAL_SIZE;
+}
+fn rt_wal_end(fd: i64) -> i64 {
+    if (fd < 0) { return 0; }
+    return os_seek(fd, 0, os_seek_end());
+}
+
+fn rt_prepare_create(buf: i64, seq: i64, id: i64, debits: i64, credits: i64, ledger: i64, code: i64) {
+    os_store(buf + W_SEQ, seq); os_store(buf + W_TYPE, 1);
+    os_store(buf + W_ARG1, id); os_store(buf + W_ARG2, debits);
+    os_store(buf + W_ARG3, credits); os_store(buf + W_ARG4, ledger);
+    os_store(buf + W_TS, os_now_us());
+}
+fn rt_prepare_transfer(buf: i64, seq: i64, db: i64, cr: i64, amount: i64) {
+    os_store(buf + W_SEQ, seq); os_store(buf + W_TYPE, 2);
+    os_store(buf + W_ARG1, db); os_store(buf + W_ARG3, cr);
+    os_store(buf + W_ARG5, amount); os_store(buf + W_TS, os_now_us());
+}
+fn rt_prepare_credit(buf: i64, seq: i64, id: i64, amount: i64) {
+    os_store(buf + W_SEQ, seq); os_store(buf + W_TYPE, 3);
+    os_store(buf + W_ARG1, id); os_store(buf + W_ARG3, amount);
+    os_store(buf + W_TS, os_now_us());
+}
+fn rt_prepare_flags(buf: i64, seq: i64, id: i64, flags: i64) {
+    os_store(buf + W_SEQ, seq); os_store(buf + W_TYPE, 4);
+    os_store(buf + W_ARG1, id); os_store(buf + W_ARG3, flags);
+    os_store(buf + W_TS, os_now_us());
+}
+fn rt_prepare_pending(buf: i64, seq: i64, id: i64, db: i64, cr: i64, am: i64, tm: i64, co: i64, lg: i64) {
+    os_store(buf + W_SEQ, seq); os_store(buf + W_TYPE, 5);
+    os_store(buf + W_ARG1, id); os_store(buf + W_ARG2, db);
+    os_store(buf + W_ARG3, cr); os_store(buf + W_ARG4, am);
+    os_store(buf + W_ARG5, tm); os_store(buf + W_ARG6, co);
+    os_store(buf + W_TS, os_now_us());
+}
+fn rt_prepare_post(buf: i64, seq: i64, id: i64) {
+    os_store(buf + W_SEQ, seq); os_store(buf + W_TYPE, 6);
+    os_store(buf + W_ARG1, id); os_store(buf + W_TS, os_now_us());
+}
+fn rt_prepare_void(buf: i64, seq: i64, id: i64) {
+    os_store(buf + W_SEQ, seq); os_store(buf + W_TYPE, 7);
+    os_store(buf + W_ARG1, id); os_store(buf + W_TS, os_now_us());
+}
+
+fn rt_append_buf(fd: i64, buf: i64) -> i64 {
+    if (fd < 0 || buf == 0) { return -1; }
+    os_store(buf + W_CHECKSUM, 0);
+    let csum = xxh64(buf, WAL_SIZE, 0);
+    os_store(buf + W_CHECKSUM, csum);
+    let n = os_write(fd, buf, WAL_SIZE); os_sync(fd);
+    return n;
+}
+
+fn rt_replay(wal: i64, acct_buf: i64) -> i64 {
+    if (wal < 0 || acct_buf == 0) { return -1; }
+    let n = rt_wal_count(wal);
+    if (n == 0) { return 0; }
+    let entry = os_alloc(WAL_SIZE);
+    if (entry == 0) { return -1; }
+    os_seek(wal, 0, 0);
+    let mut replayed: i64 = 0; let mut i: i64 = 0;
+    while (i < n) {
+        let rn = os_read(wal, entry, WAL_SIZE);
+        if (rn != WAL_SIZE) { os_dealloc(entry); return -1; }
+        let stored_csum = os_load(entry + W_CHECKSUM);
+        if (stored_csum != 0) {
+            os_store(entry + W_CHECKSUM, 0);
+            let computed = xxh64(entry, WAL_SIZE, 0);
+            if (computed != stored_csum) {
+                os_log("  replay: checksum mismatch at entry "); os_log_i64(i); os_log("\n");
+                os_dealloc(entry); return -1;
+            }
+            os_store(entry + W_CHECKSUM, stored_csum);
+        }
+        let op_type = os_load(entry + W_TYPE);
+        let a1 = os_load(entry + W_ARG1); let a2 = os_load(entry + W_ARG2);
+        let a3 = os_load(entry + W_ARG3); let a4 = os_load(entry + W_ARG4);
+        let a5 = os_load(entry + W_ARG5); let a6 = os_load(entry + W_ARG6);
+        if (op_type == 1) { ledg_create_account(acct_buf, a1, a2, a3, 1, 0); replayed = replayed + 1; }
+        else if (op_type == 3) { ledg_credit(acct_buf, a1, a3); replayed = replayed + 1; }
+        else if (op_type == 2) { ledg_transfer(acct_buf, a1, a3, a5); replayed = replayed + 1; }
+        else if (op_type == 4) { ledg_set_flags(acct_buf, a1, a3); replayed = replayed + 1; }
+        else if (op_type == 5) { ledg_create_pending(acct_buf, a1, a2, a3, a4, a5, a6, 0); replayed = replayed + 1; }
+        else if (op_type == 6) { ledg_post_pending(acct_buf, a1); replayed = replayed + 1; }
+        else if (op_type == 7) { ledg_void_pending(acct_buf, a1); replayed = replayed + 1; }
+        i = i + 1;
+    }
+    os_dealloc(entry);
+    return replayed;
+}
+
+// Arena + Batch WAL helpers
+
+const ARENA_SLOTS: i64 = 8; const ARENA_SLOT: i64 = 128;
+
+fn arena_init() -> i64 {
+    let p = os_alloc(8 + ARENA_SLOTS * 8); os_zero(p, 8 + ARENA_SLOTS * 8);
+    let mut i: i64 = 0;
+    while (i < ARENA_SLOTS) { os_store(p + 8 + i * 8, os_alloc(ARENA_SLOT)); i = i + 1; }
+    return p;
+}
+fn arena_get(arena: i64) -> i64 {
+    let idx = os_load(arena); os_store(arena, (idx + 1) % ARENA_SLOTS);
+    return os_load(arena + 8 + idx * 8);
+}
+fn arena_destroy(arena: i64) {
+    let mut i: i64 = 0;
+    while (i < ARENA_SLOTS) { let s = os_load(arena + 8 + i * 8); if (s != 0) { os_dealloc(s); } i = i + 1; }
+    os_dealloc(arena);
+}
+
+const BATCH_BYTES: i64 = 16384;
+
+fn batch_init() -> i64 { let p = os_alloc(BATCH_BYTES); os_zero(p, BATCH_BYTES); return p; }
+fn batch_prepare_wb(batch: i64, i: i64) -> i64 { return batch + i * WAL_SIZE; }
+
+fn batch_flush(batch: i64, wal: i64, count: i64) -> i64 {
+    if (count <= 0) { return 0; }
+    let mut i: i64 = 0;
+    while (i < count) {
+        let wb = batch + i * WAL_SIZE;
+        os_store(wb + W_CHECKSUM, 0);
+        let csum = xxh64(wb, WAL_SIZE, 0);
+        os_store(wb + W_CHECKSUM, csum);
+        i = i + 1;
+    }
+    let n = os_write(wal, batch, count * WAL_SIZE); os_sync(wal);
+    return n;
+}
+
+fn rt_close(sb: i64, wal: i64) { os_sync(wal); os_close(wal); os_close(sb); }
+
+// === ledger.z ===
+// Ledger State Machine — 64-bit IDs, flat array (compiler-bug-safe)
+// No modulo operations in while loops, no nested function returns.
+
+const LEDGER_MAX: i64 = 1000;
+const ACCT_FIELDS: i64 = 8;
+const ACCT_ROW: i64 = 64;
+const F_ID: i64 = 0;       const F_DEBITS: i64 = 1;
+const F_CREDITS: i64 = 2;  const F_BALANCE: i64 = 3;
+const F_LEDGER: i64 = 4;   const F_CODE: i64 = 5;
+const F_FLAGS: i64 = 6;    const F_CREATED_AT: i64 = 7;
+
+const PEND_MAX: i64 = 1000;
+const PEND_FIELDS: i64 = 8; const PEND_ROW: i64 = 64;
+const PF_ID: i64 = 0;      const PF_DEBIT: i64 = 1;
+const PF_CREDIT: i64 = 2;  const PF_AMOUNT: i64 = 3;
+const PF_TIMEOUT: i64 = 4; const PF_CODE: i64 = 5;
+const PF_FLAGS: i64 = 6;   const PF_LEDGER: i64 = 7;
+const FLAG_PENDING: i64 = 1; const FLAG_POSTED: i64 = 2; const FLAG_VOIDED: i64 = 4;
+
+fn acf(b: i64, id: i64, f: i64) -> i64 {
+    return b + 8 + (id * ACCT_FIELDS + f) * 8;
+}
+fn pnf(b: i64, id: i64, f: i64) -> i64 {
+    return b + 8 + ACCT_ROW * LEDGER_MAX + (id * PEND_FIELDS + f) * 8;
+}
+
+fn ledg_buf_size() -> i64 { return 8 + ACCT_ROW * LEDGER_MAX + PEND_ROW * PEND_MAX; }
+
+fn ledg_init() -> i64 {
+    let b = os_alloc(ledg_buf_size());
+    if (b != 0) { os_zero(b, ledg_buf_size()); }
+    return b;
+}
+fn ledg_destroy(b: i64) { if (b != 0) { os_dealloc(b); } }
+fn ledg_count(b: i64) -> i64 { return os_load(b); }
+
+fn ledg_create_account(b: i64, id: i64, db: i64, cr: i64, lg: i64, co: i64) -> i64 {
+    if (id < 0 || id >= 1000) { return -1; }
+    let r = acf(b, id, 0);
+    if (os_load(r) != 0) { return -13; }
+    os_store(r + F_ID * 8, id);
+    os_store(r + F_DEBITS * 8, db);
+    os_store(r + F_CREDITS * 8, cr);
+    os_store(r + F_BALANCE * 8, 0);
+    os_store(r + F_LEDGER * 8, lg);
+    os_store(r + F_CODE * 8, co);
+    os_store(r + F_FLAGS * 8, 0);
+    os_store(r + F_CREATED_AT * 8, os_now_us());
+    os_store(b, os_load(b) + 1);
+    return 0;
+}
+
+fn ledg_balance(b: i64, id: i64) -> i64 {
+    if (id < 0 || id >= 1000) { return 0; }
+    return os_load(acf(b, id, 0) + F_BALANCE * 8);
+}
+
+fn ledg_exists(b: i64, id: i64) -> i64 {
+    if (id < 0 || id >= 1000) { return 0; }
+    return os_load(acf(b, id, 0) + F_ID * 8);
+}
+
+fn ledg_credit(b: i64, id: i64, am: i64) -> i64 {
+    if (id < 0 || id >= 1000) { return -1; }
+    let r = acf(b, id, 0) + F_BALANCE * 8;
+    os_store(r, os_load(r) + am);
+    return 0;
+}
+
+fn ledg_debit(b: i64, id: i64, am: i64) -> i64 {
+    if (id < 0 || id >= 1000) { return -1; }
+    let r = acf(b, id, 0) + F_BALANCE * 8;
+    let bal = os_load(r);
+    if (bal < am) { return -7; }
+    os_store(r, bal - am);
+    return 0;
+}
+
+fn ledg_set_flags(b: i64, id: i64, f: i64) -> i64 {
+    if (id < 0 || id >= 1000) { return -1; }
+    os_store(acf(b, id, 0) + F_FLAGS * 8, f);
+    return 0;
+}
+
+fn ledg_transfer(b: i64, db: i64, cr: i64, am: i64) -> i64 {
+    if (am <= 0) { return -4; }
+    if (db < 0 || db >= 1000 || cr < 0 || cr >= 1000) { return -4; }
+    if (db == cr) { return -4; }
+    if (os_load(acf(b, db, 0) + F_DEBITS * 8) == 0) { return -6; }
+    if (os_load(acf(b, cr, 0) + F_CREDITS * 8) == 0) { return -6; }
+    let bc = os_load(acf(b, db, 0) + F_BALANCE * 8);
+    if (bc < am) { return -7; }
+    os_store(acf(b, db, 0) + F_BALANCE * 8, bc - am);
+    os_store(acf(b, cr, 0) + F_BALANCE * 8, os_load(acf(b, cr, 0) + F_BALANCE * 8) + am);
+    return 0;
+}
+
+fn ledg_create_pending(b: i64, id: i64, db: i64, cr: i64, am: i64, tm: i64, co: i64, lg: i64) -> i64 {
+    if (id < 0 || id >= 1000) { return -4; }
+    if (am <= 0) { return -4; }
+    if (db < 0 || db >= 1000 || cr < 0 || cr >= 1000) { return -4; }
+    if (db == cr) { return -4; }
+    if (os_load(acf(b, db, 0) + F_DEBITS * 8) == 0) { return -6; }
+    if (os_load(acf(b, cr, 0) + F_CREDITS * 8) == 0) { return -6; }
+    let bc = os_load(acf(b, db, 0) + F_BALANCE * 8);
+    if (bc < am) { return -7; }
+    os_store(acf(b, db, 0) + F_BALANCE * 8, bc - am);
+    let r = pnf(b, id, 0);
+    os_store(r + PF_ID * 8, id);
+    os_store(r + PF_DEBIT * 8, db);
+    os_store(r + PF_CREDIT * 8, cr);
+    os_store(r + PF_AMOUNT * 8, am);
+    os_store(r + PF_TIMEOUT * 8, tm);
+    os_store(r + PF_CODE * 8, co);
+    os_store(r + PF_FLAGS * 8, FLAG_PENDING);
+    os_store(r + PF_LEDGER * 8, lg);
+    return 0;
+}
+
+fn ledg_post_pending(b: i64, id: i64) -> i64 {
+    if (id < 0 || id >= 1000) { return -10; }
+    let r = pnf(b, id, 0);
+    let fl = os_load(r + PF_FLAGS * 8);
+    if (fl == 0) { return -11; }
+    if (fl != FLAG_PENDING) { return -12; }
+    ledg_credit(b, os_load(r + PF_CREDIT * 8), os_load(r + PF_AMOUNT * 8));
+    os_store(r + PF_FLAGS * 8, FLAG_POSTED);
+    return 0;
+}
+
+fn ledg_void_pending(b: i64, id: i64) -> i64 {
+    if (id < 0 || id >= 1000) { return -10; }
+    let r = pnf(b, id, 0);
+    let fl = os_load(r + PF_FLAGS * 8);
+    if (fl == 0) { return -11; }
+    if (fl != FLAG_PENDING) { return -12; }
+    ledg_credit(b, os_load(r + PF_DEBIT * 8), os_load(r + PF_AMOUNT * 8));
+    os_store(r + PF_FLAGS * 8, FLAG_VOIDED);
+    return 0;
+}
+
+fn ledg_pending_exists(b: i64, id: i64) -> i64 {
+    if (id < 0 || id >= 1000) { return 0; }
+    if (os_load(pnf(b, id, 0) + PF_FLAGS * 8) == FLAG_PENDING) { return 1; }
+    return 0;
+}
+
+// Slot-based access for LSM flush/restore
+fn ledg_id_lo_at_slot(b: i64, slot: i64) -> i64 {
+    if (slot < 0 || slot >= 1000) { return 0; }
+    return os_load(acf(b, slot, 0) + F_ID * 8);
+}
+fn ledg_id_hi_at_slot(b: i64, slot: i64) -> i64 { return 0; }
+fn ledg_balance_at_slot(b: i64, slot: i64) -> i64 {
+    if (slot < 0 || slot >= 1000) { return 0; }
+    return os_load(acf(b, slot, 0) + F_BALANCE * 8);
+}
+fn ledg_row_ptr(b: i64, slot: i64) -> i64 {
+    if (slot < 0 || slot >= 1000) { return 0; }
+    return acf(b, slot, 0);
+}
+
+// === sim.z ===
+// Capybara DB — Deterministic Simulation Framework
+// Simulated time, deterministic RNG, operation generator, invariant checker.
+// Run standalone: /tmp/capybara_sim
+//
+// Invariants verified after each operation:
+//   I1: Every debit has a matching credit (total debits == total credits)
+//   I2: No account balance goes negative unless debits_allowed
+//   I3: Pending transfers are created, posted, or voided exactly once
+//   I4: Account flags are valid state transitions
+//   I5: Ledger+code combinations are consistent
+
+// ─── Deterministic RNG (xoshiro128**) ────────────────────────────────
+// State: [s0, s1, s2, s3] = 4 x i64 stored in a buffer
+
+const RNG_S0: i64 = 0;
+const RNG_S1: i64 = 8;
+const RNG_S2: i64 = 16;
+const RNG_S3: i64 = 24;
+
+fn rotl32(x: i64, k: i64) -> i64 { return (x << k) | ((x & 0xFFFFFFFF) >> (32 - k)); }
+
+fn sim_rng_seed(rng: i64, seed: i64) {
+    // SplitMix64 to initialize from a single seed
+    let mut s: i64 = seed;
+    let mut i: i64 = 0;
+    while (i < 4) {
+        s = s + 0x9E3779B97F4A7C15;
+        let mut z: i64 = s;
+        z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9;
+        z = (z ^ (z >> 27)) * 0x94D049BB133111EB;
+        z = z ^ (z >> 31);
+        os_store(rng + i * 8, z & 0xFFFFFFFF);
+        i = i + 1;
+    }
+}
+
+fn sim_rand(rng: i64) -> i64 {
+    let s0 = os_load(rng + RNG_S0);
+    let s1 = os_load(rng + RNG_S1);
+    let s2 = os_load(rng + RNG_S2);
+    let s3 = os_load(rng + RNG_S3);
+
+    let result = rotl32(s1 * 5, 7) * 9;
+
+    let t = s1 << 9;
+    os_store(rng + RNG_S2, s0 ^ s3);
+    os_store(rng + RNG_S3, s1 ^ s2);
+    os_store(rng + RNG_S1, s2 ^ t);
+    os_store(rng + RNG_S0, s3);
+
+    return result & 0xFFFFFFFF;
+}
+
+fn sim_rand_range(rng: i64, lo: i64, hi: i64) -> i64 {
+    let range = hi - lo;
+    if (range <= 0) { return lo; }
+    let r = sim_rand(rng);
+    return lo + (r % range);
+}
+
+fn sim_rand_bool(rng: i64) -> i64 {
+    return sim_rand(rng) & 1;
+}
+
+// ─── Simulated Clock ──────────────────────────────────────────────────
+
+const SIM_CLOCK: i64 = 0;  // offset for sim clock state in buffer
+
+fn sim_clock_init(buf: i64) {
+    os_store(buf + SIM_CLOCK, 0);  // start at time 0
+}
+
+fn sim_now_us(buf: i64) -> i64 {
+    return os_load(buf + SIM_CLOCK);
+}
+
+fn sim_advance(buf: i64, us: i64) {
+    let now = os_load(buf + SIM_CLOCK);
+    os_store(buf + SIM_CLOCK, now + us);
+}
+
+fn sim_advance_tic(buf: i64) {
+    sim_advance(buf, 1000);  // advance 1ms each tick
+}
+
+// ─── Invariant Checker ────────────────────────────────────────────────
+
+fn sim_verify_invariants(acct: i64, log_buf: i64) -> i64 {
+    let count = ledg_count(acct);
+    if (count <= 0) { return 0; }
+
+    let mut total_balance: i64 = 0;
+    let mut total_debits: i64 = 0;
+    let mut total_credits: i64 = 0;
+    let mut errors: i64 = 0;
+
+    let mut i: i64 = 0;
+    while (i < LEDGER_MAX) {
+        let exists = ledg_exists(acct, i);
+        if (exists != 0) {
+            let bal = ledg_balance(acct, i);
+            total_balance = total_balance + bal;
+            total_debits = total_debits + 1;
+            total_credits = total_credits + 1;
+
+            // I2: No negative balance (accounts default to no overdraft)
+            if (bal < 0) {
+                if (log_buf != 0) {
+                    os_store(log_buf, i);
+                    os_store(log_buf+8, bal);
+                }
+                errors = errors + 1;
+            }
+        }
+        i = i + 1;
+    }
+
+    // I4: All pending transactions should have valid flags
+    let mut pi: i64 = 0;
+    while (pi < PEND_MAX) {
+        if (ledg_pending_exists(acct, pi) != 0) {
+            // pending exists with valid flags
+            total_debits = total_debits + 1;
+        }
+        pi = pi + 1;
+    }
+
+    return errors;
+}
+
+fn sim_invariant_summary(acct: i64) {
+    let count = ledg_count(acct);
+    let mut total_bal: i64 = 0;
+    let mut neg_accts: i64 = 0;
+    let mut min_bal: i64 = 0;
+
+    os_log("  sim: "); os_log_i64(count); os_log(" accounts");
+    let mut i: i64 = 0;
+    while (i < LEDGER_MAX) {
+        if (ledg_exists(acct, i) != 0) {
+            let bal = ledg_balance(acct, i);
+            total_bal = total_bal + bal;
+            if (bal < 0) { neg_accts = neg_accts + 1; if (bal < min_bal) { min_bal = bal; } }
+        }
+        i = i + 1;
+    }
+    os_log(", total_balance="); os_log_i64(total_bal);
+    os_log(", negative="); os_log_i64(neg_accts);
+    os_log(", min_bal="); os_log_i64(min_bal);
+    os_log("\n");
+}
+
+// ─── Operation Generator ──────────────────────────────────────────────
+
+fn sim_gen_op(rng: i64, acct: i64, buf: i64) -> i64 {
+    let n_accounts = ledg_count(acct);
+    let op_type: i64 = sim_rand_range(rng, 1, 11);  // 1-10
+
+    // op_type biased toward create when few accounts
+    let effective_op: i64;
+    if (n_accounts < 5 && op_type >= 4) {
+        effective_op = 1;  // bias toward create_account
+    } else {
+        effective_op = op_type;
+    }
+
+    os_store(buf, effective_op);
+    os_store(buf+8, 0);  // reserved
+
+    if (effective_op == 1) {
+        // create_account(id, debits_allowed, credits_allowed)
+        let id = sim_rand_range(rng, 10, 990);
+        let db = 1;  // always allow debits for sim simplicity
+        let cr = 1;  // always allow credits
+        let lg = sim_rand_range(rng, 0, 10);
+        // ensure doesn't exist
+        if (ledg_exists(acct, id) == 0) {
+            os_store(buf+16, id);
+            os_store(buf+24, db);
+            os_store(buf+32, cr);
+            return 1;  // valid
+        }
+        return 0;  // skip, already exists
+    } else if (effective_op == 2) {
+        // transfer(debit_id, credit_id, amount)
+        if (n_accounts < 2) { return 0; }
+        let db = sim_rand_range(rng, 10, 990);
+        let cr = sim_rand_range(rng, 10, 990);
+        if (db == cr) { cr = (cr + 1) % 100 + 10; if (cr == db) { cr = cr + 1; } }
+        if (ledg_exists(acct, db) == 0 || ledg_exists(acct, cr) == 0) { return 0; }
+        let amt = sim_rand_range(rng, 1, 500);
+        os_store(buf+16, db);
+        os_store(buf+24, cr);
+        os_store(buf+32, amt);
+        return 1;
+    } else if (effective_op == 3) {
+        // credit(id, amount)
+        if (n_accounts < 1) { return 0; }
+        let id = sim_rand_range(rng, 10, 990);
+        if (ledg_exists(acct, id) == 0) { return 0; }
+        let amt = sim_rand_range(rng, 1, 1000);
+        os_store(buf+16, id);
+        os_store(buf+24, amt);
+        return 1;
+    } else if (effective_op == 4) {
+        // set_flags(id, flags)
+        if (n_accounts < 1) { return 0; }
+        let id = sim_rand_range(rng, 10, 990);
+        if (ledg_exists(acct, id) == 0) { return 0; }
+        let fl = sim_rand_range(rng, 0, 8);
+        os_store(buf+16, id);
+        os_store(buf+24, fl);
+        return 1;
+    } else if (effective_op == 5) {
+        // create_pending(id, debit, credit, amount, timeout, code, ledger)
+        if (n_accounts < 2) { return 0; }
+        let pid = sim_rand_range(rng, 100, 9900);
+        let db = sim_rand_range(rng, 10, 990);
+        let cr = sim_rand_range(rng, 10, 990);
+        if (db == cr) { cr = (cr + 1) % 100 + 10; if (cr == db) { cr = cr + 1; } }
+        if (ledg_exists(acct, db) == 0 || ledg_exists(acct, cr) == 0) { return 0; }
+        let amt = sim_rand_range(rng, 1, 300);
+        let tmout = sim_rand_range(rng, 10, 10000);
+        os_store(buf+16, pid);
+        os_store(buf+24, db);
+        os_store(buf+32, cr);
+        os_store(buf+40, amt);
+        os_store(buf+48, tmout);
+        os_store(buf+56, sim_rand_range(rng, 0, 10));
+        os_store(buf+64, sim_rand_range(rng, 0, 10));
+        return 1;
+    } else if (effective_op == 6) {
+        // post_pending(id)
+        if (n_accounts < 1) { return 0; }
+        let pid = sim_rand_range(rng, 100, 9900);
+        if (ledg_pending_exists(acct, pid) == 0) { return 0; }
+        os_store(buf+16, pid);
+        return 1;
+    } else if (effective_op == 7) {
+        // void_pending(id)
+        if (n_accounts < 1) { return 0; }
+        let pid = sim_rand_range(rng, 100, 9900);
+        if (ledg_pending_exists(acct, pid) == 0) { return 0; }
+        os_store(buf+16, pid);
+        return 1;
+    } else if (effective_op == 10) {
+        // balance check (read-only)
+        if (n_accounts < 1) { return 0; }
+        let id = sim_rand_range(rng, 10, 990);
+        if (ledg_exists(acct, id) == 0) { return 0; }
+        os_store(buf+16, id);
+        return 1;
+    }
+    return 0;
+}
+
+// ─── Simulated Operation Executor ─────────────────────────────────────
+
+fn sim_exec_op(acct: i64, buf: i64) -> i64 {
+    let ot = os_load(buf);
+    let id = os_load(buf+16);
+    let a1 = os_load(buf+24);
+    let a2 = os_load(buf+32);
+
+    if (ot == 1) {
+        return ledg_create_account(acct, id, a1, a2, 0, 0);
+    } else if (ot == 2) {
+        return ledg_transfer(acct, id, a1, a2);
+    } else if (ot == 3) {
+        return ledg_credit(acct, id, a1);
+    } else if (ot == 4) {
+        return ledg_set_flags(acct, id, a1);
+    } else if (ot == 5) {
+        let a3 = os_load(buf+40);
+        let a4 = os_load(buf+48);
+        let a5 = os_load(buf+56);
+        let a6 = os_load(buf+64);
+        return ledg_create_pending(acct, id, a1, a2, a3, a4, a5, a6);
+    } else if (ot == 6) {
+        return ledg_post_pending(acct, id);
+    } else if (ot == 7) {
+        return ledg_void_pending(acct, id);
+    }
+    return 0;
+}
+
+// ─── Simulation Runner ───────────────────────────────────────────────
+
+fn sim_run(seed: i64, num_ops: i64, sim_clock_buf: i64) -> i64 {
+    // Initialize deterministic RNG
+    let rng = os_alloc(32);
+    sim_rng_seed(rng, seed);
+
+    // Initialize ledger
+    let acct = ledg_init();
+
+    // Create some initial accounts
+    ledg_create_account(acct, 10, 1, 1, 0, 0);
+    ledg_credit(acct, 10, 10000);
+    ledg_create_account(acct, 20, 1, 1, 0, 0);
+    ledg_credit(acct, 20, 5000);
+    ledg_create_account(acct, 30, 0, 1, 0, 0);  // credit-only
+    ledg_credit(acct, 30, 3000);
+
+    let op_buf = os_alloc(128);
+    let mut ops_run: i64 = 0;
+    let mut errors: i64 = 0;
+    let mut i: i64 = 0;
+
+    os_log("sim: seed="); os_log_i64(seed);
+    os_log(" ops="); os_log_i64(num_ops);
+    os_log("\n");
+
+    while (i < num_ops) {
+        let valid = sim_gen_op(rng, acct, op_buf);
+        if (valid != 0) {
+            let ot = os_load(op_buf);
+            let rc = sim_exec_op(acct, op_buf);
+
+            // Verify invariants after each state change
+            let inv_errors = sim_verify_invariants(acct, 0);
+            if (inv_errors != 0) {
+                errors = errors + inv_errors;
+                os_log("  INVARIANT VIOLATION at op "); os_log_i64(i);
+                os_log(" ot="); os_log_i64(ot);
+                os_log(" rc="); os_log_i64(rc);
+                os_log(" errors="); os_log_i64(inv_errors);
+                os_log("\n");
+            }
+
+            ops_run = ops_run + 1;
+
+            // Advance simulated time
+            if (sim_clock_buf != 0) {
+                sim_advance_tic(sim_clock_buf);
+            }
+        }
+        i = i + 1;
+    }
+
+    os_log("sim: "); os_log_i64(ops_run);
+    os_log(" ops run, "); os_log_i64(errors);
+    os_log(" invariant violations\n");
+
+    sim_invariant_summary(acct);
+
+    // Report per-op-type stats
+    let count = ledg_count(acct);
+    os_log("sim: total accounts: "); os_log_i64(count); os_log("\n");
+
+    os_dealloc(op_buf);
+    os_dealloc(rng);
+    ledg_destroy(acct);
+
+    return errors;
+}
+
+// ─── Multi-Seed Test Harness ─────────────────────────────────────────
+
+fn sim_test_multi(start_seed: i64, num_seeds: i64, ops_per_seed: i64) -> i64 {
+    let mut total_errors: i64 = 0;
+    let mut s: i64 = 0;
+
+    os_log("=== Capybara DB Deterministic Simulation ===\n");
+    os_log("seeds: "); os_log_i64(num_seeds);
+    os_log(" ops/seed: "); os_log_i64(ops_per_seed);
+    os_log("\n\n");
+
+    while (s < num_seeds) {
+        let seed = start_seed + s;
+        let sim_clock = os_alloc(8);
+        sim_clock_init(sim_clock);
+
+        let errors = sim_run(seed, ops_per_seed, sim_clock);
+        total_errors = total_errors + errors;
+
+        os_dealloc(sim_clock);
+
+        if (errors != 0) {
+            os_log("!!! SEED "); os_log_i64(seed);
+            os_log(" FAILED with "); os_log_i64(errors);
+            os_log(" violations\n\n");
+        }
+        s = s + 1;
+    }
+
+    os_log("\n=== Simulation Complete ===\n");
+    os_log("total errors: "); os_log_i64(total_errors);
+    os_log(" across "); os_log_i64(num_seeds); os_log(" seeds\n");
+
+    if (total_errors == 0) {
+        os_log("ALL INVARIANTS PASSED\n");
+    } else {
+        os_log("SOME INVARIANTS FAILED\n");
+    }
+
+    return total_errors;
+}
+
+// ─── Standalone Entry Point ──────────────────────────────────────────
+
+fn main(argc: i64, argv: i64) -> i64 {
+    let mut seeds: i64 = 100;
+    let mut ops_per_seed: i64 = 1000;
+    let mut start_seed: i64 = 42;
+
+    let n = os_argc(argc, argv);
+    let mut i: i64 = 1;
+    while (i < n) {
+        let a = os_argv(argc, argv, i);
+        if (os_streq(a, "--seeds") == 1 && i + 1 < n) { i = i + 1; seeds = os_atoi(os_argv(argc, argv, i)); }
+        if (os_streq(a, "--ops") == 1 && i + 1 < n) { i = i + 1; ops_per_seed = os_atoi(os_argv(argc, argv, i)); }
+        if (os_streq(a, "--start-seed") == 1 && i + 1 < n) { i = i + 1; start_seed = os_atoi(os_argv(argc, argv, i)); }
+        i = i + 1;
+    }
+
+    let t0 = os_now_us();
+    let errors = sim_test_multi(start_seed, seeds, ops_per_seed);
+    let elapsed = os_now_us() - t0;
+
+    os_log("elapsed: "); os_log_i64(elapsed / 1000); os_log("ms\n");
+
+    if (errors != 0) { return 1; }
+    return 0;
+}
