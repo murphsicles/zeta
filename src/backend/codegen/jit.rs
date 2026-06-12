@@ -689,8 +689,17 @@ pub fn finalize_and_aot<'ctx>(
             "generic".to_string(),
             "+bulk-memory,+simd128".to_string(),
         )
+    } else if target_str == "x86-64" || target_str == "x86-64-v2" || target_str == "x86-64-v3" {
+        // Generic x86-64 target — compatible with any x86-64 CPU
+        Target::initialize_native(&InitializationConfig::default())?;
+        let triple_str = TargetMachine::get_default_triple();
+        (
+            triple_str.as_str().to_str().unwrap_or("x86_64").to_string(),
+            target_str.to_string(),
+            String::new(),
+        )
     } else {
-        // Native target
+        // Native target — optimized for host CPU
         Target::initialize_native(&InitializationConfig::default())?;
         // Use default triple directly (as TargetTriple, not String)
         let triple_str = TargetMachine::get_default_triple();

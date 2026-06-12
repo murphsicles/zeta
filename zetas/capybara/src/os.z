@@ -50,42 +50,44 @@ fn os_uring_init(st: i64, entries: i64) -> i64 {
     // io_uring_setup(entries, p) = syscall 425
     let fd = syscall(425, entries, p, 0, 0, 0, 0);
     if fd < 0 { os_dealloc(p); return -1; }
-    // io_uring_params struct layout (u32 fields):
+    // io_uring_params struct layout (u32 fields) — kernel 6.6:
     //   0:sq_entries 4:cq_entries 8:flags 12:sq_thread_cpu 16:sq_thread_idle
-    //   20:features 24:wq_fd 28:resv[3]
-    //   40:sq_off.head 44:sq_off.tail 48:sq_off.ring_mask 52:sq_off.ring_entries
-    //   56:sq_off.flags 60:sq_off.dropped 64:sq_off.array 68:sq_off.resv1
-    //   72:sq_off.resv2 76:cq_off.head 80:cq_off.tail 84:cq_off.ring_mask
-    //   88:cq_off.ring_entries 92:cq_off.overflow 96:cq_off.cqes 100:cq_off.flags
+    //   20:features 24:wq_fd 28:resv[0] 32:resv[1] 36:resv[2]
+    //   40:sq_off (10×u32 = 40 bytes): head tail ring_mask ring_entries flags dropped array
+    //   80:cq_off (10×u32 = 40 bytes): head tail ring_mask ring_entries overflow cqes flags
+    //   Field reads below use os_load (8-byte) + &0xFFFFFFFF (lower 32 bits)
     let sq_ent = os_load(p) & 0xFFFFFFFF;               // sq_entries  at 0  ✓
     let cq_ent = os_load(p+4) & 0xFFFFFFFF;              // cq_entries  at 4  ✓
     let sq_head = os_load(p+40) & 0xFFFFFFFF;            // sq_off.head at 40
     let sq_tail = os_load(p+44) & 0xFFFFFFFF;            // sq_off.tail at 44
-    let sq_mask = os_load(p+48) & 0xFFFFFFFF;            // sq_off.ring_mask at 48
+    let sq_mask_off = os_load(p+48) & 0xFFFFFFFF;         // sq_off.ring_mask at 48 (offset in SQ ring)
     let sq_arr = os_load(p+64) & 0xFFFFFFFF;             // sq_off.array at 64
     let cq_head = os_load(p+80) & 0xFFFFFFFF;            // cq_off.head at 80
     let cq_tail = os_load(p+84) & 0xFFFFFFFF;            // cq_off.tail at 84
-    let cq_mask = os_load(p+88) & 0xFFFFFFFF;            // cq_off.ring_mask at 88
-    let cq_cqes = os_load(p+96) & 0xFFFFFFFF;            // cq_off.cqes at 96
+    let cq_mask_off = os_load(p+88) & 0xFFFFFFFF;         // cq_off.ring_mask at 88 (offset in CQ ring)
+    let cq_cqes = os_load(p+100) & 0xFFFFFFFF;           // cq_off.cqes at 100
     os_dealloc(p);
     // mmaps: syscall 9 = mmap(addr, len, prot, flags, fd, offset)
     // io_uring rings use MAP_SHARED (not MAP_ANONYMOUS) backed by the uring fd
     // Use MAP_POPULATE (0x8000) to prefault the pages
-    let mmap_flags: i64 = 0x8001;  // MAP_SHARED | MAP_POPULATE
+    let mmap_flags: i64 = 0x01;    // MAP_SHARED (no MAP_POPULATE — fails on some kernels)
     let sq_sz = sq_arr + sq_ent * 4;
     let sq = syscall(9, 0, sq_sz, 3, mmap_flags, fd, 0);
-    if sq < 0 || sq > -4096 { syscall(3, fd); return -2; }
+    if sq < 0 && sq > -4096 { syscall(3, fd); return -2; }
     let sqe_sz = entries * 64;
     let sqe = syscall(9, 0, sqe_sz, 3, mmap_flags, fd, 0x10000000);
-    if sqe < 0 || sqe > -4096 { syscall(3, fd); return -3; }
+    if sqe < 0 && sqe > -4096 { syscall(3, fd); return -3; }
     let cq_sz = cq_cqes + cq_ent * 16;
     let cq = syscall(9, 0, cq_sz, 3, mmap_flags, fd, 0x8000000);
-    if cq < 0 || cq > -4096 { syscall(3, fd); return -4; }
+    if cq < 0 && cq > -4096 { syscall(3, fd); return -4; }
+    // Read actual ring mask values FROM the mmap'd rings (not the io_uring_params offsets)
+    let sq_ring_mask = os_load(sq + sq_mask_off) & 0xFFFFFFFF;
+    let cq_ring_mask = os_load(cq + cq_mask_off) & 0xFFFFFFFF;
     os_store(st, fd); os_store(st+8, sq); os_store(st+16, sqe); os_store(st+24, cq);
     os_store(st+32, sq_ent); os_store(st+40, cq_ent);
     os_store(st+48, sq_tail); os_store(st+56, cq_head);
     os_store(st+64, sq_arr); os_store(st+72, cq_cqes);
-    os_store(st+80, sq_mask); os_store(st+88, cq_mask);
+    os_store(st+80, sq_ring_mask); os_store(st+88, cq_ring_mask);
     os_store(st+96, cq_tail); os_store(st+104, sq_head);
     os_store(st+112, 0); os_store(st+120, 0);
     return 0;
@@ -93,8 +95,8 @@ fn os_uring_init(st: i64, entries: i64) -> i64 {
 
 fn os_uring_sqe(st: i64) -> i64 {
     let sq = os_load(st+8); let sqe = os_load(st+16);
-    let t = os_load(sq + os_load(st+48));  // tail
-    let h = os_load(sq + os_load(st+104));  // head
+    let t = os_load(sq + os_load(st+48)) & 0xFFFFFFFF;  // tail (u32)
+    let h = os_load(sq + os_load(st+104)) & 0xFFFFFFFF;  // head (u32)
     let sq_ent = os_load(st+32);
     if t - h >= sq_ent { return 0; }
     let idx = os_load(st+120);
@@ -107,15 +109,17 @@ fn os_uring_submit(st: i64, count: i64, wait: i64) -> i64 {
     let sq = os_load(st+8); let fd = os_load(st);
     let tail_off = os_load(st+48); let arr_off = os_load(st+64);
     let mask = os_load(st+80);
-    let t = os_load(sq + tail_off);
+    let t = os_load(sq + tail_off) & 0xFFFFFFFF;  // tail (u32)
     let i: i64 = 0;
     while i < count {
         let idx = (t + i) & mask;
-        // Write to array at (sq + arr_off + i*4) = idx (u32)
-        os_store(sq + arr_off + i*4, idx);
+        // Write to array at (sq + arr_off + idx*4) — array indexed by ring position
+        os_store(sq + arr_off + idx * 4, idx);
         i = i + 1;
     }
-    os_store(sq + tail_off, t + count);
+    // Update SQ tail — preserve upper 32 bits (ring_mask) that share the 64-bit store
+    let old_tail_val = os_load(sq + tail_off);
+    os_store(sq + tail_off, (old_tail_val & 0xFFFFFFFF00000000) | ((t + count) & 0xFFFFFFFF));
     os_store(st+120, 0);
     // io_uring_enter = syscall 426: (fd, to_submit, min_complete, flags, sig, sig_size)
     let flags = 0;
@@ -125,8 +129,8 @@ fn os_uring_submit(st: i64, count: i64, wait: i64) -> i64 {
 
 fn os_uring_cqe(st: i64) -> i64 {
     let cq = os_load(st+24);
-    let h = os_load(cq + os_load(st+56));  // head
-    let t = os_load(cq + os_load(st+96));  // tail
+    let h = os_load(cq + os_load(st+56)) & 0xFFFFFFFF;  // head (u32)
+    let t = os_load(cq + os_load(st+96)) & 0xFFFFFFFF;  // tail (u32)
     if h == t { return 0; }
     let cqes = cq + os_load(st+72);
     let mask = os_load(st+88);
@@ -134,7 +138,9 @@ fn os_uring_cqe(st: i64) -> i64 {
     let res = os_load(cqes + idx * 16 + 8);  // CQE: 0=user_data, 8=res
     let ud = os_load(cqes + idx * 16);  // user_data
     os_store(st+112, res);
-    os_store(cq + os_load(st+56), h + 1);  // advance head
+    // Advance CQ head — preserve upper 32 bits (tail) that share the 64-bit store
+    let old_head_val = os_load(cq + os_load(st+56));
+    os_store(cq + os_load(st+56), (old_head_val & 0xFFFFFFFF00000000) | ((h + 1) & 0xFFFFFFFF));
     return ud;
 }
 
@@ -142,31 +148,31 @@ fn os_uring_cqe_res(st: i64) -> i64 { return os_load(st+112); }
 
 fn os_uring_accept_sqe(sqe: i64, fd: i64, ud: i64) -> i64 {
     os_zero(sqe, 64);
-    os_store(sqe, 22);     // opcode = IORING_OP_ACCEPT = 22
+    os_store(sqe, 13);     // opcode = IORING_OP_ACCEPT = 13
     os_store(sqe+4, fd);   // fd at offset 4
-    os_store(sqe+40, ud);  // user_data at offset 40
+    os_store(sqe+32, ud);  // user_data at offset 32
     return 0;
 }
 
 fn os_uring_read_sqe(sqe: i64, fd: i64, buf: i64, len: i64, ud: i64) -> i64 {
     os_zero(sqe, 64);
-    os_store(sqe, 18);     // opcode = IORING_OP_READ = 18
+    os_store(sqe, 22);     // opcode = IORING_OP_READ = 22
     os_store(sqe+4, fd);   // fd
     os_store(sqe+8, 0);    // offset = 0
     os_store(sqe+16, buf); // addr / buf ptr
     os_store(sqe+24, len); // len
-    os_store(sqe+40, ud);  // user_data
+    os_store(sqe+32, ud);  // user_data
     return 0;
 }
 
 fn os_uring_write_sqe(sqe: i64, fd: i64, buf: i64, len: i64, ud: i64) -> i64 {
     os_zero(sqe, 64);
-    os_store(sqe, 19);     // opcode = IORING_OP_WRITE = 19
+    os_store(sqe, 23);     // opcode = IORING_OP_WRITE = 23
     os_store(sqe+4, fd);   // fd
     os_store(sqe+8, 0);    // offset = 0
     os_store(sqe+16, buf); // addr / buf ptr
     os_store(sqe+24, len); // len
-    os_store(sqe+40, ud);  // user_data
+    os_store(sqe+32, ud);  // user_data
     return 0;
 }
 

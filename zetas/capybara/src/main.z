@@ -513,7 +513,6 @@ fn main(argc: i64, argv: i64) -> i64 {
                 if (ud == 0) { timed_out = 1; }
                 else {
                     let res = os_uring_cqe_res(uring);
-
                     if (ud == UD_CLI_ACCEPT) {
                         // Client accept completed
                         if (res >= 0) {

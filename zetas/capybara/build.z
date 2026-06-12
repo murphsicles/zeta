@@ -51,32 +51,44 @@ fn os_uring_init(st: i64, entries: i64) -> i64 {
     // io_uring_setup(entries, p) = syscall 425
     let fd = syscall(425, entries, p, 0, 0, 0, 0);
     if fd < 0 { os_dealloc(p); return -1; }
-    let sq_ent = os_load(p) & 0xFFFFFFFF;      // u32
-    let cq_ent = os_load(p+4) & 0xFFFFFFFF;     // u32
-    let sq_tail = os_load(p+40) & 0xFFFFFFFF;   // u32
-    let sq_head = os_load(p+44) & 0xFFFFFFFF;   // u32
-    let sq_mask = os_load(p+48) & 0xFFFFFFFF;   // u32
-    let sq_arr = os_load(p+52) & 0xFFFFFFFF;    // u32
-    let cq_head = os_load(p+72) & 0xFFFFFFFF;   // u32
-    let cq_tail = os_load(p+76) & 0xFFFFFFFF;   // u32
-    let cq_mask = os_load(p+80) & 0xFFFFFFFF;   // u32
-    let cq_cqes = os_load(p+84) & 0xFFFFFFFF;   // u32
+    // io_uring_params struct layout (u32 fields) — kernel 6.6:
+    //   0:sq_entries 4:cq_entries 8:flags 12:sq_thread_cpu 16:sq_thread_idle
+    //   20:features 24:wq_fd 28:resv[0] 32:resv[1] 36:resv[2]
+    //   40:sq_off (10×u32 = 40 bytes): head tail ring_mask ring_entries flags dropped array
+    //   80:cq_off (10×u32 = 40 bytes): head tail ring_mask ring_entries overflow cqes flags
+    //   Field reads below use os_load (8-byte) + &0xFFFFFFFF (lower 32 bits)
+    let sq_ent = os_load(p) & 0xFFFFFFFF;               // sq_entries  at 0  ✓
+    let cq_ent = os_load(p+4) & 0xFFFFFFFF;              // cq_entries  at 4  ✓
+    let sq_head = os_load(p+40) & 0xFFFFFFFF;            // sq_off.head at 40
+    let sq_tail = os_load(p+44) & 0xFFFFFFFF;            // sq_off.tail at 44
+    let sq_mask_off = os_load(p+48) & 0xFFFFFFFF;         // sq_off.ring_mask at 48 (offset in SQ ring)
+    let sq_arr = os_load(p+64) & 0xFFFFFFFF;             // sq_off.array at 64
+    let cq_head = os_load(p+80) & 0xFFFFFFFF;            // cq_off.head at 80
+    let cq_tail = os_load(p+84) & 0xFFFFFFFF;            // cq_off.tail at 84
+    let cq_mask_off = os_load(p+88) & 0xFFFFFFFF;         // cq_off.ring_mask at 88 (offset in CQ ring)
+    let cq_cqes = os_load(p+100) & 0xFFFFFFFF;           // cq_off.cqes at 100
     os_dealloc(p);
     // mmaps: syscall 9 = mmap(addr, len, prot, flags, fd, offset)
+    // io_uring rings use MAP_SHARED (not MAP_ANONYMOUS) backed by the uring fd
+    // Use MAP_POPULATE (0x8000) to prefault the pages
+    let mmap_flags: i64 = 0x01;    // MAP_SHARED (no MAP_POPULATE — fails on some kernels)
     let sq_sz = sq_arr + sq_ent * 4;
-    let sq = syscall(9, 0, sq_sz, 3, 0x08001, fd, 0);
-    if sq < 0 || sq > -4096 { syscall(3, fd); return -2; }
+    let sq = syscall(9, 0, sq_sz, 3, mmap_flags, fd, 0);
+    if sq < 0 && sq > -4096 { syscall(3, fd); return -2; }
     let sqe_sz = entries * 64;
-    let sqe = syscall(9, 0, sqe_sz, 3, 0x08001, fd, 0x10000000);
-    if sqe < 0 || sqe > -4096 { syscall(3, fd); return -3; }
+    let sqe = syscall(9, 0, sqe_sz, 3, mmap_flags, fd, 0x10000000);
+    if sqe < 0 && sqe > -4096 { syscall(3, fd); return -3; }
     let cq_sz = cq_cqes + cq_ent * 16;
-    let cq = syscall(9, 0, cq_sz, 3, 0x08001, fd, 0x8000000);
-    if cq < 0 || cq > -4096 { syscall(3, fd); return -4; }
+    let cq = syscall(9, 0, cq_sz, 3, mmap_flags, fd, 0x8000000);
+    if cq < 0 && cq > -4096 { syscall(3, fd); return -4; }
+    // Read actual ring mask values FROM the mmap'd rings (not the io_uring_params offsets)
+    let sq_ring_mask = os_load(sq + sq_mask_off) & 0xFFFFFFFF;
+    let cq_ring_mask = os_load(cq + cq_mask_off) & 0xFFFFFFFF;
     os_store(st, fd); os_store(st+8, sq); os_store(st+16, sqe); os_store(st+24, cq);
     os_store(st+32, sq_ent); os_store(st+40, cq_ent);
     os_store(st+48, sq_tail); os_store(st+56, cq_head);
     os_store(st+64, sq_arr); os_store(st+72, cq_cqes);
-    os_store(st+80, sq_mask); os_store(st+88, cq_mask);
+    os_store(st+80, sq_ring_mask); os_store(st+88, cq_ring_mask);
     os_store(st+96, cq_tail); os_store(st+104, sq_head);
     os_store(st+112, 0); os_store(st+120, 0);
     return 0;
@@ -84,8 +96,8 @@ fn os_uring_init(st: i64, entries: i64) -> i64 {
 
 fn os_uring_sqe(st: i64) -> i64 {
     let sq = os_load(st+8); let sqe = os_load(st+16);
-    let t = os_load(sq + os_load(st+48));  // tail
-    let h = os_load(sq + os_load(st+104));  // head
+    let t = os_load(sq + os_load(st+48)) & 0xFFFFFFFF;  // tail (u32)
+    let h = os_load(sq + os_load(st+104)) & 0xFFFFFFFF;  // head (u32)
     let sq_ent = os_load(st+32);
     if t - h >= sq_ent { return 0; }
     let idx = os_load(st+120);
@@ -98,7 +110,7 @@ fn os_uring_submit(st: i64, count: i64, wait: i64) -> i64 {
     let sq = os_load(st+8); let fd = os_load(st);
     let tail_off = os_load(st+48); let arr_off = os_load(st+64);
     let mask = os_load(st+80);
-    let t = os_load(sq + tail_off);
+    let t = os_load(sq + tail_off) & 0xFFFFFFFF;  // tail (u32)
     let i: i64 = 0;
     while i < count {
         let idx = (t + i) & mask;
@@ -106,7 +118,9 @@ fn os_uring_submit(st: i64, count: i64, wait: i64) -> i64 {
         os_store(sq + arr_off + i*4, idx);
         i = i + 1;
     }
-    os_store(sq + tail_off, t + count);
+    // Update SQ tail — preserve upper 32 bits (ring_mask) that share the 64-bit store
+    let old_tail_val = os_load(sq + tail_off);
+    os_store(sq + tail_off, (old_tail_val & 0xFFFFFFFF00000000) | ((t + count) & 0xFFFFFFFF));
     os_store(st+120, 0);
     // io_uring_enter = syscall 426: (fd, to_submit, min_complete, flags, sig, sig_size)
     let flags = 0;
@@ -116,8 +130,8 @@ fn os_uring_submit(st: i64, count: i64, wait: i64) -> i64 {
 
 fn os_uring_cqe(st: i64) -> i64 {
     let cq = os_load(st+24);
-    let h = os_load(cq + os_load(st+56));  // head
-    let t = os_load(cq + os_load(st+96));  // tail
+    let h = os_load(cq + os_load(st+56)) & 0xFFFFFFFF;  // head (u32)
+    let t = os_load(cq + os_load(st+96)) & 0xFFFFFFFF;  // tail (u32)
     if h == t { return 0; }
     let cqes = cq + os_load(st+72);
     let mask = os_load(st+88);
@@ -125,7 +139,9 @@ fn os_uring_cqe(st: i64) -> i64 {
     let res = os_load(cqes + idx * 16 + 8);  // CQE: 0=user_data, 8=res
     let ud = os_load(cqes + idx * 16);  // user_data
     os_store(st+112, res);
-    os_store(cq + os_load(st+56), h + 1);  // advance head
+    // Advance CQ head — preserve upper 32 bits (tail) that share the 64-bit store
+    let old_head_val = os_load(cq + os_load(st+56));
+    os_store(cq + os_load(st+56), (old_head_val & 0xFFFFFFFF00000000) | ((h + 1) & 0xFFFFFFFF));
     return ud;
 }
 
@@ -133,31 +149,31 @@ fn os_uring_cqe_res(st: i64) -> i64 { return os_load(st+112); }
 
 fn os_uring_accept_sqe(sqe: i64, fd: i64, ud: i64) -> i64 {
     os_zero(sqe, 64);
-    os_store(sqe, 22);     // opcode = IORING_OP_ACCEPT = 22
+    os_store(sqe, 13);     // opcode = IORING_OP_ACCEPT = 13
     os_store(sqe+4, fd);   // fd at offset 4
-    os_store(sqe+40, ud);  // user_data at offset 40
+    os_store(sqe+32, ud);  // user_data at offset 32
     return 0;
 }
 
 fn os_uring_read_sqe(sqe: i64, fd: i64, buf: i64, len: i64, ud: i64) -> i64 {
     os_zero(sqe, 64);
-    os_store(sqe, 18);     // opcode = IORING_OP_READ = 18
+    os_store(sqe, 22);     // opcode = IORING_OP_READ = 22
     os_store(sqe+4, fd);   // fd
     os_store(sqe+8, 0);    // offset = 0
     os_store(sqe+16, buf); // addr / buf ptr
     os_store(sqe+24, len); // len
-    os_store(sqe+40, ud);  // user_data
+    os_store(sqe+32, ud);  // user_data
     return 0;
 }
 
 fn os_uring_write_sqe(sqe: i64, fd: i64, buf: i64, len: i64, ud: i64) -> i64 {
     os_zero(sqe, 64);
-    os_store(sqe, 19);     // opcode = IORING_OP_WRITE = 19
+    os_store(sqe, 23);     // opcode = IORING_OP_WRITE = 23
     os_store(sqe+4, fd);   // fd
     os_store(sqe+8, 0);    // offset = 0
     os_store(sqe+16, buf); // addr / buf ptr
     os_store(sqe+24, len); // len
-    os_store(sqe+40, ud);  // user_data
+    os_store(sqe+32, ud);  // user_data
     return 0;
 }
 
@@ -383,6 +399,8 @@ const OP_SET_FLAGS: i64 = 4;
 const OP_CREATE_PENDING: i64 = 5;
 const OP_POST_PENDING: i64 = 6;
 const OP_VOID_PENDING: i64 = 7;
+const OP_BATCH_CREATE: i64 = 20;
+const OP_BATCH_TRANSFER: i64 = 21;
 
 // ─── SuperBlock ──────────────────────────────────────────────────────────
 
@@ -2372,17 +2390,27 @@ fn vsr_replicate(st: i64, buf: i64, ot: i64, a1: i64, a2: i64, a3: i64, a4: i64,
         if (i != me) {
             let mut fd = vsr_get_conn(st, i, now);
             if (fd >= 0) {
+                os_nonblock(fd);
                 let wrote = os_send(fd, buf, 72);
                 if (wrote > 0) {
-                    // Wait briefly for PREPARE_OK
-                    let rn = os_recv(fd, buf, 64);
+                    // Non-blocking recv with timeout (500ms)
+                    let deadline = os_now_us() + 500000;
+                    let mut rn: i64 = -1;
+                    while (os_now_us() < deadline) {
+                        rn = os_recv(fd, buf, 64);
+                        if (rn > 0) { break; }
+                        // Busy-wait ~1000µs
+                        let tw = os_now_us(); let mut s: i64 = 0;
+                        while (s < 500) { let t2 = os_now_us(); if (t2 - tw > s) { s = t2 - tw; } }
+                    }
                     if (rn >= 8 && os_load(buf) == MSG_PREPARE_OK) {
                         acks = acks + 1;
                     } else {
-                        // Connection stale — retry once with fresh connection
+                        // Timeout — retry once with fresh connection
                         vsr_retry_conn(st, i);
                         fd = vsr_get_conn(st, i, now);
                         if (fd >= 0) {
+                            os_nonblock(fd);
                             // Rebuild PREPARE (buf was overwritten by recv)
                             os_store(buf, MSG_PREPARE);
                             os_store(buf+8, op); os_store(buf+16, ot);
@@ -2391,7 +2419,14 @@ fn vsr_replicate(st: i64, buf: i64, ot: i64, a1: i64, a2: i64, a3: i64, a4: i64,
                             os_store(buf+56, a5); os_store(buf+64, a6);
                             let wrote2 = os_send(fd, buf, 72);
                             if (wrote2 > 0) {
-                                let rn2 = os_recv(fd, buf, 64);
+                                let deadline2 = os_now_us() + 500000;
+                                let mut rn2: i64 = -1;
+                                while (os_now_us() < deadline2) {
+                                    rn2 = os_recv(fd, buf, 64);
+                                    if (rn2 > 0) { break; }
+                                    let tw2 = os_now_us(); let mut s2: i64 = 0;
+                                    while (s2 < 500) { let t3 = os_now_us(); if (t3 - tw2 > s2) { s2 = t3 - tw2; } }
+                                }
                                 if (rn2 >= 8 && os_load(buf) == MSG_PREPARE_OK) {
                                     acks = acks + 1;
                                 }
@@ -2701,7 +2736,7 @@ fn handle_client(c: i64, buf: i64, rbuf: i64, acct: i64, wal: i64, vs: i64, cs: 
             let request_number: i64;
             let data_off: i64;  // offset where op_type begins
 
-            if (first_qw > 0 && first_qw <= 20) {
+            if (first_qw > 0 && first_qw <= 19) {
                 is_legacy = 1; client_id = 0; request_number = 0;
                 data_off = 0;
             } else {
@@ -2810,6 +2845,57 @@ fn handle_client(c: i64, buf: i64, rbuf: i64, acct: i64, wal: i64, vs: i64, cs: 
                     } else if (ot == 7) {
                         rc = ledg_void_pending(acct, id_lo, id_hi);
                         if (rc == 0) { rt_prepare_void(wb, 0, id_lo, id_hi); batch_count = batch_count + 1; }
+                    } else if (ot == 20) {
+                        // batch_create: [cid|rn|ot=20|count|entries...]
+                        // each entry: [id_lo|id_hi|db|cr|lg|co] = 48 bytes
+                        let batch_count_inner = os_load(buf+off+data_off+8);
+                        let mut bi: i64 = 0;
+                        while (bi < batch_count_inner && batch_ok == 1) {
+                            let eoff = off + data_off + 16 + bi * 48;
+                            let e_id_lo = os_load(buf+eoff);
+                            let e_id_hi = os_load(buf+eoff+8);
+                            let e_db = os_load(buf+eoff+16);
+                            let e_cr = os_load(buf+eoff+24);
+                            let e_lg = os_load(buf+eoff+32);
+                            let e_co = os_load(buf+eoff+40);
+                            let irc = ledg_create_account(acct, e_id_lo, e_id_hi, e_db, e_cr, e_lg, e_co);
+                            if (irc == 0) {
+                                let wbi = batch_prepare_wb(batch_wb, batch_count);
+                                rt_prepare_create(wbi, 0, e_id_lo, e_id_hi, e_db, e_cr, e_lg, e_co);
+                                batch_count = batch_count + 1;
+                            } else {
+                                if (first_rc == 0) { first_rc = irc; }
+                                batch_ok = 0;
+                            }
+                            bi = bi + 1;
+                        }
+                        advance = data_off + 16 + batch_count_inner * 48;
+                        if (batch_ok == 1) { rc = 20; } else { rc = first_rc; }
+                    } else if (ot == 21) {
+                        // batch_transfer: [cid|rn|ot=21|count|entries...]
+                        // each entry: [db_lo|db_hi|cr_lo|cr_hi|am] = 40 bytes
+                        let batch_count_inner = os_load(buf+off+data_off+8);
+                        let mut bi: i64 = 0;
+                        while (bi < batch_count_inner && batch_ok == 1) {
+                            let eoff = off + data_off + 16 + bi * 40;
+                            let e_db_lo = os_load(buf+eoff);
+                            let e_db_hi = os_load(buf+eoff+8);
+                            let e_cr_lo = os_load(buf+eoff+16);
+                            let e_cr_hi = os_load(buf+eoff+24);
+                            let e_am = os_load(buf+eoff+32);
+                            let irc = ledg_transfer(acct, e_db_lo, e_db_hi, e_cr_lo, e_cr_hi, e_am);
+                            if (irc == 0) {
+                                let wbi = batch_prepare_wb(batch_wb, batch_count);
+                                rt_prepare_transfer(wbi, 0, e_db_lo, e_db_hi, e_cr_lo, e_cr_hi, e_am);
+                                batch_count = batch_count + 1;
+                            } else {
+                                if (first_rc == 0) { first_rc = irc; }
+                                batch_ok = 0;
+                            }
+                            bi = bi + 1;
+                        }
+                        advance = data_off + 16 + batch_count_inner * 40;
+                        if (batch_ok == 1) { rc = 21; } else { rc = first_rc; }
                     }
                     if (is_legacy == 0 && request_number > 0 && rc == 0) {
                         cs_update_result(cs, client_id, request_number, rc);
@@ -2924,18 +3010,35 @@ fn uring_submit_accept(uring: i64, fd: i64, ud: i64) -> i64 {
     return 0;
 }
 
+fn print_status(rid: i64, t0: i64, acct: i64, wal: i64, lsm: i64) {
+    let uptime = (os_now_us() - t0) / 1000000;
+    let acct_count = ledg_count(acct);
+    let wal_count = rt_wal_count(wal);
+    let lsm_entries = lsm_scan_count(lsm);
+
+    os_log("=== Capybara DB Status ===\n");
+    os_log("replica_id: "); os_log_i64(rid); os_log("\n");
+    os_log("uptime_s: "); os_log_i64(uptime); os_log("\n");
+    os_log("accounts: "); os_log_i64(acct_count); os_log("\n");
+    os_log("wal_entries: "); os_log_i64(wal_count); os_log("\n");
+    os_log("lsm_entries: "); os_log_i64(lsm_entries); os_log("\n");
+    os_log("==========================\n");
+}
+
 fn main(argc: i64, argv: i64) -> i64 {
     let t0 = os_now_us();
     os_log("capybara v0.1.0\n");
 
     let mut rid: i64 = 0;
     let mut port: i64 = 8700;
+    let mut want_status: i64 = 0;
     let n = os_argc(argc, argv);
     let mut i: i64 = 1;
     while (i < n) {
         let a = os_argv(argc, argv, i);
         if (os_streq(a, "--replica") == 1 && i + 1 < n) { i = i + 1; rid = os_atoi(os_argv(argc, argv, i)); }
         if (os_streq(a, "--port") == 1 && i + 1 < n) { i = i + 1; port = os_atoi(os_argv(argc, argv, i)); }
+        if (os_streq(a, "--status") == 1) { want_status = 1; }
         i = i + 1;
     }
 
@@ -3027,6 +3130,17 @@ fn main(argc: i64, argv: i64) -> i64 {
 
     let mut last_lsm_flush: i64 = os_now_us();
 
+    // --status: print server state and exit
+    if (want_status == 1) {
+        print_status(rid, t0, acct, wal, lsm);
+        lsm_close(lsm);
+        os_dealloc(lsm_dir);
+        cs_destroy(cs);
+        ledg_destroy(acct);
+        rt_close(sb, wal);
+        return 0;
+    }
+
     // Init VSR state block (4096 bytes)
     let vs = os_alloc(4096);
     os_zero(vs, 4096);
@@ -3113,7 +3227,6 @@ fn main(argc: i64, argv: i64) -> i64 {
                 if (ud == 0) { timed_out = 1; }
                 else {
                     let res = os_uring_cqe_res(uring);
-
                     if (ud == UD_CLI_ACCEPT) {
                         // Client accept completed
                         if (res >= 0) {
