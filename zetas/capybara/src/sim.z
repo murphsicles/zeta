@@ -96,9 +96,9 @@ fn sim_verify_invariants(acct: i64, log_buf: i64) -> i64 {
 
     let mut i: i64 = 0;
     while (i < LEDGER_MAX) {
-        let exists = ledg_exists(acct, i);
+        let exists = ledg_exists(acct, i,0);
         if (exists != 0) {
-            let bal = ledg_balance(acct, i);
+            let bal = ledg_balance(acct, i,0);
             total_balance = total_balance + bal;
             total_debits = total_debits + 1;
             total_credits = total_credits + 1;
@@ -118,7 +118,7 @@ fn sim_verify_invariants(acct: i64, log_buf: i64) -> i64 {
     // I4: All pending transactions should have valid flags
     let mut pi: i64 = 0;
     while (pi < PEND_MAX) {
-        if (ledg_pending_exists(acct, pi) != 0) {
+        if (ledg_pending_exists(acct, pi, 0) != 0) {
             // pending exists with valid flags
             total_debits = total_debits + 1;
         }
@@ -137,8 +137,8 @@ fn sim_invariant_summary(acct: i64) {
     os_log("  sim: "); os_log_i64(count); os_log(" accounts");
     let mut i: i64 = 0;
     while (i < LEDGER_MAX) {
-        if (ledg_exists(acct, i) != 0) {
-            let bal = ledg_balance(acct, i);
+        if (ledg_exists(acct, i,0) != 0) {
+            let bal = ledg_balance(acct, i,0);
             total_bal = total_bal + bal;
             if (bal < 0) { neg_accts = neg_accts + 1; if (bal < min_bal) { min_bal = bal; } }
         }
@@ -174,7 +174,7 @@ fn sim_gen_op(rng: i64, acct: i64, buf: i64) -> i64 {
         let cr = 1;  // always allow credits
         let lg = sim_rand_range(rng, 0, 10);
         // ensure doesn't exist
-        if (ledg_exists(acct, id) == 0) {
+        if (ledg_exists(acct, id,0) == 0) {
             os_store(buf+16, id);
             os_store(buf+24, db);
             os_store(buf+32, cr);
@@ -187,7 +187,7 @@ fn sim_gen_op(rng: i64, acct: i64, buf: i64) -> i64 {
         let db = sim_rand_range(rng, 10, 990);
         let cr = sim_rand_range(rng, 10, 990);
         if (db == cr) { cr = (cr + 1) % 100 + 10; if (cr == db) { cr = cr + 1; } }
-        if (ledg_exists(acct, db) == 0 || ledg_exists(acct, cr) == 0) { return 0; }
+        if (ledg_exists(acct, db,0) == 0 || ledg_exists(acct, cr,0) == 0) { return 0; }
         let amt = sim_rand_range(rng, 1, 500);
         os_store(buf+16, db);
         os_store(buf+24, cr);
@@ -197,7 +197,7 @@ fn sim_gen_op(rng: i64, acct: i64, buf: i64) -> i64 {
         // credit(id, amount)
         if (n_accounts < 1) { return 0; }
         let id = sim_rand_range(rng, 10, 990);
-        if (ledg_exists(acct, id) == 0) { return 0; }
+        if (ledg_exists(acct, id,0) == 0) { return 0; }
         let amt = sim_rand_range(rng, 1, 1000);
         os_store(buf+16, id);
         os_store(buf+24, amt);
@@ -206,7 +206,7 @@ fn sim_gen_op(rng: i64, acct: i64, buf: i64) -> i64 {
         // set_flags(id, flags)
         if (n_accounts < 1) { return 0; }
         let id = sim_rand_range(rng, 10, 990);
-        if (ledg_exists(acct, id) == 0) { return 0; }
+        if (ledg_exists(acct, id,0) == 0) { return 0; }
         let fl = sim_rand_range(rng, 0, 8);
         os_store(buf+16, id);
         os_store(buf+24, fl);
@@ -218,7 +218,7 @@ fn sim_gen_op(rng: i64, acct: i64, buf: i64) -> i64 {
         let db = sim_rand_range(rng, 10, 990);
         let cr = sim_rand_range(rng, 10, 990);
         if (db == cr) { cr = (cr + 1) % 100 + 10; if (cr == db) { cr = cr + 1; } }
-        if (ledg_exists(acct, db) == 0 || ledg_exists(acct, cr) == 0) { return 0; }
+        if (ledg_exists(acct, db,0) == 0 || ledg_exists(acct, cr,0) == 0) { return 0; }
         let amt = sim_rand_range(rng, 1, 300);
         let tmout = sim_rand_range(rng, 10, 10000);
         os_store(buf+16, pid);
@@ -233,21 +233,21 @@ fn sim_gen_op(rng: i64, acct: i64, buf: i64) -> i64 {
         // post_pending(id)
         if (n_accounts < 1) { return 0; }
         let pid = sim_rand_range(rng, 100, 9900);
-        if (ledg_pending_exists(acct, pid) == 0) { return 0; }
+        if (ledg_pending_exists(acct, pid, 0) == 0) { return 0; }
         os_store(buf+16, pid);
         return 1;
     } else if (effective_op == 7) {
         // void_pending(id)
         if (n_accounts < 1) { return 0; }
         let pid = sim_rand_range(rng, 100, 9900);
-        if (ledg_pending_exists(acct, pid) == 0) { return 0; }
+        if (ledg_pending_exists(acct, pid, 0) == 0) { return 0; }
         os_store(buf+16, pid);
         return 1;
     } else if (effective_op == 10) {
         // balance check (read-only)
         if (n_accounts < 1) { return 0; }
         let id = sim_rand_range(rng, 10, 990);
-        if (ledg_exists(acct, id) == 0) { return 0; }
+        if (ledg_exists(acct, id,0) == 0) { return 0; }
         os_store(buf+16, id);
         return 1;
     }
@@ -263,23 +263,23 @@ fn sim_exec_op(acct: i64, buf: i64) -> i64 {
     let a2 = os_load(buf+32);
 
     if (ot == 1) {
-        return ledg_create_account(acct, id, a1, a2, 0, 0);
+        return ledg_create_account(acct, id,0, a1, a2,0,0);
     } else if (ot == 2) {
-        return ledg_transfer(acct, id, a1, a2);
+        return ledg_transfer(acct, id,0, a1,0, a2);
     } else if (ot == 3) {
-        return ledg_credit(acct, id, a1);
+        return ledg_credit(acct, id,0, a1);
     } else if (ot == 4) {
-        return ledg_set_flags(acct, id, a1);
+        return ledg_set_flags(acct, id, 0, a1);
     } else if (ot == 5) {
         let a3 = os_load(buf+40);
         let a4 = os_load(buf+48);
         let a5 = os_load(buf+56);
         let a6 = os_load(buf+64);
-        return ledg_create_pending(acct, id, a1, a2, a3, a4, a5, a6);
+        return ledg_create_pending(acct, id, 0, a1, 0, a2, 0, a3, a4, a5, a6);
     } else if (ot == 6) {
-        return ledg_post_pending(acct, id);
+        return ledg_post_pending(acct, id,0);
     } else if (ot == 7) {
-        return ledg_void_pending(acct, id);
+        return ledg_void_pending(acct, id,0);
     }
     return 0;
 }
@@ -295,12 +295,12 @@ fn sim_run(seed: i64, num_ops: i64, sim_clock_buf: i64) -> i64 {
     let acct = ledg_init();
 
     // Create some initial accounts
-    ledg_create_account(acct, 10, 1, 1, 0, 0);
-    ledg_credit(acct, 10, 10000);
-    ledg_create_account(acct, 20, 1, 1, 0, 0);
-    ledg_credit(acct, 20, 5000);
-    ledg_create_account(acct, 30, 0, 1, 0, 0);  // credit-only
-    ledg_credit(acct, 30, 3000);
+    ledg_create_account(acct, 10,0, 1, 1,0,0);
+    ledg_credit(acct, 10,0, 10000);
+    ledg_create_account(acct, 20,0, 1, 1,0,0);
+    ledg_credit(acct, 20,0, 5000);
+    ledg_create_account(acct, 30,0, 0, 1,0,0);  // credit-only
+    ledg_credit(acct, 30,0, 3000);
 
     let op_buf = os_alloc(128);
     let mut ops_run: i64 = 0;
