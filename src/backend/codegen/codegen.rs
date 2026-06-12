@@ -4492,6 +4492,62 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         .build_right_shift(left_val, right_val, true, "shr")
                         .unwrap()
                         .into(),
+                    "&&" => {
+                        let left_bool = self
+                            .builder
+                            .build_int_compare(
+                                inkwell::IntPredicate::NE,
+                                left_val,
+                                self.i64_type.const_int(0, false),
+                                "left_bool",
+                            )
+                            .unwrap();
+                        let right_bool = self
+                            .builder
+                            .build_int_compare(
+                                inkwell::IntPredicate::NE,
+                                right_val,
+                                self.i64_type.const_int(0, false),
+                                "right_bool",
+                            )
+                            .unwrap();
+                        let bool_and = self
+                            .builder
+                            .build_and(left_bool, right_bool, "and")
+                            .unwrap();
+                        self.builder
+                            .build_int_z_extend(bool_and, self.i64_type, "and_ext")
+                            .unwrap()
+                            .into()
+                    }
+                    "||" => {
+                        let left_bool = self
+                            .builder
+                            .build_int_compare(
+                                inkwell::IntPredicate::NE,
+                                left_val,
+                                self.i64_type.const_int(0, false),
+                                "left_bool",
+                            )
+                            .unwrap();
+                        let right_bool = self
+                            .builder
+                            .build_int_compare(
+                                inkwell::IntPredicate::NE,
+                                right_val,
+                                self.i64_type.const_int(0, false),
+                                "right_bool",
+                            )
+                            .unwrap();
+                        let bool_or = self
+                            .builder
+                            .build_or(left_bool, right_bool, "or")
+                            .unwrap();
+                        self.builder
+                            .build_int_z_extend(bool_or, self.i64_type, "or_ext")
+                            .unwrap()
+                            .into()
+                    }
                     _ => {
                         panic!("Unsupported binary operator in BinaryOp: {}", op);
                     }

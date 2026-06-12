@@ -1336,6 +1336,8 @@ impl MirGen {
                         || op == ">="
                         || op == "=="
                         || op == "!="
+                        || op == "&&"
+                        || op == "||"
                     {
                         self.exprs.insert(
                             dest,
