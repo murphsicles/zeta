@@ -181,17 +181,27 @@ fn vsr_replicate(st: i64, buf: i64, ot: i64, a1: i64, a2: i64, a3: i64, a4: i64,
         if (i != me) {
             let mut fd = vsr_get_conn(st, i, now);
             if (fd >= 0) {
+                os_nonblock(fd);
                 let wrote = os_send(fd, buf, 72);
                 if (wrote > 0) {
-                    // Wait briefly for PREPARE_OK
-                    let rn = os_recv(fd, buf, 64);
+                    // Non-blocking recv with timeout (500ms)
+                    let deadline = os_now_us() + 500000;
+                    let mut rn: i64 = -1;
+                    while (os_now_us() < deadline) {
+                        rn = os_recv(fd, buf, 64);
+                        if (rn > 0) { break; }
+                        // Busy-wait ~1000µs
+                        let tw = os_now_us(); let mut s: i64 = 0;
+                        while (s < 500) { let t2 = os_now_us(); if (t2 - tw > s) { s = t2 - tw; } }
+                    }
                     if (rn >= 8 && os_load(buf) == MSG_PREPARE_OK) {
                         acks = acks + 1;
                     } else {
-                        // Connection stale — retry once with fresh connection
+                        // Timeout — retry once with fresh connection
                         vsr_retry_conn(st, i);
                         fd = vsr_get_conn(st, i, now);
                         if (fd >= 0) {
+                            os_nonblock(fd);
                             // Rebuild PREPARE (buf was overwritten by recv)
                             os_store(buf, MSG_PREPARE);
                             os_store(buf+8, op); os_store(buf+16, ot);
@@ -200,7 +210,14 @@ fn vsr_replicate(st: i64, buf: i64, ot: i64, a1: i64, a2: i64, a3: i64, a4: i64,
                             os_store(buf+56, a5); os_store(buf+64, a6);
                             let wrote2 = os_send(fd, buf, 72);
                             if (wrote2 > 0) {
-                                let rn2 = os_recv(fd, buf, 64);
+                                let deadline2 = os_now_us() + 500000;
+                                let mut rn2: i64 = -1;
+                                while (os_now_us() < deadline2) {
+                                    rn2 = os_recv(fd, buf, 64);
+                                    if (rn2 > 0) { break; }
+                                    let tw2 = os_now_us(); let mut s2: i64 = 0;
+                                    while (s2 < 500) { let t3 = os_now_us(); if (t3 - tw2 > s2) { s2 = t3 - tw2; } }
+                                }
                                 if (rn2 >= 8 && os_load(buf) == MSG_PREPARE_OK) {
                                     acks = acks + 1;
                                 }

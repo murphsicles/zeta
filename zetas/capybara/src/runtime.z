@@ -24,6 +24,8 @@ const OP_SET_FLAGS: i64 = 4;
 const OP_CREATE_PENDING: i64 = 5;
 const OP_POST_PENDING: i64 = 6;
 const OP_VOID_PENDING: i64 = 7;
+const OP_BATCH_CREATE: i64 = 20;
+const OP_BATCH_TRANSFER: i64 = 21;
 
 // ─── SuperBlock ──────────────────────────────────────────────────────────
 

@@ -50,26 +50,36 @@ fn os_uring_init(st: i64, entries: i64) -> i64 {
     // io_uring_setup(entries, p) = syscall 425
     let fd = syscall(425, entries, p, 0, 0, 0, 0);
     if fd < 0 { os_dealloc(p); return -1; }
-    let sq_ent = os_load(p) & 0xFFFFFFFF;      // u32
-    let cq_ent = os_load(p+4) & 0xFFFFFFFF;     // u32
-    let sq_tail = os_load(p+40) & 0xFFFFFFFF;   // u32
-    let sq_head = os_load(p+44) & 0xFFFFFFFF;   // u32
-    let sq_mask = os_load(p+48) & 0xFFFFFFFF;   // u32
-    let sq_arr = os_load(p+52) & 0xFFFFFFFF;    // u32
-    let cq_head = os_load(p+72) & 0xFFFFFFFF;   // u32
-    let cq_tail = os_load(p+76) & 0xFFFFFFFF;   // u32
-    let cq_mask = os_load(p+80) & 0xFFFFFFFF;   // u32
-    let cq_cqes = os_load(p+84) & 0xFFFFFFFF;   // u32
+    // io_uring_params struct layout (u32 fields):
+    //   0:sq_entries 4:cq_entries 8:flags 12:sq_thread_cpu 16:sq_thread_idle
+    //   20:features 24:wq_fd 28:resv[3]
+    //   40:sq_off.head 44:sq_off.tail 48:sq_off.ring_mask 52:sq_off.ring_entries
+    //   56:sq_off.flags 60:sq_off.dropped 64:sq_off.array 68:sq_off.resv1
+    //   72:sq_off.resv2 76:cq_off.head 80:cq_off.tail 84:cq_off.ring_mask
+    //   88:cq_off.ring_entries 92:cq_off.overflow 96:cq_off.cqes 100:cq_off.flags
+    let sq_ent = os_load(p) & 0xFFFFFFFF;               // sq_entries  at 0  ✓
+    let cq_ent = os_load(p+4) & 0xFFFFFFFF;              // cq_entries  at 4  ✓
+    let sq_head = os_load(p+40) & 0xFFFFFFFF;            // sq_off.head at 40
+    let sq_tail = os_load(p+44) & 0xFFFFFFFF;            // sq_off.tail at 44
+    let sq_mask = os_load(p+48) & 0xFFFFFFFF;            // sq_off.ring_mask at 48
+    let sq_arr = os_load(p+64) & 0xFFFFFFFF;             // sq_off.array at 64
+    let cq_head = os_load(p+80) & 0xFFFFFFFF;            // cq_off.head at 80
+    let cq_tail = os_load(p+84) & 0xFFFFFFFF;            // cq_off.tail at 84
+    let cq_mask = os_load(p+88) & 0xFFFFFFFF;            // cq_off.ring_mask at 88
+    let cq_cqes = os_load(p+96) & 0xFFFFFFFF;            // cq_off.cqes at 96
     os_dealloc(p);
     // mmaps: syscall 9 = mmap(addr, len, prot, flags, fd, offset)
+    // io_uring rings use MAP_SHARED (not MAP_ANONYMOUS) backed by the uring fd
+    // Use MAP_POPULATE (0x8000) to prefault the pages
+    let mmap_flags: i64 = 0x8001;  // MAP_SHARED | MAP_POPULATE
     let sq_sz = sq_arr + sq_ent * 4;
-    let sq = syscall(9, 0, sq_sz, 3, 0x08001, fd, 0);
+    let sq = syscall(9, 0, sq_sz, 3, mmap_flags, fd, 0);
     if sq < 0 || sq > -4096 { syscall(3, fd); return -2; }
     let sqe_sz = entries * 64;
-    let sqe = syscall(9, 0, sqe_sz, 3, 0x08001, fd, 0x10000000);
+    let sqe = syscall(9, 0, sqe_sz, 3, mmap_flags, fd, 0x10000000);
     if sqe < 0 || sqe > -4096 { syscall(3, fd); return -3; }
     let cq_sz = cq_cqes + cq_ent * 16;
-    let cq = syscall(9, 0, cq_sz, 3, 0x08001, fd, 0x8000000);
+    let cq = syscall(9, 0, cq_sz, 3, mmap_flags, fd, 0x8000000);
     if cq < 0 || cq > -4096 { syscall(3, fd); return -4; }
     os_store(st, fd); os_store(st+8, sq); os_store(st+16, sqe); os_store(st+24, cq);
     os_store(st+32, sq_ent); os_store(st+40, cq_ent);
@@ -172,34 +182,21 @@ fn os_argv(argc: i64, argv: i64, i: i64) -> i64 {
 }
 
 fn os_streq(a: i64, b: i64) -> i64 {
-    // Compare 8 bytes at a time using os_load.
-    // Two strings are equal if all bytes through the null terminator match.
+    // Compare byte by byte through the null terminator.
+    // Load 8 bytes at a time but check inside the chunk for divergence.
     let mut off: i64 = 0;
     while true {
         let va = os_load(a + off);
         let vb = os_load(b + off);
-        if va != vb { return 0; }
-        // All 8 bytes match. Check if any byte is null (end of string).
-        // Quick check: if the entire 64-bit value is 0, we're past the end.
-        if va == 0 { return 1; }
-        // Check first byte
-        let b0 = va & 0xFF;
-        if b0 == 0 { return 1; }
-        // Check remaining bytes via shift
-        let b1 = (va >> 8) & 0xFF;
-        if b1 == 0 { return 1; }
-        let b2 = (va >> 16) & 0xFF;
-        if b2 == 0 { return 1; }
-        let b3 = (va >> 24) & 0xFF;
-        if b3 == 0 { return 1; }
-        let b4 = (va >> 32) & 0xFF;
-        if b4 == 0 { return 1; }
-        let b5 = (va >> 40) & 0xFF;
-        if b5 == 0 { return 1; }
-        let b6 = (va >> 48) & 0xFF;
-        if b6 == 0 { return 1; }
-        let b7 = (va >> 56) & 0xFF;
-        if b7 == 0 { return 1; }
+        // Check each byte in the 8-byte chunk individually.
+        let mut bi: i64 = 0;
+        while bi < 8 {
+            let ba = (va >> (bi * 8)) & 0xFF;
+            let bb = (vb >> (bi * 8)) & 0xFF;
+            if ba != bb { return 0; }
+            if ba == 0 { return 1; }
+            bi = bi + 1;
+        }
         off = off + 8;
     }
 }
@@ -281,3 +278,23 @@ fn os_rdwr() -> i64 { return 66; }      // O_RDWR | O_CREAT
 fn os_seek_end() -> i64 { return 2; }   // SEEK_END
 fn os_m644() -> i64 { return 420; }     // 0644
 fn os_m755() -> i64 { return 493; }     // 0755
+
+fn os_load_8(ptr: i64) -> i64 {
+    return os_load(ptr) & 0xFF;
+}
+
+fn os_store_8(ptr: i64, val: i64) -> i64 {
+    let old = os_load(ptr);
+    let mask = old & 0xFFFFFFFFFFFFFF00;
+    return os_store(ptr, mask | (val & 0xFF));
+}
+
+fn os_load_32(ptr: i64) -> i64 {
+    return os_load(ptr) & 0xFFFFFFFF;
+}
+
+fn os_store_32(ptr: i64, val: i64) -> i64 {
+    let old = os_load(ptr);
+    let mask = old & 0xFFFFFFFF00000000;
+    return os_store(ptr, mask | (val & 0xFFFFFFFF));
+}
