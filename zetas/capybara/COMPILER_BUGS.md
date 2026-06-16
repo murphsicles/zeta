@@ -58,6 +58,38 @@ The `zeta_src` self-hosting compiler uses `module::function` naming. The AOT com
 
 ---
 
+## 8. Argument register not set on consecutive function calls (codegen.rs + LLVM backend)
+
+**Severity:** HIGH — corrupts heap silently, causes delayed crashes
+**Status:** ❌ Discovered 2026-06-15 during Capybara DB Phase 4 Day 1
+
+### Symptom
+```zeta
+os_log("hello");
+let runner = os_alloc(HEAP_MEM);  // gets string pointer as size!
+```
+The second function call inherits the first call's argument register (%edi). With `os_alloc`, this allocates ~4MB instead of 128KB, corrupting the heap. Multi-seed runs crash on the second iteration.
+
+### Root cause
+Two-layer issue:
+1. LLVM IR is CORRECT — both calls have proper arguments in the IR
+2. **LLVM 21 X86 backend bug** at `OptimizationLevel::Aggressive` — the instruction selector/register allocator incorrectly deduplicates `mov %edi` between consecutive calls, even though %edi is caller-saved and carries different values
+
+### Working fix in Capybara code
+Insert two dummy `os_alloc(8)` calls before each real allocation + use literal values instead of named constants:
+```zeta
+let _d1 = os_alloc(8); let _d2 = os_alloc(8);  // absorb wrong register
+let runner = os_alloc(131088);  // now gets correct %edi
+```
+
+### Proper fix
+See BOOTSTRAP_PATCH_PLAN.md for full analysis. Options:
+- Add `memory(unknown)` attribute to `runtime_malloc` declaration
+- Prevent inlining/merge of `os_alloc` calls
+- Break the call pattern with a side-effecting intrinsic
+
+---
+
 ## Quick Fixes (for future sessions)
 
 ### codegen.rs (empty body stub)

@@ -21,10 +21,13 @@ fn os_log_i64(n: i64) { println_i64(n); }
 fn os_now_us() -> i64 { return get_time_us(); }
 
 // ─── Memory ─────────────────────────────────────────────────────────
-fn os_alloc(size: i64) -> i64 { return runtime_malloc(size); }
-fn os_dealloc(ptr: i64) { runtime_free(ptr); }
-fn os_zero(ptr: i64, n: i64) { memset(ptr, 0, n); }
-fn os_copy(dst: i64, src: i64, n: i64) { memcpy(dst, src, n); }
+// barrier prevents LLVM from dropping arg register setup between consecutive
+// runtime_malloc/runtime_free calls (X86 backend -O3 bug).
+fn guard() { let _g = os_now_us(); }
+fn os_alloc(size: i64) -> i64 { let r = runtime_malloc(size); guard(); return r; }
+fn os_dealloc(ptr: i64) { guard(); runtime_free(ptr); }
+fn os_zero(ptr: i64, n: i64) { guard(); memset(ptr, 0, n); }
+fn os_copy(dst: i64, src: i64, n: i64) { guard(); memcpy(dst, src, n); }
 fn os_store(addr: i64, val: i64) { capy_store_i64(addr, val); }
 fn os_load(addr: i64) -> i64 { return capy_load_i64(addr); }
 

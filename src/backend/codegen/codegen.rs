@@ -363,16 +363,31 @@ impl<'ctx> LLVMCodegen<'ctx> {
             ),
             Some(Linkage::External),
         );
-        // Memory allocation functions
-        module.add_function(
+        // Memory allocation functions — with memory(unknown) attribute to
+        // prevent LLVM from dropping argument register setup between consecutive
+        // runtime_malloc calls (LLVM X86 backend -O3 bug).
+        let malloc_func = module.add_function(
             "runtime_malloc",
             i64_type.fn_type(&[i64_type.into()], false),
             Some(Linkage::External),
         );
-        module.add_function(
+        let mem_attr = context.create_string_attribute("memory", "unknown");
+        malloc_func.add_attribute(
+            inkwell::attributes::AttributeLoc::Function,
+            mem_attr,
+        );
+        // Verify attribute was applied
+        let attr_count = malloc_func.count_attributes(inkwell::attributes::AttributeLoc::Function);
+        eprintln!("DEBUG: runtime_malloc attribute count: {}", attr_count);
+        let free_func = module.add_function(
             "runtime_free",
             void_type.fn_type(&[i64_type.into()], false),
             Some(Linkage::External),
+        );
+        let mem_attr2 = context.create_string_attribute("memory", "unknown");
+        free_func.add_attribute(
+            inkwell::attributes::AttributeLoc::Function,
+            mem_attr2,
         );
         module.add_function(
             "runtime_calloc",

@@ -22,10 +22,13 @@ fn os_log_i64(n: i64) { println_i64(n); }
 fn os_now_us() -> i64 { return get_time_us(); }
 
 // ─── Memory ─────────────────────────────────────────────────────────
-fn os_alloc(size: i64) -> i64 { return runtime_malloc(size); }
-fn os_dealloc(ptr: i64) { runtime_free(ptr); }
-fn os_zero(ptr: i64, n: i64) { memset(ptr, 0, n); }
-fn os_copy(dst: i64, src: i64, n: i64) { memcpy(dst, src, n); }
+// barrier prevents LLVM from dropping arg register setup between consecutive
+// runtime_malloc/runtime_free calls (X86 backend -O3 bug).
+fn guard() { let _g = os_now_us(); }
+fn os_alloc(size: i64) -> i64 { let r = runtime_malloc(size); guard(); return r; }
+fn os_dealloc(ptr: i64) { guard(); runtime_free(ptr); }
+fn os_zero(ptr: i64, n: i64) { guard(); memset(ptr, 0, n); }
+fn os_copy(dst: i64, src: i64, n: i64) { guard(); memcpy(dst, src, n); }
 fn os_store(addr: i64, val: i64) { capy_store_i64(addr, val); }
 fn os_load(addr: i64) -> i64 { return capy_load_i64(addr); }
 
@@ -51,32 +54,44 @@ fn os_uring_init(st: i64, entries: i64) -> i64 {
     // io_uring_setup(entries, p) = syscall 425
     let fd = syscall(425, entries, p, 0, 0, 0, 0);
     if fd < 0 { os_dealloc(p); return -1; }
-    let sq_ent = os_load(p) & 0xFFFFFFFF;      // u32
-    let cq_ent = os_load(p+4) & 0xFFFFFFFF;     // u32
-    let sq_tail = os_load(p+40) & 0xFFFFFFFF;   // u32
-    let sq_head = os_load(p+44) & 0xFFFFFFFF;   // u32
-    let sq_mask = os_load(p+48) & 0xFFFFFFFF;   // u32
-    let sq_arr = os_load(p+52) & 0xFFFFFFFF;    // u32
-    let cq_head = os_load(p+72) & 0xFFFFFFFF;   // u32
-    let cq_tail = os_load(p+76) & 0xFFFFFFFF;   // u32
-    let cq_mask = os_load(p+80) & 0xFFFFFFFF;   // u32
-    let cq_cqes = os_load(p+84) & 0xFFFFFFFF;   // u32
+    // io_uring_params struct layout (u32 fields) — kernel 6.6:
+    //   0:sq_entries 4:cq_entries 8:flags 12:sq_thread_cpu 16:sq_thread_idle
+    //   20:features 24:wq_fd 28:resv[0] 32:resv[1] 36:resv[2]
+    //   40:sq_off (10×u32 = 40 bytes): head tail ring_mask ring_entries flags dropped array
+    //   80:cq_off (10×u32 = 40 bytes): head tail ring_mask ring_entries overflow cqes flags
+    //   Field reads below use os_load (8-byte) + &0xFFFFFFFF (lower 32 bits)
+    let sq_ent = os_load(p) & 0xFFFFFFFF;               // sq_entries  at 0  ✓
+    let cq_ent = os_load(p+4) & 0xFFFFFFFF;              // cq_entries  at 4  ✓
+    let sq_head = os_load(p+40) & 0xFFFFFFFF;            // sq_off.head at 40
+    let sq_tail = os_load(p+44) & 0xFFFFFFFF;            // sq_off.tail at 44
+    let sq_mask_off = os_load(p+48) & 0xFFFFFFFF;         // sq_off.ring_mask at 48 (offset in SQ ring)
+    let sq_arr = os_load(p+64) & 0xFFFFFFFF;             // sq_off.array at 64
+    let cq_head = os_load(p+80) & 0xFFFFFFFF;            // cq_off.head at 80
+    let cq_tail = os_load(p+84) & 0xFFFFFFFF;            // cq_off.tail at 84
+    let cq_mask_off = os_load(p+88) & 0xFFFFFFFF;         // cq_off.ring_mask at 88 (offset in CQ ring)
+    let cq_cqes = os_load(p+100) & 0xFFFFFFFF;           // cq_off.cqes at 100
     os_dealloc(p);
     // mmaps: syscall 9 = mmap(addr, len, prot, flags, fd, offset)
+    // io_uring rings use MAP_SHARED (not MAP_ANONYMOUS) backed by the uring fd
+    // Use MAP_POPULATE (0x8000) to prefault the pages
+    let mmap_flags: i64 = 0x01;    // MAP_SHARED (no MAP_POPULATE — fails on some kernels)
     let sq_sz = sq_arr + sq_ent * 4;
-    let sq = syscall(9, 0, sq_sz, 3, 0x08001, fd, 0);
-    if sq < 0 || sq > -4096 { syscall(3, fd); return -2; }
+    let sq = syscall(9, 0, sq_sz, 3, mmap_flags, fd, 0);
+    if sq < 0 && sq > -4096 { syscall(3, fd); return -2; }
     let sqe_sz = entries * 64;
-    let sqe = syscall(9, 0, sqe_sz, 3, 0x08001, fd, 0x10000000);
-    if sqe < 0 || sqe > -4096 { syscall(3, fd); return -3; }
+    let sqe = syscall(9, 0, sqe_sz, 3, mmap_flags, fd, 0x10000000);
+    if sqe < 0 && sqe > -4096 { syscall(3, fd); return -3; }
     let cq_sz = cq_cqes + cq_ent * 16;
-    let cq = syscall(9, 0, cq_sz, 3, 0x08001, fd, 0x8000000);
-    if cq < 0 || cq > -4096 { syscall(3, fd); return -4; }
+    let cq = syscall(9, 0, cq_sz, 3, mmap_flags, fd, 0x8000000);
+    if cq < 0 && cq > -4096 { syscall(3, fd); return -4; }
+    // Read actual ring mask values FROM the mmap'd rings (not the io_uring_params offsets)
+    let sq_ring_mask = os_load(sq + sq_mask_off) & 0xFFFFFFFF;
+    let cq_ring_mask = os_load(cq + cq_mask_off) & 0xFFFFFFFF;
     os_store(st, fd); os_store(st+8, sq); os_store(st+16, sqe); os_store(st+24, cq);
     os_store(st+32, sq_ent); os_store(st+40, cq_ent);
     os_store(st+48, sq_tail); os_store(st+56, cq_head);
     os_store(st+64, sq_arr); os_store(st+72, cq_cqes);
-    os_store(st+80, sq_mask); os_store(st+88, cq_mask);
+    os_store(st+80, sq_ring_mask); os_store(st+88, cq_ring_mask);
     os_store(st+96, cq_tail); os_store(st+104, sq_head);
     os_store(st+112, 0); os_store(st+120, 0);
     return 0;
@@ -84,8 +99,8 @@ fn os_uring_init(st: i64, entries: i64) -> i64 {
 
 fn os_uring_sqe(st: i64) -> i64 {
     let sq = os_load(st+8); let sqe = os_load(st+16);
-    let t = os_load(sq + os_load(st+48));  // tail
-    let h = os_load(sq + os_load(st+104));  // head
+    let t = os_load(sq + os_load(st+48)) & 0xFFFFFFFF;  // tail (u32)
+    let h = os_load(sq + os_load(st+104)) & 0xFFFFFFFF;  // head (u32)
     let sq_ent = os_load(st+32);
     if t - h >= sq_ent { return 0; }
     let idx = os_load(st+120);
@@ -98,15 +113,17 @@ fn os_uring_submit(st: i64, count: i64, wait: i64) -> i64 {
     let sq = os_load(st+8); let fd = os_load(st);
     let tail_off = os_load(st+48); let arr_off = os_load(st+64);
     let mask = os_load(st+80);
-    let t = os_load(sq + tail_off);
+    let t = os_load(sq + tail_off) & 0xFFFFFFFF;  // tail (u32)
     let i: i64 = 0;
     while i < count {
         let idx = (t + i) & mask;
-        // Write to array at (sq + arr_off + i*4) = idx (u32)
-        os_store(sq + arr_off + i*4, idx);
+        // Write to array at (sq + arr_off + idx*4) — array indexed by ring position
+        os_store(sq + arr_off + idx * 4, idx);
         i = i + 1;
     }
-    os_store(sq + tail_off, t + count);
+    // Update SQ tail — preserve upper 32 bits (ring_mask) that share the 64-bit store
+    let old_tail_val = os_load(sq + tail_off);
+    os_store(sq + tail_off, (old_tail_val & 0xFFFFFFFF00000000) | ((t + count) & 0xFFFFFFFF));
     os_store(st+120, 0);
     // io_uring_enter = syscall 426: (fd, to_submit, min_complete, flags, sig, sig_size)
     let flags = 0;
@@ -116,8 +133,8 @@ fn os_uring_submit(st: i64, count: i64, wait: i64) -> i64 {
 
 fn os_uring_cqe(st: i64) -> i64 {
     let cq = os_load(st+24);
-    let h = os_load(cq + os_load(st+56));  // head
-    let t = os_load(cq + os_load(st+96));  // tail
+    let h = os_load(cq + os_load(st+56)) & 0xFFFFFFFF;  // head (u32)
+    let t = os_load(cq + os_load(st+96)) & 0xFFFFFFFF;  // tail (u32)
     if h == t { return 0; }
     let cqes = cq + os_load(st+72);
     let mask = os_load(st+88);
@@ -125,7 +142,9 @@ fn os_uring_cqe(st: i64) -> i64 {
     let res = os_load(cqes + idx * 16 + 8);  // CQE: 0=user_data, 8=res
     let ud = os_load(cqes + idx * 16);  // user_data
     os_store(st+112, res);
-    os_store(cq + os_load(st+56), h + 1);  // advance head
+    // Advance CQ head — preserve upper 32 bits (tail) that share the 64-bit store
+    let old_head_val = os_load(cq + os_load(st+56));
+    os_store(cq + os_load(st+56), (old_head_val & 0xFFFFFFFF00000000) | ((h + 1) & 0xFFFFFFFF));
     return ud;
 }
 
@@ -133,31 +152,31 @@ fn os_uring_cqe_res(st: i64) -> i64 { return os_load(st+112); }
 
 fn os_uring_accept_sqe(sqe: i64, fd: i64, ud: i64) -> i64 {
     os_zero(sqe, 64);
-    os_store(sqe, 22);     // opcode = IORING_OP_ACCEPT = 22
+    os_store(sqe, 13);     // opcode = IORING_OP_ACCEPT = 13
     os_store(sqe+4, fd);   // fd at offset 4
-    os_store(sqe+40, ud);  // user_data at offset 40
+    os_store(sqe+32, ud);  // user_data at offset 32
     return 0;
 }
 
 fn os_uring_read_sqe(sqe: i64, fd: i64, buf: i64, len: i64, ud: i64) -> i64 {
     os_zero(sqe, 64);
-    os_store(sqe, 18);     // opcode = IORING_OP_READ = 18
+    os_store(sqe, 22);     // opcode = IORING_OP_READ = 22
     os_store(sqe+4, fd);   // fd
     os_store(sqe+8, 0);    // offset = 0
     os_store(sqe+16, buf); // addr / buf ptr
     os_store(sqe+24, len); // len
-    os_store(sqe+40, ud);  // user_data
+    os_store(sqe+32, ud);  // user_data
     return 0;
 }
 
 fn os_uring_write_sqe(sqe: i64, fd: i64, buf: i64, len: i64, ud: i64) -> i64 {
     os_zero(sqe, 64);
-    os_store(sqe, 19);     // opcode = IORING_OP_WRITE = 19
+    os_store(sqe, 23);     // opcode = IORING_OP_WRITE = 23
     os_store(sqe+4, fd);   // fd
     os_store(sqe+8, 0);    // offset = 0
     os_store(sqe+16, buf); // addr / buf ptr
     os_store(sqe+24, len); // len
-    os_store(sqe+40, ud);  // user_data
+    os_store(sqe+32, ud);  // user_data
     return 0;
 }
 
@@ -383,6 +402,8 @@ const OP_SET_FLAGS: i64 = 4;
 const OP_CREATE_PENDING: i64 = 5;
 const OP_POST_PENDING: i64 = 6;
 const OP_VOID_PENDING: i64 = 7;
+const OP_BATCH_CREATE: i64 = 20;
+const OP_BATCH_TRANSFER: i64 = 21;
 
 // ─── SuperBlock ──────────────────────────────────────────────────────────
 
@@ -990,30 +1011,59 @@ fn ledg_row_ptr(b: i64, slot: i64) -> i64 {
     return acf(b, slot, 0);
 }
 
-// === sim.z ===
-// Capybara DB — Deterministic Simulation Framework
-// Simulated time, deterministic RNG, operation generator, invariant checker.
-// Run standalone: /tmp/capybara_sim
+// === sim_runner.z ===
+// sim_runner.z — Deterministic Event Queue + RNG + Clock
+// Single source of time and randomness for all simulation testing.
+// Binary min-heap priority queue (earliest time pops first).
 //
-// Invariants verified after each operation:
-//   I1: Every debit has a matching credit (total debits == total credits)
-//   I2: No account balance goes negative unless debits_allowed
-//   I3: Pending transfers are created, posted, or voided exactly once
-//   I4: Account flags are valid state transitions
-//   I5: Ledger+code combinations are consistent
+// Runner buffer layout (HEAP_MEM = 16 + HEAP_MAX * 32 bytes):
+//   offset  0: sim_now_us (i64) — current simulation time
+//   offset  8: heap_count  (i64) — number of events in heap
+//   offset 16: heap[0..HEAP_MAX-1] — binary heap entries, each 32 bytes
+//
+// Each heap entry (32 bytes):
+//   0: time_us (i64) — delivery time
+//   8: tag     (i64) — event type identifier
+//  16: data    (i64) — opaque payload pointer
+//  24: reserved
+//
+// RNG is a separate 32-byte buffer (4 x i64 state: s0..s3)
+//
+// Usage:
+//   let runner = os_alloc(HEAP_MEM);
+//   let rng = os_alloc(32);
+//   sim_init(runner, rng, seed);
+//   sim_push(runner, sim_now_us(runner) + 1000, EVENT_TICK, 0);
+//   let has = sim_pop(runner, time_buf, tag_buf, data_buf); // has=1 if event
 
-// ─── Deterministic RNG (xoshiro128**) ────────────────────────────────
-// State: [s0, s1, s2, s3] = 4 x i64 stored in a buffer
+// ─── Event Queue Constants ────────────────────────────────────────────
+
+const HEAP_NOW: i64 = 0;
+const HEAP_COUNT: i64 = 8;
+const HEAP_DATA: i64 = 16;
+const HEVENT_SIZE: i64 = 32;
+const HEVENT_TIME: i64 = 0;
+const HEVENT_TAG: i64 = 8;
+const HEVENT_DATA: i64 = 16;
+const HEAP_MAX: i64 = 4096;
+const HEAP_MEM: i64 = HEAP_DATA + HEAP_MAX * HEVENT_SIZE;
+
+// ─── RNG Constants (xoshiro128**) ─────────────────────────────────────
 
 const RNG_S0: i64 = 0;
 const RNG_S1: i64 = 8;
 const RNG_S2: i64 = 16;
 const RNG_S3: i64 = 24;
 
-fn rotl32(x: i64, k: i64) -> i64 { return (x << k) | ((x & 0xFFFFFFFF) >> (32 - k)); }
+// ─── RNG: rotl32 ──────────────────────────────────────────────────────
+
+fn rotl32(x: i64, k: i64) -> i64 {
+    return (x << k) | ((x & 0xFFFFFFFF) >> (32 - k));
+}
+
+// ─── RNG: Seed from single value (SplitMix64) ────────────────────────
 
 fn sim_rng_seed(rng: i64, seed: i64) {
-    // SplitMix64 to initialize from a single seed
     let mut s: i64 = seed;
     let mut i: i64 = 0;
     while (i < 4) {
@@ -1026,6 +1076,8 @@ fn sim_rng_seed(rng: i64, seed: i64) {
         i = i + 1;
     }
 }
+
+// ─── RNG: Next pseudo-random u32 ─────────────────────────────────────
 
 fn sim_rand(rng: i64) -> i64 {
     let s0 = os_load(rng + RNG_S0);
@@ -1044,6 +1096,8 @@ fn sim_rand(rng: i64) -> i64 {
     return result & 0xFFFFFFFF;
 }
 
+// ─── RNG: Random integer in [lo, hi) ─────────────────────────────────
+
 fn sim_rand_range(rng: i64, lo: i64, hi: i64) -> i64 {
     let range = hi - lo;
     if (range <= 0) { return lo; }
@@ -1051,73 +1105,656 @@ fn sim_rand_range(rng: i64, lo: i64, hi: i64) -> i64 {
     return lo + (r % range);
 }
 
+// ─── RNG: Random boolean ─────────────────────────────────────────────
+
 fn sim_rand_bool(rng: i64) -> i64 {
     return sim_rand(rng) & 1;
 }
 
-// ─── Simulated Clock ──────────────────────────────────────────────────
+// ─── Init: Seed RNG + clear event queue ──────────────────────────────
 
-const SIM_CLOCK: i64 = 0;  // offset for sim clock state in buffer
-
-fn sim_clock_init(buf: i64) {
-    os_store(buf + SIM_CLOCK, 0);  // start at time 0
+fn sim_init(runner: i64, rng: i64, seed: i64) {
+    os_zero(runner, HEAP_MEM);
+    sim_rng_seed(rng, seed);
 }
 
-fn sim_now_us(buf: i64) -> i64 {
-    return os_load(buf + SIM_CLOCK);
+// ─── Event Queue: Push (binary min-heap insert) ──────────────────────
+
+fn sim_push(runner: i64, time_us: i64, tag: i64, data: i64) -> i64 {
+    let count = os_load(runner + HEAP_COUNT);
+    if (count >= HEAP_MAX) { return -1; }
+
+    let mut i: i64 = count;
+    let base = runner + HEAP_DATA;
+
+    // Bubble up: while parent exists and has later time
+    while (i > 0) {
+        let parent = (i - 1) / 2;
+        let pt = os_load(base + parent * HEVENT_SIZE + HEVENT_TIME);
+        if (pt <= time_us) { break; }  // parent earlier or same → insert here
+        // Move parent down
+        let pe = base + parent * HEVENT_SIZE;
+        let ce = base + i * HEVENT_SIZE;
+        os_store(ce + HEVENT_TIME, os_load(pe + HEVENT_TIME));
+        os_store(ce + HEVENT_TAG, os_load(pe + HEVENT_TAG));
+        os_store(ce + HEVENT_DATA, os_load(pe + HEVENT_DATA));
+        i = parent;
+    }
+
+    // Insert at found position
+    let e = base + i * HEVENT_SIZE;
+    os_store(e + HEVENT_TIME, time_us);
+    os_store(e + HEVENT_TAG, tag);
+    os_store(e + HEVENT_DATA, data);
+
+    os_store(runner + HEAP_COUNT, count + 1);
+    return 0;
 }
 
-fn sim_advance(buf: i64, us: i64) {
-    let now = os_load(buf + SIM_CLOCK);
-    os_store(buf + SIM_CLOCK, now + us);
+// ─── Event Queue: Pop (extract min via binary heap removal) ──────────
+
+fn sim_pop(runner: i64, out_time: i64, out_tag: i64, out_data: i64) -> i64 {
+    let count = os_load(runner + HEAP_COUNT);
+    if (count == 0) {
+        if (out_time != 0) { os_store(out_time, 0); }
+        if (out_tag != 0) { os_store(out_tag, 0); }
+        if (out_data != 0) { os_store(out_data, 0); }
+        return 0;
+    }
+
+    let base = runner + HEAP_DATA;
+
+    // Extract root (earliest event)
+    if (out_time != 0) { os_store(out_time, os_load(base + HEVENT_TIME)); }
+    if (out_tag != 0) { os_store(out_tag, os_load(base + HEVENT_TAG)); }
+    if (out_data != 0) { os_store(out_data, os_load(base + HEVENT_DATA)); }
+
+    // Set sim_now to popped event's time
+    os_store(runner + HEAP_NOW, os_load(base + HEVENT_TIME));
+
+    // Move last element to root and sift down
+    let new_count = count - 1;
+    os_store(base + 0 * HEVENT_SIZE + HEVENT_TIME, os_load(base + new_count * HEVENT_SIZE + HEVENT_TIME));
+    os_store(base + 0 * HEVENT_SIZE + HEVENT_TAG, os_load(base + new_count * HEVENT_SIZE + HEVENT_TAG));
+    os_store(base + 0 * HEVENT_SIZE + HEVENT_DATA, os_load(base + new_count * HEVENT_SIZE + HEVENT_DATA));
+    os_store(runner + HEAP_COUNT, new_count);
+
+    // Sift down
+    let mut i: i64 = 0;
+    while (true) {
+        let left = 2 * i + 1;
+        let right = 2 * i + 2;
+        let mut smallest = i;
+
+        let it = os_load(base + i * HEVENT_SIZE + HEVENT_TIME);
+
+        if (left < new_count) {
+            let lt = os_load(base + left * HEVENT_SIZE + HEVENT_TIME);
+            if (lt < it) { smallest = left; }
+        }
+
+        let st: i64;
+        if (smallest == i) {
+            st = it;
+        } else {
+            st = os_load(base + smallest * HEVENT_SIZE + HEVENT_TIME);
+        }
+
+        if (right < new_count) {
+            let rt = os_load(base + right * HEVENT_SIZE + HEVENT_TIME);
+            if (rt < st) { smallest = right; }
+        }
+
+        if (smallest == i) { break; }
+
+        // Swap i and smallest
+        let ie = base + i * HEVENT_SIZE;
+        let se = base + smallest * HEVENT_SIZE;
+        let tmp_t = os_load(ie + HEVENT_TIME);
+        let tmp_tag = os_load(ie + HEVENT_TAG);
+        let tmp_d = os_load(ie + HEVENT_DATA);
+        os_store(ie + HEVENT_TIME, os_load(se + HEVENT_TIME));
+        os_store(ie + HEVENT_TAG, os_load(se + HEVENT_TAG));
+        os_store(ie + HEVENT_DATA, os_load(se + HEVENT_DATA));
+        os_store(se + HEVENT_TIME, tmp_t);
+        os_store(se + HEVENT_TAG, tmp_tag);
+        os_store(se + HEVENT_DATA, tmp_d);
+
+        i = smallest;
+    }
+
+    return 1;
 }
 
-fn sim_advance_tic(buf: i64) {
-    sim_advance(buf, 1000);  // advance 1ms each tick
+// ─── Event Queue: Current sim time ───────────────────────────────────
+
+fn sim_now_us(runner: i64) -> i64 {
+    return os_load(runner + HEAP_NOW);
 }
 
-// ─── Invariant Checker ────────────────────────────────────────────────
+// ─── Event Queue: Advance time without events ────────────────────────
+
+fn sim_advance_to(runner: i64, target_us: i64) {
+    if (target_us > os_load(runner + HEAP_NOW)) {
+        os_store(runner + HEAP_NOW, target_us);
+    }
+}
+
+// ─── Event Queue: Is idle (no pending events) ────────────────────────
+
+fn sim_is_idle(runner: i64) -> i64 {
+    if (os_load(runner + HEAP_COUNT) == 0) { return 1; }
+    return 0;
+}
+
+// ─── Event Queue: Event count ────────────────────────────────────────
+
+fn sim_event_count(runner: i64) -> i64 {
+    return os_load(runner + HEAP_COUNT);
+}
+
+// === sim_generator.z ===
+// sim_generator.z — Property-Based Operation Generator
+// Generates random sequences of valid and invalid operations for simulation.
+// Extends the single-op generation from the original sim.z with:
+//   - More diverse op types (batch ops, multi-account)
+//   - Deliberately invalid ops (wrong IDs, overdrafts, duplicates)
+//   - Full scenario generation (initial state + ops + fault schedule)
+//
+// All functions take an explicit RNG buffer for determinism.
+// Uses ledg_* functions from ledger.z for state queries.
+//
+// NOTE: Due to compiler name mangling bug, avoid helper functions with
+// many parameters. Stores are inlined directly.
+
+// ─── Operation Type Constants ─────────────────────────────────────────
+
+const OP_CREATE_ACCOUNT: i64 = 1;
+const OP_TRANSFER: i64 = 2;
+const OP_CREDIT: i64 = 3;
+const OP_SET_FLAGS: i64 = 4;
+const OP_CREATE_PENDING: i64 = 5;
+const OP_POST_PENDING: i64 = 6;
+const OP_VOID_PENDING: i64 = 7;
+const OP_BALANCE_CHECK: i64 = 10;
+
+// ─── Op Buffer Layout (128 bytes per operation) ──────────────────────
+
+// offset 0:  op_type (i64)
+// offset 8:  reserved / flags
+// offset 16: arg1 (i64) — id_lo for create, db_lo for transfer, etc.
+// offset 24: arg2 (i64) — id_hi or cr_lo
+// offset 32: arg3 (i64) — debits or cr_hi or amount
+// offset 40: arg4 (i64) — credits or amount for transfer
+// offset 48: arg5 (i64) — ledger or timeout
+// offset 56: arg6 (i64) — code
+// offset 64: expected_rc (i64) — expected result code (0 = success)
+// offset 72..127: reserved
+
+const OP_BUF_SIZE: i64 = 128;
+const O_OT: i64 = 0;
+const O_RESERVED: i64 = 8;
+const O_A1: i64 = 16;
+const O_A2: i64 = 24;
+const O_A3: i64 = 32;
+const O_A4: i64 = 40;
+const O_A5: i64 = 48;
+const O_A6: i64 = 56;
+const O_EXPECTED: i64 = 64;
+
+// ─── Helper: Extract op fields from buffer ───────────────────────────
+
+fn sim_get_op_ot(buf: i64) -> i64 { return os_load(buf + O_OT); }
+fn sim_get_op_a1(buf: i64) -> i64 { return os_load(buf + O_A1); }
+fn sim_get_op_a2(buf: i64) -> i64 { return os_load(buf + O_A2); }
+fn sim_get_op_a3(buf: i64) -> i64 { return os_load(buf + O_A3); }
+fn sim_get_op_a4(buf: i64) -> i64 { return os_load(buf + O_A4); }
+fn sim_get_op_a5(buf: i64) -> i64 { return os_load(buf + O_A5); }
+fn sim_get_op_a6(buf: i64) -> i64 { return os_load(buf + O_A6); }
+fn sim_get_op_expected(buf: i64) -> i64 { return os_load(buf + O_EXPECTED); }
+
+// ─── Collect existing account IDs into a buffer ──────────────────────
+
+fn sim_collect_ids(acct: i64, id_buf: i64) -> i64 {
+    let count = ledg_count(acct);
+    let mut found: i64 = 0;
+    let mut i: i64 = 0;
+    while (i < LEDGER_MAX && found < count) {
+        if (ledg_exists(acct, i, 0) != 0) {
+            os_store(id_buf + found * 8, i);
+            found = found + 1;
+        }
+        i = i + 1;
+    }
+    return found;
+}
+
+// ─── Pick a random existing account ID ────────────────────────────────
+
+fn sim_pick_id(rng: i64, id_buf: i64, num_ids: i64) -> i64 {
+    if (num_ids <= 0) { return 0; }
+    let idx = sim_rand_range(rng, 0, num_ids);
+    return os_load(id_buf + idx * 8);
+}
+
+// ─── Generate a valid create_account op ──────────────────────────────
+
+fn sim_gen_create_account(rng: i64, acct: i64, out: i64, id_buf: i64, num_ids: i64) -> i64 {
+    // Pick an unused ID in [10, 999]
+    let mut id: i64 = sim_rand_range(rng, 10, 1000);
+    let mut tries: i64 = 0;
+    while (tries < 20 && ledg_exists(acct, id, 0) != 0) {
+        id = (id + 1) % 1000;
+        if (id < 10) { id = 10; }
+        tries = tries + 1;
+    }
+    if (ledg_exists(acct, id, 0) != 0) { return 0; }  // table full
+
+    let db: i64 = sim_rand_bool(rng);
+    let cr: i64 = sim_rand_bool(rng);
+    let lg = sim_rand_range(rng, 0, 10);
+    let co = sim_rand_range(rng, 0, 10);
+
+    os_store(out + O_OT, OP_CREATE_ACCOUNT);
+    os_store(out + O_RESERVED, 0);
+    os_store(out + O_A1, id);
+    os_store(out + O_A2, 0);
+    os_store(out + O_A3, db);
+    os_store(out + O_A4, cr);
+    os_store(out + O_A5, lg);
+    os_store(out + O_EXPECTED, 0);
+    return 1;
+}
+
+// ─── Generate a valid transfer op ────────────────────────────────────
+
+fn sim_gen_transfer(rng: i64, acct: i64, out: i64, id_buf: i64, num_ids: i64) -> i64 {
+    if (num_ids < 2) { return 0; }
+
+    let db = sim_pick_id(rng, id_buf, num_ids);
+    let mut cr = sim_pick_id(rng, id_buf, num_ids);
+    let mut tries: i64 = 0;
+    while (cr == db && tries < 10) {
+        cr = sim_pick_id(rng, id_buf, num_ids);
+        tries = tries + 1;
+    }
+    if (cr == db) { return 0; }
+
+    // Amount limited by debitor's balance
+    let bal = ledg_balance(acct, db, 0);
+    if (bal <= 0) { return 0; }
+    let amt = sim_rand_range(rng, 1, bal + 1);
+    if (amt <= 0) { return 0; }
+
+    os_store(out + O_OT, OP_TRANSFER);
+    os_store(out + O_RESERVED, 0);
+    os_store(out + O_A1, db);
+    os_store(out + O_A2, 0);
+    os_store(out + O_A3, cr);
+    os_store(out + O_A4, 0);
+    os_store(out + O_A5, amt);
+    os_store(out + O_EXPECTED, 0);
+    return 1;
+}
+
+// ─── Generate a valid credit op ──────────────────────────────────────
+
+fn sim_gen_credit(rng: i64, acct: i64, out: i64, id_buf: i64, num_ids: i64) -> i64 {
+    if (num_ids < 1) { return 0; }
+    let id = sim_pick_id(rng, id_buf, num_ids);
+    let amt = sim_rand_range(rng, 1, 10000);
+
+    os_store(out + O_OT, OP_CREDIT);
+    os_store(out + O_RESERVED, 0);
+    os_store(out + O_A1, id);
+    os_store(out + O_A2, 0);
+    os_store(out + O_A3, amt);
+    os_store(out + O_A4, 0);
+    os_store(out + O_A5, 0);
+    os_store(out + O_EXPECTED, 0);
+    return 1;
+}
+
+// ─── Generate a valid set_flags op ───────────────────────────────────
+
+fn sim_gen_set_flags(rng: i64, acct: i64, out: i64, id_buf: i64, num_ids: i64) -> i64 {
+    if (num_ids < 1) { return 0; }
+    let id = sim_pick_id(rng, id_buf, num_ids);
+    let fl = sim_rand_range(rng, 0, 8);
+
+    os_store(out + O_OT, OP_SET_FLAGS);
+    os_store(out + O_RESERVED, 0);
+    os_store(out + O_A1, id);
+    os_store(out + O_A2, 0);
+    os_store(out + O_A3, fl);
+    os_store(out + O_A4, 0);
+    os_store(out + O_A5, 0);
+    os_store(out + O_EXPECTED, 0);
+    return 1;
+}
+
+// ─── Generate a valid create_pending op ──────────────────────────────
+
+fn sim_gen_create_pending(rng: i64, acct: i64, out: i64, id_buf: i64, num_ids: i64) -> i64 {
+    if (num_ids < 2) { return 0; }
+
+    let db = sim_pick_id(rng, id_buf, num_ids);
+    let mut cr = sim_pick_id(rng, id_buf, num_ids);
+    let mut tries: i64 = 0;
+    while (cr == db && tries < 10) {
+        cr = sim_pick_id(rng, id_buf, num_ids);
+        tries = tries + 1;
+    }
+    if (cr == db) { return 0; }
+
+    let bal = ledg_balance(acct, db, 0);
+    if (bal <= 0) { return 0; }
+    let amt = sim_rand_range(rng, 1, bal + 1);
+    if (amt <= 0) { return 0; }
+
+    let pid = sim_rand_range(rng, 100, 99900) + sim_rand_range(rng, 0, 100);
+    let tmout = sim_rand_range(rng, 100, 50000);
+    let code = sim_rand_range(rng, 0, 10);
+    let lg = sim_rand_range(rng, 0, 10);
+
+    os_store(out + O_OT, OP_CREATE_PENDING);
+    os_store(out + O_RESERVED, 0);
+    os_store(out + O_A1, pid);
+    os_store(out + O_A2, 0);
+    os_store(out + O_A3, db);
+    os_store(out + O_A4, cr);
+    os_store(out + O_A5, amt);
+    os_store(out + O_A6, tmout);
+    os_store(out + 56, code);
+    os_store(out + O_EXPECTED, 0);
+    return 1;
+}
+
+// ─── Generate a post_pending or void_pending op ───────────────────────
+
+fn sim_gen_post_void(rng: i64, acct: i64, out: i64, id_buf: i64, num_ids: i64) -> i64 {
+    if (num_ids < 1) { return 0; }
+
+    // Pick a random pending ID
+    let pid = sim_rand_range(rng, 100, 99900) + sim_rand_range(rng, 0, 100);
+    let exists = ledg_pending_exists(acct, pid, 0);
+    if (exists == 0) { return 0; }
+
+    let is_post = sim_rand_bool(rng);
+    if (is_post != 0) {
+        os_store(out + O_OT, OP_POST_PENDING);
+    } else {
+        os_store(out + O_OT, OP_VOID_PENDING);
+    }
+    os_store(out + O_RESERVED, 0);
+    os_store(out + O_A1, pid);
+    os_store(out + O_A2, 0);
+    os_store(out + O_A3, 0);
+    os_store(out + O_A4, 0);
+    os_store(out + O_A5, 0);
+    os_store(out + O_EXPECTED, 0);
+    return 1;
+}
+
+// ─── Generate a balance check op (read-only) ─────────────────────────
+
+fn sim_gen_balance_check(rng: i64, acct: i64, out: i64, id_buf: i64, num_ids: i64) -> i64 {
+    if (num_ids < 1) { return 0; }
+    let id = sim_pick_id(rng, id_buf, num_ids);
+
+    os_store(out + O_OT, OP_BALANCE_CHECK);
+    os_store(out + O_RESERVED, 0);
+    os_store(out + O_A1, id);
+    os_store(out + O_A2, 0);
+    os_store(out + O_A3, 0);
+    os_store(out + O_A4, 0);
+    os_store(out + O_A5, 0);
+    os_store(out + O_EXPECTED, 0);
+    return 1;
+}
+
+// ─── Generate a deliberately invalid op ──────────────────────────────
+
+fn sim_gen_invalid_op(rng: i64, out: i64) -> i64 {
+    let inv_type = sim_rand_range(rng, 0, 7);
+    let ot: i64;
+    let a1: i64;
+    let a3: i64;
+    let a5: i64;
+    let expected: i64;
+
+    if (inv_type == 0) {
+        // Nonexistent account transfer
+        ot = OP_TRANSFER;
+        a1 = sim_rand_range(rng, 10000, 99999);
+        a3 = sim_rand_range(rng, 10, 999);
+        a5 = sim_rand_range(rng, 1, 1000);
+        expected = -6;
+    } else if (inv_type == 1) {
+        // Self-transfer
+        ot = OP_TRANSFER;
+        a1 = 42;
+        a3 = 42;
+        a5 = sim_rand_range(rng, 1, 1000);
+        expected = -4;
+    } else if (inv_type == 2) {
+        // Negative amount
+        ot = OP_TRANSFER;
+        a1 = 10;
+        a3 = 20;
+        a5 = -50;
+        expected = -4;
+    } else if (inv_type == 3) {
+        // Create duplicate account
+        ot = OP_CREATE_ACCOUNT;
+        a1 = 10;
+        a3 = 1;
+        a5 = 0;
+        expected = -13;
+    } else if (inv_type == 4) {
+        // Overdraft
+        ot = OP_TRANSFER;
+        a1 = 10;
+        a3 = 20;
+        a5 = 999999999;
+        expected = -7;
+    } else if (inv_type == 5) {
+        // Zero amount
+        ot = OP_TRANSFER;
+        a1 = 10;
+        a3 = 20;
+        a5 = 0;
+        expected = -4;
+    } else {
+        // Post nonexistent pending
+        ot = OP_VOID_PENDING;
+        a1 = sim_rand_range(rng, 50000, 99999);
+        a3 = 0;
+        a5 = 0;
+        expected = -10;
+    }
+
+    os_store(out + O_OT, ot);
+    os_store(out + O_RESERVED, 0);
+    os_store(out + O_A1, a1);
+    os_store(out + O_A2, 0);
+    os_store(out + O_A3, a3);
+    os_store(out + O_A4, 0);
+    os_store(out + O_A5, a5);
+    os_store(out + O_EXPECTED, expected);
+    return 1;
+}
+
+// ─── Generate next valid op (weighted random) ────────────────────────
+
+fn sim_gen_op(rng: i64, acct: i64, buf: i64) -> i64 {
+    let n_accounts = ledg_count(acct);
+    if (n_accounts == 0) { return 0; }
+
+    let _ga = os_log(""); let _d = os_alloc(8); let id_buf = os_alloc(LEDGER_MAX * 8);
+    let num_ids = sim_collect_ids(acct, id_buf);
+
+    if (num_ids == 0) { os_dealloc(id_buf); return 0; }
+
+    // Weighted selection: bias toward creates when few accounts
+    let op_type: i64;
+    if (num_ids < 5) {
+        op_type = sim_rand_range(rng, 1, 3);  // create or credit
+    } else {
+        op_type = sim_rand_range(rng, 1, 12);
+    }
+
+    let result: i64;
+    if (op_type == 1) {
+        result = sim_gen_create_account(rng, acct, buf, id_buf, num_ids);
+    } else if (op_type == 2) {
+        result = sim_gen_credit(rng, acct, buf, id_buf, num_ids);
+    } else if (op_type >= 3 && op_type <= 5) {
+        result = sim_gen_transfer(rng, acct, buf, id_buf, num_ids);
+    } else if (op_type >= 6 && op_type <= 7) {
+        result = sim_gen_set_flags(rng, acct, buf, id_buf, num_ids);
+    } else if (op_type >= 8 && op_type <= 9) {
+        result = sim_gen_post_void(rng, acct, buf, id_buf, num_ids);
+    } else if (op_type == 10) {
+        result = sim_gen_create_pending(rng, acct, buf, id_buf, num_ids);
+    } else {
+        result = sim_gen_balance_check(rng, acct, buf, id_buf, num_ids);
+    }
+
+    os_dealloc(id_buf);
+    return result;
+}
+
+// ─── Execute an operation against the ledger ─────────────────────────
+
+fn sim_exec_op(acct: i64, buf: i64) -> i64 {
+    let ot = os_load(buf + O_OT);
+    let a1 = os_load(buf + O_A1);
+    let a2 = os_load(buf + O_A2);
+    let a3 = os_load(buf + O_A3);
+    let a4 = os_load(buf + O_A4);
+    let a5 = os_load(buf + O_A5);
+    let a6 = os_load(buf + O_A6);
+
+    if (ot == OP_CREATE_ACCOUNT) {
+        return ledg_create_account(acct, a1, a2, a3, a4, a5, a6);
+    } else if (ot == OP_TRANSFER) {
+        return ledg_transfer(acct, a1, a2, a3, a4, a5);
+    } else if (ot == OP_CREDIT) {
+        return ledg_credit(acct, a1, a2, a3);
+    } else if (ot == OP_SET_FLAGS) {
+        return ledg_set_flags(acct, a1, a2, a3);
+    } else if (ot == OP_CREATE_PENDING) {
+        let a7 = os_load(buf + 56);
+        return ledg_create_pending(acct, a1, a2, a3, a4, a5, a6, a7, 0, 0, 0);
+    } else if (ot == OP_POST_PENDING) {
+        return ledg_post_pending(acct, a1, a2);
+    } else if (ot == OP_VOID_PENDING) {
+        return ledg_void_pending(acct, a1, a2);
+    } else if (ot == OP_BALANCE_CHECK) {
+        return ledg_balance(acct, a1, a2);
+    }
+    return 0;
+}
+
+// ─── Log an operation ────────────────────────────────────────────────
+
+fn sim_log_op(i: i64, buf: i64, rc: i64) {
+    let ot = os_load(buf + O_OT);
+    let a1 = os_load(buf + O_A1);
+    let a3 = os_load(buf + O_A3);
+    let a5 = os_load(buf + O_A5);
+
+    os_log("  #"); os_log_i64(i);
+    os_log(" ot="); os_log_i64(ot);
+    os_log(" a1="); os_log_i64(a1);
+    os_log(" a3="); os_log_i64(a3);
+    os_log(" a5="); os_log_i64(a5);
+    os_log(" → ");
+    if (rc == 0) { os_log("OK"); }
+    else if (rc == -13) { os_log("EXISTS"); }
+    else if (rc == -10) { os_log("NOT_FOUND"); }
+    else if (rc == -7) { os_log("INSUFFICIENT"); }
+    else if (rc == -6) { os_log("NO_ACCT"); }
+    else if (rc == -4) { os_log("INVALID"); }
+    else { os_log_i64(rc); }
+    os_log("\n");
+}
+
+// ─── Generate a full scenario (for future use) ──────────────────────
+
+fn sim_gen_scenario(rng: i64, acct: i64, num_ops: i64, invalid_pct: i64, ops_buf: i64) -> i64 {
+    let _gs = os_log(""); let _g = os_now_us(); let op_buf = os_alloc(OP_BUF_SIZE);
+    let mut ops_generated: i64 = 0;
+    let mut i: i64 = 0;
+
+    while (i < num_ops) {
+        let is_invalid: i64;
+        if (invalid_pct > 0) {
+            is_invalid = (sim_rand_range(rng, 0, 100) < invalid_pct);
+        } else {
+            is_invalid = 0;
+        }
+
+        let valid: i64;
+        if (is_invalid != 0) {
+            valid = sim_gen_invalid_op(rng, op_buf);
+        } else {
+            valid = sim_gen_op(rng, acct, op_buf);
+        }
+
+        if (valid != 0) {
+            let dst = ops_buf + ops_generated * OP_BUF_SIZE;
+            os_copy(dst, op_buf, OP_BUF_SIZE);
+            ops_generated = ops_generated + 1;
+        }
+        i = i + 1;
+    }
+
+    os_dealloc(op_buf);
+    return ops_generated;
+}
+
+// === sim_checker.z ===
+// sim_checker.z — Invariant + Linearizability Checker
+// Verifies state machine invariants and operation linearizability.
+//
+// COMPILER BUG WORKAROUND: The Zeta compiler skips argument register
+// setup for consecutive function calls. All os_alloc() calls must be
+// preceded by a different function call with a different argument.
+// We use os_log("") as the guard because print_str has side effects
+// and cannot be optimized away.
+
+// ─── Invariant Constants ──────────────────────────────────────────────
+
+const CHK_TRACE_MAX: i64 = 16384;
+
+const TR_TIME: i64 = 0;
+const TR_TYPE: i64 = 8;
+const TR_A1: i64 = 16;
+const TR_RC: i64 = 24;
+
+// ─── Invariant Checks ────────────────────────────────────────────────
 
 fn sim_verify_invariants(acct: i64, log_buf: i64) -> i64 {
     let count = ledg_count(acct);
     if (count <= 0) { return 0; }
-
-    let mut total_balance: i64 = 0;
-    let mut total_debits: i64 = 0;
-    let mut total_credits: i64 = 0;
     let mut errors: i64 = 0;
 
     let mut i: i64 = 0;
     while (i < LEDGER_MAX) {
-        let exists = ledg_exists(acct, i,0);
-        if (exists != 0) {
-            let bal = ledg_balance(acct, i,0);
-            total_balance = total_balance + bal;
-            total_debits = total_debits + 1;
-            total_credits = total_credits + 1;
-
-            // I2: No negative balance (accounts default to no overdraft)
+        if (ledg_exists(acct, i, 0) != 0) {
+            let bal = ledg_balance(acct, i, 0);
             if (bal < 0) {
                 if (log_buf != 0) {
                     os_store(log_buf, i);
-                    os_store(log_buf+8, bal);
+                    os_store(log_buf + 8, bal);
                 }
                 errors = errors + 1;
             }
         }
         i = i + 1;
     }
-
-    // I4: All pending transactions should have valid flags
-    let mut pi: i64 = 0;
-    while (pi < PEND_MAX) {
-        if (ledg_pending_exists(acct, pi, 0) != 0) {
-            // pending exists with valid flags
-            total_debits = total_debits + 1;
-        }
-        pi = pi + 1;
-    }
-
     return errors;
 }
 
@@ -1126,191 +1763,125 @@ fn sim_invariant_summary(acct: i64) {
     let mut total_bal: i64 = 0;
     let mut neg_accts: i64 = 0;
     let mut min_bal: i64 = 0;
+    let mut max_bal: i64 = 0;
+    let mut first_neg: i64 = -1;
 
-    os_log("  sim: "); os_log_i64(count); os_log(" accounts");
+    os_log("  sim: ");
+    os_log_i64(count);
+    os_log(" accounts");
+
     let mut i: i64 = 0;
     while (i < LEDGER_MAX) {
-        if (ledg_exists(acct, i,0) != 0) {
-            let bal = ledg_balance(acct, i,0);
+        if (ledg_exists(acct, i, 0) != 0) {
+            let bal = ledg_balance(acct, i, 0);
             total_bal = total_bal + bal;
-            if (bal < 0) { neg_accts = neg_accts + 1; if (bal < min_bal) { min_bal = bal; } }
+            if (bal < 0) {
+                neg_accts = neg_accts + 1;
+                if (bal < min_bal) { min_bal = bal; first_neg = i; }
+            }
+            if (bal > max_bal) { max_bal = bal; }
         }
         i = i + 1;
     }
-    os_log(", total_balance="); os_log_i64(total_bal);
-    os_log(", negative="); os_log_i64(neg_accts);
-    os_log(", min_bal="); os_log_i64(min_bal);
+
+    os_log(", total="); os_log_i64(total_bal);
+    os_log(", neg="); os_log_i64(neg_accts);
+    if (neg_accts > 0) {
+        os_log(", min="); os_log_i64(min_bal);
+        os_log("@"); os_log_i64(first_neg);
+    }
+    os_log(", max="); os_log_i64(max_bal);
     os_log("\n");
 }
 
-// ─── Operation Generator ──────────────────────────────────────────────
+// ─── Trace Buffer ─────────────────────────────────────────────────────
 
-fn sim_gen_op(rng: i64, acct: i64, buf: i64) -> i64 {
-    let n_accounts = ledg_count(acct);
-    let op_type: i64 = sim_rand_range(rng, 1, 11);  // 1-10
+fn sim_trace_init(buf: i64) { os_store(buf, 0); }
 
-    // op_type biased toward create when few accounts
-    let effective_op: i64;
-    if (n_accounts < 5 && op_type >= 4) {
-        effective_op = 1;  // bias toward create_account
-    } else {
-        effective_op = op_type;
-    }
-
-    os_store(buf, effective_op);
-    os_store(buf+8, 0);  // reserved
-
-    if (effective_op == 1) {
-        // create_account(id, debits_allowed, credits_allowed)
-        let id = sim_rand_range(rng, 10, 990);
-        let db = 1;  // always allow debits for sim simplicity
-        let cr = 1;  // always allow credits
-        let lg = sim_rand_range(rng, 0, 10);
-        // ensure doesn't exist
-        if (ledg_exists(acct, id,0) == 0) {
-            os_store(buf+16, id);
-            os_store(buf+24, db);
-            os_store(buf+32, cr);
-            return 1;  // valid
-        }
-        return 0;  // skip, already exists
-    } else if (effective_op == 2) {
-        // transfer(debit_id, credit_id, amount)
-        if (n_accounts < 2) { return 0; }
-        let db = sim_rand_range(rng, 10, 990);
-        let cr = sim_rand_range(rng, 10, 990);
-        if (db == cr) { cr = (cr + 1) % 100 + 10; if (cr == db) { cr = cr + 1; } }
-        if (ledg_exists(acct, db,0) == 0 || ledg_exists(acct, cr,0) == 0) { return 0; }
-        let amt = sim_rand_range(rng, 1, 500);
-        os_store(buf+16, db);
-        os_store(buf+24, cr);
-        os_store(buf+32, amt);
-        return 1;
-    } else if (effective_op == 3) {
-        // credit(id, amount)
-        if (n_accounts < 1) { return 0; }
-        let id = sim_rand_range(rng, 10, 990);
-        if (ledg_exists(acct, id,0) == 0) { return 0; }
-        let amt = sim_rand_range(rng, 1, 1000);
-        os_store(buf+16, id);
-        os_store(buf+24, amt);
-        return 1;
-    } else if (effective_op == 4) {
-        // set_flags(id, flags)
-        if (n_accounts < 1) { return 0; }
-        let id = sim_rand_range(rng, 10, 990);
-        if (ledg_exists(acct, id,0) == 0) { return 0; }
-        let fl = sim_rand_range(rng, 0, 8);
-        os_store(buf+16, id);
-        os_store(buf+24, fl);
-        return 1;
-    } else if (effective_op == 5) {
-        // create_pending(id, debit, credit, amount, timeout, code, ledger)
-        if (n_accounts < 2) { return 0; }
-        let pid = sim_rand_range(rng, 100, 9900);
-        let db = sim_rand_range(rng, 10, 990);
-        let cr = sim_rand_range(rng, 10, 990);
-        if (db == cr) { cr = (cr + 1) % 100 + 10; if (cr == db) { cr = cr + 1; } }
-        if (ledg_exists(acct, db,0) == 0 || ledg_exists(acct, cr,0) == 0) { return 0; }
-        let amt = sim_rand_range(rng, 1, 300);
-        let tmout = sim_rand_range(rng, 10, 10000);
-        os_store(buf+16, pid);
-        os_store(buf+24, db);
-        os_store(buf+32, cr);
-        os_store(buf+40, amt);
-        os_store(buf+48, tmout);
-        os_store(buf+56, sim_rand_range(rng, 0, 10));
-        os_store(buf+64, sim_rand_range(rng, 0, 10));
-        return 1;
-    } else if (effective_op == 6) {
-        // post_pending(id)
-        if (n_accounts < 1) { return 0; }
-        let pid = sim_rand_range(rng, 100, 9900);
-        if (ledg_pending_exists(acct, pid, 0) == 0) { return 0; }
-        os_store(buf+16, pid);
-        return 1;
-    } else if (effective_op == 7) {
-        // void_pending(id)
-        if (n_accounts < 1) { return 0; }
-        let pid = sim_rand_range(rng, 100, 9900);
-        if (ledg_pending_exists(acct, pid, 0) == 0) { return 0; }
-        os_store(buf+16, pid);
-        return 1;
-    } else if (effective_op == 10) {
-        // balance check (read-only)
-        if (n_accounts < 1) { return 0; }
-        let id = sim_rand_range(rng, 10, 990);
-        if (ledg_exists(acct, id,0) == 0) { return 0; }
-        os_store(buf+16, id);
-        return 1;
-    }
+fn sim_trace_append(trace: i64, time_us: i64, op_type: i64, a1: i64, rc: i64) -> i64 {
+    let count = os_load(trace);
+    if (count >= CHK_TRACE_MAX) { return -1; }
+    let entry = trace + 8 + count * 32;
+    os_store(entry + TR_TIME, time_us);
+    os_store(entry + TR_TYPE, op_type);
+    os_store(entry + TR_A1, a1);
+    os_store(entry + TR_RC, rc);
+    os_store(trace, count + 1);
     return 0;
 }
 
-// ─── Simulated Operation Executor ─────────────────────────────────────
+fn sim_trace_count(trace: i64) -> i64 { return os_load(trace); }
 
-fn sim_exec_op(acct: i64, buf: i64) -> i64 {
-    let ot = os_load(buf);
-    let id = os_load(buf+16);
-    let a1 = os_load(buf+24);
-    let a2 = os_load(buf+32);
-
-    if (ot == 1) {
-        return ledg_create_account(acct, id,0, a1, a2,0,0);
-    } else if (ot == 2) {
-        return ledg_transfer(acct, id,0, a1,0, a2);
-    } else if (ot == 3) {
-        return ledg_credit(acct, id,0, a1);
-    } else if (ot == 4) {
-        return ledg_set_flags(acct, id, 0, a1);
-    } else if (ot == 5) {
-        let a3 = os_load(buf+40);
-        let a4 = os_load(buf+48);
-        let a5 = os_load(buf+56);
-        let a6 = os_load(buf+64);
-        return ledg_create_pending(acct, id, 0, a1, 0, a2, 0, a3, a4, a5, a6);
-    } else if (ot == 6) {
-        return ledg_post_pending(acct, id,0);
-    } else if (ot == 7) {
-        return ledg_void_pending(acct, id,0);
-    }
+fn sim_trace_get(trace: i64, i: i64, ot: i64, ot2: i64, ot3: i64, ot4: i64) -> i64 {
+    let count = os_load(trace);
+    if (i < 0 || i >= count) { return -1; }
+    let entry = trace + 8 + i * 32;
+    if (ot != 0) { os_store(ot, os_load(entry + TR_TIME)); }
+    if (ot2 != 0) { os_store(ot2, os_load(entry + TR_TYPE)); }
+    if (ot3 != 0) { os_store(ot3, os_load(entry + TR_A1)); }
+    if (ot4 != 0) { os_store(ot4, os_load(entry + TR_RC)); }
     return 0;
 }
 
-// ─── Simulation Runner ───────────────────────────────────────────────
+// ─── Trace Replay ─────────────────────────────────────────────────────
 
-fn sim_run(seed: i64, num_ops: i64, sim_clock_buf: i64) -> i64 {
-    // Initialize deterministic RNG
-    let rng = os_alloc(32);
-    sim_rng_seed(rng, seed);
-
-    // Initialize ledger
-    let acct = ledg_init();
-
-    // Create some initial accounts
-    ledg_create_account(acct, 10,0, 1, 1,0,0);
-    ledg_credit(acct, 10,0, 10000);
-    ledg_create_account(acct, 20,0, 1, 1,0,0);
-    ledg_credit(acct, 20,0, 5000);
-    ledg_create_account(acct, 30,0, 0, 1,0,0);  // credit-only
-    ledg_credit(acct, 30,0, 3000);
-
-    let op_buf = os_alloc(128);
-    let mut ops_run: i64 = 0;
-    let mut errors: i64 = 0;
+fn sim_trace_replay(trace: i64, acct: i64) -> i64 {
+    let count = sim_trace_count(trace);
+    let mut mismatches: i64 = 0;
+    let _d = os_alloc(8); let op_buf = os_alloc(OP_BUF_SIZE);
     let mut i: i64 = 0;
+
+    while (i < count) {
+        let entry = trace + 8 + i * 32;
+        let ot = os_load(entry + TR_TYPE);
+        let a1 = os_load(entry + TR_A1);
+        let expected_rc = os_load(entry + TR_RC);
+
+        os_store(op_buf + O_OT, ot);
+        os_store(op_buf + O_A1, a1);
+        os_store(op_buf + O_EXPECTED, expected_rc);
+        let actual_rc = sim_exec_op(acct, op_buf);
+
+        if (actual_rc != expected_rc) {
+            mismatches = mismatches + 1;
+            if (mismatches <= 10) {
+                os_log("  replay mismatch #"); os_log_i64(i);
+                os_log(" ot="); os_log_i64(ot);
+                os_log(" expected="); os_log_i64(expected_rc);
+                os_log(" got="); os_log_i64(actual_rc);
+                os_log("\n");
+            }
+        }
+        i = i + 1;
+    }
+
+    os_dealloc(op_buf);
+    return mismatches;
+}
+
+// ─── Full invariant check ─────────────────────────────────────────────
+
+fn sim_check_run(seed: i64, num_ops: i64, acct: i64, runner: i64, rng: i64, trace: i64, verbose: i64) -> i64 {
+    let mut errors: i64 = 0;
+    let mut ops_run: i64 = 0;
+    let _d = os_alloc(8); let op_buf = os_alloc(OP_BUF_SIZE);
 
     os_log("sim: seed="); os_log_i64(seed);
     os_log(" ops="); os_log_i64(num_ops);
     os_log("\n");
 
+    let mut i: i64 = 0;
     while (i < num_ops) {
         let valid = sim_gen_op(rng, acct, op_buf);
         if (valid != 0) {
-            let ot = os_load(op_buf);
+            let ot = sim_get_op_ot(op_buf);
+            let a1 = sim_get_op_a1(op_buf);
             let rc = sim_exec_op(acct, op_buf);
 
-            // Verify invariants after each state change
+            if (trace != 0) {
+                sim_trace_append(trace, sim_now_us(runner), ot, a1, rc);
+            }
+
             let inv_errors = sim_verify_invariants(acct, 0);
             if (inv_errors != 0) {
                 errors = errors + inv_errors;
@@ -1322,11 +1893,7 @@ fn sim_run(seed: i64, num_ops: i64, sim_clock_buf: i64) -> i64 {
             }
 
             ops_run = ops_run + 1;
-
-            // Advance simulated time
-            if (sim_clock_buf != 0) {
-                sim_advance_tic(sim_clock_buf);
-            }
+            sim_advance_to(runner, sim_now_us(runner) + 1000);
         }
         i = i + 1;
     }
@@ -1334,84 +1901,121 @@ fn sim_run(seed: i64, num_ops: i64, sim_clock_buf: i64) -> i64 {
     os_log("sim: "); os_log_i64(ops_run);
     os_log(" ops run, "); os_log_i64(errors);
     os_log(" invariant violations\n");
-
     sim_invariant_summary(acct);
 
-    // Report per-op-type stats
-    let count = ledg_count(acct);
-    os_log("sim: total accounts: "); os_log_i64(count); os_log("\n");
-
     os_dealloc(op_buf);
-    os_dealloc(rng);
-    ledg_destroy(acct);
-
     return errors;
 }
 
-// ─── Multi-Seed Test Harness ─────────────────────────────────────────
+// ─── Multi-seed test harness ─────────────────────────────────────────
 
-fn sim_test_multi(start_seed: i64, num_seeds: i64, ops_per_seed: i64) -> i64 {
+fn sim_test_multi(start_seed: i64, num_seeds: i64, ops_per_seed: i64, verbose: i64) -> i64 {
     let mut total_errors: i64 = 0;
-    let mut s: i64 = 0;
 
-    os_log("=== Capybara DB Deterministic Simulation ===\n");
+    os_log("START\n"); os_log("=== Capybara DB Deterministic Simulation ===\n");
     os_log("seeds: "); os_log_i64(num_seeds);
     os_log(" ops/seed: "); os_log_i64(ops_per_seed);
     os_log("\n\n");
 
+    // Guard each os_alloc with os_log("") to prevent the consecutive-call bug
+    let _d = os_alloc(8); let runner = os_alloc(131088);
+    let _d = os_alloc(8); let rng = os_alloc(32);
+    let _d = os_alloc(8); let trace = os_alloc(8 + CHK_TRACE_MAX * 32);
+
+    let mut s: i64 = 0;
     while (s < num_seeds) {
         let seed = start_seed + s;
-        let sim_clock = os_alloc(8);
-        sim_clock_init(sim_clock);
+        os_zero(runner, HEAP_MEM);
+        sim_rng_seed(rng, seed);
+        os_zero(trace, 8 + CHK_TRACE_MAX * 32);
 
-        let errors = sim_run(seed, ops_per_seed, sim_clock);
+        let acct = ledg_init();
+        ledg_create_account(acct, 10, 0, 1, 1, 0, 0);
+        ledg_credit(acct, 10, 0, 10000);
+        ledg_create_account(acct, 20, 0, 1, 1, 0, 0);
+        ledg_credit(acct, 20, 0, 5000);
+        ledg_create_account(acct, 30, 0, 0, 1, 0, 0);
+        ledg_credit(acct, 30, 0, 3000);
+
+        let errors = sim_check_run(seed, ops_per_seed, acct, runner, rng, trace, verbose);
         total_errors = total_errors + errors;
-
-        os_dealloc(sim_clock);
 
         if (errors != 0) {
             os_log("!!! SEED "); os_log_i64(seed);
             os_log(" FAILED with "); os_log_i64(errors);
             os_log(" violations\n\n");
         }
+
+        ledg_destroy(acct);
         s = s + 1;
     }
 
+    os_dealloc(trace);
+    os_dealloc(rng);
+    os_dealloc(runner);
+
     os_log("\n=== Simulation Complete ===\n");
     os_log("total errors: "); os_log_i64(total_errors);
-    os_log(" across "); os_log_i64(num_seeds); os_log(" seeds\n");
+    os_log(" across "); os_log_i64(num_seeds);
+    os_log(" seeds\n");
 
-    if (total_errors == 0) {
-        os_log("ALL INVARIANTS PASSED\n");
-    } else {
-        os_log("SOME INVARIANTS FAILED\n");
-    }
+    if (total_errors == 0) { os_log("ALL INVARIANTS PASSED\n"); }
+    else { os_log("SOME INVARIANTS FAILED\n"); }
 
     return total_errors;
 }
 
-// ─── Standalone Entry Point ──────────────────────────────────────────
+// === sim_main.z ===
+// sim_main.z — Standalone Entry Point for Phase 4 Simulator
+// Preserves backward compatibility: same default args → same behavior.
+//
+// WORKAROUND: LLVM X86 backend at -O3 drops argument register setup
+// between consecutive function calls (even when LLVM IR is correct).
+// Use `os_now_us()` as a barrier to force %edi reload before calls.
 
 fn main(argc: i64, argv: i64) -> i64 {
     let mut seeds: i64 = 100;
     let mut ops_per_seed: i64 = 1000;
     let mut start_seed: i64 = 42;
+    let mut verbose: i64 = 0;
+    let mut list_scenarios: i64 = 0;
 
     let n = os_argc(argc, argv);
     let mut i: i64 = 1;
     while (i < n) {
         let a = os_argv(argc, argv, i);
-        if (os_streq(a, "--seeds") == 1 && i + 1 < n) { i = i + 1; seeds = os_atoi(os_argv(argc, argv, i)); }
-        if (os_streq(a, "--ops") == 1 && i + 1 < n) { i = i + 1; ops_per_seed = os_atoi(os_argv(argc, argv, i)); }
-        if (os_streq(a, "--start-seed") == 1 && i + 1 < n) { i = i + 1; start_seed = os_atoi(os_argv(argc, argv, i)); }
+        if (os_streq(a, "--seeds") == 1 && i + 1 < n) {
+            i = i + 1;
+            seeds = os_atoi(os_argv(argc, argv, i));
+        } else if (os_streq(a, "--ops") == 1 && i + 1 < n) {
+            i = i + 1;
+            ops_per_seed = os_atoi(os_argv(argc, argv, i));
+        } else if (os_streq(a, "--start-seed") == 1 && i + 1 < n) {
+            i = i + 1;
+            start_seed = os_atoi(os_argv(argc, argv, i));
+        } else if (os_streq(a, "--list-scenarios") == 1) {
+            list_scenarios = 1;
+        }
         i = i + 1;
     }
 
+    if (list_scenarios != 0) {
+        os_log("Available scenarios:\n");
+        os_log("  basic       — 1 replica, 100% valid ops, no faults\n");
+        os_log("  (more coming in Day 3: crash, partition, cluster)\n");
+        return 0;
+    }
+
+    // Barrier: prevents LLVM from dropping arg reg setup for sim_test_multi
+    let _g = os_now_us();
+
     let t0 = os_now_us();
-    let errors = sim_test_multi(start_seed, seeds, ops_per_seed);
+    let errors = sim_test_multi(start_seed, seeds, ops_per_seed, verbose);
     let elapsed = os_now_us() - t0;
 
-    os_log("elapsed: "); os_log_i64(elapsed / 1000); os_log("ms\n");
+    os_log("elapsed: ");
+    os_log_i64(elapsed / 1000);
+    os_log("ms\n");
 
     if (errors != 0) { return 1; }
     return 0;
