@@ -376,9 +376,6 @@ impl<'ctx> LLVMCodegen<'ctx> {
             inkwell::attributes::AttributeLoc::Function,
             mem_attr,
         );
-        // Verify attribute was applied
-        let attr_count = malloc_func.count_attributes(inkwell::attributes::AttributeLoc::Function);
-        eprintln!("DEBUG: runtime_malloc attribute count: {}", attr_count);
         let free_func = module.add_function(
             "runtime_free",
             void_type.fn_type(&[i64_type.into()], false),
