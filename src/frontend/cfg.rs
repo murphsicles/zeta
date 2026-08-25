@@ -75,7 +75,8 @@ fn eval_predicate(pred: &str, features: &[String]) -> bool {
 
     // `all(p1, p2, ...)`
     if pred.starts_with("all(") && pred.ends_with(')') {
-        let inner = &pred[3..pred.len() - 1];
+        // `all(` is 4 characters — strip the keyword, the open paren, and the trailing paren.
+        let inner = &pred[4..pred.len() - 1];
         return split_predicates(inner)
             .iter()
             .all(|p| eval_predicate(p, features));
@@ -153,15 +154,27 @@ mod tests {
     #[test]
     fn test_any() {
         let features = vec!["xxh64".to_string()];
-        assert!(eval_predicate(r#"any(feature = "xxh64", feature = "xxh3")"#, &features));
-        assert!(!eval_predicate(r#"any(feature = "xxh3", feature = "xxh32")"#, &features));
+        assert!(eval_predicate(
+            r#"any(feature = "xxh64", feature = "xxh3")"#,
+            &features
+        ));
+        assert!(!eval_predicate(
+            r#"any(feature = "xxh3", feature = "xxh32")"#,
+            &features
+        ));
     }
 
     #[test]
     fn test_all() {
         let features = vec!["a".to_string(), "b".to_string()];
-        assert!(eval_predicate(r#"all(feature = "a", feature = "b")"#, &features));
-        assert!(!eval_predicate(r#"all(feature = "a", feature = "c")"#, &features));
+        assert!(eval_predicate(
+            r#"all(feature = "a", feature = "b")"#,
+            &features
+        ));
+        assert!(!eval_predicate(
+            r#"all(feature = "a", feature = "c")"#,
+            &features
+        ));
     }
 
     #[test]

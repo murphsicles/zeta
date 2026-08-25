@@ -333,24 +333,3 @@ pub unsafe extern "C" fn scheduler_run_reactor(epfd: i64, timeout_ms: i64) -> i6
     }
     count
 }
-
-// ── Helpers ──
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn set_nonblocking(fd: i64) -> i64 {
-    let flags = libc::fcntl(fd as i32, libc::F_GETFL, 0);
-    if flags < 0 {
-        return -1;
-    }
-    libc::fcntl(fd as i32, libc::F_SETFL, flags | libc::O_NONBLOCK) as i64
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn monotonic_ns() -> i64 {
-    let mut ts: libc::timespec = std::mem::zeroed();
-    if libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut ts) == 0 {
-        ts.tv_sec * 1_000_000_000 + ts.tv_nsec
-    } else {
-        -1
-    }
-}
