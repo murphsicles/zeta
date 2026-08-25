@@ -250,12 +250,41 @@ impl Resolver {
                         }
                     }
                     Err(e) => {
-                        crate::diag_warning!(
-                            "W2002",
-                            "Failed to process use statement {}: {}",
-                            path.join("::"),
-                            e
-                        );
+                        // File resolution failed. The path may refer to an item in
+                        // an inline module of THIS file (mod math { ... } +
+                        // use math::add;) — process_use_statement only handles
+                        // file-backed modules. The ModDef arm above already
+                        // registered the item under its qualified name; alias it
+                        // under the plain import name (the same treatment file
+                        // imports get). Without this, unqualified calls resolve to
+                        // an unmapped extern declaration and crash at runtime.
+                        //
+                        // Caveat: single-pass registration, so this only aliases
+                        // when the `mod` appears before the `use` in the file.
+                        let aliased = match path.as_slice() {
+                            [module, item] if !self.registered_funcs.contains_key(item) => {
+                                let qualified = format!("{}::{}", module, item);
+                                match self.registered_funcs.get(&qualified).cloned() {
+                                    Some(mut ast @ AstNode::FuncDef { .. }) => {
+                                        if let AstNode::FuncDef { name, .. } = &mut ast {
+                                            *name = item.clone();
+                                        }
+                                        self.register(ast);
+                                        true
+                                    }
+                                    _ => false,
+                                }
+                            }
+                            _ => false,
+                        };
+                        if !aliased {
+                            crate::diag_warning!(
+                                "W2002",
+                                "Failed to process use statement {}: {}",
+                                path.join("::"),
+                                e
+                            );
+                        }
                     }
                 }
             }

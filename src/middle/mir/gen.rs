@@ -161,13 +161,11 @@ impl MirGen {
             },
             // Count params for potential name mangling (used by get_or_declare_function)
             param_indices: match ast {
-                AstNode::FuncDef { params, .. } | AstNode::ExternFunc { params, .. } => {
-                    params
-                        .iter()
-                        .enumerate()
-                        .map(|(i, (n, _))| (n.clone(), i as u32))
-                        .collect()
-                }
+                AstNode::FuncDef { params, .. } | AstNode::ExternFunc { params, .. } => params
+                    .iter()
+                    .enumerate()
+                    .map(|(i, (n, _))| (n.clone(), i as u32))
+                    .collect(),
                 _ => vec![],
             },
             properties: if let AstNode::FuncDef { attrs, .. } = ast {
@@ -1189,8 +1187,7 @@ impl MirGen {
                             return id;
                         }
                         crate::middle::ctfe::value::ConstValue::String(s) => {
-                            self.exprs
-                                .insert(id, MirExpr::StringLit(s.clone()));
+                            self.exprs.insert(id, MirExpr::StringLit(s.clone()));
                             self.type_map.insert(id, Type::Str);
                             return id;
                         }
@@ -1552,7 +1549,7 @@ impl MirGen {
                 }
 
                 // SPECIAL HANDLING: syscall() — emits raw Linux syscall via inline asm
-                if method == "syscall" && receiver.is_none() && args.len() >= 1 {
+                if method == "syscall" && receiver.is_none() && !args.is_empty() {
                     let num_id = self.lower_expr(&args[0]);
                     let mut arg_ids = Vec::new();
                     for i in 1..args.len() {
@@ -1818,14 +1815,23 @@ impl MirGen {
                     arg_ids.push(self.lower_expr(a));
                 }
 
-                // Check if this is a method call on a dynamic array
+                // Check if this is a method call on an array-like type
                 let (func, is_array_len, is_array_push) = if let Some(ref rty) = receiver_ty {
-                    // Check if receiver is a dynamic array type
-                    if let Type::DynamicArray(_) = rty {
+                    // All array-like receivers ([T; N], [T], [dynamic]T) lower to the
+                    // runtime array_* helpers — the receiver is just a data pointer.
+                    // Without this, e.g. bits.append(1) on a [u8] binding falls through
+                    // to a bare `append` extern that the JIT cannot resolve (NULL crash).
+                    let is_array_like = matches!(
+                        rty,
+                        Type::Array(_, _) | Type::Slice(_) | Type::DynamicArray(_)
+                    );
+                    if is_array_like {
                         // Map array methods to runtime functions
                         match method.as_str() {
-                            "push" => ("array_push".to_string(), false, true),
-                            "len" => ("array_len".to_string(), true, false),
+                            "push" | "append" => ("array_push".to_string(), false, true),
+                            "len" | "length" | "count" => ("array_len".to_string(), true, false),
+                            "get" => ("array_get".to_string(), false, false),
+                            "set" => ("array_set".to_string(), false, false),
                             _ => {
                                 // For other methods, use qualified name: Type::method
                                 let rty_name = rty.display_name();

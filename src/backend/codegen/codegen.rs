@@ -372,20 +372,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
             Some(Linkage::External),
         );
         let mem_attr = context.create_string_attribute("memory", "unknown");
-        malloc_func.add_attribute(
-            inkwell::attributes::AttributeLoc::Function,
-            mem_attr,
-        );
+        malloc_func.add_attribute(inkwell::attributes::AttributeLoc::Function, mem_attr);
         let free_func = module.add_function(
             "runtime_free",
             void_type.fn_type(&[i64_type.into()], false),
             Some(Linkage::External),
         );
         let mem_attr2 = context.create_string_attribute("memory", "unknown");
-        free_func.add_attribute(
-            inkwell::attributes::AttributeLoc::Function,
-            mem_attr2,
-        );
+        free_func.add_attribute(inkwell::attributes::AttributeLoc::Function, mem_attr2);
         module.add_function(
             "runtime_calloc",
             i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
@@ -397,9 +391,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
             Some(Linkage::External),
         );
         // Array functions
+        // NOTE: signatures must match the runtime impls in src/runtime/array.rs
+        // exactly (array_new takes ONE capacity arg). A mismatched re-declaration
+        // makes LLVM create a numbered duplicate (array_new.10) that call sites
+        // bind to and that the JIT mapping table cannot resolve (NULL -> segfault).
+        // Declare each runtime symbol exactly once.
         module.add_function(
             "array_new",
-            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
+            i64_type.fn_type(&[i64_type.into()], false),
             Some(Linkage::External),
         );
         module.add_function(
@@ -434,7 +433,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         );
         module.add_function(
             "array_push",
-            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
+            void_type.fn_type(&[i64_type.into(), i64_type.into()], false),
             Some(Linkage::External),
         );
         module.add_function(
@@ -657,58 +656,11 @@ impl<'ctx> LLVMCodegen<'ctx> {
             );
         }
 
-        // Array runtime functions
-        // Note: array_new already declared above (line 312)
-        // module.add_function(
-        //     "array_new",
-        //     i64_type.fn_type(&[i64_type.into()], false),
-        //     Some(Linkage::External),
-        // );
-        module.add_function(
-            "array_push",
-            void_type.fn_type(&[i64_type.into(), i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        module.add_function(
-            "array_len",
-            i64_type.fn_type(&[i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        let array_get_fn2 = module.add_function(
-            "array_get",
-            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        #[cfg(target_os = "windows")]
-        {
-            // Note: Calling convention setting disabled - can't find correct API in inkwell 0.8.0
-            // array_get_fn2.set_call_conventions(...);
-        }
-        module.add_function(
-            "stack_array_get",
-            i64_type.fn_type(&[i64_type.into(), i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        module.add_function(
-            "array_set",
-            void_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        module.add_function(
-            "stack_array_set",
-            void_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        module.add_function(
-            "array_free",
-            void_type.fn_type(&[i64_type.into()], false),
-            Some(Linkage::External),
-        );
-        module.add_function(
-            "array_set_len",
-            void_type.fn_type(&[i64_type.into(), i64_type.into()], false),
-            Some(Linkage::External),
-        );
+        // Array runtime functions (array_new/push/len/get/set/free/set_len, stack_*)
+        // are all declared once in the block above — do NOT re-declare them here:
+        // LLVM uniquing turns same-name re-declarations into numbered duplicates
+        // (array_push.1, ...), which call sites can bind to and which the JIT
+        // mapping table cannot resolve (NULL -> segfault).
         module.add_function(
             "scheduler::init_runtime",
             void_type.fn_type(&[], false),
@@ -755,14 +707,9 @@ impl<'ctx> LLVMCodegen<'ctx> {
         // === PRINTLN SUPPORT (the fix) ===
         let printf_type = context.i32_type().fn_type(&[ptr_type.into()], true); // variadic
         module.add_function("printf", printf_type, Some(Linkage::External));
-        // println is NOT declared here — the println! macro goes to
-        // println_i64, and user-declared extern fn println(msg: i64) provides
-        // its own declaration.
-        module.add_function(
-            "println_i64",
-            i64_type.fn_type(&[i64_type.into()], false), // takes i64, returns void
-            Some(Linkage::External),
-        );
+        // println_i64 is declared once above (void return, matching the runtime).
+        // Do NOT re-declare it: a second declaration creates a numbered duplicate
+        // (println_i64.N) that the JIT cannot map.
 
         // Zeta runtime functions (temporary bridge)
         module.add_function(
@@ -1416,7 +1363,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     self.collect_ids_from_expr_safe(e, ids, exprs);
                 }
             }
-            MirExpr::ConstEval(_) | MirExpr::StringLit(_) | MirExpr::Lit(_) | MirExpr::Syscall(_, _) => {
+            MirExpr::ConstEval(_)
+            | MirExpr::StringLit(_)
+            | MirExpr::Lit(_)
+            | MirExpr::Syscall(_, _) => {
                 // No IDs to collect
             }
         }
@@ -1801,6 +1751,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
             if let Some(f) = self.module.get_function(&host_name) {
                 return f;
             }
+            // Overload-suffixed name (e.g. str_trim_1): retry with the suffix
+            // stripped, else the call falls through to a fresh unmapped extern.
+            if let Some(stripped) = Self::host_candidate_for(name) {
+                if let Some(f) = self.module.get_function(&stripped) {
+                    return f;
+                }
+            }
         }
 
         // Check if it's an external function declared in the module
@@ -1901,6 +1858,25 @@ impl<'ctx> LLVMCodegen<'ctx> {
         f
     }
 
+    /// Map a runtime method name (possibly with a trailing `_N` overload suffix,
+    /// possibly a mangled `{method}_{type_suffix}` form) to its `host_*` std
+    /// counterpart: `str_trim` → `host_str_trim`, `str_trim_1` → `host_str_trim`,
+    /// `len_str_2` → `host_str_len`. Returns None for non-string runtime names.
+    fn host_candidate_for(name: &str) -> Option<String> {
+        // Strip a trailing _N overload suffix before mapping so suffixed calls
+        // (str_trim_1) resolve to the host symbol instead of a junk name.
+        let base = name
+            .rsplit_once('_')
+            .filter(|(_, s)| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()))
+            .map(|(p, _)| p)
+            .unwrap_or(name);
+        if base.starts_with("str_") {
+            Some(format!("host_{base}"))
+        } else {
+            Self::resolve_string_method(base).map(|resolved| format!("host_{resolved}"))
+        }
+    }
+
     /// Map method call mangled names (e.g. `len_str`) back to runtime function names (`str_len`).
     /// Method calls on strings produce "{method}_{type_suffix}" via MonoKey::mangle.
     fn resolve_string_method(name: &str) -> Option<String> {
@@ -1947,13 +1923,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
         // Try existing lookup first — check mangled name (:: → __) BEFORE raw name.
         // gen_mirs stores functions with __, call sites reference with ::.
         // Also handle str_* → host_str_* mapping (string runtime functions).
-        let host_mapped_name = if name.starts_with("str_") {
-            format!("host_{}", name)
-        } else if let Some(resolved) = Self::resolve_string_method(name) {
-            format!("host_{}", resolved)
-        } else {
-            String::new()
-        };
+        let host_mapped_name = Self::host_candidate_for(name).unwrap_or_default();
 
         if type_args.is_empty() {
             // Check mangled name first (AstNode::Lit → AstNode__Lit)
@@ -3222,14 +3192,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                         while all_args.len() < 7 {
                             all_args.push(self.i64_type.const_zero().into());
                         }
-                        let fn_type = self.i64_type.fn_type(
-                            &[self.i64_type.into(); 7],
-                            false,
-                        );
-                        let callee = self.module.add_function(
-                            "zenith_syscall", fn_type, None,
-                        );
-                        let call = self.builder
+                        let fn_type = self.i64_type.fn_type(&[self.i64_type.into(); 7], false);
+                        let callee = self.module.add_function("zenith_syscall", fn_type, None);
+                        let call = self
+                            .builder
                             .build_call(callee, &all_args, "syscall")
                             .unwrap();
                         let basic_val = Self::call_site_to_basic_value(call)
@@ -3264,7 +3230,10 @@ impl<'ctx> LLVMCodegen<'ctx> {
                             .builder
                             .build_int_to_ptr(addr, self.ptr_type, "load_ptr")
                             .unwrap();
-                        let val = self.builder.build_load(self.i64_type, ptr, "loaded").unwrap();
+                        let val = self
+                            .builder
+                            .build_load(self.i64_type, ptr, "loaded")
+                            .unwrap();
                         let alloca = *self.locals.get(dest).unwrap();
                         self.builder.build_store(alloca, val).unwrap();
                         return;
@@ -3357,12 +3326,12 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     while all_args.len() < 7 {
                         all_args.push(self.i64_type.const_zero().into());
                     }
-                    let fn_type = self.i64_type.fn_type(
-                        &[self.i64_type.into(); 7],
-                        false,
-                    );
+                    let fn_type = self.i64_type.fn_type(&[self.i64_type.into(); 7], false);
                     let callee = self.module.add_function("zenith_syscall", fn_type, None);
-                    let _ = self.builder.build_call(callee, &all_args, "syscall").unwrap();
+                    let _ = self
+                        .builder
+                        .build_call(callee, &all_args, "syscall")
+                        .unwrap();
                     return;
                 }
 
@@ -4139,9 +4108,16 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 // *addr = val — store val through the pointer
                 let addr_i64 = self.gen_expr_safe(addr_id, exprs).into_int_value();
                 let val = self.gen_expr_safe(val_id, exprs);
-                let pointee_llvm_type = self
-                    .context
-                    .custom_width_int_type((*pointee_width as u32) * 8);
+                // inkwell 0.9: custom_width_int_type takes NonZero<u32> and returns a
+                // Result. A zero pointee width falls back to i8.
+                let pointee_llvm_type =
+                    match std::num::NonZero::new((*pointee_width as u32).saturating_mul(8)) {
+                        Some(bits) => self
+                            .context
+                            .custom_width_int_type(bits)
+                            .expect("invalid pointee width in Store"),
+                        None => self.context.i8_type(),
+                    };
                 let pointed_ptr_type: inkwell::types::PointerType =
                     self.context.ptr_type(inkwell::AddressSpace::default());
                 let ptr = self
@@ -4167,18 +4143,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 dest,
             } => {
                 // Allocate struct on HEAP to prevent dangling pointers
-                let total_bytes = self.i64_type.const_int(
-                    (fields.len() as u64) * 8,
-                    false,
-                );
+                let total_bytes = self.i64_type.const_int((fields.len() as u64) * 8, false);
                 let malloc_fn = self
                     .module
                     .get_function("runtime_malloc")
                     .unwrap_or_else(|| {
-                        let fn_type =
-                            self.i64_type.fn_type(&[self.i64_type.into()], false);
-                        self.module
-                            .add_function("runtime_malloc", fn_type, None)
+                        let fn_type = self.i64_type.fn_type(&[self.i64_type.into()], false);
+                        self.module.add_function("runtime_malloc", fn_type, None)
                     });
                 let heap_ptr = self
                     .builder
@@ -4196,25 +4167,20 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .unwrap();
                 for (i, (field_name, field_id)) in fields.iter().enumerate() {
                     let field_ptr = unsafe {
-                        self
-                        .builder
-                        .build_gep(
-                            self.i64_type,
-                            struct_base,
-                            &[self.i64_type.const_int(i as u64, false)],
-                            "field_ptr",
-                        )
-                        .unwrap()
+                        self.builder
+                            .build_gep(
+                                self.i64_type,
+                                struct_base,
+                                &[self.i64_type.const_int(i as u64, false)],
+                                "field_ptr",
+                            )
+                            .unwrap()
                     };
-                    let field_val = self
-                        .gen_expr_safe(field_id, exprs)
-                        .into_int_value();
+                    let field_val = self.gen_expr_safe(field_id, exprs).into_int_value();
                     self.builder.build_store(field_ptr, field_val).unwrap();
                 }
                 let dest_alloca = *self.locals.get(dest).unwrap();
-                self.builder
-                    .build_store(dest_alloca, heap_ptr_val)
-                    .unwrap();
+                self.builder.build_store(dest_alloca, heap_ptr_val).unwrap();
             }
             _ => {}
         }
@@ -4364,25 +4330,29 @@ impl<'ctx> LLVMCodegen<'ctx> {
                 let num_val = self.gen_expr(&exprs[num_id], exprs, None).into_int_value();
                 let mut all_args: Vec<BasicMetadataValueEnum> = vec![num_val.into()];
                 for arg_id in arg_ids {
-                    let val = self.gen_expr(exprs.get(arg_id).unwrap(), exprs, None).into_int_value();
+                    let val = self
+                        .gen_expr(exprs.get(arg_id).unwrap(), exprs, None)
+                        .into_int_value();
                     all_args.push(val.into());
-                    if all_args.len() >= 7 { break; } // 7 = number + 6 args
+                    if all_args.len() >= 7 {
+                        break;
+                    } // 7 = number + 6 args
                 }
                 // Pad to 7 args (number + 6 zero args for unused)
                 while all_args.len() < 7 {
                     all_args.push(self.i64_type.const_zero().into());
                 }
-                
+
                 // Find or declare the C syscall wrapper (use get_function to avoid duplicate .N suffixes)
-                let fn_type = self.i64_type.fn_type(
-                    &[self.i64_type.into(); 7],
-                    false,
-                );
+                let fn_type = self.i64_type.fn_type(&[self.i64_type.into(); 7], false);
                 let callee = match self.module.get_function("zenith_syscall") {
                     Some(f) => f,
                     None => self.module.add_function("zenith_syscall", fn_type, None),
                 };
-                let call = self.builder.build_call(callee, &all_args, "syscall").unwrap();
+                let call = self
+                    .builder
+                    .build_call(callee, &all_args, "syscall")
+                    .unwrap();
                 // CallSiteValue -> BasicValueEnum via try_as_basic_value()
                 match call.try_as_basic_value() {
                     inkwell::values::ValueKind::Basic(val) => val,
@@ -4551,10 +4521,7 @@ impl<'ctx> LLVMCodegen<'ctx> {
                                 "right_bool",
                             )
                             .unwrap();
-                        let bool_or = self
-                            .builder
-                            .build_or(left_bool, right_bool, "or")
-                            .unwrap();
+                        let bool_or = self.builder.build_or(left_bool, right_bool, "or").unwrap();
                         self.builder
                             .build_int_z_extend(bool_or, self.i64_type, "or_ext")
                             .unwrap()
@@ -4567,18 +4534,13 @@ impl<'ctx> LLVMCodegen<'ctx> {
             }
             MirExpr::Struct { variant, fields } => {
                 // Allocate struct on HEAP to prevent dangling pointers
-                let total_bytes = self.i64_type.const_int(
-                    (fields.len() as u64) * 8,
-                    false,
-                );
+                let total_bytes = self.i64_type.const_int((fields.len() as u64) * 8, false);
                 let malloc_fn = self
                     .module
                     .get_function("runtime_malloc")
                     .unwrap_or_else(|| {
-                        let fn_type =
-                            self.i64_type.fn_type(&[self.i64_type.into()], false);
-                        self.module
-                            .add_function("runtime_malloc", fn_type, None)
+                        let fn_type = self.i64_type.fn_type(&[self.i64_type.into()], false);
+                        self.module.add_function("runtime_malloc", fn_type, None)
                     });
                 let heap_ptr = self
                     .builder
@@ -4596,15 +4558,14 @@ impl<'ctx> LLVMCodegen<'ctx> {
                     .unwrap();
                 for (i, (field_name, field_id)) in fields.iter().enumerate() {
                     let field_ptr = unsafe {
-                        self
-                        .builder
-                        .build_gep(
-                            self.i64_type,
-                            struct_base,
-                            &[self.i64_type.const_int(i as u64, false)],
-                            "field_ptr",
-                        )
-                        .unwrap()
+                        self.builder
+                            .build_gep(
+                                self.i64_type,
+                                struct_base,
+                                &[self.i64_type.const_int(i as u64, false)],
+                                "field_ptr",
+                            )
+                            .unwrap()
                     };
                     let field_val = self
                         .gen_expr(&exprs[field_id], exprs, None)
@@ -4878,9 +4839,16 @@ impl<'ctx> LLVMCodegen<'ctx> {
             } => {
                 // *ptr — load through pointer with given element width
                 let ptr_as_i64 = self.gen_expr_safe(addr_id, exprs).into_int_value();
-                let pointee_llvm_type = self
-                    .context
-                    .custom_width_int_type((*pointee_width as u32) * 8);
+                // inkwell 0.9: custom_width_int_type takes NonZero<u32> and returns a
+                // Result. A zero pointee width falls back to i8.
+                let pointee_llvm_type =
+                    match std::num::NonZero::new((*pointee_width as u32).saturating_mul(8)) {
+                        Some(bits) => self
+                            .context
+                            .custom_width_int_type(bits)
+                            .expect("invalid pointee width in Deref"),
+                        None => self.context.i8_type(),
+                    };
                 let pointed_ptr_type = self.context.ptr_type(inkwell::AddressSpace::default());
                 let ptr = self
                     .builder

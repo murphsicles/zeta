@@ -63,20 +63,12 @@ unsafe fn check_canary(header: *const ArrayHeader) -> bool {
 ///
 /// # Safety
 /// Returns a pointer to data (after ArrayHeader), not to header
-#[allow(unreachable_code)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn array_new(capacity: usize) -> i64 {
-    // Just return a constant, no function calls
-    return 0x0BADF00D;
-
     // Calculate total size: header + data
     let elem_size = std::mem::size_of::<i64>();
     let data_size = capacity * elem_size;
     let total_size = ARRAY_HEADER_SIZE + data_size;
-    println!(
-        "[ARRAY_NEW] elem_size = {}, data_size = {}, total_size = {}",
-        elem_size, data_size, total_size
-    );
 
     // Allocate single contiguous block for header + data
     let align = std::cmp::max(
@@ -106,10 +98,6 @@ pub unsafe extern "C" fn array_new(capacity: usize) -> i64 {
 
     // Get data pointer (after header)
     let data_ptr = unsafe { get_data(header_ptr) };
-    println!(
-        "[ARRAY_NEW] header_ptr = {:?}, data_ptr = {:?}",
-        header_ptr, data_ptr
-    );
 
     // Initialize data with sanitization pattern (0xCD for uninitialized)
     unsafe {
