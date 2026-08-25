@@ -244,7 +244,7 @@ impl ModuleResolver {
             // Look for the package in the packages directory
             // Structure: packages/@scope/name/src/mod.z
             let pkg_path = PathBuf::from("packages").join(scoped_name).join("src");
-            
+
             // Try as a module path (e.g., use @io/uring::Ring -> packages/@io/uring/src/mod.z)
             let mut mod_z = pkg_path.clone();
             mod_z.push("mod.z");
@@ -252,7 +252,7 @@ impl ModuleResolver {
                 return Ok(mod_z);
             }
 
-            // Try as fully-qualified package path (e.g., use @io/uring::sqe::write -> packages/@io/uring/src/sqe.z)  
+            // Try as fully-qualified package path (e.g., use @io/uring::sqe::write -> packages/@io/uring/src/sqe.z)
             if path.len() > 2 {
                 let mut sub_path = pkg_path.clone();
                 for comp in &path[1..path.len() - 1] {
@@ -275,7 +275,7 @@ impl ModuleResolver {
 
             // Check the zorb package cache (~/.cache/zorb/packages/@scope/name/...)
             let home = std::env::var("HOME").unwrap_or_else(|_| "/home/zeta".to_string());
-            let mut cache_path = PathBuf::from(&home)
+            let cache_path = PathBuf::from(&home)
                 .join(".cache/zorb/packages")
                 .join(scoped_name)
                 .join("src");
@@ -713,7 +713,6 @@ impl ModuleResolver {
             params: vec![("size".to_string(), "i64".to_string())],
             ret: "i64".to_string(),
             where_clauses: vec![],
-
         };
         asts.push(malloc_func.clone());
         exports.insert("malloc".to_string(), malloc_func);
@@ -726,7 +725,6 @@ impl ModuleResolver {
             params: vec![("ptr".to_string(), "i64".to_string())],
             ret: "()".to_string(),
             where_clauses: vec![],
-
         };
         asts.push(free_func.clone());
         exports.insert("free".to_string(), free_func);
@@ -739,7 +737,6 @@ impl ModuleResolver {
             params: vec![("msg".to_string(), "i64".to_string())],
             ret: "()".to_string(),
             where_clauses: vec![],
-
         };
         asts.push(print_func.clone());
         exports.insert("print".to_string(), print_func);
@@ -752,7 +749,6 @@ impl ModuleResolver {
             params: vec![("msg".to_string(), "i64".to_string())],
             ret: "()".to_string(),
             where_clauses: vec![],
-
         };
         asts.push(println_func.clone());
         exports.insert("println".to_string(), println_func);

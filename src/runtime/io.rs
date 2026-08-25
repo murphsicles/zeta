@@ -116,3 +116,26 @@ pub unsafe extern "C" fn println_str(ptr: i64) {
 pub unsafe extern "C" fn flush() {
     let _ = io::stdout().flush();
 }
+
+// ── Portable fd/clock helpers (moved out of reactor.rs: no epoll dependency) ──
+
+/// Set O_NONBLOCK on a file descriptor. Portable (fcntl on Linux and macOS).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn set_nonblocking(fd: i64) -> i64 {
+    let flags = libc::fcntl(fd as i32, libc::F_GETFL, 0);
+    if flags < 0 {
+        return -1;
+    }
+    libc::fcntl(fd as i32, libc::F_SETFL, flags | libc::O_NONBLOCK) as i64
+}
+
+/// Monotonic clock in nanoseconds. Portable (CLOCK_MONOTONIC on all unix hosts).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn monotonic_ns() -> i64 {
+    let mut ts: libc::timespec = std::mem::zeroed();
+    if libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut ts) == 0 {
+        ts.tv_sec * 1_000_000_000 + ts.tv_nsec
+    } else {
+        -1
+    }
+}
